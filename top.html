@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>シェアワーカーアプリ - トップページ</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+            background-color: #ffffff;
+            min-height: 100vh;
+            padding-bottom: 80px;
+        }
+
+        /* ヘッダー */
+        .header {
+            background-color: #ffffff;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .header-top {
+            padding: 8px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-top span {
+            font-size: 14px;
+        }
+
+        /* タブ */
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 12px;
+            text-align: center;
+            font-size: 14px;
+            color: #6b7280;
+            background: none;
+            border: none;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .tab.active {
+            color: #66cc99;
+        }
+
+        .tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background-color: #66cc99;
+        }
+
+        /* フィルターエリア */
+        .filter-area {
+            padding: 12px 16px;
+        }
+
+        .filter-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .filter-btn {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 14px;
+            background: none;
+            border: none;
+            cursor: pointer;
+        }
+
+        /* 日付スライダー */
+        .date-slider {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding-bottom: 8px;
+            scrollbar-width: none;
+        }
+
+        .date-slider::-webkit-scrollbar {
+            display: none;
+        }
+
+        .date-item {
+            flex-shrink: 0;
+            width: 64px;
+            padding: 8px;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            background-color: #f3f4f6;
+            border: 2px solid transparent;
+        }
+
+        .date-item.today {
+            background-color: #66cc99;
+            color: white;
+        }
+
+        .date-item.selected {
+            background-color: #e6f7f0;
+            border-color: #66cc99;
+        }
+
+        .date-main {
+            font-size: 14px;
+        }
+
+        .date-sub {
+            font-size: 12px;
+            color: #6b7280;
+        }
+
+        /* 求人リスト */
+        .job-list {
+            padding: 16px;
+        }
+
+        .job-card {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 16px;
+            cursor: pointer;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            transition: box-shadow 0.2s;
+        }
+
+        .job-card:hover {
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .job-image {
+            position: relative;
+            width: 100%;
+            height: 128px;
+        }
+
+        .job-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .job-tags {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            display: flex;
+            gap: 4px;
+        }
+
+        .tag {
+            background-color: #66cc99;
+            color: white;
+            font-size: 12px;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .bookmark {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .job-content {
+            padding: 12px;
+        }
+
+        .facility-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .facility-name {
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .rating {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 12px;
+        }
+
+        .job-title {
+            font-size: 14px;
+            margin-bottom: 8px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .job-details {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+
+        .job-time {
+            font-size: 14px;
+            color: #6b7280;
+        }
+
+        .job-wage {
+            text-align: right;
+        }
+
+        .wage-main {
+            color: #ef4444;
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+        .wage-sub {
+            color: #6b7280;
+            font-size: 12px;
+        }
+
+        .deadline {
+            display: inline-block;
+            background-color: #ef4444;
+            color: white;
+            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            float: right;
+        }
+
+        .job-address {
+            font-size: 12px;
+            color: #6b7280;
+            margin-bottom: 4px;
+        }
+
+        /* 下部ナビゲーション */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: #ffffff;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-around;
+            padding: 8px 0;
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            color: #9ca3af;
+            text-decoration: none;
+            font-size: 12px;
+        }
+
+        .nav-item.active {
+            color: #66cc99;
+        }
+
+        .nav-icon {
+            width: 24px;
+            height: 24px;
+        }
+
+        .badge {
+            position: absolute;
+            top: 0;
+            right: 8px;
+            background-color: #ef4444;
+            color: white;
+            font-size: 10px;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .sort-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 4px;
+            background-color: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            min-width: 120px;
+            z-index: 10;
+        }
+
+        .sort-menu.show {
+            display: block;
+        }
+
+        .sort-option {
+            display: block;
+            width: 100%;
+            padding: 8px 16px;
+            font-size: 14px;
+            text-align: left;
+            background: none;
+            border: none;
+            cursor: pointer;
+        }
+
+        .sort-option:hover {
+            background-color: #f9fafb;
+        }
+
+        .sort-option.active {
+            color: #66cc99;
+        }
+    </style>
+</head>
+<body>
+    <!-- ヘッダー -->
+    <div class="header">
+        <div class="header-top">
+            <span>10:17</span>
+            <span>5G</span>
+        </div>
+
+        <!-- タブ -->
+        <div class="tabs">
+            <button class="tab active">全体</button>
+            <button class="tab">限定</button>
+            <button class="tab">指名</button>
+        </div>
+
+        <!-- フィルターエリア -->
+        <div class="filter-area">
+            <div class="filter-row">
+                <button class="filter-btn">
+                    <span>📅</span>
+                    <span>働ける日</span>
+                </button>
+                <div style="display: flex; gap: 16px; align-items: center;">
+                    <button class="filter-btn">
+                        <span>🔍</span>
+                        <span>絞り込み</span>
+                    </button>
+                    <div style="position: relative;">
+                        <button class="filter-btn" id="sortBtn">
+                            <span>🔍</span>
+                            <span>並び順</span>
+                            <span>▼</span>
+                        </button>
+                        <div class="sort-menu" id="sortMenu">
+                            <button class="sort-option active" onclick="setSortOrder('distance')">近い順</button>
+                            <button class="sort-option" onclick="setSortOrder('wage')">時給順</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 日付スライダー -->
+            <div class="date-slider">
+                <div class="date-item today">
+                    <div class="date-main">今日</div>
+                </div>
+                <div class="date-item selected">
+                    <div class="date-main">11/16</div>
+                    <div class="date-sub">土</div>
+                </div>
+                <div class="date-item">
+                    <div class="date-main">11/17</div>
+                    <div class="date-sub">日</div>
+                </div>
+                <div class="date-item">
+                    <div class="date-main">11/18</div>
+                    <div class="date-sub">月</div>
+                </div>
+                <div class="date-item">
+                    <div class="date-main">11/19</div>
+                    <div class="date-sub">火</div>
+                </div>
+                <div class="date-item">
+                    <div class="date-main">11/20</div>
+                    <div class="date-sub">水</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 求人リスト -->
+    <div class="job-list">
+        <!-- 求人カード1 -->
+        <div class="job-card" onclick="location.href='job-detail.html?id=1'">
+            <div class="job-image">
+                <img src="img/placeholder.svg" alt="施設画像">
+                <div class="job-tags">
+                    <span class="tag">デイサービス</span>
+                    <span class="tag">介護</span>
+                </div>
+                <svg class="bookmark" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+                </svg>
+            </div>
+            <div class="job-content">
+                <div class="facility-info">
+                    <span class="facility-name">ビーナスプラスト井草</span>
+                    <div class="rating">
+                        <span style="color: #fbbf24;">★</span>
+                        <span>4.9点</span>
+                        <span style="color: #6b7280;">(330件)</span>
+                    </div>
+                </div>
+                <h3 class="job-title">【駅徒歩9分!】★カイテク初心者・デイサービス経験者歓迎</h3>
+                <div class="job-details">
+                    <span class="job-time">09:00-16:30</span>
+                    <div class="job-wage">
+                        <span class="wage-main">9,250円</span>
+                        <span class="wage-sub">(時給1,300円)</span>
+                    </div>
+                </div>
+                <div style="clear: both;">
+                    <span class="deadline">締切まで22:42:22</span>
+                </div>
+                <div class="job-address">東京都杉並区井草3-23-1F</div>
+                <div class="job-address">西武新宿線「下井草駅」より徒歩9分</div>
+            </div>
+        </div>
+
+        <!-- 求人カード2 -->
+        <div class="job-card" onclick="location.href='job-detail.html?id=2'">
+            <div class="job-image">
+                <img src="img/placeholder.svg" alt="施設画像">
+                <div class="job-tags">
+                    <span class="tag">訪問介護</span>
+                    <span class="tag">介護</span>
+                </div>
+                <svg class="bookmark" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+                </svg>
+            </div>
+            <div class="job-content">
+                <div class="facility-info">
+                    <span class="facility-name">ヒューマンライフケア上石神井の輪</span>
+                    <div class="rating">
+                        <span style="color: #fbbf24;">★</span>
+                        <span>5.0点</span>
+                        <span style="color: #6b7280;">(16件)</span>
+                    </div>
+                </div>
+                <h3 class="job-title">会社説明会｜選べる働き方（正社員 or パート週3回～）｜施設応募で勤務した...</h3>
+                <div class="job-details">
+                    <span class="job-time">10:30-11:30</span>
+                    <div class="job-wage">
+                        <span class="wage-main">2,026円</span>
+                        <span class="wage-sub">(時給1,226円)</span>
+                    </div>
+                </div>
+                <div style="clear: both;">
+                    <span class="deadline">締切まで22:12:22</span>
+                </div>
+                <div class="job-address">東京都練馬区上石神井1丁目40-10</div>
+                <div class="job-address">西武新宿線「上石神井駅」より徒歩6分</div>
+            </div>
+        </div>
+
+        <!-- 求人カード3 -->
+        <div class="job-card" onclick="location.href='job-detail.html?id=3'">
+            <div class="job-image">
+                <img src="img/placeholder.svg" alt="施設画像">
+                <div class="job-tags">
+                    <span class="tag">特養</span>
+                    <span class="tag">夜勤</span>
+                </div>
+                <svg class="bookmark" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+                </svg>
+            </div>
+            <div class="job-content">
+                <div class="facility-info">
+                    <span class="facility-name">さくらホーム練馬</span>
+                    <div class="rating">
+                        <span style="color: #fbbf24;">★</span>
+                        <span>4.7点</span>
+                        <span style="color: #6b7280;">(89件)</span>
+                    </div>
+                </div>
+                <h3 class="job-title">【夜勤専従】特別養護老人ホームでの介護スタッフ</h3>
+                <div class="job-details">
+                    <span class="job-time">17:00-09:00</span>
+                    <div class="job-wage">
+                        <span class="wage-main">22,500円</span>
+                        <span class="wage-sub">(時給1,500円)</span>
+                    </div>
+                </div>
+                <div style="clear: both;">
+                    <span class="deadline">締切まで18:30:00</span>
+                </div>
+                <div class="job-address">東京都練馬区豊玉北5-17-11</div>
+                <div class="job-address">西武池袋線「練馬駅」より徒歩5分</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 下部ナビゲーション -->
+    <div class="bottom-nav">
+        <a href="top.html" class="nav-item active">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <path d="m21 21-4.35-4.35"></path>
+            </svg>
+            <span>探す</span>
+        </a>
+        <a href="#" class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+            </svg>
+            <span>お気に入り</span>
+        </a>
+        <a href="#" class="nav-item" style="position: relative;">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+            <span>メッセージ</span>
+            <span class="badge">3</span>
+        </a>
+        <a href="#" class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 5H2v7h7V5z"></path>
+                <path d="M9 14H2v5h7v-5z"></path>
+                <path d="M16 5h7v5h-7V5z"></path>
+                <path d="M16 14h7v5h-7v-5z"></path>
+            </svg>
+            <span>仕事管理</span>
+        </a>
+        <a href="#" class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+            <span>マイページ</span>
+        </a>
+    </div>
+
+    <script>
+        // 並び順メニューの表示/非表示
+        const sortBtn = document.getElementById('sortBtn');
+        const sortMenu = document.getElementById('sortMenu');
+
+        sortBtn.addEventListener('click', function() {
+            sortMenu.classList.toggle('show');
+        });
+
+        // メニュー外クリックで閉じる
+        document.addEventListener('click', function(e) {
+            if (!sortBtn.contains(e.target) && !sortMenu.contains(e.target)) {
+                sortMenu.classList.remove('show');
+            }
+        });
+
+        function setSortOrder(order) {
+            const options = document.querySelectorAll('.sort-option');
+            options.forEach(opt => opt.classList.remove('active'));
+            event.target.classList.add('active');
+            sortMenu.classList.remove('show');
+        }
+
+        // 日付選択
+        const dateItems = document.querySelectorAll('.date-item');
+        dateItems.forEach(item => {
+            item.addEventListener('click', function() {
+                if (!this.classList.contains('today')) {
+                    dateItems.forEach(d => d.classList.remove('selected'));
+                    this.classList.add('selected');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
