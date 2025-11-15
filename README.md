@@ -1,68 +1,49 @@
-# シェアワーカーアプリ - HTML版
+# S WORKS
 
-本番環境で実行可能なHTMLファイルです。
+看護師・介護士のための求人マッチングWebサービス
 
-## ファイル構成
+## プロジェクト構成
 
 ```
-シェアワーカーアプリ/
-├── top.html                      # トップページ
-├── job-list.html                 # 求人一覧ページ
-├── job-detail.html               # 求人詳細ページ
-├── application-complete.html     # 申し込み完了ページ
-└── img/
-    └── placeholder.svg           # プレースホルダー画像
+share-worker-app/
+├── docs/                  # ドキュメント
+│   ├── requirements.md           # 要件定義書
+│   ├── screen-specification.md   # 画面仕様書
+│   └── PHASE1_PLAN.md           # Phase 1実装計画
+├── mock/                  # HTMLモック
+│   ├── top.html
+│   ├── job-detail.html
+│   └── ...
+└── (Next.jsプロジェクト - これから作成)
 ```
 
-## 使い方
+## 開発状況
 
-1. `top.html` をブラウザで開いてください
-2. 各ページは相互にリンクされています:
-   - トップページ → 求人カードクリック → 求人詳細
-   - 求人詳細 → 申し込むボタン → 申し込み完了
-   - 申し込み完了 → TOPに戻る → トップページ
+- [x] HTMLモック作成
+- [x] 要件定義
+- [x] 画面仕様書作成
+- [ ] Phase 1実装中
 
-## 機能
+## ドキュメント
 
-### トップページ (top.html)
-- タブ切り替え（全体/限定/指名）
-- 日付スライダー
-- 並び順変更（近い順/時給順）
-- 求人カード一覧
-- 下部ナビゲーション
+- [要件定義書](docs/requirements.md)
+- [画面仕様書](docs/screen-specification.md)
+- [Phase 1実装計画](docs/PHASE1_PLAN.md)
 
-### 求人一覧ページ (job-list.html)
-- 日付別の求人一覧
-- 並び順変更
-- 求人カード表示
+## モック
 
-### 求人詳細ページ (job-detail.html)
-- 画像カルーセル
-- タブナビゲーション（仕事概要/申込条件/事前情報/レビュー）
-- お仕事カード横スクロール
-- レビュー表示
-- 申し込みボタン
+HTMLモックは `mock/` ディレクトリにあります。
+ブラウザで `mock/top.html` を開いて確認できます。
 
-### 申し込み完了ページ (application-complete.html)
-- 完了メッセージ
-- トップページへ戻る
+## セットアップ（Phase 1実装後）
 
-## 画像について
+```bash
+npm install
+npm run dev
+```
 
-現在はプレースホルダー画像（`img/placeholder.svg`）を使用しています。
-実際の画像に差し替える場合は、`img/` フォルダに画像を配置し、HTMLファイル内の画像パスを変更してください。
+## 技術スタック
 
-## ブラウザ対応
-
-- Chrome / Edge / Safari / Firefox の最新版で動作確認済み
-- モバイルブラウザにも対応しています
-
-## カスタマイズ
-
-すべてのスタイルはHTMLファイル内の`<style>`タグに記述されているため、
-各HTMLファイルを編集するだけでデザインを変更できます。
-
-主要な色:
-- メインカラー: #66cc99
-- アクセントカラー: #ef4444
-- テキストグレー: #6b7280
+- Next.js 14 (App Router)
+- TypeScript
+- Tailwind CSS
