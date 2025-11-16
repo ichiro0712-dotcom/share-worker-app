@@ -380,8 +380,11 @@ export default function JobDetail() {
               {/* 評価分布バー */}
               <div className="mb-6 space-y-2">
                 {[5, 4, 3, 2, 1].map((rating) => {
-                  const count = Math.floor(Math.random() * facility.reviewCount / 2);
-                  const percentage = facility.reviewCount > 0 ? (count / facility.reviewCount) * 100 : 0;
+                  // 固定の分布率を使用（ハイドレーションエラー回避）
+                  const distributionRates = [0.52, 0.34, 0.07, 0.03, 0.03];
+                  const rate = distributionRates[5 - rating];
+                  const count = Math.floor(facility.reviewCount * rate);
+                  const percentage = rate * 100;
 
                   return (
                     <div key={rating} className="flex items-center gap-2">
