@@ -10,7 +10,7 @@ import { reviews } from '@/data/reviews';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/Tag';
-import { formatDateTime } from '@/utils/date';
+import { formatDateTime, getDeadlineText } from '@/utils/date';
 
 export default function JobDetail() {
   const params = useParams();
@@ -192,6 +192,28 @@ export default function JobDetail() {
           </div>
         </div>
 
+        {/* お仕事カード（複数日程） */}
+        <div className="border-t border-gray-200 pt-4 mb-4">
+          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+            {/* 同じ施設の他の日程の求人を表示 */}
+            {jobs.filter(j => j.facilityId === job.facilityId && j.id !== job.id).slice(0, 5).map((relatedJob) => (
+              <div
+                key={relatedJob.id}
+                onClick={() => router.push(`/jobs/${relatedJob.id}`)}
+                className="flex-shrink-0 w-48 p-4 border border-gray-200 rounded-lg cursor-pointer hover:border-primary transition-colors"
+              >
+                <div className="text-sm mb-1">{formatDateTime(relatedJob.workDate, relatedJob.startTime, relatedJob.endTime).split(' ')[0]}</div>
+                <div className="text-xs text-gray-600 mb-1">{relatedJob.startTime}-{relatedJob.endTime}</div>
+                <div className="text-xs text-blue-500 mb-2">{getDeadlineText(relatedJob.deadline)}</div>
+                <div className="text-xs text-gray-600 mb-2">休憩 {relatedJob.breakTime}</div>
+                <div className="text-2xl text-red-500 mb-1">{relatedJob.wage.toLocaleString()}円</div>
+                <div className="text-xs text-gray-600 text-right">募集{relatedJob.appliedCount}/{relatedJob.recruitmentCount}人</div>
+                <div className="text-xs text-gray-600 text-right">交通費{relatedJob.transportationFee.toLocaleString()}円込</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* 責任者 */}
         <div className="border-t border-gray-200 pt-4 mb-4">
           <h3 className="mb-3 text-sm font-bold">責任者</h3>
@@ -260,6 +282,90 @@ export default function JobDetail() {
           </div>
         </div>
 
+        {/* 事前情報 */}
+        <div className="mb-4">
+          <h3 className="mb-3 text-sm bg-primary-light px-4 py-3 -mx-4">事前情報</h3>
+          <div className="mt-3 space-y-4">
+            {/* 服装など */}
+            <div>
+              <h4 className="text-sm mb-2 font-bold">服装など</h4>
+              <ul className="text-sm text-gray-600 space-y-1">
+                {job.dresscode.map((item, index) => (
+                  <li key={index}>・{item}</li>
+                ))}
+              </ul>
+            </div>
+
+            {/* 持ち物・その他 */}
+            <div>
+              <h4 className="text-sm mb-2 font-bold">持ち物・その他</h4>
+              <ul className="text-sm text-gray-600 space-y-1">
+                {job.belongings.map((item, index) => (
+                  <li key={index}>・{item}</li>
+                ))}
+                {job.otherConditions.length > 0 && job.otherConditions.map((item, index) => (
+                  <li key={`other-${index}`}>・{item}</li>
+                ))}
+              </ul>
+            </div>
+
+            {/* 法人名 */}
+            <div>
+              <h4 className="text-sm mb-2 font-bold">法人名</h4>
+              <div className="text-sm text-gray-600 space-y-1">
+                <p>{facility.corporationName}</p>
+                <p>{facility.name}</p>
+                <p>電話番号: {facility.phoneNumber}</p>
+              </div>
+            </div>
+
+            {/* 住所 */}
+            <div>
+              <h4 className="text-sm mb-2 font-bold">住所</h4>
+              <p className="text-sm text-gray-600 mb-2">{job.address}</p>
+              <div className="relative aspect-video overflow-hidden rounded-lg bg-gray-100 mb-2">
+                <Image
+                  src={job.mapImage}
+                  alt="地図"
+                  fill
+                  className="object-cover"
+                />
+                <MapPin className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 text-red-500" />
+              </div>
+              <button
+                onClick={() => alert('未定：Google Map連携はPhase 2で実装予定です')}
+                className="text-sm text-blue-500"
+              >
+                🗺️ Google Mapで開く
+              </button>
+            </div>
+
+            {/* アクセス */}
+            <div>
+              <h4 className="text-sm mb-2 font-bold">アクセス</h4>
+              <p className="text-xs text-gray-600 mb-2">交通手段</p>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {job.transportMethods.map((method, index) => (
+                  <span
+                    key={index}
+                    className={`px-3 py-1 rounded-full text-xs ${
+                      method.available
+                        ? 'bg-primary text-white'
+                        : 'bg-gray-200 text-gray-400 line-through'
+                    }`}
+                  >
+                    {method.name}
+                  </span>
+                ))}
+              </div>
+              <div className="text-sm text-gray-600 space-y-1">
+                <p>駐車場: {job.parking ? 'あり' : 'なし'}</p>
+                <p>{job.accessDescription}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* レビュー */}
         {facilityReviews.length > 0 && (
           <div className="mb-4">
@@ -270,6 +376,27 @@ export default function JobDetail() {
                 <span className="text-lg">{facility.rating.toFixed(1)}</span>
                 <span className="text-sm text-gray-500 ml-1">（{facility.reviewCount}件）</span>
               </p>
+
+              {/* 評価分布バー */}
+              <div className="mb-6 space-y-2">
+                {[5, 4, 3, 2, 1].map((rating) => {
+                  const count = Math.floor(Math.random() * facility.reviewCount / 2);
+                  const percentage = facility.reviewCount > 0 ? (count / facility.reviewCount) * 100 : 0;
+
+                  return (
+                    <div key={rating} className="flex items-center gap-2">
+                      <span className="text-xs w-3">{rating}</span>
+                      <div className="flex-1 bg-gray-200 rounded-full h-2 overflow-hidden">
+                        <div
+                          className="bg-primary h-full transition-all"
+                          style={{ width: `${percentage}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-gray-600 w-8 text-right">{count}</span>
+                    </div>
+                  );
+                })}
+              </div>
 
               <div className="space-y-4">
                 {facilityReviews.slice(0, 3).map((review) => (
@@ -288,6 +415,16 @@ export default function JobDetail() {
                   </div>
                 ))}
               </div>
+
+              {/* さらにレビューを見るボタン */}
+              {facility.reviewCount > 3 && (
+                <button
+                  onClick={() => alert('未定：レビュー一覧表示はPhase 2で実装予定です')}
+                  className="mt-4 w-full py-3 text-sm text-primary border border-primary rounded-lg hover:bg-primary-light transition-colors"
+                >
+                  さらにレビューを見る ({facility.reviewCount}件)
+                </button>
+              )}
             </div>
           </div>
         )}
