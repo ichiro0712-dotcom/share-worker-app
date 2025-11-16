@@ -15,30 +15,44 @@ export const DateSlider: React.FC<DateSliderProps> = ({
   const scrollRef = useRef<HTMLDivElement>(null);
   const dates = generateDates(90);
 
+  const handleTodayClick = () => {
+    onDateSelect(0);
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({ left: 0, behavior: 'smooth' });
+    }
+  };
+
   return (
-    <div className="relative">
+    <div className="relative flex gap-2">
+      {/* 今日ボタン（固定） */}
+      <button
+        onClick={handleTodayClick}
+        className="flex-shrink-0 w-16 py-2 rounded-lg text-center bg-primary text-white"
+      >
+        <div className="text-sm">今日</div>
+      </button>
+
+      {/* スライダー */}
       <div
         ref={scrollRef}
-        className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide"
+        className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide flex-1"
       >
-        {dates.map((date, index) => {
-          const formatted = formatDateForSlider(date, index);
-          const isSelected = index === selectedDateIndex;
-          const isToday = index === 0;
+        {dates.slice(1).map((date, index) => {
+          const actualIndex = index + 1;
+          const formatted = formatDateForSlider(date, actualIndex);
+          const isSelected = actualIndex === selectedDateIndex;
 
           return (
             <button
-              key={index}
-              onClick={() => onDateSelect(index)}
+              key={actualIndex}
+              onClick={() => onDateSelect(actualIndex)}
               className={`flex-shrink-0 w-16 py-2 rounded-lg text-center transition-colors ${
-                isToday
-                  ? 'bg-primary text-white'
-                  : isSelected
+                isSelected
                   ? 'bg-primary-light border-2 border-primary'
                   : 'bg-gray-100'
               }`}
             >
-              <div className={`text-sm ${isToday ? '' : 'text-xs'}`}>
+              <div className="text-xs">
                 {formatted.main}
               </div>
               {formatted.sub && (

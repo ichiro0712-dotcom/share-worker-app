@@ -53,6 +53,10 @@ export default function JobDetail() {
     router.push('/application-complete');
   };
 
+  const handleMute = () => {
+    alert('未定：ミュート機能はPhase 2で実装予定です');
+  };
+
   return (
     <div className="min-h-screen bg-white pb-20">
       {/* ヘッダー */}
@@ -182,7 +186,7 @@ export default function JobDetail() {
               />
               <span className="text-red-500">お気に入り</span>
             </button>
-            <button className="flex items-center gap-1 text-sm text-gray-600">
+            <button onClick={handleMute} className="flex items-center gap-1 text-sm text-gray-600">
               <span>ミュート</span>
             </button>
           </div>
@@ -219,17 +223,19 @@ export default function JobDetail() {
             <h4 className="mb-2 text-sm font-bold">仕事詳細</h4>
             <div
               className={`text-sm text-gray-600 whitespace-pre-line overflow-hidden transition-all ${
-                isOverviewExpanded ? 'max-h-none' : 'max-h-24'
+                isOverviewExpanded ? 'max-h-none' : 'max-h-[10.5rem] md:max-h-[7.5rem]'
               }`}
             >
               {job.overview}
             </div>
-            <button
-              className="text-blue-500 text-sm mt-2"
-              onClick={() => setIsOverviewExpanded(!isOverviewExpanded)}
-            >
-              {isOverviewExpanded ? '閉じる ∧' : 'さらに表示 ∨'}
-            </button>
+            {job.overview.length > 100 && (
+              <button
+                className="text-blue-500 text-sm mt-2"
+                onClick={() => setIsOverviewExpanded(!isOverviewExpanded)}
+              >
+                {isOverviewExpanded ? '閉じる ∧' : 'さらに表示 ∨'}
+              </button>
+            )}
           </div>
         </div>
 

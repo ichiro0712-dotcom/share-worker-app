@@ -16,6 +16,9 @@ export default function Home() {
   const [selectedDateIndex, setSelectedDateIndex] = useState(1);
   const [sortOrder, setSortOrder] = useState<SortOrder>('distance');
   const [showSortMenu, setShowSortMenu] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const itemsPerPage = 20;
 
   const handleTabClick = (tab: TabType) => {
     setActiveTab(tab);
@@ -97,7 +100,7 @@ export default function Home() {
                   className="flex items-center gap-1 text-sm"
                 >
                   <Filter className="w-4 h-4" />
-                  <span>並び順</span>
+                  <span>{sortOrder === 'distance' ? '近い順' : '時給順'}</span>
                   <ChevronDown className="w-4 h-4" />
                 </button>
 
@@ -141,12 +144,47 @@ export default function Home() {
 
       {/* 求人リスト */}
       <div className="px-4 py-4 space-y-4">
-        {jobs.map((job) => {
-          const facility = facilities.find((f) => f.id === job.facilityId);
-          if (!facility) return null;
+        {jobs
+          .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+          .map((job) => {
+            const facility = facilities.find((f) => f.id === job.facilityId);
+            if (!facility) return null;
 
-          return <JobCard key={job.id} job={job} facility={facility} />;
-        })}
+            return <JobCard key={job.id} job={job} facility={facility} />;
+          })}
+      </div>
+
+      {/* ページネーション */}
+      <div className="px-4 py-4 flex items-center justify-center gap-4">
+        <button
+          onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+          disabled={currentPage === 1}
+          className={`px-4 py-2 rounded-lg ${
+            currentPage === 1
+              ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+              : 'bg-primary text-white hover:bg-primary/90'
+          }`}
+        >
+          ← 前へ
+        </button>
+        <span className="text-sm text-gray-600">
+          {currentPage} / {Math.ceil(jobs.length / itemsPerPage)}
+        </span>
+        <button
+          onClick={() =>
+            setCurrentPage((prev) =>
+              Math.min(Math.ceil(jobs.length / itemsPerPage), prev + 1)
+            )
+          }
+          disabled={currentPage === Math.ceil(jobs.length / itemsPerPage)}
+          className={`px-4 py-2 rounded-lg ${
+            currentPage === Math.ceil(jobs.length / itemsPerPage)
+              ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+              : 'bg-primary text-white hover:bg-primary/90'
+          }`}
+        >
+          次へ →
+        </button>
       </div>
 
       {/* 下部ナビゲーション */}
