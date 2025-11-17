@@ -7,7 +7,7 @@ import { Job } from '@/types/job';
 import { Facility } from '@/types/facility';
 import { Badge } from '@/components/ui/Badge';
 import { getDeadlineText, isDeadlineUrgent } from '@/utils/date';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface JobCardProps {
   job: Job;
@@ -16,8 +16,14 @@ interface JobCardProps {
 
 export const JobCard: React.FC<JobCardProps> = ({ job, facility }) => {
   const [isBookmarked, setIsBookmarked] = useState(false);
-  const isUrgent = isDeadlineUrgent(job.deadline);
-  const deadlineText = getDeadlineText(job.deadline);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const isUrgent = mounted ? isDeadlineUrgent(job.deadline) : false;
+  const deadlineText = mounted ? getDeadlineText(job.deadline) : '計算中...';
 
   const handleBookmark = (e: React.MouseEvent) => {
     e.preventDefault();

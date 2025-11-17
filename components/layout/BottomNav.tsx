@@ -10,9 +10,8 @@ export const BottomNav = () => {
   const navItems = [
     { href: '/', icon: Search, label: '探す' },
     { href: '/under-construction?page=favorites', icon: Heart, label: 'お気に入り' },
-    { href: '/under-construction?page=messages', icon: MessageSquare, label: 'メッセージ', badge: 3 },
-    { href: '/under-construction?page=jobs', icon: Clipboard, label: '仕事管理' },
-    { href: '/under-construction?page=mypage', icon: User, label: 'マイページ' }
+    { href: '/applications', icon: Clipboard, label: '応募' },
+    { href: '/mypage', icon: User, label: 'マイページ' }
   ];
 
   return (
