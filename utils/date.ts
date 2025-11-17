@@ -26,10 +26,30 @@ export const getDeadlineText = (deadline: string): string => {
   }
 
   const hours = Math.floor(diff / (1000 * 60 * 60));
-  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-  const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+  const days = Math.floor(hours / 24);
 
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  // 24時間以内の場合
+  if (hours < 24) {
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    return `${hours}時間${minutes}分`;
+  }
+
+  // 10日以上の場合
+  if (days >= 10) {
+    return '10日以上';
+  }
+
+  // 1日以上10日未満の場合
+  return `${days}日`;
+};
+
+// 締切が24時間以内かどうかを判定
+export const isDeadlineUrgent = (deadline: string): boolean => {
+  const now = new Date();
+  const deadlineDate = new Date(deadline);
+  const diff = deadlineDate.getTime() - now.getTime();
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  return hours < 24 && diff > 0;
 };
 
 export const generateDates = (count: number = 90): Date[] => {

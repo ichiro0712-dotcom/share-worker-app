@@ -25,7 +25,8 @@ export default function JobDetail() {
   const [isFavorite, setIsFavorite] = useState(false);
   const [savedForLater, setSavedForLater] = useState(false);
   const [isOverviewExpanded, setIsOverviewExpanded] = useState(false);
-  const [activeSection, setActiveSection] = useState('overview');
+  const [showAllDates, setShowAllDates] = useState(false);
+  const [selectedJobIds, setSelectedJobIds] = useState<number[]>([jobId]);
 
   if (!job || !facility) {
     return <div>求人が見つかりません</div>;
@@ -50,7 +51,22 @@ export default function JobDetail() {
   };
 
   const handleApply = () => {
-    router.push('/application-complete');
+    if (selectedJobIds.length === 0) {
+      alert('応募する求人を選択してください');
+      return;
+    }
+    // 選択されたジョブIDをクエリパラメータとして渡す
+    router.push(`/application-confirm?jobIds=${selectedJobIds.join(',')}`);
+  };
+
+  const toggleJobSelection = (jobId: number) => {
+    setSelectedJobIds(prev => {
+      if (prev.includes(jobId)) {
+        return prev.filter(id => id !== jobId);
+      } else {
+        return [...prev, jobId];
+      }
+    });
   };
 
   const handleMute = () => {
@@ -78,52 +94,10 @@ export default function JobDetail() {
             </span>
           </button>
         </div>
-
-        {/* ナビゲーションタブ */}
-        <div className="bg-primary-light border-t border-gray-300">
-          <div className="flex">
-            {['overview', 'conditions', 'preinfo', 'review'].map((section) => {
-              const labels = {
-                overview: '仕事概要',
-                conditions: '申込条件',
-                preinfo: '事前情報',
-                review: 'レビュー'
-              };
-
-              return (
-                <button
-                  key={section}
-                  onClick={() => setActiveSection(section)}
-                  className={`flex-1 py-3 text-sm border-b-2 transition-colors text-center ${
-                    activeSection === section
-                      ? 'border-primary text-primary'
-                      : 'border-transparent text-gray-600'
-                  }`}
-                >
-                  {labels[section as keyof typeof labels]}
-                </button>
-              );
-            })}
-          </div>
-        </div>
       </div>
 
       {/* コンテンツ */}
       <div className="px-4 py-4">
-        {/* タグとバッジ */}
-        <div className="flex gap-2 mb-3 flex-wrap">
-          {job.tags.map((tag) => (
-            <Badge key={tag} variant="outline">
-              {tag}
-            </Badge>
-          ))}
-          {job.badges.map((badge, index) => (
-            <Badge key={index} variant="primary">
-              {badge.text}
-            </Badge>
-          ))}
-        </div>
-
         {/* 募集人数 */}
         <div className="flex justify-end mb-3">
           <Badge variant="red">
@@ -172,9 +146,23 @@ export default function JobDetail() {
           )}
         </div>
 
+        {/* タグとバッジ */}
+        <div className="flex gap-2 mb-3 flex-wrap">
+          {job.tags.map((tag) => (
+            <Badge key={tag} variant="outline">
+              {tag}
+            </Badge>
+          ))}
+          {job.badges.map((badge, index) => (
+            <Badge key={index} variant="primary">
+              {badge.text}
+            </Badge>
+          ))}
+        </div>
+
         {/* 施設情報 */}
         <div className="mb-4">
-          <h2 className="text-lg mb-1">{facility.name}</h2>
+          <h2 className="text-lg font-bold mb-1">{facility.name}</h2>
           <div className="flex items-center gap-1 text-sm text-gray-600 mb-2">
             <MapPin className="w-4 h-4" />
             <span>{job.address}</span>
@@ -192,27 +180,103 @@ export default function JobDetail() {
           </div>
         </div>
 
-        {/* お仕事カード（複数日程） */}
-        <div className="border-t border-gray-200 pt-4 mb-4">
-          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-            {/* 同じ施設の他の日程の求人を表示 */}
-            {jobs.filter(j => j.facilityId === job.facilityId && j.id !== job.id).slice(0, 5).map((relatedJob) => (
-              <div
-                key={relatedJob.id}
-                onClick={() => router.push(`/jobs/${relatedJob.id}`)}
-                className="flex-shrink-0 w-48 p-4 border border-gray-200 rounded-lg cursor-pointer hover:border-primary transition-colors"
-              >
-                <div className="text-sm mb-1">{formatDateTime(relatedJob.workDate, relatedJob.startTime, relatedJob.endTime).split(' ')[0]}</div>
-                <div className="text-xs text-gray-600 mb-1">{relatedJob.startTime}-{relatedJob.endTime}</div>
-                <div className="text-xs text-blue-500 mb-2">{getDeadlineText(relatedJob.deadline)}</div>
-                <div className="text-xs text-gray-600 mb-2">休憩 {relatedJob.breakTime}</div>
-                <div className="text-2xl text-red-500 mb-1">{relatedJob.wage.toLocaleString()}円</div>
-                <div className="text-xs text-gray-600 text-right">募集{relatedJob.appliedCount}/{relatedJob.recruitmentCount}人</div>
-                <div className="text-xs text-gray-600 text-right">交通費{relatedJob.transportationFee.toLocaleString()}円込</div>
+        {/* 現在選択中の募集カード */}
+        <div
+          onClick={() => toggleJobSelection(job.id)}
+          className="mb-4 p-4 border-2 border-primary rounded-lg bg-primary-light/30 cursor-pointer hover:bg-primary-light/40 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              checked={selectedJobIds.includes(job.id)}
+              onChange={() => toggleJobSelection(job.id)}
+              onClick={(e) => e.stopPropagation()}
+              className="w-5 h-5 text-primary flex-shrink-0 cursor-pointer"
+            />
+            <div className="flex-1">
+              <div className="text-sm font-bold mb-1">
+                {formatDateTime(job.workDate, job.startTime, job.endTime)}
               </div>
-            ))}
+              <div className="flex items-center gap-2 text-xs text-gray-600">
+                <span>休憩 {job.breakTime}</span>
+                <span>•</span>
+                <span>時給 {job.hourlyWage.toLocaleString()}円</span>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-lg font-bold text-red-500">
+                {job.wage.toLocaleString()}円
+              </div>
+              <div className="text-xs text-gray-600">
+                交通費{job.transportationFee.toLocaleString()}円込
+              </div>
+            </div>
           </div>
         </div>
+
+        {/* その他の応募日時 */}
+        {jobs.filter(j => j.facilityId === job.facilityId && j.id !== job.id).length > 0 && (
+          <div className="border-t border-gray-200 pt-4 mb-4">
+            <h3 className="mb-3 text-sm font-bold">その他の応募日時</h3>
+            <div className="space-y-2">
+              {/* 同じ施設の他の日程の求人を表示 */}
+              {jobs
+                .filter(j => j.facilityId === job.facilityId && j.id !== job.id)
+                .slice(0, showAllDates ? undefined : 6)
+                .map((relatedJob) => (
+                  <div
+                    key={relatedJob.id}
+                    onClick={(e) => {
+                      // チェックボックス以外をクリックした場合は選択トグル
+                      const target = e.target as HTMLElement;
+                      if (target.tagName !== 'INPUT') {
+                        toggleJobSelection(relatedJob.id);
+                      }
+                    }}
+                    className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                      selectedJobIds.includes(relatedJob.id)
+                        ? 'border-primary bg-primary-light/20'
+                        : 'border-gray-200 hover:border-primary'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedJobIds.includes(relatedJob.id)}
+                      onChange={() => toggleJobSelection(relatedJob.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-5 h-5 text-primary flex-shrink-0 cursor-pointer"
+                    />
+                    <div className="flex-1">
+                      <div className="text-sm font-bold mb-1">
+                        {formatDateTime(relatedJob.workDate, relatedJob.startTime, relatedJob.endTime)}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-gray-600">
+                        <span>休憩 {relatedJob.breakTime}</span>
+                        <span>•</span>
+                        <span>時給 {relatedJob.hourlyWage.toLocaleString()}円</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-red-500">
+                        {relatedJob.wage.toLocaleString()}円
+                      </div>
+                      <div className="text-xs text-gray-600">
+                        交通費{relatedJob.transportationFee.toLocaleString()}円込
+                      </div>
+                    </div>
+                  </div>
+                ))}
+            </div>
+            {jobs.filter(j => j.facilityId === job.facilityId && j.id !== job.id).length > 6 && !showAllDates && (
+              <button
+                onClick={() => setShowAllDates(true)}
+                className="w-full mt-3 py-2 text-sm text-primary border border-primary rounded-lg hover:bg-primary-light transition-colors"
+              >
+                さらに表示
+              </button>
+            )}
+          </div>
+        )}
 
         {/* 責任者 */}
         <div className="border-t border-gray-200 pt-4 mb-4">
@@ -267,8 +331,12 @@ export default function JobDetail() {
           <div className="mt-3 space-y-4">
             <div>
               <h4 className="text-sm mb-2 font-bold">必要な資格</h4>
-              <div className="text-sm text-gray-600">
-                {job.requiredQualifications.join(', ')}
+              <div className="flex flex-wrap gap-2">
+                {job.requiredQualifications
+                  .flatMap(qual => qual.split(/、|または/).map(q => q.trim()).filter(q => q))
+                  .map((qual, index) => (
+                    <Tag key={index}>{qual}</Tag>
+                  ))}
               </div>
             </div>
             <div>
@@ -278,6 +346,12 @@ export default function JobDetail() {
                   <p key={index}>・{exp}</p>
                 ))}
               </div>
+              <button
+                onClick={() => alert('労働条件通知書のダミーデータです')}
+                className="mt-3 px-4 py-2 text-sm text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors"
+              >
+                労働条件通知書を確認
+              </button>
             </div>
           </div>
         </div>
@@ -289,11 +363,38 @@ export default function JobDetail() {
             {/* 服装など */}
             <div>
               <h4 className="text-sm mb-2 font-bold">服装など</h4>
-              <ul className="text-sm text-gray-600 space-y-1">
+              <ul className="text-sm text-gray-600 space-y-1 mb-3">
                 {job.dresscode.map((item, index) => (
                   <li key={index}>・{item}</li>
                 ))}
               </ul>
+              {/* サンプル画像 */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="relative aspect-video overflow-hidden rounded-lg border border-gray-200">
+                  <Image
+                    src="/images/hukuso.png"
+                    alt="服装サンプル1"
+                    fill
+                    className="object-cover"
+                  />
+                </div>
+                <div className="relative aspect-video overflow-hidden rounded-lg border border-gray-200">
+                  <Image
+                    src="/images/hukuso.png"
+                    alt="服装サンプル2"
+                    fill
+                    className="object-cover"
+                  />
+                </div>
+                <div className="relative aspect-video overflow-hidden rounded-lg border border-gray-200">
+                  <Image
+                    src="/images/hukuso.png"
+                    alt="服装サンプル3"
+                    fill
+                    className="object-cover"
+                  />
+                </div>
+              </div>
             </div>
 
             {/* 持ち物・その他 */}

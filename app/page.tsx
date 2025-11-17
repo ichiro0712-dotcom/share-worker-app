@@ -9,7 +9,7 @@ import { jobs } from '@/data/jobs';
 import { facilities } from '@/data/facilities';
 
 type TabType = 'all' | 'limited' | 'nominated';
-type SortOrder = 'distance' | 'wage';
+type SortOrder = 'distance' | 'wage' | 'deadline';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<TabType>('all');
@@ -34,6 +34,21 @@ export default function Home() {
   const handleWorkDateClick = () => {
     alert('未定：働ける日カレンダーはPhase 2で実装予定です');
   };
+
+  // ソート処理
+  const sortedJobs = [...jobs].sort((a, b) => {
+    if (sortOrder === 'wage') {
+      // 時給順（高い順）
+      return b.hourlyWage - a.hourlyWage;
+    } else if (sortOrder === 'deadline') {
+      // 締切順（締切が近い順）
+      const deadlineA = new Date(a.deadline).getTime();
+      const deadlineB = new Date(b.deadline).getTime();
+      return deadlineA - deadlineB;
+    }
+    // distance（近い順）はデフォルトの順序を維持
+    return 0;
+  });
 
   return (
     <div className="min-h-screen bg-white pb-20">
@@ -100,7 +115,9 @@ export default function Home() {
                   className="flex items-center gap-1 text-sm"
                 >
                   <Filter className="w-4 h-4" />
-                  <span>{sortOrder === 'distance' ? '近い順' : '時給順'}</span>
+                  <span>
+                    {sortOrder === 'distance' ? '近い順' : sortOrder === 'wage' ? '時給順' : '締切順'}
+                  </span>
                   <ChevronDown className="w-4 h-4" />
                 </button>
 
@@ -128,6 +145,17 @@ export default function Home() {
                     >
                       時給順
                     </button>
+                    <button
+                      onClick={() => {
+                        setSortOrder('deadline');
+                        setShowSortMenu(false);
+                      }}
+                      className={`block w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${
+                        sortOrder === 'deadline' ? 'text-primary' : ''
+                      }`}
+                    >
+                      締切順
+                    </button>
                   </div>
                 )}
               </div>
@@ -143,8 +171,8 @@ export default function Home() {
       </div>
 
       {/* 求人リスト */}
-      <div className="px-4 py-4 space-y-4">
-        {jobs
+      <div className="px-4 py-4 grid grid-cols-2 md:grid-cols-1 gap-3 md:gap-4">
+        {sortedJobs
           .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
           .map((job) => {
             const facility = facilities.find((f) => f.id === job.facilityId);
@@ -168,17 +196,17 @@ export default function Home() {
           ← 前へ
         </button>
         <span className="text-sm text-gray-600">
-          {currentPage} / {Math.ceil(jobs.length / itemsPerPage)}
+          {currentPage} / {Math.ceil(sortedJobs.length / itemsPerPage)}
         </span>
         <button
           onClick={() =>
             setCurrentPage((prev) =>
-              Math.min(Math.ceil(jobs.length / itemsPerPage), prev + 1)
+              Math.min(Math.ceil(sortedJobs.length / itemsPerPage), prev + 1)
             )
           }
-          disabled={currentPage === Math.ceil(jobs.length / itemsPerPage)}
+          disabled={currentPage === Math.ceil(sortedJobs.length / itemsPerPage)}
           className={`px-4 py-2 rounded-lg ${
-            currentPage === Math.ceil(jobs.length / itemsPerPage)
+            currentPage === Math.ceil(sortedJobs.length / itemsPerPage)
               ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
               : 'bg-primary text-white hover:bg-primary/90'
           }`}
