@@ -213,6 +213,7 @@ export default function NewTemplatePage() {
     qualifications: [] as string[],
     skills: [] as string[],
     dresscode: [] as string[],
+    dresscodeImages: [] as File[],
     belongings: [] as string[],
 
     // その他
@@ -283,6 +284,19 @@ export default function NewTemplatePage() {
 
   const removeAttachment = (index: number) => {
     handleInputChange('attachments', formData.attachments.filter((_, i) => i !== index));
+  };
+
+  const handleDresscodeImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (formData.dresscodeImages.length + files.length <= 3) {
+      handleInputChange('dresscodeImages', [...formData.dresscodeImages, ...files]);
+    } else {
+      alert('服装サンプル画像は最大3枚までアップロードできます');
+    }
+  };
+
+  const removeDresscodeImage = (index: number) => {
+    handleInputChange('dresscodeImages', formData.dresscodeImages.filter((_, i) => i !== index));
   };
 
   // 日給計算
@@ -822,6 +836,73 @@ export default function NewTemplatePage() {
                         <button onClick={() => removeFromArray('dresscode', index)} className="text-gray-500 hover:text-red-600">×</button>
                       </span>
                     ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    服装サンプル画像（3枚まで）
+                  </label>
+                  <p className="text-xs text-gray-500 mb-2">推奨画像サイズ: 1200×800px（比率 3:2）</p>
+                  <p className="text-xs text-gray-500 mb-3">登録できるファイルサイズは5MBまでです</p>
+                  <div className="space-y-2">
+                    {formData.dresscodeImages.length < 3 && (
+                      <label
+                        className="flex items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded cursor-pointer hover:border-blue-500 transition-colors"
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.currentTarget.classList.add('border-blue-500', 'bg-blue-50');
+                        }}
+                        onDragLeave={(e) => {
+                          e.preventDefault();
+                          e.currentTarget.classList.remove('border-blue-500', 'bg-blue-50');
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          e.currentTarget.classList.remove('border-blue-500', 'bg-blue-50');
+                          const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
+                          const validFiles = files.filter(file => file.size <= 5 * 1024 * 1024);
+                          if (files.length !== validFiles.length) {
+                            alert('5MBを超えるファイルは登録できません');
+                            return;
+                          }
+                          if (formData.dresscodeImages.length + validFiles.length <= 3) {
+                            handleInputChange('dresscodeImages', [...formData.dresscodeImages, ...validFiles]);
+                          } else {
+                            alert('服装サンプル画像は最大3枚までアップロードできます');
+                          }
+                        }}
+                      >
+                        <div className="text-center">
+                          <Upload className="w-8 h-8 mx-auto text-gray-400 mb-2" />
+                          <span className="text-sm text-gray-500">画像を選択 または ドラッグ&ドロップ</span>
+                        </div>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={handleDresscodeImageUpload}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                    <div className="grid grid-cols-3 gap-2">
+                      {formData.dresscodeImages.map((file, index) => (
+                        <div key={index} className="relative">
+                          <img
+                            src={URL.createObjectURL(file)}
+                            alt={`服装サンプル ${index + 1}`}
+                            className="w-full h-24 object-cover rounded"
+                          />
+                          <button
+                            onClick={() => removeDresscodeImage(index)}
+                            className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
 

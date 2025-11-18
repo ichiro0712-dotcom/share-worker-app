@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Filter, Calendar, ChevronDown, Info, CheckCircle2, Clock } from 'lucide-react';
+import { Filter, Calendar, ChevronDown } from 'lucide-react';
 import { JobCard } from '@/components/job/JobCard';
 import { DateSlider } from '@/components/job/DateSlider';
 import { BottomNav } from '@/components/layout/BottomNav';
@@ -17,7 +17,6 @@ export default function Home() {
   const [sortOrder, setSortOrder] = useState<SortOrder>('distance');
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [showImplementationStatus, setShowImplementationStatus] = useState(true);
 
   const itemsPerPage = 20;
 
@@ -53,72 +52,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-white pb-20">
-      {/* 実装状況パネル */}
-      {showImplementationStatus && (
-        <div className="bg-blue-50 border-b border-blue-200">
-          <div className="px-4 py-3">
-            <div className="flex items-start justify-between gap-2 mb-2">
-              <div className="flex items-center gap-2">
-                <Info className="w-5 h-5 text-blue-600 flex-shrink-0" />
-                <h3 className="text-sm font-semibold text-blue-900">実装状況（Phase 1 テストバージョン）</h3>
-              </div>
-              <button
-                onClick={() => setShowImplementationStatus(false)}
-                className="text-blue-600 text-xs hover:text-blue-800"
-              >
-                閉じる
-              </button>
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-4 mt-3">
-              {/* 実装済み機能 */}
-              <div className="bg-white rounded-lg p-3 border border-green-200">
-                <div className="flex items-center gap-2 mb-2">
-                  <CheckCircle2 className="w-4 h-4 text-green-600" />
-                  <h4 className="text-xs font-semibold text-green-900">✓ 実装済み機能</h4>
-                </div>
-                <ul className="text-xs text-gray-700 space-y-1">
-                  <li>• 求人一覧表示（50件のダミーデータ）</li>
-                  <li>• 並び替え機能（近い順/時給順/締切順）</li>
-                  <li>• ページネーション</li>
-                  <li>• 求人詳細ページ表示</li>
-                  <li>• 画像カルーセル</li>
-                  <li>• レビュー表示</li>
-                  <li>• 施設情報表示</li>
-                  <li>• 申し込み完了ページ</li>
-                  <li>• レスポンシブデザイン</li>
-                  <li>• 管理画面（案件テンプレート管理）</li>
-                </ul>
-              </div>
-
-              {/* 未実装機能 */}
-              <div className="bg-white rounded-lg p-3 border border-orange-200">
-                <div className="flex items-center gap-2 mb-2">
-                  <Clock className="w-4 h-4 text-orange-600" />
-                  <h4 className="text-xs font-semibold text-orange-900">○ Phase 2以降で実装予定</h4>
-                </div>
-                <ul className="text-xs text-gray-700 space-y-1">
-                  <li>• ユーザー認証（ログイン/会員登録）</li>
-                  <li>• 詳細フィルター機能</li>
-                  <li>• 働ける日カレンダー選択</li>
-                  <li>• ブックマーク/お気に入り保存</li>
-                  <li>• あとで見る機能</li>
-                  <li>• 限定・指名求人機能</li>
-                  <li>• メッセージ機能</li>
-                  <li>• 仕事管理機能</li>
-                  <li>• マイページ</li>
-                  <li>• 実際の応募処理（データベース連携）</li>
-                </ul>
-              </div>
-            </div>
-
-            <p className="text-xs text-blue-700 mt-3">
-              ※ 現在はダミーデータを使用したUIプロトタイプです。実際の求人データやユーザー認証機能はPhase 2以降で実装します。
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* ヘッダー */}
       <div className="bg-white sticky top-0 z-10 border-b border-gray-200">
         {/* タブ */}

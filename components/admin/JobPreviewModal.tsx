@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { X, ChevronLeft, ChevronRight, MapPin, Heart, Clock } from 'lucide-react';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/Badge';
+import { Tag } from '@/components/ui/Tag';
 
 interface JobPreviewModalProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ export function JobPreviewModal({
   facility,
 }: JobPreviewModalProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [isOverviewExpanded, setIsOverviewExpanded] = useState(false);
 
   if (!isOpen) return null;
 
@@ -209,80 +211,113 @@ export function JobPreviewModal({
               <h3 className="mb-3 text-sm font-bold">仕事内容</h3>
               <div className="flex flex-wrap gap-2">
                 {formData.workContent.map((content: string, index: number) => (
-                  <Badge key={index} variant="outline">
-                    {content}
-                  </Badge>
+                  <Tag key={index}>{content}</Tag>
                 ))}
               </div>
             </div>
           )}
 
-          {/* 資格 */}
-          {formData.qualifications?.length > 0 && (
-            <div className="border-t border-gray-200 pt-4 mb-4">
-              <h3 className="mb-3 text-sm font-bold">資格</h3>
-              <div className="flex flex-wrap gap-2">
-                {formData.qualifications.map((qualification: string, index: number) => (
-                  <Badge key={index} variant="primary">
-                    {qualification}
-                  </Badge>
-                ))}
+          {/* 仕事概要 */}
+          <div className="mb-4">
+            <h3 className="mb-3 text-sm bg-primary-light px-4 py-3 -mx-4">仕事概要</h3>
+            <div className="mt-3">
+              <h4 className="mb-2 text-sm font-bold">仕事詳細</h4>
+              <div
+                className={`text-sm text-gray-600 whitespace-pre-line overflow-hidden transition-all ${
+                  isOverviewExpanded ? 'max-h-none' : 'max-h-[10.5rem] md:max-h-[7.5rem]'
+                }`}
+              >
+                {formData.jobDescription || '仕事の詳細が入力されていません'}
               </div>
+              {formData.jobDescription && formData.jobDescription.length > 100 && (
+                <button
+                  className="text-blue-500 text-sm mt-2"
+                  onClick={() => setIsOverviewExpanded(!isOverviewExpanded)}
+                >
+                  {isOverviewExpanded ? '閉じる ∧' : 'さらに表示 ∨'}
+                </button>
+              )}
             </div>
-          )}
+          </div>
 
-          {/* スキル・経験 */}
-          {formData.skills?.length > 0 && (
-            <div className="border-t border-gray-200 pt-4 mb-4">
-              <h3 className="mb-3 text-sm font-bold">スキル・経験</h3>
-              <ul className="space-y-2">
-                {formData.skills.map((skill: string, index: number) => (
-                  <li key={index} className="flex gap-2 text-sm">
-                    <span className="text-gray-400">•</span>
-                    <span>{skill}</span>
-                  </li>
-                ))}
-              </ul>
+          {/* 申込条件 */}
+          <div className="mb-4">
+            <h3 className="mb-3 text-sm bg-primary-light px-4 py-3 -mx-4">申込条件</h3>
+            <div className="mt-3 space-y-4">
+              {formData.qualifications?.length > 0 && (
+                <div>
+                  <h4 className="text-sm mb-2 font-bold">必要な資格</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {formData.qualifications.map((qualification: string, index: number) => (
+                      <Tag key={index}>{qualification}</Tag>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {formData.skills?.length > 0 && (
+                <div>
+                  <h4 className="text-sm mb-2 font-bold">経験・スキル</h4>
+                  <div className="text-sm text-gray-600">
+                    {formData.skills.map((skill: string, index: number) => (
+                      <p key={index}>・{skill}</p>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => alert('労働条件通知書のダミーデータです')}
+                    className="mt-3 px-4 py-2 text-sm text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors"
+                  >
+                    労働条件通知書を確認
+                  </button>
+                </div>
+              )}
             </div>
-          )}
+          </div>
 
-          {/* 服装・身だしなみ */}
-          {formData.dresscode?.length > 0 && (
-            <div className="border-t border-gray-200 pt-4 mb-4">
-              <h3 className="mb-3 text-sm font-bold">服装・身だしなみ</h3>
-              <ul className="space-y-2">
-                {formData.dresscode.map((item: string, index: number) => (
-                  <li key={index} className="flex gap-2 text-sm">
-                    <span className="text-gray-400">•</span>
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          {/* 事前情報 */}
+          <div className="mb-4">
+            <h3 className="mb-3 text-sm bg-primary-light px-4 py-3 -mx-4">事前情報</h3>
+            <div className="mt-3 space-y-4">
+              {/* 服装など */}
+              {(formData.dresscode?.length > 0 || formData.dresscodeImages?.length > 0) && (
+                <div>
+                  <h4 className="text-sm mb-2 font-bold">服装など</h4>
+                  {formData.dresscode?.length > 0 && (
+                    <ul className="text-sm text-gray-600 space-y-1 mb-3">
+                      {formData.dresscode.map((item: string, index: number) => (
+                        <li key={index}>・{item}</li>
+                      ))}
+                    </ul>
+                  )}
+                  {formData.dresscodeImages?.length > 0 && (
+                    <div className="grid grid-cols-3 gap-2">
+                      {formData.dresscodeImages.map((file: File, index: number) => (
+                        <div key={index} className="relative aspect-video overflow-hidden rounded-lg border border-gray-200">
+                          <Image
+                            src={URL.createObjectURL(file)}
+                            alt={`服装サンプル${index + 1}`}
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
-          {/* 持ち物・その他 */}
-          {formData.belongings?.length > 0 && (
-            <div className="border-t border-gray-200 pt-4 mb-4">
-              <h3 className="mb-3 text-sm font-bold">持ち物・その他</h3>
-              <ul className="space-y-2">
-                {formData.belongings.map((item: string, index: number) => (
-                  <li key={index} className="flex gap-2 text-sm">
-                    <span className="text-gray-400">•</span>
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
+              {/* 持ち物・その他 */}
+              {formData.belongings?.length > 0 && (
+                <div>
+                  <h4 className="text-sm mb-2 font-bold">持ち物・その他</h4>
+                  <ul className="text-sm text-gray-600 space-y-1">
+                    {formData.belongings.map((item: string, index: number) => (
+                      <li key={index}>・{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
-          )}
-
-          {/* 仕事の詳細 */}
-          {formData.jobDescription && (
-            <div className="border-t border-gray-200 pt-4 mb-4">
-              <h3 className="mb-3 text-sm font-bold">仕事の詳細</h3>
-              <p className="text-sm whitespace-pre-wrap">{formData.jobDescription}</p>
-            </div>
-          )}
+          </div>
 
           {/* 備考 */}
           {formData.notes && (
