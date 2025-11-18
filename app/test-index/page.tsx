@@ -1,13 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { Home, Heart, Clipboard, User, Building2, Star, FileText, LogIn, LogOut } from 'lucide-react';
+import { Home, Heart, Clipboard, User, Building2, Star, FileText, LogIn, LogOut, Info } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 export default function TestIndex() {
   const { user, logout, isAuthenticated } = useAuth();
   const router = useRouter();
+  const [showImplementationStatus, setShowImplementationStatus] = useState(true);
 
   const handleLogout = () => {
     if (confirm('ログアウトしますか？')) {
@@ -120,11 +122,111 @@ export default function TestIndex() {
               )}
             </div>
           </div>
-          <div className="flex gap-4 text-sm">
-            <div className="bg-white/20 px-3 py-1 rounded">Phase 1: 完了</div>
-            <div className="bg-white/20 px-3 py-1 rounded">Phase 2: 実装中</div>
-          </div>
         </div>
+
+        {/* 実装予定機能パネル */}
+        {showImplementationStatus && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg mb-8 shadow-md">
+            <div className="px-6 py-4">
+              <div className="flex items-start justify-between gap-2 mb-4">
+                <div className="flex items-center gap-2">
+                  <Info className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                  <h3 className="text-base font-semibold text-blue-900">実装予定の機能</h3>
+                </div>
+                <button
+                  onClick={() => setShowImplementationStatus(false)}
+                  className="text-blue-600 text-xs hover:text-blue-800 transition-colors"
+                >
+                  閉じる
+                </button>
+              </div>
+
+              <div className="grid md:grid-cols-3 gap-4">
+                {/* ユーザー機能 */}
+                <div className="bg-white rounded-lg p-4 border border-blue-200">
+                  <h4 className="text-sm font-semibold text-blue-900 mb-3">👤 ユーザー機能</h4>
+                  <ul className="text-xs text-gray-700 space-y-1.5">
+                    <li>• ユーザー認証（ログイン/会員登録）</li>
+                    <li>• プロフィール管理</li>
+                    <li>• マイページ</li>
+                    <li>• 通知設定</li>
+                    <li>• アカウント設定</li>
+                    <li>• 退会機能</li>
+                  </ul>
+                </div>
+
+                {/* 求人検索・閲覧機能 */}
+                <div className="bg-white rounded-lg p-4 border border-blue-200">
+                  <h4 className="text-sm font-semibold text-blue-900 mb-3">🔍 求人検索・閲覧</h4>
+                  <ul className="text-xs text-gray-700 space-y-1.5">
+                    <li>• 詳細フィルター機能（職種/資格/時給など）</li>
+                    <li>• 働ける日カレンダー選択</li>
+                    <li>• エリア検索・地図表示</li>
+                    <li>• キーワード検索</li>
+                    <li>• 求人の保存（ブックマーク）</li>
+                    <li>• あとで見る機能</li>
+                    <li>• 閲覧履歴</li>
+                  </ul>
+                </div>
+
+                {/* 応募・仕事管理機能 */}
+                <div className="bg-white rounded-lg p-4 border border-blue-200">
+                  <h4 className="text-sm font-semibold text-blue-900 mb-3">📋 応募・仕事管理</h4>
+                  <ul className="text-xs text-gray-700 space-y-1.5">
+                    <li>• 実際の応募処理（データベース連携）</li>
+                    <li>• 応募履歴管理</li>
+                    <li>• 応募状況確認（受付中/承認済み/却下）</li>
+                    <li>• 働く予定の仕事一覧</li>
+                    <li>• 出勤管理・タイムカード</li>
+                    <li>• 勤務実績・給与確認</li>
+                    <li>• 応募キャンセル機能</li>
+                  </ul>
+                </div>
+
+                {/* 限定・指名求人機能 */}
+                <div className="bg-white rounded-lg p-4 border border-blue-200">
+                  <h4 className="text-sm font-semibold text-blue-900 mb-3">⭐ 限定・指名求人</h4>
+                  <ul className="text-xs text-gray-700 space-y-1.5">
+                    <li>• 限定求人機能（条件を満たすユーザーのみ）</li>
+                    <li>• 指名求人機能（特定ユーザーへの依頼）</li>
+                    <li>• 指名通知</li>
+                    <li>• 指名履歴管理</li>
+                    <li>• 信頼度スコア表示</li>
+                  </ul>
+                </div>
+
+                {/* コミュニケーション機能 */}
+                <div className="bg-white rounded-lg p-4 border border-blue-200">
+                  <h4 className="text-sm font-semibold text-blue-900 mb-3">💬 コミュニケーション</h4>
+                  <ul className="text-xs text-gray-700 space-y-1.5">
+                    <li>• メッセージ機能（施設とのチャット）</li>
+                    <li>• 通知機能（プッシュ通知）</li>
+                    <li>• Q&A・問い合わせ</li>
+                    <li>• レビュー投稿機能</li>
+                    <li>• 施設へのフィードバック</li>
+                  </ul>
+                </div>
+
+                {/* その他機能 */}
+                <div className="bg-white rounded-lg p-4 border border-blue-200">
+                  <h4 className="text-sm font-semibold text-blue-900 mb-3">🎯 その他</h4>
+                  <ul className="text-xs text-gray-700 space-y-1.5">
+                    <li>• おすすめ求人表示（AI推薦）</li>
+                    <li>• 新着求人通知</li>
+                    <li>• 検索条件保存</li>
+                    <li>• ヘルプ・チュートリアル</li>
+                    <li>• お知らせ・キャンペーン情報</li>
+                    <li>• 利用規約・プライバシーポリシー</li>
+                  </ul>
+                </div>
+              </div>
+
+              <p className="text-xs text-blue-700 mt-4">
+                ※ 現在はダミーデータを使用したUIプロトタイプです。上記機能は今後のフェーズで順次実装予定です。
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* ページカテゴリー */}
         <div className="space-y-6">
