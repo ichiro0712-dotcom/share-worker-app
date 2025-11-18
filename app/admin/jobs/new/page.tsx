@@ -186,6 +186,13 @@ export default function NewJobPage() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
   const [selectedDates, setSelectedDates] = useState<string[]>([]);
   const [currentMonth, setCurrentMonth] = useState(new Date());
+
+  // 募集条件のチェックボックス状態
+  const [recruitmentOptions, setRecruitmentOptions] = useState({
+    noDateSelection: false,      // 日付を選ばずに募集
+    weeklyFrequency: null as 2 | 3 | 4 | null,  // 週2回/週3回/週4回（排他的）
+    monthlyCommitment: false,    // 1ヶ月以上勤務
+  });
   const [formData, setFormData] = useState({
     // 基本
     name: '',
@@ -333,6 +340,39 @@ export default function NewJobPage() {
     }
   };
 
+  // 募集条件のチェックボックスハンドラー
+  const handleRecruitmentOptionChange = (option: 'noDateSelection' | 'weeklyFrequency' | 'monthlyCommitment', value: boolean | number) => {
+    if (option === 'noDateSelection') {
+      // 日付を選ばずに募集をチェックした場合
+      if (value) {
+        setRecruitmentOptions({
+          noDateSelection: true,
+          weeklyFrequency: null,
+          monthlyCommitment: false,
+        });
+        setSelectedDates([]); // カレンダーの選択をクリア
+      } else {
+        setRecruitmentOptions({
+          ...recruitmentOptions,
+          noDateSelection: false,
+        });
+      }
+    } else if (option === 'weeklyFrequency') {
+      // 週2回/週3回/週4回の選択（排他的）
+      const frequency = value as 2 | 3 | 4 | null;
+      setRecruitmentOptions({
+        ...recruitmentOptions,
+        weeklyFrequency: recruitmentOptions.weeklyFrequency === frequency ? null : frequency,
+      });
+    } else if (option === 'monthlyCommitment') {
+      // 1ヶ月以上勤務（独立してチェック可能）
+      setRecruitmentOptions({
+        ...recruitmentOptions,
+        monthlyCommitment: value as boolean,
+      });
+    }
+  };
+
   const handleTemplateSelect = (templateId: number) => {
     const template = jobTemplates.find(t => t.id === templateId);
     if (template) {
@@ -370,8 +410,13 @@ export default function NewJobPage() {
       alert('事業所を選択してください');
       return;
     }
-    if (!formData.workDate) {
-      alert('勤務日を入力してください');
+    if (!formData.jobType) {
+      alert('案件種別を選択してください');
+      return;
+    }
+    // 勤務日選択チェック: 日付選択または「日付を選ばずに募集」が必要
+    if (selectedDates.length === 0 && !recruitmentOptions.noDateSelection) {
+      alert('勤務日を選択するか、「日付を選ばずに募集」にチェックを入れてください');
       return;
     }
     if (!formData.title) {
@@ -435,7 +480,8 @@ export default function NewJobPage() {
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <h2 className="text-lg font-bold text-gray-900 mb-4">基本</h2>
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                {/* 1行目：事業所、案件種別、募集人数 */}
+                <div className="grid grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       事業所 <span className="text-red-500">*</span>
@@ -456,43 +502,7 @@ export default function NewJobPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      テンプレート（任意）
-                    </label>
-                    <select
-                      value={selectedTemplateId || ''}
-                      onChange={(e) => e.target.value && handleTemplateSelect(Number(e.target.value))}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                    >
-                      <option value="">テンプレートを選択（任意）</option>
-                      {jobTemplates.map((template) => (
-                        <option key={template.id} value={template.id}>
-                          {template.name}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-gray-500 mt-1">
-                      テンプレートを選択すると、フォームに自動入力されます
-                    </p>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    案件タイトル <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.title}
-                    onChange={(e) => handleInputChange('title', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                    placeholder="例:デイサービス・介護スタッフ募集（日勤）"
-                  />
-                </div>
-
-                <div className="grid grid-cols-12 gap-4">
-                  <div className="col-span-10">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      案件種別
+                      案件種別 <span className="text-red-500">*</span>
                     </label>
                     <select
                       value={formData.jobType}
@@ -505,7 +515,7 @@ export default function NewJobPage() {
                     </select>
                   </div>
 
-                  <div className="col-span-2">
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       募集人数 <span className="text-red-500">*</span>
                     </label>
@@ -519,6 +529,42 @@ export default function NewJobPage() {
                       ))}
                     </select>
                   </div>
+                </div>
+
+                {/* 2行目：テンプレート選択 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    テンプレート（任意）
+                  </label>
+                  <select
+                    value={selectedTemplateId || ''}
+                    onChange={(e) => e.target.value && handleTemplateSelect(Number(e.target.value))}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  >
+                    <option value="">テンプレートを選択（任意）</option>
+                    {jobTemplates.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    テンプレートを選択すると、フォームに自動入力されます
+                  </p>
+                </div>
+
+                {/* 3行目：案件タイトル */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    案件タイトル <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.title}
+                    onChange={(e) => handleInputChange('title', e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    placeholder="例:デイサービス・介護スタッフ募集（日勤）"
+                  />
                 </div>
 
                 <div>
@@ -594,34 +640,37 @@ export default function NewJobPage() {
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                 <Calendar className="w-5 h-5" />
-                勤務日選択
+                勤務日選択 <span className="text-red-500">*</span>
               </h2>
               <p className="text-sm text-gray-600 mb-4">
-                選択した日付で、この条件の求人が作成されます。複数選択すると、1日につき1件の求人カードが生成されます。
+                選択した日付で、この条件の求人が作成されます。複数選択すると、1日につき1件の求人カードが生成されます。または「日付を選ばずに募集」を選択してください。
               </p>
 
               <div className="flex gap-4">
                 {/* カレンダー */}
                 <div className="w-[280px] flex-shrink-0">
-                  <div className="flex items-center justify-between mb-2">
-                    <button
-                      onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
-                      className="p-1 hover:bg-gray-100 rounded"
-                    >
-                      <ChevronLeft className="w-4 h-4" />
-                    </button>
-                    <h3 className="text-sm font-semibold">
-                      {currentMonth.getFullYear()}年{currentMonth.getMonth() + 1}月
-                    </h3>
-                    <button
-                      onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
-                      className="p-1 hover:bg-gray-100 rounded"
-                    >
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
-                  </div>
+                  <div className={`${recruitmentOptions.noDateSelection ? 'opacity-40 pointer-events-none' : ''}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <button
+                        onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
+                        className="p-1 hover:bg-gray-100 rounded"
+                        disabled={recruitmentOptions.noDateSelection}
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <h3 className="text-sm font-semibold">
+                        {currentMonth.getFullYear()}年{currentMonth.getMonth() + 1}月
+                      </h3>
+                      <button
+                        onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
+                        className="p-1 hover:bg-gray-100 rounded"
+                        disabled={recruitmentOptions.noDateSelection}
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
 
-                  <div className="grid grid-cols-7 gap-0.5">
+                    <div className="grid grid-cols-7 gap-0.5">
                     {['日', '月', '火', '水', '木', '金', '土'].map((day, index) => (
                       <div key={day} className={`text-center text-[10px] font-semibold py-0.5 ${index === 0 ? 'text-red-500' : index === 6 ? 'text-blue-500' : 'text-gray-700'}`}>
                         {day}
@@ -649,10 +698,10 @@ export default function NewJobPage() {
                         days.push(
                           <button
                             key={day}
-                            onClick={() => !isPast && toggleDate(dateString)}
-                            disabled={isPast}
+                            onClick={() => !isPast && !recruitmentOptions.noDateSelection && toggleDate(dateString)}
+                            disabled={isPast || recruitmentOptions.noDateSelection}
                             className={`aspect-square flex items-center justify-center text-[10px] rounded transition-colors ${
-                              isPast
+                              isPast || recruitmentOptions.noDateSelection
                                 ? 'text-gray-300 cursor-not-allowed'
                                 : isSelected
                                 ? 'bg-blue-600 text-white font-semibold'
@@ -672,8 +721,9 @@ export default function NewJobPage() {
                     })()}
                   </div>
 
-                  <div className="mt-1.5 text-[10px] text-gray-500">
-                    <p>• クリックで日付選択/解除 • 複数選択可能 • 過去の日付は選択不可</p>
+                    <div className="mt-1.5 text-[10px] text-gray-500">
+                      <p>• クリックで日付選択/解除 • 複数選択可能 • 過去の日付は選択不可</p>
+                    </div>
                   </div>
                 </div>
 
@@ -713,6 +763,81 @@ export default function NewJobPage() {
                       })}
                     </div>
                   )}
+                </div>
+
+                {/* 勤務日条件チェックボックス */}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-2">勤務日条件</h3>
+
+                  {/* 日付を選ばずに募集 */}
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={recruitmentOptions.noDateSelection}
+                      onChange={(e) => handleRecruitmentOptionChange('noDateSelection', e.target.checked)}
+                      className="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-gray-700">
+                      日付を選ばずに募集
+                      <span className="block text-xs text-gray-500 mt-0.5">（他の条件とカレンダーが無効化されます）</span>
+                    </span>
+                  </label>
+
+                  {/* 週2回/週3回/週4回（排他的） */}
+                  <div className="space-y-2">
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={recruitmentOptions.weeklyFrequency === 2}
+                        onChange={() => handleRecruitmentOptionChange('weeklyFrequency', 2)}
+                        disabled={recruitmentOptions.noDateSelection}
+                        className="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-40"
+                      />
+                      <span className={`text-sm ${recruitmentOptions.noDateSelection ? 'text-gray-400' : 'text-gray-700'}`}>
+                        週2回以上勤務できる人を募集
+                      </span>
+                    </label>
+
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={recruitmentOptions.weeklyFrequency === 3}
+                        onChange={() => handleRecruitmentOptionChange('weeklyFrequency', 3)}
+                        disabled={recruitmentOptions.noDateSelection}
+                        className="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-40"
+                      />
+                      <span className={`text-sm ${recruitmentOptions.noDateSelection ? 'text-gray-400' : 'text-gray-700'}`}>
+                        週3回以上勤務できる人を募集
+                      </span>
+                    </label>
+
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={recruitmentOptions.weeklyFrequency === 4}
+                        onChange={() => handleRecruitmentOptionChange('weeklyFrequency', 4)}
+                        disabled={recruitmentOptions.noDateSelection}
+                        className="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-40"
+                      />
+                      <span className={`text-sm ${recruitmentOptions.noDateSelection ? 'text-gray-400' : 'text-gray-700'}`}>
+                        週4回以上勤務できる人を募集
+                      </span>
+                    </label>
+                  </div>
+
+                  {/* 1ヶ月以上勤務（独立） */}
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={recruitmentOptions.monthlyCommitment}
+                      onChange={(e) => handleRecruitmentOptionChange('monthlyCommitment', e.target.checked)}
+                      disabled={recruitmentOptions.noDateSelection}
+                      className="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-40"
+                    />
+                    <span className={`text-sm ${recruitmentOptions.noDateSelection ? 'text-gray-400' : 'text-gray-700'}`}>
+                      1ヶ月以上勤務できる人を募集
+                    </span>
+                  </label>
                 </div>
               </div>
             </div>
@@ -879,9 +1004,9 @@ export default function NewJobPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     仕事内容（複数選択可） <span className="text-red-500">*</span>
                   </label>
-                  <div className="grid grid-cols-4 gap-2 p-2 border border-gray-200 rounded max-h-64 overflow-y-auto">
+                  <div className="grid grid-cols-4 gap-2 p-3 border border-gray-200 rounded">
                     {WORK_CONTENT_OPTIONS.map(option => (
-                      <label key={option} className="flex items-center space-x-2">
+                      <label key={option} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
                         <input
                           type="checkbox"
                           checked={formData.workContent.includes(option)}
@@ -951,9 +1076,9 @@ export default function NewJobPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     資格条件（複数選択可） <span className="text-red-500">*</span>
                   </label>
-                  <div className="grid grid-cols-3 gap-2 p-2 border border-gray-200 rounded max-h-64 overflow-y-auto">
+                  <div className="grid grid-cols-4 gap-2 p-3 border border-gray-200 rounded">
                     {QUALIFICATION_OPTIONS.map(option => (
-                      <label key={option} className="flex items-center space-x-2">
+                      <label key={option} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
                         <input
                           type="checkbox"
                           checked={formData.qualifications.includes(option)}
