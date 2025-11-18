@@ -7,6 +7,7 @@ import AdminLayout from '@/components/admin/AdminLayout';
 import { facilities } from '@/data/facilities';
 import { jobTemplates } from '@/data/jobTemplates';
 import { Upload, X, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
+import { JobPreviewModal } from '@/components/admin/JobPreviewModal';
 
 // 定数データ
 const JOB_TYPES = ['通常業務', '説明会'];
@@ -186,6 +187,7 @@ export default function NewJobPage() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
   const [selectedDates, setSelectedDates] = useState<string[]>([]);
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [showPreview, setShowPreview] = useState(false);
 
   // 募集条件のチェックボックス状態
   const [recruitmentOptions, setRecruitmentOptions] = useState({
@@ -458,7 +460,7 @@ export default function NewJobPage() {
             <h1 className="text-xl font-bold text-gray-900">新規案件作成</h1>
             <div className="flex items-center gap-3">
               <button
-                onClick={() => alert('プレビュー機能は実装中です')}
+                onClick={() => setShowPreview(true)}
                 className="px-4 py-2 text-sm border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors"
               >
                 プレビュー
@@ -1294,6 +1296,15 @@ export default function NewJobPage() {
           </div>
         </div>
       </div>
+
+      {/* プレビューモーダル */}
+      <JobPreviewModal
+        isOpen={showPreview}
+        onClose={() => setShowPreview(false)}
+        formData={formData}
+        selectedDates={selectedDates}
+        facility={formData.facilityId ? facilities.find(f => f.id === formData.facilityId) : null}
+      />
     </AdminLayout>
   );
 }
