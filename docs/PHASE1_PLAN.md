@@ -118,11 +118,33 @@ share-worker-app/
 
 ## データ構造
 
+### JobTemplate（案件テンプレート）
+```typescript
+interface JobTemplate {
+  id: number;
+  name: string;              // テンプレート名
+  title: string;             // 案件タイトル
+  startTime: string;         // HH:MM
+  endTime: string;           // HH:MM
+  breakTime: number;         // 休憩時間（分）
+  hourlyWage: number;        // 時給
+  transportationFee: number;
+  recruitmentCount: number;  // 募集人数
+  qualifications: string[];  // 必要資格
+  description: string;       // 仕事内容
+  notes: string;             // 備考
+  tags: string[];
+}
+```
+
+**注意**: テンプレートは企業全体で共有され、特定の事業所には紐づかない
+
 ### Job（求人）
 ```typescript
 interface Job {
   id: number;
   facilityId: number;
+  templateId?: number;       // 使用したテンプレートID（任意）
   title: string;
   workDate: string;          // YYYY-MM-DD
   startTime: string;         // HH:MM
@@ -193,6 +215,7 @@ interface Review {
 
 ### Step 2: ダミーデータ作成
 - [ ] 施設データ（30件）
+- [ ] テンプレートデータ（7件）- 企業全体で共有
 - [ ] 求人データ（50件）
 - [ ] レビューデータ（100件）
 

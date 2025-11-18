@@ -3,20 +3,19 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
-import Link from 'next/link';
+import { Mail, Lock, Eye, EyeOff, Building2 } from 'lucide-react';
 
-export default function Login() {
+export default function AdminLogin() {
   const router = useRouter();
-  const { login, isAuthenticated } = useAuth();
+  const { adminLogin, isAdmin } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
 
-  // すでにログイン済みの場合はTOPページにリダイレクト
-  if (isAuthenticated) {
-    router.push('/');
+  // すでにログイン済みの場合は管理者ダッシュボードへリダイレクト
+  if (isAdmin) {
+    router.push('/admin');
     return null;
   }
 
@@ -29,9 +28,9 @@ export default function Login() {
       return;
     }
 
-    const success = login(email, password);
+    const success = adminLogin(email, password);
     if (success) {
-      router.push('/');
+      router.push('/admin');
     } else {
       setError('メールアドレスまたはパスワードが正しくありません');
     }
@@ -39,16 +38,21 @@ export default function Login() {
 
   const handleTestLogin = (testEmail: string) => {
     setEmail(testEmail);
-    setPassword('password123');
+    setPassword('admin123');
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-primary-light to-white flex items-center justify-center px-4">
+    <div className="min-h-screen bg-gradient-to-b from-blue-100 to-white flex items-center justify-center px-4">
       <div className="max-w-md w-full">
         {/* ロゴ・タイトル */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-primary mb-2">S WORKS</h1>
-          <p className="text-gray-600">看護師・介護士のための求人マッチング</p>
+          <div className="flex justify-center mb-4">
+            <div className="bg-blue-600 p-4 rounded-full">
+              <Building2 className="w-12 h-12 text-white" />
+            </div>
+          </div>
+          <h1 className="text-3xl font-bold text-blue-600 mb-2">施設管理者ログイン</h1>
+          <p className="text-gray-600">S WORKS 管理画面</p>
         </div>
 
         {/* ログインフォーム */}
@@ -73,8 +77,8 @@ export default function Login() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                  placeholder="test1@example.com"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  placeholder="admin1@example.com"
                 />
               </div>
             </div>
@@ -90,7 +94,7 @@ export default function Login() {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-12 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full pl-10 pr-12 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
                   placeholder="パスワードを入力"
                 />
                 <button
@@ -110,53 +114,43 @@ export default function Login() {
             {/* ログインボタン */}
             <button
               type="submit"
-              className="w-full py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors"
+              className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
             >
-              ログイン
+              管理者としてログイン
             </button>
           </form>
-
-          {/* パスワード忘れ・新規登録 */}
-          <div className="mt-4 text-center text-sm">
-            <Link
-              href="/register"
-              className="text-primary hover:underline"
-            >
-              新規登録はこちら
-            </Link>
-          </div>
         </div>
 
-        {/* テストユーザー */}
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <h3 className="font-semibold text-sm text-yellow-800 mb-3">
-            テストユーザーでログイン
+        {/* テスト管理者 */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <h3 className="font-semibold text-sm text-blue-800 mb-3">
+            テスト管理者でログイン
           </h3>
           <div className="space-y-2">
             <button
-              onClick={() => handleTestLogin('test1@example.com')}
-              className="w-full text-left px-3 py-2 bg-white border border-yellow-300 rounded text-sm hover:bg-yellow-50 transition-colors"
+              onClick={() => handleTestLogin('admin1@example.com')}
+              className="w-full text-left px-3 py-2 bg-white border border-blue-300 rounded text-sm hover:bg-blue-50 transition-colors"
             >
-              <div className="font-medium">田中 花子（看護師）</div>
-              <div className="text-xs text-gray-600">test1@example.com</div>
+              <div className="font-medium">山田 太郎（さくら介護ホーム）</div>
+              <div className="text-xs text-gray-600">admin1@example.com</div>
             </button>
             <button
-              onClick={() => handleTestLogin('test2@example.com')}
-              className="w-full text-left px-3 py-2 bg-white border border-yellow-300 rounded text-sm hover:bg-yellow-50 transition-colors"
+              onClick={() => handleTestLogin('admin2@example.com')}
+              className="w-full text-left px-3 py-2 bg-white border border-blue-300 rounded text-sm hover:bg-blue-50 transition-colors"
             >
-              <div className="font-medium">佐藤 太郎（介護福祉士）</div>
-              <div className="text-xs text-gray-600">test2@example.com</div>
+              <div className="font-medium">鈴木 花子（みどり総合病院）</div>
+              <div className="text-xs text-gray-600">admin2@example.com</div>
             </button>
             <button
-              onClick={() => handleTestLogin('test3@example.com')}
-              className="w-full text-left px-3 py-2 bg-white border border-yellow-300 rounded text-sm hover:bg-yellow-50 transition-colors"
+              onClick={() => handleTestLogin('admin3@example.com')}
+              className="w-full text-left px-3 py-2 bg-white border border-blue-300 rounded text-sm hover:bg-blue-50 transition-colors"
             >
-              <div className="font-medium">鈴木 一郎（理学療法士）</div>
-              <div className="text-xs text-gray-600">test3@example.com</div>
+              <div className="font-medium">佐藤 次郎（もみじ訪問看護ステーション）</div>
+              <div className="text-xs text-gray-600">admin3@example.com</div>
             </button>
           </div>
-          <p className="text-xs text-yellow-700 mt-3">
-            ※ クリックで自動入力されます。「ログイン」ボタンを押してください。
+          <p className="text-xs text-blue-700 mt-3">
+            ※ クリックで自動入力されます。「管理者としてログイン」ボタンを押してください。
           </p>
         </div>
       </div>

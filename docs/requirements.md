@@ -182,7 +182,21 @@
 - 本人確認（書類審査）
 
 #### 2.2.2 求人掲載
+
+**テンプレート機能**
+- 企業全体で共有するテンプレート
+  - テンプレートは事業所に紐づかない
+  - 全事業所が共通のテンプレートプールを利用
+  - 案件作成時に事業所とテンプレートを個別に選択
+- テンプレート管理
+  - テンプレート作成・編集・削除
+  - テンプレート一覧表示
+  - テンプレート複製機能
+
+**求人情報入力**
 - 求人情報入力
+  - 事業所選択
+  - テンプレート選択（任意）
   - 勤務日時
   - 募集人数
   - 職種・業務内容
@@ -315,9 +329,29 @@
 - created_at
 - updated_at
 
+#### JobTemplates（案件テンプレート）
+- id
+- name（テンプレート名）
+- title（案件タイトル）
+- start_time
+- end_time
+- break_time
+- hourly_wage（時給）
+- transportation_fee
+- recruitment_count
+- qualifications（必要資格 JSON）
+- description（仕事内容）
+- notes（備考）
+- tags（タグ JSON）
+- created_at
+- updated_at
+
+**注意**: テンプレートは企業全体で共有され、特定の事業所には紐づかない
+
 #### Jobs（求人）
 - id
 - facility_id
+- template_id（使用したテンプレートID、任意）
 - title
 - description
 - work_date

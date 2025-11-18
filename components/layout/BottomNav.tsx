@@ -9,7 +9,7 @@ export const BottomNav = () => {
 
   const navItems = [
     { href: '/', icon: Search, label: '探す' },
-    { href: '/under-construction?page=favorites', icon: Heart, label: 'お気に入り' },
+    { href: '/favorites', icon: Heart, label: 'お気に入り' },
     { href: '/applications', icon: Clipboard, label: '応募' },
     { href: '/mypage', icon: User, label: 'マイページ' }
   ];

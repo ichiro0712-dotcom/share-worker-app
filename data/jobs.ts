@@ -2407,5 +2407,47 @@ export const jobs: Job[] = [
     parking: true,
     accessDescription: '駅から徒歩圏内で通いやすい立地です。',
     mapImage: '/images/placeholder.svg'
-  }
+  },
+  // 追加データ: facilityId=1の案件を30件にするため
+  ...Array.from({ length: 20 }, (_, i) => ({
+    id: 51 + i,
+    facilityId: 1,
+    title: `【施設1】案件${51 + i} - デイサービス・介護スタッフ募集`,
+    workDate: formatDate(Math.floor(Math.random() * 30) + 1),
+    startTime: ['09:00', '10:00', '13:00', '14:00'][Math.floor(Math.random() * 4)],
+    endTime: ['16:30', '17:00', '18:00', '19:00'][Math.floor(Math.random() * 4)],
+    breakTime: '12:00-13:00',
+    wage: 8000 + Math.floor(Math.random() * 4000),
+    hourlyWage: 1200 + Math.floor(Math.random() * 400),
+    deadline: generateRandomDeadline(51 + i, totalJobs + 20),
+    tags: ['デイサービス', '介護'],
+    address: '東京都杉並区井草3-23-1F',
+    access: '西武新宿線「下井草駅」より徒歩9分',
+    recruitmentCount: [1, 2, 3][Math.floor(Math.random() * 3)],
+    appliedCount: Math.floor(Math.random() * 3),
+    transportationFee: 5000,
+    overview: 'デイサービスでの介護業務全般をお願いします。利用者様の生活サポートやレクリエーション活動のお手伝いをしていただきます。',
+    workContent: ['対象・見守り', '記録業務', '移乗介助', '排泄介助', '食事介助', '入浴介助'],
+    requiredQualifications: ['介護福祉士', 'または実務者研修修了者'],
+    requiredExperience: ['経験不問'],
+    dresscode: ['動きやすい服装'],
+    belongings: ['筆記用具', '印鑑'],
+    otherConditions: [],
+    managerName: '田中 花子',
+    managerMessage: '明るく楽しい職場です。お気軽にご応募ください！',
+    managerAvatar: '👩',
+    images: ['/images/anken.png', '/images/anken.png', '/images/anken.png'],
+    badges: [{ text: 'SWORK初心者歓迎', type: 'yellow' }],
+    transportMethods: [
+      { name: '車', available: true },
+      { name: 'バイク', available: true },
+      { name: '自転車', available: true },
+      { name: '電車', available: true },
+      { name: 'バス', available: true },
+      { name: '徒歩', available: true }
+    ],
+    parking: true,
+    accessDescription: '駅から徒歩圏内で通いやすい立地です。',
+    mapImage: '/images/placeholder.svg'
+  }))
 ];
