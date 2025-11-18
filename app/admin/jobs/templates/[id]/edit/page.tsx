@@ -7,178 +7,19 @@ import AdminLayout from '@/components/admin/AdminLayout';
 import { facilities } from '@/data/facilities';
 import { jobTemplates } from '@/data/jobTemplates';
 import { Upload, X } from 'lucide-react';
-
-// 定数定義
-const JOB_TYPES = ['通常業務', '説明会'];
-
-const BREAK_TIME_OPTIONS = [
-  { value: 0, label: 'なし' },
-  { value: 10, label: '10分' },
-  { value: 15, label: '15分' },
-  { value: 20, label: '20分' },
-  { value: 30, label: '30分' },
-  { value: 45, label: '45分' },
-  { value: 60, label: '60分' },
-  { value: 90, label: '90分' },
-  { value: 120, label: '120分' },
-];
-
-const RECRUITMENT_START_DAY_OPTIONS = [
-  { value: 0, label: '公開時' },
-  { value: -1, label: '勤務当日' },
-  ...Array.from({ length: 31 }, (_, i) => ({ value: -(i + 2), label: `勤務${i + 1}日前` })),
-];
-
-const RECRUITMENT_END_DAY_OPTIONS = [
-  { value: 0, label: '勤務開始時' },
-  { value: -1, label: '勤務当日' },
-  ...Array.from({ length: 31 }, (_, i) => ({ value: -(i + 2), label: `勤務${i + 1}日前` })),
-];
-
-const TRANSPORTATION_FEE_OPTIONS = [
-  { value: 0, label: 'なし' },
-  ...Array.from({ length: 30 }, (_, i) => ({
-    value: (i + 1) * 100,
-    label: `${(i + 1) * 100}円`
-  }))
-];
-
-const JOB_DESCRIPTION_FORMATS = [
-  {
-    value: '介護：日勤',
-    text: `【介護業務（日勤）】
-・利用者様の日常生活介助（食事・入浴・排泄等）
-・移乗・移動介助、体位変換
-・レクリエーション、機能訓練の補助
-・バイタル測定、記録業務
-・環境整備、清掃`
-  },
-  {
-    value: '介護：夜勤',
-    text: `【介護業務（夜勤）】
-・夜間巡視、安全確認
-・就寝介助、起床介助
-・排泄介助、体位変換
-・コール対応、緊急時対応
-・記録業務、申し送り`
-  },
-  {
-    value: '看護：日勤',
-    text: `【看護業務（日勤）】
-・バイタルチェック、健康管理
-・服薬管理、処置業務
-・医療行為の実施（喀痰吸引、経管栄養等）
-・医師の指示による医療処置
-・記録業務、申し送り`
-  },
-  {
-    value: '看護：夜勤',
-    text: `【看護業務（夜勤）】
-・夜間の健康観察、巡視
-・バイタルチェック、緊急時対応
-・服薬管理、処置業務
-・医療行為の実施
-・記録業務、申し送り`
-  },
-  {
-    value: 'ドライバー',
-    text: `【送迎ドライバー業務】
-・利用者様の送迎（運転業務）
-・乗降介助、安全確認
-・車両の日常点検、清掃
-・送迎記録の作成
-・施設内での軽作業補助`
-  },
-  {
-    value: '生活相談員',
-    text: `【生活相談員業務】
-・利用者様・ご家族との相談対応
-・ケアプラン作成、サービス調整
-・関係機関との連絡調整
-・契約業務、事務手続き
-・施設内の調整業務`
-  },
-  {
-    value: '病院：看護補助',
-    text: `【看護補助業務】
-・患者様の日常生活援助
-・食事介助、排泄介助、入浴介助
-・環境整備、リネン交換
-・配膳・下膳、物品管理
-・看護師の補助業務`
-  },
-  {
-    value: '病院：看護日勤',
-    text: `【病院看護業務（日勤）】
-・バイタルチェック、観察業務
-・医師の診療補助
-・点滴・注射等の医療処置
-・記録業務、カンファレンス
-・患者様・ご家族への説明`
-  },
-  {
-    value: '病院：看護日勤（急性期）',
-    text: `【急性期病院看護業務（日勤）】
-・重症患者の観察・看護
-・緊急入院対応、救急処置
-・手術前後の看護
-・医療機器の管理
-・記録業務、申し送り`
-  },
-  {
-    value: '病院：看護夜勤',
-    text: `【病院看護業務（夜勤）】
-・夜間の患者様の観察・巡視
-・バイタルチェック、状態確認
-・緊急時対応、医師への報告
-・点滴・注射等の医療処置
-・記録業務、申し送り`
-  },
-  {
-    value: '説明会',
-    text: `【施設見学・説明会】
-・施設概要の説明
-・業務内容の紹介
-・施設見学のご案内
-・質疑応答
-・個別相談`
-  },
-];
-
-const WORK_CONTENT_OPTIONS = [
-  '対話・見守り', '移動介助', '排泄介助', '食事介助', '入浴介助',
-  'バイタル測定', '記録', 'レクリエーション', '送迎', '清掃',
-  '環境整備', '配膳・下膳', '洗濯', '買い物', '調理',
-  '服薬管理', '口腔ケア', 'おむつ交換', '体位変換', 'トイレ誘導',
-  'コール対応', '移乗介助', '機能訓練補助', '夜間巡視', '緊急時対応',
-  'カンファレンス', '申し送り', '物品管理', '利用者家族対応', 'イベント企画',
-  '外出支援', '趣味活動支援', '生活相談', 'ケア記録入力', 'その他看護業務',
-  'その他介護業務', '事務作業', '掃除', '洗い物', '準備・片付け',
-  '補助業務', '雑務'
-];
-
-const QUALIFICATION_OPTIONS = [
-  '介護福祉士', '実務者研修', '初任者研修', 'ヘルパー2級', 'ヘルパー1級',
-  '看護師', '准看護師', '理学療法士', '作業療法士', '言語聴覚士',
-  '社会福祉士', '精神保健福祉士', 'ケアマネジャー', '保育士', '栄養士',
-  '管理栄養士', '調理師', '介護職員基礎研修', '認知症ケア専門士', '福祉用具専門相談員',
-  '同行援護従業者', '行動援護従業者', '喀痰吸引等研修', 'サービス提供責任者', 'ガイドヘルパー',
-  '移動介護従事者', '重度訪問介護従業者', '難病患者等ホームヘルパー', '医療的ケア研修', '介護予防運動指導員',
-  'レクリエーション介護士', '福祉住環境コーディネーター', '音楽療法士', 'アロマセラピスト', '介護事務',
-  '医療事務', 'ホームヘルパー', 'ケアワーカー', 'ソーシャルワーカー', '生活相談員',
-  '支援相談員', '児童指導員', '児童発達支援管理責任者', 'サービス管理責任者', '主任介護支援専門員',
-  '認知症介護実践者研修', '認知症介護実践リーダー研修', 'ユニットリーダー研修', '強度行動障害支援者養成研修', '普通自動車免許',
-  '中型自動車免許', '大型自動車免許', '普通自動車第二種免許', '資格不問', 'その他'
-];
-
-const ICON_OPTIONS = [
-  '高時給', '駅チカ', '車通勤OK', '未経験OK', 'ブランクOK',
-  '週1日〜OK', '土日のみOK', '平日のみOK', '短時間OK', '扶養内OK',
-  '副業OK', 'WワークOK', '学生OK', 'シニアOK', '主婦・主夫歓迎',
-  '残業なし', '交通費支給', '制服貸与', '社会保険完備', '即日勤務OK',
-  '日払い・週払いOK', '前払いOK', '駐車場あり', '食事補助', '送迎あり',
-  '研修制度あり', '資格取得支援', 'キャリアアップ', '昇給あり', '賞与あり'
-];
+import { calculateDailyWage } from '@/utils/salary';
+import {
+  JOB_TYPES,
+  WORK_CONTENT_OPTIONS,
+  QUALIFICATION_OPTIONS,
+  ICON_OPTIONS,
+  BREAK_TIME_OPTIONS,
+  TRANSPORTATION_FEE_OPTIONS,
+  JOB_DESCRIPTION_FORMATS,
+  DEFAULT_DISMISSAL_REASONS,
+  RECRUITMENT_START_DAY_OPTIONS,
+  RECRUITMENT_END_DAY_OPTIONS,
+} from '@/constants';
 
 export default function EditTemplatePage() {
   const router = useRouter();
@@ -298,17 +139,7 @@ export default function EditTemplatePage() {
     formData.workContent.includes('入浴介助(個浴)') ||
     formData.workContent.includes('排泄介助');
 
-  // 日給計算
-  const calculateDailyWage = () => {
-    if (!formData.startTime || !formData.endTime) return 0;
-    const [startHour, startMin] = formData.startTime.split(':').map(Number);
-    const [endHour, endMin] = formData.endTime.split(':').map(Number);
-    let totalMinutes = (endHour * 60 + endMin) - (startHour * 60 + startMin);
-    if (totalMinutes < 0) totalMinutes += 24 * 60;
-    totalMinutes -= formData.breakTime;
-    const workHours = totalMinutes / 60;
-    return Math.round(formData.hourlyWage * workHours) + formData.transportationFee;
-  };
+
 
   // 配列の追加削除
   const toggleArrayItem = (field: string, item: string) => {
@@ -737,7 +568,13 @@ export default function EditTemplatePage() {
                   </label>
                   <input
                     type="number"
-                    value={calculateDailyWage()}
+                    value={calculateDailyWage(
+                    formData.startTime,
+                    formData.endTime,
+                    formData.breakTime,
+                    formData.hourlyWage,
+                    formData.transportationFee
+                  )}
                     readOnly
                     className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-gray-100"
                   />

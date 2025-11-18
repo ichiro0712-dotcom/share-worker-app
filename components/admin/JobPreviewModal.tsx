@@ -5,6 +5,7 @@ import { X, ChevronLeft, ChevronRight, MapPin, Heart, Clock } from 'lucide-react
 import Image from 'next/image';
 import { Badge } from '@/components/ui/Badge';
 import { Tag } from '@/components/ui/Tag';
+import { calculateDailyWage } from '@/utils/salary';
 
 interface JobPreviewModalProps {
   isOpen: boolean;
@@ -34,18 +35,6 @@ export function JobPreviewModal({
     setCurrentImageIndex((prev) => (prev === 0 ? formData.images.length - 1 : prev - 1));
   };
 
-  // 日給計算
-  const calculateDailyWage = () => {
-    if (!formData.startTime || !formData.endTime) return 0;
-    const [startHour, startMin] = formData.startTime.split(':').map(Number);
-    const [endHour, endMin] = formData.endTime.split(':').map(Number);
-    let totalMinutes = (endHour * 60 + endMin) - (startHour * 60 + startMin);
-    if (totalMinutes < 0) totalMinutes += 24 * 60;
-    totalMinutes -= formData.breakTime;
-    const hours = totalMinutes / 60;
-    return Math.floor(hours * formData.hourlyWage + formData.transportationFee);
-  };
-
   const formatWorkTime = (startTime: string, endTime: string) => {
     if (!startTime || !endTime) return '';
     return `${startTime}〜${endTime}`;
@@ -57,7 +46,13 @@ export function JobPreviewModal({
     return `${date.getMonth() + 1}/${date.getDate()}(${dayNames[date.getDay()]})`;
   };
 
-  const dailyWage = calculateDailyWage();
+  const dailyWage = calculateDailyWage(
+    formData.startTime,
+    formData.endTime,
+    formData.breakTime,
+    formData.hourlyWage,
+    formData.transportationFee
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>

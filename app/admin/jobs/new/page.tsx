@@ -8,177 +8,19 @@ import { facilities } from '@/data/facilities';
 import { jobTemplates } from '@/data/jobTemplates';
 import { Upload, X, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import { JobPreviewModal } from '@/components/admin/JobPreviewModal';
-
-// 定数データ
-const JOB_TYPES = ['通常業務', '説明会'];
-
-const BREAK_TIME_OPTIONS = [
-  { value: 0, label: 'なし' },
-  { value: 10, label: '10分' },
-  { value: 30, label: '30分' },
-  { value: 60, label: '60分' },
-  { value: 90, label: '90分' },
-  { value: 120, label: '120分' },
-];
-
-const TRANSPORTATION_FEE_OPTIONS = [
-  { value: 0, label: 'なし' },
-  ...Array.from({ length: 30 }, (_, i) => ({
-    value: (i + 1) * 100,
-    label: `${(i + 1) * 100}円`
-  }))
-];
-
-const JOB_DESCRIPTION_FORMATS = [
-  {
-    value: '介護:日勤',
-    text: `【介護業務（日勤）】
-・利用者様の日常生活介助（食事・入浴・排泄等）
-・移乗・移動介助、体位変換
-・レクリエーション、機能訓練の補助
-・バイタル測定、記録業務
-・環境整備、清掃`
-  },
-  {
-    value: '介護:夜勤',
-    text: `【介護業務（夜勤）】
-・夜間巡視、安全確認
-・就寝介助、起床介助
-・排泄介助、体位変換
-・コール対応、緊急時対応
-・記録業務、申し送り`
-  },
-  {
-    value: '看護:日勤',
-    text: `【看護業務（日勤）】
-・バイタルチェック、健康管理
-・服薬管理、処置業務
-・医療行為の実施（喀痰吸引、経管栄養等）
-・医師の指示による医療処置
-・記録業務、申し送り`
-  },
-  {
-    value: '看護:夜勤',
-    text: `【看護業務（夜勤）】
-・夜間の健康観察、巡視
-・バイタルチェック、緊急時対応
-・服薬管理、処置業務
-・医療行為の実施
-・記録業務、申し送り`
-  },
-  {
-    value: 'ドライバー',
-    text: `【送迎ドライバー業務】
-・利用者様の送迎（運転業務）
-・乗降介助、安全確認
-・車両の日常点検、清掃
-・送迎記録の作成
-・施設内での軽作業補助`
-  },
-  {
-    value: '生活相談員',
-    text: `【生活相談員業務】
-・利用者様・ご家族との相談対応
-・ケアプラン作成、サービス調整
-・関係機関との連絡調整
-・契約業務、事務手続き
-・施設内の調整業務`
-  },
-  {
-    value: '病院:看護補助',
-    text: `【看護補助業務】
-・患者様の日常生活援助
-・食事介助、排泄介助、入浴介助
-・環境整備、リネン交換
-・配膳・下膳、物品管理
-・看護師の補助業務`
-  },
-  {
-    value: '病院:看護日勤',
-    text: `【病院看護業務（日勤）】
-・バイタルチェック、観察業務
-・医師の診療補助
-・点滴・注射等の医療処置
-・記録業務、カンファレンス
-・患者様・ご家族への説明`
-  },
-  {
-    value: '病院:看護日勤（急性期）',
-    text: `【急性期病院看護業務（日勤）】
-・重症患者の観察・看護
-・緊急入院対応、救急処置
-・手術前後の看護
-・医療機器の管理
-・多職種連携、記録業務`
-  },
-  {
-    value: '病院:看護夜勤',
-    text: `【病院看護業務（夜勤）】
-・夜間の患者観察、巡視
-・バイタルチェック、緊急時対応
-・医療処置、看護ケア
-・記録業務、申し送り
-・夜間の検査・処置対応`
-  },
-  {
-    value: '説明会',
-    text: `【施設説明会】
-・施設概要のご説明
-・業務内容のご紹介
-・勤務条件・待遇のご説明
-・施設見学
-・質疑応答`
-  },
-];
-
-const RECRUITMENT_START_DAY_OPTIONS = [
-  { value: 0, label: '公開時' },
-  { value: -1, label: '勤務当日' },
-  ...Array.from({ length: 31 }, (_, i) => ({ value: -(i + 2), label: `勤務${i + 1}日前` })),
-];
-
-const RECRUITMENT_END_DAY_OPTIONS = [
-  { value: 0, label: '勤務開始時' },
-  { value: -1, label: '勤務当日' },
-  ...Array.from({ length: 31 }, (_, i) => ({ value: -(i + 2), label: `勤務${i + 1}日前` })),
-];
-
-const WORK_CONTENT_OPTIONS = [
-  '対話・見守り', '移動介助', '排泄介助', '入浴介助(大浴場)', '整容', '食事介助', '服薬介助', '起床介助',
-  'リネン交換', '送迎(運転)', '巡視・巡回', '清拭', '経管栄養', '説明会', 'コール対応', '移乗介助',
-  '入浴介助(全般)', '入浴介助(機械浴)', '薬・軟膏塗布', '調理・調理補助', '口腔ケア', '就寝介助',
-  'レク・体操', '送迎(添乗)', '事務作業', '爪切り', '胃ろう', '環境整備', '記録業務', '体位変換',
-  '入浴介助(個浴)', '更衣介助', '洗濯', '配膳下膳', 'バイタル測定', '清掃', '外出介助', '夜勤(全般)',
-  '機能訓練', '痰吸引', '褥瘡ケア'
-];
-
-const QUALIFICATION_OPTIONS = [
-  '介護福祉士', '実務者研修', '初任者研修', 'ヘルパー1級', 'ヘルパー2級', '認知症介護基礎研修',
-  '認知症介護実践者研修', '看護師', '准看護師', '認定看護師', '専門看護師', '保健師', '助産師',
-  '社会福祉士', '社会福祉主事', '理学療法士', '作業療法士', '言語聴覚士', '介護支援専門員',
-  '認定介護福祉士', '介護職員基礎研修', '認知症介護実践リーダー研修', '喀痰吸引等研修',
-  '精神保健福祉士', '福祉用具専門相談員', '重度訪問介護従業者養成研修 基礎課程',
-  '重度訪問介護従業者養成研修 追加課程', '難病患者等ホームヘルパー養成研修 基礎課程 I',
-  '難病患者等ホームヘルパー養成研修 基礎課程II', '全身性障害者ガイドヘルパー養成研修',
-  '同行援護従事者養成研修', '行動援護従事者養成研修', 'レクリエーション介護士1級',
-  'レクリエーション介護士2級', 'ドライバー(運転免許証)', '看護助手認定実務者', '管理栄養士',
-  '栄養士', '調理師', '柔道整復師', 'あん摩マッサージ指圧師', 'はり師', 'きゅう師', '保育士',
-  '歯科衛生士', '医療事務認定実務者', '医師', '薬剤師', '保険薬剤師登録票', '無資格可'
-];
-
-const ICON_OPTIONS = [
-  '未経験者歓迎', 'SWORKS初心者歓迎', 'ブランク歓迎', '髪型・髪色自由', 'ネイルOK', '制服貸与'
-];
-
-const DEFAULT_DISMISSAL_REASONS = `[解雇の事由]
-(1) 身体または精神の障害により業務に耐えられないと認められるとき
-(2) 勤怠不良で改善の見込みがないとき
-(3) 利用者への暴行、脅迫、傷害、暴言その他のこれに類する行為のほか、身体拘束や虐待に該当し得る行為があったとき
-(4) 会社の体面・信用を損なうような行為を行ったとき
-(5) 採用されるに際し、提出した情報と事実に相違する箇所があったとき
-(6) 業務上で知り得た使用者の一切の情報（個人情報を含み、以下「秘密情報」といいます。）が漏洩したと認められた際に報告を怠ったとき
-(7) 労働者が反社会的勢力（暴力団、暴力団関係企業、総会屋、社会運動等標榜ゴロまたは特殊知能暴力集団その他これに準ずる者）に該当し、またはこれらと関係を有すると判明したとき
-(8) その他前各号に準ずるやむを得ない事由が生じたとき`;
+import { calculateDailyWage } from '@/utils/salary';
+import {
+  JOB_TYPES,
+  WORK_CONTENT_OPTIONS,
+  QUALIFICATION_OPTIONS,
+  ICON_OPTIONS,
+  BREAK_TIME_OPTIONS,
+  TRANSPORTATION_FEE_OPTIONS,
+  JOB_DESCRIPTION_FORMATS,
+  DEFAULT_DISMISSAL_REASONS,
+  RECRUITMENT_START_DAY_OPTIONS,
+  RECRUITMENT_END_DAY_OPTIONS,
+} from '@/constants';
 
 export default function NewJobPage() {
   const router = useRouter();
@@ -312,19 +154,15 @@ export default function NewJobPage() {
     handleInputChange('dresscodeImages', formData.dresscodeImages.filter((_, i) => i !== index));
   };
 
-  // 日給計算
-  const calculateDailyWage = () => {
-    if (!formData.startTime || !formData.endTime) return 0;
-    const [startHour, startMin] = formData.startTime.split(':').map(Number);
-    const [endHour, endMin] = formData.endTime.split(':').map(Number);
-    let totalMinutes = (endHour * 60 + endMin) - (startHour * 60 + startMin);
-    if (totalMinutes < 0) totalMinutes += 24 * 60;
-    totalMinutes -= formData.breakTime;
-    const workHours = totalMinutes / 60;
-    return Math.round(formData.hourlyWage * workHours) + formData.transportationFee;
-  };
 
-  const dailyWage = calculateDailyWage();
+
+  const dailyWage = calculateDailyWage(
+    formData.startTime,
+    formData.endTime,
+    formData.breakTime,
+    formData.hourlyWage,
+    formData.transportationFee
+  );
 
   const requiresGenderSpecification = formData.workContent.includes('入浴介助(大浴場)') ||
     formData.workContent.includes('入浴介助(全般)') ||

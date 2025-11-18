@@ -18,7 +18,12 @@ import {
   Building2,
   Bell,
   ExternalLink,
+  MapPin,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Tag } from '@/components/ui/tag';
 
 type JobStatus = 'all' | 'recruiting' | 'paused' | 'working' | 'review' | 'completed' | 'failed';
 
@@ -35,6 +40,8 @@ export default function AdminJobsList() {
   const [bulkActionConfirm, setBulkActionConfirm] = useState<'publish' | 'pause' | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [isOverviewExpanded, setIsOverviewExpanded] = useState(false);
 
   // ログインしていない、または管理者でない場合はログインページへリダイレクト
   useEffect(() => {
@@ -55,6 +62,11 @@ export default function AdminJobsList() {
 
   // ステータス判定関数
   const getJobStatus = (job: typeof jobs[0]): JobStatus => {
+    // 停止中フラグがある場合は停止中を返す
+    if ((job as any).status === 'paused') {
+      return 'paused';
+    }
+
     const today = new Date();
     const deadline = new Date(job.deadline);
     const workDate = new Date(job.workDate);
@@ -78,7 +90,7 @@ export default function AdminJobsList() {
   const filteredJobs = useMemo(() => {
     let filtered = [...facilityJobs];
 
-    // 検索フィルタ（案件タイトルorワーカー名）
+    // 検索フィルタ（求人タイトルorワーカー名）
     if (searchQuery) {
       filtered = filtered.filter((job) =>
         job.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -211,35 +223,36 @@ export default function AdminJobsList() {
         <div className="bg-white border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-bold text-gray-900">案件管理</h1>
+              <h1 className="text-xl font-bold text-gray-900">求人管理</h1>
               <p className="text-xs text-gray-500 mt-1">
-                {filteredJobs.length}件の案件
+                {filteredJobs.length}件の求人
                 {filteredJobs.length !== facilityJobs.length && (
                   <span className="text-gray-400"> （全{facilityJobs.length}件中）</span>
                 )}
               </p>
             </div>
             <div className="flex items-center gap-3">
-              {/* 一括操作ボタン（選択時のみ表示） */}
+              {/* 選択中の表示（選択時のみ表示） */}
               {selectedJobIds.length > 0 && (
-                <>
-                  <span className="text-xs text-gray-600">
-                    {selectedJobIds.length}件選択中
-                  </span>
-                  <button
-                    onClick={handleBulkPublish}
-                    className="flex items-center gap-2 px-4 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
-                  >
-                    公開する
-                  </button>
-                  <button
-                    onClick={handleBulkPause}
-                    className="flex items-center gap-2 px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
-                  >
-                    停止する
-                  </button>
-                </>
+                <span className="text-xs text-gray-600">
+                  {selectedJobIds.length}件選択中
+                </span>
               )}
+              {/* 一括操作ボタン（常に表示） */}
+              <button
+                onClick={handleBulkPublish}
+                disabled={selectedJobIds.length === 0}
+                className="flex items-center gap-2 px-4 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                公開する
+              </button>
+              <button
+                onClick={handleBulkPause}
+                disabled={selectedJobIds.length === 0}
+                className="flex items-center gap-2 px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                停止する
+              </button>
               <button
                 onClick={() => window.open('/admin/jobs/templates', '_blank')}
                 className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors"
@@ -252,7 +265,7 @@ export default function AdminJobsList() {
                 className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
               >
                 <Plus className="w-4 h-4" />
-                案件作成
+                求人作成
               </button>
             </div>
           </div>
@@ -270,7 +283,7 @@ export default function AdminJobsList() {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="案件タイトル or ワーカー名"
+                  placeholder="求人タイトル or ワーカー名"
                   className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
                 />
               </div>
@@ -356,7 +369,7 @@ export default function AdminJobsList() {
           </div>
         </div>
 
-        {/* 案件リスト */}
+        {/* 求人リスト */}
         <div className="flex-1 overflow-y-auto p-6">
           {/* 全選択チェックボックス */}
           {paginatedJobs.length > 0 && (
@@ -376,7 +389,7 @@ export default function AdminJobsList() {
           <div className="grid grid-cols-1 gap-3">
             {paginatedJobs.length === 0 ? (
               <div className="bg-white rounded border border-gray-200 p-8 text-center">
-                <p className="text-sm text-gray-500">案件が見つかりませんでした</p>
+                <p className="text-sm text-gray-500">求人が見つかりませんでした</p>
               </div>
             ) : (
               paginatedJobs.map((job) => {
@@ -413,7 +426,7 @@ export default function AdminJobsList() {
                           </span>
                         </div>
 
-                        {/* テンプレート名（案件名） */}
+                        {/* テンプレート名（求人名） */}
                         <div
                           className="flex-1 min-w-0 cursor-pointer"
                           onClick={() => setSelectedJob(job)}
@@ -421,16 +434,27 @@ export default function AdminJobsList() {
                           <p className="text-sm font-medium text-gray-900 truncate">{job.title}</p>
                         </div>
 
-                        {/* 通知書ボタン */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            window.open(`/admin/jobs/${job.id}/notification`, '_blank');
-                          }}
-                          className="px-3 py-1 text-xs font-medium bg-orange-100 text-orange-700 rounded hover:bg-orange-200 transition-colors"
-                        >
-                          通知書
-                        </button>
+                        {/* プレビューと通知書ボタン */}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedJob(job);
+                            }}
+                            className="px-3 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
+                          >
+                            プレビュー
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.open(`/admin/jobs/${job.id}/notification`, '_blank');
+                            }}
+                            className="px-3 py-1 text-xs font-medium bg-orange-100 text-orange-700 rounded hover:bg-orange-200 transition-colors"
+                          >
+                            通知書
+                          </button>
+                        </div>
                       </div>
 
                       {/* 2行目 */}
@@ -465,7 +489,7 @@ export default function AdminJobsList() {
                           </div>
                         </div>
 
-                        {/* 案件ID */}
+                        {/* 求人ID */}
                         <div className="flex-shrink-0 w-16">
                           <span className="text-xs text-gray-500">#{job.id.toString().padStart(4, '0')}</span>
                         </div>
@@ -532,7 +556,7 @@ export default function AdminJobsList() {
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <h2 className="text-lg font-bold mb-4">一括{bulkActionConfirm === 'publish' ? '公開' : '停止'}の確認</h2>
             <p className="text-sm text-gray-700 mb-6">
-              選択した{selectedJobIds.length}件の案件を
+              選択した{selectedJobIds.length}件の求人を
               <span className="font-bold">
                 {bulkActionConfirm === 'publish' ? '公開中' : '停止中'}
               </span>
@@ -560,24 +584,19 @@ export default function AdminJobsList() {
         </div>
       )}
 
-      {/* 案件詳細モーダル */}
+      {/* 求人詳細プレビューモーダル */}
       {selectedJob && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-          onClick={() => setSelectedJob(null)}
-        >
-          <div
-            className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-lg shadow-xl">
             {/* ヘッダー */}
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-bold text-gray-900">{selectedJob.title}</h2>
-                <p className="text-xs text-gray-500 mt-1">案件ID: #{selectedJob.id.toString().padStart(4, '0')}</p>
-              </div>
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between z-10">
+              <h2 className="text-lg font-bold">求人プレビュー</h2>
               <button
-                onClick={() => setSelectedJob(null)}
+                onClick={() => {
+                  setSelectedJob(null);
+                  setCurrentImageIndex(0);
+                  setIsOverviewExpanded(false);
+                }}
                 className="text-gray-400 hover:text-gray-600"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -587,79 +606,303 @@ export default function AdminJobsList() {
             </div>
 
             {/* コンテンツ */}
-            <div className="p-6 space-y-6">
-              {/* 基本情報 */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">勤務日</p>
-                  <p className="text-sm font-medium">{selectedJob.workDate}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">勤務時間</p>
-                  <p className="text-sm font-medium">{selectedJob.startTime}〜{selectedJob.endTime}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">時給</p>
-                  <p className="text-sm font-medium">¥{selectedJob.hourlyWage.toLocaleString()}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">日給</p>
-                  <p className="text-sm font-medium">¥{selectedJob.wage.toLocaleString()}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">募集人数</p>
-                  <p className="text-sm font-medium">{selectedJob.recruitmentCount}名</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">応募状況</p>
-                  <p className="text-sm font-medium">{selectedJob.appliedCount}/{selectedJob.recruitmentCount}名</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">締切</p>
-                  <p className="text-sm font-medium">
-                    {new Date(selectedJob.deadline).toLocaleString('ja-JP')}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">交通費</p>
-                  <p className="text-sm font-medium">¥{selectedJob.transportationFee.toLocaleString()}</p>
+            <div className="p-6">
+              {/* タイトルと募集人数バッジ */}
+              <div className="mb-4">
+                <div className="flex items-start gap-3 mb-3">
+                  <h3 className="text-xl font-bold flex-1">{selectedJob.title}</h3>
+                  <Badge variant="red">募集{selectedJob.recruitmentCount}名</Badge>
                 </div>
               </div>
 
-              {/* 住所・アクセス */}
-              <div>
-                <p className="text-xs text-gray-500 mb-1">住所</p>
-                <p className="text-sm">{selectedJob.address}</p>
-                <p className="text-sm text-gray-600 mt-1">{selectedJob.access}</p>
-              </div>
+              {/* 画像カルーセル */}
+              {selectedJob.images && selectedJob.images.length > 0 && (
+                <div className="mb-6 relative">
+                  <div className="aspect-video relative bg-gray-100 rounded-lg overflow-hidden">
+                    <img
+                      src={selectedJob.images[currentImageIndex]}
+                      alt={`求人画像 ${currentImageIndex + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                    {selectedJob.images.length > 1 && (
+                      <>
+                        <button
+                          onClick={() =>
+                            setCurrentImageIndex((prev) =>
+                              prev === 0 ? selectedJob.images!.length - 1 : prev - 1
+                            )
+                          }
+                          className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 text-white p-2 rounded-full hover:bg-black/70"
+                        >
+                          <ChevronLeft className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() =>
+                            setCurrentImageIndex((prev) =>
+                              prev === selectedJob.images!.length - 1 ? 0 : prev + 1
+                            )
+                          }
+                          className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 text-white p-2 rounded-full hover:bg-black/70"
+                        >
+                          <ChevronRight className="w-5 h-5" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  {selectedJob.images.length > 1 && (
+                    <div className="flex justify-center gap-2 mt-3">
+                      {selectedJob.images.map((_, index) => (
+                        <button
+                          key={index}
+                          onClick={() => setCurrentImageIndex(index)}
+                          className={`w-2 h-2 rounded-full transition-colors ${
+                            index === currentImageIndex ? 'bg-primary' : 'bg-gray-300'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
-              {/* タグ */}
-              <div>
-                <p className="text-xs text-gray-500 mb-2">タグ</p>
-                <div className="flex flex-wrap gap-2">
-                  {selectedJob.tags.map((tag, index) => (
-                    <span key={index} className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded">
-                      {tag}
+              {/* タグとバッジ */}
+              {selectedJob.badges && selectedJob.badges.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="mb-3 text-sm bg-primary-light px-4 py-3 -mx-4">タグとバッジ</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedJob.badges.map((badge, index) => (
+                      <Badge
+                        key={index}
+                        variant={badge.type === 'yellow' ? 'primary' : 'gray'}
+                      >
+                        {badge.text}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 施設情報 */}
+              <div className="mb-6">
+                <h3 className="mb-3 text-sm bg-primary-light px-4 py-3 -mx-4">施設情報</h3>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-gray-400" />
+                    <span className="text-sm">
+                      {facilities.find((f) => f.id === selectedJob.facilityId)?.name || '施設名'}
                     </span>
-                  ))}
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <MapPin className="w-4 h-4 text-gray-400 mt-0.5" />
+                    <div className="text-sm">
+                      <p>{selectedJob.address}</p>
+                      <p className="text-gray-600 mt-1">{selectedJob.access}</p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* アクション */}
-              <div className="flex gap-3 pt-4 border-t border-gray-200">
-                <Link
-                  href={`/admin/jobs/${selectedJob.id}/edit`}
-                  className="flex-1 px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 text-center"
-                >
-                  編集
-                </Link>
-                <button
-                  onClick={() => window.open(`/admin/jobs/${selectedJob.id}/notification`, '_blank')}
-                  className="flex-1 px-4 py-2 text-sm border border-gray-300 rounded hover:bg-gray-50"
-                >
-                  通知書を表示
-                </button>
+              {/* 選択された勤務日 */}
+              <div className="mb-6">
+                <h3 className="mb-3 text-sm bg-primary-light px-4 py-3 -mx-4">選択された勤務日</h3>
+                <div className="p-4 border-2 border-primary rounded-lg bg-primary-light/30">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1">
+                      <div className="text-sm font-bold mb-1">
+                        {new Date(selectedJob.workDate).toLocaleDateString('ja-JP', {
+                          month: 'long',
+                          day: 'numeric',
+                          weekday: 'short'
+                        })} {selectedJob.startTime}〜{selectedJob.endTime}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-gray-600">
+                        <span>休憩 {selectedJob.breakTime}</span>
+                        <span>•</span>
+                        <span>時給 {selectedJob.hourlyWage.toLocaleString()}円</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-red-500">
+                        {selectedJob.wage.toLocaleString()}円
+                      </div>
+                      <div className="text-xs text-gray-600">
+                        交通費{selectedJob.transportationFee.toLocaleString()}円込
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
+
+              {/* 仕事内容 */}
+              {selectedJob.workContent && selectedJob.workContent.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="mb-3 text-sm bg-primary-light px-4 py-3 -mx-4">仕事内容</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedJob.workContent.map((content, index) => (
+                      <Tag key={index}>{content}</Tag>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 仕事概要 */}
+              {selectedJob.overview && (
+                <div className="mb-6">
+                  <h3 className="mb-3 text-sm bg-primary-light px-4 py-3 -mx-4">仕事概要</h3>
+                  <div className="text-sm text-gray-700">
+                    <p className={`whitespace-pre-wrap ${!isOverviewExpanded && selectedJob.overview.length > 200 ? 'line-clamp-3' : ''}`}>
+                      {selectedJob.overview}
+                    </p>
+                    {selectedJob.overview.length > 200 && (
+                      <button
+                        onClick={() => setIsOverviewExpanded(!isOverviewExpanded)}
+                        className="text-primary text-xs mt-2 hover:underline"
+                      >
+                        {isOverviewExpanded ? '閉じる ∧' : 'さらに表示 ∨'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* 申込条件 */}
+              <div className="mb-6">
+                <h3 className="mb-3 text-sm bg-primary-light px-4 py-3 -mx-4">申込条件</h3>
+                <div className="space-y-3">
+                  {selectedJob.requiredQualifications && selectedJob.requiredQualifications.length > 0 && (
+                    <div>
+                      <p className="text-xs text-gray-600 mb-2">必要な資格</p>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedJob.requiredQualifications.map((qual, index) => (
+                          <Tag key={index}>{qual}</Tag>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {selectedJob.requiredExperience && selectedJob.requiredExperience.length > 0 && (
+                    <div>
+                      <p className="text-xs text-gray-600 mb-2">必要な経験</p>
+                      <div className="space-y-1">
+                        {selectedJob.requiredExperience.map((exp, index) => (
+                          <div key={index} className="text-sm text-gray-700 flex items-start gap-2">
+                            <span className="text-primary">•</span>
+                            <span>{exp}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 事前情報 */}
+              <div className="mb-6">
+                <h3 className="mb-3 text-sm bg-primary-light px-4 py-3 -mx-4">事前情報</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  {selectedJob.dresscode && selectedJob.dresscode.length > 0 && (
+                    <div>
+                      <p className="text-xs text-gray-600 mb-2">服装</p>
+                      <ul className="space-y-1">
+                        {selectedJob.dresscode.map((item, index) => (
+                          <li key={index} className="text-sm text-gray-700">• {item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {selectedJob.belongings && selectedJob.belongings.length > 0 && (
+                    <div>
+                      <p className="text-xs text-gray-600 mb-2">持ち物</p>
+                      <ul className="space-y-1">
+                        {selectedJob.belongings.map((item, index) => (
+                          <li key={index} className="text-sm text-gray-700">• {item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+                {selectedJob.transportMethods && selectedJob.transportMethods.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-xs text-gray-600 mb-2">利用可能な交通手段</p>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedJob.transportMethods
+                        .filter(method => method.available)
+                        .map((method, index) => (
+                          <span key={index} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
+                            {method.name}
+                          </span>
+                        ))}
+                    </div>
+                  </div>
+                )}
+                {selectedJob.parking && (
+                  <p className="text-sm text-gray-600 mt-3">駐車場: あり</p>
+                )}
+              </div>
+
+              {/* 備考 */}
+              {selectedJob.managerName && selectedJob.managerMessage && (
+                <div className="mb-6">
+                  <h3 className="mb-3 text-sm bg-primary-light px-4 py-3 -mx-4">備考</h3>
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-xl flex-shrink-0">
+                        {selectedJob.managerAvatar || '👤'}
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-sm text-gray-900 mb-1">{selectedJob.managerName}</p>
+                        <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedJob.managerMessage}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 勤務条件 */}
+              <div className="mb-4">
+                <h3 className="mb-3 text-sm bg-primary-light px-4 py-3 -mx-4">勤務条件</h3>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-xs text-gray-600 mb-1">時給</p>
+                      <p className="text-lg font-bold text-primary">¥{selectedJob.hourlyWage.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-600 mb-1">日給</p>
+                      <p className="text-lg font-bold text-primary">¥{selectedJob.wage.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-600 mb-1">交通費</p>
+                      <p className="text-sm text-gray-700">¥{selectedJob.transportationFee.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-600 mb-1">応募締切</p>
+                      <p className="text-sm text-gray-700">
+                        {new Date(selectedJob.deadline).toLocaleDateString('ja-JP')}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => window.open(`/admin/jobs/${selectedJob.id}/notification`, '_blank')}
+                    className="w-full py-2 px-4 border border-primary text-primary rounded-lg hover:bg-primary-light/10 transition-colors text-sm font-medium"
+                  >
+                    労働条件通知書を確認する
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* フッター */}
+            <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4">
+              <button
+                onClick={() => {
+                  setSelectedJob(null);
+                  setCurrentImageIndex(0);
+                  setIsOverviewExpanded(false);
+                }}
+                className="w-full py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors font-medium"
+              >
+                閉じる
+              </button>
             </div>
           </div>
         </div>

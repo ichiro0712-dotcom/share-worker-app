@@ -52,10 +52,10 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       active: pathname?.startsWith('/admin/workers'),
     },
     {
-      title: '事業所',
+      title: '法人・事業所',
       icon: <Building2 className="w-4 h-4" />,
-      href: '/admin/facilities',
-      active: pathname === '/admin/facilities',
+      href: '/admin/facility',
+      active: pathname === '/admin/facility',
     },
     {
       title: 'レビュー',
