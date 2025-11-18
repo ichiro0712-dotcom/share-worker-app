@@ -13,6 +13,7 @@ import {
   LogOut,
   Star,
   FileText,
+  MessageCircle,
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -50,6 +51,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       icon: <Users className="w-4 h-4" />,
       href: '/admin/workers',
       active: pathname?.startsWith('/admin/workers'),
+    },
+    {
+      title: 'メッセージ',
+      icon: <MessageCircle className="w-4 h-4" />,
+      href: '/admin/messages',
+      active: pathname === '/admin/messages',
     },
     {
       title: '法人・事業所',
