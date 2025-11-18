@@ -53,14 +53,14 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-white pb-20">
-      {/* 実装状況パネル */}
+      {/* 実装予定機能パネル */}
       {showImplementationStatus && (
         <div className="bg-blue-50 border-b border-blue-200">
           <div className="px-4 py-3">
             <div className="flex items-start justify-between gap-2 mb-2">
               <div className="flex items-center gap-2">
                 <Info className="w-5 h-5 text-blue-600 flex-shrink-0" />
-                <h3 className="text-sm font-semibold text-blue-900">実装状況（Phase 1 テストバージョン）</h3>
+                <h3 className="text-sm font-semibold text-blue-900">実装予定の機能</h3>
               </div>
               <button
                 onClick={() => setShowImplementationStatus(false)}
@@ -70,50 +70,88 @@ export default function Home() {
               </button>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-4 mt-3">
-              {/* 実装済み機能 */}
-              <div className="bg-white rounded-lg p-3 border border-green-200">
-                <div className="flex items-center gap-2 mb-2">
-                  <CheckCircle2 className="w-4 h-4 text-green-600" />
-                  <h4 className="text-xs font-semibold text-green-900">✓ 実装済み機能</h4>
-                </div>
+            <div className="grid md:grid-cols-3 gap-4 mt-3">
+              {/* ユーザー機能 */}
+              <div className="bg-white rounded-lg p-3 border border-blue-200">
+                <h4 className="text-xs font-semibold text-blue-900 mb-2">👤 ユーザー機能</h4>
                 <ul className="text-xs text-gray-700 space-y-1">
-                  <li>• 求人一覧表示（50件のダミーデータ）</li>
-                  <li>• 並び替え機能（近い順/時給順/締切順）</li>
-                  <li>• ページネーション</li>
-                  <li>• 求人詳細ページ表示</li>
-                  <li>• 画像カルーセル</li>
-                  <li>• レビュー表示</li>
-                  <li>• 施設情報表示</li>
-                  <li>• 申し込み完了ページ</li>
-                  <li>• レスポンシブデザイン</li>
-                  <li>• 管理画面（案件テンプレート管理）</li>
+                  <li>• ユーザー認証（ログイン/会員登録）</li>
+                  <li>• プロフィール管理</li>
+                  <li>• マイページ</li>
+                  <li>• 通知設定</li>
+                  <li>• アカウント設定</li>
+                  <li>• 退会機能</li>
                 </ul>
               </div>
 
-              {/* 未実装機能 */}
-              <div className="bg-white rounded-lg p-3 border border-orange-200">
-                <div className="flex items-center gap-2 mb-2">
-                  <Clock className="w-4 h-4 text-orange-600" />
-                  <h4 className="text-xs font-semibold text-orange-900">○ Phase 2以降で実装予定</h4>
-                </div>
+              {/* 求人検索・閲覧機能 */}
+              <div className="bg-white rounded-lg p-3 border border-blue-200">
+                <h4 className="text-xs font-semibold text-blue-900 mb-2">🔍 求人検索・閲覧</h4>
                 <ul className="text-xs text-gray-700 space-y-1">
-                  <li>• ユーザー認証（ログイン/会員登録）</li>
-                  <li>• 詳細フィルター機能</li>
+                  <li>• 詳細フィルター機能（職種/資格/時給など）</li>
                   <li>• 働ける日カレンダー選択</li>
-                  <li>• ブックマーク/お気に入り保存</li>
+                  <li>• エリア検索・地図表示</li>
+                  <li>• キーワード検索</li>
+                  <li>• 求人の保存（ブックマーク）</li>
                   <li>• あとで見る機能</li>
-                  <li>• 限定・指名求人機能</li>
-                  <li>• メッセージ機能</li>
-                  <li>• 仕事管理機能</li>
-                  <li>• マイページ</li>
+                  <li>• 閲覧履歴</li>
+                </ul>
+              </div>
+
+              {/* 応募・仕事管理機能 */}
+              <div className="bg-white rounded-lg p-3 border border-blue-200">
+                <h4 className="text-xs font-semibold text-blue-900 mb-2">📋 応募・仕事管理</h4>
+                <ul className="text-xs text-gray-700 space-y-1">
                   <li>• 実際の応募処理（データベース連携）</li>
+                  <li>• 応募履歴管理</li>
+                  <li>• 応募状況確認（受付中/承認済み/却下）</li>
+                  <li>• 働く予定の仕事一覧</li>
+                  <li>• 出勤管理・タイムカード</li>
+                  <li>• 勤務実績・給与確認</li>
+                  <li>• 応募キャンセル機能</li>
+                </ul>
+              </div>
+
+              {/* 限定・指名求人機能 */}
+              <div className="bg-white rounded-lg p-3 border border-blue-200">
+                <h4 className="text-xs font-semibold text-blue-900 mb-2">⭐ 限定・指名求人</h4>
+                <ul className="text-xs text-gray-700 space-y-1">
+                  <li>• 限定求人機能（条件を満たすユーザーのみ）</li>
+                  <li>• 指名求人機能（特定ユーザーへの依頼）</li>
+                  <li>• 指名通知</li>
+                  <li>• 指名履歴管理</li>
+                  <li>• 信頼度スコア表示</li>
+                </ul>
+              </div>
+
+              {/* コミュニケーション機能 */}
+              <div className="bg-white rounded-lg p-3 border border-blue-200">
+                <h4 className="text-xs font-semibold text-blue-900 mb-2">💬 コミュニケーション</h4>
+                <ul className="text-xs text-gray-700 space-y-1">
+                  <li>• メッセージ機能（施設とのチャット）</li>
+                  <li>• 通知機能（プッシュ通知）</li>
+                  <li>• Q&A・問い合わせ</li>
+                  <li>• レビュー投稿機能</li>
+                  <li>• 施設へのフィードバック</li>
+                </ul>
+              </div>
+
+              {/* その他機能 */}
+              <div className="bg-white rounded-lg p-3 border border-blue-200">
+                <h4 className="text-xs font-semibold text-blue-900 mb-2">🎯 その他</h4>
+                <ul className="text-xs text-gray-700 space-y-1">
+                  <li>• おすすめ求人表示（AI推薦）</li>
+                  <li>• 新着求人通知</li>
+                  <li>• 検索条件保存</li>
+                  <li>• ヘルプ・チュートリアル</li>
+                  <li>• お知らせ・キャンペーン情報</li>
+                  <li>• 利用規約・プライバシーポリシー</li>
                 </ul>
               </div>
             </div>
 
             <p className="text-xs text-blue-700 mt-3">
-              ※ 現在はダミーデータを使用したUIプロトタイプです。実際の求人データやユーザー認証機能はPhase 2以降で実装します。
+              ※ 現在はダミーデータを使用したUIプロトタイプです。上記機能は今後のフェーズで順次実装予定です。
             </p>
           </div>
         </div>
