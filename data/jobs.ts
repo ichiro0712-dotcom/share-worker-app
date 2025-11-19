@@ -230,8 +230,7 @@ export const jobs: Job[] = [
     ],
     parking: true,
     accessDescription: '恵比寿駅東口より徒歩5分、明治通り沿い',
-    mapImage: '/images/placeholder.svg',
-    status: 'paused' // 停止中フラグ
+    mapImage: '/images/placeholder.svg'
   },
   {
     id: 6,
@@ -272,8 +271,7 @@ export const jobs: Job[] = [
     ],
     parking: true,
     accessDescription: '恵比寿駅東口より徒歩5分、明治通り沿い',
-    mapImage: '/images/placeholder.svg',
-    status: 'paused' // 停止中フラグ
+    mapImage: '/images/placeholder.svg'
   },
   // 勤務中 (7) - 本日が勤務日
   {

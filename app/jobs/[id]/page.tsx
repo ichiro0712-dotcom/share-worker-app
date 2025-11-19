@@ -149,12 +149,12 @@ export default function JobDetail() {
         {/* タグとバッジ */}
         <div className="flex gap-2 mb-3 flex-wrap">
           {job.tags.map((tag) => (
-            <Badge key={tag} variant="outline">
+            <Badge key={tag} variant="default">
               {tag}
             </Badge>
           ))}
           {job.badges.map((badge, index) => (
-            <Badge key={index} variant="primary">
+            <Badge key={index} variant="yellow">
               {badge.text}
             </Badge>
           ))}

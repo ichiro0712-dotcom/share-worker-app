@@ -93,11 +93,11 @@ export default function NewReview({ params }: { params: { id: string } }) {
       <div className="bg-gray-50 p-4 mb-4 mx-4 rounded-lg">
         <p className="text-sm text-gray-600 mb-1">投稿者情報</p>
         <div className="flex gap-3 text-sm">
-          <span className="text-gray-700">{user.age}</span>
+          <span className="text-gray-700">{(user as any).age}</span>
           <span className="text-gray-400">•</span>
-          <span className="text-gray-700">{user.gender}</span>
+          <span className="text-gray-700">{(user as any).gender}</span>
           <span className="text-gray-400">•</span>
-          <span className="text-gray-700">{user.occupation}</span>
+          <span className="text-gray-700">{(user as any).occupation}</span>
         </div>
       </div>
 

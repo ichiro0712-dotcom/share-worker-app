@@ -73,7 +73,7 @@ export const JobCard: React.FC<JobCardProps> = ({ job, facility }) => {
             {/* タグ */}
             <div className="flex gap-1 mb-2">
               {job.tags.map((tag) => (
-                <Badge key={tag} variant="primary" className="text-[10px] px-1.5 py-0.5">
+                <Badge key={tag} variant="yellow" className="text-[10px] px-1.5 py-0.5">
                   {tag}
                 </Badge>
               ))}
@@ -149,7 +149,7 @@ export const JobCard: React.FC<JobCardProps> = ({ job, facility }) => {
             {/* タグ */}
             <div className="flex gap-1 mb-1">
               {job.tags.map((tag) => (
-                <Badge key={tag} variant="primary" className="text-[9px] px-1 py-0.5">
+                <Badge key={tag} variant="yellow" className="text-[9px] px-1 py-0.5">
                   {tag}
                 </Badge>
               ))}

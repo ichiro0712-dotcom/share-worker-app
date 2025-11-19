@@ -131,9 +131,9 @@ export function JobPreviewModal({
 
           {/* タグとバッジ */}
           <div className="flex gap-2 mb-3 flex-wrap">
-            <Badge variant="outline">{formData.jobType}</Badge>
+            <Badge variant="default">{formData.jobType}</Badge>
             {formData.tags?.map((tag: string) => (
-              <Badge key={tag} variant="outline">
+              <Badge key={tag} variant="default">
                 {tag}
               </Badge>
             ))}

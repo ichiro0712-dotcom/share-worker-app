@@ -121,13 +121,13 @@ export default function MyPage() {
             <p className="text-sm text-gray-600 truncate">{user.email}</p>
             <div className="flex gap-2 mt-2 flex-wrap">
               <span className="text-xs bg-primary-light text-primary px-2 py-1 rounded">
-                {user.age}
+                {(user as any).age}
               </span>
               <span className="text-xs bg-primary-light text-primary px-2 py-1 rounded">
-                {user.gender}
+                {(user as any).gender}
               </span>
               <span className="text-xs bg-primary-light text-primary px-2 py-1 rounded">
-                {user.occupation}
+                {(user as any).occupation}
               </span>
             </div>
           </div>

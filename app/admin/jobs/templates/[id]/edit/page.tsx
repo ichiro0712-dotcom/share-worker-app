@@ -64,6 +64,7 @@ export default function EditTemplatePage() {
 
     // その他
     icons: [] as string[],
+    notes: '',
     attachments: [] as File[],
     dismissalReasons: `当社では、以下に該当する場合、やむを得ず契約解除となる可能性がございます。
 

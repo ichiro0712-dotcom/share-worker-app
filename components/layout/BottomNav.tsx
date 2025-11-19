@@ -7,7 +7,12 @@ import { Search, Heart, MessageSquare, Clipboard, User } from 'lucide-react';
 export const BottomNav = () => {
   const pathname = usePathname();
 
-  const navItems = [
+  const navItems: Array<{
+    href: string;
+    icon: typeof Search;
+    label: string;
+    badge?: number;
+  }> = [
     { href: '/', icon: Search, label: '探す' },
     { href: '/favorites', icon: Heart, label: 'お気に入り' },
     { href: '/applications', icon: Clipboard, label: '応募' },

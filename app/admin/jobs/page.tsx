@@ -673,7 +673,7 @@ export default function AdminJobsList() {
                     {selectedJob.badges.map((badge, index) => (
                       <Badge
                         key={index}
-                        variant={badge.type === 'yellow' ? 'primary' : 'gray'}
+                        variant={badge.type === 'yellow' ? 'yellow' : 'default'}
                       >
                         {badge.text}
                       </Badge>

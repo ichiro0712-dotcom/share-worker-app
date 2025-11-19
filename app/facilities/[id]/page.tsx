@@ -158,11 +158,11 @@ export default function FacilityDetail({
       </div>
 
       {/* 施設の特徴 */}
-      {facility.features && (
+      {(facility as any).features && (
         <div className="bg-white p-4 mb-4">
           <h2 className="font-bold text-lg mb-3">施設の特徴</h2>
           <ul className="space-y-2">
-            {facility.features.map((feature, index) => (
+            {(facility as any).features.map((feature: string, index: number) => (
               <li key={index} className="text-sm text-gray-700 flex items-start">
                 <span className="mr-2">•</span>
                 <span>{feature}</span>
