@@ -13,7 +13,7 @@ export const BottomNav = () => {
     label: string;
     badge?: number;
   }> = [
-    { href: '/', icon: Search, label: '探す' },
+    { href: '/job-list', icon: Search, label: '探す' },
     { href: '/favorites', icon: Heart, label: 'お気に入り' },
     { href: '/applications', icon: Clipboard, label: '応募' },
     { href: '/mypage', icon: User, label: 'マイページ' }

@@ -10,7 +10,7 @@ export default function TestIndexPage() {
       icon: User,
       links: [
         { href: '/mypage', label: 'ワーカーログイン', icon: LogIn, implemented: true },
-        { href: '/test-index', label: 'TOP(求人一覧)', icon: Home, implemented: true },
+        { href: '/job-list', label: 'TOP(求人一覧)', icon: Home, implemented: true },
         { href: '/jobs/1', label: '求人詳細', icon: Briefcase, implemented: true },
         { href: '/facilities/1', label: '施設詳細', icon: Building2, implemented: true },
         { href: '/facilities/1/reviews', label: '施設の口コミ一覧', icon: FileText, implemented: true },
