@@ -61,7 +61,7 @@ export default function AdminJobsList() {
   }, [admin.facilityId]);
 
   // ステータス判定関数
-  const getJobStatus = (job: typeof jobs[0]): JobStatus => {
+  const getJobStatus = (job: typeof jobs[0]): Exclude<JobStatus, 'all'> => {
     // 停止中フラグがある場合は停止中を返す
     if ((job as any).status === 'paused') {
       return 'paused';
@@ -352,7 +352,7 @@ export default function AdminJobsList() {
               >
                 すべて
               </button>
-              {(Object.keys(statusConfig) as JobStatus[]).map((status) => (
+              {(Object.keys(statusConfig) as Array<keyof typeof statusConfig>).map((status) => (
                 <button
                   key={status}
                   onClick={() => setStatusFilter(status)}
