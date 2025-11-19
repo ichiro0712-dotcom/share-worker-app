@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { BottomNav } from '@/components/layout/BottomNav';
-import { Badge } from '@/components/ui/Badge';
+import { Badge } from '@/components/ui/badge';
 import { jobs } from '@/data/jobs';
 import { facilities } from '@/data/facilities';
 

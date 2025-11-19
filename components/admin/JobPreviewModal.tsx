@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import { X, ChevronLeft, ChevronRight, MapPin, Heart, Clock } from 'lucide-react';
 import Image from 'next/image';
-import { Badge } from '@/components/ui/Badge';
-import { Tag } from '@/components/ui/Tag';
+import { Badge } from '@/components/ui/badge';
+import { Tag } from '@/components/ui/tag';
 import { calculateDailyWage } from '@/utils/salary';
 
 interface JobPreviewModalProps {

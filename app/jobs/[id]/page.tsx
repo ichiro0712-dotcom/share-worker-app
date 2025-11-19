@@ -7,9 +7,9 @@ import Image from 'next/image';
 import { jobs } from '@/data/jobs';
 import { facilities } from '@/data/facilities';
 import { reviews } from '@/data/reviews';
-import { Badge } from '@/components/ui/Badge';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/Button';
-import { Tag } from '@/components/ui/Tag';
+import { Tag } from '@/components/ui/tag';
 import { formatDateTime, getDeadlineText } from '@/utils/date';
 
 export default function JobDetail() {

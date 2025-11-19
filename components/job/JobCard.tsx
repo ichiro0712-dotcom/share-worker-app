@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { Bookmark } from 'lucide-react';
 import { Job } from '@/types/job';
 import { Facility } from '@/types/facility';
-import { Badge } from '@/components/ui/Badge';
+import { Badge } from '@/components/ui/badge';
 import { getDeadlineText, isDeadlineUrgent } from '@/utils/date';
 import { useState, useEffect } from 'react';
 
