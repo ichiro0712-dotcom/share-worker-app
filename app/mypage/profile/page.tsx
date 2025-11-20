@@ -27,7 +27,12 @@ export default function ProfileEditPage() {
     // 2. 働き方と希望
     currentWorkStyle: '正社員',
     desiredWorkStyle: 'パート・アルバイト',
-    jobChangeMotivation: 'より柔軟な働き方を求めて転職を希望しています。',
+    jobChangeDesire: 'いい仕事があれば',
+    desiredWorkDaysPerWeek: '3',
+    desiredWorkHoursPerDay: '6',
+    desiredWorkDays: ['月', '水', '金'] as string[],
+    desiredStartTime: '09:00',
+    desiredEndTime: '15:00',
 
     // 3. 連絡先情報
     phone: '090-1234-5678',
@@ -53,14 +58,6 @@ export default function ProfileEditPage() {
 
     // 7. その他
     pensionNumber: '1234-567890',
-    loginEmail: 'yamada.taro@example.com',
-
-    // 8. ざっくり登録情報
-    desiredWorkDaysPerWeek: '3',
-    desiredWorkHoursPerDay: '6',
-    desiredWorkDays: ['月', '水', '金'] as string[],
-    desiredStartTime: '09:00',
-    desiredEndTime: '15:00',
   });
 
   const qualificationsList = [
@@ -261,7 +258,7 @@ export default function ProfileEditPage() {
         <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <h2 className="text-lg font-bold mb-4 pb-3 border-b">2. 働き方と希望 <span className="text-red-500">*</span></h2>
 
-          <div className="space-y-4">
+          <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-2">現在の働き方 <span className="text-red-500">*</span></label>
@@ -298,14 +295,83 @@ export default function ProfileEditPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">転職動機 <span className="text-red-500">*</span></label>
-              <textarea
-                value={formData.jobChangeMotivation}
-                onChange={(e) => setFormData({ ...formData, jobChangeMotivation: e.target.value })}
-                rows={3}
+              <label className="block text-sm font-medium mb-2">転職意欲 <span className="text-red-500">*</span></label>
+              <select
+                value={formData.jobChangeDesire}
+                onChange={(e) => setFormData({ ...formData, jobChangeDesire: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 required
-              />
+              >
+                <option value="">選択してください</option>
+                <option value="今はない">今はない</option>
+                <option value="いい仕事があれば">いい仕事があれば</option>
+                <option value="転職したい">転職したい</option>
+              </select>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">希望勤務日数（週）</label>
+                <input
+                  type="number"
+                  value={formData.desiredWorkDaysPerWeek}
+                  onChange={(e) => setFormData({ ...formData, desiredWorkDaysPerWeek: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  placeholder="3"
+                  min="1"
+                  max="7"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">希望勤務時間（日）</label>
+                <input
+                  type="number"
+                  value={formData.desiredWorkHoursPerDay}
+                  onChange={(e) => setFormData({ ...formData, desiredWorkHoursPerDay: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  placeholder="6"
+                  min="1"
+                  max="24"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-3">希望勤務曜日</label>
+              <div className="flex gap-3 flex-wrap">
+                {weekDays.map((day) => (
+                  <label key={day} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.desiredWorkDays.includes(day)}
+                      onChange={() => handleCheckboxChange('desiredWorkDays', day)}
+                      className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                    />
+                    <span className="text-sm">{day}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">希望開始時刻</label>
+                <input
+                  type="time"
+                  value={formData.desiredStartTime}
+                  onChange={(e) => setFormData({ ...formData, desiredStartTime: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">希望終了時刻</label>
+                <input
+                  type="time"
+                  value={formData.desiredEndTime}
+                  onChange={(e) => setFormData({ ...formData, desiredEndTime: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+              </div>
             </div>
           </div>
         </section>
@@ -427,32 +493,30 @@ export default function ProfileEditPage() {
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-2">資格証明書アップロード</label>
-              <input
-                type="file"
-                accept="image/*,.pdf"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-              />
-              <p className="text-xs text-gray-500 mt-1">ファイル形式: JPG, PNG, PDF</p>
-            </div>
+            {/* 資格証明書アップロード - 選択された資格（その他以外）の数だけ表示 */}
+            {formData.qualifications.filter(qual => qual !== 'その他').length > 0 && (
+              <div className="space-y-3">
+                <label className="block text-sm font-medium">資格証明書アップロード</label>
+                {formData.qualifications.filter(qual => qual !== 'その他').map((qual, index) => (
+                  <div key={qual}>
+                    <label className="block text-xs text-gray-600 mb-1">{qual}</label>
+                    <input
+                      type="file"
+                      accept="image/*,.pdf"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">ファイル形式: JPG, PNG, PDF</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </section>
 
         {/* 5. 職歴 */}
         <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <div className="flex items-center justify-between mb-4 pb-3 border-b">
+          <div className="mb-4 pb-3 border-b">
             <h2 className="text-lg font-bold">5. 職歴（任意）</h2>
-            {workHistories.length < 5 && (
-              <button
-                type="button"
-                onClick={addWorkHistory}
-                className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors flex items-center gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                職歴を追加
-              </button>
-            )}
           </div>
 
           <div className="space-y-4">
@@ -481,6 +545,18 @@ export default function ProfileEditPage() {
             ))}
             {workHistories.length === 0 && (
               <p className="text-sm text-gray-500">職歴を追加してください</p>
+            )}
+
+            {/* 職歴追加ボタン - 最後の職歴の下に配置 */}
+            {workHistories.length < 5 && (
+              <button
+                type="button"
+                onClick={addWorkHistory}
+                className="w-full px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors flex items-center justify-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                職歴を追加
+              </button>
             )}
           </div>
         </section>
@@ -559,26 +635,15 @@ export default function ProfileEditPage() {
           <h2 className="text-lg font-bold mb-4 pb-3 border-b">8. その他（任意）</h2>
 
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">年金番号</label>
-                <input
-                  type="text"
-                  value={formData.pensionNumber}
-                  onChange={(e) => setFormData({ ...formData, pensionNumber: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  placeholder="1234-567890"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">ログイン用メールアドレス</label>
-                <input
-                  type="email"
-                  value={formData.loginEmail}
-                  onChange={(e) => setFormData({ ...formData, loginEmail: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                />
-              </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">年金番号</label>
+              <input
+                type="text"
+                value={formData.pensionNumber}
+                onChange={(e) => setFormData({ ...formData, pensionNumber: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                placeholder="1234-567890"
+              />
             </div>
 
             <div>
@@ -589,78 +654,6 @@ export default function ProfileEditPage() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               />
               <p className="text-xs text-gray-500 mt-1">運転免許証、マイナンバーカードなど（ファイル形式: JPG, PNG, PDF）</p>
-            </div>
-          </div>
-        </section>
-
-        {/* 9. ざっくり登録情報 */}
-        <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <h2 className="text-lg font-bold mb-4 pb-3 border-b">9. ざっくり登録情報（任意）</h2>
-
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">希望勤務日数（週）</label>
-                <input
-                  type="number"
-                  value={formData.desiredWorkDaysPerWeek}
-                  onChange={(e) => setFormData({ ...formData, desiredWorkDaysPerWeek: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  placeholder="3"
-                  min="1"
-                  max="7"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">希望勤務時間（日）</label>
-                <input
-                  type="number"
-                  value={formData.desiredWorkHoursPerDay}
-                  onChange={(e) => setFormData({ ...formData, desiredWorkHoursPerDay: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  placeholder="6"
-                  min="1"
-                  max="24"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-3">希望勤務曜日</label>
-              <div className="flex gap-3 flex-wrap">
-                {weekDays.map((day) => (
-                  <label key={day} className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.desiredWorkDays.includes(day)}
-                      onChange={() => handleCheckboxChange('desiredWorkDays', day)}
-                      className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
-                    />
-                    <span className="text-sm">{day}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">希望開始時刻</label>
-                <input
-                  type="time"
-                  value={formData.desiredStartTime}
-                  onChange={(e) => setFormData({ ...formData, desiredStartTime: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">希望終了時刻</label>
-                <input
-                  type="time"
-                  value={formData.desiredEndTime}
-                  onChange={(e) => setFormData({ ...formData, desiredEndTime: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                />
-              </div>
             </div>
           </div>
         </section>

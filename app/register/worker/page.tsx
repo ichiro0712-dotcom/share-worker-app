@@ -1,10 +1,18 @@
 'use client';
 
-import { useState } from 'react';
-import { Upload, ArrowLeft } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Upload, ArrowLeft, Plus, X } from 'lucide-react';
 import Link from 'next/link';
 
 export default function WorkerRegisterPage() {
+  const [profileImage, setProfileImage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [workHistories, setWorkHistories] = useState<string[]>([
+    '2018年4月〜2021年3月 特別養護老人ホームさくら 介護職員',
+    '2021年4月〜2023年12月 デイサービスひまわり 介護福祉士',
+  ]);
+
   const [formData, setFormData] = useState({
     // 1. 基本情報
     lastName: '山田',
@@ -15,7 +23,17 @@ export default function WorkerRegisterPage() {
     gender: '男性',
     nationality: '日本',
 
-    // 2. 連絡先情報
+    // 2. 働き方と希望
+    currentWorkStyle: '正社員',
+    desiredWorkStyle: 'パート・アルバイト',
+    jobChangeDesire: 'いい仕事があれば',
+    desiredWorkDaysPerWeek: '3',
+    desiredWorkHoursPerDay: '6',
+    desiredWorkDays: ['月', '水', '金'] as string[],
+    desiredStartTime: '09:00',
+    desiredEndTime: '15:00',
+
+    // 3. 連絡先情報
     phone: '090-1234-5678',
     email: 'yamada.taro@example.com',
     postalCode: '123-4567',
@@ -24,17 +42,9 @@ export default function WorkerRegisterPage() {
     address: '西新宿1-2-3',
     building: 'サンプルマンション101',
 
-    // 3. 資格・経験
+    // 4. 資格・経験
     qualifications: ['介護福祉士', '介護職員実務者研修'] as string[],
     experienceFields: ['特別養護老人ホーム', 'デイサービス'] as string[],
-    currentWorkStyle: '正社員',
-    desiredWorkStyle: 'パート・アルバイト',
-    jobChangeMotivation: 'より柔軟な働き方を求めて転職を希望しています。',
-
-    // 4. 職歴（任意）
-    workHistory1: '2018年4月〜2021年3月 特別養護老人ホームさくら 介護職員',
-    workHistory2: '2021年4月〜2023年12月 デイサービスひまわり 介護福祉士',
-    workHistory3: '',
 
     // 5. 自己PR（任意）
     selfPR: '介護福祉士として5年以上の経験があります。利用者様一人ひとりに寄り添った介護を心がけています。',
@@ -47,21 +57,13 @@ export default function WorkerRegisterPage() {
 
     // 7. その他（任意）
     pensionNumber: '1234-567890',
-    loginEmail: 'yamada.taro@example.com',
 
-    // 8. ざっくり登録情報（任意）
-    desiredWorkDaysPerWeek: '3',
-    desiredWorkHoursPerDay: '6',
-    desiredWorkDays: ['月', '水', '金'] as string[],
-    desiredStartTime: '09:00',
-    desiredEndTime: '15:00',
-
-    // 10. 同意事項
+    // 8. 同意事項
     agreeElectronicDelivery: true,
     agreeTerms: true,
     agreeConsent: true,
 
-    // 11. 担当情報
+    // 9. 担当情報
     staffNumber: 'ST001',
     staffName: '佐藤 花子',
   });
@@ -99,9 +101,36 @@ export default function WorkerRegisterPage() {
     }));
   };
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setProfileImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const addWorkHistory = () => {
+    if (workHistories.length < 5) {
+      setWorkHistories([...workHistories, '']);
+    }
+  };
+
+  const removeWorkHistory = (index: number) => {
+    setWorkHistories(workHistories.filter((_, i) => i !== index));
+  };
+
+  const updateWorkHistory = (index: number, value: string) => {
+    const newHistories = [...workHistories];
+    newHistories[index] = value;
+    setWorkHistories(newHistories);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Form submitted:', formData);
+    console.log('Form submitted:', formData, workHistories);
     // TODO: API送信処理
     alert('登録が完了しました');
   };
@@ -132,6 +161,33 @@ export default function WorkerRegisterPage() {
             {/* 1. 基本情報 */}
             <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
               <h3 className="font-bold text-gray-900">基本情報</h3>
+
+              {/* プロフィール画像アップロード */}
+              <div className="flex flex-col items-center gap-4 p-4 bg-white rounded-lg">
+                <div className="relative w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
+                  {profileImage ? (
+                    <img src={profileImage} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    <Upload className="w-12 h-12 text-gray-400" />
+                  )}
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors"
+                >
+                  プロフィール画像を選択
+                </button>
+                <p className="text-xs text-gray-500">JPG, PNG形式（最大5MB）</p>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -224,7 +280,142 @@ export default function WorkerRegisterPage() {
               </div>
             </div>
 
-            {/* 2. 連絡先情報 */}
+            {/* 2. 働き方と希望 */}
+            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
+              <h3 className="font-bold text-gray-900">働き方と希望</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    現在の働き方 <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    required
+                    value={formData.currentWorkStyle}
+                    onChange={(e) => setFormData({ ...formData, currentWorkStyle: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="">選択してください</option>
+                    <option value="正社員">正社員</option>
+                    <option value="パート・アルバイト">パート・アルバイト</option>
+                    <option value="派遣">派遣</option>
+                    <option value="契約社員">契約社員</option>
+                    <option value="その他">その他</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    希望の働き方 <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    required
+                    value={formData.desiredWorkStyle}
+                    onChange={(e) => setFormData({ ...formData, desiredWorkStyle: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="">選択してください</option>
+                    <option value="正社員">正社員</option>
+                    <option value="パート・アルバイト">パート・アルバイト</option>
+                    <option value="派遣">派遣</option>
+                    <option value="契約社員">契約社員</option>
+                    <option value="その他">その他</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  転職意欲 <span className="text-red-500">*</span>
+                </label>
+                <select
+                  required
+                  value={formData.jobChangeDesire}
+                  onChange={(e) => setFormData({ ...formData, jobChangeDesire: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="">選択してください</option>
+                  <option value="今はない">今はない</option>
+                  <option value="いい仕事があれば">いい仕事があれば</option>
+                  <option value="転職したい">転職したい</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    希望勤務日数（週）
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.desiredWorkDaysPerWeek}
+                    onChange={(e) => setFormData({ ...formData, desiredWorkDaysPerWeek: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                    placeholder="3"
+                    min="1"
+                    max="7"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    希望勤務時間（日）
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.desiredWorkHoursPerDay}
+                    onChange={(e) => setFormData({ ...formData, desiredWorkHoursPerDay: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                    placeholder="6"
+                    min="1"
+                    max="24"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  希望勤務曜日
+                </label>
+                <div className="flex gap-3 flex-wrap">
+                  {weekDays.map((day) => (
+                    <label key={day} className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={formData.desiredWorkDays.includes(day)}
+                        onChange={() => handleCheckboxChange('desiredWorkDays', day)}
+                        className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                      />
+                      <span className="text-sm">{day}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    希望開始時刻
+                  </label>
+                  <input
+                    type="time"
+                    value={formData.desiredStartTime}
+                    onChange={(e) => setFormData({ ...formData, desiredStartTime: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    希望終了時刻
+                  </label>
+                  <input
+                    type="time"
+                    value={formData.desiredEndTime}
+                    onChange={(e) => setFormData({ ...formData, desiredEndTime: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 3. 連絡先情報 */}
             <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
               <h3 className="font-bold text-gray-900">連絡先情報</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -315,7 +506,7 @@ export default function WorkerRegisterPage() {
               </div>
             </div>
 
-            {/* 3. 資格・経験 */}
+            {/* 4. 資格・経験 */}
             <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
               <h3 className="font-bold text-gray-900">資格・経験</h3>
               <div>
@@ -354,89 +545,68 @@ export default function WorkerRegisterPage() {
                   ))}
                 </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    現在の働き方
-                  </label>
-                  <select
-                    value={formData.currentWorkStyle}
-                    onChange={(e) => setFormData({ ...formData, currentWorkStyle: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                  >
-                    <option value="">選択してください</option>
-                    <option value="fulltime">正社員</option>
-                    <option value="parttime">パート・アルバイト</option>
-                    <option value="contract">契約社員</option>
-                    <option value="unemployed">無職</option>
-                  </select>
+
+              {/* 資格証明書アップロード - 選択された資格（その他以外）の数だけ表示 */}
+              {formData.qualifications.filter(qual => qual !== 'その他').length > 0 && (
+                <div className="space-y-3">
+                  <label className="block text-sm font-medium text-gray-700">資格証明書アップロード</label>
+                  {formData.qualifications.filter(qual => qual !== 'その他').map((qual) => (
+                    <div key={qual}>
+                      <label className="block text-xs text-gray-600 mb-1">{qual}</label>
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">ファイル形式: JPG, PNG, PDF</p>
+                    </div>
+                  ))}
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    希望の働き方
-                  </label>
-                  <select
-                    value={formData.desiredWorkStyle}
-                    onChange={(e) => setFormData({ ...formData, desiredWorkStyle: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                  >
-                    <option value="">選択してください</option>
-                    <option value="fulltime">正社員</option>
-                    <option value="parttime">パート・アルバイト</option>
-                    <option value="contract">契約社員</option>
-                    <option value="dispatch">派遣</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    転職意欲
-                  </label>
-                  <select
-                    value={formData.jobChangeMotivation}
-                    onChange={(e) => setFormData({ ...formData, jobChangeMotivation: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                  >
-                    <option value="">選択してください</option>
-                    <option value="high">高い</option>
-                    <option value="medium">中程度</option>
-                    <option value="low">低い</option>
-                  </select>
-                </div>
-              </div>
+              )}
             </div>
 
-            {/* 4. 職歴（任意） */}
+            {/* 5. 職歴（任意） */}
             <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
               <h3 className="font-bold text-gray-900">職歴（任意）</h3>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">職歴1</label>
-                  <input
-                    type="text"
-                    value={formData.workHistory1}
-                    onChange={(e) => setFormData({ ...formData, workHistory1: e.target.value })}
-                    placeholder="例：○○介護施設 介護職員（2020年4月〜2022年3月）"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">職歴2</label>
-                  <input
-                    type="text"
-                    value={formData.workHistory2}
-                    onChange={(e) => setFormData({ ...formData, workHistory2: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">職歴3</label>
-                  <input
-                    type="text"
-                    value={formData.workHistory3}
-                    onChange={(e) => setFormData({ ...formData, workHistory3: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
+              <div className="space-y-4">
+                {workHistories.map((history, index) => (
+                  <div key={index} className="flex gap-2">
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">職歴{index + 1}</label>
+                      <input
+                        type="text"
+                        value={history}
+                        onChange={(e) => updateWorkHistory(index, e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                        placeholder="例：2018年4月〜2021年3月 ◯◯施設 介護職員"
+                      />
+                    </div>
+                    {workHistories.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeWorkHistory(index)}
+                        className="mt-7 p-2 text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {workHistories.length === 0 && (
+                  <p className="text-sm text-gray-500">職歴を追加してください</p>
+                )}
+
+                {/* 職歴追加ボタン - 最後の職歴の下に配置 */}
+                {workHistories.length < 5 && (
+                  <button
+                    type="button"
+                    onClick={addWorkHistory}
+                    className="w-full px-4 py-2 text-sm bg-primary text-white rounded-md hover:bg-primary-dark transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    職歴を追加
+                  </button>
+                )}
               </div>
             </div>
 
@@ -522,80 +692,7 @@ export default function WorkerRegisterPage() {
               </div>
             </div>
 
-            {/* 8. ざっくり登録情報（任意） */}
-            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
-              <h3 className="font-bold text-gray-900">ざっくり登録情報（任意）</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">週の希望勤務日数</label>
-                  <select
-                    value={formData.desiredWorkDaysPerWeek}
-                    onChange={(e) => setFormData({ ...formData, desiredWorkDaysPerWeek: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                  >
-                    <option value="">選択してください</option>
-                    <option value="1">週1日</option>
-                    <option value="2">週2日</option>
-                    <option value="3">週3日</option>
-                    <option value="4">週4日</option>
-                    <option value="5">週5日</option>
-                    <option value="6">週6日</option>
-                    <option value="7">週7日</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">1日の希望勤務時間</label>
-                  <select
-                    value={formData.desiredWorkHoursPerDay}
-                    onChange={(e) => setFormData({ ...formData, desiredWorkHoursPerDay: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                  >
-                    <option value="">選択してください</option>
-                    <option value="4">4時間</option>
-                    <option value="6">6時間</option>
-                    <option value="8">8時間</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">希望勤務曜日</label>
-                <div className="flex flex-wrap gap-3">
-                  {weekDays.map((day) => (
-                    <label key={day} className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={formData.desiredWorkDays.includes(day)}
-                        onChange={() => handleCheckboxChange('desiredWorkDays', day)}
-                        className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
-                      />
-                      <span className="text-sm">{day}曜日</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">希望開始時間</label>
-                  <input
-                    type="time"
-                    value={formData.desiredStartTime}
-                    onChange={(e) => setFormData({ ...formData, desiredStartTime: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">希望終了時間</label>
-                  <input
-                    type="time"
-                    value={formData.desiredEndTime}
-                    onChange={(e) => setFormData({ ...formData, desiredEndTime: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* 9. 書類アップロード（任意） */}
+            {/* 8. 書類アップロード（任意） */}
             <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
               <div className="flex items-center gap-2">
                 <Upload className="w-5 h-5 text-gray-700" />
