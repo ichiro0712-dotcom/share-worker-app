@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Home, Briefcase, Building2, User, UserCircle, LogIn, Calendar, FileText, Users, Settings, Construction, MessageSquare, MessageCircle, CheckCircle2, Circle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Home, Briefcase, Building2, User, UserCircle, LogIn, Calendar, FileText, Heart, Settings, Construction, MessageSquare, MessageCircle, CheckCircle2, Circle, ChevronDown, ChevronUp } from 'lucide-react';
 
 export default function TestIndexPage() {
   // 完了したタスクの管理
@@ -122,17 +122,16 @@ export default function TestIndexPage() {
       title: 'ワーカー向けページ',
       icon: User,
       links: [
-        { href: '/login', label: 'ワーカーログイン', icon: LogIn, implemented: true },
-        { href: '/job-list', label: 'TOP（求人一覧）', icon: Home, implemented: true },
-        { href: '/mypage', label: 'マイページ', icon: User, implemented: true },
+        { href: '/register/worker', label: 'ワーカー新規登録', icon: UserCircle, implemented: true },
+        { href: '/under-construction?page=login', label: 'ワーカーログイン', icon: LogIn, implemented: false },
+        { href: '/job-list', label: 'ワーカーTOP（求人検索）', icon: Home, implemented: true },
         { href: '/jobs/1', label: '求人詳細', icon: Briefcase, implemented: true },
         { href: '/facilities/1', label: '施設詳細', icon: Building2, implemented: true },
-        { href: '/facilities/1/reviews', label: '施設の口コミ一覧', icon: FileText, implemented: true },
         { href: '/facilities/1/review/new', label: '口コミ投稿', icon: FileText, implemented: true },
-        { href: '/register/worker', label: 'ワーカー新規登録', icon: UserCircle, implemented: true },
-        { href: '/under-construction?page=nominated', label: '指名された', icon: Calendar, implemented: false },
+        { href: '/mypage', label: 'マイページ', icon: User, implemented: true },
+        { href: '/bookmarks', label: '限定', icon: Heart, implemented: true },
+        { href: '/under-construction?page=nominated', label: '指名', icon: Calendar, implemented: false },
         { href: '/under-construction?page=applied', label: '応募した', icon: Calendar, implemented: false },
-        { href: '/under-construction?page=working', label: '働いた', icon: Calendar, implemented: false },
       ],
     },
     {
