@@ -1,10 +1,19 @@
 'use client';
 
-import { useState } from 'react';
-import { Upload, ArrowLeft } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Upload, ArrowLeft, Plus, X, User as UserIcon } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function ProfileEditPage() {
+  const [profileImage, setProfileImage] = useState<string | null>('/images/sample-profile.jpg');
+  const profileImageInputRef = useRef<HTMLInputElement>(null);
+
+  const [workHistories, setWorkHistories] = useState<string[]>([
+    '2018年4月〜2021年3月 特別養護老人ホームさくら 介護職員',
+    '2021年4月〜2023年12月 デイサービスひまわり 介護福祉士',
+  ]);
+
   const [formData, setFormData] = useState({
     // 1. 基本情報
     lastName: '山田',
@@ -15,7 +24,12 @@ export default function ProfileEditPage() {
     gender: '男性',
     nationality: '日本',
 
-    // 2. 連絡先情報
+    // 2. 働き方と希望
+    currentWorkStyle: '正社員',
+    desiredWorkStyle: 'パート・アルバイト',
+    jobChangeMotivation: 'より柔軟な働き方を求めて転職を希望しています。',
+
+    // 3. 連絡先情報
     phone: '090-1234-5678',
     email: 'yamada.taro@example.com',
     postalCode: '123-4567',
@@ -24,17 +38,9 @@ export default function ProfileEditPage() {
     address: '西新宿1-2-3',
     building: 'サンプルマンション101',
 
-    // 3. 資格・経験
+    // 4. 資格・経験
     qualifications: ['介護福祉士', '介護職員実務者研修'] as string[],
     experienceFields: ['特別養護老人ホーム', 'デイサービス'] as string[],
-    currentWorkStyle: '正社員',
-    desiredWorkStyle: 'パート・アルバイト',
-    jobChangeMotivation: 'より柔軟な働き方を求めて転職を希望しています。',
-
-    // 4. 職歴
-    workHistory1: '2018年4月〜2021年3月 特別養護老人ホームさくら 介護職員',
-    workHistory2: '2021年4月〜2023年12月 デイサービスひまわり 介護福祉士',
-    workHistory3: '',
 
     // 5. 自己PR
     selfPR: '介護福祉士として5年以上の経験があります。利用者様一人ひとりに寄り添った介護を心がけています。',
@@ -90,9 +96,35 @@ export default function ProfileEditPage() {
     }));
   };
 
+  const handleProfileImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setProfileImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const addWorkHistory = () => {
+    if (workHistories.length < 5) {
+      setWorkHistories([...workHistories, '']);
+    }
+  };
+
+  const removeWorkHistory = (index: number) => {
+    setWorkHistories(workHistories.filter((_, i) => i !== index));
+  };
+
+  const updateWorkHistory = (index: number, value: string) => {
+    const newHistories = [...workHistories];
+    newHistories[index] = value;
+    setWorkHistories(newHistories);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: API呼び出しなどの処理
     alert('プロフィールを更新しました');
   };
 
@@ -109,6 +141,40 @@ export default function ProfileEditPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="max-w-4xl mx-auto px-4 py-6">
+        {/* プロフィール画像 */}
+        <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
+          <h2 className="text-lg font-bold mb-4 pb-3 border-b">プロフィール画像</h2>
+
+          <div className="flex flex-col items-center gap-4">
+            <div className="relative w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
+              {profileImage ? (
+                <img src={profileImage} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <UserIcon className="w-16 h-16 text-gray-400" />
+              )}
+            </div>
+
+            <input
+              ref={profileImageInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleProfileImageChange}
+              className="hidden"
+            />
+
+            <button
+              type="button"
+              onClick={() => profileImageInputRef.current?.click()}
+              className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors flex items-center gap-2"
+            >
+              <Upload className="w-4 h-4" />
+              画像を変更
+            </button>
+
+            <p className="text-xs text-gray-500">推奨サイズ: 400x400px、ファイル形式: JPG, PNG</p>
+          </div>
+        </section>
+
         {/* 1. 基本情報 */}
         <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <h2 className="text-lg font-bold mb-4 pb-3 border-b">1. 基本情報 <span className="text-red-500">*</span></h2>
@@ -191,9 +257,62 @@ export default function ProfileEditPage() {
           </div>
         </section>
 
-        {/* 2. 連絡先情報 */}
+        {/* 2. 働き方と希望 */}
         <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <h2 className="text-lg font-bold mb-4 pb-3 border-b">2. 連絡先情報 <span className="text-red-500">*</span></h2>
+          <h2 className="text-lg font-bold mb-4 pb-3 border-b">2. 働き方と希望 <span className="text-red-500">*</span></h2>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">現在の働き方 <span className="text-red-500">*</span></label>
+                <select
+                  value={formData.currentWorkStyle}
+                  onChange={(e) => setFormData({ ...formData, currentWorkStyle: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  required
+                >
+                  <option value="">選択してください</option>
+                  <option value="正社員">正社員</option>
+                  <option value="パート・アルバイト">パート・アルバイト</option>
+                  <option value="派遣">派遣</option>
+                  <option value="契約社員">契約社員</option>
+                  <option value="その他">その他</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">希望の働き方 <span className="text-red-500">*</span></label>
+                <select
+                  value={formData.desiredWorkStyle}
+                  onChange={(e) => setFormData({ ...formData, desiredWorkStyle: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  required
+                >
+                  <option value="">選択してください</option>
+                  <option value="正社員">正社員</option>
+                  <option value="パート・アルバイト">パート・アルバイト</option>
+                  <option value="派遣">派遣</option>
+                  <option value="契約社員">契約社員</option>
+                  <option value="その他">その他</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">転職動機 <span className="text-red-500">*</span></label>
+              <textarea
+                value={formData.jobChangeMotivation}
+                onChange={(e) => setFormData({ ...formData, jobChangeMotivation: e.target.value })}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                required
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* 3. 連絡先情報 */}
+        <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
+          <h2 className="text-lg font-bold mb-4 pb-3 border-b">3. 連絡先情報 <span className="text-red-500">*</span></h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -269,9 +388,9 @@ export default function ProfileEditPage() {
           </div>
         </section>
 
-        {/* 3. 資格・経験 */}
+        {/* 4. 資格・経験 */}
         <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <h2 className="text-lg font-bold mb-4 pb-3 border-b">3. 資格・経験 <span className="text-red-500">*</span></h2>
+          <h2 className="text-lg font-bold mb-4 pb-3 border-b">4. 資格・経験 <span className="text-red-500">*</span></h2>
 
           <div className="space-y-6">
             <div>
@@ -308,94 +427,67 @@ export default function ProfileEditPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">現在の働き方 <span className="text-red-500">*</span></label>
-                <select
-                  value={formData.currentWorkStyle}
-                  onChange={(e) => setFormData({ ...formData, currentWorkStyle: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  required
-                >
-                  <option value="">選択してください</option>
-                  <option value="正社員">正社員</option>
-                  <option value="パート・アルバイト">パート・アルバイト</option>
-                  <option value="派遣">派遣</option>
-                  <option value="契約社員">契約社員</option>
-                  <option value="その他">その他</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">希望の働き方 <span className="text-red-500">*</span></label>
-                <select
-                  value={formData.desiredWorkStyle}
-                  onChange={(e) => setFormData({ ...formData, desiredWorkStyle: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  required
-                >
-                  <option value="">選択してください</option>
-                  <option value="正社員">正社員</option>
-                  <option value="パート・アルバイト">パート・アルバイト</option>
-                  <option value="派遣">派遣</option>
-                  <option value="契約社員">契約社員</option>
-                  <option value="その他">その他</option>
-                </select>
-              </div>
-            </div>
-
             <div>
-              <label className="block text-sm font-medium mb-2">転職動機 <span className="text-red-500">*</span></label>
-              <textarea
-                value={formData.jobChangeMotivation}
-                onChange={(e) => setFormData({ ...formData, jobChangeMotivation: e.target.value })}
-                rows={3}
+              <label className="block text-sm font-medium mb-2">資格証明書アップロード</label>
+              <input
+                type="file"
+                accept="image/*,.pdf"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                required
               />
+              <p className="text-xs text-gray-500 mt-1">ファイル形式: JPG, PNG, PDF</p>
             </div>
           </div>
         </section>
 
-        {/* 4. 職歴 */}
+        {/* 5. 職歴 */}
         <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <h2 className="text-lg font-bold mb-4 pb-3 border-b">4. 職歴（任意）</h2>
+          <div className="flex items-center justify-between mb-4 pb-3 border-b">
+            <h2 className="text-lg font-bold">5. 職歴（任意）</h2>
+            {workHistories.length < 5 && (
+              <button
+                type="button"
+                onClick={addWorkHistory}
+                className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                職歴を追加
+              </button>
+            )}
+          </div>
 
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">職歴1</label>
-              <input
-                type="text"
-                value={formData.workHistory1}
-                onChange={(e) => setFormData({ ...formData, workHistory1: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                placeholder="例：2018年4月〜2021年3月 ◯◯施設 介護職員"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">職歴2</label>
-              <input
-                type="text"
-                value={formData.workHistory2}
-                onChange={(e) => setFormData({ ...formData, workHistory2: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                placeholder="例：2021年4月〜2023年12月 ◯◯施設 介護福祉士"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">職歴3</label>
-              <input
-                type="text"
-                value={formData.workHistory3}
-                onChange={(e) => setFormData({ ...formData, workHistory3: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-              />
-            </div>
+            {workHistories.map((history, index) => (
+              <div key={index} className="flex gap-2">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium mb-2">職歴{index + 1}</label>
+                  <input
+                    type="text"
+                    value={history}
+                    onChange={(e) => updateWorkHistory(index, e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    placeholder="例：2018年4月〜2021年3月 ◯◯施設 介護職員"
+                  />
+                </div>
+                {workHistories.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeWorkHistory(index)}
+                    className="mt-7 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                )}
+              </div>
+            ))}
+            {workHistories.length === 0 && (
+              <p className="text-sm text-gray-500">職歴を追加してください</p>
+            )}
           </div>
         </section>
 
-        {/* 5. 自己PR */}
+        {/* 6. 自己PR */}
         <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <h2 className="text-lg font-bold mb-4 pb-3 border-b">5. 自己PR（任意）</h2>
+          <h2 className="text-lg font-bold mb-4 pb-3 border-b">6. 自己PR（任意）</h2>
 
           <textarea
             value={formData.selfPR}
@@ -406,80 +498,104 @@ export default function ProfileEditPage() {
           />
         </section>
 
-        {/* 6. 銀行口座情報 */}
+        {/* 7. 銀行口座情報 */}
         <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <h2 className="text-lg font-bold mb-4 pb-3 border-b">6. 銀行口座情報（任意）</h2>
+          <h2 className="text-lg font-bold mb-4 pb-3 border-b">7. 銀行口座情報（任意）</h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">銀行名</label>
-              <input
-                type="text"
-                value={formData.bankName}
-                onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-              />
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">銀行名</label>
+                <input
+                  type="text"
+                  value={formData.bankName}
+                  onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">支店名</label>
+                <input
+                  type="text"
+                  value={formData.branchName}
+                  onChange={(e) => setFormData({ ...formData, branchName: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">口座名義（カナ）</label>
+                <input
+                  type="text"
+                  value={formData.accountName}
+                  onChange={(e) => setFormData({ ...formData, accountName: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">口座番号</label>
+                <input
+                  type="text"
+                  value={formData.accountNumber}
+                  onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+              </div>
             </div>
+
             <div>
-              <label className="block text-sm font-medium mb-2">支店名</label>
+              <label className="block text-sm font-medium mb-2">通帳コピーアップロード</label>
               <input
-                type="text"
-                value={formData.branchName}
-                onChange={(e) => setFormData({ ...formData, branchName: e.target.value })}
+                type="file"
+                accept="image/*,.pdf"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">口座名義（カナ）</label>
-              <input
-                type="text"
-                value={formData.accountName}
-                onChange={(e) => setFormData({ ...formData, accountName: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">口座番号</label>
-              <input
-                type="text"
-                value={formData.accountNumber}
-                onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-              />
+              <p className="text-xs text-gray-500 mt-1">ファイル形式: JPG, PNG, PDF</p>
             </div>
           </div>
         </section>
 
-        {/* 7. その他 */}
+        {/* 8. その他 */}
         <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <h2 className="text-lg font-bold mb-4 pb-3 border-b">7. その他（任意）</h2>
+          <h2 className="text-lg font-bold mb-4 pb-3 border-b">8. その他（任意）</h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">年金番号</label>
-              <input
-                type="text"
-                value={formData.pensionNumber}
-                onChange={(e) => setFormData({ ...formData, pensionNumber: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                placeholder="1234-567890"
-              />
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">年金番号</label>
+                <input
+                  type="text"
+                  value={formData.pensionNumber}
+                  onChange={(e) => setFormData({ ...formData, pensionNumber: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  placeholder="1234-567890"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">ログイン用メールアドレス</label>
+                <input
+                  type="email"
+                  value={formData.loginEmail}
+                  onChange={(e) => setFormData({ ...formData, loginEmail: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+              </div>
             </div>
+
             <div>
-              <label className="block text-sm font-medium mb-2">ログイン用メールアドレス</label>
+              <label className="block text-sm font-medium mb-2">身分証明書アップロード</label>
               <input
-                type="email"
-                value={formData.loginEmail}
-                onChange={(e) => setFormData({ ...formData, loginEmail: e.target.value })}
+                type="file"
+                accept="image/*,.pdf"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               />
+              <p className="text-xs text-gray-500 mt-1">運転免許証、マイナンバーカードなど（ファイル形式: JPG, PNG, PDF）</p>
             </div>
           </div>
         </section>
 
-        {/* 8. ざっくり登録情報 */}
+        {/* 9. ざっくり登録情報 */}
         <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <h2 className="text-lg font-bold mb-4 pb-3 border-b">8. ざっくり登録情報（任意）</h2>
+          <h2 className="text-lg font-bold mb-4 pb-3 border-b">9. ざっくり登録情報（任意）</h2>
 
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
