@@ -7,63 +7,63 @@ import Link from 'next/link';
 export default function WorkerRegisterPage() {
   const [formData, setFormData] = useState({
     // 1. 基本情報
-    lastName: '',
-    firstName: '',
-    lastNameKana: '',
-    firstNameKana: '',
-    birthDate: '',
-    gender: '',
-    nationality: '',
+    lastName: '山田',
+    firstName: '太郎',
+    lastNameKana: 'ヤマダ',
+    firstNameKana: 'タロウ',
+    birthDate: '1990-04-15',
+    gender: '男性',
+    nationality: '日本',
 
     // 2. 連絡先情報
-    phone: '',
-    email: '',
-    postalCode: '',
-    prefecture: '',
-    city: '',
-    address: '',
-    building: '',
+    phone: '090-1234-5678',
+    email: 'yamada.taro@example.com',
+    postalCode: '123-4567',
+    prefecture: '東京都',
+    city: '新宿区',
+    address: '西新宿1-2-3',
+    building: 'サンプルマンション101',
 
     // 3. 資格・経験
-    qualifications: [] as string[],
-    experienceFields: [] as string[],
-    currentWorkStyle: '',
-    desiredWorkStyle: '',
-    jobChangeMotivation: '',
+    qualifications: ['介護福祉士', '介護職員実務者研修'] as string[],
+    experienceFields: ['特別養護老人ホーム', 'デイサービス'] as string[],
+    currentWorkStyle: '正社員',
+    desiredWorkStyle: 'パート・アルバイト',
+    jobChangeMotivation: 'より柔軟な働き方を求めて転職を希望しています。',
 
     // 4. 職歴（任意）
-    workHistory1: '',
-    workHistory2: '',
+    workHistory1: '2018年4月〜2021年3月 特別養護老人ホームさくら 介護職員',
+    workHistory2: '2021年4月〜2023年12月 デイサービスひまわり 介護福祉士',
     workHistory3: '',
 
     // 5. 自己PR（任意）
-    selfPR: '',
+    selfPR: '介護福祉士として5年以上の経験があります。利用者様一人ひとりに寄り添った介護を心がけています。',
 
     // 6. 銀行口座情報（任意）
-    bankName: '',
-    branchName: '',
-    accountName: '',
-    accountNumber: '',
+    bankName: 'サンプル銀行',
+    branchName: '新宿支店',
+    accountName: 'ヤマダ タロウ',
+    accountNumber: '1234567',
 
     // 7. その他（任意）
-    pensionNumber: '',
-    loginEmail: '',
+    pensionNumber: '1234-567890',
+    loginEmail: 'yamada.taro@example.com',
 
     // 8. ざっくり登録情報（任意）
-    desiredWorkDaysPerWeek: '',
-    desiredWorkHoursPerDay: '',
-    desiredWorkDays: [] as string[],
-    desiredStartTime: '',
-    desiredEndTime: '',
+    desiredWorkDaysPerWeek: '3',
+    desiredWorkHoursPerDay: '6',
+    desiredWorkDays: ['月', '水', '金'] as string[],
+    desiredStartTime: '09:00',
+    desiredEndTime: '15:00',
 
     // 10. 同意事項
-    agreeElectronicDelivery: false,
-    agreeTerms: false,
-    agreeConsent: false,
+    agreeElectronicDelivery: true,
+    agreeTerms: true,
+    agreeConsent: true,
 
     // 11. 担当情報
-    staffNumber: '',
-    staffName: '',
+    staffNumber: 'ST001',
+    staffName: '佐藤 花子',
   });
 
   const qualificationsList = [

@@ -87,7 +87,6 @@ export default function MyPage() {
       item.onClick();
     } else if (item.href) {
       if (
-        item.href.startsWith('/mypage/profile') ||
         item.href.startsWith('/help') ||
         item.href.startsWith('/terms')
       ) {
@@ -117,17 +116,17 @@ export default function MyPage() {
 
           {/* ユーザー情報 */}
           <div className="flex-1 min-w-0">
-            <h2 className="font-bold text-lg mb-1">{user.name}</h2>
-            <p className="text-sm text-gray-600 truncate">{user.email}</p>
+            <h2 className="font-bold text-lg mb-1">{user.name || '山田 太郎'}</h2>
+            <p className="text-sm text-gray-600 truncate">{user.email || 'yamada.taro@example.com'}</p>
             <div className="flex gap-2 mt-2 flex-wrap">
               <span className="text-xs bg-primary-light text-primary px-2 py-1 rounded">
-                {(user as any).age}
+                {(user as any).age || '34歳'}
               </span>
               <span className="text-xs bg-primary-light text-primary px-2 py-1 rounded">
-                {(user as any).gender}
+                {(user as any).gender || '男性'}
               </span>
               <span className="text-xs bg-primary-light text-primary px-2 py-1 rounded">
-                {(user as any).occupation}
+                {(user as any).occupation || '介護福祉士'}
               </span>
             </div>
           </div>
