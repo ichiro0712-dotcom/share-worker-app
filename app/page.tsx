@@ -128,6 +128,7 @@ export default function TestIndexPage() {
         { href: '/facilities/1', label: '施設詳細', icon: Building2, implemented: true },
         { href: '/facilities/1/reviews', label: '施設の口コミ一覧', icon: FileText, implemented: true },
         { href: '/facilities/1/review/new', label: '口コミ投稿', icon: FileText, implemented: true },
+        { href: '/register/worker', label: 'ワーカー新規登録', icon: UserCircle, implemented: true },
         { href: '/under-construction?page=nominated', label: '指名された', icon: Calendar, implemented: false },
         { href: '/under-construction?page=applied', label: '応募した', icon: Calendar, implemented: false },
         { href: '/under-construction?page=working', label: '働いた', icon: Calendar, implemented: false },
