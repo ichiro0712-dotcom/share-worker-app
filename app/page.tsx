@@ -126,7 +126,6 @@ export default function TestIndexPage() {
         { href: '/under-construction?page=login', label: 'ワーカーログイン', icon: LogIn, implemented: false },
         { href: '/job-list', label: 'ワーカーTOP（求人検索）', icon: Home, implemented: true },
         { href: '/jobs/1', label: '求人詳細', icon: Briefcase, implemented: true },
-        { href: '/facilities/1', label: '施設詳細', icon: Building2, implemented: true },
         { href: '/facilities/1/review/new', label: '口コミ投稿', icon: FileText, implemented: true },
         { href: '/mypage', label: 'マイページ', icon: User, implemented: true },
         { href: '/bookmarks', label: '限定', icon: Heart, implemented: true },
