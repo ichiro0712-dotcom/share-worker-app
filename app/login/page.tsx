@@ -2,23 +2,15 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
-import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
+import { Mail, Lock, Eye, EyeOff, User } from 'lucide-react';
 
-export default function Login() {
+export default function WorkerLogin() {
   const router = useRouter();
-  const { login, isAuthenticated } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
-
-  // すでにログイン済みの場合はTOPページにリダイレクト
-  if (isAuthenticated) {
-    router.push('/');
-    return null;
-  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,17 +21,17 @@ export default function Login() {
       return;
     }
 
-    const success = login(email, password);
-    if (success) {
-      router.push('/');
-    } else {
-      setError('メールアドレスまたはパスワードが正しくありません');
-    }
+    // TODO: 実際の認証処理
+    // ダミーログイン処理
+    console.log('Login attempt:', { email, password });
+
+    // 仮でログイン成功としてワーカーTOPへ遷移
+    router.push('/job-list');
   };
 
   const handleTestLogin = (testEmail: string) => {
     setEmail(testEmail);
-    setPassword('password123');
+    setPassword('worker123');
   };
 
   return (
@@ -47,8 +39,13 @@ export default function Login() {
       <div className="max-w-md w-full">
         {/* ロゴ・タイトル */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-primary mb-2">S WORKS</h1>
-          <p className="text-gray-600">看護師・介護士のための求人マッチング</p>
+          <div className="flex justify-center mb-4">
+            <div className="bg-primary p-4 rounded-full">
+              <User className="w-12 h-12 text-white" />
+            </div>
+          </div>
+          <h1 className="text-3xl font-bold text-primary mb-2">ワーカーログイン</h1>
+          <p className="text-gray-600">S WORKS</p>
         </div>
 
         {/* ログインフォーム */}
@@ -74,7 +71,7 @@ export default function Login() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                  placeholder="test1@example.com"
+                  placeholder="yamada.taro@example.com"
                 />
               </div>
             </div>
@@ -107,57 +104,74 @@ export default function Login() {
               </div>
             </div>
 
+            {/* パスワードを忘れた場合 */}
+            <div className="text-right">
+              <Link href="/under-construction?page=password-reset" className="text-sm text-primary hover:underline">
+                パスワードを忘れた場合
+              </Link>
+            </div>
+
             {/* ログインボタン */}
             <button
               type="submit"
-              className="w-full py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors"
+              className="w-full py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary-dark transition-colors"
             >
               ログイン
             </button>
           </form>
 
-          {/* パスワード忘れ・新規登録 */}
-          <div className="mt-4 text-center text-sm">
+          {/* 新規登録リンク */}
+          <div className="mt-6 pt-6 border-t border-gray-200 text-center">
+            <p className="text-sm text-gray-600 mb-3">
+              アカウントをお持ちでない方
+            </p>
             <Link
-              href="/register"
-              className="text-primary hover:underline"
+              href="/register/worker"
+              className="block w-full py-3 border-2 border-primary text-primary rounded-lg font-medium hover:bg-primary-light/10 transition-colors"
             >
               新規登録はこちら
             </Link>
           </div>
         </div>
 
-        {/* テストユーザー */}
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <h3 className="font-semibold text-sm text-yellow-800 mb-3">
-            テストユーザーでログイン
+        {/* テストワーカー */}
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <h3 className="font-semibold text-sm text-green-800 mb-3">
+            テストワーカーでログイン
           </h3>
           <div className="space-y-2">
             <button
-              onClick={() => handleTestLogin('test1@example.com')}
-              className="w-full text-left px-3 py-2 bg-white border border-yellow-300 rounded text-sm hover:bg-yellow-50 transition-colors"
+              onClick={() => handleTestLogin('yamada.taro@example.com')}
+              className="w-full text-left px-3 py-2 bg-white border border-green-300 rounded text-sm hover:bg-green-50 transition-colors"
             >
-              <div className="font-medium">田中 花子（看護師）</div>
-              <div className="text-xs text-gray-600">test1@example.com</div>
+              <div className="font-medium">山田 太郎</div>
+              <div className="text-xs text-gray-600">yamada.taro@example.com</div>
             </button>
             <button
-              onClick={() => handleTestLogin('test2@example.com')}
-              className="w-full text-left px-3 py-2 bg-white border border-yellow-300 rounded text-sm hover:bg-yellow-50 transition-colors"
+              onClick={() => handleTestLogin('suzuki.hanako@example.com')}
+              className="w-full text-left px-3 py-2 bg-white border border-green-300 rounded text-sm hover:bg-green-50 transition-colors"
             >
-              <div className="font-medium">佐藤 太郎（介護福祉士）</div>
-              <div className="text-xs text-gray-600">test2@example.com</div>
+              <div className="font-medium">鈴木 花子</div>
+              <div className="text-xs text-gray-600">suzuki.hanako@example.com</div>
             </button>
             <button
-              onClick={() => handleTestLogin('test3@example.com')}
-              className="w-full text-left px-3 py-2 bg-white border border-yellow-300 rounded text-sm hover:bg-yellow-50 transition-colors"
+              onClick={() => handleTestLogin('tanaka.jiro@example.com')}
+              className="w-full text-left px-3 py-2 bg-white border border-green-300 rounded text-sm hover:bg-green-50 transition-colors"
             >
-              <div className="font-medium">鈴木 一郎（理学療法士）</div>
-              <div className="text-xs text-gray-600">test3@example.com</div>
+              <div className="font-medium">田中 次郎</div>
+              <div className="text-xs text-gray-600">tanaka.jiro@example.com</div>
             </button>
           </div>
-          <p className="text-xs text-yellow-700 mt-3">
+          <p className="text-xs text-green-700 mt-3">
             ※ クリックで自動入力されます。「ログイン」ボタンを押してください。
           </p>
+        </div>
+
+        {/* TOPに戻るリンク */}
+        <div className="mt-4 text-center">
+          <Link href="/job-list" className="text-sm text-gray-600 hover:underline">
+            TOPに戻る
+          </Link>
         </div>
       </div>
     </div>

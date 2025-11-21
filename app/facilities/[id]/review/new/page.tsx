@@ -13,7 +13,6 @@ export default function NewReview({ params }: { params: { id: string } }) {
   const [rating, setRating] = useState(0);
   const [hoveredRating, setHoveredRating] = useState(0);
   const [formData, setFormData] = useState({
-    period: '',
     goodPoints: '',
     improvements: '',
   });
@@ -50,11 +49,6 @@ export default function NewReview({ params }: { params: { id: string } }) {
       return;
     }
 
-    if (!formData.period) {
-      alert('勤務期間を選択してください');
-      return;
-    }
-
     if (!formData.goodPoints) {
       alert('良かった点を入力してください');
       return;
@@ -67,7 +61,7 @@ export default function NewReview({ params }: { params: { id: string } }) {
 
     // 実際にはここでAPIにデータを送信
     alert('レビューを投稿しました！');
-    router.push(`/facilities/${facilityId}`);
+    router.push('/job-list');
   };
 
   return (
@@ -133,28 +127,6 @@ export default function NewReview({ params }: { params: { id: string } }) {
               </span>
             )}
           </div>
-        </div>
-
-        {/* 勤務期間 */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium mb-2">
-            勤務期間 <span className="text-red-500">*</span>
-          </label>
-          <select
-            value={formData.period}
-            onChange={(e) =>
-              setFormData({ ...formData, period: e.target.value })
-            }
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-            required
-          >
-            <option value="">選択してください</option>
-            <option value="1ヶ月以内">1ヶ月以内</option>
-            <option value="3ヶ月以内">3ヶ月以内</option>
-            <option value="6ヶ月以内">6ヶ月以内</option>
-            <option value="1年以内">1年以内</option>
-            <option value="1年以上">1年以上</option>
-          </select>
         </div>
 
         {/* 良かった点 */}

@@ -125,11 +125,8 @@ function ApplicationConfirmContent() {
 
         {/* 確認メッセージ */}
         <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-          <p className="text-sm text-center font-bold mb-2">
+          <p className="text-sm text-center font-bold">
             この内容で応募してよろしいですか？
-          </p>
-          <p className="text-xs text-gray-600 text-center">
-            応募後、施設から連絡があります。
           </p>
         </div>
       </div>

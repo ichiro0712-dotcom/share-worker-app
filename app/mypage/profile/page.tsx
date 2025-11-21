@@ -43,6 +43,12 @@ export default function ProfileEditPage() {
     address: '西新宿1-2-3',
     building: 'サンプルマンション101',
 
+    // 緊急連絡先
+    emergencyContactName: '山田 花子',
+    emergencyContactRelation: '妻',
+    emergencyContactPhone: '090-9876-5432',
+    emergencyContactAddress: '東京都新宿区西新宿1-2-3 サンプルマンション101',
+
     // 4. 資格・経験
     qualifications: ['介護福祉士', '介護職員実務者研修'] as string[],
     experienceFields: ['特別養護老人ホーム', 'デイサービス'] as string[],
@@ -58,6 +64,12 @@ export default function ProfileEditPage() {
 
     // 7. その他
     pensionNumber: '1234-567890',
+  });
+
+  // 資格証明書の状態管理（ダミーデータとして2つの画像を登録済み）
+  const [qualificationCertificates, setQualificationCertificates] = useState<Record<string, string | null>>({
+    '介護福祉士': '/images/dummy-certificate-1.jpg',
+    '介護職員実務者研修': '/images/dummy-certificate-2.jpg',
   });
 
   const qualificationsList = [
@@ -99,6 +111,20 @@ export default function ProfileEditPage() {
       const reader = new FileReader();
       reader.onloadend = () => {
         setProfileImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleQualificationCertificateChange = (qualification: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setQualificationCertificates(prev => ({
+          ...prev,
+          [qualification]: reader.result as string
+        }));
       };
       reader.readAsDataURL(file);
     }
@@ -380,7 +406,7 @@ export default function ProfileEditPage() {
         <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <h2 className="text-lg font-bold mb-4 pb-3 border-b">3. 連絡先情報 <span className="text-red-500">*</span></h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <div>
               <label className="block text-sm font-medium mb-2">電話番号 <span className="text-red-500">*</span></label>
               <input
@@ -452,11 +478,57 @@ export default function ProfileEditPage() {
               />
             </div>
           </div>
+
+          {/* 区切り線 */}
+          <div className="border-t border-gray-200 my-6"></div>
+
+          {/* 緊急連絡先 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="md:col-span-2">
+              <h3 className="text-md font-semibold mb-3">緊急連絡先</h3>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">氏名</label>
+              <input
+                type="text"
+                value={formData.emergencyContactName}
+                onChange={(e) => setFormData({ ...formData, emergencyContactName: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">続柄</label>
+              <input
+                type="text"
+                value={formData.emergencyContactRelation}
+                onChange={(e) => setFormData({ ...formData, emergencyContactRelation: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">電話番号</label>
+              <input
+                type="tel"
+                value={formData.emergencyContactPhone}
+                onChange={(e) => setFormData({ ...formData, emergencyContactPhone: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">住所</label>
+              <input
+                type="text"
+                value={formData.emergencyContactAddress}
+                onChange={(e) => setFormData({ ...formData, emergencyContactAddress: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              />
+            </div>
+          </div>
         </section>
 
-        {/* 4. 資格・経験 */}
+        {/* 4. 資格 */}
         <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <h2 className="text-lg font-bold mb-4 pb-3 border-b">4. 資格・経験 <span className="text-red-500">*</span></h2>
+          <h2 className="text-lg font-bold mb-4 pb-3 border-b">4. 資格 <span className="text-red-500">*</span></h2>
 
           <div className="space-y-6">
             <div>
@@ -476,6 +548,63 @@ export default function ProfileEditPage() {
               </div>
             </div>
 
+            {/* 資格証明書アップロード - 選択された資格（その他以外）の数だけ表示 */}
+            {formData.qualifications.filter(qual => qual !== 'その他').length > 0 && (
+              <div className="space-y-4">
+                <label className="block text-sm font-medium">資格証明書アップロード</label>
+                {formData.qualifications.filter(qual => qual !== 'その他').map((qual) => (
+                  <div key={qual} className="border border-gray-200 rounded-lg p-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-3">{qual}</label>
+
+                    {/* 既存の証明書がある場合はプレビュー表示（横並び） */}
+                    {qualificationCertificates[qual] ? (
+                      <div className="flex items-start gap-4">
+                        <div className="flex-1">
+                          <div className="relative w-full h-40 border border-gray-300 rounded-lg overflow-hidden bg-gray-50">
+                            <img
+                              src={qualificationCertificates[qual]!}
+                              alt={`${qual}の証明書`}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <p className="text-xs text-green-600 mt-1">✓ 登録済み</p>
+                        </div>
+                        <div className="flex flex-col justify-start">
+                          <label className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer text-center text-sm font-medium whitespace-nowrap">
+                            画像を変更
+                            <input
+                              type="file"
+                              accept="image/*,.pdf"
+                              onChange={(e) => handleQualificationCertificateChange(qual, e)}
+                              className="hidden"
+                            />
+                          </label>
+                          <p className="text-xs text-gray-500 mt-2">ファイル形式: JPG, PNG, PDF</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <input
+                          type="file"
+                          accept="image/*,.pdf"
+                          onChange={(e) => handleQualificationCertificateChange(qual, e)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">ファイル形式: JPG, PNG, PDF</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* 5. 経験・職歴 */}
+        <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
+          <h2 className="text-lg font-bold mb-4 pb-3 border-b">5. 経験・職歴 <span className="text-red-500">*</span></h2>
+
+          <div className="space-y-6">
             <div>
               <label className="block text-sm font-medium mb-3">経験分野 <span className="text-red-500">*</span></label>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -493,71 +622,49 @@ export default function ProfileEditPage() {
               </div>
             </div>
 
-            {/* 資格証明書アップロード - 選択された資格（その他以外）の数だけ表示 */}
-            {formData.qualifications.filter(qual => qual !== 'その他').length > 0 && (
-              <div className="space-y-3">
-                <label className="block text-sm font-medium">資格証明書アップロード</label>
-                {formData.qualifications.filter(qual => qual !== 'その他').map((qual, index) => (
-                  <div key={qual}>
-                    <label className="block text-xs text-gray-600 mb-1">{qual}</label>
-                    <input
-                      type="file"
-                      accept="image/*,.pdf"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">ファイル形式: JPG, PNG, PDF</p>
+            <div>
+              <label className="block text-sm font-medium mb-3">職歴（任意）</label>
+              <div className="space-y-4">
+                {workHistories.map((history, index) => (
+                  <div key={index} className="flex gap-2">
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium mb-2">職歴{index + 1}</label>
+                      <input
+                        type="text"
+                        value={history}
+                        onChange={(e) => updateWorkHistory(index, e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                        placeholder="例：2018年4月〜2021年3月 ◯◯施設 介護職員"
+                      />
+                    </div>
+                    {workHistories.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeWorkHistory(index)}
+                        className="mt-7 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    )}
                   </div>
                 ))}
-              </div>
-            )}
-          </div>
-        </section>
+                {workHistories.length === 0 && (
+                  <p className="text-sm text-gray-500">職歴を追加してください</p>
+                )}
 
-        {/* 5. 職歴 */}
-        <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <div className="mb-4 pb-3 border-b">
-            <h2 className="text-lg font-bold">5. 職歴（任意）</h2>
-          </div>
-
-          <div className="space-y-4">
-            {workHistories.map((history, index) => (
-              <div key={index} className="flex gap-2">
-                <div className="flex-1">
-                  <label className="block text-sm font-medium mb-2">職歴{index + 1}</label>
-                  <input
-                    type="text"
-                    value={history}
-                    onChange={(e) => updateWorkHistory(index, e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                    placeholder="例：2018年4月〜2021年3月 ◯◯施設 介護職員"
-                  />
-                </div>
-                {workHistories.length > 1 && (
+                {/* 職歴追加ボタン - 最後の職歴の下に配置 */}
+                {workHistories.length < 5 && (
                   <button
                     type="button"
-                    onClick={() => removeWorkHistory(index)}
-                    className="mt-7 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    onClick={addWorkHistory}
+                    className="w-full px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors flex items-center justify-center gap-2"
                   >
-                    <X className="w-5 h-5" />
+                    <Plus className="w-4 h-4" />
+                    職歴を追加
                   </button>
                 )}
               </div>
-            ))}
-            {workHistories.length === 0 && (
-              <p className="text-sm text-gray-500">職歴を追加してください</p>
-            )}
-
-            {/* 職歴追加ボタン - 最後の職歴の下に配置 */}
-            {workHistories.length < 5 && (
-              <button
-                type="button"
-                onClick={addWorkHistory}
-                className="w-full px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors flex items-center justify-center gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                職歴を追加
-              </button>
-            )}
+            </div>
           </div>
         </section>
 

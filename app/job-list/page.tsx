@@ -5,6 +5,7 @@ import { Filter, Calendar, ChevronDown } from 'lucide-react';
 import { JobCard } from '@/components/job/JobCard';
 import { DateSlider } from '@/components/job/DateSlider';
 import { BottomNav } from '@/components/layout/BottomNav';
+import { FilterModal } from '@/components/job/FilterModal';
 import { jobs } from '@/data/jobs';
 import { facilities } from '@/data/facilities';
 
@@ -16,7 +17,9 @@ export default function JobListPage() {
   const [selectedDateIndex, setSelectedDateIndex] = useState(1);
   const [sortOrder, setSortOrder] = useState<SortOrder>('distance');
   const [showSortMenu, setShowSortMenu] = useState(false);
+  const [showFilterModal, setShowFilterModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [appliedFilters, setAppliedFilters] = useState<any>(null);
 
   const itemsPerPage = 20;
 
@@ -28,7 +31,12 @@ export default function JobListPage() {
   };
 
   const handleFilterClick = () => {
-    alert('未定:フィルター機能はPhase 2で実装予定です');
+    setShowFilterModal(true);
+  };
+
+  const handleApplyFilters = (filters: any) => {
+    setAppliedFilters(filters);
+    setCurrentPage(1); // フィルター適用時はページを1に戻す
   };
 
   const handleWorkDateClick = () => {
@@ -217,6 +225,13 @@ export default function JobListPage() {
 
       {/* 下部ナビゲーション */}
       <BottomNav />
+
+      {/* フィルターモーダル */}
+      <FilterModal
+        isOpen={showFilterModal}
+        onClose={() => setShowFilterModal(false)}
+        onApply={handleApplyFilters}
+      />
     </div>
   );
 }

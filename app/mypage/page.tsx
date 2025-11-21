@@ -108,7 +108,10 @@ export default function MyPage() {
 
       {/* ユーザー情報カード */}
       <div className="bg-white border-b border-gray-200 p-4 mb-4">
-        <div className="flex items-center gap-4">
+        <button
+          onClick={() => router.push('/mypage/profile')}
+          className="w-full flex items-center gap-4 text-left hover:bg-gray-50 transition-colors rounded-lg p-2 -m-2"
+        >
           {/* プロフィール画像 */}
           <div className="relative w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
             <UserIcon className="w-8 h-8 text-gray-400" />
@@ -132,13 +135,10 @@ export default function MyPage() {
           </div>
 
           {/* 編集ボタン */}
-          <button
-            onClick={() => handleMenuClick({ icon: null, label: 'プロフィール編集', href: '/mypage/profile' })}
-            className="flex-shrink-0"
-          >
+          <div className="flex-shrink-0">
             <ChevronRight className="w-5 h-5 text-gray-400" />
-          </button>
-        </div>
+          </div>
+        </button>
       </div>
 
       {/* メニュー */}

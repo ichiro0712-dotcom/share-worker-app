@@ -74,7 +74,7 @@ export default function Favorites() {
               気になる施設をお気に入りに追加しましょう
             </p>
             <Link
-              href="/"
+              href="/job-list"
               className="inline-block px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
             >
               求人を探す
