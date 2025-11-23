@@ -77,7 +77,7 @@ async function main() {
           id: job.id,
           facility_id: job.facilityId,
           template_id: job.templateId || null,
-          status: job.status as any, // JobStatus enum
+          status: job.status.toUpperCase() as any, // JobStatus enum (lowercase → UPPERCASE)
           title: job.title,
           work_date: new Date(job.workDate),
           start_time: job.startTime,
@@ -111,20 +111,36 @@ async function main() {
   }
   console.log(`✅ Created ${jobCount} jobs`);
 
-  // 5. レビューデータの投入
+  // 5. アプリケーション（応募）データの投入（レビュー作成のため）
+  console.log('📋 Seeding applications...');
+  const applicationCount = reviews.length;
+  for (let i = 0; i < applicationCount; i++) {
+    await prisma.application.create({
+      data: {
+        id: i + 1,
+        job_id: (i % 50) + 1, // 求人ID 1-50 をローテーション
+        user_id: (i % 3) + 1, // ユーザーID 1-3 をローテーション
+        status: 'COMPLETED_RATED', // 評価済み
+        worker_review_status: 'COMPLETED',
+        facility_review_status: 'COMPLETED',
+      },
+    });
+  }
+  console.log(`✅ Created ${applicationCount} applications`);
+
+  // 6. レビューデータの投入
   console.log('⭐ Seeding reviews...');
   let reviewCount = 0;
   for (const review of reviews) {
     try {
       // レビューはワーカーから施設への評価として投入
-      // application_idは仮で1を設定（実際のアプリケーションデータがないため）
       await prisma.review.create({
         data: {
           id: review.id,
           facility_id: review.facilityId,
           user_id: 1, // 仮のユーザーID（users[0]）
           job_id: 1,  // 仮の求人ID
-          application_id: review.id, // 仮のアプリケーションID
+          application_id: review.id, // アプリケーションIDと一致させる
           reviewer_type: 'WORKER', // ワーカーが施設を評価
           rating: review.rating,
           good_points: review.goodPoints,
