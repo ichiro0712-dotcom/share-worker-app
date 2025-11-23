@@ -1,8 +1,17 @@
+export type JobStatus =
+  | 'draft'       // 下書き
+  | 'published'   // 公開中
+  | 'stopped'     // 停止中
+  | 'working'     // 勤務中
+  | 'completed'   // 完了
+  | 'cancelled';  // キャンセル
+
 export interface Job {
   id: number;
   facilityId: number;
   templateId?: number; // テンプレートID
   templateName?: string; // テンプレート名
+  status: JobStatus;
   title: string;
   workDate: string; // YYYY-MM-DD
   startTime: string; // HH:MM

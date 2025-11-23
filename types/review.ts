@@ -1,11 +1,11 @@
 export interface Review {
   id: number;
   facilityId: number;
-  age: string; // 30代など
-  gender: string; // 男性、女性
-  occupation: string; // 介護福祉士など
-  period: string; // 1ヶ月以内など
-  rating: number; // 1-5
+  age: string;
+  gender: string;
+  occupation: string;
+  period: string;
+  rating: number;
   goodPoints: string;
   improvements: string;
   createdAt: string;
