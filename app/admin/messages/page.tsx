@@ -618,7 +618,7 @@ export default function AdminMessagesPage() {
                         >
                           ＜施設担当＞
                         </button>
-                        <span className="text-gray-700">: 事業所責任者の名字（例: 斉藤）に変換されます</span>
+                        <span className="text-gray-700">: 施設責任者の名字（例: 斉藤）に変換されます</span>
                       </div>
                       <div>
                         <button
@@ -627,7 +627,7 @@ export default function AdminMessagesPage() {
                         >
                           ＜施設名＞
                         </button>
-                        <span className="text-gray-700">: 事業所名（例: ケアテック恵比寿）に変換されます</span>
+                        <span className="text-gray-700">: 施設名（例: ケアテック恵比寿）に変換されます</span>
                       </div>
                     </div>
                   )}

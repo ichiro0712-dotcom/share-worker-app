@@ -261,11 +261,11 @@ export default function NewJobPage() {
   const handleSave = () => {
     // バリデーション - 必須項目チェック
     if (!formData.facilityId) {
-      alert('事業所を選択してください');
+      alert('施設を選択してください');
       return;
     }
     if (!formData.jobType) {
-      alert('案件種別を選択してください');
+      alert('求人種別を選択してください');
       return;
     }
     // 勤務日選択チェック: 日付選択または「日付を選ばずに募集」が必要
@@ -274,7 +274,7 @@ export default function NewJobPage() {
       return;
     }
     if (!formData.title) {
-      alert('案件タイトルを入力してください');
+      alert('求人タイトルを入力してください');
       return;
     }
     if (!formData.startTime || !formData.endTime) {
@@ -298,8 +298,8 @@ export default function NewJobPage() {
       return;
     }
 
-    console.log('案件保存:', formData);
-    alert('案件を作成しました');
+    console.log('求人保存:', formData);
+    alert('求人を作成しました');
     router.push('/admin/jobs');
   };
 
@@ -308,7 +308,7 @@ export default function NewJobPage() {
         {/* ヘッダー */}
         <div className="bg-white border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between">
-            <h1 className="text-xl font-bold text-gray-900">新規案件作成</h1>
+            <h1 className="text-xl font-bold text-gray-900">新規求人作成</h1>
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setShowPreview(true)}
@@ -333,18 +333,18 @@ export default function NewJobPage() {
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <h2 className="text-lg font-bold text-gray-900 mb-4">基本</h2>
               <div className="space-y-4">
-                {/* 1行目：事業所、案件種別、募集人数 */}
+                {/* 1行目：施設、求人種別、募集人数 */}
                 <div className="grid grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      事業所 <span className="text-red-500">*</span>
+                      施設 <span className="text-red-500">*</span>
                     </label>
                     <select
                       value={formData.facilityId || ''}
                       onChange={(e) => handleInputChange('facilityId', Number(e.target.value) || null)}
                       className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
                     >
-                      <option value="">事業所を選択</option>
+                      <option value="">施設を選択</option>
                       {facilities.slice(0, 10).map((facility) => (
                         <option key={facility.id} value={facility.id}>
                           {facility.name}
@@ -355,7 +355,7 @@ export default function NewJobPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      案件種別 <span className="text-red-500">*</span>
+                      求人種別 <span className="text-red-500">*</span>
                     </label>
                     <select
                       value={formData.jobType}
@@ -406,10 +406,10 @@ export default function NewJobPage() {
                   </p>
                 </div>
 
-                {/* 3行目：案件タイトル */}
+                {/* 3行目：求人タイトル */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    案件タイトル <span className="text-red-500">*</span>
+                    求人タイトル <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"

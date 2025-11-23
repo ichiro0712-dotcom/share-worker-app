@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Home, Briefcase, Building2, User, UserCircle, LogIn, Calendar, FileText, Heart, Settings, Construction, MessageSquare, MessageCircle, CheckCircle2, Circle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Home, Briefcase, Building2, User, UserCircle, LogIn, FileText, Heart, Settings, Construction, MessageSquare, MessageCircle, CheckCircle2, Circle, ChevronDown, ChevronUp } from 'lucide-react';
 
 export default function TestIndexPage() {
   // 完了したタスクの管理
@@ -117,39 +117,141 @@ export default function TestIndexPage() {
     }
   ];
 
-  const sections = [
-    {
-      title: 'ワーカー向けページ',
-      icon: User,
-      links: [
-        { href: '/register/worker', label: 'ワーカー新規登録', icon: UserCircle, implemented: true },
-        { href: '/under-construction?page=login', label: 'ワーカーログイン', icon: LogIn, implemented: false },
-        { href: '/job-list', label: 'ワーカーTOP（求人検索）', icon: Home, implemented: true },
-        { href: '/jobs/1', label: '求人詳細', icon: Briefcase, implemented: true },
-        { href: '/facilities/1/review/new', label: '口コミ投稿', icon: FileText, implemented: true },
-        { href: '/mypage', label: 'マイページ', icon: User, implemented: true },
-        { href: '/bookmarks', label: '限定', icon: Heart, implemented: true },
-        { href: '/under-construction?page=nominated', label: '指名', icon: Calendar, implemented: false },
-        { href: '/under-construction?page=applied', label: '応募した', icon: Calendar, implemented: false },
-      ],
-    },
-    {
-      title: '管理者向けページ',
-      icon: Settings,
-      links: [
-        { href: '/admin/login', label: '管理者ログイン', icon: LogIn, implemented: true },
-        { href: '/admin', label: '管理者TOP', icon: Home, implemented: true },
-        { href: '/admin/jobs', label: '求人一覧', icon: Briefcase, implemented: true },
-        { href: '/admin/jobs/new', label: '求人作成', icon: Briefcase, implemented: true },
-        { href: '/admin/jobs/templates', label: '求人テンプレート一覧', icon: FileText, implemented: true },
-        { href: '/admin/jobs/templates/new', label: '求人テンプレート作成', icon: FileText, implemented: true },
-        { href: '/admin/jobs/templates/1/edit', label: '求人テンプレート編集', icon: FileText, implemented: true },
-        { href: '/admin/facility', label: '企業・施設情報', icon: Building2, implemented: true },
-        { href: '/admin/reviews', label: 'レビュー一覧', icon: MessageSquare, implemented: true },
-        { href: '/admin/messages', label: 'メッセージ', icon: MessageCircle, implemented: true },
-      ],
-    },
-  ];
+  // ワーカー向けページ（サイトマップ形式）
+  const workerSitemap = {
+    title: 'ワーカー向けページ',
+    icon: User,
+    root: {
+      href: '/register/worker',
+      label: 'ワーカー新規登録',
+      icon: UserCircle,
+      children: [
+        {
+          href: '/login',
+          label: 'ワーカーログイン',
+          icon: LogIn,
+          children: [
+            {
+              href: '/job-list',
+              label: 'ワーカーTOP（求人検索）',
+              icon: Home,
+              children: [
+                {
+                  href: '/jobs/1',
+                  label: '求人詳細',
+                  icon: Briefcase,
+                  children: [
+                    {
+                      href: '/jobs/1/apply',
+                      label: '応募ページ（日付選択）',
+                      icon: Briefcase,
+                      children: [
+                        { href: '/jobs/1/apply/confirm', label: '応募確認ページ', icon: CheckCircle2 },
+                        { href: '/jobs/1/apply/complete', label: '応募完了ページ', icon: CheckCircle2 },
+                      ]
+                    },
+                    { href: '/facilities/1', label: '施設詳細', icon: Building2, children: [
+                      { href: '/facilities/1/reviews', label: '施設の口コミ一覧', icon: MessageSquare },
+                      { href: '/facilities/1/review/new', label: '口コミ投稿', icon: FileText },
+                    ]},
+                  ]
+                },
+              ]
+            },
+            {
+              href: '/mypage',
+              label: 'マイページ',
+              icon: User,
+              children: [
+                { href: '/mypage/profile', label: 'プロフィール編集', icon: User },
+                { href: '/mypage/applications', label: '応募履歴', icon: Briefcase },
+                { href: '/mypage/work-history', label: '勤務履歴', icon: Briefcase },
+              ]
+            },
+            {
+              href: '/bookmarks',
+              label: 'お気に入り・限定',
+              icon: Heart,
+            },
+          ]
+        }
+      ]
+    }
+  };
+
+  // 管理者向けページ（サイトマップ形式）
+  const adminSitemap = {
+    title: '施設管理者向けページ',
+    icon: Settings,
+    root: {
+      href: '/admin/login',
+      label: '管理者ログイン',
+      icon: LogIn,
+      children: [
+        {
+          href: '/admin',
+          label: '管理者TOP（ダッシュボード）',
+          icon: Home,
+          children: [
+            {
+              href: '/admin/jobs',
+              label: '求人管理',
+              icon: Briefcase,
+              children: [
+                { href: '/admin/jobs/new', label: '求人作成', icon: Briefcase },
+                { href: '/admin/jobs/1/edit', label: '求人編集', icon: Briefcase },
+                { href: '/admin/jobs/templates', label: 'テンプレート一覧', icon: FileText, children: [
+                  { href: '/admin/jobs/templates/new', label: 'テンプレート作成', icon: FileText },
+                  { href: '/admin/jobs/templates/1/edit', label: 'テンプレート編集', icon: FileText },
+                ]},
+              ]
+            },
+            {
+              href: '/admin/applications',
+              label: '応募管理',
+              icon: UserCircle,
+              children: [
+                { href: '/admin/applications?jobId=1', label: '求人別応募一覧', icon: UserCircle },
+              ]
+            },
+            {
+              href: '/admin/workers',
+              label: 'ワーカー管理',
+              icon: User,
+              children: [
+                { href: '/admin/workers/1', label: 'ワーカー詳細', icon: User },
+              ]
+            },
+            {
+              href: '/admin/facility',
+              label: '施設情報',
+              icon: Building2,
+            },
+            {
+              href: '/admin/reviews',
+              label: 'レビュー管理',
+              icon: MessageSquare,
+            },
+            {
+              href: '/admin/messages',
+              label: 'メッセージ',
+              icon: MessageCircle,
+            },
+            {
+              href: '/admin/terms',
+              label: '利用規約',
+              icon: FileText,
+            },
+            {
+              href: '/admin/privacy',
+              label: 'プライバシーポリシー',
+              icon: FileText,
+            },
+          ]
+        }
+      ]
+    }
+  };
 
   // 未実装の機能リスト
   const unimplementedFeatures = [
@@ -276,37 +378,259 @@ export default function TestIndexPage() {
         </div>
 
         <div className="space-y-6">
-          {sections.map((section, idx) => (
-            <div
-              key={idx}
-              id={idx === 0 ? 'worker-pages' : 'admin-pages'}
-              className="bg-white rounded-lg shadow-lg p-6"
-            >
-              <div className="flex items-center gap-3 mb-4">
-                <section.icon className="w-6 h-6 text-primary" />
-                <h2 className="text-xl font-bold text-gray-900">{section.title}</h2>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {section.links.map((link, linkIdx) => (
+          {/* ワーカー向けページ（サイトマップ形式） */}
+          <div id="worker-pages" className="bg-white rounded-lg shadow-lg p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <workerSitemap.icon className="w-6 h-6 text-primary" />
+              <h2 className="text-xl font-bold text-gray-900">{workerSitemap.title}</h2>
+            </div>
+
+            {/* ツリー表示 */}
+            <div className="space-y-2">
+              {/* ルート: 新規登録 */}
+              <div className="flex items-start gap-2">
+                <div className="w-5 h-5 flex-shrink-0 mt-1">
+                  <workerSitemap.root.icon className="w-5 h-5 text-gray-400" />
+                </div>
+                <div className="flex-1">
                   <Link
-                    key={linkIdx}
-                    href={link.href}
+                    href={workerSitemap.root.href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-3 p-4 rounded-lg border border-gray-200 hover:border-primary hover:bg-primary-light/10 transition-colors group"
+                    className="inline-flex items-center gap-2 font-medium text-primary hover:underline"
                   >
-                    <link.icon className="w-5 h-5 text-gray-400 group-hover:text-primary transition-colors" />
-                    <div>
-                      <div className="font-medium text-gray-900 group-hover:text-primary transition-colors">
-                        {link.label}
-                      </div>
-                      <div className="text-xs text-gray-500">{link.href}</div>
-                    </div>
+                    {workerSitemap.root.label}
+                    <span className="text-xs text-gray-500">{workerSitemap.root.href}</span>
                   </Link>
-                ))}
+
+                  {/* レベル1: ログイン */}
+                  {workerSitemap.root.children?.map((level1, idx1) => (
+                    <div key={idx1} className="mt-3 ml-6 border-l-2 border-gray-200 pl-4">
+                      <div className="flex items-start gap-2 -ml-[18px]">
+                        <div className="w-5 h-5 flex-shrink-0 mt-1">
+                          <level1.icon className="w-5 h-5 text-gray-400" />
+                        </div>
+                        <div className="flex-1">
+                          <Link
+                            href={level1.href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 font-medium text-primary hover:underline"
+                          >
+                            {level1.label}
+                            <span className="text-xs text-gray-500">{level1.href}</span>
+                          </Link>
+
+                          {/* レベル2: メインページ */}
+                          {level1.children && (
+                            <div className="mt-2 space-y-2">
+                              {level1.children.map((level2, idx2) => (
+                                <div key={idx2} className="ml-6 border-l-2 border-gray-200 pl-4">
+                                  <div className="flex items-start gap-2 -ml-[18px]">
+                                    <div className="w-4 h-4 flex-shrink-0 mt-1.5">
+                                      <level2.icon className="w-4 h-4 text-gray-400" />
+                                    </div>
+                                    <div className="flex-1">
+                                      <Link
+                                        href={level2.href}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-2 text-sm text-gray-700 hover:text-primary hover:underline"
+                                      >
+                                        {level2.label}
+                                        <span className="text-xs text-gray-500">{level2.href}</span>
+                                      </Link>
+
+                                      {/* レベル3: 詳細ページ */}
+                                      {level2.children && (
+                                        <div className="mt-1.5 space-y-1.5">
+                                          {level2.children.map((level3, idx3) => (
+                                            <div key={idx3} className="ml-5 border-l border-gray-200 pl-3">
+                                              <div className="flex items-start gap-2 -ml-[14px]">
+                                                <div className="w-3 h-3 flex-shrink-0 mt-2">
+                                                  <level3.icon className="w-3 h-3 text-gray-400" />
+                                                </div>
+                                                <div className="flex-1">
+                                                  <Link
+                                                    href={level3.href}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="inline-flex items-center gap-2 text-xs text-gray-600 hover:text-primary hover:underline"
+                                                  >
+                                                    {level3.label}
+                                                    <span className="text-xs text-gray-400">{level3.href}</span>
+                                                  </Link>
+
+                                                  {/* レベル4: サブページ */}
+                                                  {level3.children && (
+                                                    <div className="mt-1 space-y-1">
+                                                      {level3.children.map((level4, idx4) => (
+                                                        <div key={idx4} className="ml-4 border-l border-gray-100 pl-2">
+                                                          <div className="flex items-start gap-1.5 -ml-[10px]">
+                                                            <div className="w-3 h-3 flex-shrink-0 mt-1.5">
+                                                              <level4.icon className="w-3 h-3 text-gray-300" />
+                                                            </div>
+                                                            <Link
+                                                              href={level4.href}
+                                                              target="_blank"
+                                                              rel="noopener noreferrer"
+                                                              className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-primary hover:underline"
+                                                            >
+                                                              {level4.label}
+                                                              <span className="text-xs text-gray-400">{level4.href}</span>
+                                                            </Link>
+                                                          </div>
+                                                        </div>
+                                                      ))}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-          ))}
+          </div>
+
+          {/* 管理者向けページ（サイトマップ形式） */}
+          <div id="admin-pages" className="bg-white rounded-lg shadow-lg p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <adminSitemap.icon className="w-6 h-6 text-primary" />
+              <h2 className="text-xl font-bold text-gray-900">{adminSitemap.title}</h2>
+            </div>
+
+            {/* ツリー表示 */}
+            <div className="space-y-2">
+              {/* ルート: ログイン */}
+              <div className="flex items-start gap-2">
+                <div className="w-5 h-5 flex-shrink-0 mt-1">
+                  <adminSitemap.root.icon className="w-5 h-5 text-gray-400" />
+                </div>
+                <div className="flex-1">
+                  <Link
+                    href={adminSitemap.root.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 font-medium text-primary hover:underline"
+                  >
+                    {adminSitemap.root.label}
+                    <span className="text-xs text-gray-500">{adminSitemap.root.href}</span>
+                  </Link>
+
+                  {/* レベル1: ダッシュボード */}
+                  {adminSitemap.root.children?.map((level1, idx1) => (
+                    <div key={idx1} className="mt-3 ml-6 border-l-2 border-gray-200 pl-4">
+                      <div className="flex items-start gap-2 -ml-[18px]">
+                        <div className="w-5 h-5 flex-shrink-0 mt-1">
+                          <level1.icon className="w-5 h-5 text-gray-400" />
+                        </div>
+                        <div className="flex-1">
+                          <Link
+                            href={level1.href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 font-medium text-primary hover:underline"
+                          >
+                            {level1.label}
+                            <span className="text-xs text-gray-500">{level1.href}</span>
+                          </Link>
+
+                          {/* レベル2: 各管理ページ */}
+                          {level1.children && (
+                            <div className="mt-2 space-y-2">
+                              {level1.children.map((level2, idx2) => (
+                                <div key={idx2} className="ml-6 border-l-2 border-gray-200 pl-4">
+                                  <div className="flex items-start gap-2 -ml-[18px]">
+                                    <div className="w-4 h-4 flex-shrink-0 mt-1.5">
+                                      <level2.icon className="w-4 h-4 text-gray-400" />
+                                    </div>
+                                    <div className="flex-1">
+                                      <Link
+                                        href={level2.href}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-2 text-sm text-gray-700 hover:text-primary hover:underline"
+                                      >
+                                        {level2.label}
+                                        <span className="text-xs text-gray-500">{level2.href}</span>
+                                      </Link>
+
+                                      {/* レベル3: サブページ */}
+                                      {level2.children && (
+                                        <div className="mt-1.5 space-y-1.5">
+                                          {level2.children.map((level3, idx3) => (
+                                            <div key={idx3} className="ml-5 border-l border-gray-200 pl-3">
+                                              <div className="flex items-start gap-2 -ml-[14px]">
+                                                <div className="w-3 h-3 flex-shrink-0 mt-2">
+                                                  <level3.icon className="w-3 h-3 text-gray-400" />
+                                                </div>
+                                                <div className="flex-1">
+                                                  <Link
+                                                    href={level3.href}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="inline-flex items-center gap-2 text-xs text-gray-600 hover:text-primary hover:underline"
+                                                  >
+                                                    {level3.label}
+                                                    <span className="text-xs text-gray-400">{level3.href}</span>
+                                                  </Link>
+
+                                                  {/* レベル4: さらにサブページがある場合 */}
+                                                  {level3.children && (
+                                                    <div className="mt-1 space-y-1">
+                                                      {level3.children.map((level4, idx4) => (
+                                                        <div key={idx4} className="ml-4 border-l border-gray-100 pl-2">
+                                                          <div className="flex items-start gap-1.5 -ml-[10px]">
+                                                            <div className="w-3 h-3 flex-shrink-0 mt-1.5">
+                                                              <level4.icon className="w-3 h-3 text-gray-300" />
+                                                            </div>
+                                                            <Link
+                                                              href={level4.href}
+                                                              target="_blank"
+                                                              rel="noopener noreferrer"
+                                                              className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-primary hover:underline"
+                                                            >
+                                                              {level4.label}
+                                                              <span className="text-xs text-gray-400">{level4.href}</span>
+                                                            </Link>
+                                                          </div>
+                                                        </div>
+                                                      ))}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* 開発計画 */}
@@ -493,7 +817,7 @@ export default function TestIndexPage() {
             <div className="bg-white rounded-lg p-4 border border-green-100">
               <h4 className="font-bold text-green-800 mb-2">求人</h4>
               <p className="text-sm text-gray-700">
-                施設が募集する仕事求人。具体的な勤務日、時間、賃金が設定されている。
+                施設が募集する仕事。具体的な勤務日、時間、賃金が設定されている。
               </p>
             </div>
             <div className="bg-white rounded-lg p-4 border border-green-100">

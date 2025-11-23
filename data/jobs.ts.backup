@@ -9,7 +9,7 @@ const formatDate = (daysFromToday: number) => {
 };
 
 // ランダムな締切時刻を生成（3時間〜30日）
-// 24時間以内の案件が20%以上になるように調整
+// 24時間以内の求人が20%以上になるように調整
 const generateRandomDeadline = (index: number, total: number): string => {
   const urgentCount = Math.ceil(total * 0.25); // 25%を24時間以内に
 
@@ -210,7 +210,7 @@ export const jobs: Job[] = [
     recruitmentCount: 2,
     appliedCount: 2,
     transportationFee: 10000,
-    overview: '高級有料老人ホームでの介護業務。経験者優遇、高時給案件です。',
+    overview: '高級有料老人ホームでの介護業務。経験者優遇、高時給求人です。',
     workContent: ['身体介護', '生活援助', '服薬管理', '記録業務', '見守り'],
     requiredQualifications: ['介護福祉士'],
     requiredExperience: ['有料老人ホーム経験2年以上'],

@@ -291,7 +291,7 @@ export default function EditTemplatePage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      案件タイトル <span className="text-red-500">*</span>
+                      求人タイトル <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -306,14 +306,14 @@ export default function EditTemplatePage() {
                 <div className="grid grid-cols-12 gap-4">
                   <div className="col-span-6">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      事業所 <span className="text-red-500">*</span>
+                      施設 <span className="text-red-500">*</span>
                     </label>
                     <select
                       value={formData.facilityId || ''}
                       onChange={(e) => handleInputChange('facilityId', Number(e.target.value) || null)}
                       className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
                     >
-                      <option value="">事業所を選択</option>
+                      <option value="">施設を選択</option>
                       {facilities.slice(0, 10).map((facility) => (
                         <option key={facility.id} value={facility.id}>
                           {facility.name}

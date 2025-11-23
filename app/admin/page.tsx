@@ -30,12 +30,12 @@ export default function AdminDashboard() {
     const threeDaysLater = new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000);
 
     return {
-      // 締切が近い案件（3日以内）
+      // 締切が近い求人（3日以内）
       deadlineSoon: facilityJobs.filter((job) => {
         const deadline = new Date(job.deadline);
         return deadline > today && deadline <= threeDaysLater;
       }),
-      // 応募が少ない案件（応募率50%未満）
+      // 応募が少ない求人（応募率50%未満）
       lowApplications: facilityJobs.filter((job) => {
         const isActive = new Date(job.deadline) > today;
         const applicationRate = job.recruitmentCount > 0
@@ -45,7 +45,7 @@ export default function AdminDashboard() {
       }),
       // 新しい応募（ダミー - 実際はapplication dataから取得）
       newApplications: facilityJobs.filter((job) => job.appliedCount > 0).slice(0, 5),
-      // 募集中の案件
+      // 募集中の求人
       activeJobs: facilityJobs.filter((job) => new Date(job.deadline) > today),
       // 本日勤務予定（ダミー）
       todayJobs: facilityJobs.filter((job) => {
@@ -91,7 +91,7 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-4 gap-4 mb-6">
         <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-gray-600">総案件数</span>
+            <span className="text-xs text-gray-600">総求人数</span>
             <Calendar className="w-4 h-4 text-blue-600" />
           </div>
           <div className="text-2xl font-bold text-gray-900">{stats.totalJobs}</div>
@@ -125,12 +125,12 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-2 gap-6">
         {/* 左カラム */}
         <div className="space-y-6">
-          {/* 締切が近い案件 */}
+          {/* 締切が近い求人 */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200">
             <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 text-orange-600" />
-                <h2 className="text-sm font-bold">締切が近い案件</h2>
+                <h2 className="text-sm font-bold">締切が近い求人</h2>
               </div>
               <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium">
                 {tasks.deadlineSoon.length}件
@@ -138,7 +138,7 @@ export default function AdminDashboard() {
             </div>
             <div className="p-4">
               {tasks.deadlineSoon.length === 0 ? (
-                <p className="text-xs text-gray-500 text-center py-4">締切が近い案件はありません</p>
+                <p className="text-xs text-gray-500 text-center py-4">締切が近い求人はありません</p>
               ) : (
                 <div className="space-y-2">
                   {tasks.deadlineSoon.map((job) => (
@@ -163,12 +163,12 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* 応募が少ない案件 */}
+          {/* 応募が少ない求人 */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200">
             <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Users className="w-4 h-4 text-red-600" />
-                <h2 className="text-sm font-bold">応募が少ない案件</h2>
+                <h2 className="text-sm font-bold">応募が少ない求人</h2>
               </div>
               <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium">
                 {tasks.lowApplications.length}件
@@ -176,7 +176,7 @@ export default function AdminDashboard() {
             </div>
             <div className="p-4">
               {tasks.lowApplications.length === 0 ? (
-                <p className="text-xs text-gray-500 text-center py-4">すべての案件で十分な応募があります</p>
+                <p className="text-xs text-gray-500 text-center py-4">すべての求人で十分な応募があります</p>
               ) : (
                 <div className="space-y-2">
                   {tasks.lowApplications.slice(0, 5).map((job) => {

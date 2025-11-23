@@ -1,6 +1,8 @@
 export type WorkerStatus = 'applied' | 'scheduled' | 'working' | 'completed_pending' | 'completed_rated';
 export type ProfessionType = 'nursing' | 'care' | 'pharmacy';
 
+export type ReviewStatus = 'pending' | 'completed';
+
 export interface WorkerApplication {
   id: number;
   workerId: number;
@@ -9,6 +11,8 @@ export interface WorkerApplication {
   jobDate: string;
   facilityName: string;
   status: WorkerStatus;
+  workerReviewStatus?: ReviewStatus; // ワーカー→施設の評価状態
+  facilityReviewStatus?: ReviewStatus; // 施設→ワーカーの評価状態
   appliedAt: string;
   completedAt?: string;
   ratedAt?: string;

@@ -348,7 +348,7 @@ export default function ApplicationsPage() {
                       </div>
                     )}
                     <h3 className="font-bold text-base text-gray-900">
-                      案件：{job.jobTitle}
+                      求人：{job.jobTitle}
                     </h3>
                   </div>
 

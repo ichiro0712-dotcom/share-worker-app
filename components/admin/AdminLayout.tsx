@@ -35,7 +35,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
   const menuItems = [
     {
-      title: '案件管理',
+      title: '求人管理',
       icon: <Briefcase className="w-4 h-4" />,
       href: '/admin/jobs',
       active: pathname === '/admin/jobs' || (pathname?.startsWith('/admin/jobs') && !pathname?.startsWith('/admin/jobs/templates')),
@@ -66,7 +66,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       active: pathname === '/admin/messages',
     },
     {
-      title: '法人・事業所',
+      title: '法人・施設',
       icon: <Building2 className="w-4 h-4" />,
       href: '/admin/facility',
       active: pathname === '/admin/facility',

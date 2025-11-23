@@ -22,7 +22,7 @@ export default function FacilityPage() {
     contactPersonFirstName: '花子',
   });
 
-  // 事業所情報
+  // 施設情報
   const [facilityInfo, setFacilityInfo] = useState({
     name: 'ケアテック恵比寿',
     serviceType: '訪問介護',
@@ -194,8 +194,8 @@ export default function FacilityPage() {
   const [welcomeMessage, setWelcomeMessage] = useState({
     text: `[ワーカー名字]様
 
-この度は、[事業所名]の求人にご応募いただき、誠にありがとうございます。
-施設長の[事業所責任者名字]と申します。
+この度は、[施設名]の求人にご応募いただき、誠にありがとうございます。
+施設長の[施設責任者名字]と申します。
 
 当施設では、働きやすい環境づくりを大切にしております。
 初めての方でも安心して勤務いただけるよう、丁寧にサポートいたしますので、
@@ -325,8 +325,8 @@ export default function FacilityPage() {
   const previewWelcomeMessage = () => {
     return welcomeMessage.text
       .replace(/\[ワーカー名字\]/g, '田中')
-      .replace(/\[事業所責任者名字\]/g, managerInfo.lastName)
-      .replace(/\[事業所名\]/g, facilityInfo.name);
+      .replace(/\[施設責任者名字\]/g, managerInfo.lastName)
+      .replace(/\[施設名\]/g, facilityInfo.name);
   };
 
   const handleSave = () => {
@@ -337,7 +337,7 @@ export default function FacilityPage() {
       <div className="h-full flex flex-col">
         {/* ヘッダー */}
         <div className="bg-white border-b border-gray-200 px-6 py-4">
-          <h1 className="text-2xl font-bold text-gray-900">法人・事業所情報</h1>
+          <h1 className="text-2xl font-bold text-gray-900">法人・施設情報</h1>
         </div>
 
         {/* コンテンツ */}
@@ -480,17 +480,17 @@ export default function FacilityPage() {
               </div>
             </div>
 
-            {/* 事業所情報・担当者 */}
+            {/* 施設情報・担当者 */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200">
               <div className="bg-gray-50 px-5 py-3 border-b border-gray-200">
-                <h2 className="text-base font-bold text-gray-900">事業所情報・担当者</h2>
+                <h2 className="text-base font-bold text-gray-900">施設情報・担当者</h2>
               </div>
               <div className="p-5 space-y-3">
-                {/* 事業所名とサービス種別を一列に */}
+                {/* 施設名とサービス種別を一列に */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      事業所名 <span className="text-red-500">*</span>
+                      施設名 <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -993,7 +993,7 @@ export default function FacilityPage() {
                   <div className="space-y-3">
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-900">
                       <p className="mb-1.5">
-                        設定しておくと、ワーカーが初めて当事業所に応募した際に、ウェルカムメッセージが自動送信されます。
+                        設定しておくと、ワーカーが初めて当施設に応募した際に、ウェルカムメッセージが自動送信されます。
                         ワーカーの初回勤務の不安を軽減することで、キャンセルが発生しにくくなります。
                       </p>
                       <p className="mb-1.5">
@@ -1001,8 +1001,8 @@ export default function FacilityPage() {
                       </p>
                       <ul className="space-y-0.5 ml-4 text-xs">
                         <li><code className="bg-blue-100 px-1.5 py-0.5 rounded">[ワーカー名字]</code> ワーカーの名字（例: 山田）に変換されます</li>
-                        <li><code className="bg-blue-100 px-1.5 py-0.5 rounded">[事業所責任者名字]</code> 事業所責任者の名字（例: 斉藤）に変換されます</li>
-                        <li><code className="bg-blue-100 px-1.5 py-0.5 rounded">[事業所名]</code> 事業所名（例: カイテク事業所）に変換されます</li>
+                        <li><code className="bg-blue-100 px-1.5 py-0.5 rounded">[施設責任者名字]</code> 施設責任者の名字（例: 斉藤）に変換されます</li>
+                        <li><code className="bg-blue-100 px-1.5 py-0.5 rounded">[施設名]</code> 施設名（例: カイテク施設）に変換されます</li>
                       </ul>
                     </div>
 

@@ -502,7 +502,7 @@ export default function AdminJobsList() {
                           </div>
                         </div>
 
-                        {/* 事業所 */}
+                        {/* 施設 */}
                         <div className="flex-shrink-0">
                           <div className="flex items-center gap-1 text-xs text-gray-600 whitespace-nowrap">
                             <Building2 className="w-3 h-3 text-gray-400" />
