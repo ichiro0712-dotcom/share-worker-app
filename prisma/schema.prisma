@@ -28,12 +28,12 @@ model User {
   updated_at     DateTime  @updatedAt @map("updated_at")
 
   // リレーション
-  applications       Application[]
-  reviews            Review[]         @relation("UserReviews")
-  receivedReviews    Review[]         @relation("UserReceivedReviews")
-  bookmarks          Bookmark[]
-  sentMessages       Message[]        @relation("UserSentMessages")
-  receivedMessages   Message[]        @relation("UserReceivedMessages")
+  applications     Application[]
+  reviews          Review[]
+  bookmarks        Bookmark[]       @relation("UserBookmarks")
+  bookmarkedBy     Bookmark[]       @relation("BookmarkedUsers")
+  sentMessages     Message[]        @relation("UserSentMessages")
+  receivedMessages Message[]        @relation("UserReceivedMessages")
 
   @@map("users")
 }
@@ -87,8 +87,7 @@ model Facility {
   admins           FacilityAdmin[]
   jobs             Job[]
   jobTemplates     JobTemplate[]
-  reviews          Review[]         @relation("FacilityReviews")
-  receivedReviews  Review[]         @relation("FacilityReceivedReviews")
+  reviews          Review[]
   bookmarks        Bookmark[]
   sentMessages     Message[]        @relation("FacilitySentMessages")
   receivedMessages Message[]        @relation("FacilityReceivedMessages")
@@ -251,14 +250,10 @@ model Review {
   updated_at      DateTime     @updatedAt @map("updated_at")
 
   // リレーション
-  facility    Facility    @relation("FacilityReviews", fields: [facility_id], references: [id], onDelete: Cascade)
-  user        User        @relation("UserReviews", fields: [user_id], references: [id], onDelete: Cascade)
+  facility    Facility    @relation(fields: [facility_id], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
   job         Job         @relation(fields: [job_id], references: [id], onDelete: Cascade)
   application Application @relation(fields: [application_id], references: [id], onDelete: Cascade)
-
-  // 評価を受けた側へのリレーション
-  reviewedFacility Facility? @relation("FacilityReceivedReviews", fields: [facility_id], references: [id])
-  reviewedUser     User?     @relation("UserReceivedReviews", fields: [user_id], references: [id])
 
   @@map("reviews")
 }
@@ -276,28 +271,25 @@ enum ReviewerType {
 // ========================================
 
 model Bookmark {
-  id          Int            @id @default(autoincrement())
-  user_id     Int?           @map("user_id")      // ワーカーID（ワーカーが保存した場合）
-  facility_id Int?           @map("facility_id")  // 施設ID（施設が保存した場合）
-  entity_type BookmarkEntity @map("entity_type")  // job または worker
-  entity_id   Int            @map("entity_id")    // job_id または user_id
-  type        BookmarkType                        // favorite または watch_later
-  created_at  DateTime       @default(now()) @map("created_at")
+  id             Int          @id @default(autoincrement())
+  type           BookmarkType // FAVORITE または WATCH_LATER
+  created_at     DateTime     @default(now()) @map("created_at")
+
+  // 誰が保存したか（どちらか片方が入る）
+  user_id        Int?         @map("user_id")      // ワーカーID
+  facility_id    Int?         @map("facility_id")  // 施設ID
+
+  // 何を保存したか（どちらか片方が入る）
+  target_job_id  Int?         @map("target_job_id")  // 保存対象：求人ID
+  target_user_id Int?         @map("target_user_id") // 保存対象：ワーカーID
 
   // リレーション
-  user     User?     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  facility Facility? @relation(fields: [facility_id], references: [id], onDelete: Cascade)
-  job      Job?      @relation(fields: [entity_id], references: [id], onDelete: Cascade)
+  user       User?     @relation("UserBookmarks", fields: [user_id], references: [id], onDelete: Cascade)
+  facility   Facility? @relation(fields: [facility_id], references: [id], onDelete: Cascade)
+  targetJob  Job?      @relation(fields: [target_job_id], references: [id], onDelete: Cascade)
+  targetUser User?     @relation("BookmarkedUsers", fields: [target_user_id], references: [id], onDelete: Cascade)
 
   @@map("bookmarks")
-}
-
-// ブックマークエンティティタイプのEnum
-enum BookmarkEntity {
-  JOB    // 求人
-  WORKER // ワーカー
-
-  @@map("bookmark_entity")
 }
 
 // ブックマークタイプのEnum
