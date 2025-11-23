@@ -1,6 +1,8 @@
 export interface Job {
   id: number;
   facilityId: number;
+  templateId?: number; // テンプレートID
+  templateName?: string; // テンプレート名
   title: string;
   workDate: string; // YYYY-MM-DD
   startTime: string; // HH:MM

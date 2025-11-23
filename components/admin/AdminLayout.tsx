@@ -14,6 +14,7 @@ import {
   Star,
   FileText,
   MessageCircle,
+  UserCheck,
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -45,6 +46,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       href: '/admin/jobs/templates',
       active: pathname?.startsWith('/admin/jobs/templates'),
       isSubItem: true,
+    },
+    {
+      title: '応募管理',
+      icon: <UserCheck className="w-4 h-4" />,
+      href: '/admin/applications',
+      active: pathname?.startsWith('/admin/applications'),
     },
     {
       title: 'ワーカー管理',

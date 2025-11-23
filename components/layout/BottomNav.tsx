@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Search, Heart, MessageSquare, Clipboard, User } from 'lucide-react';
+import { Search, Heart, MessageSquare, Briefcase } from 'lucide-react';
 
 export const BottomNav = () => {
   const pathname = usePathname();
@@ -15,8 +15,8 @@ export const BottomNav = () => {
   }> = [
     { href: '/job-list', icon: Search, label: '探す' },
     { href: '/favorites', icon: Heart, label: 'お気に入り' },
-    { href: '/applications', icon: Clipboard, label: '応募' },
-    { href: '/mypage', icon: User, label: 'マイページ' }
+    { href: '/messages', icon: MessageSquare, label: 'メッセージ' },
+    { href: '/my-jobs', icon: Briefcase, label: '仕事管理' }
   ];
 
   return (

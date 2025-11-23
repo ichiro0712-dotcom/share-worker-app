@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import AdminLayout from '@/components/admin/AdminLayout';
 import { facilities } from '@/data/facilities';
 import { jobTemplates } from '@/data/jobTemplates';
 import { Upload, X } from 'lucide-react';
@@ -247,7 +246,6 @@ export default function EditTemplatePage() {
   const [belongingsInput, setBelongingsInput] = useState('');
 
   return (
-    <AdminLayout>
       <div className="h-full flex flex-col">
         {/* ヘッダー */}
         <div className="bg-white border-b border-gray-200 px-6 py-4">
@@ -994,6 +992,5 @@ export default function EditTemplatePage() {
           </div>
         </div>
       </div>
-    </AdminLayout>
   );
 }

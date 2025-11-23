@@ -29,6 +29,8 @@ export const jobs: Job[] = [
   {
     id: 1,
     facilityId: 1,
+    templateId: 1,
+    templateName: '介護：日勤',
     title: '【駅徒歩5分】デイサービス・介護スタッフ募集（日勤）',
     workDate: formatDate(3),
     startTime: '09:00',
@@ -70,6 +72,8 @@ export const jobs: Job[] = [
   {
     id: 2,
     facilityId: 1,
+    templateId: 1,
+    templateName: '介護：日勤',
     title: '【駅徒歩5分】デイサービス・介護スタッフ募集（日勤）',
     workDate: formatDate(5),
     startTime: '09:00',
@@ -111,6 +115,8 @@ export const jobs: Job[] = [
   {
     id: 3,
     facilityId: 1,
+    templateId: 1,
+    templateName: '介護：日勤',
     title: '【駅徒歩5分】デイサービス・介護スタッフ募集（日勤）',
     workDate: formatDate(7),
     startTime: '09:00',
@@ -152,6 +158,8 @@ export const jobs: Job[] = [
   {
     id: 4,
     facilityId: 1,
+    templateId: 1,
+    templateName: '介護：日勤',
     title: '【駅徒歩5分】デイサービス・介護スタッフ募集（日勤）',
     workDate: formatDate(10),
     startTime: '09:00',
@@ -194,6 +202,8 @@ export const jobs: Job[] = [
   {
     id: 5,
     facilityId: 1,
+    templateId: 1,
+    templateName: '介護：日勤',
     title: '【駅徒歩5分】デイサービス・介護スタッフ募集（日勤）',
     workDate: formatDate(12),
     startTime: '09:00',
@@ -235,6 +245,8 @@ export const jobs: Job[] = [
   {
     id: 6,
     facilityId: 1,
+    templateId: 1,
+    templateName: '介護：日勤',
     title: '【駅徒歩5分】デイサービス・介護スタッフ募集（日勤）',
     workDate: formatDate(14),
     startTime: '09:00',

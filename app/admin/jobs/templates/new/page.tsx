@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import AdminLayout from '@/components/admin/AdminLayout';
 import { facilities } from '@/data/facilities';
 import { Upload, X } from 'lucide-react';
 import { calculateDailyWage } from '@/utils/salary';
@@ -190,7 +189,6 @@ export default function NewTemplatePage() {
   };
 
   return (
-    <AdminLayout>
       <div className="h-full flex flex-col">
         {/* ヘッダー */}
         <div className="bg-white border-b border-gray-200 px-6 py-4">
@@ -883,6 +881,5 @@ export default function NewTemplatePage() {
           </div>
         </div>
       </div>
-    </AdminLayout>
   );
 }

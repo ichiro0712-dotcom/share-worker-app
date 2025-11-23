@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import AdminLayout from '@/components/admin/AdminLayout';
 import { facilities } from '@/data/facilities';
 import { jobTemplates } from '@/data/jobTemplates';
 import { Upload, X, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
@@ -305,7 +304,6 @@ export default function NewJobPage() {
   };
 
   return (
-    <AdminLayout>
       <div className="h-full flex flex-col">
         {/* ヘッダー */}
         <div className="bg-white border-b border-gray-200 px-6 py-4">
@@ -1215,16 +1213,15 @@ export default function NewJobPage() {
             </div>
           </div>
         </div>
-      </div>
 
-      {/* プレビューモーダル */}
-      <JobPreviewModal
-        isOpen={showPreview}
-        onClose={() => setShowPreview(false)}
-        formData={formData}
-        selectedDates={selectedDates}
-        facility={formData.facilityId ? facilities.find(f => f.id === formData.facilityId) : null}
-      />
-    </AdminLayout>
+        {/* プレビューモーダル */}
+        <JobPreviewModal
+          isOpen={showPreview}
+          onClose={() => setShowPreview(false)}
+          formData={formData}
+          selectedDates={selectedDates}
+          facility={formData.facilityId ? facilities.find(f => f.id === formData.facilityId) : null}
+        />
+      </div>
   );
 }

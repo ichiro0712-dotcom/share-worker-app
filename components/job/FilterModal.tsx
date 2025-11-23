@@ -536,15 +536,11 @@ export function FilterModal({ isOpen, onClose, onApply }: FilterModalProps) {
 
             {/* サービス種別リスト（2列表示） */}
             <div className="p-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                 {serviceTypes.map((type) => (
                   <label
                     key={type}
-                    className={`flex items-center gap-2 px-3 py-3 border rounded-lg cursor-pointer transition-colors ${
-                      filters.serviceTypes.includes(type)
-                        ? 'border-primary bg-primary-light'
-                        : 'border-gray-300 hover:bg-gray-50'
-                    }`}
+                    className="flex items-center gap-2 cursor-pointer"
                   >
                     <input
                       type="checkbox"
@@ -554,7 +550,7 @@ export function FilterModal({ isOpen, onClose, onApply }: FilterModalProps) {
                       }
                       className="w-4 h-4"
                     />
-                    <span className="text-sm flex-1">{type}</span>
+                    <span className="text-sm">{type}</span>
                   </label>
                 ))}
               </div>

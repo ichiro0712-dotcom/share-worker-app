@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import AdminLayout from '@/components/admin/AdminLayout';
 import { Send, Info, Phone, MapPin, Calendar, Star, Briefcase, Award, ChevronDown, Image, Smile } from 'lucide-react';
 
 type FilterType = 'all' | 'care' | 'nursing' | 'other' | 'upcoming' | 'recent' | 'favorites';
@@ -329,7 +328,6 @@ export default function AdminMessagesPage() {
   }
 
   return (
-    <AdminLayout>
       <div className="h-[calc(100vh-4rem)] flex">
         {/* ユーザーリスト */}
         <div className="w-80 border-r border-gray-200 bg-white flex flex-col">
@@ -834,6 +832,5 @@ export default function AdminMessagesPage() {
           </div>
         )}
       </div>
-    </AdminLayout>
   );
 }

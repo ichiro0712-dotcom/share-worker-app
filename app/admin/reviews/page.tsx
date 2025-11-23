@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import AdminLayout from '@/components/admin/AdminLayout';
 import { reviews } from '@/data/reviews';
 import { facilities } from '@/data/facilities';
 import { ArrowUpDown, Sparkles, X, TrendingUp, TrendingDown, Lightbulb } from 'lucide-react';
@@ -109,14 +108,14 @@ export default function AdminReviewsPage() {
   const displayedReviews = showAll ? facilityReviews : facilityReviews.slice(0, 10);
 
   return (
-    <AdminLayout>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">レビュー一覧</h1>
-        <p className="text-sm text-gray-600 mt-1">{facility.name}に対するレビューを確認できます</p>
-      </div>
+    <div className="p-6">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-800">レビュー一覧</h1>
+          <p className="text-sm text-gray-600 mt-1">{facility.name}に対するレビューを確認できます</p>
+        </div>
 
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        {/* 評価サマリー */}
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          {/* 評価サマリー */}
         <div className="mb-6 pb-6 border-b border-gray-200">
           <div className="flex items-center gap-4 mb-4">
             <div className="flex items-baseline gap-2">
@@ -377,6 +376,6 @@ export default function AdminReviewsPage() {
           </div>
         </div>
       )}
-    </AdminLayout>
+    </div>
   );
 }

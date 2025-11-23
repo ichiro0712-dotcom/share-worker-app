@@ -7,7 +7,6 @@ import { jobs } from '@/data/jobs';
 import { facilities } from '@/data/facilities';
 import { jobTemplates } from '@/data/jobTemplates';
 import Link from 'next/link';
-import AdminLayout from '@/components/admin/AdminLayout';
 import {
   Plus,
   FileText,
@@ -217,8 +216,7 @@ export default function AdminJobsList() {
   const facility = facilities.find((f) => f.id === admin.facilityId);
 
   return (
-    <AdminLayout>
-      <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col">
         {/* ヘッダー */}
         <div className="bg-white border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between">
@@ -548,10 +546,9 @@ export default function AdminJobsList() {
             </div>
           )}
         </div>
-      </div>
 
-      {/* 一括操作確認モーダル */}
-      {bulkActionConfirm && (
+        {/* 一括操作確認モーダル */}
+        {bulkActionConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <h2 className="text-lg font-bold mb-4">一括{bulkActionConfirm === 'publish' ? '公開' : '停止'}の確認</h2>
@@ -906,7 +903,7 @@ export default function AdminJobsList() {
             </div>
           </div>
         </div>
-      )}
-    </AdminLayout>
+        )}
+      </div>
   );
 }

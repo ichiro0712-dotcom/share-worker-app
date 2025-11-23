@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import AdminLayout from '@/components/admin/AdminLayout';
 import { Upload, X, Eye, User } from 'lucide-react';
 import Image from 'next/image';
 
@@ -335,7 +334,6 @@ export default function FacilityPage() {
   };
 
   return (
-    <AdminLayout>
       <div className="h-full flex flex-col">
         {/* ヘッダー */}
         <div className="bg-white border-b border-gray-200 px-6 py-4">
@@ -1053,6 +1051,5 @@ export default function FacilityPage() {
           </div>
         </div>
       </div>
-    </AdminLayout>
   );
 }
