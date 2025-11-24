@@ -15,7 +15,19 @@ export async function getJobs() {
     },
   });
 
-  return jobs;
+  // Date型を文字列に変換してシリアライズ可能にする
+  return jobs.map((job) => ({
+    ...job,
+    work_date: job.work_date.toISOString(),
+    deadline: job.deadline.toISOString(),
+    created_at: job.created_at.toISOString(),
+    updated_at: job.updated_at.toISOString(),
+    facility: {
+      ...job.facility,
+      created_at: job.facility.created_at.toISOString(),
+      updated_at: job.facility.updated_at.toISOString(),
+    },
+  }));
 }
 
 export async function getJobById(id: string) {
@@ -34,5 +46,21 @@ export async function getJobById(id: string) {
     },
   });
 
-  return job;
+  if (!job) {
+    return null;
+  }
+
+  // Date型を文字列に変換してシリアライズ可能にする
+  return {
+    ...job,
+    work_date: job.work_date.toISOString(),
+    deadline: job.deadline.toISOString(),
+    created_at: job.created_at.toISOString(),
+    updated_at: job.updated_at.toISOString(),
+    facility: {
+      ...job.facility,
+      created_at: job.facility.created_at.toISOString(),
+      updated_at: job.facility.updated_at.toISOString(),
+    },
+  };
 }

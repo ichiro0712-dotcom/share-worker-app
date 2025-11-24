@@ -4,19 +4,19 @@ import { JobListClient } from '@/components/job/JobListClient';
 export default async function JobListPage() {
   const jobsData = await getJobs();
 
-  // DBのデータをフロントエンドの型に変換
+  // DBのデータをフロントエンドの型に変換（既に文字列化済み）
   const jobs = jobsData.map((job) => ({
     id: job.id,
     status: job.status.toLowerCase() as 'published' | 'draft' | 'stopped' | 'working' | 'completed' | 'cancelled',
     facilityId: job.facility_id,
     title: job.title,
-    workDate: job.work_date.toISOString().split('T')[0],
+    workDate: job.work_date.split('T')[0],
     startTime: job.start_time,
     endTime: job.end_time,
     breakTime: job.break_time,
     wage: job.wage,
     hourlyWage: job.hourly_wage,
-    deadline: job.deadline.toISOString(),
+    deadline: job.deadline,
     tags: job.tags,
     address: job.address,
     access: job.access,
