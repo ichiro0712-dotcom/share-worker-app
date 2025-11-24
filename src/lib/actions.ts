@@ -1,6 +1,7 @@
 'use server';
 
 import { prisma } from './prisma';
+import { revalidatePath } from 'next/cache';
 
 export async function getJobs() {
   const jobs = await prisma.job.findMany({
@@ -260,5 +261,98 @@ export async function getMyApplications() {
   } catch (error) {
     console.error('[getMyApplications] Error:', error);
     return [];
+  }
+}
+
+export async function getUserProfile() {
+  try {
+    // 仮のユーザーIDを取得（最初のユーザー）
+    const user = await prisma.user.findFirst();
+
+    if (!user) {
+      console.log('[getUserProfile] No users found');
+      return null;
+    }
+
+    console.log('[getUserProfile] Fetching profile for user:', user.id);
+
+    // Date型を文字列に変換してシリアライズ可能にする
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      birth_date: user.birth_date ? user.birth_date.toISOString() : null,
+      phone_number: user.phone_number,
+      profile_image: user.profile_image,
+      qualifications: user.qualifications,
+      created_at: user.created_at.toISOString(),
+      updated_at: user.updated_at.toISOString(),
+    };
+  } catch (error) {
+    console.error('[getUserProfile] Error:', error);
+    return null;
+  }
+}
+
+export async function updateUserProfile(formData: FormData) {
+  try {
+    // 仮のユーザーIDを取得（最初のユーザー）
+    const user = await prisma.user.findFirst();
+
+    if (!user) {
+      console.error('[updateUserProfile] No users found');
+      return {
+        success: false,
+        error: 'ユーザーが見つかりません',
+      };
+    }
+
+    console.log('[updateUserProfile] Updating profile for user:', user.id);
+
+    // FormDataから値を取得
+    const name = formData.get('name') as string;
+    const email = formData.get('email') as string;
+    const phoneNumber = formData.get('phoneNumber') as string;
+    const birthDate = formData.get('birthDate') as string;
+    const qualificationsStr = formData.get('qualifications') as string;
+
+    // 資格は配列に変換
+    const qualifications = qualificationsStr ? qualificationsStr.split(',').filter(q => q.trim()) : [];
+
+    // バリデーション
+    if (!name || !email || !phoneNumber) {
+      return {
+        success: false,
+        error: '必須項目を入力してください',
+      };
+    }
+
+    // プロフィール更新
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        name,
+        email,
+        phone_number: phoneNumber,
+        birth_date: birthDate ? new Date(birthDate) : null,
+        qualifications,
+      },
+    });
+
+    console.log('[updateUserProfile] Profile updated successfully');
+
+    // ページを再検証して最新のデータを表示
+    revalidatePath('/mypage/profile');
+
+    return {
+      success: true,
+      message: 'プロフィールを更新しました',
+    };
+  } catch (error) {
+    console.error('[updateUserProfile] Error:', error);
+    return {
+      success: false,
+      error: 'プロフィールの更新に失敗しました',
+    };
   }
 }
