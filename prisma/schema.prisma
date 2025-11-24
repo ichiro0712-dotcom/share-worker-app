@@ -84,13 +84,14 @@ model Facility {
   updated_at       DateTime @updatedAt @map("updated_at")
 
   // リレーション
-  admins           FacilityAdmin[]
-  jobs             Job[]
-  jobTemplates     JobTemplate[]
-  reviews          Review[]
-  bookmarks        Bookmark[]
-  sentMessages     Message[]        @relation("FacilitySentMessages")
-  receivedMessages Message[]        @relation("FacilityReceivedMessages")
+  admins             FacilityAdmin[]
+  jobs               Job[]
+  jobTemplates       JobTemplate[]
+  reviews            Review[]
+  bookmarks          Bookmark[]       @relation("FacilityOwners")
+  bookmarkedBy       Bookmark[]       @relation("BookmarkedFacilities")
+  sentMessages       Message[]        @relation("FacilitySentMessages")
+  receivedMessages   Message[]        @relation("FacilityReceivedMessages")
 
   @@map("facilities")
 }
@@ -279,15 +280,17 @@ model Bookmark {
   user_id        Int?         @map("user_id")      // ワーカーID
   facility_id    Int?         @map("facility_id")  // 施設ID
 
-  // 何を保存したか（どちらか片方が入る）
-  target_job_id  Int?         @map("target_job_id")  // 保存対象：求人ID
-  target_user_id Int?         @map("target_user_id") // 保存対象：ワーカーID
+  // 何を保存したか（いずれか1つが入る）
+  target_job_id      Int?         @map("target_job_id")      // 保存対象：求人ID
+  target_user_id     Int?         @map("target_user_id")     // 保存対象：ワーカーID
+  target_facility_id Int?         @map("target_facility_id") // 保存対象：施設ID
 
   // リレーション
-  user       User?     @relation("UserBookmarks", fields: [user_id], references: [id], onDelete: Cascade)
-  facility   Facility? @relation(fields: [facility_id], references: [id], onDelete: Cascade)
-  targetJob  Job?      @relation(fields: [target_job_id], references: [id], onDelete: Cascade)
-  targetUser User?     @relation("BookmarkedUsers", fields: [target_user_id], references: [id], onDelete: Cascade)
+  user           User?     @relation("UserBookmarks", fields: [user_id], references: [id], onDelete: Cascade)
+  facility       Facility? @relation("FacilityOwners", fields: [facility_id], references: [id], onDelete: Cascade)
+  targetJob      Job?      @relation(fields: [target_job_id], references: [id], onDelete: Cascade)
+  targetUser     User?     @relation("BookmarkedUsers", fields: [target_user_id], references: [id], onDelete: Cascade)
+  targetFacility Facility? @relation("BookmarkedFacilities", fields: [target_facility_id], references: [id], onDelete: Cascade)
 
   @@map("bookmarks")
 }

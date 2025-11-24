@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Filter, Calendar, ChevronDown } from 'lucide-react';
 import { JobCard } from '@/components/job/JobCard';
 import { DateSlider } from '@/components/job/DateSlider';
@@ -16,6 +17,8 @@ interface JobListClientProps {
 }
 
 export function JobListClient({ jobs, facilities }: JobListClientProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [selectedDateIndex, setSelectedDateIndex] = useState(1);
   const [sortOrder, setSortOrder] = useState<SortOrder>('distance');
@@ -39,22 +42,42 @@ export function JobListClient({ jobs, facilities }: JobListClientProps) {
 
   const handleApplyFilters = (filters: any) => {
     setAppliedFilters(filters);
-    setCurrentPage(1);
+    setCurrentPage(1); // フィルター適用時はページを1に戻す
+
+    // URLパラメータにフィルターを反映
+    const params = new URLSearchParams();
+    if (filters.prefecture) params.set('prefecture', filters.prefecture);
+    if (filters.city) params.set('city', filters.city);
+    if (filters.minWage) {
+      const wageNumber = filters.minWage.replace('円以上', '');
+      params.set('minWage', wageNumber);
+    }
+    if (filters.serviceTypes && filters.serviceTypes.length > 0) {
+      params.set('serviceType', filters.serviceTypes[0]); // 最初の1つのみ
+    }
+
+    // ページをリロード（Server Componentで再フェッチ）
+    router.push(`/?${params.toString()}`);
   };
 
   const handleWorkDateClick = () => {
-    alert('未定:働ける日カレンダーはPhase 2で実装予定です');
+    // Phase 2で実装予定: 働ける日カレンダー機能
+    // 現在は何もしない(将来的にカレンダーモーダルを表示)
+    return;
   };
 
   // ソート処理
   const sortedJobs = [...jobs].sort((a, b) => {
     if (sortOrder === 'wage') {
+      // 時給順（高い順）
       return b.hourlyWage - a.hourlyWage;
     } else if (sortOrder === 'deadline') {
+      // 締切順（締切が近い順）
       const deadlineA = new Date(a.deadline).getTime();
       const deadlineB = new Date(b.deadline).getTime();
       return deadlineA - deadlineB;
     }
+    // distance（近い順）はデフォルトの順序を維持
     return 0;
   });
 
@@ -179,19 +202,28 @@ export function JobListClient({ jobs, facilities }: JobListClientProps) {
       </div>
 
       {/* 求人リスト */}
-      <div className="px-4 py-4 grid grid-cols-2 md:grid-cols-1 gap-3 md:gap-4">
-        {sortedJobs
-          .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-          .map((job) => {
-            const facility = facilities.find((f) => f.id === job.facilityId);
-            if (!facility) return null;
+      {sortedJobs.length === 0 ? (
+        <div className="px-4 py-16 text-center">
+          <div className="bg-white rounded-lg shadow-sm p-8">
+            <p className="text-gray-500 text-lg mb-2">条件に一致する求人が見つかりませんでした</p>
+            <p className="text-gray-400 text-sm">検索条件を変更してお試しください</p>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="px-4 py-4 grid grid-cols-2 md:grid-cols-1 gap-3 md:gap-4">
+            {sortedJobs
+              .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+              .map((job) => {
+                const facility = facilities.find((f) => f.id === job.facilityId);
+                if (!facility) return null;
 
-            return <JobCard key={job.id} job={job} facility={facility} />;
-          })}
-      </div>
+                return <JobCard key={job.id} job={job} facility={facility} />;
+              })}
+          </div>
 
-      {/* ページネーション */}
-      <div className="px-4 py-4 flex items-center justify-center gap-4">
+          {/* ページネーション */}
+          <div className="px-4 py-4 flex items-center justify-center gap-4">
         <button
           onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
           disabled={currentPage === 1}
@@ -221,7 +253,9 @@ export function JobListClient({ jobs, facilities }: JobListClientProps) {
         >
           次へ →
         </button>
-      </div>
+          </div>
+        </>
+      )}
 
       {/* 下部ナビゲーション */}
       <BottomNav />

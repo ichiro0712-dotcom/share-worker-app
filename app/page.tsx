@@ -1,8 +1,29 @@
 import { getJobs } from '@/src/lib/actions';
 import { JobListClient } from '@/components/job/JobListClient';
 
-export default async function JobListPage() {
-  const jobsData = await getJobs();
+interface PageProps {
+  searchParams: Promise<{
+    query?: string;
+    prefecture?: string;
+    city?: string;
+    minWage?: string;
+    serviceType?: string;
+  }>;
+}
+
+export default async function JobListPage({ searchParams }: PageProps) {
+  const params = await searchParams;
+
+  // クエリパラメータを検索パラメータに変換
+  const jobSearchParams = {
+    query: params.query,
+    prefecture: params.prefecture,
+    city: params.city,
+    minWage: params.minWage ? parseInt(params.minWage, 10) : undefined,
+    serviceType: params.serviceType,
+  };
+
+  const jobsData = await getJobs(jobSearchParams);
 
   // DBのデータをフロントエンドの型に変換（既に文字列化済み）
   const jobs = jobsData.map((job) => ({

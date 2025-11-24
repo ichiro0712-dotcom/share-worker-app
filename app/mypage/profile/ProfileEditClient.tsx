@@ -27,6 +27,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
   const firstName = nameParts[1] || '';
 
   const [profileImage, setProfileImage] = useState<string | null>(userProfile.profile_image || '/images/sample-profile.jpg');
+  const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
   const profileImageInputRef = useRef<HTMLInputElement>(null);
 
   const [workHistories, setWorkHistories] = useState<string[]>([
@@ -131,6 +132,10 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
   const handleProfileImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // ファイルオブジェクトを保存（サーバーアップロード用）
+      setProfileImageFile(file);
+
+      // プレビュー用にDataURLを生成
       const reader = new FileReader();
       reader.onloadend = () => {
         setProfileImage(reader.result as string);
@@ -180,11 +185,18 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
     form.append('birthDate', formData.birthDate);
     form.append('qualifications', formData.qualifications.join(','));
 
+    // プロフィール画像がアップロードされている場合は追加
+    if (profileImageFile) {
+      form.append('profileImage', profileImageFile);
+    }
+
     // サーバーアクションを呼び出し
     const result = await updateUserProfile(form);
 
     if (result.success) {
       alert(result.message || 'プロフィールを更新しました');
+      // 画像アップロード後はファイル状態をリセット
+      setProfileImageFile(null);
     } else {
       alert(result.error || 'プロフィールの更新に失敗しました');
     }

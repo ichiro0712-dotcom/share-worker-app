@@ -8,6 +8,7 @@ import { Facility } from '@/types/facility';
 import { Badge } from '@/components/ui/badge';
 import { getDeadlineText, isDeadlineUrgent } from '@/utils/date';
 import { useState, useEffect } from 'react';
+import { addJobBookmark, removeJobBookmark, isJobBookmarked } from '@/src/lib/actions';
 
 interface JobCardProps {
   job: Job;
@@ -17,19 +18,39 @@ interface JobCardProps {
 export const JobCard: React.FC<JobCardProps> = ({ job, facility }) => {
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+    // ブックマーク状態を取得
+    isJobBookmarked(String(job.id), 'WATCH_LATER').then(setIsBookmarked);
+  }, [job.id]);
 
   const isUrgent = mounted ? isDeadlineUrgent(job.deadline) : false;
   const deadlineText = mounted ? getDeadlineText(job.deadline) : '計算中...';
 
-  const handleBookmark = (e: React.MouseEvent) => {
+  const handleBookmark = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    alert('未定：ブックマーク機能はPhase 2で実装予定です');
-    setIsBookmarked(!isBookmarked);
+
+    if (isProcessing) return;
+
+    setIsProcessing(true);
+    try {
+      if (isBookmarked) {
+        const result = await removeJobBookmark(String(job.id), 'WATCH_LATER');
+        if (result.success) {
+          setIsBookmarked(false);
+        }
+      } else {
+        const result = await addJobBookmark(String(job.id), 'WATCH_LATER');
+        if (result.success) {
+          setIsBookmarked(true);
+        }
+      }
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (

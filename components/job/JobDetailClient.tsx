@@ -1,14 +1,14 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ChevronLeft, Heart, Clock, MapPin, ChevronRight, ChevronLeft as ChevronLeftIcon } from 'lucide-react';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/tag';
 import { formatDateTime, getDeadlineText } from '@/utils/date';
-import { applyForJob } from '@/src/lib/actions';
+import { applyForJob, addJobBookmark, removeJobBookmark, isJobBookmarked } from '@/src/lib/actions';
 
 interface JobDetailClientProps {
   job: any;
@@ -27,6 +27,14 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews }:
   const [selectedJobIds, setSelectedJobIds] = useState<number[]>([job.id]);
   const [isApplying, setIsApplying] = useState(false);
   const [hasApplied, setHasApplied] = useState(false);
+  const [isFavoriteProcessing, setIsFavoriteProcessing] = useState(false);
+  const [isSaveForLaterProcessing, setIsSaveForLaterProcessing] = useState(false);
+
+  useEffect(() => {
+    // ブックマーク状態を取得
+    isJobBookmarked(String(job.id), 'FAVORITE').then(setIsFavorite);
+    isJobBookmarked(String(job.id), 'WATCH_LATER').then(setSavedForLater);
+  }, [job.id]);
 
   const nextImage = () => {
     setCurrentImageIndex((prev) => (prev === job.images.length - 1 ? 0 : prev + 1));
@@ -36,14 +44,46 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews }:
     setCurrentImageIndex((prev) => (prev === 0 ? job.images.length - 1 : prev - 1));
   };
 
-  const handleFavorite = () => {
-    alert('未定：お気に入り機能はPhase 2で実装予定です');
-    setIsFavorite(!isFavorite);
+  const handleFavorite = async () => {
+    if (isFavoriteProcessing) return;
+
+    setIsFavoriteProcessing(true);
+    try {
+      if (isFavorite) {
+        const result = await removeJobBookmark(String(job.id), 'FAVORITE');
+        if (result.success) {
+          setIsFavorite(false);
+        }
+      } else {
+        const result = await addJobBookmark(String(job.id), 'FAVORITE');
+        if (result.success) {
+          setIsFavorite(true);
+        }
+      }
+    } finally {
+      setIsFavoriteProcessing(false);
+    }
   };
 
-  const handleSaveForLater = () => {
-    alert('未定：あとで見る機能はPhase 2で実装予定です');
-    setSavedForLater(!savedForLater);
+  const handleSaveForLater = async () => {
+    if (isSaveForLaterProcessing) return;
+
+    setIsSaveForLaterProcessing(true);
+    try {
+      if (savedForLater) {
+        const result = await removeJobBookmark(String(job.id), 'WATCH_LATER');
+        if (result.success) {
+          setSavedForLater(false);
+        }
+      } else {
+        const result = await addJobBookmark(String(job.id), 'WATCH_LATER');
+        if (result.success) {
+          setSavedForLater(true);
+        }
+      }
+    } finally {
+      setIsSaveForLaterProcessing(false);
+    }
   };
 
   const handleApply = async () => {

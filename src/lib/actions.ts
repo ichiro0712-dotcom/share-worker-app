@@ -2,12 +2,121 @@
 
 import { prisma } from './prisma';
 import { revalidatePath } from 'next/cache';
+import { writeFile, mkdir } from 'fs/promises';
+import path from 'path';
 
-export async function getJobs() {
+/**
+ * テスト運用中の認証済みユーザーを取得する共通ヘルパー関数
+ * 常にID=1のユーザーを使用し、存在しない場合は自動作成する
+ */
+async function getAuthenticatedUser() {
+  // ID=1のユーザーを取得
+  let user = await prisma.user.findUnique({
+    where: { id: 1 },
+  });
+
+  // ユーザーが存在しない場合は作成
+  if (!user) {
+    console.log('[getAuthenticatedUser] User with ID=1 not found, creating...');
+    user = await prisma.user.create({
+      data: {
+        email: 'test@example.com',
+        password_hash: 'test_password',
+        name: 'テストユーザー',
+        phone_number: '090-0000-0000',
+        qualifications: [],
+      },
+    });
+    console.log('[getAuthenticatedUser] Test user created with ID:', user.id);
+  }
+
+  return user;
+}
+
+interface JobSearchParams {
+  query?: string;
+  prefecture?: string;
+  city?: string;
+  minWage?: number;
+  serviceType?: string;
+}
+
+export async function getJobs(searchParams?: JobSearchParams) {
+  // 検索条件を動的に構築
+  const whereConditions: any = {
+    status: 'PUBLISHED',
+  };
+
+  // facility条件を別途構築
+  const facilityConditions: any = {};
+
+  // キーワード検索（タイトルまたは施設名）
+  if (searchParams?.query) {
+    whereConditions.OR = [
+      {
+        title: {
+          contains: searchParams.query,
+          mode: 'insensitive',
+        },
+      },
+      {
+        facility: {
+          facility_name: {
+            contains: searchParams.query,
+            mode: 'insensitive',
+          },
+        },
+      },
+    ];
+  }
+
+  // 都道府県フィルター
+  if (searchParams?.prefecture) {
+    facilityConditions.address = {
+      contains: searchParams.prefecture,
+      mode: 'insensitive',
+    };
+  }
+
+  // 市区町村フィルター（都道府県と組み合わせる）
+  if (searchParams?.city) {
+    if (facilityConditions.address) {
+      // 都道府県と市区町村の両方を含む
+      facilityConditions.AND = [
+        { address: { contains: searchParams.prefecture, mode: 'insensitive' } },
+        { address: { contains: searchParams.city, mode: 'insensitive' } },
+      ];
+      delete facilityConditions.address;
+    } else {
+      facilityConditions.address = {
+        contains: searchParams.city,
+        mode: 'insensitive',
+      };
+    }
+  }
+
+  // サービス種別フィルター
+  if (searchParams?.serviceType) {
+    facilityConditions.facility_type = {
+      contains: searchParams.serviceType,
+      mode: 'insensitive',
+    };
+  }
+
+  // facility条件が存在する場合のみ追加
+  if (Object.keys(facilityConditions).length > 0) {
+    whereConditions.facility = facilityConditions;
+  }
+
+  // 最低時給フィルター
+  if (searchParams?.minWage) {
+    whereConditions.hourly_wage = {
+      gte: searchParams.minWage,
+    };
+  }
+
   const jobs = await prisma.job.findMany({
-    where: {
-      status: 'PUBLISHED',
-    },
+    where: whereConditions,
     include: {
       facility: true,
     },
@@ -93,25 +202,9 @@ export async function applyForJob(jobId: string) {
       };
     }
 
-    // 仮のユーザーIDを取得（最初のユーザー）
-    let user = await prisma.user.findFirst();
-
-    // ユーザーが存在しない場合はテストユーザーを作成
-    if (!user) {
-      console.log('[applyForJob] No users found, creating test user...');
-      user = await prisma.user.create({
-        data: {
-          email: 'test@example.com',
-          password_hash: 'test_password',
-          name: 'テストユーザー',
-          phone_number: '090-0000-0000',
-          qualifications: [],
-        },
-      });
-      console.log('[applyForJob] Test user created:', user.id);
-    } else {
-      console.log('[applyForJob] Using existing user:', user.id);
-    }
+    // テスト運用中の認証済みユーザーを取得
+    const user = await getAuthenticatedUser();
+    console.log('[applyForJob] Using user:', user.id);
 
     // 既に応募済みかチェック
     const existingApplication = await prisma.application.findUnique({
@@ -168,14 +261,8 @@ export async function applyForJob(jobId: string) {
 
 export async function getMyApplications() {
   try {
-    // 仮のユーザーIDを取得（最初のユーザー）
-    const user = await prisma.user.findFirst();
-
-    if (!user) {
-      console.log('[getMyApplications] No users found');
-      return [];
-    }
-
+    // テスト運用中の認証済みユーザーを取得
+    const user = await getAuthenticatedUser();
     console.log('[getMyApplications] Fetching applications for user:', user.id);
 
     // ユーザーの応募履歴を取得
@@ -266,14 +353,8 @@ export async function getMyApplications() {
 
 export async function getUserProfile() {
   try {
-    // 仮のユーザーIDを取得（最初のユーザー）
-    const user = await prisma.user.findFirst();
-
-    if (!user) {
-      console.log('[getUserProfile] No users found');
-      return null;
-    }
-
+    // テスト運用中の認証済みユーザーを取得
+    const user = await getAuthenticatedUser();
     console.log('[getUserProfile] Fetching profile for user:', user.id);
 
     // Date型を文字列に変換してシリアライズ可能にする
@@ -296,17 +377,8 @@ export async function getUserProfile() {
 
 export async function updateUserProfile(formData: FormData) {
   try {
-    // 仮のユーザーIDを取得（最初のユーザー）
-    const user = await prisma.user.findFirst();
-
-    if (!user) {
-      console.error('[updateUserProfile] No users found');
-      return {
-        success: false,
-        error: 'ユーザーが見つかりません',
-      };
-    }
-
+    // テスト運用中の認証済みユーザーを取得
+    const user = await getAuthenticatedUser();
     console.log('[updateUserProfile] Updating profile for user:', user.id);
 
     // FormDataから値を取得
@@ -315,6 +387,7 @@ export async function updateUserProfile(formData: FormData) {
     const phoneNumber = formData.get('phoneNumber') as string;
     const birthDate = formData.get('birthDate') as string;
     const qualificationsStr = formData.get('qualifications') as string;
+    const profileImageFile = formData.get('profileImage') as File | null;
 
     // 資格は配列に変換
     const qualifications = qualificationsStr ? qualificationsStr.split(',').filter(q => q.trim()) : [];
@@ -327,6 +400,40 @@ export async function updateUserProfile(formData: FormData) {
       };
     }
 
+    // プロフィール画像のアップロード処理
+    let profileImagePath = user.profile_image; // デフォルトは既存の画像パス
+
+    if (profileImageFile && profileImageFile.size > 0) {
+      try {
+        console.log('[updateUserProfile] Processing profile image upload...');
+
+        // ファイル名を生成（ユーザーIDとタイムスタンプを使用）
+        const timestamp = Date.now();
+        const fileExtension = profileImageFile.name.split('.').pop();
+        const fileName = `profile-${user.id}-${timestamp}.${fileExtension}`;
+
+        // アップロードディレクトリのパス
+        const uploadDir = path.join(process.cwd(), 'public', 'uploads');
+        const filePath = path.join(uploadDir, fileName);
+
+        // ディレクトリが存在しない場合は作成
+        await mkdir(uploadDir, { recursive: true });
+
+        // ファイルをバッファに変換して保存
+        const bytes = await profileImageFile.arrayBuffer();
+        const buffer = Buffer.from(bytes);
+        await writeFile(filePath, buffer);
+
+        // DBに保存するパス（/uploads/profile-1-xxxxx.jpg）
+        profileImagePath = `/uploads/${fileName}`;
+
+        console.log('[updateUserProfile] Profile image saved:', profileImagePath);
+      } catch (imageError) {
+        console.error('[updateUserProfile] Failed to save profile image:', imageError);
+        // 画像保存失敗時もプロフィール更新は続行
+      }
+    }
+
     // プロフィール更新
     await prisma.user.update({
       where: { id: user.id },
@@ -336,6 +443,7 @@ export async function updateUserProfile(formData: FormData) {
         phone_number: phoneNumber,
         birth_date: birthDate ? new Date(birthDate) : null,
         qualifications,
+        profile_image: profileImagePath,
       },
     });
 
@@ -354,5 +462,320 @@ export async function updateUserProfile(formData: FormData) {
       success: false,
       error: 'プロフィールの更新に失敗しました',
     };
+  }
+}
+
+// ========================================
+// ブックマーク機能 (Bookmark Functions)
+// ========================================
+
+/**
+ * 求人をブックマークに追加
+ * @param jobId - 求人ID
+ * @param type - ブックマークタイプ ('FAVORITE' | 'WATCH_LATER')
+ */
+export async function addJobBookmark(jobId: string, type: 'FAVORITE' | 'WATCH_LATER') {
+  try {
+    const user = await getAuthenticatedUser();
+    const jobIdNum = parseInt(jobId, 10);
+
+    if (isNaN(jobIdNum)) {
+      return {
+        success: false,
+        error: '無効な求人IDです',
+      };
+    }
+
+    // 既にブックマーク済みかチェック
+    const existing = await prisma.bookmark.findFirst({
+      where: {
+        user_id: user.id,
+        target_job_id: jobIdNum,
+        type,
+      },
+    });
+
+    if (existing) {
+      return {
+        success: false,
+        error: '既にブックマーク済みです',
+      };
+    }
+
+    // ブックマークを作成
+    await prisma.bookmark.create({
+      data: {
+        user_id: user.id,
+        target_job_id: jobIdNum,
+        type,
+      },
+    });
+
+    revalidatePath('/jobs/' + jobId);
+    revalidatePath('/bookmarks');
+    revalidatePath('/favorites');
+
+    return {
+      success: true,
+      message: type === 'FAVORITE' ? 'お気に入りに追加しました' : '後で見るに追加しました',
+    };
+  } catch (error) {
+    console.error('[addJobBookmark] Error:', error);
+    return {
+      success: false,
+      error: 'ブックマークの追加に失敗しました',
+    };
+  }
+}
+
+/**
+ * 求人のブックマークを削除
+ * @param jobId - 求人ID
+ * @param type - ブックマークタイプ ('FAVORITE' | 'WATCH_LATER')
+ */
+export async function removeJobBookmark(jobId: string, type: 'FAVORITE' | 'WATCH_LATER') {
+  try {
+    const user = await getAuthenticatedUser();
+    const jobIdNum = parseInt(jobId, 10);
+
+    if (isNaN(jobIdNum)) {
+      return {
+        success: false,
+        error: '無効な求人IDです',
+      };
+    }
+
+    // ブックマークを削除
+    await prisma.bookmark.deleteMany({
+      where: {
+        user_id: user.id,
+        target_job_id: jobIdNum,
+        type,
+      },
+    });
+
+    revalidatePath('/jobs/' + jobId);
+    revalidatePath('/bookmarks');
+    revalidatePath('/favorites');
+
+    return {
+      success: true,
+      message: type === 'FAVORITE' ? 'お気に入りから削除しました' : '後で見るから削除しました',
+    };
+  } catch (error) {
+    console.error('[removeJobBookmark] Error:', error);
+    return {
+      success: false,
+      error: 'ブックマークの削除に失敗しました',
+    };
+  }
+}
+
+/**
+ * 求人がブックマーク済みかチェック
+ * @param jobId - 求人ID
+ * @param type - ブックマークタイプ ('FAVORITE' | 'WATCH_LATER')
+ */
+export async function isJobBookmarked(jobId: string, type: 'FAVORITE' | 'WATCH_LATER') {
+  try {
+    const user = await getAuthenticatedUser();
+    const jobIdNum = parseInt(jobId, 10);
+
+    if (isNaN(jobIdNum)) {
+      return false;
+    }
+
+    const bookmark = await prisma.bookmark.findFirst({
+      where: {
+        user_id: user.id,
+        target_job_id: jobIdNum,
+        type,
+      },
+    });
+
+    return !!bookmark;
+  } catch (error) {
+    console.error('[isJobBookmarked] Error:', error);
+    return false;
+  }
+}
+
+/**
+ * ユーザーがブックマークした求人一覧を取得
+ * @param type - ブックマークタイプ ('FAVORITE' | 'WATCH_LATER')
+ */
+export async function getBookmarkedJobs(type: 'FAVORITE' | 'WATCH_LATER') {
+  try {
+    const user = await getAuthenticatedUser();
+
+    const bookmarks = await prisma.bookmark.findMany({
+      where: {
+        user_id: user.id,
+        type,
+        target_job_id: {
+          not: null,
+        },
+      },
+      include: {
+        targetJob: {
+          include: {
+            facility: true,
+          },
+        },
+      },
+      orderBy: {
+        created_at: 'desc',
+      },
+    });
+
+    // target_job_id が null でないものだけをフィルタリング
+    return bookmarks
+      .filter((bookmark) => bookmark.targetJob !== null)
+      .map((bookmark) => ({
+        bookmarkId: bookmark.id,
+        addedAt: bookmark.created_at.toISOString(),
+        job: bookmark.targetJob!,
+      }));
+  } catch (error) {
+    console.error('[getBookmarkedJobs] Error:', error);
+    return [];
+  }
+}
+
+/**
+ * 施設IDから施設情報を取得
+ */
+export async function getFacilityById(facilityId: number) {
+  try {
+    const facility = await prisma.facility.findUnique({
+      where: { id: facilityId },
+    });
+    return facility;
+  } catch (error) {
+    console.error('[getFacilityById] Error:', error);
+    return null;
+  }
+}
+
+/**
+ * 施設IDから求人リストを取得
+ */
+export async function getJobsByFacilityId(facilityId: number) {
+  try {
+    const jobs = await prisma.job.findMany({
+      where: {
+        facility_id: facilityId,
+        status: 'PUBLISHED',
+      },
+      include: {
+        facility: true,
+      },
+      orderBy: {
+        created_at: 'desc',
+      },
+    });
+    return jobs;
+  } catch (error) {
+    console.error('[getJobsByFacilityId] Error:', error);
+    return [];
+  }
+}
+
+/**
+ * 施設のお気に入り状態をトグル
+ */
+export async function toggleFacilityFavorite(facilityId: string) {
+  try {
+    const user = await getAuthenticatedUser();
+    const facilityIdNum = parseInt(facilityId);
+
+    // 既存のお気に入りを検索
+    const existingFavorite = await prisma.bookmark.findFirst({
+      where: {
+        user_id: user.id,
+        type: 'FAVORITE',
+        target_facility_id: facilityIdNum,
+      },
+    });
+
+    if (existingFavorite) {
+      // 削除
+      await prisma.bookmark.delete({
+        where: { id: existingFavorite.id },
+      });
+      return { success: true, isFavorite: false };
+    } else {
+      // 追加
+      await prisma.bookmark.create({
+        data: {
+          user_id: user.id,
+          type: 'FAVORITE',
+          target_facility_id: facilityIdNum,
+        },
+      });
+      return { success: true, isFavorite: true };
+    }
+  } catch (error) {
+    console.error('[toggleFacilityFavorite] Error:', error);
+    return { success: false, error: 'お気に入りの更新に失敗しました' };
+  }
+}
+
+/**
+ * 施設がお気に入り登録されているかチェック
+ */
+export async function isFacilityFavorited(facilityId: string) {
+  try {
+    const user = await getAuthenticatedUser();
+    const facilityIdNum = parseInt(facilityId);
+
+    const favorite = await prisma.bookmark.findFirst({
+      where: {
+        user_id: user.id,
+        type: 'FAVORITE',
+        target_facility_id: facilityIdNum,
+      },
+    });
+
+    return !!favorite;
+  } catch (error) {
+    console.error('[isFacilityFavorited] Error:', error);
+    return false;
+  }
+}
+
+/**
+ * ユーザーのお気に入り施設一覧を取得
+ */
+export async function getFavoriteFacilities() {
+  try {
+    const user = await getAuthenticatedUser();
+
+    const favorites = await prisma.bookmark.findMany({
+      where: {
+        user_id: user.id,
+        type: 'FAVORITE',
+        target_facility_id: {
+          not: null,
+        },
+      },
+      include: {
+        targetFacility: true,
+      },
+      orderBy: {
+        created_at: 'desc',
+      },
+    });
+
+    return favorites
+      .filter((fav) => fav.targetFacility !== null)
+      .map((fav) => ({
+        favoriteId: fav.id,
+        addedAt: fav.created_at.toISOString(),
+        facility: fav.targetFacility!,
+      }));
+  } catch (error) {
+    console.error('[getFavoriteFacilities] Error:', error);
+    return [];
   }
 }
