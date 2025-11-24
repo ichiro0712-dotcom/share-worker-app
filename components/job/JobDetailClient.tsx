@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/tag';
 import { formatDateTime, getDeadlineText } from '@/utils/date';
+import { applyForJob } from '@/src/lib/actions';
 
 interface JobDetailClientProps {
   job: any;
@@ -24,6 +25,8 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews }:
   const [isOverviewExpanded, setIsOverviewExpanded] = useState(false);
   const [showAllDates, setShowAllDates] = useState(false);
   const [selectedJobIds, setSelectedJobIds] = useState<number[]>([job.id]);
+  const [isApplying, setIsApplying] = useState(false);
+  const [hasApplied, setHasApplied] = useState(false);
 
   const nextImage = () => {
     setCurrentImageIndex((prev) => (prev === job.images.length - 1 ? 0 : prev + 1));
@@ -43,12 +46,46 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews }:
     setSavedForLater(!savedForLater);
   };
 
-  const handleApply = () => {
+  const handleApply = async () => {
     if (selectedJobIds.length === 0) {
       alert('応募する求人を選択してください');
       return;
     }
-    router.push(`/application-confirm?jobIds=${selectedJobIds.join(',')}`);
+
+    if (hasApplied) {
+      alert('既に応募済みです');
+      return;
+    }
+
+    setIsApplying(true);
+
+    try {
+      // 選択された求人すべてに応募
+      const results = await Promise.all(
+        selectedJobIds.map((jobId) => applyForJob(String(jobId)))
+      );
+
+      // すべて成功したかチェック
+      const allSuccess = results.every((result) => result.success);
+      const hasError = results.some((result) => !result.success);
+
+      if (allSuccess) {
+        alert('応募しました！');
+        setHasApplied(true);
+      } else {
+        // 一部または全部失敗
+        const errorMessages = results
+          .filter((result) => !result.success)
+          .map((result) => result.error)
+          .join('\n');
+        alert(`応募に失敗しました:\n${errorMessages}`);
+      }
+    } catch (error) {
+      console.error('Application error:', error);
+      alert('応募に失敗しました。もう一度お試しください。');
+    } finally {
+      setIsApplying(false);
+    }
   };
 
   const toggleJobSelection = (jobId: number) => {
@@ -523,8 +560,13 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews }:
 
       {/* 申し込みボタン */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4">
-        <Button onClick={handleApply} size="lg" className="w-full">
-          申し込む
+        <Button
+          onClick={handleApply}
+          size="lg"
+          className="w-full"
+          disabled={isApplying || hasApplied}
+        >
+          {isApplying ? '応募中...' : hasApplied ? '応募済み' : '申し込む'}
         </Button>
       </div>
     </div>
