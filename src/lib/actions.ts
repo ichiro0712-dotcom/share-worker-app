@@ -70,11 +70,14 @@ export async function applyForJob(jobId: string) {
     const jobIdNum = parseInt(jobId, 10);
 
     if (isNaN(jobIdNum)) {
+      console.error('[applyForJob] Invalid job ID:', jobId);
       return {
         success: false,
         error: '無効な求人IDです',
       };
     }
+
+    console.log('[applyForJob] Applying for job:', jobIdNum);
 
     // 求人が存在するか確認
     const job = await prisma.job.findUnique({
@@ -82,6 +85,7 @@ export async function applyForJob(jobId: string) {
     });
 
     if (!job) {
+      console.error('[applyForJob] Job not found:', jobIdNum);
       return {
         success: false,
         error: '求人が見つかりません',
@@ -89,13 +93,23 @@ export async function applyForJob(jobId: string) {
     }
 
     // 仮のユーザーIDを取得（最初のユーザー）
-    const user = await prisma.user.findFirst();
+    let user = await prisma.user.findFirst();
 
+    // ユーザーが存在しない場合はテストユーザーを作成
     if (!user) {
-      return {
-        success: false,
-        error: 'ユーザーが見つかりません',
-      };
+      console.log('[applyForJob] No users found, creating test user...');
+      user = await prisma.user.create({
+        data: {
+          email: 'test@example.com',
+          password_hash: 'test_password',
+          name: 'テストユーザー',
+          phone_number: '090-0000-0000',
+          qualifications: [],
+        },
+      });
+      console.log('[applyForJob] Test user created:', user.id);
+    } else {
+      console.log('[applyForJob] Using existing user:', user.id);
     }
 
     // 既に応募済みかチェック
@@ -109,6 +123,7 @@ export async function applyForJob(jobId: string) {
     });
 
     if (existingApplication) {
+      console.log('[applyForJob] Already applied:', { jobId: jobIdNum, userId: user.id });
       return {
         success: false,
         error: 'この求人には既に応募済みです',
@@ -116,7 +131,8 @@ export async function applyForJob(jobId: string) {
     }
 
     // 応募を作成
-    await prisma.application.create({
+    console.log('[applyForJob] Creating application...', { jobId: jobIdNum, userId: user.id });
+    const application = await prisma.application.create({
       data: {
         job_id: jobIdNum,
         user_id: user.id,
@@ -124,12 +140,24 @@ export async function applyForJob(jobId: string) {
       },
     });
 
+    console.log('[applyForJob] Application created successfully:', application.id);
+
     return {
       success: true,
       message: '応募が完了しました',
     };
   } catch (error) {
-    console.error('Application error:', error);
+    console.error('[applyForJob] Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      error,
+    });
+
+    // Prismaエラーの詳細をログ出力
+    if (error && typeof error === 'object' && 'code' in error) {
+      console.error('[applyForJob] Prisma error code:', (error as any).code);
+      console.error('[applyForJob] Prisma error meta:', (error as any).meta);
+    }
+
     return {
       success: false,
       error: '応募に失敗しました。もう一度お試しください。',
