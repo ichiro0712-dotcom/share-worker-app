@@ -1,188 +1,128 @@
-'use client';
-
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { getMyApplications } from '@/src/lib/actions';
 import Link from 'next/link';
-import {
-  ChevronRight,
-  User as UserIcon,
-  Calendar,
-  Heart,
-  HelpCircle,
-  FileText,
-  LogOut,
-  Star,
-} from 'lucide-react';
-import { BottomNav } from '@/components/layout/BottomNav';
-import { useAuth } from '@/contexts/AuthContext';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
-interface MenuItem {
-  icon: React.ReactNode;
-  label: string;
-  href?: string;
-  onClick?: () => void;
-  badge?: number;
+// ステータスの日本語表示
+const statusLabels: Record<string, string> = {
+  APPLIED: '応募中',
+  SCHEDULED: '勤務予定',
+  WORKING: '勤務中',
+  COMPLETED_PENDING: '評価待ち',
+  COMPLETED_RATED: '完了',
+  CANCELLED: 'キャンセル',
+};
+
+// ステータスのカラー
+const statusColors: Record<string, 'default' | 'yellow' | 'red' | 'green'> = {
+  APPLIED: 'yellow',
+  SCHEDULED: 'green',
+  WORKING: 'default',
+  COMPLETED_PENDING: 'yellow',
+  COMPLETED_RATED: 'default',
+  CANCELLED: 'red',
+};
+
+// 日付フォーマット関数
+function formatDate(dateString: string): string {
+  const date = new Date(dateString);
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  return `${year}年${month}月${day}日`;
 }
 
-export default function MyPage() {
-  const router = useRouter();
-  const { user, logout, isAuthenticated } = useAuth();
+// 時刻フォーマット関数
+function formatTime(timeString: string): string {
+  return timeString.substring(0, 5); // "HH:MM:SS" -> "HH:MM"
+}
 
-  // ログインしていない場合はログインページへリダイレクト
-  useEffect(() => {
-    if (!isAuthenticated) {
-      router.push('/login');
-    }
-  }, [isAuthenticated, router]);
-
-  const handleLogout = () => {
-    if (confirm('ログアウトしますか？')) {
-      logout();
-      router.push('/login');
-    }
-  };
-
-  // ログインしていない場合は何も表示しない
-  if (!isAuthenticated || !user) {
-    return null;
-  }
-
-  const menuItems: MenuItem[] = [
-    {
-      icon: <Calendar className="w-5 h-5" />,
-      label: '応募履歴',
-      href: '/applications',
-    },
-    {
-      icon: <Heart className="w-5 h-5" />,
-      label: 'お気に入り施設',
-      href: '/favorites',
-      badge: 5,
-    },
-    {
-      icon: <Star className="w-5 h-5" />,
-      label: 'ブックマーク求人',
-      href: '/bookmarks',
-      badge: 3,
-    },
-    {
-      icon: <UserIcon className="w-5 h-5" />,
-      label: 'プロフィール編集',
-      href: '/mypage/profile',
-    },
-    {
-      icon: <HelpCircle className="w-5 h-5" />,
-      label: 'ヘルプ・お問い合わせ',
-      href: '/help',
-    },
-    {
-      icon: <FileText className="w-5 h-5" />,
-      label: '利用規約・プライバシーポリシー',
-      href: '/terms',
-    },
-  ];
-
-  const handleMenuClick = (item: MenuItem) => {
-    if (item.onClick) {
-      item.onClick();
-    } else if (item.href) {
-      if (
-        item.href.startsWith('/help') ||
-        item.href.startsWith('/terms')
-      ) {
-        alert('この機能はPhase 2で実装予定です');
-      } else {
-        router.push(item.href);
-      }
-    }
-  };
+export default async function MyPage() {
+  const applications = await getMyApplications();
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen bg-gray-50">
       {/* ヘッダー */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="px-4 py-3">
-          <h1 className="text-lg font-bold">マイページ</h1>
+      <div className="bg-white sticky top-0 z-10 border-b border-gray-200">
+        <div className="px-4 py-3 flex items-center">
+          <Link href="/" className="mr-4">
+            <ChevronLeft className="w-6 h-6" />
+          </Link>
+          <h1 className="text-lg font-bold">応募履歴</h1>
         </div>
       </div>
 
-      {/* ユーザー情報カード */}
-      <div className="bg-white border-b border-gray-200 p-4 mb-4">
-        <button
-          onClick={() => router.push('/mypage/profile')}
-          className="w-full flex items-center gap-4 text-left hover:bg-gray-50 transition-colors rounded-lg p-2 -m-2"
-        >
-          {/* プロフィール画像 */}
-          <div className="relative w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
-            <UserIcon className="w-8 h-8 text-gray-400" />
+      {/* コンテンツ */}
+      <div className="p-4">
+        {applications.length === 0 ? (
+          <div className="bg-white rounded-lg shadow-sm p-8 text-center">
+            <p className="text-gray-500 mb-4">まだ応募履歴がありません</p>
+            <Link
+              href="/"
+              className="inline-block px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+            >
+              求人を探す
+            </Link>
           </div>
+        ) : (
+          <div className="space-y-4">
+            {applications.map((application) => (
+              <div
+                key={application.id}
+                className="bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow"
+              >
+                <Link href={`/jobs/${application.job.id}`}>
+                  <div className="p-4">
+                    {/* ステータスバッジ */}
+                    <div className="flex justify-between items-start mb-3">
+                      <Badge variant={statusColors[application.status] || 'default'}>
+                        {statusLabels[application.status] || application.status}
+                      </Badge>
+                      <span className="text-xs text-gray-500">
+                        応募日: {formatDate(application.created_at)}
+                      </span>
+                    </div>
 
-          {/* ユーザー情報 */}
-          <div className="flex-1 min-w-0">
-            <h2 className="font-bold text-lg mb-1">{user.name || '山田 太郎'}</h2>
-            <p className="text-sm text-gray-600 truncate">{user.email || 'yamada.taro@example.com'}</p>
-            <div className="flex gap-2 mt-2 flex-wrap">
-              <span className="text-xs bg-primary-light text-primary px-2 py-1 rounded">
-                {(user as any).age || '34歳'}
-              </span>
-              <span className="text-xs bg-primary-light text-primary px-2 py-1 rounded">
-                {(user as any).gender || '男性'}
-              </span>
-              <span className="text-xs bg-primary-light text-primary px-2 py-1 rounded">
-                {(user as any).occupation || '介護福祉士'}
-              </span>
-            </div>
+                    {/* 求人情報 */}
+                    <h3 className="font-bold text-lg mb-2 line-clamp-2">
+                      {application.job.title}
+                    </h3>
+
+                    <div className="space-y-1 mb-3">
+                      <p className="text-sm text-gray-600">
+                        {application.job.facility.facility_name}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        勤務日: {formatDate(application.job.work_date)}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        時間: {formatTime(application.job.start_time)} 〜{' '}
+                        {formatTime(application.job.end_time)}
+                      </p>
+                    </div>
+
+                    {/* 報酬情報 */}
+                    <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                      <div>
+                        <span className="text-lg font-bold text-red-500">
+                          {application.job.wage.toLocaleString()}円
+                        </span>
+                        <span className="text-xs text-gray-500 ml-1">
+                          (時給 {application.job.hourly_wage.toLocaleString()}円)
+                        </span>
+                      </div>
+                      <div className="flex items-center text-primary text-sm">
+                        詳細を見る
+                        <ChevronRight className="w-4 h-4 ml-1" />
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              </div>
+            ))}
           </div>
-
-          {/* 編集ボタン */}
-          <div className="flex-shrink-0">
-            <ChevronRight className="w-5 h-5 text-gray-400" />
-          </div>
-        </button>
+        )}
       </div>
-
-      {/* メニュー */}
-      <div className="bg-white border-b border-gray-200">
-        {menuItems.map((item, index) => (
-          <button
-            key={index}
-            onClick={() => handleMenuClick(item)}
-            className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors border-b border-gray-100"
-          >
-            <div className="flex items-center gap-3">
-              <span className="text-gray-600">{item.icon}</span>
-              <span className="text-sm">{item.label}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              {item.badge && item.badge > 0 && (
-                <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center">
-                  {item.badge}
-                </span>
-              )}
-              <ChevronRight className="w-5 h-5 text-gray-400" />
-            </div>
-          </button>
-        ))}
-      </div>
-
-      {/* ログアウト */}
-      <div className="bg-white border-b border-gray-200 mt-4">
-        <button
-          onClick={handleLogout}
-          className="w-full px-4 py-3 flex items-center justify-center gap-2 text-red-500 hover:bg-gray-50 transition-colors"
-        >
-          <LogOut className="w-5 h-5" />
-          <span className="text-sm font-bold">ログアウト</span>
-        </button>
-      </div>
-
-      {/* バージョン情報 */}
-      <div className="text-center py-4 text-xs text-gray-500">
-        S WORKS v1.0.0 (Phase 1)
-      </div>
-
-      {/* 下部ナビゲーション */}
-      <BottomNav />
     </div>
   );
 }

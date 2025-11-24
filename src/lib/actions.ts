@@ -164,3 +164,101 @@ export async function applyForJob(jobId: string) {
     };
   }
 }
+
+export async function getMyApplications() {
+  try {
+    // 仮のユーザーIDを取得（最初のユーザー）
+    const user = await prisma.user.findFirst();
+
+    if (!user) {
+      console.log('[getMyApplications] No users found');
+      return [];
+    }
+
+    console.log('[getMyApplications] Fetching applications for user:', user.id);
+
+    // ユーザーの応募履歴を取得
+    const applications = await prisma.application.findMany({
+      where: {
+        user_id: user.id,
+      },
+      include: {
+        job: {
+          include: {
+            facility: true,
+          },
+        },
+      },
+      orderBy: {
+        created_at: 'desc',
+      },
+    });
+
+    console.log('[getMyApplications] Found applications:', applications.length);
+
+    // Date型を文字列に変換してシリアライズ可能にする
+    return applications.map((app) => ({
+      id: app.id,
+      job_id: app.job_id,
+      user_id: app.user_id,
+      status: app.status,
+      worker_review_status: app.worker_review_status,
+      facility_review_status: app.facility_review_status,
+      message: app.message,
+      created_at: app.created_at.toISOString(),
+      updated_at: app.updated_at.toISOString(),
+      job: {
+        id: app.job.id,
+        facility_id: app.job.facility_id,
+        template_id: app.job.template_id,
+        status: app.job.status,
+        title: app.job.title,
+        work_date: app.job.work_date.toISOString(),
+        start_time: app.job.start_time,
+        end_time: app.job.end_time,
+        break_time: app.job.break_time,
+        wage: app.job.wage,
+        hourly_wage: app.job.hourly_wage,
+        transportation_fee: app.job.transportation_fee,
+        deadline: app.job.deadline.toISOString(),
+        tags: app.job.tags,
+        address: app.job.address,
+        access: app.job.access,
+        recruitment_count: app.job.recruitment_count,
+        applied_count: app.job.applied_count,
+        overview: app.job.overview,
+        work_content: app.job.work_content,
+        required_qualifications: app.job.required_qualifications,
+        required_experience: app.job.required_experience,
+        dresscode: app.job.dresscode,
+        belongings: app.job.belongings,
+        manager_name: app.job.manager_name,
+        manager_message: app.job.manager_message,
+        manager_avatar: app.job.manager_avatar,
+        images: app.job.images,
+        created_at: app.job.created_at.toISOString(),
+        updated_at: app.job.updated_at.toISOString(),
+        facility: {
+          id: app.job.facility.id,
+          corporation_name: app.job.facility.corporation_name,
+          facility_name: app.job.facility.facility_name,
+          facility_type: app.job.facility.facility_type,
+          address: app.job.facility.address,
+          lat: app.job.facility.lat,
+          lng: app.job.facility.lng,
+          phone_number: app.job.facility.phone_number,
+          description: app.job.facility.description,
+          images: app.job.facility.images,
+          rating: app.job.facility.rating,
+          review_count: app.job.facility.review_count,
+          initial_message: app.job.facility.initial_message,
+          created_at: app.job.facility.created_at.toISOString(),
+          updated_at: app.job.facility.updated_at.toISOString(),
+        },
+      },
+    }));
+  } catch (error) {
+    console.error('[getMyApplications] Error:', error);
+    return [];
+  }
+}
