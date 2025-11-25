@@ -82,7 +82,7 @@ export const facilities: Facility[] = [
   {
     id: 7,
     name: 'ケアステーション和',
-    type: '小規模多機能',
+    type: '小規模多機能型居宅介護',
     corporationName: '株式会社和ケア',
     address: '東京都中野区本町4-44-11',
     phoneNumber: '03-7890-1234',
@@ -134,7 +134,7 @@ export const facilities: Facility[] = [
   {
     id: 11,
     name: 'メモリーケア渋谷',
-    type: '認知症対応型デイサービス',
+    type: 'デイサービス',
     corporationName: '株式会社メモリーケア',
     address: '東京都渋谷区渋谷3-12-18',
     phoneNumber: '03-1234-5670',
@@ -147,7 +147,7 @@ export const facilities: Facility[] = [
   {
     id: 12,
     name: 'ショートステイ青山',
-    type: 'ショートステイ',
+    type: 'ショートステイ（短期入所生活介護）',
     corporationName: '社会福祉法人青山会',
     address: '東京都港区南青山2-2-15',
     phoneNumber: '03-2345-6780',
@@ -173,7 +173,7 @@ export const facilities: Facility[] = [
   {
     id: 14,
     name: 'ケアレジデンス品川',
-    type: '特定施設',
+    type: '有料老人ホーム',
     corporationName: '株式会社ケアレジデンス',
     address: '東京都品川区大崎3-6-24',
     phoneNumber: '03-4567-8912',
@@ -199,7 +199,7 @@ export const facilities: Facility[] = [
   {
     id: 16,
     name: 'ナーシングケア足立',
-    type: '看護小規模多機能',
+    type: '看護小規模多機能型居宅介護',
     corporationName: '医療法人ナーシングケア',
     address: '東京都足立区綾瀬3-15-20',
     phoneNumber: '03-6789-0134',
@@ -251,7 +251,7 @@ export const facilities: Facility[] = [
   {
     id: 20,
     name: 'リハビリテーション大田',
-    type: '通所リハビリ',
+    type: 'デイケア',
     corporationName: '医療法人リハビリ大田',
     address: '東京都大田区蒲田5-13-26',
     phoneNumber: '03-0123-4578',
@@ -290,7 +290,7 @@ export const facilities: Facility[] = [
   {
     id: 23,
     name: 'ケアハウス川崎',
-    type: 'ケアハウス',
+    type: '軽費老人ホーム',
     corporationName: '社会福祉法人川崎ケア',
     address: '神奈川県川崎市中原区小杉町3-600',
     phoneNumber: '044-234-5678',
@@ -368,7 +368,7 @@ export const facilities: Facility[] = [
   {
     id: 29,
     name: 'ケアホーム所沢',
-    type: '小規模多機能',
+    type: '小規模多機能型居宅介護',
     corporationName: '社会福祉法人所沢ケア',
     address: '埼玉県所沢市日吉町10-17',
     phoneNumber: '04-2789-0123',

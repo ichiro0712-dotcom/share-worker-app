@@ -34,12 +34,15 @@ export default async function FacilityDetailPage({
     workDate: job.work_date.toISOString(),
     startTime: job.start_time,
     endTime: job.end_time,
+    wage: job.wage,
     hourlyWage: job.hourly_wage,
     deadline: job.deadline.toISOString(),
     address: job.facility.address,
+    access: job.access,
     distance: 0, // Phase 1では固定値
     images: job.images,
     status: job.status,
+    tags: job.tags || [],
   }));
 
   return (

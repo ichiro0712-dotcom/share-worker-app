@@ -2,22 +2,24 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { ChevronLeft, Heart, Clock, MapPin, ChevronRight, ChevronLeft as ChevronLeftIcon } from 'lucide-react';
+import { ChevronLeft, Heart, Clock, MapPin, ChevronRight, ChevronLeft as ChevronLeftIcon, Bookmark } from 'lucide-react';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/tag';
 import { formatDateTime, getDeadlineText } from '@/utils/date';
-import { applyForJob, addJobBookmark, removeJobBookmark, isJobBookmarked } from '@/src/lib/actions';
+import { applyForJob, addJobBookmark, removeJobBookmark, isJobBookmarked, toggleFacilityFavorite, isFacilityFavorited } from '@/src/lib/actions';
+import toast from 'react-hot-toast';
 
 interface JobDetailClientProps {
   job: any;
   facility: any;
   relatedJobs: any[];
   facilityReviews: any[];
+  initialHasApplied: boolean;
 }
 
-export function JobDetailClient({ job, facility, relatedJobs, facilityReviews }: JobDetailClientProps) {
+export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, initialHasApplied }: JobDetailClientProps) {
   const router = useRouter();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isFavorite, setIsFavorite] = useState(false);
@@ -26,15 +28,18 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews }:
   const [showAllDates, setShowAllDates] = useState(false);
   const [selectedJobIds, setSelectedJobIds] = useState<number[]>([job.id]);
   const [isApplying, setIsApplying] = useState(false);
-  const [hasApplied, setHasApplied] = useState(false);
+  const [hasApplied, setHasApplied] = useState(initialHasApplied);
   const [isFavoriteProcessing, setIsFavoriteProcessing] = useState(false);
   const [isSaveForLaterProcessing, setIsSaveForLaterProcessing] = useState(false);
+  const [isJobBookmarkedState, setIsJobBookmarkedState] = useState(false);
+  const [isJobBookmarkProcessing, setIsJobBookmarkProcessing] = useState(false);
 
   useEffect(() => {
     // ブックマーク状態を取得
-    isJobBookmarked(String(job.id), 'FAVORITE').then(setIsFavorite);
+    isFacilityFavorited(String(facility.id)).then(setIsFavorite);
     isJobBookmarked(String(job.id), 'WATCH_LATER').then(setSavedForLater);
-  }, [job.id]);
+    isJobBookmarked(String(job.id), 'FAVORITE').then(setIsJobBookmarkedState);
+  }, [job.id, facility.id]);
 
   const nextImage = () => {
     setCurrentImageIndex((prev) => (prev === job.images.length - 1 ? 0 : prev + 1));
@@ -49,19 +54,36 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews }:
 
     setIsFavoriteProcessing(true);
     try {
-      if (isFavorite) {
+      const result = await toggleFacilityFavorite(String(facility.id));
+      if (result.success) {
+        setIsFavorite(result.isFavorite ?? false);
+        toast.success(result.isFavorite ? 'お気に入り施設に追加しました' : 'お気に入り施設から削除しました');
+      }
+    } finally {
+      setIsFavoriteProcessing(false);
+    }
+  };
+
+  const handleJobBookmark = async () => {
+    if (isJobBookmarkProcessing) return;
+
+    setIsJobBookmarkProcessing(true);
+    try {
+      if (isJobBookmarkedState) {
         const result = await removeJobBookmark(String(job.id), 'FAVORITE');
         if (result.success) {
-          setIsFavorite(false);
+          setIsJobBookmarkedState(false);
+          toast.success('求人ブックマークから削除しました');
         }
       } else {
         const result = await addJobBookmark(String(job.id), 'FAVORITE');
         if (result.success) {
-          setIsFavorite(true);
+          setIsJobBookmarkedState(true);
+          toast.success('求人ブックマークに追加しました');
         }
       }
     } finally {
-      setIsFavoriteProcessing(false);
+      setIsJobBookmarkProcessing(false);
     }
   };
 
@@ -88,12 +110,12 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews }:
 
   const handleApply = async () => {
     if (selectedJobIds.length === 0) {
-      alert('応募する求人を選択してください');
+      toast.error('応募する求人を選択してください');
       return;
     }
 
     if (hasApplied) {
-      alert('既に応募済みです');
+      toast.error('既に応募済みです');
       return;
     }
 
@@ -110,7 +132,7 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews }:
       const hasError = results.some((result) => !result.success);
 
       if (allSuccess) {
-        alert('応募しました！');
+        toast.success('応募しました！');
         setHasApplied(true);
       } else {
         // 一部または全部失敗
@@ -118,11 +140,11 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews }:
           .filter((result) => !result.success)
           .map((result) => result.error)
           .join('\n');
-        alert(`応募に失敗しました:\n${errorMessages}`);
+        toast.error(`応募に失敗しました: ${errorMessages}`);
       }
     } catch (error) {
       console.error('Application error:', error);
-      alert('応募に失敗しました。もう一度お試しください。');
+      toast.error('応募に失敗しました。もう一度お試しください。');
     } finally {
       setIsApplying(false);
     }
@@ -139,7 +161,7 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews }:
   };
 
   const handleMute = () => {
-    alert('未定：ミュート機能はPhase 2で実装予定です');
+    toast('ミュート機能はPhase 2で実装予定です', { icon: '🚧' });
   };
 
   return (
@@ -232,16 +254,23 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews }:
         {/* 施設情報 */}
         <div className="mb-4">
           <h2 className="text-lg font-bold mb-1">{facility.name}</h2>
+          <p className="text-sm text-gray-500 mb-2">{facility.type}</p>
           <div className="flex items-center gap-1 text-sm text-gray-600 mb-2">
             <MapPin className="w-4 h-4" />
             <span>{job.address}</span>
           </div>
           <div className="flex gap-4">
+            <button onClick={handleJobBookmark} className="flex items-center gap-1 text-sm">
+              <Bookmark
+                className={`w-5 h-5 ${isJobBookmarkedState ? 'fill-primary text-primary' : 'text-gray-400'}`}
+              />
+              <span className={isJobBookmarkedState ? 'text-primary' : 'text-gray-600'}>求人ブックマーク</span>
+            </button>
             <button onClick={handleFavorite} className="flex items-center gap-1 text-sm">
               <Heart
                 className={`w-5 h-5 ${isFavorite ? 'fill-red-500 text-red-500' : 'text-gray-400'}`}
               />
-              <span className="text-red-500">お気に入り</span>
+              <span className={isFavorite ? 'text-red-500' : 'text-gray-600'}>お気に入り施設</span>
             </button>
             <button onClick={handleMute} className="flex items-center gap-1 text-sm text-gray-600">
               <span>ミュート</span>
@@ -358,6 +387,23 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews }:
           </div>
         </div>
 
+        {/* この求人の特徴 */}
+        {job.featureTags && job.featureTags.length > 0 && (
+          <div className="border-t border-gray-200 pt-4 mb-4">
+            <h3 className="mb-3 text-sm font-bold">この求人の特徴</h3>
+            <div className="flex flex-wrap gap-2">
+              {job.featureTags.map((tag: string, index: number) => (
+                <span
+                  key={index}
+                  className="inline-block bg-green-100 text-green-800 rounded-full px-3 py-1 text-xs font-medium"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* 仕事内容 */}
         <div className="border-t border-gray-200 pt-4 mb-4">
           <h3 className="mb-3 text-sm font-bold">仕事内容</h3>
@@ -413,7 +459,7 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews }:
                 ))}
               </div>
               <button
-                onClick={() => alert('労働条件通知書のダミーデータです')}
+                onClick={() => toast('労働条件通知書のダミーデータです', { icon: '📄' })}
                 className="mt-3 px-4 py-2 text-sm text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors"
               >
                 労働条件通知書を確認
@@ -426,6 +472,17 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews }:
         <div className="mb-4">
           <h3 className="mb-3 text-sm bg-primary-light px-4 py-3 -mx-4">事前情報</h3>
           <div className="mt-3 space-y-4">
+            {/* 施設詳細への導線 */}
+            <div>
+              <button
+                onClick={() => router.push(`/facilities/${facility.id}`)}
+                className="w-full py-3 text-sm text-primary border border-primary rounded-lg hover:bg-primary-light transition-colors flex items-center justify-center gap-2"
+              >
+                <span>この施設の詳細を見る</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
             {/* 服装など */}
             <div>
               <h4 className="text-sm mb-2 font-bold">服装など</h4>
@@ -463,15 +520,12 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews }:
               </div>
             </div>
 
-            {/* 持ち物・その他 */}
+            {/* 持ち物 */}
             <div>
-              <h4 className="text-sm mb-2 font-bold">持ち物・その他</h4>
+              <h4 className="text-sm mb-2 font-bold">持ち物</h4>
               <ul className="text-sm text-gray-600 space-y-1">
                 {job.belongings.map((item: string, index: number) => (
                   <li key={index}>・{item}</li>
-                ))}
-                {job.otherConditions.length > 0 && job.otherConditions.map((item: string, index: number) => (
-                  <li key={`other-${index}`}>・{item}</li>
                 ))}
               </ul>
             </div>
@@ -500,7 +554,7 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews }:
                 <MapPin className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 text-red-500" />
               </div>
               <button
-                onClick={() => alert('未定：Google Map連携はPhase 2で実装予定です')}
+                onClick={() => toast('Google Map連携はPhase 2で実装予定です', { icon: '🚧' })}
                 className="text-sm text-blue-500"
               >
                 🗺️ Google Mapで開く
@@ -587,7 +641,7 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews }:
 
               {facility.reviewCount > 3 && (
                 <button
-                  onClick={() => alert('未定：レビュー一覧表示はPhase 2で実装予定です')}
+                  onClick={() => toast('レビュー一覧表示はPhase 2で実装予定です', { icon: '🚧' })}
                   className="mt-4 w-full py-3 text-sm text-primary border border-primary rounded-lg hover:bg-primary-light transition-colors"
                 >
                   さらにレビューを見る ({facility.reviewCount}件)

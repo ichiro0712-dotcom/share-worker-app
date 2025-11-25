@@ -44,4 +44,6 @@ export interface Job {
   accessDescription: string;
   // 地図情報
   mapImage: string;
+  // 特徴タグ（こだわり条件）
+  featureTags?: string[];
 }

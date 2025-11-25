@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Home, Briefcase, Building2, User, UserCircle, LogIn, FileText, Heart, Settings, Construction, MessageSquare, MessageCircle, CheckCircle2, Circle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Home, Briefcase, Building2, User, UserCircle, LogIn, FileText, Heart, Settings, Construction, MessageSquare, MessageCircle, CheckCircle2, Circle, ChevronDown, ChevronUp, Bookmark, Search, Clock } from 'lucide-react';
 
 export default function TestIndexPage() {
   // 完了したタスクの管理
@@ -127,36 +127,49 @@ export default function TestIndexPage() {
       icon: UserCircle,
       children: [
         {
+          href: '/register/qualifications',
+          label: '資格登録',
+          icon: FileText,
+        },
+        {
           href: '/login',
           label: 'ワーカーログイン',
           icon: LogIn,
           children: [
             {
-              href: '/job-list',
+              href: '/',
               label: 'ワーカーTOP（求人検索）',
-              icon: Home,
+              icon: Search,
               children: [
                 {
-                  href: '/jobs/1',
+                  href: '/jobs/49',
                   label: '求人詳細',
                   icon: Briefcase,
                   children: [
-                    {
-                      href: '/jobs/1/apply',
-                      label: '応募ページ（日付選択）',
-                      icon: Briefcase,
-                      children: [
-                        { href: '/jobs/1/apply/confirm', label: '応募確認ページ', icon: CheckCircle2 },
-                        { href: '/jobs/1/apply/complete', label: '応募完了ページ', icon: CheckCircle2 },
-                      ]
-                    },
-                    { href: '/facilities/1', label: '施設詳細', icon: Building2, children: [
-                      { href: '/facilities/1/reviews', label: '施設の口コミ一覧', icon: MessageSquare },
-                      { href: '/facilities/1/review/new', label: '口コミ投稿', icon: FileText },
+                    { href: '/facilities/11', label: '施設詳細', icon: Building2, children: [
+                      { href: '/facilities/11/review/new', label: '口コミ投稿', icon: FileText },
                     ]},
                   ]
                 },
               ]
+            },
+            {
+              href: '/bookmarks',
+              label: '保存済み（求人・施設）',
+              icon: Bookmark,
+              children: [
+                { href: '/favorites', label: 'お気に入り施設', icon: Heart },
+              ]
+            },
+            {
+              href: '/messages',
+              label: 'メッセージ',
+              icon: MessageCircle,
+            },
+            {
+              href: '/my-jobs',
+              label: '仕事管理',
+              icon: Briefcase,
             },
             {
               href: '/mypage',
@@ -164,14 +177,14 @@ export default function TestIndexPage() {
               icon: User,
               children: [
                 { href: '/mypage/profile', label: 'プロフィール編集', icon: User },
-                { href: '/mypage/applications', label: '応募履歴', icon: Briefcase },
-                { href: '/mypage/work-history', label: '勤務履歴', icon: Briefcase },
+                { href: '/mypage/applications', label: '応募履歴', icon: Clock },
+                { href: '/under-construction?page=work-history', label: '勤務履歴（工事中）', icon: Construction },
+                { href: '/under-construction?page=settings', label: '設定（工事中）', icon: Settings },
+                { href: '/under-construction?page=notifications', label: '通知設定（工事中）', icon: Construction },
+                { href: '/under-construction?page=qualifications', label: '資格情報（工事中）', icon: Construction },
+                { href: '/under-construction?page=bank-account', label: '口座情報（工事中）', icon: Construction },
+                { href: '/under-construction?page=help', label: 'ヘルプ（工事中）', icon: Construction },
               ]
-            },
-            {
-              href: '/bookmarks',
-              label: 'お気に入り・限定',
-              icon: Heart,
             },
           ]
         }
@@ -199,7 +212,6 @@ export default function TestIndexPage() {
               icon: Briefcase,
               children: [
                 { href: '/admin/jobs/new', label: '求人作成', icon: Briefcase },
-                { href: '/admin/jobs/1/edit', label: '求人編集', icon: Briefcase },
                 { href: '/admin/jobs/templates', label: 'テンプレート一覧', icon: FileText, children: [
                   { href: '/admin/jobs/templates/new', label: 'テンプレート作成', icon: FileText },
                   { href: '/admin/jobs/templates/1/edit', label: 'テンプレート編集', icon: FileText },
@@ -210,9 +222,6 @@ export default function TestIndexPage() {
               href: '/admin/applications',
               label: '応募管理',
               icon: UserCircle,
-              children: [
-                { href: '/admin/applications?jobId=1', label: '求人別応募一覧', icon: UserCircle },
-              ]
             },
             {
               href: '/admin/workers',
@@ -253,42 +262,56 @@ export default function TestIndexPage() {
     }
   };
 
-  // 未実装の機能リスト
+  // 未実装の機能リスト（Phase 2以降）
   const unimplementedFeatures = [
     {
-      feature: '求人への応募機能',
-      page: '求人詳細',
-      pageHref: '/jobs/1',
-      section: 'ワーカー向けページ',
-      description: 'カレンダーから日付を選択して応募する機能'
-    },
-    {
-      feature: '複数日付選択機能',
-      page: '求人詳細',
-      pageHref: '/jobs/1',
-      section: 'ワーカー向けページ',
-      description: '複数の勤務日を一括で選択できる機能'
-    },
-    {
-      feature: '応募確認ページ',
-      page: '求人詳細',
-      pageHref: '/jobs/1',
-      section: 'ワーカー向けページ',
-      description: '選択した求人の確認と最終的な応募処理'
-    },
-    {
-      feature: 'お気に入り機能',
+      feature: 'レビュー機能',
       page: '施設詳細',
-      pageHref: '/facilities/1',
+      pageHref: '/facilities/11',
       section: 'ワーカー向けページ',
-      description: '施設をお気に入りに追加/削除する機能'
+      description: '施設のレビュー一覧表示と投稿機能'
     },
     {
-      feature: '施設への問い合わせ',
+      feature: '共有機能',
       page: '施設詳細',
-      pageHref: '/facilities/1',
+      pageHref: '/facilities/11',
       section: 'ワーカー向けページ',
-      description: '施設に直接メッセージを送る機能'
+      description: 'Web Share APIを使った施設情報の共有'
+    },
+    {
+      feature: 'Google Map連携',
+      page: '求人詳細',
+      pageHref: '/jobs/49',
+      section: 'ワーカー向けページ',
+      description: '施設の住所をGoogle Mapで開く機能'
+    },
+    {
+      feature: 'メッセージ機能',
+      page: 'メッセージ',
+      pageHref: '/messages',
+      section: 'ワーカー向けページ',
+      description: '施設とのメッセージのやり取り機能'
+    },
+    {
+      feature: '仕事管理機能',
+      page: '仕事管理',
+      pageHref: '/my-jobs',
+      section: 'ワーカー向けページ',
+      description: '応募中・確定・完了した仕事の管理機能'
+    },
+    {
+      feature: '勤務履歴',
+      page: 'マイページ',
+      pageHref: '/under-construction?page=work-history',
+      section: 'ワーカー向けページ',
+      description: '過去の勤務履歴の閲覧機能'
+    },
+    {
+      feature: '設定・通知設定',
+      page: 'マイページ',
+      pageHref: '/under-construction?page=settings',
+      section: 'ワーカー向けページ',
+      description: 'アプリの各種設定と通知の管理'
     },
     {
       feature: '求人の一括公開/非公開',
@@ -303,20 +326,6 @@ export default function TestIndexPage() {
       pageHref: '/admin/jobs',
       section: '管理者向けページ',
       description: '既存の求人を複製して新規作成する機能'
-    },
-    {
-      feature: '求人テンプレートからの作成',
-      page: '求人作成',
-      pageHref: '/admin/jobs/new',
-      section: '管理者向けページ',
-      description: 'テンプレートを選択して求人を作成する機能'
-    },
-    {
-      feature: '画像の並び替え',
-      page: '求人作成',
-      pageHref: '/admin/jobs/new',
-      section: '管理者向けページ',
-      description: 'アップロードした画像の順序を変更する機能'
     },
     {
       feature: '労働条件通知書の生成',

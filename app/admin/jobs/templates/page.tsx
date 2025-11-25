@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { jobTemplates } from '@/data/jobTemplates';
 import { facilities } from '@/data/facilities';
 import { Plus, Edit, Trash2, Copy } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export default function TemplatesPage() {
   const router = useRouter();
@@ -81,7 +82,7 @@ export default function TemplatesPage() {
                         <button
                           onClick={() => {
                             // 複製機能（ダミー）
-                            alert('テンプレートを複製しました');
+                            toast.success('テンプレートを複製しました');
                           }}
                           className="p-2 text-gray-600 hover:bg-gray-100 rounded transition-colors"
                           title="複製"
@@ -91,7 +92,7 @@ export default function TemplatesPage() {
                         <button
                           onClick={() => {
                             if (confirm('このテンプレートを削除しますか？')) {
-                              alert('テンプレートを削除しました');
+                              toast.success('テンプレートを削除しました');
                             }
                           }}
                           className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"

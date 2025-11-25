@@ -54,8 +54,8 @@ export const JobCard: React.FC<JobCardProps> = ({ job, facility }) => {
   };
 
   return (
-    <Link href={`/jobs/${job.id}`}>
-      <div className="border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+    <Link href={`/jobs/${job.id}`} className="h-full block">
+      <div className="border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow cursor-pointer h-full flex flex-col">
         {/* PC版: 横並びレイアウト */}
         <div className="hidden md:flex">
           {/* 画像 - 長方形 */}
@@ -133,9 +133,9 @@ export const JobCard: React.FC<JobCardProps> = ({ job, facility }) => {
         </div>
 
         {/* モバイル版: 縦並びレイアウト */}
-        <div className="md:hidden">
+        <div className="md:hidden flex flex-col h-full">
           {/* 画像 */}
-          <div className="relative w-full h-32">
+          <div className="relative w-full aspect-[4/3] flex-shrink-0">
             <Image
               src={job.images[0]}
               alt={facility.name}
@@ -157,26 +157,25 @@ export const JobCard: React.FC<JobCardProps> = ({ job, facility }) => {
           </div>
 
           {/* コンテンツ - 下側 */}
-          <div className="p-2">
+          <div className="p-2 flex flex-col flex-1">
             <div className="flex items-start gap-1 mb-1">
-              <span className="text-xs font-bold break-words flex-1">{facility.name}</span>
-              <div className="flex items-center gap-1 flex-shrink-0">
-                <span className="text-yellow-400 text-xs">★</span>
-                <span className="text-xs">{facility.rating.toFixed(1)}</span>
-                <span className="text-xs text-gray-500">({facility.reviewCount})</span>
+              <span className="text-xs font-bold break-words flex-1 line-clamp-1">{facility.name}</span>
+              <div className="flex items-center gap-0.5 flex-shrink-0">
+                <span className="text-yellow-400 text-[10px]">★</span>
+                <span className="text-[10px]">{facility.rating.toFixed(1)}</span>
               </div>
             </div>
 
             {/* タグ */}
-            <div className="flex gap-1 mb-1">
-              {job.tags.map((tag) => (
+            <div className="flex flex-wrap gap-1 mb-1">
+              {job.tags.slice(0, 2).map((tag) => (
                 <Badge key={tag} variant="yellow" className="text-[9px] px-1 py-0.5">
                   {tag}
                 </Badge>
               ))}
             </div>
 
-            <h3 className="text-xs mb-1 line-clamp-2 h-8">
+            <h3 className="text-xs mb-1 line-clamp-2 min-h-[2rem]">
               {job.title}
             </h3>
 
@@ -185,18 +184,28 @@ export const JobCard: React.FC<JobCardProps> = ({ job, facility }) => {
             </div>
 
             <div className="flex items-center justify-end gap-1 mb-1">
-              <span className="text-xs text-gray-600">（時給{job.hourlyWage.toLocaleString()}円）</span>
+              <span className="text-[10px] text-gray-600">時給{job.hourlyWage.toLocaleString()}円</span>
               <span className="text-red-500 font-bold text-sm">{job.wage.toLocaleString()}円</span>
             </div>
 
-            <div className="flex justify-end">
-              <span className={`inline-block text-xs px-1.5 py-0.5 rounded ${
+            <div className="flex justify-end mb-1">
+              <span className={`inline-block text-[10px] px-1.5 py-0.5 rounded ${
                 isUrgent
                   ? 'bg-red-500 text-white'
                   : 'bg-gray-300 text-gray-800'
               }`}>
                 締切まで{deadlineText}
               </span>
+            </div>
+
+            {/* 住所・アクセス情報 */}
+            <div className="mt-auto pt-1 border-t border-gray-100">
+              <div className="text-[10px] text-gray-500 line-clamp-1">
+                {job.address}
+              </div>
+              <div className="text-[10px] text-gray-500 line-clamp-1">
+                {job.access}
+              </div>
             </div>
           </div>
         </div>

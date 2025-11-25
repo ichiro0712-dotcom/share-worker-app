@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import toast from 'react-hot-toast';
 
 type QualificationType =
   | '介護福祉士'
@@ -97,7 +98,7 @@ export default function Qualifications() {
 
     if (validateForm()) {
       // 実際のアプリでは、ここでAPIを呼び出してユーザー登録を完了します
-      alert('会員登録が完了しました！');
+      toast.success('会員登録が完了しました！');
       router.push('/login');
     }
   };

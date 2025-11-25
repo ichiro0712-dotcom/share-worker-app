@@ -6,6 +6,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Star, Heart, MapPin } from 'lucide-react';
 import { toggleFacilityFavorite } from '@/src/lib/actions';
+import toast from 'react-hot-toast';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 interface FavoriteListClientProps {
   initialFavorites: Array<{
@@ -33,11 +35,11 @@ export function FavoriteListClient({ initialFavorites }: FavoriteListClientProps
         setFavorites(prev => prev.filter(f => f.favoriteId !== favoriteId));
         router.refresh();
       } else {
-        alert('削除に失敗しました');
+        toast.error('削除に失敗しました');
       }
     } catch (error) {
       console.error('Remove favorite error:', error);
-      alert('削除に失敗しました');
+      toast.error('削除に失敗しました');
     } finally {
       setRemovingId(null);
     }
@@ -45,21 +47,13 @@ export function FavoriteListClient({ initialFavorites }: FavoriteListClientProps
 
   if (favorites.length === 0) {
     return (
-      <div className="text-center py-12">
-        <div className="w-20 h-20 mx-auto mb-4 bg-gray-200 rounded-full flex items-center justify-center">
-          <Heart className="w-10 h-10 text-gray-400" />
-        </div>
-        <p className="text-gray-500 mb-2">お気に入り施設がありません</p>
-        <p className="text-sm text-gray-400 mb-6">
-          気になる施設をお気に入りに追加しましょう
-        </p>
-        <Link
-          href="/"
-          className="inline-block px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
-        >
-          求人を探す
-        </Link>
-      </div>
+      <EmptyState
+        icon={Heart}
+        title="お気に入り施設はまだありません"
+        description="気になる施設をお気に入りに追加しましょう"
+        actionLabel="求人を探す"
+        actionLink="/"
+      />
     );
   }
 

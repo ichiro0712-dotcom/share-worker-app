@@ -4,8 +4,10 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Star, Calendar, MapPin, Clock } from 'lucide-react';
+import { Bookmark, Calendar, MapPin, Clock } from 'lucide-react';
 import { removeJobBookmark } from '@/src/lib/actions';
+import toast from 'react-hot-toast';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 interface BookmarkListClientProps {
   initialBookmarks: Array<{
@@ -33,11 +35,11 @@ export function BookmarkListClient({ initialBookmarks }: BookmarkListClientProps
         setBookmarks(prev => prev.filter(b => b.bookmarkId !== bookmarkId));
         router.refresh(); // Server Componentを再取得
       } else {
-        alert('削除に失敗しました');
+        toast.error('削除に失敗しました');
       }
     } catch (error) {
       console.error('Remove bookmark error:', error);
-      alert('削除に失敗しました');
+      toast.error('削除に失敗しました');
     } finally {
       setRemovingId(null);
     }
@@ -45,21 +47,13 @@ export function BookmarkListClient({ initialBookmarks }: BookmarkListClientProps
 
   if (bookmarks.length === 0) {
     return (
-      <div className="text-center py-12">
-        <div className="w-20 h-20 mx-auto mb-4 bg-gray-200 rounded-full flex items-center justify-center">
-          <Star className="w-10 h-10 text-gray-400" />
-        </div>
-        <p className="text-gray-500 mb-2">ブックマーク求人がありません</p>
-        <p className="text-sm text-gray-400 mb-6">
-          気になる求人をブックマークしましょう
-        </p>
-        <Link
-          href="/"
-          className="inline-block px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
-        >
-          求人を探す
-        </Link>
-      </div>
+      <EmptyState
+        icon={Bookmark}
+        title="保存した求人はまだありません"
+        description="気になる求人をブックマークして、後で見返しましょう"
+        actionLabel="求人を探す"
+        actionLink="/"
+      />
     );
   }
 
@@ -103,7 +97,7 @@ export function BookmarkListClient({ initialBookmarks }: BookmarkListClientProps
                     {/* 勤務日時 */}
                     <div className="flex items-center gap-2 text-xs text-gray-600 mb-2">
                       <Calendar className="w-3 h-3" />
-                      <span>{job.work_date.split('T')[0]}</span>
+                      <span>{job.work_date instanceof Date ? job.work_date.toISOString().split('T')[0] : String(job.work_date).split('T')[0]}</span>
                       <Clock className="w-3 h-3 ml-2" />
                       <span>
                         {job.start_time}-{job.end_time}

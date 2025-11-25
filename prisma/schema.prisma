@@ -162,6 +162,41 @@ model Job {
   manager_message         String?   @db.Text @map("manager_message") // 責任者メッセージ
   manager_avatar          String?   @map("manager_avatar")    // 責任者アバター
   images                  String[]                            // 施設画像
+
+  // ========================================
+  // 移動手段（通勤方法）
+  // ========================================
+  /// 車通勤可
+  allow_car               Boolean   @default(false) @map("allow_car")
+  /// バイク通勤可
+  allow_bike              Boolean   @default(false) @map("allow_bike")
+  /// 自転車通勤可
+  allow_bicycle           Boolean   @default(false) @map("allow_bicycle")
+  /// 公共交通機関（電車・バス・徒歩）可
+  allow_public_transit    Boolean   @default(false) @map("allow_public_transit")
+  /// 敷地内駐車場あり
+  has_parking             Boolean   @default(false) @map("has_parking")
+
+  // ========================================
+  // こだわり条件
+  // ========================================
+  /// 入浴介助なし
+  no_bathing_assist       Boolean   @default(false) @map("no_bathing_assist")
+  /// 送迎ドライバーあり
+  has_driver              Boolean   @default(false) @map("has_driver")
+  /// 髪型・髪色自由
+  hair_style_free         Boolean   @default(false) @map("hair_style_free")
+  /// ネイルOK
+  nail_ok                 Boolean   @default(false) @map("nail_ok")
+  /// 制服貸与
+  uniform_provided        Boolean   @default(false) @map("uniform_provided")
+  /// 介護業務未経験歓迎
+  inexperienced_ok        Boolean   @default(false) @map("inexperienced_ok")
+  /// SWORK初心者歓迎
+  beginner_ok             Boolean   @default(false) @map("beginner_ok")
+  /// 施設オープン5年以内
+  facility_within_5years  Boolean   @default(false) @map("facility_within_5years")
+
   created_at              DateTime  @default(now()) @map("created_at")
   updated_at              DateTime  @updatedAt @map("updated_at")
 

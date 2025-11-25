@@ -38,7 +38,11 @@ interface JobSearchParams {
   prefecture?: string;
   city?: string;
   minWage?: number;
-  serviceType?: string;
+  serviceTypes?: string[];
+  transportations?: string[];
+  otherConditions?: string[];
+  jobTypes?: string[]; // 「看護の仕事のみ」「説明会を除く」
+  workTimeTypes?: string[]; // 「日勤」「夜勤」「1日4時間以下」
 }
 
 export async function getJobs(searchParams?: JobSearchParams) {
@@ -95,12 +99,14 @@ export async function getJobs(searchParams?: JobSearchParams) {
     }
   }
 
-  // サービス種別フィルター
-  if (searchParams?.serviceType) {
-    facilityConditions.facility_type = {
-      contains: searchParams.serviceType,
-      mode: 'insensitive',
-    };
+  // サービス種別フィルター（複数選択対応）
+  if (searchParams?.serviceTypes && searchParams.serviceTypes.length > 0) {
+    facilityConditions.OR = searchParams.serviceTypes.map((type) => ({
+      facility_type: {
+        contains: type,
+        mode: 'insensitive',
+      },
+    }));
   }
 
   // facility条件が存在する場合のみ追加
@@ -113,6 +119,170 @@ export async function getJobs(searchParams?: JobSearchParams) {
     whereConditions.hourly_wage = {
       gte: searchParams.minWage,
     };
+  }
+
+  // 移動手段フィルター（Booleanカラムで検索）
+  if (searchParams?.transportations && searchParams.transportations.length > 0) {
+    // 移動手段のマッピング: UI選択肢 → DBカラム
+    const transportationMapping: Record<string, string> = {
+      '車': 'allow_car',
+      'バイク': 'allow_bike',
+      '自転車': 'allow_bicycle',
+      '公共交通機関（電車・バス・徒歩）': 'allow_public_transit',
+      '敷地内駐車場あり': 'has_parking',
+    };
+
+    whereConditions.AND = whereConditions.AND || [];
+    // いずれかの移動手段が利用可能（OR条件）
+    whereConditions.AND.push({
+      OR: searchParams.transportations
+        .filter((t) => transportationMapping[t])
+        .map((transport) => ({
+          [transportationMapping[transport]]: true,
+        })),
+    });
+  }
+
+  // その他条件フィルター（Booleanカラムで検索）
+  if (searchParams?.otherConditions && searchParams.otherConditions.length > 0) {
+    // その他条件のマッピング: UI選択肢 → DBカラム
+    const otherConditionMapping: Record<string, string> = {
+      '入浴介助なし': 'no_bathing_assist',
+      '送迎ドライバーあり': 'has_driver',
+      '髪型・髪色自由': 'hair_style_free',
+      'ネイルOK': 'nail_ok',
+      '制服貸与': 'uniform_provided',
+      '介護業務未経験歓迎': 'inexperienced_ok',
+      'SWORK初心者歓迎': 'beginner_ok',
+      '施設オープン５年以内': 'facility_within_5years',
+    };
+
+    whereConditions.AND = whereConditions.AND || [];
+    // 全てのこだわり条件を満たす（AND条件）
+    searchParams.otherConditions.forEach((condition) => {
+      const column = otherConditionMapping[condition];
+      if (column) {
+        whereConditions.AND.push({
+          [column]: true,
+        });
+      }
+    });
+  }
+
+  // タイプフィルター（登録した資格で応募できる仕事のみ、看護の仕事のみ、説明会を除く）
+  if (searchParams?.jobTypes && searchParams.jobTypes.length > 0) {
+    whereConditions.AND = whereConditions.AND || [];
+
+    for (const jobType of searchParams.jobTypes) {
+      if (jobType === '登録した資格で応募できる仕事のみ') {
+        // ユーザーの登録資格を取得
+        const user = await getAuthenticatedUser();
+        const userQualifications = user.qualifications || [];
+
+        if (userQualifications.length > 0) {
+          // 資格のマッピング: ユーザー登録資格 → 求人の資格要件
+          // 「看護師」は「正看護師」「准看護師」にマッチ
+          // 「介護福祉士」はそのままマッチ
+          // など
+          const qualificationMapping: Record<string, string[]> = {
+            '看護師': ['正看護師', '准看護師'],
+            '正看護師': ['正看護師'],
+            '准看護師': ['准看護師'],
+            '介護福祉士': ['介護福祉士'],
+            '初任者研修': ['初任者研修'],
+            '実務者研修': ['実務者研修'],
+            'ヘルパー2級': ['初任者研修', 'ヘルパー2級'],
+            'ヘルパー1級': ['実務者研修', 'ヘルパー1級'],
+          };
+
+          // ユーザーの資格から対応する求人資格要件のリストを作成
+          const matchingQualifications: string[] = [];
+          for (const userQual of userQualifications) {
+            const mapped = qualificationMapping[userQual];
+            if (mapped) {
+              matchingQualifications.push(...mapped);
+            } else {
+              // マッピングがない場合はそのまま追加
+              matchingQualifications.push(userQual);
+            }
+          }
+
+          // 重複を除去
+          const uniqueQualifications = Array.from(new Set(matchingQualifications));
+
+          // 求人の資格要件がユーザーの資格に含まれる、または資格要件がない求人を抽出
+          whereConditions.AND.push({
+            OR: [
+              // 資格要件がない求人（誰でも応募可能）
+              { required_qualifications: { equals: [] } },
+              // ユーザーの資格のいずれかが求人の資格要件に含まれる
+              { required_qualifications: { hasSome: uniqueQualifications } },
+            ],
+          });
+        }
+      } else if (jobType === '看護の仕事のみ') {
+        // タイトルに「看護」を含む、または資格に「看護」を含む
+        whereConditions.AND.push({
+          OR: [
+            { title: { contains: '看護', mode: 'insensitive' } },
+            { required_qualifications: { hasSome: ['正看護師', '准看護師'] } },
+          ],
+        });
+      } else if (jobType === '説明会を除く') {
+        // タイトルに「説明会」を含まない
+        whereConditions.AND.push({
+          NOT: { title: { contains: '説明会', mode: 'insensitive' } },
+        });
+      }
+    }
+  }
+
+  // 勤務時間フィルター（日勤、夜勤、1日4時間以下）
+  if (searchParams?.workTimeTypes && searchParams.workTimeTypes.length > 0) {
+    whereConditions.AND = whereConditions.AND || [];
+
+    // 勤務時間タイプの条件を構築（OR条件）
+    const workTimeConditions: any[] = [];
+
+    searchParams.workTimeTypes.forEach((workTimeType) => {
+      if (workTimeType === '日勤') {
+        // start_time が 05:00 〜 15:59 の求人
+        workTimeConditions.push({
+          AND: [
+            { start_time: { gte: '05:00' } },
+            { start_time: { lt: '16:00' } },
+          ],
+        });
+      } else if (workTimeType === '夜勤') {
+        // start_time が 16:00 以降の求人
+        workTimeConditions.push({
+          start_time: { gte: '16:00' },
+        });
+      } else if (workTimeType === '1日4時間以下') {
+        // 勤務時間が4時間以下の求人（計算が必要なのでRaw queryは使わない）
+        // start_time と end_time から計算: 簡易的に短時間勤務パターンをチェック
+        // 一般的な短時間勤務: 09:00-13:00, 10:00-14:00, 14:00-18:00 など
+        workTimeConditions.push({
+          OR: [
+            // 4時間以下のパターンをマッチ
+            { AND: [{ start_time: '09:00' }, { end_time: '13:00' }] },
+            { AND: [{ start_time: '10:00' }, { end_time: '14:00' }] },
+            { AND: [{ start_time: '14:00' }, { end_time: '18:00' }] },
+            { AND: [{ start_time: '08:00' }, { end_time: '12:00' }] },
+            { AND: [{ start_time: '13:00' }, { end_time: '17:00' }] },
+            // break_time が「なし」の場合は短時間勤務の可能性が高い
+            { break_time: 'なし' },
+          ],
+        });
+      }
+    });
+
+    // 選択された勤務時間タイプのいずれかに該当（OR条件）
+    if (workTimeConditions.length > 0) {
+      whereConditions.AND.push({
+        OR: workTimeConditions,
+      });
+    }
   }
 
   const jobs = await prisma.job.findMany({
@@ -173,6 +343,32 @@ export async function getJobById(id: string) {
       updated_at: job.facility.updated_at.toISOString(),
     },
   };
+}
+
+export async function hasUserAppliedForJob(jobId: string): Promise<boolean> {
+  try {
+    const jobIdNum = parseInt(jobId, 10);
+
+    if (isNaN(jobIdNum)) {
+      return false;
+    }
+
+    const user = await getAuthenticatedUser();
+
+    const existingApplication = await prisma.application.findUnique({
+      where: {
+        job_id_user_id: {
+          job_id: jobIdNum,
+          user_id: user.id,
+        },
+      },
+    });
+
+    return !!existingApplication;
+  } catch (error) {
+    console.error('[hasUserAppliedForJob] Error:', error);
+    return false;
+  }
 }
 
 export async function applyForJob(jobId: string) {

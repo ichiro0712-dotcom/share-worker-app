@@ -1,8 +1,9 @@
 import { getMyApplications } from '@/src/lib/actions';
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileText } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { BottomNav } from '@/components/layout/BottomNav';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 // ステータスの日本語表示
 const statusLabels: Record<string, string> = {
@@ -56,15 +57,13 @@ export default async function ApplicationsPage() {
       {/* コンテンツ */}
       <div className="p-4">
         {applications.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-sm p-8 text-center">
-            <p className="text-gray-500 mb-4">まだ応募履歴がありません</p>
-            <Link
-              href="/"
-              className="inline-block px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
-            >
-              求人を探す
-            </Link>
-          </div>
+          <EmptyState
+            icon={FileText}
+            title="まだ応募履歴がありません"
+            description="気になる求人に応募してみましょう"
+            actionLabel="求人を探す"
+            actionLink="/"
+          />
         ) : (
           <div className="space-y-4">
             {applications.map((application) => (

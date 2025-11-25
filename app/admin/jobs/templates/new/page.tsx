@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { facilities } from '@/data/facilities';
 import { Upload, X } from 'lucide-react';
 import { calculateDailyWage } from '@/utils/salary';
+import toast from 'react-hot-toast';
 import {
   JOB_TYPES,
   WORK_CONTENT_OPTIONS,
@@ -106,7 +107,7 @@ export default function NewTemplatePage() {
     if (formData.images.length + files.length <= 3) {
       handleInputChange('images', [...formData.images, ...files]);
     } else {
-      alert('画像は最大3枚までアップロードできます');
+      toast.error('画像は最大3枚までアップロードできます');
     }
   };
 
@@ -119,7 +120,7 @@ export default function NewTemplatePage() {
     if (formData.attachments.length + files.length <= 3) {
       handleInputChange('attachments', [...formData.attachments, ...files]);
     } else {
-      alert('添付ファイルは最大3つまでアップロードできます');
+      toast.error('添付ファイルは最大3つまでアップロードできます');
     }
   };
 
@@ -132,7 +133,7 @@ export default function NewTemplatePage() {
     if (formData.dresscodeImages.length + files.length <= 3) {
       handleInputChange('dresscodeImages', [...formData.dresscodeImages, ...files]);
     } else {
-      alert('服装サンプル画像は最大3枚までアップロードできます');
+      toast.error('服装サンプル画像は最大3枚までアップロードできます');
     }
   };
 
@@ -159,32 +160,32 @@ export default function NewTemplatePage() {
   const handleSave = () => {
     // バリデーション - 必須項目チェック
     if (!formData.name || !formData.title || !formData.facilityId) {
-      alert('基本情報の必須項目を入力してください');
+      toast.error('基本情報の必須項目を入力してください');
       return;
     }
     if (!formData.startTime || !formData.endTime) {
-      alert('勤務時間の必須項目を入力してください');
+      toast.error('勤務時間の必須項目を入力してください');
       return;
     }
     if (formData.hourlyWage <= 0) {
-      alert('時給を入力してください');
+      toast.error('時給を入力してください');
       return;
     }
     if (formData.workContent.length === 0) {
-      alert('仕事内容を選択してください');
+      toast.error('仕事内容を選択してください');
       return;
     }
     if (formData.qualifications.length === 0) {
-      alert('資格条件を選択してください');
+      toast.error('資格条件を選択してください');
       return;
     }
     if (formData.icons.length === 0) {
-      alert('アイコンを選択してください');
+      toast.error('アイコンを選択してください');
       return;
     }
 
     console.log('テンプレート保存:', formData);
-    alert('テンプレートを保存しました');
+    toast.success('テンプレートを保存しました');
     router.push('/admin/jobs/templates');
   };
 
@@ -196,7 +197,7 @@ export default function NewTemplatePage() {
             <h1 className="text-xl font-bold text-gray-900">テンプレート作成</h1>
             <div className="flex items-center gap-3">
               <button
-                onClick={() => alert('プレビュー機能は実装中です')}
+                onClick={() => toast('プレビュー機能は実装中です', { icon: '🚧' })}
                 className="px-4 py-2 text-sm border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors"
               >
                 プレビュー
@@ -318,13 +319,13 @@ export default function NewTemplatePage() {
                           const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
                           const validFiles = files.filter(file => file.size <= 5 * 1024 * 1024);
                           if (files.length !== validFiles.length) {
-                            alert('5MBを超えるファイルは登録できません');
+                            toast.error('5MBを超えるファイルは登録できません');
                             return;
                           }
                           if (formData.images.length + validFiles.length <= 3) {
                             handleInputChange('images', [...formData.images, ...validFiles]);
                           } else {
-                            alert('画像は最大3枚までアップロードできます');
+                            toast.error('画像は最大3枚までアップロードできます');
                           }
                         }}
                       >
@@ -699,13 +700,13 @@ export default function NewTemplatePage() {
                           const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
                           const validFiles = files.filter(file => file.size <= 5 * 1024 * 1024);
                           if (files.length !== validFiles.length) {
-                            alert('5MBを超えるファイルは登録できません');
+                            toast.error('5MBを超えるファイルは登録できません');
                             return;
                           }
                           if (formData.dresscodeImages.length + validFiles.length <= 3) {
                             handleInputChange('dresscodeImages', [...formData.dresscodeImages, ...validFiles]);
                           } else {
-                            alert('服装サンプル画像は最大3枚までアップロードできます');
+                            toast.error('服装サンプル画像は最大3枚までアップロードできます');
                           }
                         }}
                       >
@@ -824,7 +825,7 @@ export default function NewTemplatePage() {
                           if (formData.attachments.length + files.length <= 3) {
                             handleInputChange('attachments', [...formData.attachments, ...files]);
                           } else {
-                            alert('添付ファイルは最大3つまでです');
+                            toast.error('添付ファイルは最大3つまでです');
                           }
                         }}
                       >
@@ -864,7 +865,7 @@ export default function NewTemplatePage() {
                   <p className="text-xs text-gray-500 mb-3">「解雇の事由/その他関連する事項」のみ下記から変更可能です</p>
                   <button
                     type="button"
-                    onClick={() => alert('生成された労働条件通知書を表示')}
+                    onClick={() => toast('労働条件通知書の表示機能は開発中です', { icon: '🚧' })}
                     className="px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors mb-3"
                   >
                     労働条件通知書

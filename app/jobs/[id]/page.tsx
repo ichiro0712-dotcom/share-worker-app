@@ -1,4 +1,4 @@
-import { getJobById, getJobs } from '@/src/lib/actions';
+import { getJobById, getJobs, hasUserAppliedForJob } from '@/src/lib/actions';
 import { JobDetailClient } from '@/components/job/JobDetailClient';
 import { notFound } from 'next/navigation';
 
@@ -19,6 +19,28 @@ export default async function JobDetail({ params }: PageProps) {
   const relatedJobsData = allJobsData.filter(
     (j) => j.facility_id === jobData.facility_id && j.id !== jobData.id
   );
+
+  // DBのBooleanから移動手段配列を生成
+  const transportMethods = [
+    { name: '車', available: jobData.allow_car },
+    { name: 'バイク', available: jobData.allow_bike },
+    { name: '自転車', available: jobData.allow_bicycle },
+    { name: '電車', available: jobData.allow_public_transit },
+    { name: 'バス', available: jobData.allow_public_transit },
+    { name: '徒歩', available: jobData.allow_public_transit },
+  ];
+
+  // DBのBooleanから特徴タグ配列を生成
+  const featureTags = [
+    jobData.no_bathing_assist && '入浴介助なし',
+    jobData.has_driver && '送迎ドライバーあり',
+    jobData.hair_style_free && '髪型・髪色自由',
+    jobData.nail_ok && 'ネイルOK',
+    jobData.uniform_provided && '制服貸与',
+    jobData.inexperienced_ok && '介護業務未経験歓迎',
+    jobData.beginner_ok && 'SWORK初心者歓迎',
+    jobData.facility_within_5years && '施設オープン5年以内',
+  ].filter(Boolean) as string[];
 
   // DBのデータをフロントエンドの型に変換（既に文字列化済み）
   const job = {
@@ -50,11 +72,11 @@ export default async function JobDetail({ params }: PageProps) {
     managerAvatar: jobData.manager_avatar || '👤',
     images: jobData.images,
     badges: [],
-    otherConditions: [],
     mapImage: '/images/map-placeholder.png',
-    transportMethods: [],
-    parking: false,
+    transportMethods,
+    parking: jobData.has_parking,
     accessDescription: jobData.access,
+    featureTags,
   };
 
   const facility = {
@@ -95,12 +117,16 @@ export default async function JobDetail({ params }: PageProps) {
   // レビューデータは後で実装
   const facilityReviews: any[] = [];
 
+  // ユーザーが既に応募済みかチェック
+  const initialHasApplied = await hasUserAppliedForJob(id);
+
   return (
     <JobDetailClient
       job={job}
       facility={facility}
       relatedJobs={relatedJobs}
       facilityReviews={facilityReviews}
+      initialHasApplied={initialHasApplied}
     />
   );
 }

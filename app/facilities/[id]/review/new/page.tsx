@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ChevronLeft, Star } from 'lucide-react';
 import { facilities } from '@/data/facilities';
 import { useAuth } from '@/contexts/AuthContext';
+import toast from 'react-hot-toast';
 
 export default function NewReview({ params }: { params: { id: string } }) {
   const { id } = params;
@@ -23,7 +24,7 @@ export default function NewReview({ params }: { params: { id: string } }) {
   // ログインしていない場合はログインページへリダイレクト
   useEffect(() => {
     if (!isAuthenticated) {
-      alert('レビューを投稿するにはログインが必要です');
+      toast.error('レビューを投稿するにはログインが必要です');
       router.push('/login');
     }
   }, [isAuthenticated, router]);
@@ -45,22 +46,22 @@ export default function NewReview({ params }: { params: { id: string } }) {
     e.preventDefault();
 
     if (rating === 0) {
-      alert('総合評価を選択してください');
+      toast.error('総合評価を選択してください');
       return;
     }
 
     if (!formData.goodPoints) {
-      alert('良かった点を入力してください');
+      toast.error('良かった点を入力してください');
       return;
     }
 
     if (!formData.improvements) {
-      alert('改善点を入力してください');
+      toast.error('改善点を入力してください');
       return;
     }
 
     // 実際にはここでAPIにデータを送信
-    alert('レビューを投稿しました！');
+    toast.success('レビューを投稿しました！');
     router.push('/job-list');
   };
 

@@ -26,7 +26,7 @@ export default function UnderConstruction() {
       {/* ヘッダー */}
       <div className="sticky top-0 bg-white border-b border-gray-200">
         <div className="px-4 py-3 flex items-center">
-          <Link href="/job-list">
+          <Link href="/mypage">
             <ChevronLeft className="w-6 h-6" />
           </Link>
           <h1 className="flex-1 text-center text-lg">{pageName}</h1>
@@ -42,9 +42,9 @@ export default function UnderConstruction() {
           <p className="text-gray-600 mb-8">
             この機能はPhase 2以降で実装予定です
           </p>
-          <Link href="/job-list">
+          <Link href="/mypage">
             <Button size="lg" className="w-full">
-              TOPに戻る
+              マイページに戻る
             </Button>
           </Link>
         </div>

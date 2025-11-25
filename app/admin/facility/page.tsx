@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Upload, X, Eye, User } from 'lucide-react';
 import Image from 'next/image';
+import toast from 'react-hot-toast';
 
 export default function FacilityPage() {
   const { admin, isAdmin } = useAuth();
@@ -330,7 +331,7 @@ export default function FacilityPage() {
   };
 
   const handleSave = () => {
-    alert('保存しました');
+    toast.success('保存しました');
   };
 
   return (
@@ -864,7 +865,7 @@ export default function FacilityPage() {
                       </div>
                     </div>
                     <button
-                      onClick={() => alert('マップピンの調整機能は開発中です')}
+                      onClick={() => toast('マップピンの調整機能は開発中です', { icon: '🚧' })}
                       className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
                     >
                       マップピンを調整

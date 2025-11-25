@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { Tag } from '@/components/ui/tag';
 import { calculateDailyWage } from '@/utils/salary';
+import toast from 'react-hot-toast';
 
 interface JobPreviewModalProps {
   isOpen: boolean;
@@ -258,7 +259,7 @@ export function JobPreviewModal({
                     ))}
                   </div>
                   <button
-                    onClick={() => alert('労働条件通知書のダミーデータです')}
+                    onClick={() => toast('労働条件通知書の表示機能は開発中です', { icon: '🚧' })}
                     className="mt-3 px-4 py-2 text-sm text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors"
                   >
                     労働条件通知書を確認

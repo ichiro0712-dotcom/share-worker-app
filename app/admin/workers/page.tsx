@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Star, MapPin, ChevronDown, Heart, Ban, Bookmark } from 'lucide-react';
+import { Star, MapPin, ChevronDown, Heart, Ban, Bookmark, Users } from 'lucide-react';
 import { workers, workerApplications as initialApplications } from '@/data/workers';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { WorkerStatus, ProfessionType, WorkerApplication } from '@/types/worker';
 
 type SortType =
@@ -454,10 +455,18 @@ export default function AdminWorkersPage() {
       </div>
 
       {filteredApplications.length === 0 && (
-        <div className="text-center py-12 text-gray-500">
-          {searchQuery || professionFilters.length > 0
-            ? '該当するワーカーが見つかりませんでした'
-            : `ワーカーがいません`}
+        <div className="p-4">
+          <EmptyState
+            icon={Users}
+            title={searchQuery || professionFilters.length > 0
+              ? '該当するワーカーが見つかりませんでした'
+              : '登録ワーカーはいません'}
+            description={searchQuery || professionFilters.length > 0
+              ? '検索条件を変更してお試しください'
+              : '応募管理から新しいワーカーとマッチングしましょう'}
+            actionLabel="応募管理へ"
+            actionLink="/admin/applications"
+          />
         </div>
       )}
     </div>

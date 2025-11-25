@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Tag } from '@/components/ui/tag';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 type JobStatus = 'all' | 'recruiting' | 'paused' | 'working' | 'review' | 'completed' | 'failed';
 
@@ -386,9 +387,13 @@ export default function AdminJobsList() {
 
           <div className="grid grid-cols-1 gap-3">
             {paginatedJobs.length === 0 ? (
-              <div className="bg-white rounded border border-gray-200 p-8 text-center">
-                <p className="text-sm text-gray-500">求人が見つかりませんでした</p>
-              </div>
+              <EmptyState
+                icon={FileText}
+                title="作成された求人はありません"
+                description="新しい求人を作成して、ワーカーを募集しましょう"
+                actionLabel="求人を作成"
+                actionLink="/admin/jobs/new"
+              />
             ) : (
               paginatedJobs.map((job) => {
                 const status = getJobStatus(job);

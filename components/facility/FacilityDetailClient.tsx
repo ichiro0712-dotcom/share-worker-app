@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import Link from 'next/link';
 import {
   ChevronLeft,
   MapPin,
@@ -14,6 +13,7 @@ import {
 import { JobCard } from '@/components/job/JobCard';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { toggleFacilityFavorite } from '@/src/lib/actions';
+import toast from 'react-hot-toast';
 
 interface FacilityDetailClientProps {
   facility: any;
@@ -38,9 +38,11 @@ export function FacilityDetailClient({
       const result = await toggleFacilityFavorite(String(facility.id));
       if (result.success && result.isFavorite !== undefined) {
         setIsFavorite(result.isFavorite);
+        toast.success(result.isFavorite ? 'お気に入りに追加しました' : 'お気に入りから削除しました');
       }
     } catch (error) {
       console.error('Favorite toggle error:', error);
+      toast.error('エラーが発生しました');
     } finally {
       setIsProcessing(false);
     }
@@ -48,7 +50,7 @@ export function FacilityDetailClient({
 
   const handleShare = () => {
     // Phase 2で実装予定: Web Share API
-    alert('共有機能は開発中です');
+    toast('共有機能は開発中です', { icon: '🚧' });
   };
 
   return (

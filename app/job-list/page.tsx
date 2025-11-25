@@ -8,6 +8,7 @@ import { BottomNav } from '@/components/layout/BottomNav';
 import { FilterModal } from '@/components/job/FilterModal';
 import { jobs } from '@/data/jobs';
 import { facilities } from '@/data/facilities';
+import toast from 'react-hot-toast';
 
 type TabType = 'all' | 'limited' | 'nominated';
 type SortOrder = 'distance' | 'wage' | 'deadline';
@@ -40,7 +41,7 @@ export default function JobListPage() {
   };
 
   const handleWorkDateClick = () => {
-    alert('未定:働ける日カレンダーはPhase 2で実装予定です');
+    toast('働ける日カレンダーはPhase 2で実装予定です', { icon: '🚧' });
   };
 
   // ソート処理

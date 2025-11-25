@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import toast from 'react-hot-toast';
 
 export default function WorkerRegisterPage() {
   const [formData, setFormData] = useState({
@@ -69,19 +70,19 @@ export default function WorkerRegisterPage() {
 
     // パスワード確認
     if (formData.password !== formData.passwordConfirm) {
-      alert('パスワードが一致しません');
+      toast.error('パスワードが一致しません');
       return;
     }
 
     // 資格が選択されているか確認
     if (formData.qualifications.length === 0) {
-      alert('少なくとも1つの資格を選択してください');
+      toast.error('少なくとも1つの資格を選択してください');
       return;
     }
 
     console.log('Form submitted:', formData, qualificationCertificates);
     // TODO: API送信処理
-    alert('登録が完了しました。ログインして求人検索ができます。');
+    toast.success('登録が完了しました。ログインして求人検索ができます。');
   };
 
   const handleCancel = () => {

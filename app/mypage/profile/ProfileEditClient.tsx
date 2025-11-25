@@ -5,6 +5,7 @@ import { Upload, ArrowLeft, Plus, X, User as UserIcon } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { updateUserProfile } from '@/src/lib/actions';
+import toast from 'react-hot-toast';
 
 interface UserProfile {
   id: number;
@@ -194,11 +195,11 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
     const result = await updateUserProfile(form);
 
     if (result.success) {
-      alert(result.message || 'プロフィールを更新しました');
+      toast.success(result.message || 'プロフィールを更新しました');
       // 画像アップロード後はファイル状態をリセット
       setProfileImageFile(null);
     } else {
-      alert(result.error || 'プロフィールの更新に失敗しました');
+      toast.error(result.error || 'プロフィールの更新に失敗しました');
     }
   };
 

@@ -7,12 +7,22 @@ interface PageProps {
     prefecture?: string;
     city?: string;
     minWage?: string;
-    serviceType?: string;
+    serviceType?: string | string[];
+    transportation?: string | string[];
+    otherCondition?: string | string[];
+    jobType?: string | string[];
+    workTimeType?: string | string[];
   }>;
 }
 
 export default async function JobListPage({ searchParams }: PageProps) {
   const params = await searchParams;
+
+  // 配列パラメータを正規化する関数
+  const normalizeArray = (value: string | string[] | undefined): string[] | undefined => {
+    if (!value) return undefined;
+    return Array.isArray(value) ? value : [value];
+  };
 
   // クエリパラメータを検索パラメータに変換
   const jobSearchParams = {
@@ -20,48 +30,76 @@ export default async function JobListPage({ searchParams }: PageProps) {
     prefecture: params.prefecture,
     city: params.city,
     minWage: params.minWage ? parseInt(params.minWage, 10) : undefined,
-    serviceType: params.serviceType,
+    serviceTypes: normalizeArray(params.serviceType),
+    transportations: normalizeArray(params.transportation),
+    otherConditions: normalizeArray(params.otherCondition),
+    jobTypes: normalizeArray(params.jobType),
+    workTimeTypes: normalizeArray(params.workTimeType),
   };
 
   const jobsData = await getJobs(jobSearchParams);
 
   // DBのデータをフロントエンドの型に変換（既に文字列化済み）
-  const jobs = jobsData.map((job) => ({
-    id: job.id,
-    status: job.status.toLowerCase() as 'published' | 'draft' | 'stopped' | 'working' | 'completed' | 'cancelled',
-    facilityId: job.facility_id,
-    title: job.title,
-    workDate: job.work_date.split('T')[0],
-    startTime: job.start_time,
-    endTime: job.end_time,
-    breakTime: job.break_time,
-    wage: job.wage,
-    hourlyWage: job.hourly_wage,
-    deadline: job.deadline,
-    tags: job.tags,
-    address: job.address,
-    access: job.access,
-    recruitmentCount: job.recruitment_count,
-    appliedCount: job.applied_count,
-    transportationFee: job.transportation_fee,
-    overview: job.overview,
-    workContent: job.work_content,
-    requiredQualifications: job.required_qualifications,
-    requiredExperience: job.required_experience,
-    dresscode: job.dresscode,
-    belongings: job.belongings,
-    managerName: job.manager_name,
-    managerMessage: job.manager_message || '',
-    managerAvatar: job.manager_avatar || '👤',
-    images: job.images,
-    // モック用のフィールド（後で削除予定）
-    badges: [],
-    otherConditions: [],
-    mapImage: '/images/map-placeholder.png',
-    transportMethods: [],
-    parking: false,
-    accessDescription: job.access,
-  }));
+  const jobs = jobsData.map((job) => {
+    // DBのBooleanから移動手段配列を生成
+    const transportMethods = [
+      { name: '車', available: job.allow_car },
+      { name: 'バイク', available: job.allow_bike },
+      { name: '自転車', available: job.allow_bicycle },
+      { name: '電車', available: job.allow_public_transit },
+      { name: 'バス', available: job.allow_public_transit },
+      { name: '徒歩', available: job.allow_public_transit },
+    ];
+
+    // DBのBooleanから特徴タグ配列を生成
+    const featureTags = [
+      job.no_bathing_assist && '入浴介助なし',
+      job.has_driver && '送迎ドライバーあり',
+      job.hair_style_free && '髪型・髪色自由',
+      job.nail_ok && 'ネイルOK',
+      job.uniform_provided && '制服貸与',
+      job.inexperienced_ok && '介護業務未経験歓迎',
+      job.beginner_ok && 'SWORK初心者歓迎',
+      job.facility_within_5years && '施設オープン5年以内',
+    ].filter(Boolean) as string[];
+
+    return {
+      id: job.id,
+      status: job.status.toLowerCase() as 'published' | 'draft' | 'stopped' | 'working' | 'completed' | 'cancelled',
+      facilityId: job.facility_id,
+      title: job.title,
+      workDate: job.work_date.split('T')[0],
+      startTime: job.start_time,
+      endTime: job.end_time,
+      breakTime: job.break_time,
+      wage: job.wage,
+      hourlyWage: job.hourly_wage,
+      deadline: job.deadline,
+      tags: job.tags,
+      address: job.address,
+      access: job.access,
+      recruitmentCount: job.recruitment_count,
+      appliedCount: job.applied_count,
+      transportationFee: job.transportation_fee,
+      overview: job.overview,
+      workContent: job.work_content,
+      requiredQualifications: job.required_qualifications,
+      requiredExperience: job.required_experience,
+      dresscode: job.dresscode,
+      belongings: job.belongings,
+      managerName: job.manager_name,
+      managerMessage: job.manager_message || '',
+      managerAvatar: job.manager_avatar || '👤',
+      images: job.images,
+      badges: [],
+      otherConditions: [],
+      mapImage: '/images/map-placeholder.png',
+      transportMethods,
+      parking: job.has_parking,
+      accessDescription: job.access,
+      featureTags,
+    };
+  });
 
   const facilities = jobsData.map((job) => ({
     id: job.facility.id,

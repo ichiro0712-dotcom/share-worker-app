@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Filter, Calendar, ChevronDown } from 'lucide-react';
+import { Filter, Calendar, ChevronDown, Search, X } from 'lucide-react';
 import { JobCard } from '@/components/job/JobCard';
 import { DateSlider } from '@/components/job/DateSlider';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { FilterModal } from '@/components/job/FilterModal';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 type TabType = 'all' | 'limited' | 'nominated';
 type SortOrder = 'distance' | 'wage' | 'deadline';
@@ -28,6 +29,93 @@ export function JobListClient({ jobs, facilities }: JobListClientProps) {
   const [appliedFilters, setAppliedFilters] = useState<any>(null);
 
   const itemsPerPage = 20;
+
+  // URLパラメータから現在の絞り込み条件を取得
+  const activeFilters = useMemo(() => {
+    const filters: { key: string; label: string; paramName: string; rawValue: string }[] = [];
+
+    // 表示用ラベルの短縮マッピング
+    const shortLabelMapping: Record<string, string> = {
+      '登録した資格で応募できる仕事のみ': '登録した資格',
+      '看護の仕事のみ': '看護',
+      '公共交通機関（電車・バス・徒歩）': '公共交通機関',
+      '敷地内駐車場あり': '駐車場',
+    };
+
+    const getShortLabel = (value: string) => shortLabelMapping[value] || value;
+
+    // 都道府県
+    const prefecture = searchParams.get('prefecture');
+    if (prefecture) {
+      filters.push({ key: `prefecture-${prefecture}`, label: prefecture, paramName: 'prefecture', rawValue: prefecture });
+    }
+
+    // 市区町村
+    const city = searchParams.get('city');
+    if (city) {
+      filters.push({ key: `city-${city}`, label: city, paramName: 'city', rawValue: city });
+    }
+
+    // 最低時給
+    const minWage = searchParams.get('minWage');
+    if (minWage) {
+      filters.push({ key: `minWage-${minWage}`, label: `${minWage}円以上`, paramName: 'minWage', rawValue: minWage });
+    }
+
+    // サービス種別（複数）
+    const serviceTypes = searchParams.getAll('serviceType');
+    serviceTypes.forEach((type) => {
+      filters.push({ key: `serviceType-${type}`, label: getShortLabel(type), paramName: 'serviceType', rawValue: type });
+    });
+
+    // 移動手段（複数）
+    const transportations = searchParams.getAll('transportation');
+    transportations.forEach((t) => {
+      filters.push({ key: `transportation-${t}`, label: getShortLabel(t), paramName: 'transportation', rawValue: t });
+    });
+
+    // その他条件（複数）
+    const otherConditions = searchParams.getAll('otherCondition');
+    otherConditions.forEach((c) => {
+      filters.push({ key: `otherCondition-${c}`, label: getShortLabel(c), paramName: 'otherCondition', rawValue: c });
+    });
+
+    // タイプ（複数）
+    const jobTypes = searchParams.getAll('jobType');
+    jobTypes.forEach((type) => {
+      filters.push({ key: `jobType-${type}`, label: getShortLabel(type), paramName: 'jobType', rawValue: type });
+    });
+
+    // 勤務時間（複数）
+    const workTimeTypes = searchParams.getAll('workTimeType');
+    workTimeTypes.forEach((type) => {
+      filters.push({ key: `workTimeType-${type}`, label: getShortLabel(type), paramName: 'workTimeType', rawValue: type });
+    });
+
+    return filters;
+  }, [searchParams]);
+
+  // 個別のフィルターを削除する
+  const handleRemoveFilter = (paramName: string, value: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (['serviceType', 'transportation', 'otherCondition', 'jobType', 'workTimeType'].includes(paramName)) {
+      // 複数値を持つパラメータの場合
+      const values = params.getAll(paramName);
+      params.delete(paramName);
+      values.filter((v) => v !== value).forEach((v) => params.append(paramName, v));
+    } else {
+      // 単一値のパラメータの場合
+      params.delete(paramName);
+    }
+
+    // 市区町村を削除する場合、都道府県も一緒に削除するか確認
+    if (paramName === 'prefecture') {
+      params.delete('city');
+    }
+
+    router.push(`/?${params.toString()}`);
+  };
 
   const handleTabClick = (tab: TabType) => {
     setActiveTab(tab);
@@ -53,11 +141,61 @@ export function JobListClient({ jobs, facilities }: JobListClientProps) {
       params.set('minWage', wageNumber);
     }
     if (filters.serviceTypes && filters.serviceTypes.length > 0) {
-      params.set('serviceType', filters.serviceTypes[0]); // 最初の1つのみ
+      // 複数選択対応
+      filters.serviceTypes.forEach((type: string) => {
+        params.append('serviceType', type);
+      });
+    }
+    if (filters.transportations && filters.transportations.length > 0) {
+      filters.transportations.forEach((t: string) => {
+        params.append('transportation', t);
+      });
+    }
+    if (filters.otherConditions && filters.otherConditions.length > 0) {
+      filters.otherConditions.forEach((c: string) => {
+        params.append('otherCondition', c);
+      });
+    }
+
+    // jobTypes (タイプフィルター): 内部値を表示用ラベルに変換
+    if (filters.jobTypes && filters.jobTypes.length > 0) {
+      const jobTypeMapping: Record<string, string> = {
+        'qualified': '登録した資格で応募できる仕事のみ',
+        'nursing': '看護の仕事のみ',
+        'excludeOrientation': '説明会を除く',
+      };
+      filters.jobTypes.forEach((type: string) => {
+        const label = jobTypeMapping[type];
+        if (label) {
+          params.append('jobType', label);
+        }
+      });
+    }
+
+    // workTimeTypes (勤務時間フィルター): 内部値を表示用ラベルに変換
+    if (filters.workTimeTypes && filters.workTimeTypes.length > 0) {
+      const workTimeMapping: Record<string, string> = {
+        'day': '日勤',
+        'night': '夜勤',
+        'short': '1日4時間以下',
+      };
+      filters.workTimeTypes.forEach((type: string) => {
+        const label = workTimeMapping[type];
+        if (label) {
+          params.append('workTimeType', label);
+        }
+      });
     }
 
     // ページをリロード（Server Componentで再フェッチ）
     router.push(`/?${params.toString()}`);
+  };
+
+  const handleClearFilters = () => {
+    setAppliedFilters(null);
+    setCurrentPage(1);
+    // 確実にURLパラメータをクリアして再読み込み
+    window.location.href = '/';
   };
 
   const handleWorkDateClick = () => {
@@ -198,27 +336,60 @@ export function JobListClient({ jobs, facilities }: JobListClientProps) {
             selectedDateIndex={selectedDateIndex}
             onDateSelect={setSelectedDateIndex}
           />
+
+          {/* 絞り込み条件タグ */}
+          {activeFilters.length > 0 && (
+            <div className="flex flex-wrap gap-2 pt-2">
+              {activeFilters.map((filter) => (
+                <span
+                  key={filter.key}
+                  className="inline-flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary text-xs rounded-full"
+                >
+                  {filter.label}
+                  <button
+                    onClick={() => handleRemoveFilter(filter.paramName, filter.rawValue)}
+                    className="hover:bg-primary/20 rounded-full p-0.5"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+              <button
+                onClick={handleClearFilters}
+                className="text-xs text-gray-500 hover:text-gray-700 underline"
+              >
+                すべてクリア
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
       {/* 求人リスト */}
       {sortedJobs.length === 0 ? (
-        <div className="px-4 py-16 text-center">
-          <div className="bg-white rounded-lg shadow-sm p-8">
-            <p className="text-gray-500 text-lg mb-2">条件に一致する求人が見つかりませんでした</p>
-            <p className="text-gray-400 text-sm">検索条件を変更してお試しください</p>
-          </div>
+        <div className="px-4 py-8">
+          <EmptyState
+            icon={Search}
+            title="条件に一致する求人が見つかりませんでした"
+            description="検索条件を変更してお試しください"
+            actionLabel="条件をクリア"
+            onAction={handleClearFilters}
+          />
         </div>
       ) : (
         <>
-          <div className="px-4 py-4 grid grid-cols-2 md:grid-cols-1 gap-3 md:gap-4">
+          <div className="px-4 py-4 grid grid-cols-2 gap-3 md:grid-cols-1 md:gap-4 items-stretch">
             {sortedJobs
               .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
               .map((job) => {
                 const facility = facilities.find((f) => f.id === job.facilityId);
                 if (!facility) return null;
 
-                return <JobCard key={job.id} job={job} facility={facility} />;
+                return (
+                  <div key={job.id} className="h-full">
+                    <JobCard job={job} facility={facility} />
+                  </div>
+                );
               })}
           </div>
 

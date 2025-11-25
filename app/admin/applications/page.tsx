@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Star, MapPin, Heart, Ban, Bookmark, ChevronRight, ChevronDown, Check } from 'lucide-react';
+import { Star, MapPin, Heart, Ban, Bookmark, ChevronRight, ChevronDown, Check, Users } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { workers, workerApplications as initialApplications } from '@/data/workers';
 import { ProfessionType, WorkerApplication } from '@/types/worker';
 import { jobs } from '@/data/jobs';
@@ -170,7 +172,7 @@ export default function ApplicationsPage() {
     );
 
     // 自動メッセージ送信の通知（実際のメッセージ機能は別途実装）
-    alert('マッチングが成立しました。自動メッセージを送信しました。');
+    toast.success('マッチングが成立しました。自動メッセージを送信しました。');
 
     // ワーカー管理ページに遷移
     router.push('/admin/workers');
@@ -436,8 +438,14 @@ export default function ApplicationsPage() {
         </div>
 
         {jobStats.length === 0 && (
-          <div className="text-center py-12 text-gray-500">
-            応募のある求人がありません
+          <div className="p-4">
+            <EmptyState
+              icon={Users}
+              title="現在の応募者は0名です"
+              description="求人を公開して、応募者を待ちましょう"
+              actionLabel="求人管理へ"
+              actionLink="/admin/jobs"
+            />
           </div>
         )}
       </div>
@@ -799,10 +807,16 @@ export default function ApplicationsPage() {
       </div>
 
       {filteredApplications.length === 0 && (
-        <div className="text-center py-12 text-gray-500">
-          {professionFilters.length > 0 || showFavoriteOnly || showBlockedOnly || showClippedOnly
-            ? '該当するワーカーが見つかりませんでした'
-            : `応募ワーカーがいません`}
+        <div className="p-4">
+          <EmptyState
+            icon={Users}
+            title={professionFilters.length > 0 || showFavoriteOnly || showBlockedOnly || showClippedOnly
+              ? '該当するワーカーが見つかりませんでした'
+              : '応募ワーカーがいません'}
+            description={professionFilters.length > 0 || showFavoriteOnly || showBlockedOnly || showClippedOnly
+              ? 'フィルター条件を変更してお試しください'
+              : 'この求人への応募を待っています'}
+          />
         </div>
       )}
     </div>
