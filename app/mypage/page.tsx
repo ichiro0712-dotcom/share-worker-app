@@ -10,8 +10,11 @@ import {
   FileText,
   LogOut,
   Star,
+  MessageSquare,
+  VolumeX,
 } from 'lucide-react';
 import { BottomNav } from '@/components/layout/BottomNav';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface MenuItem {
   icon: React.ReactNode;
@@ -23,20 +26,20 @@ interface MenuItem {
 
 export default function MyPage() {
   const router = useRouter();
+  const { user: authUser, isAuthenticated, logout } = useAuth();
 
-  // Phase 1: 認証は未実装のため、ハードコードされたユーザー情報を使用
+  // 認証ユーザー情報を使用（未ログイン時はデフォルト値）
   const user = {
-    name: 'テストユーザー',
-    email: 'test@example.com',
-    age: '34歳',
-    gender: '男性',
-    occupation: '介護福祉士',
+    name: authUser?.name || 'ゲストユーザー',
+    email: authUser?.email || '',
+    profileImage: authUser?.image || null,
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     if (confirm('ログアウトしますか？')) {
-      // Phase 1: 実際のログアウト処理は未実装
+      await logout();
       router.push('/');
+      router.refresh();
     }
   };
 
@@ -45,6 +48,11 @@ export default function MyPage() {
       icon: <Calendar className="w-5 h-5" />,
       label: '応募履歴',
       href: '/mypage/applications',
+    },
+    {
+      icon: <MessageSquare className="w-5 h-5" />,
+      label: 'レビュー',
+      href: '/mypage/reviews',
     },
     {
       icon: <Heart className="w-5 h-5" />,
@@ -70,6 +78,11 @@ export default function MyPage() {
       icon: <FileText className="w-5 h-5" />,
       label: '利用規約・プライバシーポリシー',
       href: '/terms',
+    },
+    {
+      icon: <VolumeX className="w-5 h-5" />,
+      label: 'ミュート施設',
+      href: '/mypage/muted-facilities',
     },
   ];
 
@@ -106,24 +119,22 @@ export default function MyPage() {
         >
           {/* プロフィール画像 */}
           <div className="relative w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
-            <UserIcon className="w-8 h-8 text-gray-400" />
+            {user.profileImage ? (
+              <img src={user.profileImage} alt="Profile" className="w-full h-full object-cover" />
+            ) : (
+              <UserIcon className="w-8 h-8 text-gray-400" />
+            )}
           </div>
 
           {/* ユーザー情報 */}
           <div className="flex-1 min-w-0">
             <h2 className="font-bold text-lg mb-1">{user.name}</h2>
             <p className="text-sm text-gray-600 truncate">{user.email}</p>
-            <div className="flex gap-2 mt-2 flex-wrap">
-              <span className="text-xs bg-primary-light text-primary px-2 py-1 rounded">
-                {user.age}
-              </span>
-              <span className="text-xs bg-primary-light text-primary px-2 py-1 rounded">
-                {user.gender}
-              </span>
-              <span className="text-xs bg-primary-light text-primary px-2 py-1 rounded">
-                {user.occupation}
-              </span>
-            </div>
+            {!isAuthenticated && (
+              <p className="text-xs text-orange-600 mt-2">
+                ログインするとプロフィールを編集できます
+              </p>
+            )}
           </div>
 
           {/* 編集ボタン */}

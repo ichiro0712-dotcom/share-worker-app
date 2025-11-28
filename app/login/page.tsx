@@ -4,15 +4,19 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Mail, Lock, Eye, EyeOff, User } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import toast from 'react-hot-toast';
 
 export default function WorkerLogin() {
   const router = useRouter();
+  const { login, isLoading: authLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -21,17 +25,28 @@ export default function WorkerLogin() {
       return;
     }
 
-    // TODO: 実際の認証処理
-    // ダミーログイン処理
-    console.log('Login attempt:', { email, password });
+    setIsSubmitting(true);
 
-    // 仮でログイン成功としてワーカーTOPへ遷移
-    router.push('/job-list');
+    try {
+      const result = await login(email, password);
+
+      if (result.success) {
+        toast.success('ログインしました');
+        router.push('/');
+        router.refresh();
+      } else {
+        setError(result.error || 'ログインに失敗しました');
+      }
+    } catch (err) {
+      setError('ログイン中にエラーが発生しました');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleTestLogin = (testEmail: string) => {
+  const handleTestLogin = (testEmail: string, testPassword: string) => {
     setEmail(testEmail);
-    setPassword('worker123');
+    setPassword(testPassword);
   };
 
   return (
@@ -114,9 +129,10 @@ export default function WorkerLogin() {
             {/* ログインボタン */}
             <button
               type="submit"
-              className="w-full py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary-dark transition-colors"
+              disabled={isSubmitting || authLoading}
+              className="w-full py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              ログイン
+              {isSubmitting ? 'ログイン中...' : 'ログイン'}
             </button>
           </form>
 
@@ -141,25 +157,25 @@ export default function WorkerLogin() {
           </h3>
           <div className="space-y-2">
             <button
-              onClick={() => handleTestLogin('yamada.taro@example.com')}
+              onClick={() => handleTestLogin('test1@example.com', 'password123')}
               className="w-full text-left px-3 py-2 bg-white border border-green-300 rounded text-sm hover:bg-green-50 transition-colors"
             >
-              <div className="font-medium">山田 太郎</div>
-              <div className="text-xs text-gray-600">yamada.taro@example.com</div>
+              <div className="font-medium">田中 花子</div>
+              <div className="text-xs text-gray-600">test1@example.com</div>
             </button>
             <button
-              onClick={() => handleTestLogin('suzuki.hanako@example.com')}
+              onClick={() => handleTestLogin('test2@example.com', 'password123')}
               className="w-full text-left px-3 py-2 bg-white border border-green-300 rounded text-sm hover:bg-green-50 transition-colors"
             >
-              <div className="font-medium">鈴木 花子</div>
-              <div className="text-xs text-gray-600">suzuki.hanako@example.com</div>
+              <div className="font-medium">佐藤 太郎</div>
+              <div className="text-xs text-gray-600">test2@example.com</div>
             </button>
             <button
-              onClick={() => handleTestLogin('tanaka.jiro@example.com')}
+              onClick={() => handleTestLogin('test3@example.com', 'password123')}
               className="w-full text-left px-3 py-2 bg-white border border-green-300 rounded text-sm hover:bg-green-50 transition-colors"
             >
-              <div className="font-medium">田中 次郎</div>
-              <div className="text-xs text-gray-600">tanaka.jiro@example.com</div>
+              <div className="font-medium">鈴木 一郎</div>
+              <div className="text-xs text-gray-600">test3@example.com</div>
             </button>
           </div>
           <p className="text-xs text-green-700 mt-3">
@@ -169,7 +185,7 @@ export default function WorkerLogin() {
 
         {/* TOPに戻るリンク */}
         <div className="mt-4 text-center">
-          <Link href="/job-list" className="text-sm text-gray-600 hover:underline">
+          <Link href="/" className="text-sm text-gray-600 hover:underline">
             TOPに戻る
           </Link>
         </div>

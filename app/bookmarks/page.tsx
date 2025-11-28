@@ -4,6 +4,9 @@ import { BottomNav } from '@/components/layout/BottomNav';
 import { BookmarkListClient } from '@/components/bookmark/BookmarkListClient';
 import { getBookmarkedJobs } from '@/src/lib/actions';
 
+// 動的レンダリングを強制（セッションを使用するため）
+export const dynamic = 'force-dynamic';
+
 export default async function BookmarksPage() {
   const bookmarks = await getBookmarkedJobs('WATCH_LATER');
 

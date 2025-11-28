@@ -1,8 +1,35 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronLeft, Star, MapPin, Phone, Mail, User } from 'lucide-react';
-import { workers, workHistories, workerEvaluations } from '@/data/workers';
+import { ChevronLeft, Star, Phone, Mail, Briefcase } from 'lucide-react';
+import { getWorkerDetail } from '@/src/lib/actions';
+import { useAuth } from '@/contexts/AuthContext';
+
+interface WorkerDetailData {
+  id: number;
+  name: string;
+  email: string;
+  phone: string | null;
+  profileImage: string | null;
+  qualifications: string[];
+  totalWorkDays: number;
+  averageRating: number;
+  reviewCount: number;
+  workHistory: {
+    id: number;
+    jobTitle: string;
+    workDate: string;
+    status: string;
+  }[];
+  evaluations: {
+    id: number;
+    jobTitle: string;
+    jobDate: string;
+    rating: number;
+    comment: string | null;
+  }[];
+}
 
 export default function WorkerDetailPage({
   params,
@@ -10,10 +37,41 @@ export default function WorkerDetailPage({
   params: { id: string };
 }) {
   const router = useRouter();
+  const { admin, isAdmin } = useAuth();
   const workerId = parseInt(params.id);
-  const worker = workers.find((w) => w.id === workerId);
-  const histories = workHistories.filter((h) => h.workerId === workerId);
-  const evaluations = workerEvaluations.filter((e) => e.workerId === workerId);
+  const [worker, setWorker] = useState<WorkerDetailData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!isAdmin || !admin) {
+      router.push('/admin/login');
+      return;
+    }
+
+    const loadWorker = async () => {
+      setLoading(true);
+      try {
+        const data = await getWorkerDetail(workerId, admin.facilityId);
+        setWorker(data);
+      } catch (error) {
+        console.error('Failed to load worker:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadWorker();
+  }, [workerId, admin, isAdmin, router]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-500">読み込み中...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!worker) {
     return (
@@ -50,9 +108,9 @@ export default function WorkerDetailPage({
             {/* 顔写真 */}
             <div className="flex-shrink-0">
               <div className="w-24 h-24 rounded-full bg-gray-200 overflow-hidden">
-                {worker.photoUrl ? (
+                {worker.profileImage ? (
                   <img
-                    src={worker.photoUrl}
+                    src={worker.profileImage}
                     alt={worker.name}
                     className="w-full h-full object-cover"
                   />
@@ -71,17 +129,11 @@ export default function WorkerDetailPage({
                 <div className="flex items-center gap-1">
                   <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
                   <span className="text-lg font-bold">
-                    {worker.overallRating.toFixed(1)}
+                    {worker.averageRating.toFixed(1)}
                   </span>
                 </div>
                 <span className="text-sm text-gray-500">
-                  ({worker.totalReviews}件の評価)
-                </span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <MapPin className="w-4 h-4" />
-                <span>
-                  {worker.prefecture} {worker.city}
+                  ({worker.reviewCount}件の評価)
                 </span>
               </div>
             </div>
@@ -89,319 +141,125 @@ export default function WorkerDetailPage({
 
           {/* 詳細情報 */}
           <div className="space-y-3 pt-3 border-t border-gray-200">
-            <div className="flex gap-2 text-sm">
-              <User className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
-              <div>
-                <span className="text-gray-500">年齢: </span>
-                <span>{worker.age}歳</span>
-                <span className="ml-3 text-gray-500">性別: </span>
-                <span>{worker.gender}</span>
+            {worker.phone && (
+              <div className="flex gap-2 text-sm">
+                <Phone className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
+                <span>{worker.phone}</span>
               </div>
-            </div>
-            <div className="flex gap-2 text-sm">
-              <Phone className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
-              <span>{worker.phone}</span>
-            </div>
+            )}
             <div className="flex gap-2 text-sm">
               <Mail className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
               <span>{worker.email}</span>
-            </div>
-            <div className="text-sm">
-              <span className="text-gray-500">住所: </span>
-              <span>
-                {worker.prefecture} {worker.city} {worker.address}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* 総合評価詳細 */}
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <h3 className="font-bold mb-3">評価詳細</h3>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">技術力</span>
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1">
-                  <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                  <span className="font-medium">
-                    {worker.ratingBreakdown.skill.toFixed(1)}
-                  </span>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">態度</span>
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1">
-                  <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                  <span className="font-medium">
-                    {worker.ratingBreakdown.attitude.toFixed(1)}
-                  </span>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">時間厳守</span>
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1">
-                  <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                  <span className="font-medium">
-                    {worker.ratingBreakdown.punctuality.toFixed(1)}
-                  </span>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">コミュニケーション</span>
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1">
-                  <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                  <span className="font-medium">
-                    {worker.ratingBreakdown.communication.toFixed(1)}
-                  </span>
-                </div>
-              </div>
             </div>
           </div>
         </div>
 
         {/* 勤務実績サマリー */}
         <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <h3 className="font-bold mb-3">勤務実績</h3>
+          <h3 className="font-bold mb-3">勤務実績（当施設）</h3>
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-gray-50 rounded-lg p-3">
-              <div className="text-sm text-gray-600 mb-1">総勤務日数</div>
+              <div className="text-sm text-gray-600 mb-1">勤務回数</div>
               <div className="text-2xl font-bold text-primary">
                 {worker.totalWorkDays}
-                <span className="text-sm text-gray-600 ml-1">日</span>
+                <span className="text-sm text-gray-600 ml-1">回</span>
               </div>
             </div>
             <div className="bg-gray-50 rounded-lg p-3">
               <div className="text-sm text-gray-600 mb-1">評価件数</div>
               <div className="text-2xl font-bold text-primary">
-                {worker.totalReviews}
+                {worker.reviewCount}
                 <span className="text-sm text-gray-600 ml-1">件</span>
               </div>
             </div>
-            <div className="bg-gray-50 rounded-lg p-3">
-              <div className="text-sm text-gray-600 mb-1">キャンセル率</div>
-              <div className="text-2xl font-bold text-orange-500">
-                {worker.cancelRate}
-                <span className="text-sm text-gray-600 ml-1">%</span>
-              </div>
-            </div>
-            <div className="bg-gray-50 rounded-lg p-3">
-              <div className="text-sm text-gray-600 mb-1">直前キャンセル率</div>
-              <div className="text-2xl font-bold text-red-500">
-                {worker.lastMinuteCancelRate}
-                <span className="text-sm text-gray-600 ml-1">%</span>
-              </div>
-            </div>
           </div>
         </div>
 
-        {/* 資格・経験 */}
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <h3 className="font-bold mb-3">資格・経験</h3>
-          <div className="space-y-3">
-            <div>
-              <div className="text-sm text-gray-600 mb-1">保有資格</div>
-              <div className="flex flex-wrap gap-2">
-                {worker.qualifications.map((qual, index) => (
-                  <span
-                    key={index}
-                    className="px-3 py-1 bg-primary-light text-primary text-sm rounded-full"
-                  >
-                    {qual}
-                  </span>
-                ))}
-              </div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-600 mb-1">介護経験</div>
-              <div className="text-sm font-medium">{worker.careExperience}</div>
-            </div>
-            {worker.nursingExperience && (
-              <div>
-                <div className="text-sm text-gray-600 mb-1">看護経験</div>
-                <div className="text-sm font-medium">
-                  {worker.nursingExperience}
-                </div>
-              </div>
-            )}
-            {worker.specialSkills.length > 0 && (
-              <div>
-                <div className="text-sm text-gray-600 mb-1">特別スキル</div>
-                <div className="flex flex-wrap gap-2">
-                  {worker.specialSkills.map((skill, index) => (
-                    <span
-                      key={index}
-                      className="px-3 py-1 bg-blue-50 text-blue-700 text-sm rounded-full"
-                    >
-                      {skill}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* 希望条件 */}
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <h3 className="font-bold mb-3">希望条件</h3>
-          <div className="space-y-3">
-            <div>
-              <div className="text-sm text-gray-600 mb-1">希望サービス種別</div>
-              <div className="flex flex-wrap gap-2">
-                {worker.preferredServiceTypes.map((type, index) => (
-                  <span
-                    key={index}
-                    className="px-2 py-1 bg-gray-100 text-gray-700 text-sm rounded"
-                  >
-                    {type}
-                  </span>
-                ))}
-              </div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-600 mb-1">希望勤務時間</div>
-              <div className="flex flex-wrap gap-2">
-                {worker.preferredWorkTimes.map((time, index) => (
-                  <span
-                    key={index}
-                    className="px-2 py-1 bg-gray-100 text-gray-700 text-sm rounded"
-                  >
-                    {time}
-                  </span>
-                ))}
-              </div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-600 mb-1">移動手段</div>
-              <div className="flex flex-wrap gap-2">
-                {worker.transportation.map((trans, index) => (
-                  <span
-                    key={index}
-                    className="px-2 py-1 bg-gray-100 text-gray-700 text-sm rounded"
-                  >
-                    {trans}
-                  </span>
-                ))}
-              </div>
+        {/* 資格 */}
+        {worker.qualifications.length > 0 && (
+          <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <h3 className="font-bold mb-3">保有資格</h3>
+            <div className="flex flex-wrap gap-2">
+              {worker.qualifications.map((qual, index) => (
+                <span
+                  key={index}
+                  className="px-3 py-1 bg-primary-light text-primary text-sm rounded-full"
+                >
+                  {qual}
+                </span>
+              ))}
             </div>
           </div>
-        </div>
+        )}
 
-        {/* 緊急連絡先 */}
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <h3 className="font-bold mb-3">緊急連絡先</h3>
-          <div className="space-y-2 text-sm">
-            <div>
-              <span className="text-gray-600">氏名: </span>
-              <span className="font-medium">{worker.emergencyContact.name}</span>
-            </div>
-            <div>
-              <span className="text-gray-600">続柄: </span>
-              <span className="font-medium">
-                {worker.emergencyContact.relationship}
-              </span>
-            </div>
-            <div>
-              <span className="text-gray-600">電話番号: </span>
-              <span className="font-medium">{worker.emergencyContact.phone}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* 職務履歴サマリー */}
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <h3 className="font-bold mb-3">職務履歴サマリー</h3>
-          <div className="space-y-3">
-            {histories.map((history) => (
-              <div
-                key={history.id}
-                className="pb-3 border-b border-gray-200 last:border-0 last:pb-0"
-              >
-                <div className="flex items-start justify-between mb-2">
-                  <div className="font-medium">{history.facilityName}</div>
-                  <div className="flex items-center gap-1">
-                    <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                    <span className="font-medium">
-                      {history.averageRating.toFixed(1)}
+        {/* 勤務履歴 */}
+        {worker.workHistory.length > 0 && (
+          <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <h3 className="font-bold mb-3">勤務履歴（当施設）</h3>
+            <div className="space-y-3">
+              {worker.workHistory.slice(0, 10).map((history) => (
+                <div
+                  key={history.id}
+                  className="pb-3 border-b border-gray-200 last:border-0 last:pb-0"
+                >
+                  <div className="flex items-start justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                      <Briefcase className="w-4 h-4 text-gray-500" />
+                      <span className="font-medium text-sm">{history.jobTitle}</span>
+                    </div>
+                    <span className={`text-xs px-2 py-0.5 rounded ${
+                      history.status === 'COMPLETED_RATED'
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-gray-100 text-gray-700'
+                    }`}>
+                      {history.status === 'COMPLETED_RATED' ? '評価済' : '完了'}
                     </span>
                   </div>
+                  <div className="text-sm text-gray-500 ml-6">
+                    {history.workDate}
+                  </div>
                 </div>
-                <div className="flex gap-4 text-sm text-gray-600">
-                  <div>勤務回数: {history.workCount}回</div>
-                  <div>最終勤務日: {history.lastWorkDate}</div>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* 最近の評価 */}
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <h3 className="font-bold mb-3">最近の評価</h3>
-          <div className="space-y-4">
-            {evaluations.slice(0, 5).map((evaluation) => (
-              <div
-                key={evaluation.id}
-                className="pb-4 border-b border-gray-200 last:border-0 last:pb-0"
-              >
-                <div className="flex items-start justify-between mb-2">
-                  <div>
-                    <div className="font-medium text-sm">
-                      {evaluation.facilityName}
+        {worker.evaluations.length > 0 && (
+          <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <h3 className="font-bold mb-3">評価履歴（当施設）</h3>
+            <div className="space-y-4">
+              {worker.evaluations.slice(0, 5).map((evaluation) => (
+                <div
+                  key={evaluation.id}
+                  className="pb-4 border-b border-gray-200 last:border-0 last:pb-0"
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <div className="font-medium text-sm">
+                        {evaluation.jobTitle}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {evaluation.jobDate}
+                      </div>
                     </div>
-                    <div className="text-xs text-gray-500">
-                      {evaluation.jobDate}
+                    <div className="flex items-center gap-1">
+                      <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                      <span className="font-medium">
+                        {evaluation.rating.toFixed(1)}
+                      </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                    <span className="font-medium">
-                      {(
-                        (evaluation.skill +
-                          evaluation.attitude +
-                          evaluation.punctuality +
-                          evaluation.communication) /
-                        4
-                      ).toFixed(1)}
-                    </span>
-                  </div>
+                  {evaluation.comment && (
+                    <div className="text-sm text-gray-700 bg-gray-50 p-2 rounded">
+                      {evaluation.comment}
+                    </div>
+                  )}
                 </div>
-                <div className="grid grid-cols-2 gap-2 text-xs mb-2">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">技術力</span>
-                    <span className="font-medium">{evaluation.skill}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">態度</span>
-                    <span className="font-medium">{evaluation.attitude}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">時間厳守</span>
-                    <span className="font-medium">{evaluation.punctuality}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">コミュニケーション</span>
-                    <span className="font-medium">
-                      {evaluation.communication}
-                    </span>
-                  </div>
-                </div>
-                {evaluation.comment && (
-                  <div className="text-sm text-gray-700 bg-gray-50 p-2 rounded">
-                    {evaluation.comment}
-                  </div>
-                )}
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

@@ -1,6 +1,9 @@
 import { getJobs } from '@/src/lib/actions';
 import { JobListClient } from '@/components/job/JobListClient';
 
+// キャッシュを無効化して常に最新のデータを取得
+export const dynamic = 'force-dynamic';
+
 interface PageProps {
   searchParams: Promise<{
     query?: string;
@@ -68,7 +71,15 @@ export default async function JobListPage({ searchParams }: PageProps) {
       status: job.status.toLowerCase() as 'published' | 'draft' | 'stopped' | 'working' | 'completed' | 'cancelled',
       facilityId: job.facility_id,
       title: job.title,
-      workDate: job.work_date.split('T')[0],
+      workDate: job.work_date ? job.work_date.split('T')[0] : '',
+      // 全ての勤務日情報を含める
+      workDates: job.workDates?.map((wd: any) => ({
+        id: wd.id,
+        workDate: wd.work_date ? wd.work_date.split('T')[0] : '',
+        deadline: wd.deadline,
+        appliedCount: wd.applied_count,
+        recruitmentCount: wd.recruitment_count,
+      })) || [],
       startTime: job.start_time,
       endTime: job.end_time,
       breakTime: job.break_time,

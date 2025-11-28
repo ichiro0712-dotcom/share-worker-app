@@ -5,6 +5,9 @@ import { Badge } from '@/components/ui/badge';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { EmptyState } from '@/components/ui/EmptyState';
 
+// 動的レンダリングを強制（セッションを使用するため）
+export const dynamic = 'force-dynamic';
+
 // ステータスの日本語表示
 const statusLabels: Record<string, string> = {
   APPLIED: '応募中',

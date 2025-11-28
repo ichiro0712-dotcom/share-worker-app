@@ -3,23 +3,71 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { jobTemplates } from '@/data/jobTemplates';
-import { facilities } from '@/data/facilities';
+import { getAdminJobTemplates } from '@/src/lib/actions';
 import { Plus, Edit, Trash2, Copy } from 'lucide-react';
 import toast from 'react-hot-toast';
+
+interface TemplateData {
+  id: number;
+  name: string;
+  title: string;
+  startTime: string;
+  endTime: string;
+  breakTime: number;
+  hourlyWage: number;
+  transportationFee: number;
+  recruitmentCount: number;
+  qualifications: string[];
+  description: string | null;
+  skills: string[];
+  dresscode: string[];
+  belongings: string[];
+  tags: string[];
+  images: string[];
+  notes: string | null;
+}
 
 export default function TemplatesPage() {
   const router = useRouter();
   const { admin, isAdmin } = useAuth();
+  const [templates, setTemplates] = useState<TemplateData[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (!isAdmin || !admin) {
       router.push('/admin/login');
+      return;
     }
+
+    // テンプレートを取得
+    const fetchTemplates = async () => {
+      if (admin.facilityId) {
+        try {
+          const data = await getAdminJobTemplates(admin.facilityId);
+          setTemplates(data);
+        } catch (error) {
+          console.error('Failed to fetch templates:', error);
+          toast.error('テンプレートの取得に失敗しました');
+        } finally {
+          setIsLoading(false);
+        }
+      } else {
+        setIsLoading(false);
+      }
+    };
+    fetchTemplates();
   }, [isAdmin, admin, router]);
 
   if (!isAdmin || !admin) {
     return null;
+  }
+
+  if (isLoading) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-gray-500">読み込み中...</div>
+      </div>
+    );
   }
 
   return (
@@ -30,7 +78,7 @@ export default function TemplatesPage() {
             <div>
               <h1 className="text-xl font-bold text-gray-900">テンプレート管理</h1>
               <p className="text-xs text-gray-500 mt-1">
-                {jobTemplates.length}件のテンプレート
+                {templates.length}件のテンプレート
               </p>
             </div>
             <button
@@ -46,12 +94,12 @@ export default function TemplatesPage() {
         {/* テンプレートリスト */}
         <div className="flex-1 overflow-y-auto p-6">
           <div className="grid grid-cols-1 gap-4 max-w-6xl mx-auto">
-            {jobTemplates.length === 0 ? (
+            {templates.length === 0 ? (
               <div className="bg-white rounded border border-gray-200 p-8 text-center">
                 <p className="text-sm text-gray-500">テンプレートが見つかりませんでした</p>
               </div>
             ) : (
-              jobTemplates.map((template) => {
+              templates.map((template) => {
                 return (
                   <div
                     key={template.id}

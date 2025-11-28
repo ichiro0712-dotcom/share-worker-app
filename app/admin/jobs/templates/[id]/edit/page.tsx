@@ -3,11 +3,10 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { facilities } from '@/data/facilities';
-import { jobTemplates } from '@/data/jobTemplates';
 import { Upload, X } from 'lucide-react';
 import { calculateDailyWage } from '@/utils/salary';
 import toast from 'react-hot-toast';
+import { getFacilityById, getJobTemplate, updateJobTemplate } from '@/src/lib/actions';
 import {
   JOB_TYPES,
   WORK_CONTENT_OPTIONS,
@@ -26,16 +25,19 @@ export default function EditTemplatePage() {
   const params = useParams();
   const { admin, isAdmin } = useAuth();
   const templateId = Number(params.id);
+  const [facilityName, setFacilityName] = useState<string>('');
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   // フォームデータ
   const [formData, setFormData] = useState({
     // 基本
     name: '',
     title: '',
-    facilityId: null as number | null,
     jobType: '通常業務',
     recruitmentCount: 1,
     images: [] as File[],
+    existingImages: [] as string[], // 既存のTOP画像URL
 
     // 勤務時間
     startTime: '',
@@ -60,12 +62,14 @@ export default function EditTemplatePage() {
     skills: [] as string[],
     dresscode: [] as string[],
     dresscodeImages: [] as File[],
+    existingDresscodeImages: [] as string[], // 既存の服装サンプル画像URL
     belongings: [] as string[],
 
     // その他
     icons: [] as string[],
     notes: '',
     attachments: [] as File[],
+    existingAttachments: [] as string[], // 既存の添付ファイルURL
     dismissalReasons: `当社では、以下に該当する場合、やむを得ず契約解除となる可能性がございます。
 
 【即時契約解除となる事由】
@@ -90,39 +94,62 @@ export default function EditTemplatePage() {
       return;
     }
 
-    // テンプレートデータを読み込み
-    const template = jobTemplates.find(t => t.id === templateId);
-    if (template) {
-      setFormData({
-        ...formData,
-        name: template.name,
-        title: template.title,
-        facilityId: template.facilityId || null,
-        jobType: template.jobType || '通常業務',
-        recruitmentCount: template.recruitmentCount,
-        startTime: template.startTime,
-        endTime: template.endTime,
-        breakTime: template.breakTime,
-        recruitmentStartDay: template.recruitmentStartDay || 0,
-        recruitmentStartTime: template.recruitmentStartTime || '',
-        recruitmentEndDay: template.recruitmentEndDay || 0,
-        recruitmentEndTime: template.recruitmentEndTime || '05:00',
-        hourlyWage: template.hourlyWage,
-        transportationFee: template.transportationFee,
-        workContent: template.workContent || [],
-        genderRequirement: template.genderRequirement || '',
-        jobDescription: template.description,
-        qualifications: template.qualifications,
-        skills: template.skills || [],
-        dresscode: template.dresscode || [],
-        belongings: template.belongings || [],
-        icons: template.icons || [],
-        notes: template.notes || '',
-      });
-    } else {
-      toast.error('テンプレートが見つかりません');
-      router.push('/admin/jobs/templates');
-    }
+    // テンプレートデータと施設名を読み込み
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        // 施設名を取得
+        if (admin.facilityId) {
+          const facility = await getFacilityById(admin.facilityId);
+          if (facility) {
+            setFacilityName(facility.facility_name);
+          }
+        }
+
+        // テンプレートを取得（facilityIdで権限チェック）
+        const template = await getJobTemplate(templateId, admin.facilityId);
+        if (template) {
+          setFormData((prev) => ({
+            ...prev,
+            name: template.name,
+            title: template.title,
+            jobType: template.jobType || '通常業務',
+            recruitmentCount: template.recruitmentCount,
+            startTime: template.startTime,
+            endTime: template.endTime,
+            breakTime: template.breakTime,
+            recruitmentStartDay: 0,
+            recruitmentStartTime: '',
+            recruitmentEndDay: 0,
+            recruitmentEndTime: '05:00',
+            hourlyWage: template.hourlyWage,
+            transportationFee: template.transportationFee,
+            workContent: template.workContent || [],
+            genderRequirement: '',
+            jobDescription: template.description,
+            qualifications: template.qualifications || [],
+            skills: template.skills || [],
+            dresscode: template.dresscode || [],
+            belongings: template.belongings || [],
+            icons: template.icons || [],
+            notes: template.notes || '',
+            existingImages: template.images || [],
+            existingDresscodeImages: template.dresscodeImages || [],
+            existingAttachments: template.attachments || [],
+          }));
+        } else {
+          toast.error('テンプレートが見つかりません');
+          router.push('/admin/jobs/templates');
+        }
+      } catch (error) {
+        toast.error('データの読み込みに失敗しました');
+        router.push('/admin/jobs/templates');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
   }, [isAdmin, admin, router, templateId]);
 
   if (!isAdmin || !admin) {
@@ -169,7 +196,8 @@ export default function EditTemplatePage() {
 
   const handleDresscodeImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    if (formData.dresscodeImages.length + files.length <= 3) {
+    const totalDresscodeImages = formData.existingDresscodeImages.length + formData.dresscodeImages.length + files.length;
+    if (totalDresscodeImages <= 3) {
       handleInputChange('dresscodeImages', [...formData.dresscodeImages, ...files]);
     } else {
       toast.error('服装サンプル画像は最大3枚までアップロードできます');
@@ -180,15 +208,20 @@ export default function EditTemplatePage() {
     handleInputChange('dresscodeImages', formData.dresscodeImages.filter((_, i) => i !== index));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    // 二重実行防止
+    if (saving) {
+      return;
+    }
+
     // バリデーション
-    if (!formData.name || !formData.title || !formData.facilityId) {
+    if (!formData.name || !formData.title) {
       toast.error('基本情報の必須項目を入力してください');
       return;
     }
 
-    if (formData.images.length === 0) {
-      toast.error('TOP画像を登録してください（最大3枚）');
+    if (!admin?.facilityId) {
+      toast.error('施設情報が取得できません');
       return;
     }
 
@@ -197,32 +230,8 @@ export default function EditTemplatePage() {
       return;
     }
 
-    if (!formData.recruitmentStartTime || !formData.recruitmentEndTime) {
-      toast.error('募集開始・終了時間を入力してください');
-      return;
-    }
-
     if (formData.hourlyWage <= 0) {
       toast.error('時給を入力してください');
-      return;
-    }
-
-    if (formData.workContent.length === 0) {
-      toast.error('仕事内容を選択してください');
-      return;
-    }
-
-    // 男女問わず以外が選択されている場合、性別指定が必須
-    const hasGenderSpecificWork = formData.workContent.some(
-      item => item !== '対話・見守り' && item !== '移動介助' && item !== '排泄介助'
-    );
-    if (hasGenderSpecificWork && !formData.genderRequirement) {
-      toast.error('性別指定を選択してください');
-      return;
-    }
-
-    if (!formData.jobDescription) {
-      toast.error('仕事内容の詳細を入力してください');
       return;
     }
 
@@ -236,10 +245,115 @@ export default function EditTemplatePage() {
       return;
     }
 
-    // 保存処理（ダミー）
-    console.log('テンプレート更新:', { id: templateId, ...formData });
-    toast.success('テンプレートを更新しました');
-    router.push('/admin/jobs/templates');
+    setSaving(true);
+    try {
+      // TOP画像をアップロードしてURLを取得
+      let newImageUrls: string[] = [];
+      if (formData.images.length > 0) {
+        const uploadFormData = new FormData();
+        formData.images.forEach((file) => {
+          uploadFormData.append('files', file);
+        });
+
+        const uploadResponse = await fetch('/api/upload', {
+          method: 'POST',
+          body: uploadFormData,
+        });
+
+        if (uploadResponse.ok) {
+          const uploadResult = await uploadResponse.json();
+          newImageUrls = uploadResult.urls || [];
+        } else {
+          toast.error('TOP画像のアップロードに失敗しました');
+          setSaving(false);
+          return;
+        }
+      }
+
+      // 服装サンプル画像をアップロード
+      let newDresscodeImageUrls: string[] = [];
+      if (formData.dresscodeImages.length > 0) {
+        const uploadFormData = new FormData();
+        formData.dresscodeImages.forEach((file) => {
+          uploadFormData.append('files', file);
+        });
+
+        const uploadResponse = await fetch('/api/upload', {
+          method: 'POST',
+          body: uploadFormData,
+        });
+
+        if (uploadResponse.ok) {
+          const uploadResult = await uploadResponse.json();
+          newDresscodeImageUrls = uploadResult.urls || [];
+        } else {
+          toast.error('服装サンプル画像のアップロードに失敗しました');
+          setSaving(false);
+          return;
+        }
+      }
+
+      // 添付ファイルをアップロード
+      let newAttachmentUrls: string[] = [];
+      if (formData.attachments.length > 0) {
+        const uploadFormData = new FormData();
+        formData.attachments.forEach((file) => {
+          uploadFormData.append('files', file);
+        });
+
+        const uploadResponse = await fetch('/api/upload', {
+          method: 'POST',
+          body: uploadFormData,
+        });
+
+        if (uploadResponse.ok) {
+          const uploadResult = await uploadResponse.json();
+          newAttachmentUrls = uploadResult.urls || [];
+        } else {
+          toast.error('添付ファイルのアップロードに失敗しました');
+          setSaving(false);
+          return;
+        }
+      }
+
+      // 既存のURLと新規アップロードしたURLを結合
+      const finalImages = [...formData.existingImages, ...newImageUrls];
+      const finalDresscodeImages = [...formData.existingDresscodeImages, ...newDresscodeImageUrls];
+      const finalAttachments = [...formData.existingAttachments, ...newAttachmentUrls];
+
+      const result = await updateJobTemplate(templateId, admin.facilityId, {
+        name: formData.name,
+        title: formData.title,
+        startTime: formData.startTime,
+        endTime: formData.endTime,
+        breakTime: formData.breakTime,
+        hourlyWage: formData.hourlyWage,
+        transportationFee: formData.transportationFee,
+        recruitmentCount: formData.recruitmentCount,
+        qualifications: formData.qualifications,
+        workContent: formData.workContent,
+        description: formData.jobDescription,
+        skills: formData.skills,
+        dresscode: formData.dresscode,
+        belongings: formData.belongings,
+        icons: formData.icons,
+        notes: formData.notes,
+        images: finalImages,
+        dresscodeImages: finalDresscodeImages,
+        attachments: finalAttachments,
+      });
+
+      if (result.success) {
+        toast.success('テンプレートを更新しました');
+        router.push('/admin/jobs/templates');
+      } else {
+        toast.error(result.error || 'テンプレートの更新に失敗しました');
+      }
+    } catch (error) {
+      toast.error('テンプレートの更新に失敗しました');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const [skillInput, setSkillInput] = useState('');
@@ -261,9 +375,10 @@ export default function EditTemplatePage() {
               </button>
               <button
                 onClick={handleSave}
-                className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                disabled={saving || loading}
+                className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:bg-blue-400"
               >
-                保存
+                {saving ? '保存中...' : '保存'}
               </button>
             </div>
           </div>
@@ -307,20 +422,14 @@ export default function EditTemplatePage() {
                 <div className="grid grid-cols-12 gap-4">
                   <div className="col-span-6">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      施設 <span className="text-red-500">*</span>
+                      施設
                     </label>
-                    <select
-                      value={formData.facilityId || ''}
-                      onChange={(e) => handleInputChange('facilityId', Number(e.target.value) || null)}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                    >
-                      <option value="">施設を選択</option>
-                      {facilities.slice(0, 10).map((facility) => (
-                        <option key={facility.id} value={facility.id}>
-                          {facility.name}
-                        </option>
-                      ))}
-                    </select>
+                    <input
+                      type="text"
+                      value={facilityName || '読み込み中...'}
+                      readOnly
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-gray-100 cursor-not-allowed"
+                    />
                   </div>
 
                   <div className="col-span-4">
@@ -381,7 +490,8 @@ export default function EditTemplatePage() {
                         const files = Array.from(e.dataTransfer.files).filter((file) =>
                           file.type.startsWith('image/')
                         );
-                        if (formData.images.length + files.length <= 3) {
+                        const totalImages = formData.existingImages.length + formData.images.length + files.length;
+                        if (totalImages <= 3) {
                           handleInputChange('images', [...formData.images, ...files]);
                         } else {
                           toast.error('画像は最大3枚までアップロードできます');
@@ -398,7 +508,8 @@ export default function EditTemplatePage() {
                         className="hidden"
                         onChange={(e) => {
                           const files = Array.from(e.target.files || []);
-                          if (formData.images.length + files.length <= 3) {
+                          const totalImages = formData.existingImages.length + formData.images.length + files.length;
+                          if (totalImages <= 3) {
                             handleInputChange('images', [...formData.images, ...files]);
                           } else {
                             toast.error('画像は最大3枚までアップロードできます');
@@ -407,6 +518,33 @@ export default function EditTemplatePage() {
                       />
                     </label>
 
+                    {/* 既存画像の表示 */}
+                    {formData.existingImages.length > 0 && (
+                      <div className="mb-3">
+                        <p className="text-xs text-gray-500 mb-2">登録済み画像:</p>
+                        <div className="grid grid-cols-3 gap-3">
+                          {formData.existingImages.map((url, index) => (
+                            <div key={`existing-${index}`} className="relative">
+                              <img
+                                src={url}
+                                alt={`登録済み画像 ${index + 1}`}
+                                className="w-full h-24 object-cover rounded border border-gray-300"
+                              />
+                              <button
+                                onClick={() => {
+                                  handleInputChange('existingImages', formData.existingImages.filter((_, i) => i !== index));
+                                }}
+                                className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 新規アップロード画像の表示 */}
                     {formData.images.length > 0 && (
                       <div className="grid grid-cols-3 gap-3">
                         {formData.images.map((file, index) => (
@@ -824,7 +962,8 @@ export default function EditTemplatePage() {
                             toast.error('5MBを超えるファイルは登録できません');
                             return;
                           }
-                          if (formData.dresscodeImages.length + validFiles.length <= 3) {
+                          const totalDresscodeImages = formData.existingDresscodeImages.length + formData.dresscodeImages.length + validFiles.length;
+                          if (totalDresscodeImages <= 3) {
                             handleInputChange('dresscodeImages', [...formData.dresscodeImages, ...validFiles]);
                           } else {
                             toast.error('服装サンプル画像は最大3枚までアップロードできます');
@@ -844,6 +983,33 @@ export default function EditTemplatePage() {
                         />
                       </label>
                     )}
+                    {/* 既存服装サンプル画像の表示 */}
+                    {formData.existingDresscodeImages.length > 0 && (
+                      <div className="mb-3">
+                        <p className="text-xs text-gray-500 mb-2">登録済み服装サンプル:</p>
+                        <div className="grid grid-cols-3 gap-2">
+                          {formData.existingDresscodeImages.map((url, index) => (
+                            <div key={`existing-dresscode-${index}`} className="relative">
+                              <img
+                                src={url}
+                                alt={`登録済み服装サンプル ${index + 1}`}
+                                className="w-full h-24 object-cover rounded"
+                              />
+                              <button
+                                onClick={() => {
+                                  handleInputChange('existingDresscodeImages', formData.existingDresscodeImages.filter((_, i) => i !== index));
+                                }}
+                                className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 新規服装サンプル画像 */}
                     <div className="grid grid-cols-3 gap-2">
                       {formData.dresscodeImages.map((file, index) => (
                         <div key={index} className="relative">
@@ -951,6 +1117,28 @@ export default function EditTemplatePage() {
                     }}
                     className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
                   />
+                  {/* 既存の添付ファイル */}
+                  {formData.existingAttachments.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      <p className="text-xs text-gray-500 mb-1">登録済みファイル:</p>
+                      {formData.existingAttachments.map((url, index) => (
+                        <div key={`existing-attachment-${index}`} className="flex items-center justify-between text-sm text-gray-600 bg-gray-50 p-2 rounded">
+                          <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate max-w-xs">
+                            {url.split('/').pop()}
+                          </a>
+                          <button
+                            onClick={() => {
+                              handleInputChange('existingAttachments', formData.existingAttachments.filter((_, i) => i !== index));
+                            }}
+                            className="text-red-600 hover:text-red-800 ml-2"
+                          >
+                            削除
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* 新規添付ファイル */}
                   {formData.attachments.length > 0 && (
                     <div className="mt-2 space-y-1">
                       {formData.attachments.map((file, index) => (

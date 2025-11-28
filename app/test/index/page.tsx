@@ -471,7 +471,7 @@ export default function TestIndexPage() {
                                                   </Link>
 
                                                   {/* レベル4: サブページ */}
-                                                  {level3.children && (
+                                                  {'children' in level3 && level3.children && (
                                                     <div className="mt-1 space-y-1">
                                                       {level3.children.map((level4, idx4) => (
                                                         <div key={idx4} className="ml-4 border-l border-gray-100 pl-2">

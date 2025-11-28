@@ -24,10 +24,14 @@ export const DateSlider: React.FC<DateSliderProps> = ({
 
   return (
     <div className="relative flex gap-2">
-      {/* 今日ボタン（固定） */}
+      {/* 今日ボタン */}
       <button
         onClick={handleTodayClick}
-        className="flex-shrink-0 w-16 py-2 rounded-lg text-center bg-primary text-white"
+        className={`flex-shrink-0 w-14 py-2 rounded-lg text-center transition-colors ${
+          selectedDateIndex === 0
+            ? 'bg-primary text-white'
+            : 'bg-gray-100 text-gray-700'
+        }`}
       >
         <div className="text-sm">今日</div>
       </button>

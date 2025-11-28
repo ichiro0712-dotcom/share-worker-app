@@ -4,6 +4,9 @@ import { BottomNav } from '@/components/layout/BottomNav';
 import { FavoriteListClient } from '@/components/favorite/FavoriteListClient';
 import { getFavoriteFacilities } from '@/src/lib/actions';
 
+// 動的レンダリングを強制（セッションを使用するため）
+export const dynamic = 'force-dynamic';
+
 export default async function FavoritesPage() {
   const favorites = await getFavoriteFacilities();
 

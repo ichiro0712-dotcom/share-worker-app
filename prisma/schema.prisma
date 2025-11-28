@@ -1,6 +1,6 @@
 // Prisma Schema for S WORKS
 // シェアワーカーアプリ - 看護師・介護士向け求人マッチングサービス
-// 最終更新: 2025-11-24
+// 最終更新: 2025-11-27
 
 generator client {
   provider = "prisma-client-js"
@@ -34,6 +34,7 @@ model User {
   bookmarkedBy     Bookmark[]       @relation("BookmarkedUsers")
   sentMessages     Message[]        @relation("UserSentMessages")
   receivedMessages Message[]        @relation("UserReceivedMessages")
+  notifications    Notification[]
 
   @@map("users")
 }
@@ -112,11 +113,14 @@ model JobTemplate {
   transportation_fee Int      @map("transportation_fee")
   recruitment_count  Int      @map("recruitment_count") // 募集人数
   qualifications     String[] // 必要資格（配列）
-  description        String   @db.Text                  // 仕事内容
+  work_content       String[] @map("work_content")      // 仕事内容（チェックボックス選択）
+  description        String   @db.Text                  // 仕事内容（テキスト説明）
   skills             String[] // スキル・経験（5件まで）
   dresscode          String[] // 服装・身だしなみ（5件まで）
   belongings         String[] // 持ち物・その他（5件まで）
   images             String[] // デフォルト画像（求人作成時にコピーされる）
+  dresscode_images   String[] @map("dresscode_images")  // 服装サンプル画像
+  attachments        String[] // 添付ファイルURL
   notes              String?  @db.Text                  // 備考
   tags               String[]
   created_at         DateTime @default(now()) @map("created_at")
@@ -139,25 +143,25 @@ model Job {
   template_id             Int?      @map("template_id")       // 使用したテンプレートID（任意）
   status                  JobStatus @default(DRAFT)           // 求人ステータス
   title                   String
-  work_date               DateTime  @map("work_date")         // 勤務日（YYYY-MM-DD）
   start_time              String    @map("start_time")        // HH:MM
   end_time                String    @map("end_time")          // HH:MM
   break_time              String    @map("break_time")        // 例: "12:00-13:00"
   wage                    Int                                 // 日給
   hourly_wage             Int       @map("hourly_wage")       // 時給
   transportation_fee      Int       @map("transportation_fee")
-  deadline                DateTime                            // 応募締切（ISO 8601）
+  deadline_days_before    Int       @default(1) @map("deadline_days_before") // 締切日（勤務日の何日前）
   tags                    String[]
   address                 String
   access                  String                              // アクセス方法
-  recruitment_count       Int       @map("recruitment_count") // 募集人数
-  applied_count           Int       @default(0) @map("applied_count") // 応募済み人数
+  recruitment_count       Int       @map("recruitment_count") // 募集人数（デフォルト値）
   overview                String    @db.Text                  // 仕事概要
   work_content            String[]  @map("work_content")      // 仕事内容（配列）
   required_qualifications String[]  @map("required_qualifications") // 必要資格
   required_experience     String[]  @map("required_experience")     // 必要経験
   dresscode               String[]                            // 服装
+  dresscode_images        String[]  @map("dresscode_images")  // 服装サンプル画像
   belongings              String[]                            // 持ち物
+  attachments             String[]                            // 添付ファイルURL
   manager_name            String    @map("manager_name")      // 責任者名
   manager_message         String?   @db.Text @map("manager_message") // 責任者メッセージ
   manager_avatar          String?   @map("manager_avatar")    // 責任者アバター
@@ -197,18 +201,48 @@ model Job {
   /// 施設オープン5年以内
   facility_within_5years  Boolean   @default(false) @map("facility_within_5years")
 
+  // ========================================
+  // 募集条件
+  // ========================================
+  /// 週N回以上勤務（2, 3, 4など。nullの場合は条件なし）
+  weekly_frequency        Int?      @map("weekly_frequency")
+  /// 1ヶ月以上勤務できる人を募集
+  monthly_commitment      Boolean   @default(false) @map("monthly_commitment")
+
   created_at              DateTime  @default(now()) @map("created_at")
   updated_at              DateTime  @updatedAt @map("updated_at")
 
   // リレーション
-  facility     Facility      @relation(fields: [facility_id], references: [id], onDelete: Cascade)
-  template     JobTemplate?  @relation(fields: [template_id], references: [id], onDelete: SetNull)
-  applications Application[]
-  reviews      Review[]
+  facility     Facility       @relation(fields: [facility_id], references: [id], onDelete: Cascade)
+  template     JobTemplate?   @relation(fields: [template_id], references: [id], onDelete: SetNull)
+  workDates    JobWorkDate[]  // 複数の勤務日
   bookmarks    Bookmark[]
   messages     Message[]
 
   @@map("jobs")
+}
+
+// ========================================
+// 求人の勤務日（Job と 1:N の関係）
+// ========================================
+
+model JobWorkDate {
+  id                Int      @id @default(autoincrement())
+  job_id            Int      @map("job_id")
+  work_date         DateTime @map("work_date")         // 勤務日
+  deadline          DateTime                            // 応募締切
+  recruitment_count Int      @map("recruitment_count") // この日の募集人数
+  applied_count     Int      @default(0) @map("applied_count") // この日の応募済み人数
+  created_at        DateTime @default(now()) @map("created_at")
+  updated_at        DateTime @updatedAt @map("updated_at")
+
+  // リレーション
+  job          Job           @relation(fields: [job_id], references: [id], onDelete: Cascade)
+  applications Application[]
+  reviews      Review[]
+
+  @@unique([job_id, work_date])
+  @@map("job_work_dates")
 }
 
 // 求人ステータスのEnum
@@ -229,7 +263,7 @@ enum JobStatus {
 
 model Application {
   id                     Int          @id @default(autoincrement())
-  job_id                 Int          @map("job_id")
+  work_date_id           Int          @map("work_date_id")  // JobWorkDateへの参照
   user_id                Int          @map("user_id")
   status                 WorkerStatus @default(APPLIED)
   worker_review_status   ReviewStatus @default(PENDING) @map("worker_review_status")   // ワーカー→施設の評価状態
@@ -239,12 +273,12 @@ model Application {
   updated_at             DateTime     @updatedAt @map("updated_at")
 
   // リレーション
-  job      Job       @relation(fields: [job_id], references: [id], onDelete: Cascade)
-  user     User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  workDate JobWorkDate @relation(fields: [work_date_id], references: [id], onDelete: Cascade)
+  user     User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
   reviews  Review[]
   messages Message[]
 
-  @@unique([job_id, user_id]) // 同じ求人に同じユーザーは1回のみ応募可能
+  @@unique([work_date_id, user_id]) // 同じ勤務日に同じユーザーは1回のみ応募可能
   @@map("applications")
 }
 
@@ -276,7 +310,7 @@ model Review {
   id              Int          @id @default(autoincrement())
   facility_id     Int          @map("facility_id")
   user_id         Int          @map("user_id")
-  job_id          Int          @map("job_id")
+  work_date_id    Int          @map("work_date_id")  // JobWorkDateへの参照
   application_id  Int          @map("application_id")
   reviewer_type   ReviewerType @map("reviewer_type") // 誰が評価したか
   rating          Int                                // 1-5
@@ -288,7 +322,7 @@ model Review {
   // リレーション
   facility    Facility    @relation(fields: [facility_id], references: [id], onDelete: Cascade)
   user        User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  job         Job         @relation(fields: [job_id], references: [id], onDelete: Cascade)
+  workDate    JobWorkDate @relation(fields: [work_date_id], references: [id], onDelete: Cascade)
   application Application @relation(fields: [application_id], references: [id], onDelete: Cascade)
 
   @@map("reviews")
@@ -363,4 +397,35 @@ model Message {
   job          Job          @relation(fields: [job_id], references: [id], onDelete: Cascade)
 
   @@map("messages")
+}
+
+// ========================================
+// 通知
+// ========================================
+
+model Notification {
+  id         Int              @id @default(autoincrement())
+  user_id    Int              @map("user_id")
+  type       NotificationType
+  title      String
+  message    String           @db.Text
+  link       String?
+  read       Boolean          @default(false)
+  created_at DateTime         @default(now()) @map("created_at")
+
+  // リレーション
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+// 通知タイプのEnum
+enum NotificationType {
+  APPLICATION_APPROVED  // 応募が承認された
+  APPLICATION_REJECTED  // 応募が却下された
+  NEW_MESSAGE           // 新しいメッセージ
+  REVIEW_REQUEST        // レビュー依頼
+  SYSTEM                // システム通知
+
+  @@map("notification_type")
 }

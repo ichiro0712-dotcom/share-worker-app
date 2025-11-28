@@ -1,13 +1,15 @@
-import { getJobById, getJobs, hasUserAppliedForJob } from '@/src/lib/actions';
+import { getJobById, getJobs, hasUserAppliedForJob, getFacilityReviews } from '@/src/lib/actions';
 import { JobDetailClient } from '@/components/job/JobDetailClient';
 import { notFound } from 'next/navigation';
 
 interface PageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ date?: string }>;
 }
 
-export default async function JobDetail({ params }: PageProps) {
+export default async function JobDetail({ params, searchParams }: PageProps) {
   const { id } = await params;
+  const { date: selectedDate } = await searchParams;
   const jobData = await getJobById(id);
 
   if (!jobData) {
@@ -48,7 +50,15 @@ export default async function JobDetail({ params }: PageProps) {
     status: jobData.status.toLowerCase() as 'published' | 'draft' | 'stopped' | 'working' | 'completed' | 'cancelled',
     facilityId: jobData.facility_id,
     title: jobData.title,
-    workDate: jobData.work_date.split('T')[0],
+    workDate: jobData.work_date ? jobData.work_date.split('T')[0] : '',
+    // 全ての勤務日情報を含める
+    workDates: jobData.workDates?.map((wd: any) => ({
+      id: wd.id,
+      workDate: wd.work_date ? wd.work_date.split('T')[0] : '',
+      deadline: wd.deadline,
+      appliedCount: wd.applied_count,
+      recruitmentCount: wd.recruitment_count,
+    })) || [],
     startTime: jobData.start_time,
     endTime: jobData.end_time,
     breakTime: jobData.break_time,
@@ -66,6 +76,7 @@ export default async function JobDetail({ params }: PageProps) {
     requiredQualifications: jobData.required_qualifications,
     requiredExperience: jobData.required_experience,
     dresscode: jobData.dresscode,
+    dresscodeImages: jobData.dresscode_images || [],
     belongings: jobData.belongings,
     managerName: jobData.manager_name,
     managerMessage: jobData.manager_message || '',
@@ -77,6 +88,10 @@ export default async function JobDetail({ params }: PageProps) {
     parking: jobData.has_parking,
     accessDescription: jobData.access,
     featureTags,
+    attachments: jobData.attachments || [],
+    // 募集条件
+    weeklyFrequency: jobData.weekly_frequency,
+    monthlyCommitment: jobData.monthly_commitment,
   };
 
   const facility = {
@@ -99,7 +114,7 @@ export default async function JobDetail({ params }: PageProps) {
     status: relatedJob.status.toLowerCase() as 'published' | 'draft' | 'stopped' | 'working' | 'completed' | 'cancelled',
     facilityId: relatedJob.facility_id,
     title: relatedJob.title,
-    workDate: relatedJob.work_date.split('T')[0],
+    workDate: relatedJob.work_date ? relatedJob.work_date.split('T')[0] : '',
     startTime: relatedJob.start_time,
     endTime: relatedJob.end_time,
     breakTime: relatedJob.break_time,
@@ -114,8 +129,8 @@ export default async function JobDetail({ params }: PageProps) {
     transportationFee: relatedJob.transportation_fee,
   }));
 
-  // レビューデータは後で実装
-  const facilityReviews: any[] = [];
+  // 施設のレビューを取得
+  const facilityReviews = await getFacilityReviews(jobData.facility_id);
 
   // ユーザーが既に応募済みかチェック
   const initialHasApplied = await hasUserAppliedForJob(id);
@@ -127,6 +142,7 @@ export default async function JobDetail({ params }: PageProps) {
       relatedJobs={relatedJobs}
       facilityReviews={facilityReviews}
       initialHasApplied={initialHasApplied}
+      selectedDate={selectedDate}
     />
   );
 }

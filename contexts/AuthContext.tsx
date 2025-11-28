@@ -1,90 +1,127 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User } from '@/types/user';
+import { createContext, useContext, ReactNode, useState, useEffect } from 'react';
+import { SessionProvider, useSession, signIn, signOut } from 'next-auth/react';
+import { Session } from 'next-auth';
 import { FacilityAdmin } from '@/types/admin';
-import { users } from '@/data/users';
-import { admins } from '@/data/admins';
+import { authenticateFacilityAdmin } from '@/src/lib/actions';
 
 interface AuthContextType {
-  user: User | FacilityAdmin | null;
-  admin: FacilityAdmin | null;
-  login: (email: string, password: string) => boolean;
-  adminLogin: (email: string, password: string) => boolean;
-  logout: () => void;
+  // ワーカー認証（NextAuth）
+  user: Session['user'] | null;
   isAuthenticated: boolean;
+  isLoading: boolean;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
+  // 施設管理者認証（DBベース）
+  admin: FacilityAdmin | null;
   isAdmin: boolean;
+  adminLogin: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  adminLogout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | FacilityAdmin | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+function AuthContextProvider({ children }: { children: ReactNode }) {
+  const { data: session, status } = useSession();
+  const isLoading = status === 'loading';
 
-  // ページ読み込み時にlocalStorageから復元
+  // 施設管理者の状態（従来の方式を維持）
+  const [admin, setAdmin] = useState<FacilityAdmin | null>(null);
+  const [adminLoaded, setAdminLoaded] = useState(false);
+
+  // ページ読み込み時にlocalStorageから管理者情報を復元
   useEffect(() => {
-    const storedUser = localStorage.getItem('currentUser');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
+    const storedAdmin = localStorage.getItem('currentAdmin');
+    if (storedAdmin) {
+      setAdmin(JSON.parse(storedAdmin));
     }
-    setIsLoading(false);
+    setAdminLoaded(true);
   }, []);
 
-  // 一般ユーザーログイン
-  const login = (email: string, password: string): boolean => {
-    const foundUser = users.find(
-      (u) => u.email === email && u.password === password
-    );
+  // ワーカーログイン
+  const login = async (email: string, password: string) => {
+    try {
+      const result = await signIn('credentials', {
+        email,
+        password,
+        redirect: false,
+      });
 
-    if (foundUser) {
-      setUser(foundUser);
-      localStorage.setItem('currentUser', JSON.stringify(foundUser));
-      return true;
+      if (result?.error) {
+        return { success: false, error: result.error };
+      }
+
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: 'ログイン中にエラーが発生しました' };
     }
-    return false;
   };
 
-  // 管理者ログイン
-  const adminLogin = (email: string, password: string): boolean => {
-    const foundAdmin = admins.find(
-      (a) => a.email === email && a.password === password
-    );
+  const logout = async () => {
+    await signOut({ redirect: false });
+  };
 
-    if (foundAdmin) {
-      setUser(foundAdmin);
-      localStorage.setItem('currentUser', JSON.stringify(foundAdmin));
-      return true;
+  // 施設管理者ログイン（DBベース）
+  const adminLogin = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const result = await authenticateFacilityAdmin(email, password);
+
+      if (result.success && result.admin) {
+        const adminData: FacilityAdmin = {
+          id: result.admin.id,
+          email: result.admin.email,
+          password: '', // パスワードは保存しない
+          facilityId: result.admin.facilityId,
+          name: result.admin.name,
+          phone: result.admin.phone,
+          role: 'admin',
+        };
+        setAdmin(adminData);
+        localStorage.setItem('currentAdmin', JSON.stringify(adminData));
+        return { success: true };
+      }
+
+      return { success: false, error: result.error || 'ログインに失敗しました' };
+    } catch (error) {
+      console.error('Admin login error:', error);
+      return { success: false, error: 'ログイン中にエラーが発生しました' };
     }
-    return false;
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('currentUser');
+  const adminLogout = () => {
+    setAdmin(null);
+    localStorage.removeItem('currentAdmin');
   };
 
-  if (isLoading) {
-    return null; // または<div>Loading...</div>
+  if (!adminLoaded) {
+    return null;
   }
-
-  const isAdmin = user !== null && 'role' in user && user.role === 'admin';
-  const admin = isAdmin ? (user as FacilityAdmin) : null;
 
   return (
     <AuthContext.Provider
       value={{
-        user,
-        admin,
+        user: session?.user ?? null,
+        isAuthenticated: !!session?.user,
+        isLoading,
         login,
-        adminLogin,
         logout,
-        isAuthenticated: !!user,
-        isAdmin,
+        admin,
+        isAdmin: !!admin,
+        adminLogin,
+        adminLogout,
       }}
     >
       {children}
     </AuthContext.Provider>
+  );
+}
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  return (
+    <SessionProvider>
+      <AuthContextProvider>{children}</AuthContextProvider>
+    </SessionProvider>
   );
 }
 

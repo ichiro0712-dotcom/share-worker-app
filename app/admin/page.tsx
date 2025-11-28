@@ -1,10 +1,9 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { facilities } from '@/data/facilities';
-import { jobs } from '@/data/jobs';
+import { getAdminDashboardStats, getAdminDashboardTasks, getFacilityInfo } from '@/src/lib/actions';
 import Link from 'next/link';
 import {
   AlertCircle,
@@ -14,55 +13,37 @@ import {
   Clock,
 } from 'lucide-react';
 
+interface Stats {
+  totalJobs: number;
+  activeJobs: number;
+  totalApplications: number;
+  todayJobs: number;
+}
+
+interface Tasks {
+  deadlineSoon: Array<{ id: number; title: string; deadline: string }>;
+  lowApplications: Array<{ id: number; title: string; appliedCount: number; recruitmentCount: number }>;
+  newApplications: Array<{ id: number; title: string; appliedCount: number }>;
+  todayJobs: Array<{ id: number; title: string; startTime: string; endTime: string; appliedCount: number }>;
+}
+
 export default function AdminDashboard() {
   const router = useRouter();
   const { admin, isAdmin } = useAuth();
-
-  // 管理している施設の求人を取得
-  const facilityJobs = useMemo(() => {
-    if (!admin) return [];
-    return jobs.filter((job) => job.facilityId === admin.facilityId);
-  }, [admin]);
-
-  // タスク計算
-  const tasks = useMemo(() => {
-    const today = new Date();
-    const threeDaysLater = new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000);
-
-    return {
-      // 締切が近い求人（3日以内）
-      deadlineSoon: facilityJobs.filter((job) => {
-        const deadline = new Date(job.deadline);
-        return deadline > today && deadline <= threeDaysLater;
-      }),
-      // 応募が少ない求人（応募率50%未満）
-      lowApplications: facilityJobs.filter((job) => {
-        const isActive = new Date(job.deadline) > today;
-        const applicationRate = job.recruitmentCount > 0
-          ? (job.appliedCount / job.recruitmentCount) * 100
-          : 0;
-        return isActive && applicationRate < 50;
-      }),
-      // 新しい応募（ダミー - 実際はapplication dataから取得）
-      newApplications: facilityJobs.filter((job) => job.appliedCount > 0).slice(0, 5),
-      // 募集中の求人
-      activeJobs: facilityJobs.filter((job) => new Date(job.deadline) > today),
-      // 本日勤務予定（ダミー）
-      todayJobs: facilityJobs.filter((job) => {
-        const workDate = new Date(job.workDate);
-        const todayDate = new Date();
-        return workDate.toDateString() === todayDate.toDateString();
-      }),
-    };
-  }, [facilityJobs]);
-
-  // 統計情報
-  const stats = useMemo(() => ({
-    totalJobs: facilityJobs.length,
-    activeJobs: tasks.activeJobs.length,
-    totalApplications: facilityJobs.reduce((sum, job) => sum + job.appliedCount, 0),
-    todayJobs: tasks.todayJobs.length,
-  }), [facilityJobs, tasks]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [facilityName, setFacilityName] = useState<string>('');
+  const [stats, setStats] = useState<Stats>({
+    totalJobs: 0,
+    activeJobs: 0,
+    totalApplications: 0,
+    todayJobs: 0,
+  });
+  const [tasks, setTasks] = useState<Tasks>({
+    deadlineSoon: [],
+    lowApplications: [],
+    newApplications: [],
+    todayJobs: [],
+  });
 
   // ログインしていない、または管理者でない場合はログインページへリダイレクト
   useEffect(() => {
@@ -71,20 +52,55 @@ export default function AdminDashboard() {
     }
   }, [isAdmin, admin, router]);
 
+  // データ取得
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!admin?.facilityId) return;
+
+      setIsLoading(true);
+      try {
+        const [statsData, tasksData, facilityData] = await Promise.all([
+          getAdminDashboardStats(admin.facilityId),
+          getAdminDashboardTasks(admin.facilityId),
+          getFacilityInfo(admin.facilityId),
+        ]);
+
+        setStats(statsData);
+        setTasks(tasksData);
+        if (facilityData) {
+          setFacilityName(facilityData.facilityName);
+        }
+      } catch (error) {
+        console.error('Failed to fetch dashboard data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (isAdmin && admin) {
+      fetchData();
+    }
+  }, [admin?.facilityId, isAdmin, admin]);
+
   // ログインしていない場合は何も表示しない
   if (!isAdmin || !admin) {
     return null;
   }
 
-  // 管理している施設の情報を取得
-  const facility = facilities.find((f) => f.id === admin.facilityId);
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6">
       {/* ヘッダー */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-1">ダッシュボード</h1>
-        <p className="text-sm text-gray-600">{facility?.name}</p>
+        <p className="text-sm text-gray-600">{facilityName}</p>
       </div>
 
       {/* 統計カード */}
@@ -210,7 +226,7 @@ export default function AdminDashboard() {
                 <h2 className="text-sm font-bold">新しい応募</h2>
               </div>
               <Link
-                href="/admin/workers"
+                href="/admin/applications"
                 className="text-xs text-blue-600 hover:underline"
               >
                 すべて見る
@@ -224,7 +240,7 @@ export default function AdminDashboard() {
                   {tasks.newApplications.map((job) => (
                     <Link
                       key={job.id}
-                      href={`/admin/workers?jobId=${job.id}`}
+                      href={`/admin/applications?jobId=${job.id}`}
                       className="block p-2 border border-green-100 rounded hover:bg-green-50 transition-colors"
                     >
                       <div className="text-xs font-medium text-gray-900 mb-1">{job.title}</div>

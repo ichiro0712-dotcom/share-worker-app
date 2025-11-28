@@ -1,8 +1,8 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
-import { ChevronLeft, Heart, Clock, MapPin, ChevronRight, ChevronLeft as ChevronLeftIcon, Bookmark } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { ChevronLeft, Heart, Clock, MapPin, ChevronRight, ChevronLeft as ChevronLeftIcon, Bookmark, VolumeX, Volume2 } from 'lucide-react';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/Button';
@@ -17,9 +17,10 @@ interface JobDetailClientProps {
   relatedJobs: any[];
   facilityReviews: any[];
   initialHasApplied: boolean;
+  selectedDate?: string; // YYYY-MM-DD形式の選択された日付
 }
 
-export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, initialHasApplied }: JobDetailClientProps) {
+export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, initialHasApplied, selectedDate }: JobDetailClientProps) {
   const router = useRouter();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isFavorite, setIsFavorite] = useState(false);
@@ -33,13 +34,55 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
   const [isSaveForLaterProcessing, setIsSaveForLaterProcessing] = useState(false);
   const [isJobBookmarkedState, setIsJobBookmarkedState] = useState(false);
   const [isJobBookmarkProcessing, setIsJobBookmarkProcessing] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
 
   useEffect(() => {
     // ブックマーク状態を取得
     isFacilityFavorited(String(facility.id)).then(setIsFavorite);
     isJobBookmarked(String(job.id), 'WATCH_LATER').then(setSavedForLater);
     isJobBookmarked(String(job.id), 'FAVORITE').then(setIsJobBookmarkedState);
+
+    // ミュート状態を取得
+    const mutedFacilities = JSON.parse(localStorage.getItem('mutedFacilities') || '[]');
+    const isFacilityMuted = mutedFacilities.some((f: any) => f.facilityId === facility.id);
+    setIsMuted(isFacilityMuted);
   }, [job.id, facility.id]);
+
+  // 選択された日付と他の日付を分離
+  const { selectedWorkDates, otherWorkDates } = useMemo(() => {
+    if (!job.workDates || job.workDates.length === 0) {
+      // フォールバック：workDateを使用（旧データ形式）
+      return {
+        selectedWorkDates: [{ id: job.id, workDate: job.workDate, appliedCount: job.appliedCount, recruitmentCount: job.recruitmentCount }],
+        otherWorkDates: [],
+      };
+    }
+
+    if (!selectedDate) {
+      // selectedDateがない場合は最初の日付を選択として扱う
+      return {
+        selectedWorkDates: job.workDates.slice(0, 1),
+        otherWorkDates: job.workDates.slice(1),
+      };
+    }
+
+    // selectedDateに一致するworkDateを検索
+    const selected = job.workDates.filter((wd: any) => wd.workDate === selectedDate);
+    const other = job.workDates.filter((wd: any) => wd.workDate !== selectedDate);
+
+    // 一致するものがない場合は最初の日付を選択
+    if (selected.length === 0) {
+      return {
+        selectedWorkDates: job.workDates.slice(0, 1),
+        otherWorkDates: job.workDates.slice(1),
+      };
+    }
+
+    return {
+      selectedWorkDates: selected,
+      otherWorkDates: other,
+    };
+  }, [job.workDates, job.workDate, job.id, job.appliedCount, job.recruitmentCount, selectedDate]);
 
   const nextImage = () => {
     setCurrentImageIndex((prev) => (prev === job.images.length - 1 ? 0 : prev + 1));
@@ -161,7 +204,32 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
   };
 
   const handleMute = () => {
-    toast('ミュート機能はPhase 2で実装予定です', { icon: '🚧' });
+    const mutedFacilities = JSON.parse(localStorage.getItem('mutedFacilities') || '[]');
+
+    if (isMuted) {
+      // ミュート解除
+      const newMuted = mutedFacilities.filter((f: any) => f.facilityId !== facility.id);
+      localStorage.setItem('mutedFacilities', JSON.stringify(newMuted));
+      // IDのみのリストも更新（JobListClient用）
+      const mutedIds = newMuted.map((f: any) => f.facilityId);
+      localStorage.setItem('mutedFacilityIds', JSON.stringify(mutedIds));
+      setIsMuted(false);
+      toast.success(`${facility.name}のミュートを解除しました`);
+    } else {
+      // ミュート（施設名も保存）
+      const newMutedFacility = {
+        facilityId: facility.id,
+        facilityName: facility.name,
+        mutedAt: new Date().toISOString(),
+      };
+      mutedFacilities.push(newMutedFacility);
+      localStorage.setItem('mutedFacilities', JSON.stringify(mutedFacilities));
+      // IDのみのリストも更新（JobListClient用）
+      const mutedIds = mutedFacilities.map((f: any) => f.facilityId);
+      localStorage.setItem('mutedFacilityIds', JSON.stringify(mutedIds));
+      setIsMuted(true);
+      toast.success(`${facility.name}をミュートしました。この施設の求人は一覧に表示されなくなります`);
+    }
   };
 
   return (
@@ -272,97 +340,107 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
               />
               <span className={isFavorite ? 'text-red-500' : 'text-gray-600'}>お気に入り施設</span>
             </button>
-            <button onClick={handleMute} className="flex items-center gap-1 text-sm text-gray-600">
-              <span>ミュート</span>
+            <button onClick={handleMute} className={`flex items-center gap-1 text-sm ${isMuted ? 'text-orange-500' : 'text-gray-600'}`}>
+              {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+              <span>{isMuted ? 'ミュート中' : 'ミュート'}</span>
             </button>
           </div>
         </div>
 
-        {/* 現在選択中の募集カード */}
-        <div
-          onClick={() => toggleJobSelection(job.id)}
-          className="mb-4 p-4 border-2 border-primary rounded-lg bg-primary-light/30 cursor-pointer hover:bg-primary-light/40 transition-colors"
-        >
-          <div className="flex items-center gap-3">
-            <input
-              type="checkbox"
-              checked={selectedJobIds.includes(job.id)}
-              onChange={() => toggleJobSelection(job.id)}
-              onClick={(e) => e.stopPropagation()}
-              className="w-5 h-5 text-primary flex-shrink-0 cursor-pointer"
-            />
-            <div className="flex-1">
-              <div className="text-sm font-bold mb-1">
-                {formatDateTime(job.workDate, job.startTime, job.endTime)}
+        {/* 選択された勤務日 */}
+        <div className="mb-4">
+          <h3 className="mb-3 text-sm font-bold">選択された勤務日</h3>
+          <div className="space-y-2">
+            {selectedWorkDates.map((wd: any, index: number) => (
+              <div
+                key={wd.id || index}
+                onClick={() => toggleJobSelection(job.id)}
+                className="p-4 border-2 border-primary rounded-lg bg-primary-light/30 cursor-pointer hover:bg-primary-light/40 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={selectedJobIds.includes(job.id)}
+                    onChange={() => toggleJobSelection(job.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-5 h-5 text-primary flex-shrink-0 cursor-pointer"
+                  />
+                  <div className="flex-1">
+                    <div className="text-sm font-bold mb-1">
+                      {formatDateTime(wd.workDate, job.startTime, job.endTime)}
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-gray-600">
+                      <span>休憩 {job.breakTime}</span>
+                      <span>•</span>
+                      <span>時給 {job.hourlyWage.toLocaleString()}円</span>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      募集人数 {wd.appliedCount || 0}/{wd.recruitmentCount || job.recruitmentCount}人
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-lg font-bold text-red-500">
+                      {job.wage.toLocaleString()}円
+                    </div>
+                    <div className="text-xs text-gray-600">
+                      交通費{job.transportationFee.toLocaleString()}円込
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center gap-2 text-xs text-gray-600">
-                <span>休憩 {job.breakTime}</span>
-                <span>•</span>
-                <span>時給 {job.hourlyWage.toLocaleString()}円</span>
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-lg font-bold text-red-500">
-                {job.wage.toLocaleString()}円
-              </div>
-              <div className="text-xs text-gray-600">
-                交通費{job.transportationFee.toLocaleString()}円込
-              </div>
-            </div>
+            ))}
           </div>
         </div>
 
-        {/* その他の応募日時 */}
-        {relatedJobs.length > 0 && (
+        {/* その他の応募日時（同じ求人の他の日程） */}
+        {otherWorkDates.length > 0 && (
           <div className="border-t border-gray-200 pt-4 mb-4">
-            <h3 className="mb-3 text-sm font-bold">その他の応募日時</h3>
+            <h3 className="mb-3 text-sm font-bold">その他の応募日時（{otherWorkDates.length}件）</h3>
             <div className="space-y-2">
-              {relatedJobs
+              {otherWorkDates
                 .slice(0, showAllDates ? undefined : 6)
-                .map((relatedJob) => (
+                .map((wd: any, index: number) => (
                   <div
-                    key={relatedJob.id}
-                    onClick={(e) => {
-                      const target = e.target as HTMLElement;
-                      if (target.tagName !== 'INPUT') {
-                        toggleJobSelection(relatedJob.id);
-                      }
-                    }}
+                    key={wd.id || index}
+                    onClick={() => toggleJobSelection(job.id)}
                     className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
-                      selectedJobIds.includes(relatedJob.id)
+                      selectedJobIds.includes(job.id)
                         ? 'border-primary bg-primary-light/20'
                         : 'border-gray-200 hover:border-primary'
                     }`}
                   >
                     <input
                       type="checkbox"
-                      checked={selectedJobIds.includes(relatedJob.id)}
-                      onChange={() => toggleJobSelection(relatedJob.id)}
+                      checked={selectedJobIds.includes(job.id)}
+                      onChange={() => toggleJobSelection(job.id)}
                       onClick={(e) => e.stopPropagation()}
                       className="w-5 h-5 text-primary flex-shrink-0 cursor-pointer"
                     />
                     <div className="flex-1">
                       <div className="text-sm font-bold mb-1">
-                        {formatDateTime(relatedJob.workDate, relatedJob.startTime, relatedJob.endTime)}
+                        {formatDateTime(wd.workDate, job.startTime, job.endTime)}
                       </div>
                       <div className="flex items-center gap-2 text-xs text-gray-600">
-                        <span>休憩 {relatedJob.breakTime}</span>
+                        <span>休憩 {job.breakTime}</span>
                         <span>•</span>
-                        <span>時給 {relatedJob.hourlyWage.toLocaleString()}円</span>
+                        <span>時給 {job.hourlyWage.toLocaleString()}円</span>
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        募集人数 {wd.appliedCount || 0}/{wd.recruitmentCount || job.recruitmentCount}人
                       </div>
                     </div>
                     <div className="text-right">
                       <div className="text-lg font-bold text-red-500">
-                        {relatedJob.wage.toLocaleString()}円
+                        {job.wage.toLocaleString()}円
                       </div>
                       <div className="text-xs text-gray-600">
-                        交通費{relatedJob.transportationFee.toLocaleString()}円込
+                        交通費{job.transportationFee.toLocaleString()}円込
                       </div>
                     </div>
                   </div>
                 ))}
             </div>
-            {relatedJobs.length > 6 && !showAllDates && (
+            {otherWorkDates.length > 6 && !showAllDates && (
               <button
                 onClick={() => setShowAllDates(true)}
                 className="w-full mt-3 py-2 text-sm text-primary border border-primary rounded-lg hover:bg-primary-light transition-colors"
@@ -465,6 +543,24 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
                 労働条件通知書を確認
               </button>
             </div>
+            {/* 募集条件（週N回以上・1ヶ月以上） */}
+            {(job.weeklyFrequency || job.monthlyCommitment) && (
+              <div>
+                <h4 className="text-sm mb-2 font-bold">募集条件</h4>
+                <div className="flex flex-wrap gap-2">
+                  {job.weeklyFrequency && (
+                    <span className="px-3 py-1 bg-orange-100 text-orange-700 text-sm rounded-full">
+                      週{job.weeklyFrequency}回以上勤務できる方
+                    </span>
+                  )}
+                  {job.monthlyCommitment && (
+                    <span className="px-3 py-1 bg-purple-100 text-purple-700 text-sm rounded-full">
+                      1ヶ月以上勤務できる方
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -492,32 +588,47 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
                 ))}
               </ul>
               {/* サンプル画像 */}
-              <div className="grid grid-cols-3 gap-2">
-                <div className="relative aspect-video overflow-hidden rounded-lg border border-gray-200">
-                  <Image
-                    src="/images/hukuso.png"
-                    alt="服装サンプル1"
-                    fill
-                    className="object-cover"
-                  />
+              {job.dresscodeImages && job.dresscodeImages.length > 0 ? (
+                <div className="grid grid-cols-3 gap-2">
+                  {job.dresscodeImages.map((imageUrl: string, index: number) => (
+                    <div key={index} className="relative aspect-video overflow-hidden rounded-lg border border-gray-200">
+                      <Image
+                        src={imageUrl}
+                        alt={`服装サンプル${index + 1}`}
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
+                  ))}
                 </div>
-                <div className="relative aspect-video overflow-hidden rounded-lg border border-gray-200">
-                  <Image
-                    src="/images/hukuso.png"
-                    alt="服装サンプル2"
-                    fill
-                    className="object-cover"
-                  />
+              ) : (
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="relative aspect-video overflow-hidden rounded-lg border border-gray-200">
+                    <Image
+                      src="/images/hukuso.png"
+                      alt="服装サンプル1"
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
+                  <div className="relative aspect-video overflow-hidden rounded-lg border border-gray-200">
+                    <Image
+                      src="/images/hukuso.png"
+                      alt="服装サンプル2"
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
+                  <div className="relative aspect-video overflow-hidden rounded-lg border border-gray-200">
+                    <Image
+                      src="/images/hukuso.png"
+                      alt="服装サンプル3"
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
                 </div>
-                <div className="relative aspect-video overflow-hidden rounded-lg border border-gray-200">
-                  <Image
-                    src="/images/hukuso.png"
-                    alt="服装サンプル3"
-                    fill
-                    className="object-cover"
-                  />
-                </div>
-              </div>
+              )}
             </div>
 
             {/* 持ち物 */}
@@ -529,6 +640,30 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
                 ))}
               </ul>
             </div>
+
+            {/* その他添付資料 */}
+            {job.attachments && job.attachments.length > 0 && (
+              <div>
+                <h4 className="text-sm mb-2 font-bold">その他添付資料</h4>
+                <ul className="text-sm text-gray-600 space-y-2">
+                  {job.attachments.map((attachment: string, index: number) => {
+                    const fileName = attachment.split('/').pop() || 'ファイル';
+                    return (
+                      <li key={index}>
+                        <a
+                          href={attachment}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 hover:underline"
+                        >
+                          ・{fileName}
+                        </a>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
 
             {/* 法人名 */}
             <div>
@@ -554,7 +689,7 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
                 <MapPin className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 text-red-500" />
               </div>
               <button
-                onClick={() => toast('Google Map連携はPhase 2で実装予定です', { icon: '🚧' })}
+                onClick={() => toast('Google Map連携はPhase 3で実装予定です', { icon: '🚧' })}
                 className="text-sm text-blue-500"
               >
                 🗺️ Google Mapで開く
@@ -590,61 +725,117 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
         {/* レビュー */}
         {facilityReviews.length > 0 && (
           <div className="mb-4">
-            <h3 className="mb-3 text-sm bg-primary-light px-4 py-3 -mx-4">レビュー</h3>
-            <div className="mt-3">
-              <p className="mb-3">
-                <span className="text-yellow-500">★</span>
-                <span className="text-lg">{facility.rating.toFixed(1)}</span>
-                <span className="text-sm text-gray-500 ml-1">（{facility.reviewCount}件）</span>
-              </p>
-
+            <h3 className="mb-3 text-sm bg-primary-light px-4 py-3 -mx-4">レビュー ({facilityReviews.length}件)</h3>
+            <div className="mt-3 space-y-4">
               {/* 評価分布バー */}
-              <div className="mb-6 space-y-2">
-                {[5, 4, 3, 2, 1].map((rating) => {
-                  const distributionRates = [0.52, 0.34, 0.07, 0.03, 0.03];
-                  const rate = distributionRates[5 - rating];
-                  const count = Math.floor(facility.reviewCount * rate);
-                  const percentage = rate * 100;
+              {(() => {
+                const totalReviews = facilityReviews.length;
+                const avgRating = totalReviews > 0
+                  ? facilityReviews.reduce((sum: number, r: any) => sum + r.rating, 0) / totalReviews
+                  : 0;
 
-                  return (
-                    <div key={rating} className="flex items-center gap-2">
-                      <span className="text-xs w-3">{rating}</span>
-                      <div className="flex-1 bg-gray-200 rounded-full h-2 overflow-hidden">
-                        <div
-                          className="bg-primary h-full transition-all"
-                          style={{ width: `${percentage}%` }}
-                        />
-                      </div>
-                      <span className="text-xs text-gray-600 w-8 text-right">{count}</span>
-                    </div>
-                  );
-                })}
-              </div>
+                // 評価分布を計算
+                const ratingCounts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+                facilityReviews.forEach((r: any) => {
+                  if (ratingCounts[r.rating] !== undefined) {
+                    ratingCounts[r.rating]++;
+                  }
+                });
 
-              <div className="space-y-4">
-                {facilityReviews.slice(0, 3).map((review: any) => (
-                  <div key={review.id} className="border-b border-gray-200 pb-4">
-                    <p className="text-sm text-gray-600 mb-2">
-                      {review.age}/{review.gender}/{review.occupation}/{review.period}
-                    </p>
-                    <div className="mb-2">
-                      <h5 className="text-sm font-bold mb-1">良かった点</h5>
-                      <p className="text-sm text-gray-600">{review.goodPoints}</p>
+                return (
+                  <div className="mb-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-yellow-500">★</span>
+                      <span className="text-xl font-bold">{avgRating.toFixed(1)}</span>
+                      <span className="text-sm text-gray-500">({totalReviews}件)</span>
                     </div>
-                    <div>
-                      <h5 className="text-sm font-bold mb-1">改善点</h5>
-                      <p className="text-sm text-gray-600">{review.improvements}</p>
+                    <div className="space-y-1">
+                      {[5, 4, 3, 2, 1].map((rating) => {
+                        const count = ratingCounts[rating];
+                        const percentage = totalReviews > 0 ? (count / totalReviews) * 100 : 0;
+
+                        return (
+                          <div key={rating} className="flex items-center gap-2">
+                            <span className="text-xs w-3">{rating}</span>
+                            <div className="flex-1 bg-gray-200 rounded-full h-2 overflow-hidden">
+                              <div
+                                className="bg-primary h-full transition-all"
+                                style={{ width: `${percentage}%` }}
+                              />
+                            </div>
+                            <span className="text-xs text-gray-600 w-6 text-right">{count}</span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-                ))}
-              </div>
+                );
+              })()}
 
-              {facility.reviewCount > 3 && (
+              {facilityReviews.slice(0, 5).map((review: any) => (
+                <div key={review.id} className="border-b border-gray-100 pb-4 last:border-b-0 last:pb-0">
+                  <div className="mb-2">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span className="font-medium text-sm text-gray-700">
+                        {review.ageGroup}/{review.gender}/{review.qualification}
+                      </span>
+                      <span className="text-xs text-gray-400 flex-shrink-0">
+                        {new Date(review.createdAt).toLocaleDateString('ja-JP', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                        })}
+                      </span>
+                    </div>
+                    {/* 評価 */}
+                    <div className="flex items-center gap-1 mb-1">
+                      {[1, 2, 3, 4, 5].map((value) => (
+                        <span
+                          key={value}
+                          className={`text-sm ${
+                            value <= review.rating
+                              ? 'text-yellow-400'
+                              : 'text-gray-300'
+                          }`}
+                        >
+                          ★
+                        </span>
+                      ))}
+                      <span className="ml-1 text-sm font-semibold text-gray-700">
+                        {review.rating.toFixed(1)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      {review.jobTitle} ({review.jobDate})
+                    </p>
+                  </div>
+
+                  {/* 良かった点 */}
+                  <div className="bg-green-50 border border-green-100 rounded-lg p-2 mb-2">
+                    <h5 className="text-xs font-bold text-green-900 mb-1 flex items-center gap-1">
+                      <span>👍</span>
+                      <span>良かった点</span>
+                    </h5>
+                    <p className="text-xs text-gray-700">{review.goodPoints || 'とくにないです'}</p>
+                  </div>
+
+                  {/* 改善点 */}
+                  <div className="bg-orange-50 border border-orange-100 rounded-lg p-2">
+                    <h5 className="text-xs font-bold text-orange-900 mb-1 flex items-center gap-1">
+                      <span>💡</span>
+                      <span>改善点</span>
+                    </h5>
+                    <p className="text-xs text-gray-700">{review.improvements || 'とくにないです'}</p>
+                  </div>
+                </div>
+              ))}
+
+              {facilityReviews.length > 5 && (
                 <button
-                  onClick={() => toast('レビュー一覧表示はPhase 2で実装予定です', { icon: '🚧' })}
-                  className="mt-4 w-full py-3 text-sm text-primary border border-primary rounded-lg hover:bg-primary-light transition-colors"
+                  onClick={() => router.push(`/facilities/${facility.id}`)}
+                  className="w-full py-3 text-sm text-primary border border-primary rounded-lg hover:bg-primary-light transition-colors"
                 >
-                  さらにレビューを見る ({facility.reviewCount}件)
+                  さらにレビューを見る（残り{facilityReviews.length - 5}件）
                 </button>
               )}
             </div>

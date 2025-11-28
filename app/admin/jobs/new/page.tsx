@@ -3,12 +3,12 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { facilities } from '@/data/facilities';
-import { jobTemplates } from '@/data/jobTemplates';
 import { Upload, X, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { JobPreviewModal } from '@/components/admin/JobPreviewModal';
+import { JobConfirmModal } from '@/components/admin/JobConfirmModal';
 import { calculateDailyWage } from '@/utils/salary';
+import { createJobs, getAdminJobTemplates, getFacilityInfo } from '@/src/lib/actions';
 import {
   JOB_TYPES,
   WORK_CONTENT_OPTIONS,
@@ -22,6 +22,35 @@ import {
   RECRUITMENT_END_DAY_OPTIONS,
 } from '@/constants';
 
+interface TemplateData {
+  id: number;
+  name: string;
+  title: string;
+  startTime: string;
+  endTime: string;
+  breakTime: number;
+  hourlyWage: number;
+  transportationFee: number;
+  recruitmentCount: number;
+  qualifications: string[];
+  workContent: string[];
+  description: string | null;
+  skills: string[];
+  dresscode: string[];
+  belongings: string[];
+  tags: string[];
+  images: string[];
+  dresscodeImages?: string[];
+  attachments?: string[];
+  notes: string | null;
+}
+
+interface FacilityData {
+  id: number;
+  facilityName: string;
+  address: string;
+}
+
 export default function NewJobPage() {
   const router = useRouter();
   const { admin, isAdmin } = useAuth();
@@ -30,6 +59,10 @@ export default function NewJobPage() {
   const [selectedDates, setSelectedDates] = useState<string[]>([]);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [showPreview, setShowPreview] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [jobTemplates, setJobTemplates] = useState<TemplateData[]>([]);
+  const [facilityInfo, setFacilityInfo] = useState<FacilityData | null>(null);
 
   // 募集条件のチェックボックス状態
   const [recruitmentOptions, setRecruitmentOptions] = useState({
@@ -45,6 +78,7 @@ export default function NewJobPage() {
     jobType: '通常業務',
     recruitmentCount: 1,
     images: [] as File[],
+    existingImages: [] as string[],  // テンプレートからの既存画像URL
 
     // 勤務時間
     startTime: '',
@@ -69,11 +103,13 @@ export default function NewJobPage() {
     skills: [] as string[],
     dresscode: [] as string[],
     dresscodeImages: [] as File[],
+    existingDresscodeImages: [] as string[],  // テンプレートからの既存服装画像URL
     belongings: [] as string[],
 
     // その他
     icons: [] as string[],
     attachments: [] as File[],
+    existingAttachments: [] as string[],  // テンプレートからの既存添付ファイルURL
     dismissalReasons: DEFAULT_DISMISSAL_REASONS,
   });
 
@@ -81,10 +117,33 @@ export default function NewJobPage() {
   const [dresscodeInput, setDresscodeInput] = useState('');
   const [belongingInput, setBelongingInput] = useState('');
 
+  // 認証チェックとデータ取得
   useEffect(() => {
     if (!isAdmin || !admin) {
       router.push('/admin/login');
+      return;
     }
+
+    // テンプレートと施設情報を取得
+    const fetchData = async () => {
+      if (admin.facilityId) {
+        try {
+          const [templates, facility] = await Promise.all([
+            getAdminJobTemplates(admin.facilityId),
+            getFacilityInfo(admin.facilityId),
+          ]);
+          setJobTemplates(templates);
+          if (facility) {
+            setFacilityInfo(facility);
+            // 施設IDをフォームにセット
+            setFormData(prev => ({ ...prev, facilityId: admin.facilityId }));
+          }
+        } catch (error) {
+          console.error('Failed to fetch data:', error);
+        }
+      }
+    };
+    fetchData();
   }, [isAdmin, admin, router]);
 
   if (!isAdmin || !admin) {
@@ -117,7 +176,8 @@ export default function NewJobPage() {
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    if (formData.images.length + files.length <= 3) {
+    const totalImages = formData.existingImages.length + formData.images.length + files.length;
+    if (totalImages <= 3) {
       handleInputChange('images', [...formData.images, ...files]);
     } else {
       toast.error('画像は最大3枚までアップロードできます');
@@ -128,9 +188,14 @@ export default function NewJobPage() {
     handleInputChange('images', formData.images.filter((_, i) => i !== index));
   };
 
+  const removeExistingImage = (index: number) => {
+    handleInputChange('existingImages', formData.existingImages.filter((_, i) => i !== index));
+  };
+
   const handleAttachmentUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    if (formData.attachments.length + files.length <= 3) {
+    const totalAttachments = formData.existingAttachments.length + formData.attachments.length + files.length;
+    if (totalAttachments <= 3) {
       handleInputChange('attachments', [...formData.attachments, ...files]);
     } else {
       toast.error('添付ファイルは最大3つまでアップロードできます');
@@ -141,9 +206,14 @@ export default function NewJobPage() {
     handleInputChange('attachments', formData.attachments.filter((_, i) => i !== index));
   };
 
+  const removeExistingAttachment = (index: number) => {
+    handleInputChange('existingAttachments', formData.existingAttachments.filter((_, i) => i !== index));
+  };
+
   const handleDresscodeImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    if (formData.dresscodeImages.length + files.length <= 3) {
+    const totalDresscodeImages = formData.existingDresscodeImages.length + formData.dresscodeImages.length + files.length;
+    if (totalDresscodeImages <= 3) {
       handleInputChange('dresscodeImages', [...formData.dresscodeImages, ...files]);
     } else {
       toast.error('服装サンプル画像は最大3枚までアップロードできます');
@@ -152,6 +222,10 @@ export default function NewJobPage() {
 
   const removeDresscodeImage = (index: number) => {
     handleInputChange('dresscodeImages', formData.dresscodeImages.filter((_, i) => i !== index));
+  };
+
+  const removeExistingDresscodeImage = (index: number) => {
+    handleInputChange('existingDresscodeImages', formData.existingDresscodeImages.filter((_, i) => i !== index));
   };
 
 
@@ -235,31 +309,33 @@ export default function NewJobPage() {
         ...formData,
         name: template.name,
         title: template.title,
-        facilityId: template.facilityId || null,
-        jobType: template.jobType || '通常業務',
         recruitmentCount: template.recruitmentCount,
         startTime: template.startTime,
         endTime: template.endTime,
         breakTime: template.breakTime,
-        recruitmentStartDay: template.recruitmentStartDay || 0,
-        recruitmentStartTime: template.recruitmentStartTime || '',
-        recruitmentEndDay: template.recruitmentEndDay || 0,
-        recruitmentEndTime: template.recruitmentEndTime || '05:00',
         hourlyWage: template.hourlyWage,
         transportationFee: template.transportationFee,
         workContent: template.workContent || [],
-        genderRequirement: template.genderRequirement || '',
         jobDescription: template.description || '',
         qualifications: template.qualifications || [],
         skills: template.skills || [],
         dresscode: template.dresscode || [],
         belongings: template.belongings || [],
-        icons: template.icons || [],
+        icons: template.tags || [], // テンプレートのtagsをiconsとして使用
+        // テンプレートの画像をセット
+        existingImages: template.images || [],
+        existingDresscodeImages: template.dresscodeImages || [],
+        existingAttachments: template.attachments || [],
+        // 新規アップロード分をクリア
+        images: [],
+        dresscodeImages: [],
+        attachments: [],
       });
     }
   };
 
-  const handleSave = () => {
+  // バリデーションのみ行い、確認モーダルを表示
+  const handleShowConfirm = () => {
     // バリデーション - 必須項目チェック
     if (!formData.facilityId) {
       toast.error('施設を選択してください');
@@ -299,9 +375,146 @@ export default function NewJobPage() {
       return;
     }
 
-    console.log('求人保存:', formData);
-    toast.success('求人を作成しました');
-    router.push('/admin/jobs');
+    // バリデーション成功時、確認モーダルを表示
+    setShowConfirm(true);
+  };
+
+  const handleSave = async () => {
+    // 二重実行防止
+    if (isSaving) {
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      // 「日付を選ばずに募集」の場合は仮の日付を設定（1週間後）
+      let workDates = selectedDates;
+      if (recruitmentOptions.noDateSelection) {
+        const futureDate = new Date();
+        futureDate.setDate(futureDate.getDate() + 7);
+        workDates = [futureDate.toISOString().split('T')[0]];
+      }
+
+      // 新規画像をアップロードしてURLを取得
+      let newImageUrls: string[] = [];
+      if (formData.images.length > 0) {
+        const uploadFormData = new FormData();
+        formData.images.forEach((file) => {
+          uploadFormData.append('files', file);
+        });
+
+        const uploadResponse = await fetch('/api/upload', {
+          method: 'POST',
+          body: uploadFormData,
+        });
+
+        if (uploadResponse.ok) {
+          const uploadResult = await uploadResponse.json();
+          newImageUrls = uploadResult.urls || [];
+        } else {
+          toast.error('画像のアップロードに失敗しました');
+          setIsSaving(false);
+          return;
+        }
+      }
+
+      // 既存画像 + 新規画像を結合
+      const imageUrls = [...formData.existingImages, ...newImageUrls];
+
+      // 服装サンプル画像をアップロード
+      let newDresscodeImageUrls: string[] = [];
+      if (formData.dresscodeImages.length > 0) {
+        const dresscodeFormData = new FormData();
+        formData.dresscodeImages.forEach((file) => {
+          dresscodeFormData.append('files', file);
+        });
+
+        const dresscodeUploadResponse = await fetch('/api/upload', {
+          method: 'POST',
+          body: dresscodeFormData,
+        });
+
+        if (dresscodeUploadResponse.ok) {
+          const dresscodeUploadResult = await dresscodeUploadResponse.json();
+          newDresscodeImageUrls = dresscodeUploadResult.urls || [];
+        } else {
+          toast.error('服装サンプル画像のアップロードに失敗しました');
+          setIsSaving(false);
+          return;
+        }
+      }
+
+      // 既存服装画像 + 新規服装画像を結合
+      const dresscodeImageUrls = [...formData.existingDresscodeImages, ...newDresscodeImageUrls];
+
+      // 添付ファイルをアップロード
+      let newAttachmentUrls: string[] = [];
+      if (formData.attachments.length > 0) {
+        const attachmentFormData = new FormData();
+        formData.attachments.forEach((file) => {
+          attachmentFormData.append('files', file);
+        });
+
+        const attachmentUploadResponse = await fetch('/api/upload', {
+          method: 'POST',
+          body: attachmentFormData,
+        });
+
+        if (attachmentUploadResponse.ok) {
+          const attachmentUploadResult = await attachmentUploadResponse.json();
+          newAttachmentUrls = attachmentUploadResult.urls || [];
+        } else {
+          toast.error('添付ファイルのアップロードに失敗しました');
+          setIsSaving(false);
+          return;
+        }
+      }
+
+      // 既存添付ファイル + 新規添付ファイルを結合
+      const attachmentUrls = [...formData.existingAttachments, ...newAttachmentUrls];
+
+      const result = await createJobs({
+        facilityId: formData.facilityId!,
+        templateId: selectedTemplateId,
+        title: formData.title,
+        workDates: workDates,
+        startTime: formData.startTime,
+        endTime: formData.endTime,
+        breakTime: formData.breakTime,
+        hourlyWage: formData.hourlyWage,
+        transportationFee: formData.transportationFee,
+        recruitmentCount: formData.recruitmentCount,
+        workContent: formData.workContent,
+        jobDescription: formData.jobDescription,
+        qualifications: formData.qualifications,
+        skills: formData.skills,
+        dresscode: formData.dresscode,
+        belongings: formData.belongings,
+        icons: formData.icons,
+        images: imageUrls,
+        dresscodeImages: dresscodeImageUrls,
+        attachments: attachmentUrls,
+        recruitmentStartDay: formData.recruitmentStartDay,
+        recruitmentStartTime: formData.recruitmentStartTime || undefined,
+        recruitmentEndDay: formData.recruitmentEndDay,
+        recruitmentEndTime: formData.recruitmentEndTime || undefined,
+        // 募集条件
+        weeklyFrequency: recruitmentOptions.weeklyFrequency,
+        monthlyCommitment: recruitmentOptions.monthlyCommitment,
+      });
+
+      if (result.success) {
+        toast.success(`求人を${result.createdCount}件作成しました`);
+        router.push('/admin/jobs');
+      } else {
+        toast.error(result.error || '求人の作成に失敗しました');
+      }
+    } catch (error) {
+      console.error('Job creation error:', error);
+      toast.error('求人の作成中にエラーが発生しました');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -318,10 +531,11 @@ export default function NewJobPage() {
                 プレビュー
               </button>
               <button
-                onClick={handleSave}
-                className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                onClick={handleShowConfirm}
+                disabled={isSaving}
+                className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:bg-blue-400 disabled:cursor-not-allowed"
               >
-                保存
+                {isSaving ? '保存中...' : '公開する'}
               </button>
             </div>
           </div>
@@ -340,18 +554,12 @@ export default function NewJobPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       施設 <span className="text-red-500">*</span>
                     </label>
-                    <select
-                      value={formData.facilityId || ''}
-                      onChange={(e) => handleInputChange('facilityId', Number(e.target.value) || null)}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                    >
-                      <option value="">施設を選択</option>
-                      {facilities.slice(0, 10).map((facility) => (
-                        <option key={facility.id} value={facility.id}>
-                          {facility.name}
-                        </option>
-                      ))}
-                    </select>
+                    <input
+                      type="text"
+                      value={facilityInfo?.facilityName || '読み込み中...'}
+                      readOnly
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-gray-100"
+                    />
                   </div>
 
                   <div>
@@ -428,7 +636,7 @@ export default function NewJobPage() {
                   <p className="text-xs text-gray-500 mb-2">推奨画像サイズ: 1200×800px（比率 3:2）</p>
                   <p className="text-xs text-gray-500 mb-3">登録できるファイルサイズは5MBまでです</p>
                   <div className="space-y-2">
-                    {formData.images.length < 3 && (
+                    {(formData.existingImages.length + formData.images.length) < 3 && (
                       <label
                         className="flex items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded cursor-pointer hover:border-blue-500 transition-colors"
                         onDragOver={(e) => {
@@ -448,7 +656,8 @@ export default function NewJobPage() {
                             toast.error('5MBを超えるファイルは登録できません');
                             return;
                           }
-                          if (formData.images.length + validFiles.length <= 3) {
+                          const totalImages = formData.existingImages.length + formData.images.length + validFiles.length;
+                          if (totalImages <= 3) {
                             handleInputChange('images', [...formData.images, ...validFiles]);
                           } else {
                             toast.error('画像は最大3枚までアップロードできます');
@@ -469,8 +678,28 @@ export default function NewJobPage() {
                       </label>
                     )}
                     <div className="grid grid-cols-3 gap-2">
+                      {/* 既存画像（テンプレートから） */}
+                      {formData.existingImages.map((url, index) => (
+                        <div key={`existing-${index}`} className="relative">
+                          <img
+                            src={url}
+                            alt={`既存画像 ${index + 1}`}
+                            className="w-full h-24 object-cover rounded border-2 border-blue-200"
+                          />
+                          <button
+                            onClick={() => removeExistingImage(index)}
+                            className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                          <span className="absolute bottom-1 left-1 px-1 py-0.5 text-[10px] bg-blue-500 text-white rounded">
+                            テンプレート
+                          </span>
+                        </div>
+                      ))}
+                      {/* 新規アップロード画像 */}
                       {formData.images.map((file, index) => (
-                        <div key={index} className="relative">
+                        <div key={`new-${index}`} className="relative">
                           <img
                             src={URL.createObjectURL(file)}
                             alt={`Upload ${index + 1}`}
@@ -577,6 +806,52 @@ export default function NewJobPage() {
 
                     <div className="mt-1.5 text-[10px] text-gray-500">
                       <p>• クリックで日付選択/解除 • 複数選択可能 • 過去の日付は選択不可</p>
+                    </div>
+
+                    {/* この月全てを選択チェックボックス */}
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={(() => {
+                            const { daysInMonth, year, month } = getDaysInMonth(currentMonth);
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            let selectableDates: string[] = [];
+                            for (let day = 1; day <= daysInMonth; day++) {
+                              const currentDate = new Date(year, month, day);
+                              if (currentDate >= today) {
+                                selectableDates.push(formatDate(year, month, day));
+                              }
+                            }
+                            return selectableDates.length > 0 && selectableDates.every(d => selectedDates.includes(d));
+                          })()}
+                          onChange={(e) => {
+                            const { daysInMonth, year, month } = getDaysInMonth(currentMonth);
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            let selectableDates: string[] = [];
+                            for (let day = 1; day <= daysInMonth; day++) {
+                              const currentDate = new Date(year, month, day);
+                              if (currentDate >= today) {
+                                selectableDates.push(formatDate(year, month, day));
+                              }
+                            }
+                            if (e.target.checked) {
+                              // 選択可能な日付を全て追加
+                              const combined = [...selectedDates, ...selectableDates];
+                              const newDates = Array.from(new Set(combined)).sort();
+                              setSelectedDates(newDates);
+                            } else {
+                              // この月の日付を全て解除
+                              setSelectedDates(selectedDates.filter(d => !selectableDates.includes(d)));
+                            }
+                          }}
+                          disabled={recruitmentOptions.noDateSelection}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-50"
+                        />
+                        <span className="text-xs text-gray-700">この月全てを選択</span>
+                      </label>
                     </div>
                   </div>
                 </div>
@@ -1016,7 +1291,7 @@ export default function NewJobPage() {
                   <p className="text-xs text-gray-500 mb-2">推奨画像サイズ: 1200×800px（比率 3:2）</p>
                   <p className="text-xs text-gray-500 mb-3">登録できるファイルサイズは5MBまでです</p>
                   <div className="space-y-2">
-                    {formData.dresscodeImages.length < 3 && (
+                    {(formData.existingDresscodeImages.length + formData.dresscodeImages.length) < 3 && (
                       <label
                         className="flex items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded cursor-pointer hover:border-blue-500 transition-colors"
                         onDragOver={(e) => {
@@ -1036,7 +1311,8 @@ export default function NewJobPage() {
                             toast.error('5MBを超えるファイルは登録できません');
                             return;
                           }
-                          if (formData.dresscodeImages.length + validFiles.length <= 3) {
+                          const totalDresscodeImages = formData.existingDresscodeImages.length + formData.dresscodeImages.length + validFiles.length;
+                          if (totalDresscodeImages <= 3) {
                             handleInputChange('dresscodeImages', [...formData.dresscodeImages, ...validFiles]);
                           } else {
                             toast.error('服装サンプル画像は最大3枚までアップロードできます');
@@ -1057,8 +1333,28 @@ export default function NewJobPage() {
                       </label>
                     )}
                     <div className="grid grid-cols-3 gap-2">
+                      {/* 既存服装画像（テンプレートから） */}
+                      {formData.existingDresscodeImages.map((url, index) => (
+                        <div key={`existing-dresscode-${index}`} className="relative">
+                          <img
+                            src={url}
+                            alt={`既存服装サンプル ${index + 1}`}
+                            className="w-full h-24 object-cover rounded border-2 border-blue-200"
+                          />
+                          <button
+                            onClick={() => removeExistingDresscodeImage(index)}
+                            className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                          <span className="absolute bottom-1 left-1 px-1 py-0.5 text-[10px] bg-blue-500 text-white rounded">
+                            テンプレート
+                          </span>
+                        </div>
+                      ))}
+                      {/* 新規アップロード服装画像 */}
                       {formData.dresscodeImages.map((file, index) => (
-                        <div key={index} className="relative">
+                        <div key={`new-dresscode-${index}`} className="relative">
                           <img
                             src={URL.createObjectURL(file)}
                             alt={`服装サンプル ${index + 1}`}
@@ -1140,7 +1436,7 @@ export default function NewJobPage() {
                   </label>
                   <p className="text-xs text-red-500 mb-2">登録された文章は公開されます</p>
                   <div className="space-y-2">
-                    {formData.attachments.length < 3 && (
+                    {(formData.existingAttachments.length + formData.attachments.length) < 3 && (
                       <label
                         className="flex items-center justify-center w-full h-24 border-2 border-dashed border-gray-300 rounded cursor-pointer hover:border-blue-500 transition-colors"
                         onDragOver={(e) => {
@@ -1155,7 +1451,8 @@ export default function NewJobPage() {
                           e.preventDefault();
                           e.currentTarget.classList.remove('border-blue-500', 'bg-blue-50');
                           const files = Array.from(e.dataTransfer.files);
-                          if (formData.attachments.length + files.length <= 3) {
+                          const totalAttachments = formData.existingAttachments.length + formData.attachments.length + files.length;
+                          if (totalAttachments <= 3) {
                             handleInputChange('attachments', [...formData.attachments, ...files]);
                           } else {
                             toast.error('添付ファイルは最大3つまでです');
@@ -1175,8 +1472,31 @@ export default function NewJobPage() {
                       </label>
                     )}
                     <div className="space-y-2">
+                      {/* 既存添付ファイル（テンプレートから） */}
+                      {formData.existingAttachments.map((url, index) => {
+                        const fileName = url.split('/').pop() || 'ファイル';
+                        return (
+                          <div key={`existing-attachment-${index}`} className="flex items-center justify-between p-2 border border-gray-200 rounded">
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                            >
+                              {fileName}
+                            </a>
+                            <button
+                              onClick={() => removeExistingAttachment(index)}
+                              className="p-1 text-red-500 hover:text-red-600"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                      {/* 新規アップロード添付ファイル */}
                       {formData.attachments.map((file, index) => (
-                        <div key={index} className="flex items-center justify-between p-2 border border-gray-200 rounded">
+                        <div key={`new-attachment-${index}`} className="flex items-center justify-between p-2 border border-gray-200 rounded">
                           <span className="text-sm">{file.name}</span>
                           <button
                             onClick={() => removeAttachment(index)}
@@ -1221,7 +1541,21 @@ export default function NewJobPage() {
           onClose={() => setShowPreview(false)}
           formData={formData}
           selectedDates={selectedDates}
-          facility={formData.facilityId ? facilities.find(f => f.id === formData.facilityId) : null}
+          facility={facilityInfo ? { id: facilityInfo.id, name: facilityInfo.facilityName, address: facilityInfo.address } : null}
+          recruitmentOptions={recruitmentOptions}
+        />
+
+        {/* 確認モーダル */}
+        <JobConfirmModal
+          isOpen={showConfirm}
+          onClose={() => setShowConfirm(false)}
+          onConfirm={() => {
+            setShowConfirm(false);
+            handleSave();
+          }}
+          onOpenPreview={() => setShowPreview(true)}
+          selectedDatesCount={recruitmentOptions.noDateSelection ? 1 : selectedDates.length}
+          isSubmitting={isSaving}
         />
       </div>
   );

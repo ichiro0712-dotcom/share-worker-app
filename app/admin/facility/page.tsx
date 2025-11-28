@@ -1,32 +1,35 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Upload, X, Eye, User } from 'lucide-react';
+import { Upload, X, Eye, User, Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import toast from 'react-hot-toast';
+import { getFacilityInfo, updateFacilityBasicInfo } from '@/src/lib/actions';
 
 export default function FacilityPage() {
   const { admin, isAdmin } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
   // 法人情報
   const [corporateInfo, setCorporateInfo] = useState({
-    name: '株式会社ケアテック',
-    representativeLastName: '山田',
-    representativeFirstName: '太郎',
-    phone: '03-1234-5678',
-    prefecture: '東京都',
-    city: '渋谷区',
-    addressDetail: '恵比寿1-2-3 恵比寿ビル5F',
-    email: 'info@caretech.co.jp',
-    contactPersonLastName: '佐藤',
-    contactPersonFirstName: '花子',
+    name: '',
+    representativeLastName: '',
+    representativeFirstName: '',
+    phone: '',
+    prefecture: '',
+    city: '',
+    addressDetail: '',
+    email: '',
+    contactPersonLastName: '',
+    contactPersonFirstName: '',
   });
 
   // 施設情報
   const [facilityInfo, setFacilityInfo] = useState({
-    name: 'ケアテック恵比寿',
-    serviceType: '訪問介護',
+    name: '',
+    serviceType: '',
   });
 
   // 責任者情報
@@ -192,8 +195,7 @@ export default function FacilityPage() {
   };
 
   // 初回自動送信メッセージ
-  const [welcomeMessage, setWelcomeMessage] = useState({
-    text: `[ワーカー名字]様
+  const defaultWelcomeMessage = `[ワーカー名字]様
 
 この度は、[施設名]の求人にご応募いただき、誠にありがとうございます。
 施設長の[施設責任者名字]と申します。
@@ -203,9 +205,52 @@ export default function FacilityPage() {
 どうぞよろしくお願いいたします。
 
 ご不明な点がございましたら、お気軽にお問い合わせください。
-皆様とお会いできることを楽しみにしております。`,
+皆様とお会いできることを楽しみにしております。`;
+
+  const [welcomeMessage, setWelcomeMessage] = useState({
+    text: '',
     showPreview: false,
   });
+
+  // DBから施設情報を読み込む
+  useEffect(() => {
+    const loadFacilityInfo = async () => {
+      if (!admin?.facilityId) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const data = await getFacilityInfo(admin.facilityId);
+        if (data) {
+          // 法人情報をセット
+          setCorporateInfo((prev) => ({
+            ...prev,
+            name: data.corporationName || '',
+          }));
+
+          // 施設情報をセット
+          setFacilityInfo({
+            name: data.facilityName || '',
+            serviceType: data.facilityType || '',
+          });
+
+          // 初回メッセージをセット（DBに保存されていればそれを使う、なければデフォルト）
+          setWelcomeMessage((prev) => ({
+            ...prev,
+            text: data.initialMessage || defaultWelcomeMessage,
+          }));
+        }
+      } catch (error) {
+        console.error('Failed to load facility info:', error);
+        toast.error('施設情報の読み込みに失敗しました');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadFacilityInfo();
+  }, [admin?.facilityId]);
 
   const handleManagerPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -330,9 +375,55 @@ export default function FacilityPage() {
       .replace(/\[施設名\]/g, facilityInfo.name);
   };
 
-  const handleSave = () => {
-    toast.success('保存しました');
+  const handleSave = async () => {
+    // 二重実行防止
+    if (isSaving) {
+      return;
+    }
+
+    if (!admin?.facilityId) {
+      toast.error('施設IDが取得できません');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const result = await updateFacilityBasicInfo(admin.facilityId, {
+        corporationName: corporateInfo.name,
+        facilityName: facilityInfo.name,
+        facilityType: facilityInfo.serviceType,
+        initialMessage: welcomeMessage.text,
+      });
+
+      if (result.success) {
+        toast.success('保存しました');
+      } else {
+        toast.error(result.error || '保存に失敗しました');
+      }
+    } catch (error) {
+      console.error('Failed to save:', error);
+      toast.error('保存に失敗しました');
+    } finally {
+      setIsSaving(false);
+    }
   };
+
+  // ローディング中
+  if (isLoading) {
+    return (
+      <div className="h-full flex flex-col">
+        <div className="bg-white border-b border-gray-200 px-6 py-4">
+          <h1 className="text-2xl font-bold text-gray-900">法人・施設情報</h1>
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
+            <p className="mt-2 text-gray-600">読み込み中...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
       <div className="h-full flex flex-col">
@@ -1044,9 +1135,11 @@ export default function FacilityPage() {
             <div className="flex justify-end gap-3 pb-6">
               <button
                 onClick={handleSave}
-                className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary-dark font-medium"
+                disabled={isSaving}
+                className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary-dark font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
-                保存する
+                {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+                {isSaving ? '保存中...' : '保存する'}
               </button>
             </div>
           </div>

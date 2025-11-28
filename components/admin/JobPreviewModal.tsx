@@ -14,6 +14,11 @@ interface JobPreviewModalProps {
   formData: any;
   selectedDates: string[];
   facility: any;
+  recruitmentOptions?: {
+    noDateSelection: boolean;
+    weeklyFrequency: 2 | 3 | 4 | null;
+    monthlyCommitment: boolean;
+  };
 }
 
 export function JobPreviewModal({
@@ -22,18 +27,31 @@ export function JobPreviewModal({
   formData,
   selectedDates,
   facility,
+  recruitmentOptions,
 }: JobPreviewModalProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isOverviewExpanded, setIsOverviewExpanded] = useState(false);
+  const [visibleDatesCount, setVisibleDatesCount] = useState(5);
 
   if (!isOpen) return null;
 
+  // 既存画像（URL）と新規画像（File）を結合
+  const allImages = [
+    ...(formData.existingImages || []),
+    ...(formData.images || []),
+  ];
+
+  const allDresscodeImages = [
+    ...(formData.existingDresscodeImages || []),
+    ...(formData.dresscodeImages || []),
+  ];
+
   const nextImage = () => {
-    setCurrentImageIndex((prev) => (prev === formData.images.length - 1 ? 0 : prev + 1));
+    setCurrentImageIndex((prev) => (prev === allImages.length - 1 ? 0 : prev + 1));
   };
 
   const prevImage = () => {
-    setCurrentImageIndex((prev) => (prev === 0 ? formData.images.length - 1 : prev - 1));
+    setCurrentImageIndex((prev) => (prev === 0 ? allImages.length - 1 : prev - 1));
   };
 
   const formatWorkTime = (startTime: string, endTime: string) => {
@@ -56,7 +74,7 @@ export function JobPreviewModal({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={onClose}>
       <div
         className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-lg shadow-xl"
         onClick={(e) => e.stopPropagation()}
@@ -82,22 +100,38 @@ export function JobPreviewModal({
           </div>
 
           {/* 画像カルーセル */}
-          {formData.images.length > 0 && (
+          {allImages.length > 0 && (
             <div className="relative mb-4">
               <div className="relative aspect-video overflow-hidden rounded-lg bg-gray-100">
-                {formData.images[currentImageIndex] instanceof File ? (
-                  <Image
-                    src={URL.createObjectURL(formData.images[currentImageIndex])}
-                    alt="施設画像"
-                    fill
-                    className="object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-400">
-                    画像プレビュー
-                  </div>
-                )}
-                {formData.images.length > 1 && (
+                {(() => {
+                  const currentImage = allImages[currentImageIndex];
+                  if (currentImage instanceof File) {
+                    return (
+                      <Image
+                        src={URL.createObjectURL(currentImage)}
+                        alt="施設画像"
+                        fill
+                        className="object-cover"
+                      />
+                    );
+                  } else if (typeof currentImage === 'string') {
+                    return (
+                      <Image
+                        src={currentImage}
+                        alt="施設画像"
+                        fill
+                        className="object-cover"
+                      />
+                    );
+                  } else {
+                    return (
+                      <div className="w-full h-full flex items-center justify-center text-gray-400">
+                        画像プレビュー
+                      </div>
+                    );
+                  }
+                })()}
+                {allImages.length > 1 && (
                   <>
                     <button
                       onClick={prevImage}
@@ -115,9 +149,9 @@ export function JobPreviewModal({
                 )}
               </div>
               {/* インジケーター */}
-              {formData.images.length > 1 && (
+              {allImages.length > 1 && (
                 <div className="flex justify-center gap-1 mt-2">
-                  {formData.images.map((_: any, index: number) => (
+                  {allImages.map((_: any, index: number) => (
                     <div
                       key={index}
                       className={`h-1 rounded-full transition-all ${
@@ -159,44 +193,51 @@ export function JobPreviewModal({
 
           {/* 選択された勤務日 */}
           {selectedDates.length > 0 && (
-            <div className="mb-4 space-y-2">
-              {selectedDates.slice(0, 3).map((date) => (
-                <div
-                  key={date}
-                  className="p-4 border-2 border-primary rounded-lg bg-primary-light/30"
-                >
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked
-                      readOnly
-                      className="w-5 h-5 text-primary flex-shrink-0"
-                    />
-                    <div className="flex-1">
-                      <div className="text-sm font-bold mb-1">
-                        {formatDate(date)} {formatWorkTime(formData.startTime, formData.endTime)}
+            <div className="mb-4">
+              <h3 className="text-sm font-bold mb-2">選択された勤務日（{selectedDates.length}件）</h3>
+              <div className="space-y-2">
+                {selectedDates.slice(0, visibleDatesCount).map((date) => (
+                  <div
+                    key={date}
+                    className="p-4 border-2 border-primary rounded-lg bg-primary-light/30"
+                  >
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked
+                        readOnly
+                        className="w-5 h-5 text-primary flex-shrink-0"
+                      />
+                      <div className="flex-1">
+                        <div className="text-sm font-bold mb-1">
+                          {formatDate(date)} {formatWorkTime(formData.startTime, formData.endTime)}
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-gray-600">
+                          <span>休憩 {formData.breakTime}分</span>
+                          <span>•</span>
+                          <span>時給 {formData.hourlyWage?.toLocaleString() || 0}円</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 text-xs text-gray-600">
-                        <span>休憩 {formData.breakTime}分</span>
-                        <span>•</span>
-                        <span>時給 {formData.hourlyWage?.toLocaleString() || 0}円</span>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-lg font-bold text-red-500">
-                        {dailyWage.toLocaleString()}円
-                      </div>
-                      <div className="text-xs text-gray-600">
-                        交通費{formData.transportationFee?.toLocaleString() || 0}円込
+                      <div className="text-right">
+                        <div className="text-lg font-bold text-red-500">
+                          {dailyWage.toLocaleString()}円
+                        </div>
+                        <div className="text-xs text-gray-600">
+                          交通費{formData.transportationFee?.toLocaleString() || 0}円込
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
-              {selectedDates.length > 3 && (
-                <p className="text-sm text-gray-600 text-center">
-                  他 {selectedDates.length - 3} 件の勤務日
-                </p>
+                ))}
+              </div>
+              {/* さらに表示ボタン */}
+              {selectedDates.length > visibleDatesCount && (
+                <button
+                  onClick={() => setVisibleDatesCount((prev) => prev + 10)}
+                  className="w-full mt-3 py-2 text-sm text-primary border border-primary rounded-lg hover:bg-primary-light transition-colors"
+                >
+                  さらに表示（残り{selectedDates.length - visibleDatesCount}件）
+                </button>
               )}
             </div>
           )}
@@ -266,6 +307,24 @@ export function JobPreviewModal({
                   </button>
                 </div>
               )}
+              {/* 募集条件（週N回以上・1ヶ月以上） */}
+              {recruitmentOptions && (recruitmentOptions.weeklyFrequency || recruitmentOptions.monthlyCommitment) && (
+                <div>
+                  <h4 className="text-sm mb-2 font-bold">募集条件</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {recruitmentOptions.weeklyFrequency && (
+                      <span className="px-3 py-1 bg-orange-100 text-orange-700 text-sm rounded-full">
+                        週{recruitmentOptions.weeklyFrequency}回以上勤務できる方
+                      </span>
+                    )}
+                    {recruitmentOptions.monthlyCommitment && (
+                      <span className="px-3 py-1 bg-purple-100 text-purple-700 text-sm rounded-full">
+                        1ヶ月以上勤務できる方
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -274,7 +333,7 @@ export function JobPreviewModal({
             <h3 className="mb-3 text-sm bg-primary-light px-4 py-3 -mx-4">事前情報</h3>
             <div className="mt-3 space-y-4">
               {/* 服装など */}
-              {(formData.dresscode?.length > 0 || formData.dresscodeImages?.length > 0) && (
+              {(formData.dresscode?.length > 0 || allDresscodeImages.length > 0) && (
                 <div>
                   <h4 className="text-sm mb-2 font-bold">服装など</h4>
                   {formData.dresscode?.length > 0 && (
@@ -284,12 +343,12 @@ export function JobPreviewModal({
                       ))}
                     </ul>
                   )}
-                  {formData.dresscodeImages?.length > 0 && (
+                  {allDresscodeImages.length > 0 && (
                     <div className="grid grid-cols-3 gap-2">
-                      {formData.dresscodeImages.map((file: File, index: number) => (
+                      {allDresscodeImages.map((image: File | string, index: number) => (
                         <div key={index} className="relative aspect-video overflow-hidden rounded-lg border border-gray-200">
                           <Image
-                            src={URL.createObjectURL(file)}
+                            src={image instanceof File ? URL.createObjectURL(image) : image}
                             alt={`服装サンプル${index + 1}`}
                             fill
                             className="object-cover"
@@ -312,6 +371,42 @@ export function JobPreviewModal({
                   </ul>
                 </div>
               )}
+
+              {/* その他添付資料 */}
+              {(() => {
+                const allAttachments = [
+                  ...(formData.existingAttachments || []),
+                  ...(formData.attachments || []),
+                ];
+                if (allAttachments.length === 0) return null;
+                return (
+                  <div>
+                    <h4 className="text-sm mb-2 font-bold">その他添付資料</h4>
+                    <ul className="text-sm text-gray-600 space-y-2">
+                      {allAttachments.map((attachment: File | string, index: number) => {
+                        const fileName = attachment instanceof File
+                          ? attachment.name
+                          : (attachment as string).split('/').pop() || 'ファイル';
+                        const url = attachment instanceof File
+                          ? URL.createObjectURL(attachment)
+                          : attachment;
+                        return (
+                          <li key={index}>
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:text-blue-800 hover:underline"
+                            >
+                              ・{fileName}
+                            </a>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                );
+              })()}
             </div>
           </div>
 

@@ -3,9 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { jobs } from '@/data/jobs';
-import { facilities } from '@/data/facilities';
-import { jobTemplates } from '@/data/jobTemplates';
+import { getAdminJobsList, getAdminJobTemplates, getFacilityInfo, deleteJobs, updateJobsStatus } from '@/src/lib/actions';
 import Link from 'next/link';
 import {
   Plus,
@@ -20,24 +18,96 @@ import {
   MapPin,
   ChevronLeft,
   ChevronRight,
+  Trash2,
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { Badge } from '@/components/ui/badge';
 import { Tag } from '@/components/ui/tag';
 import { EmptyState } from '@/components/ui/EmptyState';
 
 type JobStatus = 'all' | 'recruiting' | 'paused' | 'working' | 'review' | 'completed' | 'failed';
 
+interface WorkDateData {
+  id: number;
+  workDate: string;
+  deadline: string;
+  recruitmentCount: number;
+  appliedCount: number;
+}
+
+interface JobData {
+  id: number;
+  title: string;
+  status: string;
+  workDate: string | null;
+  workDates?: WorkDateData[];
+  startTime: string;
+  endTime: string;
+  breakTime: string;
+  wage: number;
+  hourlyWage: number;
+  transportationFee: number;
+  deadline: string | null;
+  recruitmentCount: number;
+  appliedCount: number;
+  overview: string;
+  workContent: string[];
+  requiredQualifications: string[];
+  requiredExperience: string[];
+  dresscode: string[];
+  dresscodeImages: string[];
+  belongings: string[];
+  attachments: string[];
+  managerName: string;
+  managerMessage: string | null;
+  managerAvatar: string | null;
+  images: string[];
+  address: string;
+  access: string;
+  tags: string[];
+  facilityId: number;
+  facilityName: string;
+  templateId: number | null;
+  templateName: string | null;
+  allowCar: boolean;
+  allowBike: boolean;
+  allowBicycle: boolean;
+  allowPublicTransit: boolean;
+  hasParking: boolean;
+  noBathingAssist: boolean;
+  hasDriver: boolean;
+  hairStyleFree: boolean;
+  nailOk: boolean;
+  uniformProvided: boolean;
+  inexperiencedOk: boolean;
+  beginnerOk: boolean;
+  facilityWithin5years: boolean;
+  weeklyFrequency: number | null;
+  monthlyCommitment: boolean;
+}
+
+interface TemplateData {
+  id: number;
+  name: string;
+  title: string;
+}
+
 export default function AdminJobsList() {
   const router = useRouter();
   const { admin, isAdmin } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
+  const [jobs, setJobs] = useState<JobData[]>([]);
+  const [jobTemplates, setJobTemplates] = useState<TemplateData[]>([]);
+  const [facilityName, setFacilityName] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<JobStatus>('all');
   const [periodStartFilter, setPeriodStartFilter] = useState('');
   const [periodEndFilter, setPeriodEndFilter] = useState('');
   const [templateFilter, setTemplateFilter] = useState('all');
-  const [selectedJob, setSelectedJob] = useState<typeof jobs[0] | null>(null);
+  const [selectedJob, setSelectedJob] = useState<JobData | null>(null);
   const [selectedJobIds, setSelectedJobIds] = useState<number[]>([]);
-  const [bulkActionConfirm, setBulkActionConfirm] = useState<'publish' | 'pause' | null>(null);
+  const [bulkActionConfirm, setBulkActionConfirm] = useState<'publish' | 'pause' | 'delete' | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -50,45 +120,59 @@ export default function AdminJobsList() {
     }
   }, [isAdmin, admin, router]);
 
+  // データ取得
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!admin?.facilityId) return;
+
+      setIsLoading(true);
+      try {
+        const [jobsData, templatesData, facilityData] = await Promise.all([
+          getAdminJobsList(admin.facilityId),
+          getAdminJobTemplates(admin.facilityId),
+          getFacilityInfo(admin.facilityId),
+        ]);
+        setJobs(jobsData);
+        setJobTemplates(templatesData);
+        if (facilityData) {
+          setFacilityName(facilityData.facilityName);
+        }
+      } catch (error) {
+        console.error('Failed to fetch jobs:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (isAdmin && admin) {
+      fetchData();
+    }
+  }, [admin?.facilityId, isAdmin, admin]);
+
   // ログインしていない場合は何も表示しない
   if (!isAdmin || !admin) {
     return null;
   }
 
-  // 管理している施設の求人を取得
-  const facilityJobs = useMemo(() => {
-    return jobs.filter((job) => job.facilityId === admin.facilityId);
-  }, [admin.facilityId]);
-
   // ステータス判定関数
-  const getJobStatus = (job: typeof jobs[0]): Exclude<JobStatus, 'all'> => {
+  const getJobStatus = (job: JobData): Exclude<JobStatus, 'all'> => {
     // 停止中フラグがある場合は停止中を返す
-    if ((job as any).status === 'paused') {
+    if (job.status === 'STOPPED') {
       return 'paused';
     }
 
-    const today = new Date();
-    const deadline = new Date(job.deadline);
-    const workDate = new Date(job.workDate);
-
-    if (workDate < today) {
-      // 勤務日が過去
-      return 'completed';
-    } else if (workDate.toDateString() === today.toDateString()) {
-      // 本日勤務
-      return 'working';
-    } else if (deadline < today) {
-      // 締切過ぎ
-      return job.appliedCount >= job.recruitmentCount ? 'review' : 'failed';
-    } else {
-      // 募集中
+    // 公開中（PUBLISHED）の場合は募集中として表示
+    if (job.status === 'PUBLISHED') {
       return 'recruiting';
     }
+
+    // その他（DRAFT等）の場合もデフォルトで募集中
+    return 'recruiting';
   };
 
   // フィルタリング
   const filteredJobs = useMemo(() => {
-    let filtered = [...facilityJobs];
+    let filtered = [...jobs];
 
     // 検索フィルタ（求人タイトルorワーカー名）
     if (searchQuery) {
@@ -105,6 +189,7 @@ export default function AdminJobsList() {
     // 時期フィルタ（年月範囲指定）
     if (periodStartFilter || periodEndFilter) {
       filtered = filtered.filter((job) => {
+        if (!job.workDate) return false;
         const workDate = new Date(job.workDate);
         const workYearMonth = workDate.getFullYear() * 100 + (workDate.getMonth() + 1);
 
@@ -125,10 +210,11 @@ export default function AdminJobsList() {
         return inRange;
       });
     } else {
-      // デフォルトで過去1ヶ月のデータを表示
+      // デフォルトで過去1ヶ月から未来のすべてのデータを表示
       const today = new Date();
       const oneMonthAgo = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
-      filtered = filtered.filter((job) => new Date(job.workDate) >= oneMonthAgo);
+      // 勤務日がない場合、または過去1ヶ月以降のデータを表示（未来の求人も含む）
+      filtered = filtered.filter((job) => !job.workDate || new Date(job.workDate) >= oneMonthAgo);
     }
 
     // テンプレートフィルタ
@@ -137,10 +223,14 @@ export default function AdminJobsList() {
     }
 
     // 最新順にソート
-    filtered.sort((a, b) => new Date(b.workDate).getTime() - new Date(a.workDate).getTime());
+    filtered.sort((a, b) => {
+      const dateA = a.workDate ? new Date(a.workDate).getTime() : 0;
+      const dateB = b.workDate ? new Date(b.workDate).getTime() : 0;
+      return dateB - dateA;
+    });
 
     return filtered;
-  }, [facilityJobs, searchQuery, statusFilter, periodStartFilter, periodEndFilter, templateFilter]);
+  }, [jobs, searchQuery, statusFilter, periodStartFilter, periodEndFilter, templateFilter]);
 
   // ページネーション
   const totalPages = Math.ceil(filteredJobs.length / itemsPerPage);
@@ -193,10 +283,58 @@ export default function AdminJobsList() {
     }
   };
 
-  const confirmBulkAction = () => {
+  const handleBulkDelete = () => {
+    if (selectedJobIds.length > 0) {
+      setBulkActionConfirm('delete');
+    }
+  };
+
+  const confirmBulkAction = async () => {
     if (bulkActionConfirm && selectedJobIds.length > 0) {
-      // 実際の一括ステータス変更処理（ここではダミー）
-      console.log(`一括${bulkActionConfirm === 'publish' ? '公開' : '停止'}:`, selectedJobIds);
+      if (bulkActionConfirm === 'delete') {
+        // 削除処理
+        if (!admin?.facilityId) return;
+
+        setIsDeleting(true);
+        try {
+          const result = await deleteJobs(selectedJobIds, admin.facilityId);
+          if (result.success) {
+            toast.success(result.message);
+            // 求人リストを更新
+            setJobs((prev) => prev.filter((job) => !selectedJobIds.includes(job.id)));
+          } else {
+            toast.error(result.message);
+          }
+        } catch (error) {
+          toast.error('削除に失敗しました');
+        } finally {
+          setIsDeleting(false);
+        }
+      } else {
+        // 公開・停止処理
+        if (!admin?.facilityId) return;
+
+        setIsDeleting(true);
+        try {
+          const newStatus = bulkActionConfirm === 'publish' ? 'PUBLISHED' : 'STOPPED';
+          const result = await updateJobsStatus(selectedJobIds, admin.facilityId, newStatus);
+          if (result.success) {
+            toast.success(result.message);
+            // 求人リストのステータスを更新
+            setJobs((prev) => prev.map((job) =>
+              selectedJobIds.includes(job.id)
+                ? { ...job, status: newStatus }
+                : job
+            ));
+          } else {
+            toast.error(result.message);
+          }
+        } catch (error) {
+          toast.error('ステータス更新に失敗しました');
+        } finally {
+          setIsDeleting(false);
+        }
+      }
       setSelectedJobIds([]);
       setBulkActionConfirm(null);
     }
@@ -214,7 +352,13 @@ export default function AdminJobsList() {
     return options;
   }, []);
 
-  const facility = facilities.find((f) => f.id === admin.facilityId);
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col">
@@ -225,8 +369,8 @@ export default function AdminJobsList() {
               <h1 className="text-xl font-bold text-gray-900">求人管理</h1>
               <p className="text-xs text-gray-500 mt-1">
                 {filteredJobs.length}件の求人
-                {filteredJobs.length !== facilityJobs.length && (
-                  <span className="text-gray-400"> （全{facilityJobs.length}件中）</span>
+                {filteredJobs.length !== jobs.length && (
+                  <span className="text-gray-400"> （全{jobs.length}件中）</span>
                 )}
               </p>
             </div>
@@ -251,6 +395,14 @@ export default function AdminJobsList() {
                 className="flex items-center gap-2 px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 停止する
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                disabled={selectedJobIds.length === 0}
+                className="flex items-center gap-2 px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Trash2 className="w-4 h-4" />
+                削除する
               </button>
               <button
                 onClick={() => window.open('/admin/jobs/templates', '_blank')}
@@ -405,7 +557,8 @@ export default function AdminJobsList() {
                 return (
                   <div
                     key={job.id}
-                    className="bg-white rounded border border-gray-200 hover:border-blue-400 hover:shadow-sm transition-all p-3 flex items-center gap-3"
+                    onClick={() => handleCheckboxChange(job.id)}
+                    className="bg-white rounded border border-gray-200 hover:border-blue-400 hover:shadow-sm transition-all p-3 flex items-center gap-3 cursor-pointer"
                   >
                     {/* チェックボックス（カードの縦方向中央） */}
                     <div className="flex-shrink-0">
@@ -430,10 +583,7 @@ export default function AdminJobsList() {
                         </div>
 
                         {/* テンプレート名（求人名） */}
-                        <div
-                          className="flex-1 min-w-0 cursor-pointer"
-                          onClick={() => setSelectedJob(job)}
-                        >
+                        <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-900 truncate">{job.title}</p>
                         </div>
 
@@ -482,12 +632,12 @@ export default function AdminJobsList() {
                           <div className="flex items-center gap-1 text-xs text-gray-600">
                             <Clock className="w-3 h-3 text-gray-400" />
                             <span>
-                              {new Date(job.deadline).toLocaleDateString('ja-JP', {
+                              {job.deadline ? new Date(job.deadline).toLocaleDateString('ja-JP', {
                                 month: 'short',
                                 day: 'numeric',
                                 hour: '2-digit',
                                 minute: '2-digit',
-                              })}
+                              }) : '-'}
                             </span>
                           </div>
                         </div>
@@ -512,9 +662,9 @@ export default function AdminJobsList() {
                           <div className="flex items-center gap-1 text-xs text-gray-600 whitespace-nowrap">
                             <Building2 className="w-3 h-3 text-gray-400" />
                             <span>
-                              {facility?.name && facility.name.length > 13
-                                ? `${facility.name.slice(0, 13)}...`
-                                : facility?.name}
+                              {job.facilityName && job.facilityName.length > 13
+                                ? `${job.facilityName.slice(0, 13)}...`
+                                : job.facilityName}
                             </span>
                           </div>
                         </div>
@@ -556,30 +706,46 @@ export default function AdminJobsList() {
         {bulkActionConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h2 className="text-lg font-bold mb-4">一括{bulkActionConfirm === 'publish' ? '公開' : '停止'}の確認</h2>
+            <h2 className="text-lg font-bold mb-4">
+              一括{bulkActionConfirm === 'publish' ? '公開' : bulkActionConfirm === 'pause' ? '停止' : '削除'}の確認
+            </h2>
             <p className="text-sm text-gray-700 mb-6">
-              選択した{selectedJobIds.length}件の求人を
-              <span className="font-bold">
-                {bulkActionConfirm === 'publish' ? '公開中' : '停止中'}
-              </span>
-              に変更しますか？
+              {bulkActionConfirm === 'delete' ? (
+                <>
+                  選択した{selectedJobIds.length}件の求人を<span className="font-bold text-red-600">削除</span>しますか？
+                  <br />
+                  <span className="text-red-500 text-xs">※この操作は取り消せません</span>
+                </>
+              ) : (
+                <>
+                  選択した{selectedJobIds.length}件の求人を
+                  <span className="font-bold">
+                    {bulkActionConfirm === 'publish' ? '公開中' : '停止中'}
+                  </span>
+                  に変更しますか？
+                </>
+              )}
             </p>
             <div className="flex gap-3">
               <button
                 onClick={() => setBulkActionConfirm(null)}
-                className="flex-1 px-4 py-2 text-sm border border-gray-300 rounded hover:bg-gray-50"
+                disabled={isDeleting}
+                className="flex-1 px-4 py-2 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
               >
                 キャンセル
               </button>
               <button
                 onClick={confirmBulkAction}
-                className={`flex-1 px-4 py-2 text-sm text-white rounded transition-colors ${
+                disabled={isDeleting}
+                className={`flex-1 px-4 py-2 text-sm text-white rounded transition-colors disabled:opacity-50 ${
                   bulkActionConfirm === 'publish'
                     ? 'bg-green-600 hover:bg-green-700'
+                    : bulkActionConfirm === 'delete'
+                    ? 'bg-red-600 hover:bg-red-700'
                     : 'bg-gray-600 hover:bg-gray-700'
                 }`}
               >
-                変更する
+                {isDeleting ? '処理中...' : bulkActionConfirm === 'delete' ? '削除する' : '変更する'}
               </button>
             </div>
           </div>
@@ -668,16 +834,13 @@ export default function AdminJobsList() {
               )}
 
               {/* タグとバッジ */}
-              {selectedJob.badges && selectedJob.badges.length > 0 && (
+              {selectedJob.tags && selectedJob.tags.length > 0 && (
                 <div className="mb-6">
                   <h3 className="mb-3 text-sm bg-primary-light px-4 py-3 -mx-4">タグとバッジ</h3>
                   <div className="flex flex-wrap gap-2">
-                    {selectedJob.badges.map((badge, index) => (
-                      <Badge
-                        key={index}
-                        variant={badge.type === 'yellow' ? 'yellow' : 'default'}
-                      >
-                        {badge.text}
+                    {selectedJob.tags.map((tag, index) => (
+                      <Badge key={index} variant="default">
+                        {tag}
                       </Badge>
                     ))}
                   </div>
@@ -691,7 +854,7 @@ export default function AdminJobsList() {
                   <div className="flex items-center gap-2">
                     <Building2 className="w-4 h-4 text-gray-400" />
                     <span className="text-sm">
-                      {facilities.find((f) => f.id === selectedJob.facilityId)?.name || '施設名'}
+                      {selectedJob.facilityName || '施設名'}
                     </span>
                   </div>
                   <div className="flex items-start gap-2">
@@ -706,32 +869,69 @@ export default function AdminJobsList() {
 
               {/* 選択された勤務日 */}
               <div className="mb-6">
-                <h3 className="mb-3 text-sm bg-primary-light px-4 py-3 -mx-4">選択された勤務日</h3>
-                <div className="p-4 border-2 border-primary rounded-lg bg-primary-light/30">
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1">
-                      <div className="text-sm font-bold mb-1">
-                        {new Date(selectedJob.workDate).toLocaleDateString('ja-JP', {
-                          month: 'long',
-                          day: 'numeric',
-                          weekday: 'short'
-                        })} {selectedJob.startTime}〜{selectedJob.endTime}
+                <h3 className="mb-3 text-sm bg-primary-light px-4 py-3 -mx-4">
+                  選択された勤務日（{selectedJob.workDates?.length || 1}件）
+                </h3>
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {selectedJob.workDates && selectedJob.workDates.length > 0 ? (
+                    selectedJob.workDates.map((wd, index) => (
+                      <div key={index} className="p-3 border-2 border-primary rounded-lg bg-primary-light/30">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1">
+                            <div className="text-sm font-bold mb-1">
+                              {new Date(wd.workDate).toLocaleDateString('ja-JP', {
+                                month: 'long',
+                                day: 'numeric',
+                                weekday: 'short'
+                              })} {selectedJob.startTime}〜{selectedJob.endTime}
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-gray-600">
+                              <span>休憩 {selectedJob.breakTime}</span>
+                              <span>•</span>
+                              <span>時給 {selectedJob.hourlyWage.toLocaleString()}円</span>
+                              <span>•</span>
+                              <span>募集 {wd.recruitmentCount}名</span>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-lg font-bold text-red-500">
+                              {selectedJob.wage.toLocaleString()}円
+                            </div>
+                            <div className="text-xs text-gray-600">
+                              交通費{selectedJob.transportationFee.toLocaleString()}円込
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 text-xs text-gray-600">
-                        <span>休憩 {selectedJob.breakTime}</span>
-                        <span>•</span>
-                        <span>時給 {selectedJob.hourlyWage.toLocaleString()}円</span>
+                    ))
+                  ) : (
+                    <div className="p-3 border-2 border-primary rounded-lg bg-primary-light/30">
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1">
+                          <div className="text-sm font-bold mb-1">
+                            {selectedJob.workDate ? new Date(selectedJob.workDate).toLocaleDateString('ja-JP', {
+                              month: 'long',
+                              day: 'numeric',
+                              weekday: 'short'
+                            }) : '-'} {selectedJob.startTime}〜{selectedJob.endTime}
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-gray-600">
+                            <span>休憩 {selectedJob.breakTime}</span>
+                            <span>•</span>
+                            <span>時給 {selectedJob.hourlyWage.toLocaleString()}円</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-lg font-bold text-red-500">
+                            {selectedJob.wage.toLocaleString()}円
+                          </div>
+                          <div className="text-xs text-gray-600">
+                            交通費{selectedJob.transportationFee.toLocaleString()}円込
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-lg font-bold text-red-500">
-                        {selectedJob.wage.toLocaleString()}円
-                      </div>
-                      <div className="text-xs text-gray-600">
-                        交通費{selectedJob.transportationFee.toLocaleString()}円込
-                      </div>
-                    </div>
-                  </div>
+                  )}
                 </div>
               </div>
 
@@ -794,6 +994,24 @@ export default function AdminJobsList() {
                       </div>
                     </div>
                   )}
+                  {/* 募集条件（週N回以上・1ヶ月以上） */}
+                  {(selectedJob.weeklyFrequency || selectedJob.monthlyCommitment) && (
+                    <div>
+                      <p className="text-xs text-gray-600 mb-2">募集条件</p>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedJob.weeklyFrequency && (
+                          <span className="px-3 py-1 bg-orange-100 text-orange-700 text-sm rounded-full">
+                            週{selectedJob.weeklyFrequency}回以上勤務できる方
+                          </span>
+                        )}
+                        {selectedJob.monthlyCommitment && (
+                          <span className="px-3 py-1 bg-purple-100 text-purple-700 text-sm rounded-full">
+                            1ヶ月以上勤務できる方
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -801,14 +1019,29 @@ export default function AdminJobsList() {
               <div className="mb-6">
                 <h3 className="mb-3 text-sm bg-primary-light px-4 py-3 -mx-4">事前情報</h3>
                 <div className="grid grid-cols-2 gap-4">
-                  {selectedJob.dresscode && selectedJob.dresscode.length > 0 && (
+                  {(selectedJob.dresscode && selectedJob.dresscode.length > 0 || selectedJob.dresscodeImages && selectedJob.dresscodeImages.length > 0) && (
                     <div>
                       <p className="text-xs text-gray-600 mb-2">服装</p>
-                      <ul className="space-y-1">
-                        {selectedJob.dresscode.map((item, index) => (
-                          <li key={index} className="text-sm text-gray-700">• {item}</li>
-                        ))}
-                      </ul>
+                      {selectedJob.dresscode && selectedJob.dresscode.length > 0 && (
+                        <ul className="space-y-1 mb-3">
+                          {selectedJob.dresscode.map((item, index) => (
+                            <li key={index} className="text-sm text-gray-700">• {item}</li>
+                          ))}
+                        </ul>
+                      )}
+                      {selectedJob.dresscodeImages && selectedJob.dresscodeImages.length > 0 && (
+                        <div className="grid grid-cols-3 gap-2">
+                          {selectedJob.dresscodeImages.map((image, index) => (
+                            <div key={index} className="relative aspect-video overflow-hidden rounded-lg border border-gray-200">
+                              <img
+                                src={image}
+                                alt={`服装サンプル${index + 1}`}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                   {selectedJob.belongings && selectedJob.belongings.length > 0 && (
@@ -822,21 +1055,49 @@ export default function AdminJobsList() {
                     </div>
                   )}
                 </div>
-                {selectedJob.transportMethods && selectedJob.transportMethods.length > 0 && (
+                {/* その他添付資料 */}
+                {selectedJob.attachments && selectedJob.attachments.length > 0 && (
+                  <div className="mt-4">
+                    <p className="text-xs text-gray-600 mb-2">その他添付資料</p>
+                    <ul className="space-y-2">
+                      {selectedJob.attachments.map((attachment, index) => {
+                        const fileName = attachment.split('/').pop() || 'ファイル';
+                        return (
+                          <li key={index}>
+                            <a
+                              href={attachment}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:text-blue-800 hover:underline text-sm"
+                            >
+                              • {fileName}
+                            </a>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                )}
+                {(selectedJob.allowCar || selectedJob.allowBike || selectedJob.allowBicycle || selectedJob.allowPublicTransit) && (
                   <div className="mt-3">
                     <p className="text-xs text-gray-600 mb-2">利用可能な交通手段</p>
                     <div className="flex flex-wrap gap-2">
-                      {selectedJob.transportMethods
-                        .filter(method => method.available)
-                        .map((method, index) => (
-                          <span key={index} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
-                            {method.name}
-                          </span>
-                        ))}
+                      {selectedJob.allowCar && (
+                        <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">車</span>
+                      )}
+                      {selectedJob.allowBike && (
+                        <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">バイク</span>
+                      )}
+                      {selectedJob.allowBicycle && (
+                        <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">自転車</span>
+                      )}
+                      {selectedJob.allowPublicTransit && (
+                        <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">公共交通機関</span>
+                      )}
                     </div>
                   </div>
                 )}
-                {selectedJob.parking && (
+                {selectedJob.hasParking && (
                   <p className="text-sm text-gray-600 mt-3">駐車場: あり</p>
                 )}
               </div>
@@ -879,7 +1140,7 @@ export default function AdminJobsList() {
                     <div>
                       <p className="text-xs text-gray-600 mb-1">応募締切</p>
                       <p className="text-sm text-gray-700">
-                        {new Date(selectedJob.deadline).toLocaleDateString('ja-JP')}
+                        {selectedJob.deadline ? new Date(selectedJob.deadline).toLocaleDateString('ja-JP') : '-'}
                       </p>
                     </div>
                   </div>

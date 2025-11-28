@@ -1,13 +1,14 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Filter, Calendar, ChevronDown, Search, X } from 'lucide-react';
+import { Filter, ChevronDown, Search, X } from 'lucide-react';
 import { JobCard } from '@/components/job/JobCard';
 import { DateSlider } from '@/components/job/DateSlider';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { FilterModal } from '@/components/job/FilterModal';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { generateDates } from '@/utils/date';
 
 type TabType = 'all' | 'limited' | 'nominated';
 type SortOrder = 'distance' | 'wage' | 'deadline';
@@ -21,14 +22,29 @@ export function JobListClient({ jobs, facilities }: JobListClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<TabType>('all');
-  const [selectedDateIndex, setSelectedDateIndex] = useState(1);
+  const [selectedDateIndex, setSelectedDateIndex] = useState(0); // 0=今日
   const [sortOrder, setSortOrder] = useState<SortOrder>('distance');
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [appliedFilters, setAppliedFilters] = useState<any>(null);
+  const [mutedFacilities, setMutedFacilities] = useState<number[]>([]);
 
   const itemsPerPage = 20;
+
+  // ミュートされた施設IDを取得
+  useEffect(() => {
+    // 新形式のIDのみリストを優先的に使用
+    const mutedIds = localStorage.getItem('mutedFacilityIds');
+    if (mutedIds) {
+      setMutedFacilities(JSON.parse(mutedIds));
+    } else {
+      // 旧形式からIDを抽出
+      const muted = JSON.parse(localStorage.getItem('mutedFacilities') || '[]');
+      const ids = muted.map((f: any) => typeof f === 'number' ? f : f.facilityId).filter(Boolean);
+      setMutedFacilities(ids);
+    }
+  }, []);
 
   // URLパラメータから現在の絞り込み条件を取得
   const activeFilters = useMemo(() => {
@@ -198,14 +214,47 @@ export function JobListClient({ jobs, facilities }: JobListClientProps) {
     window.location.href = '/';
   };
 
-  const handleWorkDateClick = () => {
-    // Phase 2で実装予定: 働ける日カレンダー機能
-    // 現在は何もしない(将来的にカレンダーモーダルを表示)
-    return;
+  // 日付選択時にページをリセット
+  const handleDateSelect = (index: number) => {
+    setSelectedDateIndex(index);
+    setCurrentPage(1);
   };
 
+  // ミュートフィルター：ミュートされた施設の求人を除外
+  const filteredByMute = useMemo(() => {
+    if (mutedFacilities.length === 0) return jobs;
+    return jobs.filter((job) => !mutedFacilities.includes(job.facilityId));
+  }, [jobs, mutedFacilities]);
+
+  // 日付スライダーで選択された日付の求人のみ表示
+  const dates = useMemo(() => generateDates(90), []);
+  const filteredByDate = useMemo(() => {
+    const selectedDate = dates[selectedDateIndex];
+    if (!selectedDate) return filteredByMute;
+
+    // 選択された日付の日付文字列を取得（元のオブジェクトを変更しないため新しいDateを作成）
+    const targetDate = new Date(selectedDate);
+    targetDate.setHours(0, 0, 0, 0);
+    const targetDateStr = targetDate.toDateString();
+
+    return filteredByMute.filter((job) => {
+      // workDates配列がある場合は、いずれかの勤務日が選択日と一致するかチェック
+      if (job.workDates && job.workDates.length > 0) {
+        return job.workDates.some((wd: any) => {
+          const workDate = new Date(wd.workDate);
+          workDate.setHours(0, 0, 0, 0);
+          return workDate.toDateString() === targetDateStr;
+        });
+      }
+      // フォールバック：workDateを使用（旧データとの互換性）
+      const jobDate = new Date(job.workDate);
+      jobDate.setHours(0, 0, 0, 0);
+      return jobDate.toDateString() === targetDateStr;
+    });
+  }, [filteredByMute, selectedDateIndex, dates]);
+
   // ソート処理
-  const sortedJobs = [...jobs].sort((a, b) => {
+  const sortedJobs = [...filteredByDate].sort((a, b) => {
     if (sortOrder === 'wage') {
       // 時給順（高い順）
       return b.hourlyWage - a.hourlyWage;
@@ -218,6 +267,16 @@ export function JobListClient({ jobs, facilities }: JobListClientProps) {
     // distance（近い順）はデフォルトの順序を維持
     return 0;
   });
+
+  // 選択された日付をYYYY-MM-DD形式で取得（JobCardに渡すため）
+  const selectedDateStr = useMemo(() => {
+    const date = dates[selectedDateIndex];
+    if (!date) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }, [dates, selectedDateIndex]);
 
   return (
     <div className="min-h-screen bg-white pb-20">
@@ -262,14 +321,7 @@ export function JobListClient({ jobs, facilities }: JobListClientProps) {
 
         {/* フィルターエリア */}
         <div className="px-4 py-3 space-y-3">
-          <div className="flex items-center justify-between">
-            <button
-              onClick={handleWorkDateClick}
-              className="flex items-center gap-2 text-sm"
-            >
-              <Calendar className="w-5 h-5" />
-              <span>働ける日</span>
-            </button>
+          <div className="flex items-center justify-end">
             <div className="flex items-center gap-4">
               <button
                 onClick={handleFilterClick}
@@ -334,7 +386,7 @@ export function JobListClient({ jobs, facilities }: JobListClientProps) {
           {/* 日付スライダー */}
           <DateSlider
             selectedDateIndex={selectedDateIndex}
-            onDateSelect={setSelectedDateIndex}
+            onDateSelect={handleDateSelect}
           />
 
           {/* 絞り込み条件タグ */}
@@ -387,7 +439,7 @@ export function JobListClient({ jobs, facilities }: JobListClientProps) {
 
                 return (
                   <div key={job.id} className="h-full">
-                    <JobCard job={job} facility={facility} />
+                    <JobCard job={job} facility={facility} selectedDate={selectedDateStr} />
                   </div>
                 );
               })}
@@ -437,6 +489,7 @@ export function JobListClient({ jobs, facilities }: JobListClientProps) {
         onClose={() => setShowFilterModal(false)}
         onApply={handleApplyFilters}
       />
+
     </div>
   );
 }

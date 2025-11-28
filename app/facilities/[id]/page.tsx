@@ -1,4 +1,4 @@
-import { getFacilityById, getJobsByFacilityId, isFacilityFavorited } from '@/src/lib/actions';
+import { getFacilityById, getJobsByFacilityId, isFacilityFavorited, getFacilityReviews } from '@/src/lib/actions';
 import { FacilityDetailClient } from '@/components/facility/FacilityDetailClient';
 import { notFound } from 'next/navigation';
 
@@ -20,8 +20,11 @@ export default async function FacilityDetailPage({
     notFound();
   }
 
-  // この施設の求人を取得
-  const dbJobs = await getJobsByFacilityId(facilityId);
+  // この施設の求人とレビューを取得
+  const [dbJobs, reviews] = await Promise.all([
+    getJobsByFacilityId(facilityId),
+    getFacilityReviews(facilityId),
+  ]);
 
   // お気に入り状態を取得
   const initialIsFavorite = await isFacilityFavorited(params.id);
@@ -31,12 +34,12 @@ export default async function FacilityDetailPage({
     id: job.id,
     facilityId: job.facility_id,
     title: job.title,
-    workDate: job.work_date.toISOString(),
+    workDate: job.work_date ? job.work_date.toISOString() : '',
     startTime: job.start_time,
     endTime: job.end_time,
     wage: job.wage,
     hourlyWage: job.hourly_wage,
-    deadline: job.deadline.toISOString(),
+    deadline: job.deadline ? job.deadline.toISOString() : '',
     address: job.facility.address,
     access: job.access,
     distance: 0, // Phase 1では固定値
@@ -50,6 +53,7 @@ export default async function FacilityDetailPage({
       facility={facility}
       jobs={jobs}
       initialIsFavorite={initialIsFavorite}
+      reviews={reviews}
     />
   );
 }

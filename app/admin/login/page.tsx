@@ -12,6 +12,7 @@ export default function AdminLogin() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   // すでにログイン済みの場合は管理者ダッシュボードへリダイレクト
   if (isAdmin) {
@@ -19,7 +20,7 @@ export default function AdminLogin() {
     return null;
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -28,17 +29,24 @@ export default function AdminLogin() {
       return;
     }
 
-    const success = adminLogin(email, password);
-    if (success) {
-      router.push('/admin');
-    } else {
-      setError('メールアドレスまたはパスワードが正しくありません');
+    setIsLoading(true);
+    try {
+      const result = await adminLogin(email, password);
+      if (result.success) {
+        router.push('/admin');
+      } else {
+        setError(result.error || 'メールアドレスまたはパスワードが正しくありません');
+      }
+    } catch (err) {
+      setError('ログイン中にエラーが発生しました');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleTestLogin = (testEmail: string) => {
     setEmail(testEmail);
-    setPassword('admin123');
+    setPassword('password123');
   };
 
   return (
@@ -114,9 +122,10 @@ export default function AdminLogin() {
             {/* ログインボタン */}
             <button
               type="submit"
-              className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+              disabled={isLoading}
+              className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:bg-blue-400 disabled:cursor-not-allowed"
             >
-              管理者としてログイン
+              {isLoading ? 'ログイン中...' : '管理者としてログイン'}
             </button>
           </form>
         </div>
@@ -128,25 +137,25 @@ export default function AdminLogin() {
           </h3>
           <div className="space-y-2">
             <button
-              onClick={() => handleTestLogin('admin1@example.com')}
+              onClick={() => handleTestLogin('admin1@facility.com')}
               className="w-full text-left px-3 py-2 bg-white border border-blue-300 rounded text-sm hover:bg-blue-50 transition-colors"
             >
-              <div className="font-medium">山田 太郎（さくら介護ホーム）</div>
-              <div className="text-xs text-gray-600">admin1@example.com</div>
+              <div className="font-medium">井上 翔太（ひかり介護センター）</div>
+              <div className="text-xs text-gray-600">admin1@facility.com</div>
             </button>
             <button
-              onClick={() => handleTestLogin('admin2@example.com')}
+              onClick={() => handleTestLogin('admin2@facility.com')}
               className="w-full text-left px-3 py-2 bg-white border border-blue-300 rounded text-sm hover:bg-blue-50 transition-colors"
             >
-              <div className="font-medium">鈴木 花子（みどり総合病院）</div>
-              <div className="text-xs text-gray-600">admin2@example.com</div>
+              <div className="font-medium">松本 太郎（あおぞら訪問看護ステーション）</div>
+              <div className="text-xs text-gray-600">admin2@facility.com</div>
             </button>
             <button
-              onClick={() => handleTestLogin('admin3@example.com')}
+              onClick={() => handleTestLogin('admin3@facility.com')}
               className="w-full text-left px-3 py-2 bg-white border border-blue-300 rounded text-sm hover:bg-blue-50 transition-colors"
             >
-              <div className="font-medium">佐藤 次郎（もみじ訪問看護ステーション）</div>
-              <div className="text-xs text-gray-600">admin3@example.com</div>
+              <div className="font-medium">中村 健太（さくらの里特別養護老人ホーム）</div>
+              <div className="text-xs text-gray-600">admin3@facility.com</div>
             </button>
           </div>
           <p className="text-xs text-blue-700 mt-3">

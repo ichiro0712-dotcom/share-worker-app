@@ -13,9 +13,10 @@ import { addJobBookmark, removeJobBookmark, isJobBookmarked } from '@/src/lib/ac
 interface JobCardProps {
   job: Job;
   facility: Facility;
+  selectedDate?: string; // YYYY-MM-DD形式の選択された日付
 }
 
-export const JobCard: React.FC<JobCardProps> = ({ job, facility }) => {
+export const JobCard: React.FC<JobCardProps> = ({ job, facility, selectedDate }) => {
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -53,8 +54,13 @@ export const JobCard: React.FC<JobCardProps> = ({ job, facility }) => {
     }
   };
 
+  // リンクURLを構築（selectedDateがあればクエリパラメータとして追加）
+  const jobDetailUrl = selectedDate
+    ? `/jobs/${job.id}?date=${selectedDate}`
+    : `/jobs/${job.id}`;
+
   return (
-    <Link href={`/jobs/${job.id}`} className="h-full block">
+    <Link href={jobDetailUrl} className="h-full block">
       <div className="border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow cursor-pointer h-full flex flex-col">
         {/* PC版: 横並びレイアウト */}
         <div className="hidden md:flex">

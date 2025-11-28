@@ -3,10 +3,10 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { facilities } from '@/data/facilities';
 import { Upload, X } from 'lucide-react';
 import { calculateDailyWage } from '@/utils/salary';
 import toast from 'react-hot-toast';
+import { getFacilityById, createJobTemplate } from '@/src/lib/actions';
 import {
   JOB_TYPES,
   WORK_CONTENT_OPTIONS,
@@ -23,12 +23,13 @@ import {
 export default function NewTemplatePage() {
   const router = useRouter();
   const { admin, isAdmin } = useAuth();
+  const [facilityName, setFacilityName] = useState<string>('');
+  const [saving, setSaving] = useState(false);
 
   const [formData, setFormData] = useState({
     // 基本
     name: '',
     title: '',
-    facilityId: null as number | null,
     jobType: '通常業務',
     recruitmentCount: 1,
     images: [] as File[],
@@ -60,6 +61,7 @@ export default function NewTemplatePage() {
 
     // その他
     icons: [] as string[],
+    notes: '',
     attachments: [] as File[],
     dismissalReasons: DEFAULT_DISMISSAL_REASONS,
   });
@@ -73,6 +75,19 @@ export default function NewTemplatePage() {
       router.push('/admin/login');
     }
   }, [isAdmin, admin, router]);
+
+  // 施設名を取得
+  useEffect(() => {
+    const loadFacilityName = async () => {
+      if (admin?.facilityId) {
+        const facility = await getFacilityById(admin.facilityId);
+        if (facility) {
+          setFacilityName(facility.facility_name);
+        }
+      }
+    };
+    loadFacilityName();
+  }, [admin?.facilityId]);
 
   if (!isAdmin || !admin) {
     return null;
@@ -157,10 +172,19 @@ export default function NewTemplatePage() {
     formData.workContent.includes('入浴介助(個浴)') ||
     formData.workContent.includes('排泄介助');
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    // 二重実行防止
+    if (saving) {
+      return;
+    }
+
     // バリデーション - 必須項目チェック
-    if (!formData.name || !formData.title || !formData.facilityId) {
+    if (!formData.name || !formData.title) {
       toast.error('基本情報の必須項目を入力してください');
+      return;
+    }
+    if (!admin?.facilityId) {
+      toast.error('施設情報が取得できません');
       return;
     }
     if (!formData.startTime || !formData.endTime) {
@@ -184,9 +208,110 @@ export default function NewTemplatePage() {
       return;
     }
 
-    console.log('テンプレート保存:', formData);
-    toast.success('テンプレートを保存しました');
-    router.push('/admin/jobs/templates');
+    setSaving(true);
+    try {
+      // TOP画像をアップロードしてURLを取得
+      let imageUrls: string[] = [];
+      if (formData.images.length > 0) {
+        const uploadFormData = new FormData();
+        formData.images.forEach((file) => {
+          uploadFormData.append('files', file);
+        });
+
+        const uploadResponse = await fetch('/api/upload', {
+          method: 'POST',
+          body: uploadFormData,
+        });
+
+        if (uploadResponse.ok) {
+          const uploadResult = await uploadResponse.json();
+          imageUrls = uploadResult.urls || [];
+        } else {
+          toast.error('TOP画像のアップロードに失敗しました');
+          setSaving(false);
+          return;
+        }
+      }
+
+      // 服装サンプル画像をアップロード
+      let dresscodeImageUrls: string[] = [];
+      if (formData.dresscodeImages.length > 0) {
+        const uploadFormData = new FormData();
+        formData.dresscodeImages.forEach((file) => {
+          uploadFormData.append('files', file);
+        });
+
+        const uploadResponse = await fetch('/api/upload', {
+          method: 'POST',
+          body: uploadFormData,
+        });
+
+        if (uploadResponse.ok) {
+          const uploadResult = await uploadResponse.json();
+          dresscodeImageUrls = uploadResult.urls || [];
+        } else {
+          toast.error('服装サンプル画像のアップロードに失敗しました');
+          setSaving(false);
+          return;
+        }
+      }
+
+      // 添付ファイルをアップロード
+      let attachmentUrls: string[] = [];
+      if (formData.attachments.length > 0) {
+        const uploadFormData = new FormData();
+        formData.attachments.forEach((file) => {
+          uploadFormData.append('files', file);
+        });
+
+        const uploadResponse = await fetch('/api/upload', {
+          method: 'POST',
+          body: uploadFormData,
+        });
+
+        if (uploadResponse.ok) {
+          const uploadResult = await uploadResponse.json();
+          attachmentUrls = uploadResult.urls || [];
+        } else {
+          toast.error('添付ファイルのアップロードに失敗しました');
+          setSaving(false);
+          return;
+        }
+      }
+
+      const result = await createJobTemplate(admin.facilityId, {
+        name: formData.name,
+        title: formData.title,
+        startTime: formData.startTime,
+        endTime: formData.endTime,
+        breakTime: formData.breakTime,
+        hourlyWage: formData.hourlyWage,
+        transportationFee: formData.transportationFee,
+        recruitmentCount: formData.recruitmentCount,
+        qualifications: formData.qualifications,
+        workContent: formData.workContent,
+        description: formData.jobDescription,
+        skills: formData.skills,
+        dresscode: formData.dresscode,
+        belongings: formData.belongings,
+        icons: formData.icons,
+        notes: formData.notes,
+        images: imageUrls,
+        dresscodeImages: dresscodeImageUrls,
+        attachments: attachmentUrls,
+      });
+
+      if (result.success) {
+        toast.success('テンプレートを保存しました');
+        router.push('/admin/jobs/templates');
+      } else {
+        toast.error(result.error || 'テンプレートの保存に失敗しました');
+      }
+    } catch (error) {
+      toast.error('テンプレートの保存に失敗しました');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -204,9 +329,10 @@ export default function NewTemplatePage() {
               </button>
               <button
                 onClick={handleSave}
-                className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                disabled={saving}
+                className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:bg-blue-400"
               >
-                保存
+                {saving ? '保存中...' : '保存'}
               </button>
             </div>
           </div>
@@ -248,20 +374,14 @@ export default function NewTemplatePage() {
                 <div className="grid grid-cols-12 gap-4">
                   <div className="col-span-6">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      施設 <span className="text-red-500">*</span>
+                      施設
                     </label>
-                    <select
-                      value={formData.facilityId || ''}
-                      onChange={(e) => handleInputChange('facilityId', Number(e.target.value) || null)}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                    >
-                      <option value="">施設を選択</option>
-                      {facilities.slice(0, 10).map((facility) => (
-                        <option key={facility.id} value={facility.id}>
-                          {facility.name}
-                        </option>
-                      ))}
-                    </select>
+                    <input
+                      type="text"
+                      value={facilityName || '読み込み中...'}
+                      readOnly
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-gray-100 cursor-not-allowed"
+                    />
                   </div>
 
                   <div className="col-span-4">

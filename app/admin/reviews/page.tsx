@@ -1,13 +1,31 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { reviews } from '@/data/reviews';
-import { facilities } from '@/data/facilities';
-import { ArrowUpDown, Sparkles, X, TrendingUp, TrendingDown, Lightbulb } from 'lucide-react';
+import { ArrowUpDown, Sparkles, X, TrendingUp, TrendingDown, Lightbulb, Star } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { getFacilityReviewsForAdmin, getFacilityReviewStats } from '@/src/lib/actions';
 
 type SortType = 'rating-high' | 'rating-low' | 'newest' | 'oldest';
+
+interface Review {
+  id: number;
+  rating: number;
+  goodPoints: string | null;
+  improvements: string | null;
+  createdAt: string;
+  userName: string;
+  userQualifications: string[];
+  jobTitle: string;
+  jobDate: string;
+}
+
+interface ReviewStats {
+  averageRating: number;
+  totalCount: number;
+  distribution: { 5: number; 4: number; 3: number; 2: number; 1: number };
+}
 
 export default function AdminReviewsPage() {
   const router = useRouter();
@@ -16,6 +34,9 @@ export default function AdminReviewsPage() {
   const [sortType, setSortType] = useState<SortType>('newest');
   const [showAiAnalysis, setShowAiAnalysis] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [stats, setStats] = useState<ReviewStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (!isAdmin || !admin) {
@@ -23,33 +44,45 @@ export default function AdminReviewsPage() {
     }
   }, [isAdmin, admin, router]);
 
-  const facility = useMemo(() => {
-    if (!admin) return null;
-    return facilities.find(f => f.id === admin.facilityId);
-  }, [admin]);
+  // データ取得
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!admin?.facilityId) return;
 
-  const facilityReviews = useMemo(() => {
-    if (!admin) return [];
-    const filtered = reviews.filter(r => r.facilityId === admin.facilityId);
-
-    // ソート処理
-    const sorted = [...filtered].sort((a, b) => {
-      switch (sortType) {
-        case 'rating-high':
-          return b.rating - a.rating;
-        case 'rating-low':
-          return a.rating - b.rating;
-        case 'newest':
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        case 'oldest':
-          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-        default:
-          return 0;
+      setIsLoading(true);
+      try {
+        const [reviewsData, statsData] = await Promise.all([
+          getFacilityReviewsForAdmin(admin.facilityId),
+          getFacilityReviewStats(admin.facilityId),
+        ]);
+        setReviews(reviewsData);
+        setStats(statsData);
+      } catch (error) {
+        console.error('Failed to fetch reviews:', error);
+        toast.error('レビューの取得に失敗しました');
+      } finally {
+        setIsLoading(false);
       }
-    });
+    };
 
-    return sorted;
-  }, [admin, sortType]);
+    fetchData();
+  }, [admin?.facilityId]);
+
+  // ソート処理
+  const sortedReviews = [...reviews].sort((a, b) => {
+    switch (sortType) {
+      case 'rating-high':
+        return b.rating - a.rating;
+      case 'rating-low':
+        return a.rating - b.rating;
+      case 'newest':
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      case 'oldest':
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      default:
+        return 0;
+    }
+  });
 
   // AIレビュー分析を実行（ダミー）
   const handleAiAnalysis = () => {
@@ -101,17 +134,25 @@ export default function AdminReviewsPage() {
     ]
   };
 
-  if (!isAdmin || !admin || !facility) {
+  if (!isAdmin || !admin) {
     return null;
   }
 
-  const displayedReviews = showAll ? facilityReviews : facilityReviews.slice(0, 10);
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  const displayedReviews = showAll ? sortedReviews : sortedReviews.slice(0, 10);
 
   return (
     <div className="p-6">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-800">レビュー一覧</h1>
-          <p className="text-sm text-gray-600 mt-1">{facility.name}に対するレビューを確認できます</p>
+          <p className="text-sm text-gray-600 mt-1">ワーカーからのレビューを確認できます</p>
         </div>
 
         <div className="bg-white rounded-lg shadow-sm p-6">
@@ -119,27 +160,26 @@ export default function AdminReviewsPage() {
         <div className="mb-6 pb-6 border-b border-gray-200">
           <div className="flex items-center gap-4 mb-4">
             <div className="flex items-baseline gap-2">
-              <span className="text-yellow-500 text-3xl">★</span>
-              <span className="text-4xl font-bold text-gray-800">{facility.rating.toFixed(1)}</span>
+              <Star className="w-8 h-8 text-yellow-400 fill-yellow-400" />
+              <span className="text-4xl font-bold text-gray-800">{stats?.averageRating.toFixed(1) || '0.0'}</span>
             </div>
             <div className="text-gray-600">
-              <p className="text-sm">全{facility.reviewCount}件のレビュー</p>
-              <p className="text-xs text-gray-500 mt-1">直近のワーカーからの評価</p>
+              <p className="text-sm">全{stats?.totalCount || 0}件のレビュー</p>
+              <p className="text-xs text-gray-500 mt-1">ワーカーからの評価</p>
             </div>
           </div>
 
           {/* 評価分布バー */}
           <div className="space-y-2">
             {[5, 4, 3, 2, 1].map((rating) => {
-              const distributionRates = [0.52, 0.34, 0.07, 0.03, 0.03];
-              const rate = distributionRates[5 - rating];
-              const count = Math.floor(facility.reviewCount * rate);
-              const percentage = rate * 100;
+              const count = stats?.distribution[rating as 1 | 2 | 3 | 4 | 5] || 0;
+              const total = stats?.totalCount || 0;
+              const percentage = total > 0 ? (count / total) * 100 : 0;
 
               return (
                 <div key={rating} className="flex items-center gap-3">
                   <div className="flex items-center gap-1 w-12">
-                    <span className="text-yellow-500">★</span>
+                    <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
                     <span className="text-sm font-medium">{rating}</span>
                   </div>
                   <div className="flex-1 bg-gray-200 rounded-full h-3 overflow-hidden">
@@ -164,7 +204,7 @@ export default function AdminReviewsPage() {
               {/* AIレビュー分析ボタン */}
               <button
                 onClick={handleAiAnalysis}
-                disabled={isAnalyzing || facilityReviews.length === 0}
+                disabled={isAnalyzing || reviews.length === 0}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Sparkles className="w-4 h-4" />
@@ -188,24 +228,64 @@ export default function AdminReviewsPage() {
             </div>
           </div>
 
-          {facilityReviews.length === 0 ? (
+          {reviews.length === 0 ? (
             <div className="text-center py-12">
+              <Star className="w-12 h-12 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-500">まだレビューがありません</p>
+              <p className="text-sm text-gray-400 mt-2">
+                ワーカーが勤務完了後にレビューを投稿すると、ここに表示されます
+              </p>
             </div>
           ) : (
             <>
               <div className="space-y-6">
                 {displayedReviews.map((review) => (
                   <div key={review.id} className="border-b border-gray-200 pb-6 last:border-b-0 last:pb-0">
-                    <div className="flex items-center justify-between gap-2 mb-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-yellow-500">★</span>
-                        <span className="font-medium text-gray-800">{review.rating.toFixed(1)}</span>
-                        <span className="text-sm text-gray-500 ml-2">
-                          {review.age} / {review.gender} / {review.occupation} / {review.period}
-                        </span>
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <div className="flex items-start gap-3">
+                        {/* ユーザーアイコン */}
+                        <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                          <span className="text-primary font-bold text-sm">
+                            {review.userName.charAt(0)}
+                          </span>
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-medium text-gray-800">{review.userName}</span>
+                            <div className="flex items-center gap-0.5">
+                              {[1, 2, 3, 4, 5].map((value) => (
+                                <Star
+                                  key={value}
+                                  className={`w-4 h-4 ${
+                                    value <= review.rating
+                                      ? 'text-yellow-400 fill-yellow-400'
+                                      : 'text-gray-300'
+                                  }`}
+                                />
+                              ))}
+                              <span className="ml-1 text-sm font-semibold text-gray-700">
+                                {review.rating.toFixed(1)}
+                              </span>
+                            </div>
+                          </div>
+                          <p className="text-xs text-gray-500">
+                            {review.jobTitle} ({review.jobDate})
+                          </p>
+                          {review.userQualifications.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {review.userQualifications.slice(0, 3).map((qual, idx) => (
+                                <span
+                                  key={idx}
+                                  className="px-1.5 py-0.5 bg-gray-100 text-gray-600 text-xs rounded"
+                                >
+                                  {qual}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <span className="text-xs text-gray-400">
+                      <span className="text-xs text-gray-400 flex-shrink-0">
                         {new Date(review.createdAt).toLocaleDateString('ja-JP', {
                           year: 'numeric',
                           month: 'long',
@@ -214,28 +294,36 @@ export default function AdminReviewsPage() {
                       </span>
                     </div>
 
-                    <div className="space-y-3">
-                      <div className="bg-green-50 border border-green-100 rounded-lg p-4">
-                        <h3 className="text-sm font-bold text-green-900 mb-2">✓ 良かった点</h3>
-                        <p className="text-sm text-gray-700 leading-relaxed">{review.goodPoints}</p>
-                      </div>
+                    <div className="space-y-3 ml-13">
+                      {review.goodPoints && (
+                        <div className="bg-green-50 border border-green-100 rounded-lg p-4">
+                          <h3 className="text-sm font-bold text-green-900 mb-2">良かった点</h3>
+                          <p className="text-sm text-gray-700 leading-relaxed">{review.goodPoints}</p>
+                        </div>
+                      )}
 
-                      <div className="bg-orange-50 border border-orange-100 rounded-lg p-4">
-                        <h3 className="text-sm font-bold text-orange-900 mb-2">△ 改善点</h3>
-                        <p className="text-sm text-gray-700 leading-relaxed">{review.improvements}</p>
-                      </div>
+                      {review.improvements && (
+                        <div className="bg-orange-50 border border-orange-100 rounded-lg p-4">
+                          <h3 className="text-sm font-bold text-orange-900 mb-2">改善点</h3>
+                          <p className="text-sm text-gray-700 leading-relaxed">{review.improvements}</p>
+                        </div>
+                      )}
+
+                      {!review.goodPoints && !review.improvements && (
+                        <p className="text-sm text-gray-500 italic">コメントなし</p>
+                      )}
                     </div>
                   </div>
                 ))}
               </div>
 
-              {!showAll && facilityReviews.length > 10 && (
+              {!showAll && reviews.length > 10 && (
                 <div className="mt-6 text-center">
                   <button
                     onClick={() => setShowAll(true)}
                     className="px-6 py-2 bg-white border border-primary text-primary rounded-lg hover:bg-primary-light transition-colors"
                   >
-                    もっと見る（残り{facilityReviews.length - 10}件）
+                    もっと見る（残り{reviews.length - 10}件）
                   </button>
                 </div>
               )}
