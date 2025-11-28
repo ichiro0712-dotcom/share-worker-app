@@ -3879,3 +3879,143 @@ export async function updateJobsStatus(
     return { success: false, message: '求人のステータス更新に失敗しました' };
   }
 }
+
+/**
+ * 管理者用: 求人を更新
+ */
+export async function updateJob(
+  jobId: number,
+  facilityId: number,
+  data: {
+    title: string;
+    startTime: string;
+    endTime: string;
+    breakTime: number;
+    hourlyWage: number;
+    transportationFee: number;
+    recruitmentCount: number;
+    workContent: string[];
+    jobDescription: string;
+    qualifications: string[];
+    skills?: string[];
+    dresscode?: string[];
+    belongings?: string[];
+    icons?: string[];
+    images?: string[];
+    dresscodeImages?: string[];
+    attachments?: string[];
+    workDate?: string;
+    workDateId?: number | null;
+  }
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    // 求人が存在し、この施設に属しているか確認
+    const existingJob = await prisma.job.findFirst({
+      where: {
+        id: jobId,
+        facility_id: facilityId,
+      },
+      include: {
+        workDates: true,
+      },
+    });
+
+    if (!existingJob) {
+      return { success: false, error: '求人が見つからないか、編集権限がありません' };
+    }
+
+    // 日給を計算
+    const calculateWage = (start: string, end: string, breakMinutes: number, hourlyRate: number, transportFee: number) => {
+      const [startH, startM] = start.split(':').map(Number);
+      const [endH, endM] = end.split(':').map(Number);
+      let totalMinutes = (endH * 60 + endM) - (startH * 60 + startM);
+      if (totalMinutes < 0) totalMinutes += 24 * 60;
+      totalMinutes -= breakMinutes;
+      const hours = totalMinutes / 60;
+      return Math.round(hours * hourlyRate) + transportFee;
+    };
+
+    // breakTimeが数値であることを確認（編集ページから数値が渡される）
+    const breakTimeMinutes = typeof data.breakTime === 'number' ? data.breakTime : parseInt(String(data.breakTime)) || 0;
+
+    const wage = calculateWage(
+      data.startTime,
+      data.endTime,
+      breakTimeMinutes,
+      data.hourlyWage,
+      data.transportationFee
+    );
+
+    // 休憩時間文字列を作成（DBには"0分"形式で保存）
+    const breakTimeStr = `${breakTimeMinutes}分`;
+
+    // 求人を更新
+    await prisma.job.update({
+      where: { id: jobId },
+      data: {
+        title: data.title,
+        start_time: data.startTime,
+        end_time: data.endTime,
+        break_time: breakTimeStr,
+        hourly_wage: data.hourlyWage,
+        transportation_fee: data.transportationFee,
+        wage: wage,
+        work_content: data.workContent,
+        overview: data.jobDescription,
+        required_qualifications: data.qualifications,
+        required_experience: data.skills || [],
+        dresscode: data.dresscode || [],
+        belongings: data.belongings || [],
+        tags: data.icons || [],
+        images: data.images || [],
+        dresscode_images: data.dresscodeImages || [],
+        attachments: data.attachments || [],
+        updated_at: new Date(),
+      },
+    });
+
+    // 関連するWorkDateを更新
+    if (existingJob.workDates.length > 0 && data.workDateId) {
+      // 勤務日も更新（指定された場合）
+      const updateData: { recruitment_count: number; work_date?: Date; deadline?: Date } = {
+        recruitment_count: data.recruitmentCount,
+      };
+
+      if (data.workDate) {
+        const newWorkDate = new Date(data.workDate);
+        newWorkDate.setHours(0, 0, 0, 0);
+
+        // 締め切り日を勤務日の前日の23:59に設定
+        const deadlineDate = new Date(newWorkDate);
+        deadlineDate.setDate(deadlineDate.getDate() - 1);
+        deadlineDate.setHours(23, 59, 59, 999);
+
+        updateData.work_date = newWorkDate;
+        updateData.deadline = deadlineDate;
+      }
+
+      await prisma.workDate.update({
+        where: { id: data.workDateId },
+        data: updateData,
+      });
+    } else if (existingJob.workDates.length > 0) {
+      // workDateIdがない場合は全WorkDateの募集人数のみ更新
+      await prisma.workDate.updateMany({
+        where: { job_id: jobId },
+        data: {
+          recruitment_count: data.recruitmentCount,
+        },
+      });
+    }
+
+    console.log('[updateJob] Job updated:', jobId);
+
+    revalidatePath('/admin/jobs');
+    revalidatePath(`/admin/jobs/${jobId}/edit`);
+
+    return { success: true };
+  } catch (error) {
+    console.error('[updateJob] Error:', error);
+    return { success: false, error: '求人の更新に失敗しました' };
+  }
+}

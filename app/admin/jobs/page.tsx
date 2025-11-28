@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { getAdminJobsList, getAdminJobTemplates, getFacilityInfo, deleteJobs, updateJobsStatus } from '@/src/lib/actions';
-import Link from 'next/link';
 import {
   Plus,
   FileText,
@@ -13,12 +12,13 @@ import {
   Users,
   Clock,
   Building2,
-  Bell,
-  ExternalLink,
   MapPin,
   ChevronLeft,
   ChevronRight,
   Trash2,
+  Pencil,
+  Briefcase,
+  Award,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Badge } from '@/components/ui/badge';
@@ -587,16 +587,17 @@ export default function AdminJobsList() {
                           <p className="text-sm font-medium text-gray-900 truncate">{job.title}</p>
                         </div>
 
-                        {/* プレビューと通知書ボタン */}
+                        {/* 編集・通知書ボタン */}
                         <div className="flex gap-2">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              setSelectedJob(job);
+                              router.push(`/admin/jobs/${job.id}/edit`);
                             }}
-                            className="px-3 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
+                            className="flex items-center gap-1 px-3 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
                           >
-                            プレビュー
+                            <Pencil className="w-3 h-3" />
+                            編集
                           </button>
                           <button
                             onClick={(e) => {
@@ -610,10 +611,10 @@ export default function AdminJobsList() {
                         </div>
                       </div>
 
-                      {/* 2行目 */}
-                      <div className="flex items-center gap-3">
-                        {/* 応募状況 */}
-                        <div className="flex-shrink-0 w-24">
+                      {/* 2行目: 応募人数・時給・日時 */}
+                      <div className="flex items-center gap-3 mb-2">
+                        {/* 応募状況（先頭） */}
+                        <div className="flex-shrink-0">
                           <div className="flex items-center gap-1 text-xs">
                             <Users className="w-3 h-3 text-gray-400" />
                             <span className={`font-medium ${
@@ -627,28 +628,13 @@ export default function AdminJobsList() {
                           </div>
                         </div>
 
-                        {/* 締切 */}
-                        <div className="flex-shrink-0 w-32">
-                          <div className="flex items-center gap-1 text-xs text-gray-600">
-                            <Clock className="w-3 h-3 text-gray-400" />
-                            <span>
-                              {job.deadline ? new Date(job.deadline).toLocaleDateString('ja-JP', {
-                                month: 'short',
-                                day: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              }) : '-'}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* 求人ID */}
-                        <div className="flex-shrink-0 w-16">
-                          <span className="text-xs text-gray-500">#{job.id.toString().padStart(4, '0')}</span>
+                        {/* 時給 */}
+                        <div className="flex-shrink-0 flex items-center gap-1 text-xs font-medium text-primary">
+                          <span>¥{job.hourlyWage.toLocaleString()}/時</span>
                         </div>
 
                         {/* 日時（勤務日と時間） */}
-                        <div className="flex-shrink-0 w-44">
+                        <div className="flex-shrink-0">
                           <div className="flex items-center gap-1 text-xs text-gray-700">
                             <Calendar className="w-3 h-3 text-gray-400" />
                             <span>{job.workDate}</span>
@@ -656,17 +642,35 @@ export default function AdminJobsList() {
                             <span>{job.startTime}〜{job.endTime}</span>
                           </div>
                         </div>
+                      </div>
 
-                        {/* 施設 */}
-                        <div className="flex-shrink-0">
-                          <div className="flex items-center gap-1 text-xs text-gray-600 whitespace-nowrap">
-                            <Building2 className="w-3 h-3 text-gray-400" />
-                            <span>
-                              {job.facilityName && job.facilityName.length > 13
-                                ? `${job.facilityName.slice(0, 13)}...`
-                                : job.facilityName}
-                            </span>
+                      {/* 3行目: 業務内容（全表示） */}
+                      {job.workContent && job.workContent.length > 0 && (
+                        <div className="flex items-start gap-1 text-xs text-gray-700 mb-1">
+                          <Briefcase className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" />
+                          <div className="flex flex-wrap gap-1">
+                            {job.workContent.map((content, idx) => (
+                              <span key={idx} className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">
+                                {content}
+                              </span>
+                            ))}
                           </div>
+                        </div>
+                      )}
+
+                      {/* 4行目: 資格（全表示） */}
+                      <div className="flex items-start gap-1 text-xs text-gray-700">
+                        <Award className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" />
+                        <div className="flex flex-wrap gap-1">
+                          {job.requiredQualifications && job.requiredQualifications.length > 0 ? (
+                            job.requiredQualifications.map((qual, idx) => (
+                              <span key={idx} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded">
+                                {qual}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="px-1.5 py-0.5 bg-gray-50 text-gray-500 rounded">資格不問</span>
+                          )}
                         </div>
                       </div>
                     </div>
