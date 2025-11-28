@@ -94,9 +94,7 @@ function AuthContextProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('currentAdmin');
   };
 
-  if (!adminLoaded) {
-    return null;
-  }
+
 
   return (
     <AuthContext.Provider

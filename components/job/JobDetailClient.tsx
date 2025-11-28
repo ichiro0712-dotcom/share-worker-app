@@ -27,7 +27,18 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
   const [savedForLater, setSavedForLater] = useState(false);
   const [isOverviewExpanded, setIsOverviewExpanded] = useState(false);
   const [showAllDates, setShowAllDates] = useState(false);
-  const [selectedWorkDateIds, setSelectedWorkDateIds] = useState<number[]>([]);
+  const [selectedWorkDateIds, setSelectedWorkDateIds] = useState<number[]>(() => {
+    if (!job.workDates || job.workDates.length === 0) {
+      return [job.id];
+    }
+    if (selectedDate) {
+      const selected = job.workDates.find((wd: any) => wd.workDate === selectedDate);
+      if (selected) {
+        return [selected.id];
+      }
+    }
+    return job.workDates.length > 0 ? [job.workDates[0].id] : [];
+  });
   const [isApplying, setIsApplying] = useState(false);
   const [hasApplied, setHasApplied] = useState(initialHasApplied);
   const [isFavoriteProcessing, setIsFavoriteProcessing] = useState(false);
@@ -76,22 +87,6 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
         selectedWorkDates: job.workDates.slice(0, 1),
         otherWorkDates: job.workDates.slice(1),
       };
-    }
-
-    return {
-      selectedWorkDates: selected,
-      otherWorkDates: other,
-    };
-    // 初期選択: selectedDateがあればそのID、なければ最初のID
-    if (selectedDate) {
-      const selected = job.workDates.find((wd: any) => wd.workDate === selectedDate);
-      if (selected) {
-        setSelectedWorkDateIds([selected.id]);
-      } else if (job.workDates.length > 0) {
-        setSelectedWorkDateIds([job.workDates[0].id]);
-      }
-    } else if (job.workDates && job.workDates.length > 0) {
-      setSelectedWorkDateIds([job.workDates[0].id]);
     }
 
     return {
@@ -371,8 +366,8 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
                 key={wd.id || index}
                 onClick={() => toggleWorkDateSelection(wd.id)}
                 className={`p-4 border-2 rounded-lg cursor-pointer transition-colors ${selectedWorkDateIds.includes(wd.id)
-                    ? 'border-primary bg-primary-light/30'
-                    : 'border-gray-200 hover:border-primary'
+                  ? 'border-primary bg-primary-light/30'
+                  : 'border-gray-200 hover:border-primary'
                   }`}
               >
                 <div className="flex items-center gap-3">

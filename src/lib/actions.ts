@@ -3910,9 +3910,7 @@ export async function updateJob(
     }
 
     // 日給を計算
-    const breakTimeMinutes = typeof data.breakTime === 'number'
-      ? data.breakTime
-      : parseInt(String(data.breakTime)) || 0;
+    const breakTimeMinutes = data.breakTime;
 
     const calculateWage = (startTime: string, endTime: string, breakMinutes: number, hourlyWage: number, transportFee: number) => {
       const [startHour, startMin] = startTime.split(':').map(Number);
