@@ -33,16 +33,17 @@ interface Notification {
 
 export default function AdminNotificationsPage() {
   const router = useRouter();
-  const { admin, isAdmin } = useAuth();
+  const { admin, isAdmin, isAdminLoading } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
 
   // ログインしていない、または管理者でない場合はログインページへリダイレクト
   useEffect(() => {
+    if (isAdminLoading) return;
     if (!isAdmin || !admin) {
       router.push('/admin/login');
     }
-  }, [isAdmin, admin, router]);
+  }, [isAdmin, admin, isAdminLoading, router]);
 
   const facilityId = admin?.facilityId;
 
@@ -154,7 +155,7 @@ export default function AdminNotificationsPage() {
 
       {/* 通知リスト */}
       <div className="divide-y divide-gray-100">
-        {loading ? (
+        {loading || isAdminLoading ? (
           <div className="p-8 text-center text-gray-500">
             読み込み中...
           </div>
@@ -168,17 +169,15 @@ export default function AdminNotificationsPage() {
             <button
               key={notification.id}
               onClick={() => handleNotificationClick(notification)}
-              className={`w-full p-4 flex gap-3 text-left transition-colors ${
-                notification.isRead
-                  ? 'bg-white'
-                  : 'bg-blue-50 hover:bg-blue-100'
-              }`}
+              className={`w-full p-4 flex gap-3 text-left transition-colors ${notification.isRead
+                ? 'bg-white'
+                : 'bg-blue-50 hover:bg-blue-100'
+                }`}
             >
               {/* アイコン */}
               <div
-                className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
-                  notification.isRead ? 'bg-gray-100' : 'bg-white'
-                }`}
+                className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${notification.isRead ? 'bg-gray-100' : 'bg-white'
+                  }`}
               >
                 {getNotificationIcon(notification.type)}
               </div>
@@ -187,11 +186,10 @@ export default function AdminNotificationsPage() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between gap-2">
                   <h3
-                    className={`text-sm ${
-                      notification.isRead
-                        ? 'text-gray-700'
-                        : 'font-semibold text-gray-900'
-                    }`}
+                    className={`text-sm ${notification.isRead
+                      ? 'text-gray-700'
+                      : 'font-semibold text-gray-900'
+                      }`}
                   >
                     {notification.title}
                   </h3>

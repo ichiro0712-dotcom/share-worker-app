@@ -37,12 +37,13 @@ export default function WorkerDetailPage({
   params: { id: string };
 }) {
   const router = useRouter();
-  const { admin, isAdmin } = useAuth();
+  const { admin, isAdmin, isAdminLoading } = useAuth();
   const workerId = parseInt(params.id);
   const [worker, setWorker] = useState<WorkerDetailData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (isAdminLoading) return;
     if (!isAdmin || !admin) {
       router.push('/admin/login');
       return;
@@ -61,9 +62,9 @@ export default function WorkerDetailPage({
     };
 
     loadWorker();
-  }, [workerId, admin, isAdmin, router]);
+  }, [workerId, admin, isAdmin, isAdminLoading, router]);
 
-  if (loading) {
+  if (loading || isAdminLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -207,11 +208,10 @@ export default function WorkerDetailPage({
                       <Briefcase className="w-4 h-4 text-gray-500" />
                       <span className="font-medium text-sm">{history.jobTitle}</span>
                     </div>
-                    <span className={`text-xs px-2 py-0.5 rounded ${
-                      history.status === 'COMPLETED_RATED'
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-gray-100 text-gray-700'
-                    }`}>
+                    <span className={`text-xs px-2 py-0.5 rounded ${history.status === 'COMPLETED_RATED'
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-gray-100 text-gray-700'
+                      }`}>
                       {history.status === 'COMPLETED_RATED' ? '評価済' : '完了'}
                     </span>
                   </div>

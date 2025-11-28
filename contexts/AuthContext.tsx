@@ -16,6 +16,7 @@ interface AuthContextType {
   // 施設管理者認証（DBベース）
   admin: FacilityAdmin | null;
   isAdmin: boolean;
+  isAdminLoading: boolean;
   adminLogin: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   adminLogout: () => void;
 }
@@ -106,6 +107,7 @@ function AuthContextProvider({ children }: { children: ReactNode }) {
         logout,
         admin,
         isAdmin: !!admin,
+        isAdminLoading: !adminLoaded,
         adminLogin,
         adminLogout,
       }}

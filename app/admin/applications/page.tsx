@@ -51,7 +51,7 @@ interface Application {
 export default function ApplicationsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { admin, isAdmin } = useAuth();
+  const { admin, isAdmin, isAdminLoading } = useAuth();
   const [jobs, setJobs] = useState<JobWithCount[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
@@ -60,10 +60,11 @@ export default function ApplicationsPage() {
 
   // 認証チェック
   useEffect(() => {
+    if (isAdminLoading) return;
     if (!isAdmin || !admin) {
       router.push('/admin/login');
     }
-  }, [isAdmin, admin, router]);
+  }, [isAdmin, admin, isAdminLoading, router]);
 
   // URLパラメータから状態を復元
   useEffect(() => {
@@ -210,7 +211,7 @@ export default function ApplicationsPage() {
     return null;
   }
 
-  if (isLoading) {
+  if (isLoading || isAdminLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -369,9 +370,8 @@ export default function ApplicationsPage() {
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className="font-bold text-gray-900">{app.user.name}</h3>
                       <span
-                        className={`px-2 py-0.5 text-xs rounded ${
-                          getStatusLabel(app.status).color
-                        }`}
+                        className={`px-2 py-0.5 text-xs rounded ${getStatusLabel(app.status).color
+                          }`}
                       >
                         {getStatusLabel(app.status).text}
                       </span>
@@ -453,9 +453,8 @@ export default function ApplicationsPage() {
                             {app.user.name}
                           </span>
                           <span
-                            className={`px-2 py-0.5 text-xs rounded ${
-                              getStatusLabel(app.status).color
-                            }`}
+                            className={`px-2 py-0.5 text-xs rounded ${getStatusLabel(app.status).color
+                              }`}
                           >
                             {getStatusLabel(app.status).text}
                           </span>

@@ -67,7 +67,7 @@ export default function AdminMessagesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialApplicationId = searchParams.get('id');
-  const { admin, isAdmin } = useAuth();
+  const { admin, isAdmin, isAdminLoading } = useAuth();
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
@@ -83,10 +83,11 @@ export default function AdminMessagesPage() {
   const [showUserInfo, setShowUserInfo] = useState(true);
 
   useEffect(() => {
+    if (isAdminLoading) return;
     if (!isAdmin || !admin) {
       router.push('/admin/login');
     }
-  }, [isAdmin, admin, router]);
+  }, [isAdmin, admin, isAdminLoading, router]);
 
   // 会話一覧を読み込む
   useEffect(() => {
@@ -188,7 +189,7 @@ export default function AdminMessagesPage() {
     return null;
   }
 
-  if (isLoading) {
+  if (isLoading || isAdminLoading) {
     return (
       <div className="h-[calc(100vh-4rem)] flex items-center justify-center">
         <div className="text-center">
@@ -228,9 +229,8 @@ export default function AdminMessagesPage() {
               <div
                 key={conv.applicationId}
                 onClick={() => setSelectedApplicationId(conv.applicationId)}
-                className={`p-4 border-b border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors ${
-                  selectedApplicationId === conv.applicationId ? 'bg-primary-light' : ''
-                }`}
+                className={`p-4 border-b border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors ${selectedApplicationId === conv.applicationId ? 'bg-primary-light' : ''
+                  }`}
               >
                 <div className="flex items-start gap-3">
                   <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 flex-shrink-0 overflow-hidden">
@@ -308,24 +308,21 @@ export default function AdminMessagesPage() {
                   messages.map((message) => (
                     <div
                       key={message.id}
-                      className={`flex ${
-                        message.senderType === 'facility' ? 'justify-end' : 'justify-start'
-                      }`}
+                      className={`flex ${message.senderType === 'facility' ? 'justify-end' : 'justify-start'
+                        }`}
                     >
                       <div
-                        className={`max-w-md px-4 py-2 rounded-lg ${
-                          message.senderType === 'facility'
-                            ? 'bg-primary text-white'
-                            : 'bg-white border border-gray-200 text-gray-900'
-                        }`}
+                        className={`max-w-md px-4 py-2 rounded-lg ${message.senderType === 'facility'
+                          ? 'bg-primary text-white'
+                          : 'bg-white border border-gray-200 text-gray-900'
+                          }`}
                       >
                         <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                         <p
-                          className={`text-xs mt-1 ${
-                            message.senderType === 'facility'
-                              ? 'text-primary-light'
-                              : 'text-gray-400'
-                          }`}
+                          className={`text-xs mt-1 ${message.senderType === 'facility'
+                            ? 'text-primary-light'
+                            : 'text-gray-400'
+                            }`}
                         >
                           {new Date(message.timestamp).toLocaleString('ja-JP', {
                             hour: '2-digit',
@@ -348,9 +345,8 @@ export default function AdminMessagesPage() {
                 >
                   利用できる変数
                   <ChevronDown
-                    className={`w-3 h-3 inline-block ml-1 transition-transform ${
-                      showVariables ? 'rotate-180' : ''
-                    }`}
+                    className={`w-3 h-3 inline-block ml-1 transition-transform ${showVariables ? 'rotate-180' : ''
+                      }`}
                   />
                 </button>
 

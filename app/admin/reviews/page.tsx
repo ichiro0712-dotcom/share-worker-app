@@ -29,7 +29,7 @@ interface ReviewStats {
 
 export default function AdminReviewsPage() {
   const router = useRouter();
-  const { admin, isAdmin } = useAuth();
+  const { admin, isAdmin, isAdminLoading } = useAuth();
   const [showAll, setShowAll] = useState(false);
   const [sortType, setSortType] = useState<SortType>('newest');
   const [showAiAnalysis, setShowAiAnalysis] = useState(false);
@@ -39,10 +39,11 @@ export default function AdminReviewsPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    if (isAdminLoading) return;
     if (!isAdmin || !admin) {
       router.push('/admin/login');
     }
-  }, [isAdmin, admin, router]);
+  }, [isAdmin, admin, isAdminLoading, router]);
 
   // データ取得
   useEffect(() => {
@@ -138,7 +139,7 @@ export default function AdminReviewsPage() {
     return null;
   }
 
-  if (isLoading) {
+  if (isLoading || isAdminLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -150,13 +151,13 @@ export default function AdminReviewsPage() {
 
   return (
     <div className="p-6">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-800">レビュー一覧</h1>
-          <p className="text-sm text-gray-600 mt-1">ワーカーからのレビューを確認できます</p>
-        </div>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-800">レビュー一覧</h1>
+        <p className="text-sm text-gray-600 mt-1">ワーカーからのレビューを確認できます</p>
+      </div>
 
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          {/* 評価サマリー */}
+      <div className="bg-white rounded-lg shadow-sm p-6">
+        {/* 評価サマリー */}
         <div className="mb-6 pb-6 border-b border-gray-200">
           <div className="flex items-center gap-4 mb-4">
             <div className="flex items-baseline gap-2">
@@ -256,11 +257,10 @@ export default function AdminReviewsPage() {
                               {[1, 2, 3, 4, 5].map((value) => (
                                 <Star
                                   key={value}
-                                  className={`w-4 h-4 ${
-                                    value <= review.rating
-                                      ? 'text-yellow-400 fill-yellow-400'
-                                      : 'text-gray-300'
-                                  }`}
+                                  className={`w-4 h-4 ${value <= review.rating
+                                    ? 'text-yellow-400 fill-yellow-400'
+                                    : 'text-gray-300'
+                                    }`}
                                 />
                               ))}
                               <span className="ml-1 text-sm font-semibold text-gray-700">
@@ -429,11 +429,10 @@ export default function AdminReviewsPage() {
                       <div className="flex items-start justify-between gap-3 mb-2">
                         <h4 className="text-sm font-bold text-blue-900">{improvement.title}</h4>
                         <span
-                          className={`px-2 py-1 text-xs font-medium rounded ${
-                            improvement.priority === 'high'
-                              ? 'bg-red-100 text-red-700'
-                              : 'bg-yellow-100 text-yellow-700'
-                          }`}
+                          className={`px-2 py-1 text-xs font-medium rounded ${improvement.priority === 'high'
+                            ? 'bg-red-100 text-red-700'
+                            : 'bg-yellow-100 text-yellow-700'
+                            }`}
                         >
                           {improvement.priority === 'high' ? '優先度: 高' : '優先度: 中'}
                         </span>

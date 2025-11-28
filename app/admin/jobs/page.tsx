@@ -95,7 +95,7 @@ interface TemplateData {
 
 export default function AdminJobsList() {
   const router = useRouter();
-  const { admin, isAdmin } = useAuth();
+  const { admin, isAdmin, isAdminLoading } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [jobs, setJobs] = useState<JobData[]>([]);
   const [jobTemplates, setJobTemplates] = useState<TemplateData[]>([]);
@@ -116,10 +116,12 @@ export default function AdminJobsList() {
 
   // ログインしていない、または管理者でない場合はログインページへリダイレクト
   useEffect(() => {
+    // ローディング中はリダイレクトしない
+    if (isAdminLoading) return;
     if (!isAdmin || !admin) {
       router.push('/admin/login');
     }
-  }, [isAdmin, admin, router]);
+  }, [isAdmin, admin, isAdminLoading, router]);
 
   // データ取得
   useEffect(() => {
@@ -150,11 +152,6 @@ export default function AdminJobsList() {
     }
   }, [admin?.facilityId, isAdmin, admin]);
 
-  // ログインしていない場合は何も表示しない
-  if (!isAdmin || !admin) {
-    return null;
-  }
-
   // ステータス判定関数
   const getJobStatus = (job: JobData): Exclude<JobStatus, 'all'> => {
     // 停止中フラグがある場合は停止中を返す
@@ -173,6 +170,9 @@ export default function AdminJobsList() {
 
   // フィルタリング
   const filteredJobs = useMemo(() => {
+    // データ読み込み中は空配列を返す（クラッシュ防止）
+    if (isAdminLoading) return [];
+
     let filtered = [...jobs];
 
     // 検索フィルタ（求人タイトルorワーカー名）
@@ -240,7 +240,7 @@ export default function AdminJobsList() {
     });
 
     return filtered;
-  }, [jobs, searchQuery, statusFilter, periodStartFilter, periodEndFilter, templateFilter]);
+  }, [jobs, searchQuery, statusFilter, periodStartFilter, periodEndFilter, templateFilter, isAdminLoading]);
 
   // ページネーション
   const totalPages = Math.ceil(filteredJobs.length / itemsPerPage);
@@ -362,12 +362,17 @@ export default function AdminJobsList() {
     return options;
   }, []);
 
-  if (isLoading) {
+  if (isLoading || isAdminLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
+  }
+
+  // ログインしていない場合は何も表示しない（リダイレクトはuseEffectで処理）
+  if (!isAdmin || !admin) {
+    return null;
   }
 
   return (

@@ -53,7 +53,7 @@ interface FacilityData {
 
 export default function NewJobPage() {
   const router = useRouter();
-  const { admin, isAdmin } = useAuth();
+  const { admin, isAdmin, isAdminLoading } = useAuth();
 
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
   const [selectedDates, setSelectedDates] = useState<string[]>([]);
@@ -64,53 +64,42 @@ export default function NewJobPage() {
   const [jobTemplates, setJobTemplates] = useState<TemplateData[]>([]);
   const [facilityInfo, setFacilityInfo] = useState<FacilityData | null>(null);
 
-  // 募集条件のチェックボックス状態
-  const [recruitmentOptions, setRecruitmentOptions] = useState({
-    noDateSelection: false,      // 日付を選ばずに募集
-    weeklyFrequency: null as 2 | 3 | 4 | null,  // 週2回/週3回/週4回（排他的）
-    monthlyCommitment: false,    // 1ヶ月以上勤務
-  });
   const [formData, setFormData] = useState({
-    // 基本
-    name: '',
-    title: '',
     facilityId: null as number | null,
-    jobType: '通常業務',
+    jobType: '単発',
     recruitmentCount: 1,
-    images: [] as File[],
-    existingImages: [] as string[],  // テンプレートからの既存画像URL
-
-    // 勤務時間
-    startTime: '',
-    endTime: '',
-    breakTime: 0,
-    recruitmentStartDay: 0,
-    recruitmentStartTime: '',
-    recruitmentEndDay: 0,
-    recruitmentEndTime: '05:00',
-
-    // 給与
-    hourlyWage: 1500,
-    transportationFee: 0,
-
-    // 業務設定
+    title: '',
+    name: '',
+    startTime: '09:00',
+    endTime: '18:00',
+    breakTime: 60,
+    hourlyWage: 1200,
+    transportationFee: 500,
     workContent: [] as string[],
-    genderRequirement: '',
     jobDescription: '',
-
-    // 条件設定
     qualifications: [] as string[],
     skills: [] as string[],
     dresscode: [] as string[],
-    dresscodeImages: [] as File[],
-    existingDresscodeImages: [] as string[],  // テンプレートからの既存服装画像URL
     belongings: [] as string[],
-
-    // その他
     icons: [] as string[],
+    images: [] as File[],
+    existingImages: [] as string[],
+    dresscodeImages: [] as File[],
+    existingDresscodeImages: [] as string[],
     attachments: [] as File[],
-    existingAttachments: [] as string[],  // テンプレートからの既存添付ファイルURL
+    existingAttachments: [] as string[],
+    recruitmentStartDay: 0,
+    recruitmentStartTime: '',
+    recruitmentEndDay: 1,
+    recruitmentEndTime: '12:00',
+    genderRequirement: '不問',
     dismissalReasons: DEFAULT_DISMISSAL_REASONS,
+  });
+
+  const [recruitmentOptions, setRecruitmentOptions] = useState({
+    noDateSelection: false,
+    weeklyFrequency: null as 2 | 3 | 4 | null,
+    monthlyCommitment: false,
   });
 
   const [skillInput, setSkillInput] = useState('');
@@ -119,6 +108,7 @@ export default function NewJobPage() {
 
   // 認証チェックとデータ取得
   useEffect(() => {
+    if (isAdminLoading) return;
     if (!isAdmin || !admin) {
       router.push('/admin/login');
       return;
@@ -144,7 +134,15 @@ export default function NewJobPage() {
       }
     };
     fetchData();
-  }, [isAdmin, admin, router]);
+  }, [isAdmin, admin, isAdminLoading, router]);
+
+  if (isAdminLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   if (!isAdmin || !admin) {
     return null;
@@ -784,14 +782,14 @@ export default function NewJobPage() {
                             onClick={() => !isPast && !recruitmentOptions.noDateSelection && toggleDate(dateString)}
                             disabled={isPast || recruitmentOptions.noDateSelection}
                             className={`aspect-square flex items-center justify-center text-[10px] rounded transition-colors ${isPast || recruitmentOptions.noDateSelection
-                                ? 'text-gray-300 cursor-not-allowed'
-                                : isSelected
-                                  ? 'bg-blue-600 text-white font-semibold'
-                                  : dayOfWeek === 0
-                                    ? 'text-red-500 hover:bg-red-50'
-                                    : dayOfWeek === 6
-                                      ? 'text-blue-500 hover:bg-blue-50'
-                                      : 'text-gray-700 hover:bg-gray-100'
+                              ? 'text-gray-300 cursor-not-allowed'
+                              : isSelected
+                                ? 'bg-blue-600 text-white font-semibold'
+                                : dayOfWeek === 0
+                                  ? 'text-red-500 hover:bg-red-50'
+                                  : dayOfWeek === 6
+                                    ? 'text-blue-500 hover:bg-blue-50'
+                                    : 'text-gray-700 hover:bg-gray-100'
                               }`}
                           >
                             {day}

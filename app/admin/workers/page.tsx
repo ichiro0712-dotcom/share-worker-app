@@ -29,7 +29,7 @@ interface MatchedWorker {
 
 export default function AdminWorkersPage() {
   const router = useRouter();
-  const { admin, isAdmin } = useAuth();
+  const { admin, isAdmin, isAdminLoading } = useAuth();
   const [workers, setWorkers] = useState<MatchedWorker[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -37,10 +37,11 @@ export default function AdminWorkersPage() {
   const [isUpdating, setIsUpdating] = useState<number | null>(null);
 
   useEffect(() => {
+    if (isAdminLoading) return;
     if (!isAdmin || !admin) {
       router.push('/admin/login');
     }
-  }, [isAdmin, admin, router]);
+  }, [isAdmin, admin, isAdminLoading, router]);
 
   // データ取得
   useEffect(() => {
@@ -164,7 +165,7 @@ export default function AdminWorkersPage() {
     return null;
   }
 
-  if (isLoading) {
+  if (isLoading || isAdminLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -206,9 +207,8 @@ export default function AdminWorkersPage() {
                         setStatusFilter(filter);
                         setShowFilterMenu(false);
                       }}
-                      className={`block w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${
-                        statusFilter === filter ? 'text-primary font-medium' : ''
-                      }`}
+                      className={`block w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${statusFilter === filter ? 'text-primary font-medium' : ''
+                        }`}
                     >
                       {getFilterLabel(filter)}
                     </button>

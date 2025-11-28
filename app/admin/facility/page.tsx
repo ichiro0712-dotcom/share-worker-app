@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Upload, X, Eye, User, Loader2 } from 'lucide-react';
 import Image from 'next/image';
@@ -8,9 +9,17 @@ import toast from 'react-hot-toast';
 import { getFacilityInfo, updateFacilityBasicInfo } from '@/src/lib/actions';
 
 export default function FacilityPage() {
-  const { admin, isAdmin } = useAuth();
+  const router = useRouter();
+  const { admin, isAdmin, isAdminLoading } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (isAdminLoading) return;
+    if (!isAdmin || !admin) {
+      router.push('/admin/login');
+    }
+  }, [isAdmin, admin, isAdminLoading, router]);
 
   // 法人情報
   const [corporateInfo, setCorporateInfo] = useState({
@@ -409,7 +418,7 @@ export default function FacilityPage() {
   };
 
   // ローディング中
-  if (isLoading) {
+  if (isLoading || isAdminLoading) {
     return (
       <div className="h-full flex flex-col">
         <div className="bg-white border-b border-gray-200 px-6 py-4">
@@ -426,195 +435,304 @@ export default function FacilityPage() {
   }
 
   return (
-      <div className="h-full flex flex-col">
-        {/* ヘッダー */}
-        <div className="bg-white border-b border-gray-200 px-6 py-4">
-          <h1 className="text-2xl font-bold text-gray-900">法人・施設情報</h1>
-        </div>
+    <div className="h-full flex flex-col">
+      {/* ヘッダー */}
+      <div className="bg-white border-b border-gray-200 px-6 py-4">
+        <h1 className="text-2xl font-bold text-gray-900">法人・施設情報</h1>
+      </div>
 
-        {/* コンテンツ */}
-        <div className="flex-1 overflow-y-auto p-6">
-          <div className="max-w-4xl mx-auto space-y-5">
+      {/* コンテンツ */}
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="max-w-4xl mx-auto space-y-5">
 
-            {/* 法人情報 */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-              <div className="bg-gray-50 px-5 py-3 border-b border-gray-200">
-                <h2 className="text-base font-bold text-gray-900">法人情報</h2>
-              </div>
-              <div className="p-5 space-y-3">
-                {/* 法人名と代表者名を一列に */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      法人名 <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={corporateInfo.name}
-                      onChange={(e) => setCorporateInfo({ ...corporateInfo, name: e.target.value })}
-                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      代表者名 <span className="text-red-500">*</span>
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <input
-                        type="text"
-                        value={corporateInfo.representativeLastName}
-                        onChange={(e) => setCorporateInfo({ ...corporateInfo, representativeLastName: e.target.value })}
-                        placeholder="姓"
-                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                      />
-                      <input
-                        type="text"
-                        value={corporateInfo.representativeFirstName}
-                        onChange={(e) => setCorporateInfo({ ...corporateInfo, representativeFirstName: e.target.value })}
-                        placeholder="名"
-                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* 住所を都道府県、市区町村、その他住所に分けて２列目に */}
+          {/* 法人情報 */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            <div className="bg-gray-50 px-5 py-3 border-b border-gray-200">
+              <h2 className="text-base font-bold text-gray-900">法人情報</h2>
+            </div>
+            <div className="p-5 space-y-3">
+              {/* 法人名と代表者名を一列に */}
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    住所 <span className="text-red-500">*</span>
+                    法人名 <span className="text-red-500">*</span>
                   </label>
-                  <div className="grid grid-cols-6 gap-2">
-                    <select
-                      value={corporateInfo.prefecture}
-                      onChange={(e) => {
-                        setCorporateInfo({ ...corporateInfo, prefecture: e.target.value, city: '' });
-                      }}
-                      className="col-span-1 px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                    >
-                      <option value="">選択</option>
-                      {prefectures.map((pref) => (
-                        <option key={pref} value={pref}>
-                          {pref}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      value={corporateInfo.city}
-                      onChange={(e) => setCorporateInfo({ ...corporateInfo, city: e.target.value })}
-                      disabled={!corporateInfo.prefecture}
-                      className="col-span-2 px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
-                    >
-                      <option value="">
-                        {corporateInfo.prefecture ? '選択してください' : '都道府県を選択してください'}
-                      </option>
-                      {corporateInfo.prefecture && citiesByPrefecture[corporateInfo.prefecture]?.map((city) => (
-                        <option key={city} value={city}>
-                          {city}
-                        </option>
-                      ))}
-                    </select>
+                  <input
+                    type="text"
+                    value={corporateInfo.name}
+                    onChange={(e) => setCorporateInfo({ ...corporateInfo, name: e.target.value })}
+                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    代表者名 <span className="text-red-500">*</span>
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
                     <input
                       type="text"
-                      value={corporateInfo.addressDetail}
-                      onChange={(e) => setCorporateInfo({ ...corporateInfo, addressDetail: e.target.value })}
-                      placeholder="その他住所"
-                      className="col-span-3 px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                      value={corporateInfo.representativeLastName}
+                      onChange={(e) => setCorporateInfo({ ...corporateInfo, representativeLastName: e.target.value })}
+                      placeholder="姓"
+                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    />
+                    <input
+                      type="text"
+                      value={corporateInfo.representativeFirstName}
+                      onChange={(e) => setCorporateInfo({ ...corporateInfo, representativeFirstName: e.target.value })}
+                      placeholder="名"
+                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                     />
                   </div>
                 </div>
+              </div>
 
-                {/* 担当者名、電話番号、メールアドレスを一列に */}
+              {/* 住所を都道府県、市区町村、その他住所に分けて２列目に */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  住所 <span className="text-red-500">*</span>
+                </label>
                 <div className="grid grid-cols-6 gap-2">
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      担当者名 <span className="text-red-500">*</span>
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <input
-                        type="text"
-                        value={corporateInfo.contactPersonLastName}
-                        onChange={(e) => setCorporateInfo({ ...corporateInfo, contactPersonLastName: e.target.value })}
-                        placeholder="姓"
-                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                      />
-                      <input
-                        type="text"
-                        value={corporateInfo.contactPersonFirstName}
-                        onChange={(e) => setCorporateInfo({ ...corporateInfo, contactPersonFirstName: e.target.value })}
-                        placeholder="名"
-                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                      />
-                    </div>
-                  </div>
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      代表電話番号 <span className="text-red-500">*</span>
-                    </label>
+                  <select
+                    value={corporateInfo.prefecture}
+                    onChange={(e) => {
+                      setCorporateInfo({ ...corporateInfo, prefecture: e.target.value, city: '' });
+                    }}
+                    className="col-span-1 px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  >
+                    <option value="">選択</option>
+                    {prefectures.map((pref) => (
+                      <option key={pref} value={pref}>
+                        {pref}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={corporateInfo.city}
+                    onChange={(e) => setCorporateInfo({ ...corporateInfo, city: e.target.value })}
+                    disabled={!corporateInfo.prefecture}
+                    className="col-span-2 px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
+                  >
+                    <option value="">
+                      {corporateInfo.prefecture ? '選択してください' : '都道府県を選択してください'}
+                    </option>
+                    {corporateInfo.prefecture && citiesByPrefecture[corporateInfo.prefecture]?.map((city) => (
+                      <option key={city} value={city}>
+                        {city}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    value={corporateInfo.addressDetail}
+                    onChange={(e) => setCorporateInfo({ ...corporateInfo, addressDetail: e.target.value })}
+                    placeholder="その他住所"
+                    className="col-span-3 px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              {/* 担当者名、電話番号、メールアドレスを一列に */}
+              <div className="grid grid-cols-6 gap-2">
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    担当者名 <span className="text-red-500">*</span>
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
                     <input
-                      type="tel"
-                      value={corporateInfo.phone}
-                      onChange={(e) => setCorporateInfo({ ...corporateInfo, phone: e.target.value })}
+                      type="text"
+                      value={corporateInfo.contactPersonLastName}
+                      onChange={(e) => setCorporateInfo({ ...corporateInfo, contactPersonLastName: e.target.value })}
+                      placeholder="姓"
+                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    />
+                    <input
+                      type="text"
+                      value={corporateInfo.contactPersonFirstName}
+                      onChange={(e) => setCorporateInfo({ ...corporateInfo, contactPersonFirstName: e.target.value })}
+                      placeholder="名"
                       className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                     />
                   </div>
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      メールアドレス <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="email"
-                      value={corporateInfo.email}
-                      onChange={(e) => setCorporateInfo({ ...corporateInfo, email: e.target.value })}
-                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                    />
-                  </div>
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    代表電話番号 <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="tel"
+                    value={corporateInfo.phone}
+                    onChange={(e) => setCorporateInfo({ ...corporateInfo, phone: e.target.value })}
+                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    メールアドレス <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    value={corporateInfo.email}
+                    onChange={(e) => setCorporateInfo({ ...corporateInfo, email: e.target.value })}
+                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* 施設情報・担当者 */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-              <div className="bg-gray-50 px-5 py-3 border-b border-gray-200">
-                <h2 className="text-base font-bold text-gray-900">施設情報・担当者</h2>
+          {/* 施設情報・担当者 */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            <div className="bg-gray-50 px-5 py-3 border-b border-gray-200">
+              <h2 className="text-base font-bold text-gray-900">施設情報・担当者</h2>
+            </div>
+            <div className="p-5 space-y-3">
+              {/* 施設名とサービス種別を一列に */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    施設名 <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={facilityInfo.name}
+                    onChange={(e) => setFacilityInfo({ ...facilityInfo, name: e.target.value })}
+                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    サービス種別 <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={facilityInfo.serviceType}
+                    onChange={(e) => setFacilityInfo({ ...facilityInfo, serviceType: e.target.value })}
+                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  >
+                    <option value="">選択してください</option>
+                    {serviceTypes.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <div className="p-5 space-y-3">
-                {/* 施設名とサービス種別を一列に */}
-                <div className="grid grid-cols-2 gap-3">
+
+              {/* 責任者情報 */}
+              <div className="border-t border-gray-200 pt-3 mt-3">
+                <h3 className="text-sm font-bold text-gray-900 mb-3">責任者</h3>
+
+                <div className="space-y-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      施設名 <span className="text-red-500">*</span>
+                      氏名 <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      type="text"
-                      value={facilityInfo.name}
-                      onChange={(e) => setFacilityInfo({ ...facilityInfo, name: e.target.value })}
+                    <div className="grid grid-cols-2 gap-3 max-w-md">
+                      <input
+                        type="text"
+                        value={managerInfo.lastName}
+                        onChange={(e) => setManagerInfo({ ...managerInfo, lastName: e.target.value })}
+                        placeholder="姓"
+                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                      />
+                      <input
+                        type="text"
+                        value={managerInfo.firstName}
+                        onChange={(e) => setManagerInfo({ ...managerInfo, firstName: e.target.value })}
+                        placeholder="名"
+                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      顔写真
+                    </label>
+                    <div className="flex items-center gap-4">
+                      {/* 円形の写真プレビュー */}
+                      <div className="relative">
+                        <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-gray-200 bg-gray-100 flex items-center justify-center">
+                          {managerInfo.photoPreview ? (
+                            <Image
+                              src={managerInfo.photoPreview}
+                              alt="責任者写真"
+                              width={96}
+                              height={96}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <User className="w-12 h-12 text-gray-400" />
+                          )}
+                        </div>
+                        {managerInfo.photoPreview && (
+                          <button
+                            onClick={() => setManagerInfo({ ...managerInfo, photo: null, photoPreview: '' })}
+                            className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* 小さなドラッグ&ドロップエリア */}
+                      <div
+                        onDragOver={handleManagerPhotoDragOver}
+                        onDrop={handleManagerPhotoDrop}
+                        className="flex-1 max-w-xs border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-primary transition-colors cursor-pointer"
+                      >
+                        <Upload className="w-6 h-6 mx-auto mb-2 text-gray-400" />
+                        <p className="text-xs text-gray-600 mb-1">
+                          画像をドラッグ&ドロップ
+                        </p>
+                        <p className="text-xs text-gray-500 mb-2">または</p>
+                        <label className="cursor-pointer inline-flex items-center gap-1.5 bg-white border border-gray-300 rounded-lg px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                          <Upload className="w-3 h-3" />
+                          ファイルを選択
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleManagerPhotoUpload}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      挨拶文
+                    </label>
+                    <textarea
+                      value={managerInfo.greeting}
+                      onChange={(e) => setManagerInfo({ ...managerInfo, greeting: e.target.value })}
+                      rows={5}
                       className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      サービス種別 <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={facilityInfo.serviceType}
-                      onChange={(e) => setFacilityInfo({ ...facilityInfo, serviceType: e.target.value })}
-                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                    >
-                      <option value="">選択してください</option>
-                      {serviceTypes.map((type) => (
-                        <option key={type} value={type}>
-                          {type}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
                 </div>
+              </div>
 
-                {/* 責任者情報 */}
-                <div className="border-t border-gray-200 pt-3 mt-3">
-                  <h3 className="text-sm font-bold text-gray-900 mb-3">責任者</h3>
+              {/* 担当者情報 */}
+              <div className="border-t border-gray-200 pt-3 mt-3">
+                <h3 className="text-sm font-bold text-gray-900 mb-3">担当者</h3>
 
-                  <div className="space-y-3">
+                <div className="space-y-3">
+                  <div>
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={staffInfo.sameAsManager}
+                        onChange={(e) => setStaffInfo({ ...staffInfo, sameAsManager: e.target.checked })}
+                        className="rounded border-gray-300 text-primary focus:ring-primary"
+                      />
+                      <span className="text-sm text-gray-700">責任者と同じ</span>
+                    </label>
+                  </div>
+
+                  {!staffInfo.sameAsManager && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         氏名 <span className="text-red-500">*</span>
@@ -622,528 +740,419 @@ export default function FacilityPage() {
                       <div className="grid grid-cols-2 gap-3 max-w-md">
                         <input
                           type="text"
-                          value={managerInfo.lastName}
-                          onChange={(e) => setManagerInfo({ ...managerInfo, lastName: e.target.value })}
+                          value={staffInfo.lastName}
+                          onChange={(e) => setStaffInfo({ ...staffInfo, lastName: e.target.value })}
                           placeholder="姓"
                           className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                         />
                         <input
                           type="text"
-                          value={managerInfo.firstName}
-                          onChange={(e) => setManagerInfo({ ...managerInfo, firstName: e.target.value })}
+                          value={staffInfo.firstName}
+                          onChange={(e) => setStaffInfo({ ...staffInfo, firstName: e.target.value })}
                           placeholder="名"
                           className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                         />
                       </div>
                     </div>
+                  )}
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        顔写真
-                      </label>
-                      <div className="flex items-center gap-4">
-                        {/* 円形の写真プレビュー */}
-                        <div className="relative">
-                          <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-gray-200 bg-gray-100 flex items-center justify-center">
-                            {managerInfo.photoPreview ? (
-                              <Image
-                                src={managerInfo.photoPreview}
-                                alt="責任者写真"
-                                width={96}
-                                height={96}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <User className="w-12 h-12 text-gray-400" />
-                            )}
-                          </div>
-                          {managerInfo.photoPreview && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      担当電話番号 <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="tel"
+                      value={staffInfo.phone}
+                      onChange={(e) => setStaffInfo({ ...staffInfo, phone: e.target.value })}
+                      className="w-full max-w-xs px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      緊急連絡先
+                    </label>
+                    <textarea
+                      value={staffInfo.emergencyContact}
+                      onChange={(e) => setStaffInfo({ ...staffInfo, emergencyContact: e.target.value })}
+                      rows={3}
+                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                      placeholder="担当不在の場合は、電話口の者に伝言をお願いいたします。&#10;誰も出ない場合は、下記番号にお電話くださいませ。&#10;大東（ダイトウ）：080-7441-7699"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      担当メールアドレス <span className="text-red-500">*</span>
+                    </label>
+                    <div className="space-y-2">
+                      {staffInfo.emails.map((email, index) => (
+                        <div key={index} className="flex gap-2">
+                          <input
+                            type="email"
+                            value={email}
+                            onChange={(e) => updateEmail(index, e.target.value)}
+                            placeholder={index === 0 ? 'メインアドレス（必須）' : `サブアドレス ${index}`}
+                            className="flex-1 max-w-md px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                          />
+                          {index > 0 && (
                             <button
-                              onClick={() => setManagerInfo({ ...managerInfo, photo: null, photoPreview: '' })}
-                              className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                              onClick={() => removeEmail(index)}
+                              className="px-2 py-1.5 text-red-600 hover:bg-red-50 rounded-lg"
                             >
-                              <X className="w-3 h-3" />
+                              <X className="w-4 h-4" />
                             </button>
                           )}
                         </div>
-
-                        {/* 小さなドラッグ&ドロップエリア */}
-                        <div
-                          onDragOver={handleManagerPhotoDragOver}
-                          onDrop={handleManagerPhotoDrop}
-                          className="flex-1 max-w-xs border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-primary transition-colors cursor-pointer"
+                      ))}
+                      {staffInfo.emails.length < 10 && (
+                        <button
+                          onClick={addEmail}
+                          className="text-sm text-primary hover:text-primary-dark"
                         >
-                          <Upload className="w-6 h-6 mx-auto mb-2 text-gray-400" />
-                          <p className="text-xs text-gray-600 mb-1">
-                            画像をドラッグ&ドロップ
-                          </p>
-                          <p className="text-xs text-gray-500 mb-2">または</p>
-                          <label className="cursor-pointer inline-flex items-center gap-1.5 bg-white border border-gray-300 rounded-lg px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
-                            <Upload className="w-3 h-3" />
-                            ファイルを選択
-                            <input
-                              type="file"
-                              accept="image/*"
-                              onChange={handleManagerPhotoUpload}
-                              className="hidden"
-                            />
-                          </label>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        挨拶文
-                      </label>
-                      <textarea
-                        value={managerInfo.greeting}
-                        onChange={(e) => setManagerInfo({ ...managerInfo, greeting: e.target.value })}
-                        rows={5}
-                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                      />
+                          + メールアドレスを追加
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
 
-                {/* 担当者情報 */}
-                <div className="border-t border-gray-200 pt-3 mt-3">
-                  <h3 className="text-sm font-bold text-gray-900 mb-3">担当者</h3>
-
-                  <div className="space-y-3">
-                    <div>
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={staffInfo.sameAsManager}
-                          onChange={(e) => setStaffInfo({ ...staffInfo, sameAsManager: e.target.checked })}
-                          className="rounded border-gray-300 text-primary focus:ring-primary"
-                        />
-                        <span className="text-sm text-gray-700">責任者と同じ</span>
-                      </label>
-                    </div>
-
-                    {!staffInfo.sameAsManager && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          氏名 <span className="text-red-500">*</span>
-                        </label>
-                        <div className="grid grid-cols-2 gap-3 max-w-md">
-                          <input
-                            type="text"
-                            value={staffInfo.lastName}
-                            onChange={(e) => setStaffInfo({ ...staffInfo, lastName: e.target.value })}
-                            placeholder="姓"
-                            className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                          />
-                          <input
-                            type="text"
-                            value={staffInfo.firstName}
-                            onChange={(e) => setStaffInfo({ ...staffInfo, firstName: e.target.value })}
-                            placeholder="名"
-                            className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        担当電話番号 <span className="text-red-500">*</span>
-                      </label>
+          {/* アクセス */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            <div className="bg-gray-50 px-5 py-3 border-b border-gray-200">
+              <h2 className="text-base font-bold text-gray-900">アクセス</h2>
+            </div>
+            <div className="p-5 space-y-3">
+              {/* 最寄駅 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  最寄駅 <span className="text-gray-500 text-xs">(最大3つまで)</span>
+                </label>
+                <div className="space-y-2">
+                  {accessInfo.stations.map((station, index) => (
+                    <div key={index} className="flex gap-2 items-center">
                       <input
-                        type="tel"
-                        value={staffInfo.phone}
-                        onChange={(e) => setStaffInfo({ ...staffInfo, phone: e.target.value })}
-                        className="w-full max-w-xs px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                        type="text"
+                        value={station.name}
+                        onChange={(e) => updateStation(index, 'name', e.target.value)}
+                        placeholder="駅名を入力"
+                        className="flex-1 max-w-xs px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                       />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        緊急連絡先
-                      </label>
-                      <textarea
-                        value={staffInfo.emergencyContact}
-                        onChange={(e) => setStaffInfo({ ...staffInfo, emergencyContact: e.target.value })}
-                        rows={3}
-                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                        placeholder="担当不在の場合は、電話口の者に伝言をお願いいたします。&#10;誰も出ない場合は、下記番号にお電話くださいませ。&#10;大東（ダイトウ）：080-7441-7699"
+                      <span className="text-sm text-gray-600">から</span>
+                      <input
+                        type="number"
+                        value={station.minutes || ''}
+                        onChange={(e) => updateStation(index, 'minutes', parseInt(e.target.value) || 0)}
+                        placeholder="0"
+                        min="0"
+                        className="w-20 px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                       />
+                      <span className="text-sm text-gray-600">分</span>
+                      {accessInfo.stations.length > 1 && (
+                        <button
+                          onClick={() => removeStation(index)}
+                          className="px-2 py-1.5 text-red-600 hover:bg-red-50 rounded-lg"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
+                  ))}
+                  {accessInfo.stations.length < 3 && (
+                    <button
+                      onClick={addStation}
+                      className="text-sm text-primary hover:text-primary-dark"
+                    >
+                      + 駅を追加
+                    </button>
+                  )}
+                </div>
+              </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        担当メールアドレス <span className="text-red-500">*</span>
-                      </label>
-                      <div className="space-y-2">
-                        {staffInfo.emails.map((email, index) => (
-                          <div key={index} className="flex gap-2">
-                            <input
-                              type="email"
-                              value={email}
-                              onChange={(e) => updateEmail(index, e.target.value)}
-                              placeholder={index === 0 ? 'メインアドレス（必須）' : `サブアドレス ${index}`}
-                              className="flex-1 max-w-md px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              {/* アクセス説明 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  アクセス <span className="text-gray-500 text-xs">(40文字以内)</span>
+                </label>
+                <input
+                  type="text"
+                  value={accessInfo.accessDescription}
+                  onChange={(e) => setAccessInfo({ ...accessInfo, accessDescription: e.target.value })}
+                  maxLength={40}
+                  placeholder="例：恵比寿駅東口より徒歩5分、明治通り沿い"
+                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+              </div>
+
+              {/* 移動可能な通勤手段 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  移動可能な通勤手段
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {transportationOptions.map((option) => (
+                    <label key={option} className="flex items-center gap-1.5 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={accessInfo.transportation.includes(option)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setAccessInfo({
+                              ...accessInfo,
+                              transportation: [...accessInfo.transportation, option],
+                            });
+                          } else {
+                            setAccessInfo({
+                              ...accessInfo,
+                              transportation: accessInfo.transportation.filter((item) => item !== option),
+                            });
+                          }
+                        }}
+                        className="rounded border-gray-300 text-primary focus:ring-primary"
+                      />
+                      <span className="text-gray-700">{option}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* 敷地内駐車場 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  敷地内駐車場
+                </label>
+                <select
+                  value={accessInfo.parking}
+                  onChange={(e) => setAccessInfo({ ...accessInfo, parking: e.target.value })}
+                  className="w-full max-w-md px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                >
+                  {parkingOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 交通手段の備考 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  交通手段の備考
+                </label>
+                <textarea
+                  value={accessInfo.transportationNote}
+                  onChange={(e) => setAccessInfo({ ...accessInfo, transportationNote: e.target.value })}
+                  rows={3}
+                  placeholder="例：車通勤の場合は事前に申請が必要です"
+                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+              </div>
+
+              {/* マップ */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  マップ
+                </label>
+                <div className="space-y-2">
+                  <div className="w-full h-64 bg-gray-100 rounded-lg border border-gray-300 flex items-center justify-center">
+                    <div className="text-center text-gray-500">
+                      <p className="text-sm mb-2">Google Maps プレビュー</p>
+                      <p className="text-xs">住所: {corporateInfo.prefecture}{corporateInfo.city}{corporateInfo.addressDetail}</p>
+                      <p className="text-xs">座標: {accessInfo.mapLat}, {accessInfo.mapLng}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => toast('マップピンの調整機能は開発中です', { icon: '🚧' })}
+                    className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    マップピンを調整
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 服装・受動喫煙防止対策・初回自動送信メッセージ */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            <div className="bg-gray-50 px-5 py-3 border-b border-gray-200">
+              <h2 className="text-base font-bold text-gray-900">その他の設定</h2>
+            </div>
+            <div className="p-5 space-y-3">
+              {/* 服装 */}
+              <div className="border-b border-gray-200 pb-3">
+                <h3 className="text-sm font-bold text-gray-900 mb-3">服装</h3>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    服装サンプル画像
+                  </label>
+                  <div className="space-y-2">
+                    {dresscodeInfo.images.length > 0 && (
+                      <div className="grid grid-cols-4 gap-2">
+                        {dresscodeInfo.images.map((file, index) => (
+                          <div key={index} className="relative aspect-video">
+                            <Image
+                              src={URL.createObjectURL(file)}
+                              alt={`服装サンプル${index + 1}`}
+                              fill
+                              className="object-cover rounded-lg border border-gray-200"
                             />
-                            {index > 0 && (
-                              <button
-                                onClick={() => removeEmail(index)}
-                                className="px-2 py-1.5 text-red-600 hover:bg-red-50 rounded-lg"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            )}
+                            <button
+                              onClick={() => removeDresscodeImage(index)}
+                              className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-600"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
                           </div>
                         ))}
-                        {staffInfo.emails.length < 10 && (
-                          <button
-                            onClick={addEmail}
-                            className="text-sm text-primary hover:text-primary-dark"
-                          >
-                            + メールアドレスを追加
-                          </button>
-                        )}
                       </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* アクセス */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-              <div className="bg-gray-50 px-5 py-3 border-b border-gray-200">
-                <h2 className="text-base font-bold text-gray-900">アクセス</h2>
-              </div>
-              <div className="p-5 space-y-3">
-                {/* 最寄駅 */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    最寄駅 <span className="text-gray-500 text-xs">(最大3つまで)</span>
-                  </label>
-                  <div className="space-y-2">
-                    {accessInfo.stations.map((station, index) => (
-                      <div key={index} className="flex gap-2 items-center">
-                        <input
-                          type="text"
-                          value={station.name}
-                          onChange={(e) => updateStation(index, 'name', e.target.value)}
-                          placeholder="駅名を入力"
-                          className="flex-1 max-w-xs px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                        />
-                        <span className="text-sm text-gray-600">から</span>
-                        <input
-                          type="number"
-                          value={station.minutes || ''}
-                          onChange={(e) => updateStation(index, 'minutes', parseInt(e.target.value) || 0)}
-                          placeholder="0"
-                          min="0"
-                          className="w-20 px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                        />
-                        <span className="text-sm text-gray-600">分</span>
-                        {accessInfo.stations.length > 1 && (
-                          <button
-                            onClick={() => removeStation(index)}
-                            className="px-2 py-1.5 text-red-600 hover:bg-red-50 rounded-lg"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                    {accessInfo.stations.length < 3 && (
-                      <button
-                        onClick={addStation}
-                        className="text-sm text-primary hover:text-primary-dark"
-                      >
-                        + 駅を追加
-                      </button>
                     )}
-                  </div>
-                </div>
-
-                {/* アクセス説明 */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    アクセス <span className="text-gray-500 text-xs">(40文字以内)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={accessInfo.accessDescription}
-                    onChange={(e) => setAccessInfo({ ...accessInfo, accessDescription: e.target.value })}
-                    maxLength={40}
-                    placeholder="例：恵比寿駅東口より徒歩5分、明治通り沿い"
-                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  />
-                </div>
-
-                {/* 移動可能な通勤手段 */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    移動可能な通勤手段
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {transportationOptions.map((option) => (
-                      <label key={option} className="flex items-center gap-1.5 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={accessInfo.transportation.includes(option)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setAccessInfo({
-                                ...accessInfo,
-                                transportation: [...accessInfo.transportation, option],
-                              });
-                            } else {
-                              setAccessInfo({
-                                ...accessInfo,
-                                transportation: accessInfo.transportation.filter((item) => item !== option),
-                              });
-                            }
-                          }}
-                          className="rounded border-gray-300 text-primary focus:ring-primary"
-                        />
-                        <span className="text-gray-700">{option}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                {/* 敷地内駐車場 */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    敷地内駐車場
-                  </label>
-                  <select
-                    value={accessInfo.parking}
-                    onChange={(e) => setAccessInfo({ ...accessInfo, parking: e.target.value })}
-                    className="w-full max-w-md px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  >
-                    {parkingOptions.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* 交通手段の備考 */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    交通手段の備考
-                  </label>
-                  <textarea
-                    value={accessInfo.transportationNote}
-                    onChange={(e) => setAccessInfo({ ...accessInfo, transportationNote: e.target.value })}
-                    rows={3}
-                    placeholder="例：車通勤の場合は事前に申請が必要です"
-                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  />
-                </div>
-
-                {/* マップ */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    マップ
-                  </label>
-                  <div className="space-y-2">
-                    <div className="w-full h-64 bg-gray-100 rounded-lg border border-gray-300 flex items-center justify-center">
-                      <div className="text-center text-gray-500">
-                        <p className="text-sm mb-2">Google Maps プレビュー</p>
-                        <p className="text-xs">住所: {corporateInfo.prefecture}{corporateInfo.city}{corporateInfo.addressDetail}</p>
-                        <p className="text-xs">座標: {accessInfo.mapLat}, {accessInfo.mapLng}</p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => toast('マップピンの調整機能は開発中です', { icon: '🚧' })}
-                      className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                    <div
+                      onDragOver={handleDragOver}
+                      onDrop={handleDrop}
+                      className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-primary transition-colors cursor-pointer"
                     >
-                      マップピンを調整
-                    </button>
+                      <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                      <p className="text-sm text-gray-600 mb-1">
+                        画像をドラッグ&ドロップ
+                      </p>
+                      <p className="text-xs text-gray-500 mb-2">または</p>
+                      <label className="cursor-pointer inline-flex items-center gap-1.5 bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                        <Upload className="w-4 h-4" />
+                        ファイルを選択
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={handleDresscodeImageUpload}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* 服装・受動喫煙防止対策・初回自動送信メッセージ */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-              <div className="bg-gray-50 px-5 py-3 border-b border-gray-200">
-                <h2 className="text-base font-bold text-gray-900">その他の設定</h2>
-              </div>
-              <div className="p-5 space-y-3">
-                {/* 服装 */}
-                <div className="border-b border-gray-200 pb-3">
-                  <h3 className="text-sm font-bold text-gray-900 mb-3">服装</h3>
+              {/* 受動喫煙防止対策 */}
+              <div className="border-b border-gray-200 pb-3">
+                <h3 className="text-sm font-bold text-gray-900 mb-3">受動喫煙防止対策</h3>
+                <div className="space-y-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      服装サンプル画像
+                      受動喫煙防止対策措置
                     </label>
-                    <div className="space-y-2">
-                      {dresscodeInfo.images.length > 0 && (
-                        <div className="grid grid-cols-4 gap-2">
-                          {dresscodeInfo.images.map((file, index) => (
-                            <div key={index} className="relative aspect-video">
-                              <Image
-                                src={URL.createObjectURL(file)}
-                                alt={`服装サンプル${index + 1}`}
-                                fill
-                                className="object-cover rounded-lg border border-gray-200"
-                              />
-                              <button
-                                onClick={() => removeDresscodeImage(index)}
-                                className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-600"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      <div
-                        onDragOver={handleDragOver}
-                        onDrop={handleDrop}
-                        className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-primary transition-colors cursor-pointer"
-                      >
-                        <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                        <p className="text-sm text-gray-600 mb-1">
-                          画像をドラッグ&ドロップ
-                        </p>
-                        <p className="text-xs text-gray-500 mb-2">または</p>
-                        <label className="cursor-pointer inline-flex items-center gap-1.5 bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                          <Upload className="w-4 h-4" />
-                          ファイルを選択
-                          <input
-                            type="file"
-                            accept="image/*"
-                            multiple
-                            onChange={handleDresscodeImageUpload}
-                            className="hidden"
-                          />
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 受動喫煙防止対策 */}
-                <div className="border-b border-gray-200 pb-3">
-                  <h3 className="text-sm font-bold text-gray-900 mb-3">受動喫煙防止対策</h3>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        受動喫煙防止対策措置
-                      </label>
-                      <select
-                        value={smokingInfo.measure}
-                        onChange={(e) => setSmokingInfo({ ...smokingInfo, measure: e.target.value })}
-                        className="w-full max-w-md px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                      >
-                        {smokingMeasures.map((measure) => (
-                          <option key={measure} value={measure}>
-                            {measure}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        喫煙可能エリアでの作業
-                      </label>
-                      <div className="flex gap-4">
-                        <label className="flex items-center gap-2">
-                          <input
-                            type="radio"
-                            name="workInSmokingArea"
-                            value="有り"
-                            checked={smokingInfo.workInSmokingArea === '有り'}
-                            onChange={(e) => setSmokingInfo({ ...smokingInfo, workInSmokingArea: e.target.value })}
-                            className="border-gray-300 text-primary focus:ring-primary"
-                          />
-                          <span className="text-sm text-gray-700">有り</span>
-                        </label>
-                        <label className="flex items-center gap-2">
-                          <input
-                            type="radio"
-                            name="workInSmokingArea"
-                            value="無し"
-                            checked={smokingInfo.workInSmokingArea === '無し'}
-                            onChange={(e) => setSmokingInfo({ ...smokingInfo, workInSmokingArea: e.target.value })}
-                            className="border-gray-300 text-primary focus:ring-primary"
-                          />
-                          <span className="text-sm text-gray-700">無し</span>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 初回自動送信メッセージ */}
-                <div>
-                  <h3 className="text-sm font-bold text-gray-900 mb-3">初回自動送信メッセージ</h3>
-                  <div className="space-y-3">
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-900">
-                      <p className="mb-1.5">
-                        設定しておくと、ワーカーが初めて当施設に応募した際に、ウェルカムメッセージが自動送信されます。
-                        ワーカーの初回勤務の不安を軽減することで、キャンセルが発生しにくくなります。
-                      </p>
-                      <p className="mb-1.5">
-                        また、メッセージ本文中では、送信時に変換される以下の変数を利用することができます。
-                      </p>
-                      <ul className="space-y-0.5 ml-4 text-xs">
-                        <li><code className="bg-blue-100 px-1.5 py-0.5 rounded">[ワーカー名字]</code> ワーカーの名字（例: 山田）に変換されます</li>
-                        <li><code className="bg-blue-100 px-1.5 py-0.5 rounded">[施設責任者名字]</code> 施設責任者の名字（例: 斉藤）に変換されます</li>
-                        <li><code className="bg-blue-100 px-1.5 py-0.5 rounded">[施設名]</code> 施設名（例: カイテク施設）に変換されます</li>
-                      </ul>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        メッセージ本文
-                      </label>
-                      <textarea
-                        value={welcomeMessage.text}
-                        onChange={(e) => setWelcomeMessage({ ...welcomeMessage, text: e.target.value })}
-                        rows={8}
-                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent font-mono"
-                      />
-                    </div>
-
-                    <button
-                      onClick={() => setWelcomeMessage({ ...welcomeMessage, showPreview: !welcomeMessage.showPreview })}
-                      className="flex items-center gap-1.5 text-sm text-primary hover:text-primary-dark"
+                    <select
+                      value={smokingInfo.measure}
+                      onChange={(e) => setSmokingInfo({ ...smokingInfo, measure: e.target.value })}
+                      className="w-full max-w-md px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                     >
-                      <Eye className="w-4 h-4" />
-                      {welcomeMessage.showPreview ? 'プレビューを閉じる' : 'プレビューを表示'}
-                    </button>
+                      {smokingMeasures.map((measure) => (
+                        <option key={measure} value={measure}>
+                          {measure}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-                    {welcomeMessage.showPreview && (
-                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                        <h4 className="text-sm font-medium text-gray-700 mb-1.5">プレビュー</h4>
-                        <div className="bg-white rounded-lg p-3 border border-gray-200 whitespace-pre-wrap text-sm">
-                          {previewWelcomeMessage()}
-                        </div>
-                      </div>
-                    )}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      喫煙可能エリアでの作業
+                    </label>
+                    <div className="flex gap-4">
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="workInSmokingArea"
+                          value="有り"
+                          checked={smokingInfo.workInSmokingArea === '有り'}
+                          onChange={(e) => setSmokingInfo({ ...smokingInfo, workInSmokingArea: e.target.value })}
+                          className="border-gray-300 text-primary focus:ring-primary"
+                        />
+                        <span className="text-sm text-gray-700">有り</span>
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="workInSmokingArea"
+                          value="無し"
+                          checked={smokingInfo.workInSmokingArea === '無し'}
+                          onChange={(e) => setSmokingInfo({ ...smokingInfo, workInSmokingArea: e.target.value })}
+                          className="border-gray-300 text-primary focus:ring-primary"
+                        />
+                        <span className="text-sm text-gray-700">無し</span>
+                      </label>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* 保存ボタン */}
-            <div className="flex justify-end gap-3 pb-6">
-              <button
-                onClick={handleSave}
-                disabled={isSaving}
-                className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary-dark font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
-                {isSaving ? '保存中...' : '保存する'}
-              </button>
+              {/* 初回自動送信メッセージ */}
+              <div>
+                <h3 className="text-sm font-bold text-gray-900 mb-3">初回自動送信メッセージ</h3>
+                <div className="space-y-3">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-900">
+                    <p className="mb-1.5">
+                      設定しておくと、ワーカーが初めて当施設に応募した際に、ウェルカムメッセージが自動送信されます。
+                      ワーカーの初回勤務の不安を軽減することで、キャンセルが発生しにくくなります。
+                    </p>
+                    <p className="mb-1.5">
+                      また、メッセージ本文中では、送信時に変換される以下の変数を利用することができます。
+                    </p>
+                    <ul className="space-y-0.5 ml-4 text-xs">
+                      <li><code className="bg-blue-100 px-1.5 py-0.5 rounded">[ワーカー名字]</code> ワーカーの名字（例: 山田）に変換されます</li>
+                      <li><code className="bg-blue-100 px-1.5 py-0.5 rounded">[施設責任者名字]</code> 施設責任者の名字（例: 斉藤）に変換されます</li>
+                      <li><code className="bg-blue-100 px-1.5 py-0.5 rounded">[施設名]</code> 施設名（例: カイテク施設）に変換されます</li>
+                    </ul>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      メッセージ本文
+                    </label>
+                    <textarea
+                      value={welcomeMessage.text}
+                      onChange={(e) => setWelcomeMessage({ ...welcomeMessage, text: e.target.value })}
+                      rows={8}
+                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent font-mono"
+                    />
+                  </div>
+
+                  <button
+                    onClick={() => setWelcomeMessage({ ...welcomeMessage, showPreview: !welcomeMessage.showPreview })}
+                    className="flex items-center gap-1.5 text-sm text-primary hover:text-primary-dark"
+                  >
+                    <Eye className="w-4 h-4" />
+                    {welcomeMessage.showPreview ? 'プレビューを閉じる' : 'プレビューを表示'}
+                  </button>
+
+                  {welcomeMessage.showPreview && (
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                      <h4 className="text-sm font-medium text-gray-700 mb-1.5">プレビュー</h4>
+                      <div className="bg-white rounded-lg p-3 border border-gray-200 whitespace-pre-wrap text-sm">
+                        {previewWelcomeMessage()}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
+          </div>
+
+          {/* 保存ボタン */}
+          <div className="flex justify-end gap-3 pb-6">
+            <button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary-dark font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+              {isSaving ? '保存中...' : '保存する'}
+            </button>
           </div>
         </div>
       </div>
+    </div>
   );
 }
