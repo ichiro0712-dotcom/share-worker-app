@@ -37,9 +37,10 @@ export default function EditJobPage() {
   const [showPreview, setShowPreview] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [facilityInfo, setFacilityInfo] = useState<FacilityData | null>(null);
-  const [selectedDate, setSelectedDate] = useState<string>('');
+  const [existingWorkDates, setExistingWorkDates] = useState<{ id: number; date: string; recruitmentCount: number; appliedCount: number }[]>([]);
+  const [addedWorkDates, setAddedWorkDates] = useState<string[]>([]);
+  const [removedWorkDateIds, setRemovedWorkDateIds] = useState<number[]>([]);
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [workDateId, setWorkDateId] = useState<number | null>(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -109,11 +110,14 @@ export default function EditJobPage() {
 
         // 勤務日を設定
         if (jobData.workDates && jobData.workDates.length > 0) {
-          const firstWorkDate = jobData.workDates[0];
-          setSelectedDate(firstWorkDate.work_date.split('T')[0]);
-          setWorkDateId(firstWorkDate.id);
-          // カレンダーをその月に設定
-          setCurrentMonth(new Date(firstWorkDate.work_date));
+          setExistingWorkDates(jobData.workDates.map((wd: any) => ({
+            id: wd.id,
+            date: wd.work_date.split('T')[0],
+            recruitmentCount: wd.recruitment_count,
+            appliedCount: wd.applied_count,
+          })));
+          // カレンダーを最初の勤務日の月に設定
+          setCurrentMonth(new Date(jobData.workDates[0].work_date));
         }
 
         // break_timeを数値に変換（DBには"0分"形式で保存されている）
@@ -274,6 +278,31 @@ export default function EditJobPage() {
     return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   };
 
+  const handleDateClick = (dateString: string) => {
+    const existing = existingWorkDates.find(wd => wd.date === dateString);
+    if (existing) {
+      // 既存の勤務日
+      if (removedWorkDateIds.includes(existing.id)) {
+        // 削除取り消し
+        setRemovedWorkDateIds(prev => prev.filter(id => id !== existing.id));
+      } else {
+        // 削除（応募がある場合は不可）
+        if (existing.appliedCount > 0) {
+          toast.error('応募がある勤務日は削除できません');
+          return;
+        }
+        setRemovedWorkDateIds(prev => [...prev, existing.id]);
+      }
+    } else {
+      // 新規追加
+      if (addedWorkDates.includes(dateString)) {
+        setAddedWorkDates(prev => prev.filter(d => d !== dateString));
+      } else {
+        setAddedWorkDates(prev => [...prev, dateString]);
+      }
+    }
+  };
+
   const handleSave = async () => {
     if (isSaving) return;
 
@@ -298,8 +327,8 @@ export default function EditJobPage() {
       toast.error('資格条件を選択してください');
       return;
     }
-    if (!selectedDate) {
-      toast.error('勤務日を選択してください');
+    if (existingWorkDates.filter(wd => !removedWorkDateIds.includes(wd.id)).length === 0 && addedWorkDates.length === 0) {
+      toast.error('勤務日を少なくとも1つ選択してください');
       return;
     }
 
@@ -398,8 +427,8 @@ export default function EditJobPage() {
         images: imageUrls,
         dresscodeImages: dresscodeImageUrls,
         attachments: attachmentUrls,
-        workDate: selectedDate,
-        workDateId: workDateId,
+        addWorkDates: addedWorkDates,
+        removeWorkDateIds: removedWorkDateIds,
       });
 
       if (result.success) {
@@ -615,27 +644,34 @@ export default function EditJobPage() {
                       const dateString = formatDate(year, month, day);
                       const currentDate = new Date(year, month, day);
                       const isPast = currentDate < today;
-                      const isSelected = selectedDate === dateString;
+                      const isExisting = existingWorkDates.some(wd => wd.date === dateString);
+                      const isRemoved = isExisting && removedWorkDateIds.includes(existingWorkDates.find(wd => wd.date === dateString)!.id);
+                      const isAdded = addedWorkDates.includes(dateString);
+                      const isSelected = (isExisting && !isRemoved) || isAdded;
                       const dayOfWeek = currentDate.getDay();
 
                       days.push(
                         <button
                           key={day}
-                          onClick={() => !isPast && setSelectedDate(dateString)}
+                          onClick={() => !isPast && handleDateClick(dateString)}
                           disabled={isPast}
-                          className={`aspect-square flex items-center justify-center text-[10px] rounded transition-colors ${
-                            isPast
-                              ? 'text-gray-300 cursor-not-allowed'
-                              : isSelected
+                          className={`aspect-square flex items-center justify-center text-[10px] rounded transition-colors relative ${isPast
+                            ? 'text-gray-300 cursor-not-allowed'
+                            : isSelected
                               ? 'bg-blue-600 text-white font-semibold'
-                              : dayOfWeek === 0
-                              ? 'text-red-500 hover:bg-red-50'
-                              : dayOfWeek === 6
-                              ? 'text-blue-500 hover:bg-blue-50'
-                              : 'text-gray-700 hover:bg-gray-100'
-                          }`}
+                              : isRemoved
+                                ? 'bg-red-100 text-red-500 strikethrough'
+                                : dayOfWeek === 0
+                                  ? 'text-red-500 hover:bg-red-50'
+                                  : dayOfWeek === 6
+                                    ? 'text-blue-500 hover:bg-blue-50'
+                                    : 'text-gray-700 hover:bg-gray-100'
+                            }`}
                         >
                           {day}
+                          {isAdded && (
+                            <span className="absolute top-0 right-0 w-1.5 h-1.5 bg-green-500 rounded-full"></span>
+                          )}
                         </button>
                       );
                     }
@@ -645,7 +681,7 @@ export default function EditJobPage() {
                 </div>
 
                 <div className="mt-1.5 text-[10px] text-gray-500">
-                  <p>• クリックで日付選択 • 過去の日付は選択不可</p>
+                  <p>• クリックで追加/削除 • 応募ありは削除不可</p>
                 </div>
               </div>
 
@@ -654,24 +690,55 @@ export default function EditJobPage() {
                 <h3 className="text-sm font-semibold text-gray-900 mb-2">
                   選択中の勤務日
                 </h3>
-                {selectedDate ? (
-                  <div className="bg-blue-50 border border-blue-200 rounded p-3">
-                    {(() => {
-                      const dateObj = new Date(selectedDate);
-                      const dayOfWeek = ['日', '月', '火', '水', '木', '金', '土'][dateObj.getDay()];
-                      return (
-                        <p className="text-sm font-semibold text-blue-800">
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {/* 既存の勤務日 */}
+                  {existingWorkDates.filter(wd => !removedWorkDateIds.includes(wd.id)).map(wd => {
+                    const dateObj = new Date(wd.date);
+                    const dayOfWeek = ['日', '月', '火', '水', '木', '金', '土'][dateObj.getDay()];
+                    return (
+                      <div key={wd.id} className="bg-blue-50 border border-blue-200 rounded p-2 flex justify-between items-center">
+                        <span className="text-sm font-semibold text-blue-800">
                           {dateObj.getFullYear()}年{dateObj.getMonth() + 1}月{dateObj.getDate()}日（{dayOfWeek}）
-                        </p>
-                      );
-                    })()}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-gray-400">
-                    <Calendar className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">カレンダーから勤務日を選択してください</p>
-                  </div>
-                )}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-600">応募: {wd.appliedCount}名</span>
+                          <button
+                            onClick={() => handleDateClick(wd.date)}
+                            className={`text-xs text-red-500 hover:text-red-700 ${wd.appliedCount > 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            disabled={wd.appliedCount > 0}
+                          >
+                            削除
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {/* 新規追加の勤務日 */}
+                  {addedWorkDates.map(date => {
+                    const dateObj = new Date(date);
+                    const dayOfWeek = ['日', '月', '火', '水', '木', '金', '土'][dateObj.getDay()];
+                    return (
+                      <div key={date} className="bg-green-50 border border-green-200 rounded p-2 flex justify-between items-center">
+                        <span className="text-sm font-semibold text-green-800">
+                          {dateObj.getFullYear()}年{dateObj.getMonth() + 1}月{dateObj.getDate()}日（{dayOfWeek}）
+                          <span className="ml-2 text-xs bg-green-200 text-green-800 px-1.5 py-0.5 rounded">新規</span>
+                        </span>
+                        <button
+                          onClick={() => handleDateClick(date)}
+                          className="text-xs text-red-500 hover:text-red-700"
+                        >
+                          削除
+                        </button>
+                      </div>
+                    );
+                  })}
+                  {existingWorkDates.length === 0 && addedWorkDates.length === 0 && (
+                    <div className="text-center py-8 text-gray-400">
+                      <Calendar className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">カレンダーから勤務日を選択してください</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -1102,7 +1169,7 @@ export default function EditJobPage() {
         isOpen={showPreview}
         onClose={() => setShowPreview(false)}
         formData={formData}
-        selectedDates={selectedDate ? [selectedDate] : []}
+        selectedDates={[...existingWorkDates.filter(wd => !removedWorkDateIds.includes(wd.id)).map(wd => wd.date), ...addedWorkDates]}
         facility={facilityInfo ? { id: facilityInfo.id, name: facilityInfo.facilityName, address: facilityInfo.address } : null}
         recruitmentOptions={{ noDateSelection: false, weeklyFrequency: null, monthlyCommitment: false }}
       />

@@ -29,46 +29,47 @@ type JobStatus = 'all' | 'recruiting' | 'paused' | 'working' | 'review' | 'compl
 
 interface WorkDateData {
   id: number;
-  workDate: string;
-  deadline: string;
+  date: string;
+  formattedDate: string;
   recruitmentCount: number;
   appliedCount: number;
+  deadline: string;
 }
 
 interface JobData {
   id: number;
   title: string;
   status: string;
-  workDate: string | null;
-  workDates?: WorkDateData[];
   startTime: string;
   endTime: string;
   breakTime: string;
   wage: number;
   hourlyWage: number;
   transportationFee: number;
-  deadline: string | null;
-  recruitmentCount: number;
-  appliedCount: number;
-  overview: string;
   workContent: string[];
   requiredQualifications: string[];
-  requiredExperience: string[];
-  dresscode: string[];
-  dresscodeImages: string[];
-  belongings: string[];
-  attachments: string[];
-  managerName: string;
-  managerMessage: string | null;
-  managerAvatar: string | null;
+  workDates: WorkDateData[];
+  totalWorkDates: number;
+  totalApplied: number;
+  totalRecruitment: number;
+  nearestWorkDate: string | null;
+  dateRange: string;
+  overview: string;
   images: string[];
   address: string;
   access: string;
   tags: string[];
-  facilityId: number;
+  managerName: string;
+  managerMessage: string | null;
+  managerAvatar: string | null;
   facilityName: string;
   templateId: number | null;
   templateName: string | null;
+  dresscode: string[];
+  dresscodeImages: string[];
+  belongings: string[];
+  attachments: string[];
+  requiredExperience: string[];
   allowCar: boolean;
   allowBike: boolean;
   allowBicycle: boolean;
@@ -189,43 +190,52 @@ export default function AdminJobsList() {
     // 時期フィルタ（年月範囲指定）
     if (periodStartFilter || periodEndFilter) {
       filtered = filtered.filter((job) => {
-        if (!job.workDate) return false;
-        const workDate = new Date(job.workDate);
-        const workYearMonth = workDate.getFullYear() * 100 + (workDate.getMonth() + 1);
+        // 勤務日がない場合は除外（通常ありえないが）
+        if (job.workDates.length === 0) return false;
 
-        let inRange = true;
+        // 範囲内の勤務日が1つでもあるかチェック
+        return job.workDates.some(wd => {
+          const workDate = new Date(wd.date);
+          const workYearMonth = workDate.getFullYear() * 100 + (workDate.getMonth() + 1);
+          let inRange = true;
 
-        if (periodStartFilter) {
-          const [startYear, startMonth] = periodStartFilter.split('-').map(Number);
-          const startYearMonth = startYear * 100 + startMonth;
-          inRange = inRange && workYearMonth >= startYearMonth;
-        }
+          if (periodStartFilter) {
+            const [startYear, startMonth] = periodStartFilter.split('-').map(Number);
+            const startYearMonth = startYear * 100 + startMonth;
+            inRange = inRange && workYearMonth >= startYearMonth;
+          }
 
-        if (periodEndFilter) {
-          const [endYear, endMonth] = periodEndFilter.split('-').map(Number);
-          const endYearMonth = endYear * 100 + endMonth;
-          inRange = inRange && workYearMonth <= endYearMonth;
-        }
+          if (periodEndFilter) {
+            const [endYear, endMonth] = periodEndFilter.split('-').map(Number);
+            const endYearMonth = endYear * 100 + endMonth;
+            inRange = inRange && workYearMonth <= endYearMonth;
+          }
 
-        return inRange;
+          return inRange;
+        });
       });
     } else {
       // デフォルトで過去1ヶ月から未来のすべてのデータを表示
       const today = new Date();
       const oneMonthAgo = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
-      // 勤務日がない場合、または過去1ヶ月以降のデータを表示（未来の求人も含む）
-      filtered = filtered.filter((job) => !job.workDate || new Date(job.workDate) >= oneMonthAgo);
+
+      filtered = filtered.filter((job) => {
+        // 勤務日がない、または過去1ヶ月以降の勤務日を含む求人を表示
+        if (job.workDates.length === 0) return true;
+        return job.workDates.some(wd => new Date(wd.date) >= oneMonthAgo);
+      });
     }
 
     // テンプレートフィルタ
     if (templateFilter !== 'all') {
-      // テンプレート機能実装時に追加
+      filtered = filtered.filter(job => job.templateId?.toString() === templateFilter);
     }
 
-    // 最新順にソート
+    // 最新順にソート（最も近い勤務日、または作成日順）
     filtered.sort((a, b) => {
-      const dateA = a.workDate ? new Date(a.workDate).getTime() : 0;
-      const dateB = b.workDate ? new Date(b.workDate).getTime() : 0;
+      // 勤務日でのソート（直近の勤務日が新しい順）
+      const dateA = a.workDates.length > 0 ? new Date(a.workDates[0].date).getTime() : 0;
+      const dateB = b.workDates.length > 0 ? new Date(b.workDates[0].date).getTime() : 0;
       return dateB - dateA;
     });
 
@@ -362,352 +372,354 @@ export default function AdminJobsList() {
 
   return (
     <div className="h-full flex flex-col">
-        {/* ヘッダー */}
-        <div className="bg-white border-b border-gray-200 px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">求人管理</h1>
-              <p className="text-xs text-gray-500 mt-1">
-                {filteredJobs.length}件の求人
-                {filteredJobs.length !== jobs.length && (
-                  <span className="text-gray-400"> （全{jobs.length}件中）</span>
-                )}
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              {/* 選択中の表示（選択時のみ表示） */}
-              {selectedJobIds.length > 0 && (
-                <span className="text-xs text-gray-600">
-                  {selectedJobIds.length}件選択中
-                </span>
+      {/* ヘッダー */}
+      <div className="bg-white border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">求人管理</h1>
+            <p className="text-xs text-gray-500 mt-1">
+              {filteredJobs.length}件の求人
+              {filteredJobs.length !== jobs.length && (
+                <span className="text-gray-400"> （全{jobs.length}件中）</span>
               )}
-              {/* 一括操作ボタン（常に表示） */}
-              <button
-                onClick={handleBulkPublish}
-                disabled={selectedJobIds.length === 0}
-                className="flex items-center gap-2 px-4 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                公開する
-              </button>
-              <button
-                onClick={handleBulkPause}
-                disabled={selectedJobIds.length === 0}
-                className="flex items-center gap-2 px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                停止する
-              </button>
-              <button
-                onClick={handleBulkDelete}
-                disabled={selectedJobIds.length === 0}
-                className="flex items-center gap-2 px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Trash2 className="w-4 h-4" />
-                削除する
-              </button>
-              <button
-                onClick={() => window.open('/admin/jobs/templates', '_blank')}
-                className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors"
-              >
-                <FileText className="w-4 h-4" />
-                テンプレート管理
-              </button>
-              <button
-                onClick={() => router.push('/admin/jobs/new')}
-                className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                求人作成
-              </button>
-            </div>
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            {/* 選択中の表示（選択時のみ表示） */}
+            {selectedJobIds.length > 0 && (
+              <span className="text-xs text-gray-600">
+                {selectedJobIds.length}件選択中
+              </span>
+            )}
+            {/* 一括操作ボタン（常に表示） */}
+            <button
+              onClick={handleBulkPublish}
+              disabled={selectedJobIds.length === 0}
+              className="flex items-center gap-2 px-4 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              公開する
+            </button>
+            <button
+              onClick={handleBulkPause}
+              disabled={selectedJobIds.length === 0}
+              className="flex items-center gap-2 px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              停止する
+            </button>
+            <button
+              onClick={handleBulkDelete}
+              disabled={selectedJobIds.length === 0}
+              className="flex items-center gap-2 px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Trash2 className="w-4 h-4" />
+              削除する
+            </button>
+            <button
+              onClick={() => window.open('/admin/jobs/templates', '_blank')}
+              className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors"
+            >
+              <FileText className="w-4 h-4" />
+              テンプレート管理
+            </button>
+            <button
+              onClick={() => router.push('/admin/jobs/new')}
+              className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              求人作成
+            </button>
           </div>
         </div>
+      </div>
 
-        {/* 検索・フィルタエリア */}
-        <div className="bg-white border-b border-gray-200 px-6 py-3">
-          <div className="space-y-3">
-            {/* 1段目: フリーワード検索とテンプレートフィルタ */}
-            <div className="grid grid-cols-3 gap-3">
-              {/* フリーワード検索 */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="求人タイトル or ワーカー名"
-                  className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                />
-              </div>
-
-              {/* テンプレートフィルタ（幅を2倍に） */}
-              <div className="col-span-2">
-                <select
-                  value={templateFilter}
-                  onChange={(e) => setTemplateFilter(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                >
-                  <option value="all">すべてのテンプレート</option>
-                  {jobTemplates.map((template) => (
-                    <option key={template.id} value={template.id.toString()}>
-                      {template.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* 2段目: 期間指定 */}
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-gray-700 font-medium">期間:</span>
-
-              {/* 開始年月フィルタ */}
-              <select
-                value={periodStartFilter}
-                onChange={(e) => setPeriodStartFilter(e.target.value)}
-                className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-              >
-                <option value="">開始月（未指定）</option>
-                {periodOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-
-              <span className="text-sm text-gray-500">〜</span>
-
-              {/* 終了年月フィルタ */}
-              <select
-                value={periodEndFilter}
-                onChange={(e) => setPeriodEndFilter(e.target.value)}
-                className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-              >
-                <option value="">終了月（未指定）</option>
-                {periodOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* ステータスボタンフィルタ */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setStatusFilter('all')}
-                className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
-                  statusFilter === 'all'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                すべて
-              </button>
-              {(Object.keys(statusConfig) as Array<keyof typeof statusConfig>).map((status) => (
-                <button
-                  key={status}
-                  onClick={() => setStatusFilter(status)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
-                    statusFilter === status
-                      ? statusConfig[status].activeColor
-                      : statusConfig[status].color + ' hover:opacity-80'
-                  }`}
-                >
-                  {statusConfig[status].label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* 求人リスト */}
-        <div className="flex-1 overflow-y-auto p-6">
-          {/* 全選択チェックボックス */}
-          {paginatedJobs.length > 0 && (
-            <div className="mb-3 flex items-center gap-2">
+      {/* 検索・フィルタエリア */}
+      <div className="bg-white border-b border-gray-200 px-6 py-3">
+        <div className="space-y-3">
+          {/* 1段目: フリーワード検索とテンプレートフィルタ */}
+          <div className="grid grid-cols-3 gap-3">
+            {/* フリーワード検索 */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
-                type="checkbox"
-                checked={selectedJobIds.length === paginatedJobs.length && paginatedJobs.length > 0}
-                onChange={handleSelectAll}
-                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="求人タイトル or ワーカー名"
+                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
               />
-              <label className="text-sm text-gray-700 cursor-pointer" onClick={handleSelectAll}>
-                全選択
-              </label>
             </div>
-          )}
 
-          <div className="grid grid-cols-1 gap-3">
-            {paginatedJobs.length === 0 ? (
-              <EmptyState
-                icon={FileText}
-                title="作成された求人はありません"
-                description="新しい求人を作成して、ワーカーを募集しましょう"
-                actionLabel="求人を作成"
-                actionLink="/admin/jobs/new"
-              />
-            ) : (
-              paginatedJobs.map((job) => {
-                const status = getJobStatus(job);
-                const statusInfo = statusConfig[status];
-                const applicationRate = job.recruitmentCount > 0
-                  ? Math.round((job.appliedCount / job.recruitmentCount) * 100)
-                  : 0;
+            {/* テンプレートフィルタ（幅を2倍に） */}
+            <div className="col-span-2">
+              <select
+                value={templateFilter}
+                onChange={(e) => setTemplateFilter(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+              >
+                <option value="all">すべてのテンプレート</option>
+                {jobTemplates.map((template) => (
+                  <option key={template.id} value={template.id.toString()}>
+                    {template.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
 
-                return (
-                  <div
-                    key={job.id}
-                    onClick={() => handleCheckboxChange(job.id)}
-                    className="bg-white rounded border border-gray-200 hover:border-blue-400 hover:shadow-sm transition-all p-3 flex items-center gap-3 cursor-pointer"
-                  >
-                    {/* チェックボックス（カードの縦方向中央） */}
-                    <div className="flex-shrink-0">
-                      <input
-                        type="checkbox"
-                        checked={selectedJobIds.includes(job.id)}
-                        onChange={() => handleCheckboxChange(job.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      />
+          {/* 2段目: 期間指定 */}
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-700 font-medium">期間:</span>
+
+            {/* 開始年月フィルタ */}
+            <select
+              value={periodStartFilter}
+              onChange={(e) => setPeriodStartFilter(e.target.value)}
+              className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+            >
+              <option value="">開始月（未指定）</option>
+              {periodOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+
+            <span className="text-sm text-gray-500">〜</span>
+
+            {/* 終了年月フィルタ */}
+            <select
+              value={periodEndFilter}
+              onChange={(e) => setPeriodEndFilter(e.target.value)}
+              className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+            >
+              <option value="">終了月（未指定）</option>
+              {periodOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* ステータスボタンフィルタ */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setStatusFilter('all')}
+              className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${statusFilter === 'all'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+            >
+              すべて
+            </button>
+            {(Object.keys(statusConfig) as Array<keyof typeof statusConfig>).map((status) => (
+              <button
+                key={status}
+                onClick={() => setStatusFilter(status)}
+                className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${statusFilter === status
+                  ? statusConfig[status].activeColor
+                  : statusConfig[status].color + ' hover:opacity-80'
+                  }`}
+              >
+                {statusConfig[status].label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* 求人リスト */}
+      <div className="flex-1 overflow-y-auto p-6">
+        {/* 全選択チェックボックス */}
+        {paginatedJobs.length > 0 && (
+          <div className="mb-3 flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={selectedJobIds.length === paginatedJobs.length && paginatedJobs.length > 0}
+              onChange={handleSelectAll}
+              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+            />
+            <label className="text-sm text-gray-700 cursor-pointer" onClick={handleSelectAll}>
+              全選択
+            </label>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 gap-3">
+          {paginatedJobs.length === 0 ? (
+            <EmptyState
+              icon={FileText}
+              title="作成された求人はありません"
+              description="新しい求人を作成して、ワーカーを募集しましょう"
+              actionLabel="求人を作成"
+              actionLink="/admin/jobs/new"
+            />
+          ) : (
+            paginatedJobs.map((job) => {
+              const status = getJobStatus(job);
+              const statusInfo = statusConfig[status];
+              const applicationRate = job.totalRecruitment > 0
+                ? Math.round((job.totalApplied / job.totalRecruitment) * 100)
+                : 0;
+
+              return (
+                <div
+                  key={job.id}
+                  onClick={() => handleCheckboxChange(job.id)}
+                  className="bg-white rounded border border-gray-200 hover:border-blue-400 hover:shadow-sm transition-all p-3 flex items-center gap-3 cursor-pointer"
+                >
+                  {/* チェックボックス（カードの縦方向中央） */}
+                  <div className="flex-shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={selectedJobIds.includes(job.id)}
+                      onChange={() => handleCheckboxChange(job.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                  </div>
+
+                  {/* カード内容 */}
+                  <div className="flex-1 min-w-0">
+                    {/* 1行目 */}
+                    <div className="flex items-center gap-3 mb-2">
+                      {/* ステータスバッジ */}
+                      <div className="flex-shrink-0">
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded ${statusInfo.color}`}>
+                          {statusInfo.label}
+                        </span>
+                      </div>
+
+                      {/* テンプレート名（求人名） */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{job.title}</p>
+                      </div>
+
+                      {/* 編集・通知書ボタン */}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(`/admin/jobs/${job.id}/edit`);
+                          }}
+                          className="flex items-center gap-1 px-3 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
+                        >
+                          <Pencil className="w-3 h-3" />
+                          編集
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(`/admin/jobs/${job.id}/notification`, '_blank');
+                          }}
+                          className="px-3 py-1 text-xs font-medium bg-orange-100 text-orange-700 rounded hover:bg-orange-200 transition-colors"
+                        >
+                          通知書
+                        </button>
+                      </div>
                     </div>
 
-                    {/* カード内容 */}
-                    <div className="flex-1 min-w-0">
-                      {/* 1行目 */}
-                      <div className="flex items-center gap-3 mb-2">
-                        {/* ステータスバッジ */}
-                        <div className="flex-shrink-0">
-                          <span className={`px-2 py-0.5 text-xs font-medium rounded ${statusInfo.color}`}>
-                            {statusInfo.label}
-                          </span>
-                        </div>
-
-                        {/* テンプレート名（求人名） */}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">{job.title}</p>
-                        </div>
-
-                        {/* 編集・通知書ボタン */}
-                        <div className="flex gap-2">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              router.push(`/admin/jobs/${job.id}/edit`);
-                            }}
-                            className="flex items-center gap-1 px-3 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
-                          >
-                            <Pencil className="w-3 h-3" />
-                            編集
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              window.open(`/admin/jobs/${job.id}/notification`, '_blank');
-                            }}
-                            className="px-3 py-1 text-xs font-medium bg-orange-100 text-orange-700 rounded hover:bg-orange-200 transition-colors"
-                          >
-                            通知書
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* 2行目: 応募人数・時給・日時 */}
-                      <div className="flex items-center gap-3 mb-2">
-                        {/* 応募状況（先頭） */}
-                        <div className="flex-shrink-0">
-                          <div className="flex items-center gap-1 text-xs">
-                            <Users className="w-3 h-3 text-gray-400" />
-                            <span className={`font-medium ${
-                              applicationRate >= 100 ? 'text-green-600' :
-                              applicationRate >= 50 ? 'text-orange-600' :
+                    {/* 2行目: 応募人数・時給・日時 */}
+                    <div className="flex items-center gap-3 mb-2">
+                      {/* 応募状況（先頭） */}
+                      <div className="flex-shrink-0">
+                        <div className="flex items-center gap-1 text-xs">
+                          <Users className="w-3 h-3 text-gray-400" />
+                          <span className={`font-medium ${applicationRate >= 100 ? 'text-green-600' :
+                            applicationRate >= 50 ? 'text-orange-600' :
                               'text-red-600'
                             }`}>
-                              {job.appliedCount}/{job.recruitmentCount}名
-                            </span>
-                            <span className="text-gray-500">({applicationRate}%)</span>
-                          </div>
-                        </div>
-
-                        {/* 時給 */}
-                        <div className="flex-shrink-0 flex items-center gap-1 text-xs font-medium text-primary">
-                          <span>¥{job.hourlyWage.toLocaleString()}/時</span>
-                        </div>
-
-                        {/* 日時（勤務日と時間） */}
-                        <div className="flex-shrink-0">
-                          <div className="flex items-center gap-1 text-xs text-gray-700">
-                            <Calendar className="w-3 h-3 text-gray-400" />
-                            <span>{job.workDate}</span>
-                            <span className="text-gray-400">•</span>
-                            <span>{job.startTime}〜{job.endTime}</span>
-                          </div>
+                            {job.totalApplied}/{job.totalRecruitment}名
+                          </span>
+                          <span className="text-gray-500">({applicationRate}%)</span>
                         </div>
                       </div>
 
-                      {/* 3行目: 業務内容（全表示） */}
-                      {job.workContent && job.workContent.length > 0 && (
-                        <div className="flex items-start gap-1 text-xs text-gray-700 mb-1">
-                          <Briefcase className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" />
-                          <div className="flex flex-wrap gap-1">
-                            {job.workContent.map((content, idx) => (
-                              <span key={idx} className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">
-                                {content}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                      {/* 時給 */}
+                      <div className="flex-shrink-0 flex items-center gap-1 text-xs font-medium text-primary">
+                        <span>¥{job.hourlyWage.toLocaleString()}/時</span>
+                      </div>
 
-                      {/* 4行目: 資格（全表示） */}
-                      <div className="flex items-start gap-1 text-xs text-gray-700">
-                        <Award className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" />
-                        <div className="flex flex-wrap gap-1">
-                          {job.requiredQualifications && job.requiredQualifications.length > 0 ? (
-                            job.requiredQualifications.map((qual, idx) => (
-                              <span key={idx} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded">
-                                {qual}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="px-1.5 py-0.5 bg-gray-50 text-gray-500 rounded">資格不問</span>
+                      {/* 日時（勤務日と時間） */}
+                      <div className="flex-shrink-0">
+                        <div className="flex items-center gap-1 text-xs text-gray-700">
+                          <Calendar className="w-3 h-3 text-gray-400" />
+                          <span>{job.dateRange}</span>
+                          <span className="text-gray-400">•</span>
+                          <span>{job.startTime}〜{job.endTime}</span>
+                          {job.totalWorkDates > 1 && (
+                            <span className="ml-1 px-1.5 py-0.5 bg-gray-100 rounded text-[10px] text-gray-600">
+                              全{job.totalWorkDates}日
+                            </span>
                           )}
                         </div>
                       </div>
                     </div>
+
+                    {/* 3行目: 業務内容（全表示） */}
+                    {job.workContent && job.workContent.length > 0 && (
+                      <div className="flex items-start gap-1 text-xs text-gray-700 mb-1">
+                        <Briefcase className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" />
+                        <div className="flex flex-wrap gap-1">
+                          {job.workContent.map((content, idx) => (
+                            <span key={idx} className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">
+                              {content}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 4行目: 資格（全表示） */}
+                    <div className="flex items-start gap-1 text-xs text-gray-700">
+                      <Award className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" />
+                      <div className="flex flex-wrap gap-1">
+                        {job.requiredQualifications && job.requiredQualifications.length > 0 ? (
+                          job.requiredQualifications.map((qual, idx) => (
+                            <span key={idx} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded">
+                              {qual}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="px-1.5 py-0.5 bg-gray-50 text-gray-500 rounded">資格不問</span>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                );
-              })
-            )}
-          </div>
-
-          {/* ページネーション */}
-          {totalPages > 1 && (
-            <div className="mt-6 flex items-center justify-center gap-2">
-              <button
-                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                前へ
-              </button>
-
-              <span className="text-sm text-gray-600">
-                {currentPage} / {totalPages} ページ
-              </span>
-
-              <button
-                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                disabled={currentPage === totalPages}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                次へ
-              </button>
-            </div>
+                </div>
+              );
+            })
           )}
         </div>
 
-        {/* 一括操作確認モーダル */}
-        {bulkActionConfirm && (
+        {/* ページネーション */}
+        {totalPages > 1 && (
+          <div className="mt-6 flex items-center justify-center gap-2">
+            <button
+              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              前へ
+            </button>
+
+            <span className="text-sm text-gray-600">
+              {currentPage} / {totalPages} ページ
+            </span>
+
+            <button
+              onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              次へ
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* 一括操作確認モーダル */}
+      {bulkActionConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <h2 className="text-lg font-bold mb-4">
@@ -741,13 +753,12 @@ export default function AdminJobsList() {
               <button
                 onClick={confirmBulkAction}
                 disabled={isDeleting}
-                className={`flex-1 px-4 py-2 text-sm text-white rounded transition-colors disabled:opacity-50 ${
-                  bulkActionConfirm === 'publish'
-                    ? 'bg-green-600 hover:bg-green-700'
-                    : bulkActionConfirm === 'delete'
+                className={`flex-1 px-4 py-2 text-sm text-white rounded transition-colors disabled:opacity-50 ${bulkActionConfirm === 'publish'
+                  ? 'bg-green-600 hover:bg-green-700'
+                  : bulkActionConfirm === 'delete'
                     ? 'bg-red-600 hover:bg-red-700'
                     : 'bg-gray-600 hover:bg-gray-700'
-                }`}
+                  }`}
               >
                 {isDeleting ? '処理中...' : bulkActionConfirm === 'delete' ? '削除する' : '変更する'}
               </button>
@@ -783,7 +794,7 @@ export default function AdminJobsList() {
               <div className="mb-4">
                 <div className="flex items-start gap-3 mb-3">
                   <h3 className="text-xl font-bold flex-1">{selectedJob.title}</h3>
-                  <Badge variant="red">募集{selectedJob.recruitmentCount}名</Badge>
+                  <Badge variant="red">募集{selectedJob.totalRecruitment}名</Badge>
                 </div>
               </div>
 
@@ -827,9 +838,8 @@ export default function AdminJobsList() {
                         <button
                           key={index}
                           onClick={() => setCurrentImageIndex(index)}
-                          className={`w-2 h-2 rounded-full transition-colors ${
-                            index === currentImageIndex ? 'bg-primary' : 'bg-gray-300'
-                          }`}
+                          className={`w-2 h-2 rounded-full transition-colors ${index === currentImageIndex ? 'bg-primary' : 'bg-gray-300'
+                            }`}
                         />
                       ))}
                     </div>
@@ -883,11 +893,7 @@ export default function AdminJobsList() {
                         <div className="flex items-center gap-3">
                           <div className="flex-1">
                             <div className="text-sm font-bold mb-1">
-                              {new Date(wd.workDate).toLocaleDateString('ja-JP', {
-                                month: 'long',
-                                day: 'numeric',
-                                weekday: 'short'
-                              })} {selectedJob.startTime}〜{selectedJob.endTime}
+                              {wd.formattedDate} {selectedJob.startTime}〜{selectedJob.endTime}
                             </div>
                             <div className="flex items-center gap-2 text-xs text-gray-600">
                               <span>休憩 {selectedJob.breakTime}</span>
@@ -913,11 +919,7 @@ export default function AdminJobsList() {
                       <div className="flex items-center gap-3">
                         <div className="flex-1">
                           <div className="text-sm font-bold mb-1">
-                            {selectedJob.workDate ? new Date(selectedJob.workDate).toLocaleDateString('ja-JP', {
-                              month: 'long',
-                              day: 'numeric',
-                              weekday: 'short'
-                            }) : '-'} {selectedJob.startTime}〜{selectedJob.endTime}
+                            {selectedJob.workDates.length > 0 ? selectedJob.workDates[0].formattedDate : '-'} {selectedJob.startTime}〜{selectedJob.endTime}
                           </div>
                           <div className="flex items-center gap-2 text-xs text-gray-600">
                             <span>休憩 {selectedJob.breakTime}</span>
@@ -1144,7 +1146,7 @@ export default function AdminJobsList() {
                     <div>
                       <p className="text-xs text-gray-600 mb-1">応募締切</p>
                       <p className="text-sm text-gray-700">
-                        {selectedJob.deadline ? new Date(selectedJob.deadline).toLocaleDateString('ja-JP') : '-'}
+                        {selectedJob.workDates.length > 0 ? new Date(selectedJob.workDates[0].deadline).toLocaleDateString('ja-JP') : '-'}
                       </p>
                     </div>
                   </div>
@@ -1173,7 +1175,7 @@ export default function AdminJobsList() {
             </div>
           </div>
         </div>
-        )}
-      </div>
+      )}
+    </div>
   );
 }

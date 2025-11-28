@@ -27,7 +27,7 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
   const [savedForLater, setSavedForLater] = useState(false);
   const [isOverviewExpanded, setIsOverviewExpanded] = useState(false);
   const [showAllDates, setShowAllDates] = useState(false);
-  const [selectedJobIds, setSelectedJobIds] = useState<number[]>([job.id]);
+  const [selectedWorkDateIds, setSelectedWorkDateIds] = useState<number[]>([]);
   const [isApplying, setIsApplying] = useState(false);
   const [hasApplied, setHasApplied] = useState(initialHasApplied);
   const [isFavoriteProcessing, setIsFavoriteProcessing] = useState(false);
@@ -76,6 +76,22 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
         selectedWorkDates: job.workDates.slice(0, 1),
         otherWorkDates: job.workDates.slice(1),
       };
+    }
+
+    return {
+      selectedWorkDates: selected,
+      otherWorkDates: other,
+    };
+    // 初期選択: selectedDateがあればそのID、なければ最初のID
+    if (selectedDate) {
+      const selected = job.workDates.find((wd: any) => wd.workDate === selectedDate);
+      if (selected) {
+        setSelectedWorkDateIds([selected.id]);
+      } else if (job.workDates.length > 0) {
+        setSelectedWorkDateIds([job.workDates[0].id]);
+      }
+    } else if (job.workDates && job.workDates.length > 0) {
+      setSelectedWorkDateIds([job.workDates[0].id]);
     }
 
     return {
@@ -152,8 +168,8 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
   };
 
   const handleApply = async () => {
-    if (selectedJobIds.length === 0) {
-      toast.error('応募する求人を選択してください');
+    if (selectedWorkDateIds.length === 0) {
+      toast.error('応募する勤務日を選択してください');
       return;
     }
 
@@ -165,9 +181,9 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
     setIsApplying(true);
 
     try {
-      // 選択された求人すべてに応募
+      // 選択された勤務日すべてに応募
       const results = await Promise.all(
-        selectedJobIds.map((jobId) => applyForJob(String(jobId)))
+        selectedWorkDateIds.map((workDateId) => applyForJob(String(job.id), workDateId))
       );
 
       // すべて成功したかチェック
@@ -193,12 +209,12 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
     }
   };
 
-  const toggleJobSelection = (jobId: number) => {
-    setSelectedJobIds(prev => {
-      if (prev.includes(jobId)) {
-        return prev.filter(id => id !== jobId);
+  const toggleWorkDateSelection = (workDateId: number) => {
+    setSelectedWorkDateIds(prev => {
+      if (prev.includes(workDateId)) {
+        return prev.filter(id => id !== workDateId);
       } else {
-        return [...prev, jobId];
+        return [...prev, workDateId];
       }
     });
   };
@@ -296,9 +312,8 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
               {job.images.map((_: any, index: number) => (
                 <div
                   key={index}
-                  className={`h-1 rounded-full transition-all ${
-                    index === currentImageIndex ? 'w-6 bg-gray-800' : 'w-1 bg-gray-300'
-                  }`}
+                  className={`h-1 rounded-full transition-all ${index === currentImageIndex ? 'w-6 bg-gray-800' : 'w-1 bg-gray-300'
+                    }`}
                 />
               ))}
             </div>
@@ -354,14 +369,17 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
             {selectedWorkDates.map((wd: any, index: number) => (
               <div
                 key={wd.id || index}
-                onClick={() => toggleJobSelection(job.id)}
-                className="p-4 border-2 border-primary rounded-lg bg-primary-light/30 cursor-pointer hover:bg-primary-light/40 transition-colors"
+                onClick={() => toggleWorkDateSelection(wd.id)}
+                className={`p-4 border-2 rounded-lg cursor-pointer transition-colors ${selectedWorkDateIds.includes(wd.id)
+                    ? 'border-primary bg-primary-light/30'
+                    : 'border-gray-200 hover:border-primary'
+                  }`}
               >
                 <div className="flex items-center gap-3">
                   <input
                     type="checkbox"
-                    checked={selectedJobIds.includes(job.id)}
-                    onChange={() => toggleJobSelection(job.id)}
+                    checked={selectedWorkDateIds.includes(wd.id)}
+                    onChange={() => toggleWorkDateSelection(wd.id)}
                     onClick={(e) => e.stopPropagation()}
                     className="w-5 h-5 text-primary flex-shrink-0 cursor-pointer"
                   />
@@ -402,17 +420,16 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
                 .map((wd: any, index: number) => (
                   <div
                     key={wd.id || index}
-                    onClick={() => toggleJobSelection(job.id)}
-                    className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
-                      selectedJobIds.includes(job.id)
-                        ? 'border-primary bg-primary-light/20'
-                        : 'border-gray-200 hover:border-primary'
-                    }`}
+                    onClick={() => toggleWorkDateSelection(wd.id)}
+                    className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${selectedWorkDateIds.includes(wd.id)
+                      ? 'border-primary bg-primary-light/20'
+                      : 'border-gray-200 hover:border-primary'
+                      }`}
                   >
                     <input
                       type="checkbox"
-                      checked={selectedJobIds.includes(job.id)}
-                      onChange={() => toggleJobSelection(job.id)}
+                      checked={selectedWorkDateIds.includes(wd.id)}
+                      onChange={() => toggleWorkDateSelection(wd.id)}
                       onClick={(e) => e.stopPropagation()}
                       className="w-5 h-5 text-primary flex-shrink-0 cursor-pointer"
                     />
@@ -498,9 +515,8 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
           <div className="mt-3">
             <h4 className="mb-2 text-sm font-bold">仕事詳細</h4>
             <div
-              className={`text-sm text-gray-600 whitespace-pre-line overflow-hidden transition-all ${
-                isOverviewExpanded ? 'max-h-none' : 'max-h-[10.5rem] md:max-h-[7.5rem]'
-              }`}
+              className={`text-sm text-gray-600 whitespace-pre-line overflow-hidden transition-all ${isOverviewExpanded ? 'max-h-none' : 'max-h-[10.5rem] md:max-h-[7.5rem]'
+                }`}
             >
               {job.overview}
             </div>
@@ -704,11 +720,10 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
                 {job.transportMethods.map((method: any, index: number) => (
                   <span
                     key={index}
-                    className={`px-3 py-1 rounded-full text-xs ${
-                      method.available
-                        ? 'bg-primary text-white'
-                        : 'bg-gray-200 text-gray-400 line-through'
-                    }`}
+                    className={`px-3 py-1 rounded-full text-xs ${method.available
+                      ? 'bg-primary text-white'
+                      : 'bg-gray-200 text-gray-400 line-through'
+                      }`}
                   >
                     {method.name}
                   </span>
@@ -792,11 +807,10 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
                       {[1, 2, 3, 4, 5].map((value) => (
                         <span
                           key={value}
-                          className={`text-sm ${
-                            value <= review.rating
-                              ? 'text-yellow-400'
-                              : 'text-gray-300'
-                          }`}
+                          className={`text-sm ${value <= review.rating
+                            ? 'text-yellow-400'
+                            : 'text-gray-300'
+                            }`}
                         >
                           ★
                         </span>

@@ -348,6 +348,104 @@ export async function getJobs(searchParams?: JobSearchParams) {
   });
 }
 
+export async function getAdminJobsList(facilityId: number) {
+  const jobs = await prisma.job.findMany({
+    where: { facility_id: facilityId },
+    include: {
+      workDates: {
+        orderBy: { work_date: 'asc' },
+      },
+      facility: true,
+      template: true,
+    },
+    orderBy: { created_at: 'desc' },
+  });
+
+  return jobs.map(job => {
+    // 全勤務日の応募数合計と募集数合計を計算
+    const totalApplied = job.workDates.reduce((sum, wd) => sum + wd.applied_count, 0);
+    const totalRecruitment = job.workDates.reduce((sum, wd) => sum + wd.recruitment_count, 0);
+
+    // 最も近い勤務日
+    const today = new Date();
+    const upcomingDates = job.workDates.filter(wd => new Date(wd.work_date) >= today);
+    const nearestDate = upcomingDates[0] || job.workDates[0];
+
+    return {
+      id: job.id,
+      title: job.title,
+      status: job.status,
+      startTime: job.start_time,
+      endTime: job.end_time,
+      hourlyWage: job.hourly_wage,
+      workContent: job.work_content,
+      requiredQualifications: job.required_qualifications,
+      // 勤務日情報
+      workDates: job.workDates.map(wd => ({
+        id: wd.id,
+        date: wd.work_date.toISOString().split('T')[0],
+        formattedDate: formatDate(wd.work_date),
+        recruitmentCount: wd.recruitment_count,
+        appliedCount: wd.applied_count,
+        deadline: wd.deadline.toISOString(),
+      })),
+      // サマリー情報
+      totalWorkDates: job.workDates.length,
+      totalApplied: totalApplied,
+      totalRecruitment: totalRecruitment,
+      nearestWorkDate: nearestDate ? formatDate(nearestDate.work_date) : null,
+      // 表示用（最初の日付〜最後の日付）
+      dateRange: job.workDates.length > 1
+        ? `${formatDate(job.workDates[0].work_date)} 〜 ${formatDate(job.workDates[job.workDates.length - 1].work_date)}`
+        : nearestDate ? formatDate(nearestDate.work_date) : '',
+      // 追加フィールド（プレビュー用）
+      overview: job.overview,
+      images: job.images,
+      address: job.address,
+      access: job.access,
+      tags: job.tags,
+      managerName: job.manager_name,
+      managerMessage: job.manager_message,
+      managerAvatar: job.manager_avatar,
+      facilityName: job.facility.facility_name,
+      // 詳細フィールド
+      dresscode: job.dresscode,
+      dresscodeImages: job.dresscode_images,
+      belongings: job.belongings,
+      attachments: job.attachments,
+      requiredExperience: job.required_experience,
+      // 交通手段
+      allowCar: job.allow_car,
+      allowBike: job.allow_bike,
+      allowBicycle: job.allow_bicycle,
+      allowPublicTransit: job.allow_public_transit,
+      hasParking: job.has_parking,
+      // こだわり条件
+      noBathingAssist: job.no_bathing_assist,
+      hasDriver: job.has_driver,
+      hairStyleFree: job.hair_style_free,
+      nailOk: job.nail_ok,
+      uniformProvided: job.uniform_provided,
+      inexperiencedOk: job.inexperienced_ok,
+      beginnerOk: job.beginner_ok,
+      facilityWithin5years: job.facility_within_5years,
+      // 募集条件
+      weeklyFrequency: job.weekly_frequency,
+      monthlyCommitment: job.monthly_commitment,
+      wage: job.wage,
+      transportationFee: job.transportation_fee,
+      breakTime: job.break_time,
+      templateId: job.template_id,
+      templateName: job.template?.name || null,
+    };
+  });
+}
+
+function formatDate(date: Date): string {
+  const d = new Date(date);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
 export async function getJobById(id: string) {
   const jobId = parseInt(id, 10);
 
@@ -3139,95 +3237,7 @@ export async function getAdminDashboardTasks(facilityId: number) {
 /**
  * 管理者求人管理画面用の求人一覧を取得
  */
-export async function getAdminJobsList(facilityId: number) {
-  const jobs = await prisma.job.findMany({
-    where: { facility_id: facilityId },
-    include: {
-      facility: {
-        select: {
-          id: true,
-          facility_name: true,
-        },
-      },
-      template: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
-      workDates: {
-        orderBy: { work_date: 'asc' },
-      },
-    },
-    orderBy: { created_at: 'desc' },
-  });
 
-  return jobs.map((job) => {
-    // workDatesから最初の勤務日と合計応募数を取得
-    const firstWorkDate = job.workDates[0];
-    const totalAppliedCount = job.workDates.reduce((sum, wd) => sum + wd.applied_count, 0);
-
-    return {
-      id: job.id,
-      title: job.title,
-      status: job.status,
-      workDate: firstWorkDate?.work_date.toISOString().split('T')[0] || null,
-      workDates: job.workDates.map((wd) => ({
-        id: wd.id,
-        workDate: wd.work_date.toISOString().split('T')[0],
-        deadline: wd.deadline.toISOString(),
-        recruitmentCount: wd.recruitment_count,
-        appliedCount: wd.applied_count,
-      })),
-      startTime: job.start_time,
-      endTime: job.end_time,
-      breakTime: job.break_time,
-      wage: job.wage,
-      hourlyWage: job.hourly_wage,
-      transportationFee: job.transportation_fee,
-      deadline: firstWorkDate?.deadline.toISOString() || null,
-      recruitmentCount: job.recruitment_count,
-      appliedCount: totalAppliedCount,
-      overview: job.overview,
-      workContent: job.work_content,
-      requiredQualifications: job.required_qualifications,
-      requiredExperience: job.required_experience,
-      dresscode: job.dresscode,
-      belongings: job.belongings,
-      managerName: job.manager_name,
-      managerMessage: job.manager_message,
-      managerAvatar: job.manager_avatar,
-      images: job.images,
-      dresscodeImages: job.dresscode_images,
-      attachments: job.attachments,
-      address: job.address,
-      access: job.access,
-      tags: job.tags,
-      facilityId: job.facility_id,
-      facilityName: job.facility.facility_name,
-      templateId: job.template_id,
-      templateName: job.template?.name || null,
-      // 移動手段
-      allowCar: job.allow_car,
-      allowBike: job.allow_bike,
-      allowBicycle: job.allow_bicycle,
-      allowPublicTransit: job.allow_public_transit,
-      hasParking: job.has_parking,
-      // こだわり条件
-      noBathingAssist: job.no_bathing_assist,
-      hasDriver: job.has_driver,
-      hairStyleFree: job.hair_style_free,
-      nailOk: job.nail_ok,
-      uniformProvided: job.uniform_provided,
-      inexperiencedOk: job.inexperienced_ok,
-      beginnerOk: job.beginner_ok,
-      facilityWithin5years: job.facility_within_5years,
-      // 募集条件
-      weeklyFrequency: job.weekly_frequency,
-      monthlyCommitment: job.monthly_commitment,
-    };
-  });
-}
 
 /**
  * 施設管理者ログイン（DBベース）
@@ -3343,150 +3353,130 @@ export interface CreateJobInput {
 
 export async function createJobs(input: CreateJobInput) {
   console.log('[createJobs] Input:', JSON.stringify(input, null, 2));
-  try {
-    // 施設情報を取得
-    const facility = await prisma.facility.findUnique({
-      where: { id: input.facilityId },
-    });
 
-    if (!facility) {
-      return { success: false, error: '施設が見つかりません' };
-    }
+  // 施設情報を取得
+  const facility = await prisma.facility.findUnique({
+    where: { id: input.facilityId },
+  });
 
-    // 日給を計算
-    const calculateWage = (startTime: string, endTime: string, breakMinutes: number, hourlyWage: number, transportFee: number) => {
-      const [startHour, startMin] = startTime.split(':').map(Number);
-      const [endHour, endMin] = endTime.split(':').map(Number);
+  if (!facility) {
+    return { success: false, error: '施設が見つかりません' };
+  }
 
-      let totalMinutes = (endHour * 60 + endMin) - (startHour * 60 + startMin);
-      if (totalMinutes < 0) totalMinutes += 24 * 60; // 日跨ぎの場合
+  // 日給を計算
+  const calculateWage = (startTime: string, endTime: string, breakMinutes: number, hourlyWage: number, transportFee: number) => {
+    const [startHour, startMin] = startTime.split(':').map(Number);
+    const [endHour, endMin] = endTime.split(':').map(Number);
 
-      const workMinutes = totalMinutes - breakMinutes;
-      const workHours = workMinutes / 60;
+    let totalMinutes = (endHour * 60 + endMin) - (startHour * 60 + startMin);
+    if (totalMinutes < 0) totalMinutes += 24 * 60; // 日跨ぎの場合
 
-      return Math.floor(hourlyWage * workHours) + transportFee;
-    };
+    const workMinutes = totalMinutes - breakMinutes;
+    const workHours = workMinutes / 60;
 
-    const wage = calculateWage(
-      input.startTime,
-      input.endTime,
-      input.breakTime,
-      input.hourlyWage,
-      input.transportationFee
-    );
+    return Math.floor(hourlyWage * workHours) + transportFee;
+  };
 
-    // 休憩時間文字列を作成
-    const breakTimeStr = `${input.breakTime}分`;
+  const wage = calculateWage(
+    input.startTime,
+    input.endTime,
+    input.breakTime,
+    input.hourlyWage,
+    input.transportationFee
+  );
 
-    // アイコンからこだわり条件フラグを設定
-    const conditionFlags = {
-      no_bathing_assist: input.icons.includes('入浴介助なし'),
-      has_driver: input.icons.includes('送迎ドライバーあり'),
-      hair_style_free: input.icons.includes('髪型・髪色自由'),
-      nail_ok: input.icons.includes('ネイルOK'),
-      uniform_provided: input.icons.includes('制服貸与'),
-      inexperienced_ok: input.icons.includes('介護業務未経験歓迎'),
-      beginner_ok: input.icons.includes('SWORK初心者歓迎'),
-      facility_within_5years: input.icons.includes('施設オープン5年以内'),
-      allow_car: input.icons.includes('車通勤可') || input.icons.includes('車'),
-      allow_bike: input.icons.includes('バイク通勤可') || input.icons.includes('バイク'),
-      allow_bicycle: input.icons.includes('自転車通勤可') || input.icons.includes('自転車'),
-      allow_public_transit: input.icons.includes('公共交通機関') || input.icons.includes('電車・バス'),
-      has_parking: input.icons.includes('駐車場あり'),
-    };
+  // 休憩時間文字列を作成
+  const breakTimeStr = `${input.breakTime}分`;
 
-    // 1つの求人を作成し、複数の勤務日を紐付ける
-    const job = await prisma.job.create({
-      data: {
-        facility_id: input.facilityId,
-        template_id: input.templateId || null,
-        status: 'PUBLISHED',
-        title: input.title,
-        start_time: input.startTime,
-        end_time: input.endTime,
-        break_time: breakTimeStr,
-        wage: wage,
-        hourly_wage: input.hourlyWage,
-        transportation_fee: input.transportationFee,
-        deadline_days_before: input.recruitmentEndDay || 1, // 勤務日の何日前に締切
-        tags: input.icons,
-        address: facility.address,
-        access: '施設へのアクセス情報', // 施設から取得できるなら追加
-        recruitment_count: input.recruitmentCount,
-        overview: input.jobDescription,
-        work_content: input.workContent,
-        required_qualifications: input.qualifications,
-        required_experience: input.skills,
-        dresscode: input.dresscode,
-        belongings: input.belongings,
-        manager_name: '担当者', // 施設の担当者情報があれば取得
-        images: input.images && input.images.length > 0 ? input.images : (facility.images || []),
-        dresscode_images: input.dresscodeImages || [],
-        attachments: input.attachments || [],
-        // こだわり条件フラグ
-        ...conditionFlags,
-        // 募集条件
-        weekly_frequency: input.weeklyFrequency || null,
-        monthly_commitment: input.monthlyCommitment || false,
-      },
-    });
+  // アイコンからこだわり条件フラグを設定
+  const conditionFlags = {
+    no_bathing_assist: input.icons.includes('入浴介助なし'),
+    has_driver: input.icons.includes('送迎ドライバーあり'),
+    hair_style_free: input.icons.includes('髪型・髪色自由'),
+    nail_ok: input.icons.includes('ネイルOK'),
+    uniform_provided: input.icons.includes('制服貸与'),
+    inexperienced_ok: input.icons.includes('介護業務未経験歓迎'),
+    beginner_ok: input.icons.includes('SWORK初心者歓迎'),
+    facility_within_5years: input.icons.includes('施設オープン5年以内'),
+    allow_car: input.icons.includes('車通勤可') || input.icons.includes('車'),
+    allow_bike: input.icons.includes('バイク通勤可') || input.icons.includes('バイク'),
+    allow_bicycle: input.icons.includes('自転車通勤可') || input.icons.includes('自転車'),
+    allow_public_transit: input.icons.includes('公共交通機関') || input.icons.includes('電車・バス'),
+    has_parking: input.icons.includes('駐車場あり'),
+  };
 
-    // 各勤務日を JobWorkDate として作成
-    const createdWorkDates = [];
-    for (const workDate of input.workDates) {
-      const workDateObj = new Date(workDate);
+  // 1つのJobを作成
+  const job = await prisma.job.create({
+    data: {
+      facility_id: input.facilityId,
+      template_id: input.templateId || null,
+      status: 'PUBLISHED',
+      title: input.title,
+      start_time: input.startTime,
+      end_time: input.endTime,
+      break_time: breakTimeStr,
+      wage: wage,
+      hourly_wage: input.hourlyWage,
+      transportation_fee: input.transportationFee,
+      deadline_days_before: input.recruitmentEndDay || 1,
+      tags: input.icons,
+      address: facility.address,
+      access: '施設へのアクセス情報',
+      recruitment_count: input.recruitmentCount,
+      overview: input.jobDescription,
+      work_content: input.workContent,
+      required_qualifications: input.qualifications,
+      required_experience: input.skills,
+      dresscode: input.dresscode,
+      belongings: input.belongings,
+      manager_name: '担当者',
+      images: input.images && input.images.length > 0 ? input.images : (facility.images || []),
+      dresscode_images: input.dresscodeImages || [],
+      attachments: input.attachments || [],
+      // こだわり条件フラグ
+      ...conditionFlags,
+      // 募集条件
+      weekly_frequency: input.weeklyFrequency || null,
+      monthly_commitment: input.monthlyCommitment || false,
+    },
+  });
 
-      // 締切日時を計算
-      let deadline: Date;
-      if (input.recruitmentEndDay === 0) {
-        // 当日
-        deadline = new Date(workDateObj);
-        if (input.recruitmentEndTime) {
-          const [h, m] = input.recruitmentEndTime.split(':').map(Number);
-          deadline.setHours(h, m, 0, 0);
-        } else {
-          deadline.setHours(5, 0, 0, 0); // デフォルト 当日5:00
-        }
+  // 複数のJobWorkDateを作成
+  const workDates = input.workDates.map(dateStr => {
+    const workDate = new Date(dateStr);
+    const deadline = new Date(workDate);
+
+    // 締切日時の計算
+    if (input.recruitmentEndDay === 0) {
+      // 当日
+      if (input.recruitmentEndTime) {
+        const [h, m] = input.recruitmentEndTime.split(':').map(Number);
+        deadline.setHours(h, m, 0, 0);
       } else {
-        // X日前
-        deadline = new Date(workDateObj);
-        deadline.setDate(deadline.getDate() - input.recruitmentEndDay);
-        if (input.recruitmentEndTime) {
-          const [h, m] = input.recruitmentEndTime.split(':').map(Number);
-          deadline.setHours(h, m, 0, 0);
-        } else {
-          deadline.setHours(23, 59, 59, 999);
-        }
+        deadline.setHours(5, 0, 0, 0);
       }
-
-      const jobWorkDate = await prisma.jobWorkDate.create({
-        data: {
-          job_id: job.id,
-          work_date: workDateObj,
-          deadline: deadline,
-          recruitment_count: input.recruitmentCount,
-          applied_count: 0,
-        },
-      });
-
-      createdWorkDates.push(jobWorkDate);
+    } else {
+      // 前日以前
+      deadline.setDate(deadline.getDate() - (input.recruitmentEndDay || 1));
+      deadline.setHours(23, 59, 59, 999);
     }
-
-    revalidatePath('/admin/jobs');
-    revalidatePath('/');
 
     return {
-      success: true,
-      createdCount: 1, // 1つの求人が作成された
-      workDatesCount: createdWorkDates.length, // 勤務日の数
-      jobId: job.id,
+      job_id: job.id,
+      work_date: workDate,
+      deadline: deadline,
+      recruitment_count: input.recruitmentCount,
+      applied_count: 0,
     };
-  } catch (error: any) {
-    console.error('求人作成エラー:', error);
-    const errorMessage = error?.message || '求人の作成に失敗しました';
-    return { success: false, error: `求人の作成に失敗しました: ${errorMessage}` };
-  }
+  });
+
+  await prisma.jobWorkDate.createMany({
+    data: workDates,
+  });
+
+  return { success: true, jobId: job.id };
 }
+
 
 /**
  * 管理者用: 求人テンプレートを取得（単一）
@@ -3904,39 +3894,38 @@ export async function updateJob(
     images?: string[];
     dresscodeImages?: string[];
     attachments?: string[];
-    workDate?: string;
-    workDateId?: number | null;
+    // 勤務日の操作
+    addWorkDates?: string[];      // 追加する日付
+    removeWorkDateIds?: number[]; // 削除するWorkDateのID
   }
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // 求人が存在し、この施設に属しているか確認
     const existingJob = await prisma.job.findFirst({
-      where: {
-        id: jobId,
-        facility_id: facilityId,
-      },
-      include: {
-        workDates: true,
-      },
+      where: { id: jobId, facility_id: facilityId },
+      include: { workDates: true },
     });
 
     if (!existingJob) {
-      return { success: false, error: '求人が見つからないか、編集権限がありません' };
+      return { success: false, error: '求人が見つかりません' };
     }
 
     // 日給を計算
-    const calculateWage = (start: string, end: string, breakMinutes: number, hourlyRate: number, transportFee: number) => {
-      const [startH, startM] = start.split(':').map(Number);
-      const [endH, endM] = end.split(':').map(Number);
-      let totalMinutes = (endH * 60 + endM) - (startH * 60 + startM);
-      if (totalMinutes < 0) totalMinutes += 24 * 60;
-      totalMinutes -= breakMinutes;
-      const hours = totalMinutes / 60;
-      return Math.round(hours * hourlyRate) + transportFee;
-    };
+    const breakTimeMinutes = typeof data.breakTime === 'number'
+      ? data.breakTime
+      : parseInt(String(data.breakTime)) || 0;
 
-    // breakTimeが数値であることを確認（編集ページから数値が渡される）
-    const breakTimeMinutes = typeof data.breakTime === 'number' ? data.breakTime : parseInt(String(data.breakTime)) || 0;
+    const calculateWage = (startTime: string, endTime: string, breakMinutes: number, hourlyWage: number, transportFee: number) => {
+      const [startHour, startMin] = startTime.split(':').map(Number);
+      const [endHour, endMin] = endTime.split(':').map(Number);
+
+      let totalMinutes = (endHour * 60 + endMin) - (startHour * 60 + startMin);
+      if (totalMinutes < 0) totalMinutes += 24 * 60; // 日跨ぎの場合
+
+      const workMinutes = totalMinutes - breakMinutes;
+      const workHours = workMinutes / 60;
+
+      return Math.floor(hourlyWage * workHours) + transportFee;
+    };
 
     const wage = calculateWage(
       data.startTime,
@@ -3946,20 +3935,18 @@ export async function updateJob(
       data.transportationFee
     );
 
-    // 休憩時間文字列を作成（DBには"0分"形式で保存）
-    const breakTimeStr = `${breakTimeMinutes}分`;
-
-    // 求人を更新
+    // Jobを更新（条件部分）
     await prisma.job.update({
       where: { id: jobId },
       data: {
         title: data.title,
         start_time: data.startTime,
         end_time: data.endTime,
-        break_time: breakTimeStr,
+        break_time: `${breakTimeMinutes}分`,
         hourly_wage: data.hourlyWage,
         transportation_fee: data.transportationFee,
         wage: wage,
+        recruitment_count: data.recruitmentCount,
         work_content: data.workContent,
         overview: data.jobDescription,
         required_qualifications: data.qualifications,
@@ -3974,48 +3961,51 @@ export async function updateJob(
       },
     });
 
-    // 関連するWorkDateを更新
-    if (existingJob.workDates.length > 0 && data.workDateId) {
-      // 勤務日も更新（指定された場合）
-      const updateData: { recruitment_count: number; work_date?: Date; deadline?: Date } = {
-        recruitment_count: data.recruitmentCount,
-      };
+    // 既存のWorkDateの募集人数を更新
+    await prisma.jobWorkDate.updateMany({
+      where: { job_id: jobId },
+      data: { recruitment_count: data.recruitmentCount },
+    });
 
-      if (data.workDate) {
-        const newWorkDate = new Date(data.workDate);
-        newWorkDate.setHours(0, 0, 0, 0);
+    // 勤務日を追加
+    if (data.addWorkDates && data.addWorkDates.length > 0) {
+      const newWorkDates = data.addWorkDates.map(dateStr => {
+        const workDate = new Date(dateStr);
+        const deadline = new Date(workDate);
+        deadline.setDate(deadline.getDate() - 1);
+        deadline.setHours(23, 59, 59, 999);
 
-        // 締め切り日を勤務日の前日の23:59に設定
-        const deadlineDate = new Date(newWorkDate);
-        deadlineDate.setDate(deadlineDate.getDate() - 1);
-        deadlineDate.setHours(23, 59, 59, 999);
-
-        updateData.work_date = newWorkDate;
-        updateData.deadline = deadlineDate;
-      }
-
-      await prisma.workDate.update({
-        where: { id: data.workDateId },
-        data: updateData,
-      });
-    } else if (existingJob.workDates.length > 0) {
-      // workDateIdがない場合は全WorkDateの募集人数のみ更新
-      await prisma.workDate.updateMany({
-        where: { job_id: jobId },
-        data: {
+        return {
+          job_id: jobId,
+          work_date: workDate,
+          deadline: deadline,
           recruitment_count: data.recruitmentCount,
+          applied_count: 0,
+        };
+      });
+
+      await prisma.jobWorkDate.createMany({
+        data: newWorkDates,
+        skipDuplicates: true, // 重複を無視
+      });
+    }
+
+    // 勤務日を削除（応募がないもののみ）
+    if (data.removeWorkDateIds && data.removeWorkDateIds.length > 0) {
+      await prisma.jobWorkDate.deleteMany({
+        where: {
+          id: { in: data.removeWorkDateIds },
+          job_id: jobId,
+          applied_count: 0, // 応募がないもののみ削除可能
         },
       });
     }
 
-    console.log('[updateJob] Job updated:', jobId);
-
     revalidatePath('/admin/jobs');
-    revalidatePath(`/admin/jobs/${jobId}/edit`);
-
     return { success: true };
   } catch (error) {
     console.error('[updateJob] Error:', error);
     return { success: false, error: '求人の更新に失敗しました' };
   }
 }
+
