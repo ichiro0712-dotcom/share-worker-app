@@ -19,6 +19,8 @@ interface JobPreviewModalProps {
     weeklyFrequency: 2 | 3 | 4 | null;
     monthlyCommitment: boolean;
   };
+  onPublish?: () => void;
+  isPublishing?: boolean;
 }
 
 export function JobPreviewModal({
@@ -28,6 +30,8 @@ export function JobPreviewModal({
   selectedDates,
   facility,
   recruitmentOptions,
+  onPublish,
+  isPublishing,
 }: JobPreviewModalProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isOverviewExpanded, setIsOverviewExpanded] = useState(false);
@@ -448,12 +452,23 @@ export function JobPreviewModal({
 
         {/* モーダルフッター */}
         <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4">
-          <button
-            onClick={onClose}
-            className="w-full py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors font-medium"
-          >
-            閉じる
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              className="flex-1 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+            >
+              閉じる
+            </button>
+            {onPublish && (
+              <button
+                onClick={onPublish}
+                disabled={isPublishing}
+                className="flex-1 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:bg-blue-400 disabled:cursor-not-allowed"
+              >
+                {isPublishing ? '公開中...' : '公開する'}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

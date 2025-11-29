@@ -1540,6 +1540,11 @@ export default function NewJobPage() {
         selectedDates={selectedDates}
         facility={facilityInfo ? { id: facilityInfo.id, name: facilityInfo.facilityName, address: facilityInfo.address } : null}
         recruitmentOptions={recruitmentOptions}
+        onPublish={() => {
+          setShowPreview(false);
+          handleSave();
+        }}
+        isPublishing={isSaving}
       />
 
       {/* 確認モーダル */}

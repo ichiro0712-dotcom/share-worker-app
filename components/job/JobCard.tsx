@@ -16,10 +16,16 @@ interface JobCardProps {
   selectedDate?: string; // YYYY-MM-DD形式の選択された日付
 }
 
+// デフォルトのプレースホルダー画像
+const DEFAULT_JOB_IMAGE = '/images/anken.png';
+
 export const JobCard: React.FC<JobCardProps> = ({ job, facility, selectedDate }) => {
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // 画像URLを取得（空配列の場合はフォールバック）
+  const jobImage = job.images && job.images.length > 0 ? job.images[0] : DEFAULT_JOB_IMAGE;
 
   useEffect(() => {
     setMounted(true);
@@ -67,7 +73,7 @@ export const JobCard: React.FC<JobCardProps> = ({ job, facility, selectedDate })
           {/* 画像 - 長方形 */}
           <div className="relative w-48 h-40 flex-shrink-0">
             <Image
-              src={job.images[0]}
+              src={jobImage}
               alt={facility.name}
               fill
               className="object-cover"
@@ -143,7 +149,7 @@ export const JobCard: React.FC<JobCardProps> = ({ job, facility, selectedDate })
           {/* 画像 */}
           <div className="relative w-full aspect-[4/3] flex-shrink-0">
             <Image
-              src={job.images[0]}
+              src={jobImage}
               alt={facility.name}
               fill
               className="object-cover"

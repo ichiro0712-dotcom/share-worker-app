@@ -7,7 +7,7 @@ import { Upload, X, ChevronLeft, ChevronRight, Calendar, ArrowLeft } from 'lucid
 import toast from 'react-hot-toast';
 import { JobPreviewModal } from '@/components/admin/JobPreviewModal';
 import { calculateDailyWage } from '@/utils/salary';
-import { getJobById, updateJob, getFacilityInfo } from '@/src/lib/actions';
+import { getJobById, updateJob, getFacilityInfo, getAdminJobTemplates } from '@/src/lib/actions';
 import {
   JOB_TYPES,
   WORK_CONTENT_OPTIONS,
@@ -20,6 +20,29 @@ import {
   RECRUITMENT_START_DAY_OPTIONS,
   RECRUITMENT_END_DAY_OPTIONS,
 } from '@/constants';
+
+interface TemplateData {
+  id: number;
+  name: string;
+  title: string;
+  startTime: string;
+  endTime: string;
+  breakTime: number;
+  hourlyWage: number;
+  transportationFee: number;
+  recruitmentCount: number;
+  qualifications: string[];
+  workContent: string[];
+  description: string | null;
+  skills: string[];
+  dresscode: string[];
+  belongings: string[];
+  tags: string[];
+  images: string[];
+  dresscodeImages?: string[];
+  attachments?: string[];
+  notes: string | null;
+}
 
 interface FacilityData {
   id: number;
@@ -37,6 +60,8 @@ export default function EditJobPage() {
   const [showPreview, setShowPreview] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [facilityInfo, setFacilityInfo] = useState<FacilityData | null>(null);
+  const [jobTemplates, setJobTemplates] = useState<TemplateData[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
   const [existingWorkDates, setExistingWorkDates] = useState<{ id: number; date: string; recruitmentCount: number; appliedCount: number }[]>([]);
   const [addedWorkDates, setAddedWorkDates] = useState<string[]>([]);
   const [removedWorkDateIds, setRemovedWorkDateIds] = useState<number[]>([]);
@@ -76,6 +101,34 @@ export default function EditJobPage() {
   const [dresscodeInput, setDresscodeInput] = useState('');
   const [belongingInput, setBelongingInput] = useState('');
 
+  // 勤務日条件
+  const [recruitmentOptions, setRecruitmentOptions] = useState({
+    noDateSelection: false,
+    weeklyFrequency: null as number | null,
+    monthlyCommitment: false,
+  });
+
+  const handleRecruitmentOptionChange = (option: string, value: any) => {
+    if (option === 'noDateSelection') {
+      setRecruitmentOptions({
+        noDateSelection: value,
+        weeklyFrequency: value ? null : recruitmentOptions.weeklyFrequency,
+        monthlyCommitment: value ? false : recruitmentOptions.monthlyCommitment,
+      });
+    } else if (option === 'weeklyFrequency') {
+      // 週X回の選択は排他的
+      setRecruitmentOptions({
+        ...recruitmentOptions,
+        weeklyFrequency: recruitmentOptions.weeklyFrequency === value ? null : value,
+      });
+    } else if (option === 'monthlyCommitment') {
+      setRecruitmentOptions({
+        ...recruitmentOptions,
+        monthlyCommitment: value,
+      });
+    }
+  };
+
   // 認証チェックとデータ取得
   useEffect(() => {
     if (isAdminLoading) return;
@@ -89,10 +142,13 @@ export default function EditJobPage() {
 
       setIsLoading(true);
       try {
-        const [jobData, facility] = await Promise.all([
+        const [jobData, facility, templates] = await Promise.all([
           getJobById(jobId),
           getFacilityInfo(admin.facilityId),
+          getAdminJobTemplates(admin.facilityId),
         ]);
+
+        setJobTemplates(templates);
 
         if (!jobData) {
           toast.error('求人が見つかりません');
@@ -182,6 +238,37 @@ export default function EditJobPage() {
 
   const handleInputChange = (field: string, value: any) => {
     setFormData({ ...formData, [field]: value });
+  };
+
+  const handleTemplateSelect = (templateId: number) => {
+    const template = jobTemplates.find(t => t.id === templateId);
+    if (template) {
+      setSelectedTemplateId(templateId);
+      setFormData({
+        ...formData,
+        name: template.name,
+        title: template.title,
+        recruitmentCount: template.recruitmentCount,
+        startTime: template.startTime,
+        endTime: template.endTime,
+        breakTime: template.breakTime,
+        hourlyWage: template.hourlyWage,
+        transportationFee: template.transportationFee,
+        workContent: template.workContent || [],
+        jobDescription: template.description || '',
+        qualifications: template.qualifications || [],
+        skills: template.skills || [],
+        dresscode: template.dresscode || [],
+        belongings: template.belongings || [],
+        icons: template.tags || [],
+        existingImages: template.images || [],
+        existingDresscodeImages: template.dresscodeImages || [],
+        existingAttachments: template.attachments || [],
+        images: [],
+        dresscodeImages: [],
+        attachments: [],
+      });
+    }
   };
 
   const toggleArrayItem = (field: string, item: string) => {
@@ -515,8 +602,8 @@ export default function EditJobPage() {
                   </label>
                   <select
                     value={formData.jobType}
-                    disabled
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-gray-100 text-gray-500"
+                    onChange={(e) => handleInputChange('jobType', e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
                   >
                     {JOB_TYPES.map(type => (
                       <option key={type} value={type}>{type}</option>
@@ -540,6 +627,29 @@ export default function EditJobPage() {
                 </div>
               </div>
 
+              {/* テンプレート選択 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  テンプレート（任意）
+                </label>
+                <select
+                  value={selectedTemplateId || ''}
+                  onChange={(e) => e.target.value && handleTemplateSelect(Number(e.target.value))}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                >
+                  <option value="">テンプレートを選択（任意）</option>
+                  {jobTemplates.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  テンプレートを選択すると、フォームに自動入力されます
+                </p>
+              </div>
+
+              {/* 求人タイトル */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   求人タイトル <span className="text-red-500">*</span>
@@ -782,21 +892,22 @@ export default function EditJobPage() {
                   {existingWorkDates.filter(wd => !removedWorkDateIds.includes(wd.id)).map(wd => {
                     const dateObj = new Date(wd.date);
                     const dayOfWeek = ['日', '月', '火', '水', '木', '金', '土'][dateObj.getDay()];
+                    const dayOfWeekIndex = dateObj.getDay();
+                    const dateColor = dayOfWeekIndex === 0 ? 'text-red-600' : dayOfWeekIndex === 6 ? 'text-blue-600' : 'text-gray-900';
                     return (
-                      <div key={wd.id} className="bg-blue-50 border border-blue-200 rounded p-2 flex justify-between items-center">
-                        <span className="text-sm font-semibold text-blue-800">
-                          {dateObj.getFullYear()}年{dateObj.getMonth() + 1}月{dateObj.getDate()}日（{dayOfWeek}）
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-gray-600">応募: {wd.appliedCount}名</span>
-                          <button
-                            onClick={() => handleDateClick(wd.date)}
-                            className={`text-xs text-red-500 hover:text-red-700 ${wd.appliedCount > 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            disabled={wd.appliedCount > 0}
-                          >
-                            削除
-                          </button>
+                      <div key={wd.id} className="bg-gray-50 border border-gray-200 rounded p-2 relative flex items-center">
+                        <div className={`text-xs font-semibold ${dateColor} pr-16 leading-tight`}>
+                          {dateObj.getFullYear()}/{dateObj.getMonth() + 1}/{dateObj.getDate()}（{dayOfWeek}）
+                          <span className="ml-2 text-gray-500 font-normal">応募: {wd.appliedCount}名</span>
                         </div>
+                        <button
+                          onClick={() => handleDateClick(wd.date)}
+                          disabled={wd.appliedCount > 0}
+                          className={`absolute top-1/2 -translate-y-1/2 right-2 p-0.5 hover:bg-white rounded transition-colors ${wd.appliedCount > 0 ? 'opacity-30 cursor-not-allowed' : ''}`}
+                          title={wd.appliedCount > 0 ? '応募があるため削除できません' : '削除'}
+                        >
+                          <X className="w-3 h-3 text-gray-500" />
+                        </button>
                       </div>
                     );
                   })}
@@ -804,17 +915,20 @@ export default function EditJobPage() {
                   {addedWorkDates.map(date => {
                     const dateObj = new Date(date);
                     const dayOfWeek = ['日', '月', '火', '水', '木', '金', '土'][dateObj.getDay()];
+                    const dayOfWeekIndex = dateObj.getDay();
+                    const dateColor = dayOfWeekIndex === 0 ? 'text-red-600' : dayOfWeekIndex === 6 ? 'text-blue-600' : 'text-gray-900';
                     return (
-                      <div key={date} className="bg-green-50 border border-green-200 rounded p-2 flex justify-between items-center">
-                        <span className="text-sm font-semibold text-green-800">
-                          {dateObj.getFullYear()}年{dateObj.getMonth() + 1}月{dateObj.getDate()}日（{dayOfWeek}）
-                          <span className="ml-2 text-xs bg-green-200 text-green-800 px-1.5 py-0.5 rounded">新規</span>
-                        </span>
+                      <div key={date} className="bg-gray-50 border border-gray-200 rounded p-2 relative flex items-center">
+                        <div className={`text-xs font-semibold ${dateColor} pr-6 leading-tight`}>
+                          {dateObj.getFullYear()}/{dateObj.getMonth() + 1}/{dateObj.getDate()}（{dayOfWeek}）
+                          <span className="ml-2 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-normal">新規</span>
+                        </div>
                         <button
                           onClick={() => handleDateClick(date)}
-                          className="text-xs text-red-500 hover:text-red-700"
+                          className="absolute top-1/2 -translate-y-1/2 right-2 p-0.5 hover:bg-white rounded transition-colors"
+                          title="削除"
                         >
-                          削除
+                          <X className="w-3 h-3 text-gray-500" />
                         </button>
                       </div>
                     );
@@ -827,36 +941,81 @@ export default function EditJobPage() {
                   )}
                 </div>
               </div>
-            </div>
 
-            {/* 勤務日条件チェックボックス（編集画面では無効） */}
-            <div className="space-y-3 mt-6 pt-6 border-t border-gray-200">
-              <h3 className="text-sm font-semibold text-gray-900 mb-2">勤務日条件 <span className="text-xs text-gray-500 font-normal">（編集不可）</span></h3>
+              {/* 勤務日条件チェックボックス */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-gray-900 mb-2">勤務日条件</h3>
 
-              <label className="flex items-start gap-2 cursor-not-allowed opacity-60">
-                <input type="checkbox" disabled className="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded" />
-                <span className="text-sm text-gray-700">日付を選ばずに募集</span>
-              </label>
-
-              <div className="space-y-2">
-                <label className="flex items-start gap-2 cursor-not-allowed opacity-60">
-                  <input type="checkbox" disabled className="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded" />
-                  <span className="text-sm text-gray-700">週2回以上勤務できる人を募集</span>
+                {/* 日付を選ばずに募集 */}
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={recruitmentOptions.noDateSelection}
+                    onChange={(e) => handleRecruitmentOptionChange('noDateSelection', e.target.checked)}
+                    className="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">
+                    日付を選ばずに募集
+                    <span className="block text-xs text-gray-500 mt-0.5">（他の条件とカレンダーが無効化されます）</span>
+                  </span>
                 </label>
-                <label className="flex items-start gap-2 cursor-not-allowed opacity-60">
-                  <input type="checkbox" disabled className="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded" />
-                  <span className="text-sm text-gray-700">週3回以上勤務できる人を募集</span>
-                </label>
-                <label className="flex items-start gap-2 cursor-not-allowed opacity-60">
-                  <input type="checkbox" disabled className="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded" />
-                  <span className="text-sm text-gray-700">週4回以上勤務できる人を募集</span>
+
+                {/* 週2回/週3回/週4回（排他的） */}
+                <div className="space-y-2">
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={recruitmentOptions.weeklyFrequency === 2}
+                      onChange={() => handleRecruitmentOptionChange('weeklyFrequency', 2)}
+                      disabled={recruitmentOptions.noDateSelection}
+                      className="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-40"
+                    />
+                    <span className={`text-sm ${recruitmentOptions.noDateSelection ? 'text-gray-400' : 'text-gray-700'}`}>
+                      週2回以上勤務できる人を募集
+                    </span>
+                  </label>
+
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={recruitmentOptions.weeklyFrequency === 3}
+                      onChange={() => handleRecruitmentOptionChange('weeklyFrequency', 3)}
+                      disabled={recruitmentOptions.noDateSelection}
+                      className="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-40"
+                    />
+                    <span className={`text-sm ${recruitmentOptions.noDateSelection ? 'text-gray-400' : 'text-gray-700'}`}>
+                      週3回以上勤務できる人を募集
+                    </span>
+                  </label>
+
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={recruitmentOptions.weeklyFrequency === 4}
+                      onChange={() => handleRecruitmentOptionChange('weeklyFrequency', 4)}
+                      disabled={recruitmentOptions.noDateSelection}
+                      className="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-40"
+                    />
+                    <span className={`text-sm ${recruitmentOptions.noDateSelection ? 'text-gray-400' : 'text-gray-700'}`}>
+                      週4回以上勤務できる人を募集
+                    </span>
+                  </label>
+                </div>
+
+                {/* 1ヶ月以上勤務（独立） */}
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={recruitmentOptions.monthlyCommitment}
+                    onChange={(e) => handleRecruitmentOptionChange('monthlyCommitment', e.target.checked)}
+                    disabled={recruitmentOptions.noDateSelection}
+                    className="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-40"
+                  />
+                  <span className={`text-sm ${recruitmentOptions.noDateSelection ? 'text-gray-400' : 'text-gray-700'}`}>
+                    1ヶ月以上勤務できる人を募集
+                  </span>
                 </label>
               </div>
-
-              <label className="flex items-start gap-2 cursor-not-allowed opacity-60">
-                <input type="checkbox" disabled className="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded" />
-                <span className="text-sm text-gray-700">1ヶ月以上勤務できる人を募集</span>
-              </label>
             </div>
           </div>
 
@@ -1324,30 +1483,27 @@ export default function EditJobPage() {
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h2 className="text-lg font-bold text-gray-900 mb-4">労働条件通知書</h2>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                労働条件通知書 <span className="text-red-500">*</span>
-              </label>
-              <p className="text-xs text-gray-500 mb-2">入力いただいた情報を元に作成しています。</p>
-              <p className="text-xs text-gray-500 mb-3">「解雇の事由/その他関連する事項」のみ下記から変更可能です</p>
-              <button
-                type="button"
-                onClick={() => toast('労働条件通知書の表示機能は開発中です', { icon: '🚧' })}
-                className="px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors mb-3"
-              >
-                労働条件通知書
-              </button>
-              <textarea
-                value={formData.dismissalReasons}
-                onChange={(e) => handleInputChange('dismissalReasons', e.target.value)}
-                rows={12}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600 font-mono"
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  労働条件通知書 <span className="text-red-500">*</span>
+                </label>
+                <p className="text-xs text-gray-500 mb-2">入力いただいた情報を元に作成しています。</p>
+                <p className="text-xs text-gray-500 mb-3">「解雇の事由/その他関連する事項」のみ下記から変更可能です</p>
+                <button
+                  type="button"
+                  onClick={() => toast('労働条件通知書の表示機能は開発中です', { icon: '🚧' })}
+                  className="px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors mb-3"
+                >
+                  労働条件通知書
+                </button>
+                <textarea
+                  value={formData.dismissalReasons}
+                  onChange={(e) => handleInputChange('dismissalReasons', e.target.value)}
+                  rows={12}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600 font-mono"
+                />
+              </div>
             </div>
           </div>
         </div>

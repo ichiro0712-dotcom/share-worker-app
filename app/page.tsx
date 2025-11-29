@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { getJobs } from '@/src/lib/actions';
 import { JobListClient } from '@/components/job/JobListClient';
 
@@ -127,5 +128,9 @@ export default async function JobListPage({ searchParams }: PageProps) {
     reviewCount: job.facility.review_count,
   }));
 
-  return <JobListClient jobs={jobs} facilities={facilities} />;
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-white flex items-center justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>}>
+      <JobListClient jobs={jobs} facilities={facilities} />
+    </Suspense>
+  );
 }

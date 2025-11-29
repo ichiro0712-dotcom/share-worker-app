@@ -55,8 +55,27 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async session({ session, token }) {
-      if (session.user) {
+      if (session.user && token.id) {
         session.user.id = token.id as string;
+
+        // DBから最新のユーザー情報を取得（プロフィール画像の更新を反映）
+        try {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: parseInt(token.id as string) },
+            select: {
+              name: true,
+              email: true,
+              profile_image: true,
+            },
+          });
+          if (dbUser) {
+            session.user.name = dbUser.name;
+            session.user.email = dbUser.email;
+            session.user.image = dbUser.profile_image;
+          }
+        } catch (error) {
+          console.error('Failed to fetch user from DB in session callback:', error);
+        }
       }
       return session;
     },

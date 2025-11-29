@@ -22,8 +22,19 @@ export function JobListClient({ jobs, facilities }: JobListClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<TabType>('all');
-  const [selectedDateIndex, setSelectedDateIndex] = useState(0); // 0=今日
+
+  // URLパラメータから日付インデックスを取得
+  const dateIndexFromUrl = searchParams.get('dateIndex');
+  const urlDateIndex = dateIndexFromUrl ? parseInt(dateIndexFromUrl, 10) : 0;
+  const safeUrlDateIndex = isNaN(urlDateIndex) ? 0 : urlDateIndex;
+
+  const [selectedDateIndex, setSelectedDateIndex] = useState(safeUrlDateIndex);
   const [sortOrder, setSortOrder] = useState<SortOrder>('distance');
+
+  // URLパラメータの変更を監視してselectedDateIndexを同期
+  useEffect(() => {
+    setSelectedDateIndex(safeUrlDateIndex);
+  }, [safeUrlDateIndex]);
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -130,7 +141,9 @@ export function JobListClient({ jobs, facilities }: JobListClientProps) {
       params.delete('city');
     }
 
-    router.push(`/?${params.toString()}`);
+    // dateIndexは維持される（searchParamsから引き継がれる）
+    const queryString = params.toString();
+    router.push(queryString ? `/?${queryString}` : '/');
   };
 
   const handleTabClick = (tab: TabType) => {
@@ -150,6 +163,13 @@ export function JobListClient({ jobs, facilities }: JobListClientProps) {
 
     // URLパラメータにフィルターを反映
     const params = new URLSearchParams();
+
+    // 現在の日付インデックスを維持
+    const currentDateIndex = searchParams.get('dateIndex');
+    if (currentDateIndex) {
+      params.set('dateIndex', currentDateIndex);
+    }
+
     if (filters.prefecture) params.set('prefecture', filters.prefecture);
     if (filters.city) params.set('city', filters.city);
     if (filters.minWage) {
@@ -214,10 +234,20 @@ export function JobListClient({ jobs, facilities }: JobListClientProps) {
     window.location.href = '/';
   };
 
-  // 日付選択時にページをリセット
+  // 日付選択時にページをリセットし、URLパラメータを更新
   const handleDateSelect = (index: number) => {
     setSelectedDateIndex(index);
     setCurrentPage(1);
+
+    // URLパラメータにdateIndexを追加（既存のパラメータを維持）
+    const params = new URLSearchParams(searchParams.toString());
+    if (index === 0) {
+      params.delete('dateIndex'); // デフォルト値（0）の場合は削除
+    } else {
+      params.set('dateIndex', String(index));
+    }
+    const queryString = params.toString();
+    router.replace(queryString ? `/?${queryString}` : '/', { scroll: false });
   };
 
   // ミュートフィルター：ミュートされた施設の求人を除外

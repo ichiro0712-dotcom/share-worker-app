@@ -11,6 +11,9 @@ import { formatDateTime, getDeadlineText } from '@/utils/date';
 import { applyForJob, addJobBookmark, removeJobBookmark, isJobBookmarked, toggleFacilityFavorite, isFacilityFavorited } from '@/src/lib/actions';
 import toast from 'react-hot-toast';
 
+// デフォルトのプレースホルダー画像
+const DEFAULT_JOB_IMAGE = '/images/anken.png';
+
 interface JobDetailClientProps {
   job: any;
   facility: any;
@@ -46,6 +49,9 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
   const [isJobBookmarkedState, setIsJobBookmarkedState] = useState(false);
   const [isJobBookmarkProcessing, setIsJobBookmarkProcessing] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+
+  // 画像配列を安全に取得（空配列の場合はプレースホルダーを使用）
+  const jobImages = job.images && job.images.length > 0 ? job.images : [DEFAULT_JOB_IMAGE];
 
   useEffect(() => {
     // ブックマーク状態を取得
@@ -96,11 +102,11 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
   }, [job.workDates, job.workDate, job.id, job.appliedCount, job.recruitmentCount, selectedDate]);
 
   const nextImage = () => {
-    setCurrentImageIndex((prev) => (prev === job.images.length - 1 ? 0 : prev + 1));
+    setCurrentImageIndex((prev) => (prev === jobImages.length - 1 ? 0 : prev + 1));
   };
 
   const prevImage = () => {
-    setCurrentImageIndex((prev) => (prev === 0 ? job.images.length - 1 : prev - 1));
+    setCurrentImageIndex((prev) => (prev === 0 ? jobImages.length - 1 : prev - 1));
   };
 
   const handleFavorite = async () => {
@@ -279,12 +285,12 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
         <div className="relative mb-4">
           <div className="relative aspect-video overflow-hidden rounded-lg">
             <Image
-              src={job.images[currentImageIndex]}
+              src={jobImages[currentImageIndex]}
               alt="施設画像"
               fill
               className="object-cover"
             />
-            {job.images.length > 1 && (
+            {jobImages.length > 1 && (
               <>
                 <button
                   onClick={prevImage}
@@ -302,9 +308,9 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
             )}
           </div>
           {/* インジケーター */}
-          {job.images.length > 1 && (
+          {jobImages.length > 1 && (
             <div className="flex justify-center gap-1 mt-2">
-              {job.images.map((_: any, index: number) => (
+              {jobImages.map((_: any, index: number) => (
                 <div
                   key={index}
                   className={`h-1 rounded-full transition-all ${index === currentImageIndex ? 'w-6 bg-gray-800' : 'w-1 bg-gray-300'
