@@ -309,3 +309,55 @@ import {
 | 2024-11-29 | BUG-002 - CSS fixed via cache clear | Lead LLM |
 | 2024-11-29 | BUG-003 completed - admin/jobs/page.tsx fixed | Lead LLM |
 | 2024-11-29 | SYNC-001 assigned - Sync edit page with new page UI | Lead LLM |
+
+## Codebase Review Report
+
+### 1. 🐞 バグとDB接続の不整合の可能性
+
+#### バグの可能性
+- **[CRITICAL] 認証フォールバックの危険性**: `src/lib/actions.ts` の `getAuthenticatedUser` 関数において、セッションがない場合に `ID=1` のテストユーザーにフォールバックするロジックが含まれています。
+  - **リスク**: 本番環境で認証がバイパスされ、誰でも管理者や他のユーザーとして操作できてしまう重大なセキュリティリスクです。
+  - **推奨**: 開発環境（`process.env.NODE_ENV === 'development'`）のみに制限するか、このフォールバックロジックを完全に削除してください。
+
+- **ページネーションの欠如**: `src/lib/actions.ts` の `getJobs` 関数は、条件に一致する**すべての求人**を取得しています。
+  - **リスク**: 求人数が増えると、サーバーのメモリ不足やタイムアウト、クライアントへの巨大なペイロード送信によるクラッシュを引き起こします。
+  - **推奨**: Prismaの `take` と `skip` を使用したサーバーサイドページネーションを実装してください。
+
+- **検索パラメータのマッピング**: `app/page.tsx` で `searchParams` を手動でパースし、`actions.ts` でまた手動でマッピングしています。
+  - **リスク**: パラメータ名や型が変更された際に不整合が起きやすく、メンテナンス性が低いです。
+  - **推奨**: Zodなどのバリデーションライブラリを使用して、パラメータの型定義と検証を一元化してください。
+
+#### DB接続・クエリの不整合
+- **N+1問題の可能性**: `getJobs` 内で `include: { facility: true, workDates: ... }` を使用していますが、取得した全件に対して `map` 処理を行っています。
+  - 現状は `include` を使っているためN+1クエリ自体は発生していませんが、取得データ量が多すぎるため、DB負荷が高くなります。
+  - `getAdminJobsList` も同様に全件取得しています。
+
+### 2. 💡 効率化とパフォーマンス向上の提案
+
+#### フロントエンド (Next.js/React)
+- **`force-dynamic` の使用**: `app/page.tsx` で `export const dynamic = 'force-dynamic'` が指定されています。
+  - **問題**: ページ全体がリクエストごとにサーバーサイドでレンダリングされ、CDNや静的キャッシュの恩恵を一切受けられません。
+  - **改善**: `searchParams` に依存する部分は `Suspense` でラップされていますが、データ取得自体をキャッシュ可能にするか、ISR (Incremental Static Regeneration) の利用を検討してください。少なくとも `force-dynamic` は避け、必要な部分のみ動的に取得するようにすべきです。
+
+- **クライアントサイドでのフィルタリングとページネーション**: `components/job/JobListClient.tsx` は、全求人データを受け取ってからクライアントサイドでページネーション（`slice`）とフィルタリング（日付、ミュート）を行っています。
+  - **問題**: 初期ロード時のデータ転送量が巨大になり、求人数が増えるとブラウザの動作が重くなります。
+  - **改善**: フィルタリングとページネーションをサーバーサイド（`getJobs` アクション）に移動し、必要な20件のみをクライアントに送信するように変更してください。
+
+#### バックエンド (Node.js/Express/Server Actions)
+- **データ取得の最適化**: `getJobs` で必要なフィールドのみを `select` するように変更してください。現在は `include` で関連テーブルの全カラムを取得していますが、一覧表示に必要なデータは限られています。
+  - 例: `description` や `initial_message` などの大きなテキストデータは一覧取得時には除外する。
+
+### 3. 📝 Mockデータのリストアップ
+
+以下のデータはコード内にハードコードされており、動的に管理されるべきか、環境変数/DBに移行すべきものです。
+
+| ファイルパス | 行番号 | 変数名/内容 | 説明 |
+|-------------|--------|------------|------|
+| `src/lib/actions.ts` | 31-48 | `getAuthenticatedUser` 内のユーザー作成ロジック | セッションなし時に作成されるテストユーザー (email: test@example.com) |
+| `src/lib/actions.ts` | 144-150 | `transportationMapping` | 移動手段のUI表示とDBカラムのマッピング |
+| `src/lib/actions.ts` | 166-175 | `otherConditionMapping` | こだわり条件のマッピング |
+| `src/lib/actions.ts` | 204-213 | `qualificationMapping` | 資格のマッピング |
+| `app/page.tsx` | 108 | `mapImage: '/images/map-placeholder.png'` | 地図のプレースホルダー画像 |
+| `app/page.tsx` | 104 | `managerAvatar: job.manager_avatar || '👤'` | 管理者アバターのフォールバック |
+| `constants/job.ts` | 5-61 | `JOB_TYPES`, `WORK_CONTENT_OPTIONS` 等 | 求人の選択肢データ（これらは定数として適切ですが、変更頻度が高い場合はDB管理検討） |
+| `mock/` ディレクトリ | 全体 | `*.html`, `README-MOCK.md` | 開発初期のモックファイル群（削除推奨） |

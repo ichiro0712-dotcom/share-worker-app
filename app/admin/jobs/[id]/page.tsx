@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowLeft, Edit, Clock, Yen, MapPin, Users, Calendar, FileText } from 'lucide-react';
+import { ArrowLeft, Edit, Clock, JapaneseYen, MapPin, Users, Calendar, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { getJobById } from '@/src/lib/actions';
@@ -187,7 +187,7 @@ export default function AdminJobDetailPage() {
                 <span className="text-gray-500">(休憩 {job.break_time})</span>
               </div>
               <div className="flex items-center gap-2 text-sm">
-                <Yen className="w-4 h-4 text-gray-400" />
+                <JapaneseYen className="w-4 h-4 text-gray-400" />
                 <span className="text-gray-600">時給:</span>
                 <span className="font-medium text-primary">¥{job.hourly_wage.toLocaleString()}</span>
                 <span className="text-gray-500">(日給 ¥{job.wage.toLocaleString()})</span>

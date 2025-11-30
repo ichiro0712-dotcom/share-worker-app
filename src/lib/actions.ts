@@ -10,7 +10,8 @@ import { authOptions } from '@/lib/auth';
 /**
  * 認証済みユーザーを取得する共通ヘルパー関数
  * NextAuthセッションがある場合はそのユーザーを使用
- * セッションがない場合はID=1のテストユーザーにフォールバック
+ * 開発環境のみ: セッションがない場合はID=1のテストユーザーにフォールバック
+ * 本番環境: セッションがない場合はエラーをスロー
  */
 async function getAuthenticatedUser() {
   // NextAuthセッションからユーザーを取得
@@ -27,14 +28,19 @@ async function getAuthenticatedUser() {
     }
   }
 
-  // セッションがない場合はID=1のテストユーザーにフォールバック
+  // 本番環境ではセッションがない場合はエラーをスロー
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('認証が必要です');
+  }
+
+  // 開発環境のみ: セッションがない場合はID=1のテストユーザーにフォールバック
   let user = await prisma.user.findUnique({
     where: { id: 1 },
   });
 
   // ユーザーが存在しない場合は作成
   if (!user) {
-    console.log('[getAuthenticatedUser] User with ID=1 not found, creating...');
+    console.log('[getAuthenticatedUser] DEV MODE: User with ID=1 not found, creating...');
     user = await prisma.user.create({
       data: {
         email: 'test@example.com',
@@ -44,7 +50,7 @@ async function getAuthenticatedUser() {
         qualifications: [],
       },
     });
-    console.log('[getAuthenticatedUser] Test user created with ID:', user.id);
+    console.log('[getAuthenticatedUser] DEV MODE: Test user created with ID:', user.id);
   }
 
   return user;
@@ -2189,7 +2195,7 @@ export async function getFacilityApplications(facilityId: number) {
  */
 export async function updateApplicationStatus(
   applicationId: number,
-  newStatus: 'SCHEDULED' | 'WORKING' | 'CANCELLED' | 'COMPLETED_PENDING',
+  newStatus: 'APPLIED' | 'SCHEDULED' | 'WORKING' | 'CANCELLED' | 'COMPLETED_PENDING',
   facilityId: number
 ) {
   try {

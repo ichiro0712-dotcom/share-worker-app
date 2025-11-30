@@ -140,22 +140,22 @@ export default function AdminLogin() {
               onClick={() => handleTestLogin('admin1@facility.com')}
               className="w-full text-left px-3 py-2 bg-white border border-blue-300 rounded text-sm hover:bg-blue-50 transition-colors"
             >
-              <div className="font-medium">井上 翔太（ひかり介護センター）</div>
+              <div className="font-medium">小林 健太（ひかり介護センター）</div>
               <div className="text-xs text-gray-600">admin1@facility.com</div>
             </button>
             <button
-              onClick={() => handleTestLogin('admin2@facility.com')}
+              onClick={() => handleTestLogin('matsumoto@test.com')}
               className="w-full text-left px-3 py-2 bg-white border border-blue-300 rounded text-sm hover:bg-blue-50 transition-colors"
             >
-              <div className="font-medium">松本 太郎（あおぞら訪問看護ステーション）</div>
-              <div className="text-xs text-gray-600">admin2@facility.com</div>
+              <div className="font-medium">松本 太郎（ひかり介護センター）</div>
+              <div className="text-xs text-gray-600">matsumoto@test.com</div>
             </button>
             <button
-              onClick={() => handleTestLogin('admin3@facility.com')}
+              onClick={() => handleTestLogin('nakamura@test.com')}
               className="w-full text-left px-3 py-2 bg-white border border-blue-300 rounded text-sm hover:bg-blue-50 transition-colors"
             >
-              <div className="font-medium">中村 健太（さくらの里特別養護老人ホーム）</div>
-              <div className="text-xs text-gray-600">admin3@facility.com</div>
+              <div className="font-medium">中村 健太（ひかり介護センター）</div>
+              <div className="text-xs text-gray-600">nakamura@test.com</div>
             </button>
           </div>
           <p className="text-xs text-blue-700 mt-3">
