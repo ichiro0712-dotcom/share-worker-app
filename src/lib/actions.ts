@@ -4144,6 +4144,38 @@ export async function getWorkerDetail(workerId: number, facilityId: number) {
       reviewCount: data.count,
     }));
 
+    // 項目別評価の平均を計算（2024-12-01 追加）
+    const ratingsByCategory = {
+      attendance: 0,
+      skill: 0,
+      execution: 0,
+      communication: 0,
+      attitude: 0,
+    };
+    const categoryCounts = {
+      attendance: 0,
+      skill: 0,
+      execution: 0,
+      communication: 0,
+      attitude: 0,
+    };
+
+    allReviews.forEach((r) => {
+      if (r.rating_attendance) { ratingsByCategory.attendance += r.rating_attendance; categoryCounts.attendance++; }
+      if (r.rating_skill) { ratingsByCategory.skill += r.rating_skill; categoryCounts.skill++; }
+      if (r.rating_execution) { ratingsByCategory.execution += r.rating_execution; categoryCounts.execution++; }
+      if (r.rating_communication) { ratingsByCategory.communication += r.rating_communication; categoryCounts.communication++; }
+      if (r.rating_attitude) { ratingsByCategory.attitude += r.rating_attitude; categoryCounts.attitude++; }
+    });
+
+    const finalRatingsByCategory = {
+      attendance: categoryCounts.attendance > 0 ? ratingsByCategory.attendance / categoryCounts.attendance : null,
+      skill: categoryCounts.skill > 0 ? ratingsByCategory.skill / categoryCounts.skill : null,
+      execution: categoryCounts.execution > 0 ? ratingsByCategory.execution / categoryCounts.execution : null,
+      communication: categoryCounts.communication > 0 ? ratingsByCategory.communication / categoryCounts.communication : null,
+      attitude: categoryCounts.attitude > 0 ? ratingsByCategory.attitude / categoryCounts.attitude : null,
+    };
+
     // 他社勤務回数を取得
     const otherFacilityApps = await prisma.application.count({
       where: {
@@ -4342,10 +4374,281 @@ export async function getWorkerDetail(workerId: number, facilityId: number) {
           type: 'WATCH_LATER', // WATCH_LATERをブロック扱いとして使用
         },
       }).then(b => !!b),
+      // 項目別平均評価
+      ratingsByCategory: finalRatingsByCategory,
     };
   } catch (error) {
     console.error('[getWorkerDetail] Error:', error);
     return null;
+  }
+}
+
+// ========================================
+// ワーカーレビュー関連 (2024-12-01 追加)
+// ========================================
+
+export async function getPendingWorkerReviews(facilityId: number) {
+  try {
+    const today = new Date();
+    // 勤務日が今日以前で、まだレビューしていないアプリケーションを取得
+    const applications = await prisma.application.findMany({
+      where: {
+        workDate: {
+          job: {
+            facility_id: facilityId,
+          },
+          work_date: {
+            lte: today,
+          },
+        },
+        facility_review_status: 'PENDING',
+        status: {
+          in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING'],
+        },
+      },
+      include: {
+        user: true,
+        workDate: {
+          include: {
+            job: true,
+          },
+        },
+      },
+      orderBy: {
+        workDate: {
+          work_date: 'asc',
+        },
+      },
+    });
+
+    return applications.map(app => {
+      const workDate = new Date(app.workDate.work_date);
+      const diffTime = Math.abs(today.getTime() - workDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      return {
+        applicationId: app.id,
+        userId: app.user.id,
+        userName: app.user.name,
+        userProfileImage: app.user.profile_image,
+        jobTitle: app.workDate.job.title,
+        workDate: app.workDate.work_date.toISOString(),
+        startTime: app.workDate.job.start_time,
+        endTime: app.workDate.job.end_time,
+        daysSinceWork: diffDays,
+      };
+    });
+  } catch (error) {
+    console.error('[getPendingWorkerReviews] Error:', error);
+    return [];
+  }
+}
+
+export async function getCompletedWorkerReviews(facilityId: number) {
+  try {
+    const reviews = await prisma.review.findMany({
+      where: {
+        facility_id: facilityId,
+        reviewer_type: 'FACILITY',
+      },
+      include: {
+        user: true,
+        workDate: {
+          include: {
+            job: true,
+          },
+        },
+      },
+      orderBy: {
+        created_at: 'desc',
+      },
+    });
+
+    return reviews.map(review => ({
+      id: review.id,
+      userId: review.user.id,
+      userName: review.user.name,
+      userProfileImage: review.user.profile_image,
+      jobTitle: review.workDate.job.title,
+      workDate: review.workDate.work_date.toISOString(),
+      rating: review.rating,
+      comment: review.good_points,
+      createdAt: review.created_at.toISOString(),
+    }));
+  } catch (error) {
+    console.error('[getCompletedWorkerReviews] Error:', error);
+    return [];
+  }
+}
+
+export async function submitWorkerReview(data: {
+  applicationId: number;
+  facilityId: number;
+  ratings: {
+    attendance: number;
+    skill: number;
+    execution: number;
+    communication: number;
+    attitude: number;
+  };
+  comment: string;
+  action?: 'favorite' | 'block';
+}) {
+  try {
+    const application = await prisma.application.findUnique({
+      where: { id: data.applicationId },
+      include: { workDate: true },
+    });
+
+    if (!application) throw new Error('Application not found');
+
+    // 総合評価（平均）
+    const totalScore =
+      data.ratings.attendance +
+      data.ratings.skill +
+      data.ratings.execution +
+      data.ratings.communication +
+      data.ratings.attitude;
+    const averageRating = Math.round(totalScore / 5);
+
+    // レビュー作成
+    await prisma.review.create({
+      data: {
+        facility_id: data.facilityId,
+        user_id: application.user_id,
+        work_date_id: application.work_date_id,
+        application_id: data.applicationId,
+        reviewer_type: 'FACILITY',
+        rating: averageRating,
+        rating_attendance: data.ratings.attendance,
+        rating_skill: data.ratings.skill,
+        rating_execution: data.ratings.execution,
+        rating_communication: data.ratings.communication,
+        rating_attitude: data.ratings.attitude,
+        good_points: data.comment,
+      },
+    });
+
+    // アプリケーションステータス更新
+    await prisma.application.update({
+      where: { id: data.applicationId },
+      data: {
+        facility_review_status: 'COMPLETED',
+        status: 'COMPLETED_RATED', // 双方評価完了かどうかは別途チェックが必要だが簡易的に
+      },
+    });
+
+    // アクション処理
+    if (data.action === 'favorite') {
+      await toggleWorkerFavorite(application.user_id, data.facilityId);
+    } else if (data.action === 'block') {
+      await toggleWorkerBlock(application.user_id, data.facilityId);
+    }
+
+    revalidatePath('/admin/worker-reviews');
+    return { success: true };
+  } catch (error) {
+    console.error('[submitWorkerReview] Error:', error);
+    return { success: false, error: 'Failed to submit review' };
+  }
+}
+
+export async function getReceivedReviews(userId: number) {
+  try {
+    const reviews = await prisma.review.findMany({
+      where: {
+        user_id: userId,
+        reviewer_type: 'FACILITY',
+      },
+      include: {
+        facility: true,
+        workDate: {
+          include: {
+            job: true,
+          },
+        },
+      },
+      orderBy: {
+        created_at: 'desc',
+      },
+    });
+
+    return reviews.map(review => ({
+      id: review.id,
+      facilityName: review.facility.facility_name,
+      jobTitle: review.workDate.job.title,
+      workDate: review.workDate.work_date.toISOString(),
+      rating: review.rating,
+      ratings: {
+        attendance: review.rating_attendance || 0,
+        skill: review.rating_skill || 0,
+        execution: review.rating_execution || 0,
+        communication: review.rating_communication || 0,
+        attitude: review.rating_attitude || 0,
+      },
+      comment: review.good_points,
+      createdAt: review.created_at.toISOString(),
+    }));
+  } catch (error) {
+    console.error('[getReceivedReviews] Error:', error);
+    return [];
+  }
+}
+
+// テンプレート関連
+export async function getReviewTemplates(facilityId: number) {
+  try {
+    return await prisma.reviewTemplate.findMany({
+      where: { facility_id: facilityId },
+      orderBy: { created_at: 'desc' },
+    });
+  } catch (error) {
+    console.error('[getReviewTemplates] Error:', error);
+    return [];
+  }
+}
+
+export async function createReviewTemplate(facilityId: number, name: string, content: string) {
+  try {
+    await prisma.reviewTemplate.create({
+      data: {
+        facility_id: facilityId,
+        name,
+        content,
+      },
+    });
+    revalidatePath('/admin/worker-reviews');
+    return { success: true };
+  } catch (error) {
+    console.error('[createReviewTemplate] Error:', error);
+    return { success: false };
+  }
+}
+
+export async function updateReviewTemplate(templateId: number, name: string, content: string) {
+  try {
+    await prisma.reviewTemplate.update({
+      where: { id: templateId },
+      data: { name, content },
+    });
+    revalidatePath('/admin/worker-reviews');
+    return { success: true };
+  } catch (error) {
+    console.error('[updateReviewTemplate] Error:', error);
+    return { success: false };
+  }
+}
+
+export async function deleteReviewTemplate(templateId: number) {
+  try {
+    await prisma.reviewTemplate.delete({
+      where: { id: templateId },
+    });
+    revalidatePath('/admin/worker-reviews');
+    return { success: true };
+  } catch (error) {
+    console.error('[deleteReviewTemplate] Error:', error);
+    return { success: false };
   }
 }
 

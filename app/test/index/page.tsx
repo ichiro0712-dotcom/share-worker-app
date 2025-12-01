@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Home, Briefcase, Building2, User, UserCircle, LogIn, FileText, Heart, Settings, Construction, MessageSquare, MessageCircle, CheckCircle2, Circle, ChevronDown, ChevronUp, Bookmark, Search, Clock } from 'lucide-react';
+import { Home, Briefcase, Building2, User, UserCircle, LogIn, FileText, Heart, Settings, Construction, MessageSquare, MessageCircle, CheckCircle2, Circle, ChevronDown, ChevronUp, Bookmark, Search, Clock, Star, ClipboardList } from 'lucide-react';
 
 export default function TestIndexPage() {
   // 完了したタスクの管理
@@ -11,7 +11,8 @@ export default function TestIndexPage() {
     'completed-1', 'completed-2', 'completed-3', 'completed-4', 'completed-5',
     'completed-6', 'completed-7', 'completed-8', 'completed-9', 'completed-10',
     'completed-11', 'completed-12', 'completed-13', 'completed-14', 'completed-15',
-    'completed-16', 'completed-17', 'completed-18', 'completed-19', 'completed-20'
+    'completed-16', 'completed-17', 'completed-18', 'completed-19', 'completed-20',
+    'completed-21', 'completed-22', 'completed-23', 'completed-24', 'completed-25',
   ]);
 
   // セクションの開閉状態
@@ -58,6 +59,11 @@ export default function TestIndexPage() {
     { id: 'completed-18', label: 'レビュー一覧ページ（管理者）の実装' },
     { id: 'completed-19', label: 'メッセージページの実装' },
     { id: 'completed-20', label: '複数求人応募フローの基礎実装' },
+    { id: 'completed-21', label: 'ワーカーレビュー機能 - DBスキーマ追加（5項目評価）' },
+    { id: 'completed-22', label: 'ワーカーレビュー機能 - 評価項目変更（勤怠・スキル・遂行力・コミュ力・姿勢）' },
+    { id: 'completed-23', label: 'ワーカーレビューページ（管理者）の実装' },
+    { id: 'completed-24', label: 'ワーカーが受けた評価一覧ページの実装' },
+    { id: 'completed-25', label: 'レビューテンプレート機能のDB設計' },
   ];
 
   // 今後の開発計画
@@ -178,6 +184,9 @@ export default function TestIndexPage() {
               children: [
                 { href: '/mypage/profile', label: 'プロフィール編集', icon: User },
                 { href: '/mypage/applications', label: '応募履歴', icon: Clock },
+                { href: '/mypage/reviews', label: 'レビュー（施設への評価）', icon: Star },
+                { href: '/mypage/reviews/received', label: '受けた評価（施設からの評価）', icon: Star },
+                { href: '/mypage/muted-facilities', label: 'ミュートした施設', icon: Construction },
                 { href: '/under-construction?page=work-history', label: '勤務履歴（工事中）', icon: Construction },
                 { href: '/under-construction?page=settings', label: '設定（工事中）', icon: Settings },
                 { href: '/under-construction?page=notifications', label: '通知設定（工事中）', icon: Construction },
@@ -228,8 +237,14 @@ export default function TestIndexPage() {
               label: 'ワーカー管理',
               icon: User,
               children: [
-                { href: '/admin/workers/1', label: 'ワーカー詳細', icon: User },
+                { href: '/admin/workers/7', label: 'ワーカー詳細（ID:7）', icon: User },
+                { href: '/admin/workers/1', label: 'ワーカー詳細（ID:1）', icon: User },
               ]
+            },
+            {
+              href: '/admin/worker-reviews',
+              label: 'ワーカーレビュー（施設→ワーカー評価）',
+              icon: Star,
             },
             {
               href: '/admin/facility',
@@ -264,13 +279,6 @@ export default function TestIndexPage() {
 
   // 未実装の機能リスト（Phase 2以降）
   const unimplementedFeatures = [
-    {
-      feature: 'レビュー機能',
-      page: '施設詳細',
-      pageHref: '/facilities/11',
-      section: 'ワーカー向けページ',
-      description: '施設のレビュー一覧表示と投稿機能'
-    },
     {
       feature: '共有機能',
       page: '施設詳細',
@@ -333,6 +341,20 @@ export default function TestIndexPage() {
       pageHref: '/admin/jobs/new',
       section: '管理者向けページ',
       description: '入力内容から労働条件通知書PDFを自動生成'
+    },
+    {
+      feature: 'ワーカーレビューAPI実装',
+      page: 'ワーカーレビュー',
+      pageHref: '/admin/worker-reviews',
+      section: '管理者向けページ',
+      description: 'レビュー投稿・取得のAPI関数実装（UI実装済み）'
+    },
+    {
+      feature: 'レビューテンプレートCRUD',
+      page: 'ワーカーレビュー',
+      pageHref: '/admin/worker-reviews',
+      section: '管理者向けページ',
+      description: 'テンプレートの作成・編集・削除機能（DBスキーマ実装済み）'
     },
   ];
 
@@ -860,9 +882,15 @@ export default function TestIndexPage() {
               </p>
             </div>
             <div className="bg-white rounded-lg p-4 border border-green-100">
-              <h4 className="font-bold text-green-800 mb-2">口コミ/レビュー</h4>
+              <h4 className="font-bold text-green-800 mb-2">口コミ/レビュー（ワーカー→施設）</h4>
               <p className="text-sm text-gray-700">
                 ワーカーが施設に対して投稿する評価（星5段階）とコメント。
+              </p>
+            </div>
+            <div className="bg-white rounded-lg p-4 border border-green-100">
+              <h4 className="font-bold text-green-800 mb-2">ワーカーレビュー（施設→ワーカー）</h4>
+              <p className="text-sm text-gray-700">
+                施設がワーカーに対して投稿する評価。5項目（勤怠・時間、スキル、遂行力、コミュ力、姿勢）で評価。減点方式で問題なければ5点。
               </p>
             </div>
             <div className="bg-white rounded-lg p-4 border border-green-100">

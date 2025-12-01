@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Worker Detail Design Proposal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#64748B',
+                        success: '#10B981',
+                        warning: '#F59E0B',
+                        danger: '#EF4444',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+
+<body class="bg-gray-50 text-gray-800 h-screen flex flex-col overflow-hidden">
+
+    <!-- Header (Simplified as requested) -->
+    <header class="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between flex-shrink-0">
+        <div class="flex items-center gap-4">
+            <button class="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                    class="text-gray-600">
+                    <path d="m15 18-6-6 6-6" />
+                </svg>
+            </button>
+            <h1 class="text-lg font-bold text-gray-900">ワーカー詳細</h1>
+            <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">募集中</span>
+        </div>
+        <div class="flex items-center gap-3">
+            <!-- Buttons removed as requested -->
+        </div>
+    </header>
+
+    <!-- Main Content (Bento Grid) -->
+    <main class="flex-1 p-4 overflow-y-auto">
+        <div class="grid grid-cols-12 gap-4 h-full max-w-7xl mx-auto sm:min-w-[1024px]">
+
+            <!-- Column 1: Profile & Contact (3 cols) -->
+            <div class="col-span-12 sm:col-span-3 flex flex-col gap-4">
+                <!-- Profile Card -->
+                <div
+                    class="bg-white rounded-xl border border-gray-200 p-5 shadow-sm flex flex-col items-center text-center">
+                    <div class="w-24 h-24 rounded-full bg-gray-200 mb-4 overflow-hidden ring-4 ring-gray-50">
+                        <img src="https://i.pravatar.cc/150?img=32" alt="Profile" class="w-full h-full object-cover">
+                    </div>
+                    <h2 class="text-xl font-bold text-gray-900">山田 花子</h2>
+                    <p class="text-sm text-gray-500 mb-2">28歳 / 女性</p>
+
+                    <!-- Location & Actions (Moved here) -->
+                    <div class="flex items-center justify-center gap-3 mb-4 w-full">
+                        <div class="flex items-center text-gray-600 text-xs bg-gray-100 px-2 py-1 rounded-full">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round" class="mr-1">
+                                <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+                                <circle cx="12" cy="10" r="3" />
+                            </svg>
+                            東京都 新宿区
+                        </div>
+                        <div class="flex gap-2">
+                            <button
+                                class="w-7 h-7 bg-white border border-gray-200 hover:bg-pink-50 text-gray-400 hover:text-pink-500 rounded-full flex items-center justify-center transition-colors shadow-sm"
+                                title="お気に入り">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path
+                                        d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+                                </svg>
+                            </button>
+                            <button
+                                class="w-7 h-7 bg-white border border-gray-200 hover:bg-gray-100 text-gray-400 hover:text-gray-700 rounded-full flex items-center justify-center transition-colors shadow-sm"
+                                title="ブロック">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10" />
+                                    <path d="m4.9 4.9 14.2 14.2" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap justify-center gap-1.5 mb-4">
+                        <span class="px-2 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded-md">介護福祉士</span>
+                        <span class="px-2 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded-md">実務者研修</span>
+                    </div>
+
+                    <!-- Experience Section (New) -->
+                    <div class="w-full mt-2">
+                        <div class="flex flex-wrap gap-2 justify-center">
+                            <!-- Item 1 -->
+                            <div
+                                class="group relative px-2 py-1 bg-blue-600 text-white rounded-md cursor-help shadow-sm text-xs font-medium">
+                                特養 3〜5年
+                                <!-- Tooltip -->
+                                <div
+                                    class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+                                    特別養護老人ホーム
+                                    <div
+                                        class="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800">
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Item 2 -->
+                            <div
+                                class="group relative px-2 py-1 bg-orange-500 text-white rounded-md cursor-help shadow-sm text-xs font-medium">
+                                デイ 1〜2年
+                                <!-- Tooltip -->
+                                <div
+                                    class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+                                    デイサービス
+                                    <div
+                                        class="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800">
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Item 3 -->
+                            <div
+                                class="group relative px-2 py-1 bg-green-600 text-white rounded-md cursor-help shadow-sm text-xs font-medium">
+                                訪介 1年未満
+                                <!-- Tooltip -->
+                                <div
+                                    class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+                                    訪問介護
+                                    <div
+                                        class="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Basic Stats -->
+                <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">基本ステータス</h3>
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-600">希望勤務</span>
+                            <span class="text-sm font-bold text-gray-900">週3日〜</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-600">転職意向</span>
+                            <span class="text-sm font-bold text-green-600">高い</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Others Links -->
+                <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm flex-1">
+                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">その他</h3>
+                    <div class="space-y-2">
+                        <a href="#"
+                            class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group">
+                            <span class="text-sm text-gray-700 font-medium">資格証明書写真一覧</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round"
+                                class="text-gray-400 group-hover:text-primary transition-colors">
+                                <path d="m9 18 6-6-6-6" />
+                            </svg>
+                        </a>
+                        <a href="#"
+                            class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group">
+                            <span class="text-sm text-gray-700 font-medium">緊急連絡先一覧</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round"
+                                class="text-gray-400 group-hover:text-primary transition-colors">
+                                <path d="m9 18 6-6-6-6" />
+                            </svg>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Column 2: Performance & Schedule (6 cols) -->
+            <div class="col-span-12 sm:col-span-6 flex flex-col gap-4">
+                <!-- Key Metrics Grid -->
+                <div class="grid grid-cols-3 gap-4">
+                    <!-- Hidden Overall Rating (Moved to Analysis) -->
+                    <div class="hidden"></div>
+                    <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                        <div class="text-xs text-gray-500 mb-1">総勤務回数</div>
+                        <div class="flex items-end gap-2">
+                            <span class="text-2xl font-bold text-gray-900">142</span>
+                            <span class="text-xs text-gray-500 mb-1">回</span>
+                        </div>
+                        <div class="text-xs text-blue-600 mt-1">自社: 12回 / 他社: 130回</div>
+                    </div>
+                    <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                        <div class="text-xs text-gray-500 mb-1">キャンセル率</div>
+                        <div class="flex items-end gap-2">
+                            <span class="text-2xl font-bold text-gray-900">2%</span>
+                        </div>
+                        <div class="text-xs text-red-500 mt-1">直前: 0%</div>
+                    </div>
+                </div>
+
+                <!-- Upcoming Schedule -->
+                <div class="bg-white rounded-xl border border-gray-200 shadow-sm flex-1 flex flex-col">
+                    <div class="p-4 border-b border-gray-100 flex justify-between items-center">
+                        <h3 class="font-bold text-gray-900">直近の勤務予定</h3>
+                        <a href="#" class="text-xs text-primary hover:underline">全て見る</a>
+                    </div>
+                    <div class="p-2 overflow-y-auto flex-1">
+                        <div class="space-y-2">
+                            <!-- Schedule Item -->
+                            <div class="flex items-center p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                <div class="flex-shrink-0 w-12 text-center bg-white rounded border border-gray-200 p-1">
+                                    <div class="text-[10px] text-gray-500">12月</div>
+                                    <div class="text-lg font-bold text-gray-900 leading-none">01</div>
+                                </div>
+                                <div class="ml-3 flex-1">
+                                    <div class="flex items-center gap-2 mb-0.5">
+                                        <span class="text-sm font-bold text-gray-900">09:00 - 18:00</span>
+                                        <span
+                                            class="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] rounded">日勤</span>
+                                    </div>
+                                    <div class="text-xs text-gray-600">特別養護老人ホーム ひまわり</div>
+                                </div>
+                                <div class="text-right">
+                                    <!-- Status removed -->
+                                </div>
+                            </div>
+                            <!-- Schedule Item -->
+                            <div class="flex items-center p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                <div class="flex-shrink-0 w-12 text-center bg-white rounded border border-gray-200 p-1">
+                                    <div class="text-[10px] text-gray-500">12月</div>
+                                    <div class="text-lg font-bold text-gray-900 leading-none">05</div>
+                                </div>
+                                <div class="ml-3 flex-1">
+                                    <div class="flex items-center gap-2 mb-0.5">
+                                        <span class="text-sm font-bold text-gray-900">17:00 - 09:00</span>
+                                        <span
+                                            class="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-[10px] rounded">夜勤</span>
+                                    </div>
+                                    <div class="text-xs text-gray-600">ケアハウス さくら</div>
+                                </div>
+                                <div class="text-right">
+                                    <!-- Status removed -->
+                                </div>
+                            </div>
+                            <!-- Schedule Item -->
+                            <div class="flex items-center p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                <div class="flex-shrink-0 w-12 text-center bg-white rounded border border-gray-200 p-1">
+                                    <div class="text-[10px] text-gray-500">12月</div>
+                                    <div class="text-lg font-bold text-gray-900 leading-none">08</div>
+                                </div>
+                                <div class="ml-3 flex-1">
+                                    <div class="flex items-center gap-2 mb-0.5">
+                                        <span class="text-sm font-bold text-gray-900">09:00 - 13:00</span>
+                                        <span
+                                            class="px-1.5 py-0.5 bg-orange-100 text-orange-700 text-[10px] rounded">午前</span>
+                                    </div>
+                                    <div class="text-xs text-gray-600">デイサービス ほのぼの</div>
+                                </div>
+                                <div class="text-right">
+                                    <!-- Status removed -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Self PR -->
+                <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">自己PR</h3>
+                    <p class="text-sm text-gray-700 leading-relaxed bg-gray-50 p-3 rounded-lg border border-gray-100">
+                        初めまして。介護福祉士として5年の経験があります。以前は特別養護老人ホームで3年間勤務し、その後は訪問介護を2年経験しました。利用者様一人ひとりに寄り添ったケアを心がけています。体力には自信があり、夜勤も可能です。チームワークを大切にし、明るく元気に働きます。よろしくお願いいたします。
+                    </p>
+                </div>
+            </div>
+
+            <!-- Column 3: Ratings & Analysis (3 cols) -->
+            <div class="col-span-12 sm:col-span-3 flex flex-col gap-4">
+                <!-- Ratings Breakdown -->
+                <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">評価分析</h3>
+
+                    <!-- Overall Rating inside Analysis -->
+                    <div class="flex items-center justify-between mb-6 p-4 bg-blue-50 rounded-xl">
+                        <div class="text-sm font-bold text-gray-700">総合評価</div>
+                        <div class="flex items-end gap-2">
+                            <span class="text-3xl font-bold text-gray-900">4.8</span>
+                            <div class="flex items-center mb-1.5">
+                                <svg class="w-5 h-5 text-yellow-400 fill-current" viewBox="0 0 20 20">
+                                    <path
+                                        d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.26.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.55-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div class="space-y-1">
+                            <div class="flex justify-between items-center text-xs">
+                                <span class="text-gray-600">時間厳守</span>
+                                <span class="font-bold text-gray-900">4.9</span>
+                            </div>
+                            <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div class="h-full bg-blue-500 w-[98%]"></div>
+                            </div>
+                        </div>
+                        <div class="space-y-1">
+                            <div class="flex justify-between items-center text-xs">
+                                <span class="text-gray-600">業務遂行</span>
+                                <span class="font-bold text-gray-900">4.5</span>
+                            </div>
+                            <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div class="h-full bg-blue-500 w-[90%]"></div>
+                            </div>
+                        </div>
+                        <div class="space-y-1">
+                            <div class="flex justify-between items-center text-xs">
+                                <span class="text-gray-600">態度</span>
+                                <span class="font-bold text-gray-900">4.9</span>
+                            </div>
+                            <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div class="h-full bg-blue-500 w-[98%]"></div>
+                            </div>
+                        </div>
+                        <div class="space-y-1">
+                            <div class="flex justify-between items-center text-xs">
+                                <span class="text-gray-600">コミュ力</span>
+                                <span class="font-bold text-gray-900">4.2</span>
+                            </div>
+                            <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div class="h-full bg-blue-500 w-[85%]"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Facility Type Ratings -->
+                <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm flex-1">
+                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">施設種別ごとの評価</h3>
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                            <div class="flex flex-col">
+                                <span class="text-xs font-medium text-gray-900">特別養護老人ホーム</span>
+                                <span class="text-[10px] text-gray-500">15件のレビュー</span>
+                            </div>
+                            <div class="flex items-center gap-1">
+                                <svg class="w-3 h-3 text-yellow-400 fill-current" viewBox="0 0 20 20">
+                                    <path
+                                        d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.26.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.55-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                </svg>
+                                <span class="text-sm font-bold text-gray-900">4.8</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                            <div class="flex flex-col">
+                                <span class="text-xs font-medium text-gray-900">デイサービス</span>
+                                <span class="text-[10px] text-gray-500">8件のレビュー</span>
+                            </div>
+                            <div class="flex items-center gap-1">
+                                <svg class="w-3 h-3 text-yellow-400 fill-current" viewBox="0 0 20 20">
+                                    <path
+                                        d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.26.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.55-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                </svg>
+                                <span class="text-sm font-bold text-gray-900">4.5</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+</body>
+
+</html>

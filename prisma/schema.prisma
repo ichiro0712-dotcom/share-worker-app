@@ -138,6 +138,7 @@ model Facility {
   jobs               Job[]
   jobTemplates       JobTemplate[]
   reviews            Review[]
+  reviewTemplates    ReviewTemplate[]
   bookmarks          Bookmark[]       @relation("FacilityOwners")
   bookmarkedBy       Bookmark[]       @relation("BookmarkedFacilities")
   sentMessages       Message[]        @relation("FacilitySentMessages")
@@ -363,6 +364,11 @@ model Review {
   application_id  Int          @map("application_id")
   reviewer_type   ReviewerType @map("reviewer_type") // 誰が評価したか
   rating          Int                                // 1-5
+  rating_attendance   Int?  @map("rating_attendance")   // 勤怠・時間
+  rating_skill        Int?  @map("rating_skill")        // スキル  
+  rating_execution    Int?  @map("rating_execution")    // 遂行力
+  rating_communication Int? @map("rating_communication") // コミュ力
+  rating_attitude     Int?  @map("rating_attitude")     // 姿勢
   good_points     String?      @db.Text @map("good_points")
   improvements    String?      @db.Text
   created_at      DateTime     @default(now()) @map("created_at")
@@ -383,6 +389,21 @@ enum ReviewerType {
   FACILITY // 施設がワーカーを評価
 
   @@map("reviewer_type")
+}
+
+// ========================================
+// レビューテンプレート
+// ========================================
+
+model ReviewTemplate {
+  id           Int      @id @default(autoincrement())
+  facility_id  Int      @map("facility_id")
+  name         String
+  content      String   @db.Text
+  created_at   DateTime @default(now()) @map("created_at")
+  updated_at   DateTime @updatedAt @map("updated_at")
+  facility Facility @relation(fields: [facility_id], references: [id], onDelete: Cascade)
+  @@map("review_templates")
 }
 
 // ========================================

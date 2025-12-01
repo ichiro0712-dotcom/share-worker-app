@@ -67,7 +67,14 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       title: 'ワーカー管理',
       icon: <Users className="w-4 h-4" />,
       href: '/admin/workers',
-      active: pathname?.startsWith('/admin/workers'),
+      active: pathname?.startsWith('/admin/workers') && !pathname?.startsWith('/admin/worker-reviews'),
+    },
+    {
+      title: 'ワーカーレビュー',
+      icon: <Star className="w-4 h-4" />,
+      href: '/admin/worker-reviews',
+      active: pathname?.startsWith('/admin/worker-reviews'),
+      isSubItem: true,
     },
     {
       title: 'メッセージ',
@@ -121,13 +128,11 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               {item.divider && <div className="my-2 border-t border-gray-200"></div>}
               <Link
                 href={item.href}
-                className={`flex items-center gap-3 py-2.5 text-sm transition-colors ${
-                  item.isSubItem ? 'pl-8 pr-4' : 'px-4'
-                } ${
-                  item.active
+                className={`flex items-center gap-3 py-2.5 text-sm transition-colors ${item.isSubItem ? 'pl-8 pr-4' : 'px-4'
+                  } ${item.active
                     ? 'bg-blue-50 text-blue-600 font-medium border-r-2 border-blue-600'
                     : 'text-gray-700 hover:bg-gray-50'
-                }`}
+                  }`}
               >
                 {item.icon}
                 <span>{item.title}</span>

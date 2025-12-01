@@ -98,6 +98,14 @@ interface WorkerDetailData {
   // ブックマーク状態
   isFavorite: boolean;
   isBlocked: boolean;
+  // 項目別平均評価（新規追加）
+  ratingsByCategory: {
+    attendance: number | null;
+    skill: number | null;
+    execution: number | null;
+    communication: number | null;
+    attitude: number | null;
+  } | null;
 }
 
 // 経験分野の略称変換
@@ -305,8 +313,8 @@ export default function WorkerDetailPage({
                   <button
                     onClick={handleToggleFavorite}
                     className={`w-7 h-7 border rounded-full flex items-center justify-center transition-colors shadow-sm ${isFavorite
-                        ? 'bg-pink-50 border-pink-200 text-pink-500'
-                        : 'bg-white border-gray-200 hover:bg-pink-50 text-gray-400 hover:text-pink-500'
+                      ? 'bg-pink-50 border-pink-200 text-pink-500'
+                      : 'bg-white border-gray-200 hover:bg-pink-50 text-gray-400 hover:text-pink-500'
                       }`}
                     title="お気に入り"
                   >
@@ -315,8 +323,8 @@ export default function WorkerDetailPage({
                   <button
                     onClick={handleToggleBlock}
                     className={`w-7 h-7 border rounded-full flex items-center justify-center transition-colors shadow-sm ${isBlocked
-                        ? 'bg-red-50 border-red-200 text-red-500'
-                        : 'bg-white border-gray-200 hover:bg-gray-100 text-gray-400 hover:text-gray-700'
+                      ? 'bg-red-50 border-red-200 text-red-500'
+                      : 'bg-white border-gray-200 hover:bg-gray-100 text-gray-400 hover:text-gray-700'
                       }`}
                     title="ブロック"
                   >
@@ -408,10 +416,10 @@ export default function WorkerDetailPage({
                     {worker.desiredStartTime && worker.desiredEndTime
                       ? `${worker.desiredStartTime} 〜 ${worker.desiredEndTime}`
                       : worker.desiredStartTime
-                      ? `${worker.desiredStartTime} 〜`
-                      : worker.desiredEndTime
-                      ? `〜 ${worker.desiredEndTime}`
-                      : '未登録'}
+                        ? `${worker.desiredStartTime} 〜`
+                        : worker.desiredEndTime
+                          ? `〜 ${worker.desiredEndTime}`
+                          : '未登録'}
                   </span>
                 </div>
               </div>
@@ -525,18 +533,24 @@ export default function WorkerDetailPage({
               <div className="space-y-3">
                 {/* 項目別スコアはDBにないため仮表示 */}
                 {[
-                  { label: '時間厳守', score: 4.9 },
-                  { label: '業務遂行', score: 4.5 },
-                  { label: '態度', score: 4.9 },
-                  { label: 'コミュ力', score: 4.2 },
+                  { label: '勤怠・時間', key: 'attendance' },
+                  { label: 'スキル', key: 'skill' },
+                  { label: '遂行力', key: 'execution' },
+                  { label: 'コミュ力', key: 'communication' },
+                  { label: '姿勢', key: 'attitude' },
                 ].map((item, i) => (
                   <div key={i} className="space-y-1">
                     <div className="flex justify-between items-center text-xs">
                       <span className="text-gray-600">{item.label}</span>
-                      <span className="font-bold text-gray-400">-</span>
+                      <span className="font-bold text-gray-900">
+                        {worker.ratingsByCategory?.[item.key as keyof typeof worker.ratingsByCategory]?.toFixed(1) || '-'}
+                      </span>
                     </div>
                     <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-gray-300 w-0"></div>
+                      <div
+                        className="h-full bg-yellow-400"
+                        style={{ width: `${(worker.ratingsByCategory?.[item.key as keyof typeof worker.ratingsByCategory] || 0) * 20}%` }}
+                      />
                     </div>
                   </div>
                 ))}

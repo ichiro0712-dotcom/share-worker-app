@@ -1,363 +1,517 @@
 # LLM Task Communication File
 
-This file is used for communication between the Lead LLM (Claude Code) and Worker LLM.
-Both LLMs read and write to this file.
+Lead LLM（Claude Code/有料）とWorker LLM（無料LLM）間の連携用ファイルです。
 
 ---
 
 ## Current Task
 
 ### Status: `ASSIGNED`
-<!-- Status values: ASSIGNED | IN_PROGRESS | COMPLETED | NEEDS_REVIEW | APPROVED | REJECTED -->
+<!-- Status values: ASSIGNED | IN_PROGRESS | COMPLETED | NEEDS_REVIEW | APPROVED -->
 
-### Task ID: SYNC-001
-### Branch: `main`
-### Assigned: 2024-11-29
+### Task ID: PROFILE-002
+### Assigned: 2024-12-01
 
 ---
 
-## Instructions from Lead LLM
+## 🎯 タスク概要
 
-### Overview
-The job edit page (`app/admin/jobs/[id]/edit/page.tsx`) is missing many features and UI elements that exist in the job create page (`app/admin/jobs/new/page.tsx`).
+プロフィール編集ページ（`/mypage/profile`）の以下の改修を行う：
 
-**Goal**: Make the edit page match the create page's UI/UX while keeping edit-specific functionality (like handling existing work dates with applications).
+1. **DB変更**: 新フィールド追加・型変更
+2. **UI変更**: 選択肢の変更、入力バリデーション追加
+3. **バリデーション**: カナ・メール・電話番号・郵便番号のリアルタイムチェック
 
-### Reference Files
-- **Source of Truth (Copy FROM)**: `app/admin/jobs/new/page.tsx` (1559 lines)
-- **Target (Copy TO)**: `app/admin/jobs/[id]/edit/page.tsx` (1177 lines)
+---
 
-### Detailed Differences to Fix
+## 📋 作業内容
 
-#### 1. 基本セクション (Basic Section)
+### Part 1: DBスキーマ変更
 
-| Item | new/page.tsx | edit/page.tsx | Fix Required |
-|------|-------------|---------------|--------------|
-| 施設ラベル | `施設 <span className="text-red-500">*</span>` | `施設` (no asterisk) | Add `<span className="text-red-500">*</span>` |
-| 求人種別 | EXISTS (line 563-576) | MISSING | Add jobType select with JOB_TYPES |
-| テンプレート選択 | EXISTS (line 594-614) | MISSING | NOT needed for edit (already created from template) |
-| TOP画像ラベル | `TOP画像登録（3枚まで） <span className="text-red-500">*</span>` | `TOP画像（3枚まで）` | Change to `TOP画像登録（3枚まで） <span className="text-red-500">*</span>` |
-| TOP画像説明文 | Has 2 description lines (line 634-635) | MISSING | Add description lines |
-| Grid layout | 3 columns (施設/求人種別/募集人数) | 2 columns (施設/募集人数) | Change to 3 columns with jobType |
+ファイル: `prisma/schema.prisma`
 
-**New page has** (around line 630-636):
-```tsx
-<label className="block text-sm font-medium text-gray-700 mb-2">
-  TOP画像登録（3枚まで） <span className="text-red-500">*</span>
-</label>
-<p className="text-xs text-gray-500 mb-2">推奨画像サイズ: 1200×800px（比率 3:2）</p>
-<p className="text-xs text-gray-500 mb-3">登録できるファイルサイズは5MBまでです</p>
+**変更内容**:
+
+```prisma
+// User モデル内で以下を変更・追加
+
+// 変更: desired_work_days_week を Int? から String? に変更
+desired_work_days_week  String?   @map("desired_work_days_week")  // 希望勤務日数/週: "週1〜2日", "週3〜4日", "週5日以上"
+
+// 追加: 勤務期間フィールド
+desired_work_period     String?   @map("desired_work_period")     // 希望勤務期間: "1週間以内", "3週間以内", "1〜2ヶ月", "3〜4ヶ月", "4ヶ月以上"
 ```
 
-**Edit page needs the same** (currently just has):
-```tsx
-<label className="block text-sm font-medium text-gray-700 mb-2">
-  TOP画像（3枚まで）
-</label>
+**マイグレーション実行**:
+```bash
+cd /Users/kawashimaichirou/Desktop/バイブコーディング/シェアワーカーアプリ
+npx prisma db push
+npx prisma generate
+npx prisma validate
 ```
 
-#### 2. 勤務日選択カレンダー (Work Date Calendar Section)
+---
 
-| Item | new/page.tsx | edit/page.tsx | Fix Required |
-|------|-------------|---------------|--------------|
-| Section title | `勤務日選択` | `勤務日` | Change to `勤務日選択` |
-| Description text | Long description (line 726-728) | Short description (line 599-600) | Use new page's description |
-| この月全てを選択 checkbox | EXISTS (line 809-852) | MISSING | Add this checkbox |
-| 勤務日条件 checkboxes | EXISTS (line 894-967) | MISSING | Add (but disable for edit - already published) |
-| Preview card title | `選択された求人カード（{count}件）` | `選択中の勤務日` | Change to match new page |
+### Part 2: ProfileEditClient.tsx の修正
 
-**New page calendar description** (line 726-728):
-```tsx
-<p className="text-sm text-gray-600 mb-4">
-  選択した日付で、この条件の求人が作成されます。複数選択すると、1つの求人に複数の勤務日が設定されます。または「日付を選ばずに募集」を選択してください。
-</p>
+ファイル: `app/mypage/profile/ProfileEditClient.tsx`
+
+#### 2-1. UserProfile インターフェース更新
+
+```typescript
+interface UserProfile {
+  // ... 既存フィールド ...
+  desired_work_days_week: string | null;  // Int? → String? に変更
+  desired_work_period: string | null;     // 新規追加
+  // ... 他のフィールド ...
+}
 ```
 
-**Edit page should show** (modified for edit context):
-```tsx
-<p className="text-sm text-gray-600 mb-4">
-  求人の勤務日を編集できます。応募がある勤務日は削除できません。
-</p>
+#### 2-2. formData 初期化の変更
+
+```typescript
+const [formData, setFormData] = useState({
+  // ... 既存 ...
+  desiredWorkDaysPerWeek: userProfile.desired_work_days_week || '',  // 型変更に対応
+  desiredWorkPeriod: userProfile.desired_work_period || '',          // 新規追加
+  // ... 他 ...
+});
 ```
 
-#### 3. 勤務時間セクション (Working Hours Section)
+#### 2-3. 国籍の選択肢を変更
 
-| Item | new/page.tsx | edit/page.tsx | Fix Required |
-|------|-------------|---------------|--------------|
-| 募集開始日 | EXISTS (line 1016-1044) | MISSING | Add but make READONLY/DISABLED for edit |
-| 募集開始時間 | EXISTS (conditional) | MISSING | Add but make READONLY/DISABLED |
-| 募集終了日 | EXISTS (line 1047-1060) | MISSING | Add with edit capability |
-| 募集終了時間 | EXISTS (conditional) | MISSING | Add with edit capability |
+現在のテキスト入力を、以下のselectに変更:
 
-**Important**: For edit page, 募集開始日 should be shown but disabled (readonly) since the job is already published. 募集終了日/時間 can be editable.
-
-Add after breakTime select in edit page:
 ```tsx
-{/* 募集開始日 - 編集画面では変更不可 */}
-<div className="grid grid-cols-2 gap-4 mt-4">
-  <div>
-    <label className="block text-sm font-medium text-gray-700 mb-2">
-      募集開始日 <span className="text-gray-400 text-xs">（変更不可）</span>
-    </label>
-    <input
-      type="text"
-      value="公開と同時に開始"
-      disabled
-      className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-gray-100 text-gray-500"
-    />
-  </div>
+<div>
+  <label className="block text-sm font-medium mb-2">国籍 <span className="text-red-500">*</span></label>
+  <select
+    value={formData.nationality}
+    onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
+    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+    required
+  >
+    <option value="">選択してください</option>
+    <option value="日本">日本</option>
+    <option value="その他">その他</option>
+  </select>
+</div>
+```
+
+#### 2-4. 希望勤務日数の選択肢を変更
+
+現在の数値入力を、以下のselectに変更:
+
+```tsx
+<div>
+  <label className="block text-sm font-medium mb-2">希望勤務日数（週）</label>
+  <select
+    value={formData.desiredWorkDaysPerWeek}
+    onChange={(e) => setFormData({ ...formData, desiredWorkDaysPerWeek: e.target.value })}
+    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+  >
+    <option value="">選択してください</option>
+    <option value="週1〜2日">週1〜2日</option>
+    <option value="週3〜4日">週3〜4日</option>
+    <option value="週5日以上">週5日以上</option>
+  </select>
+</div>
+```
+
+#### 2-5. 勤務期間の選択肢を追加（希望勤務日数の下に配置）
+
+```tsx
+<div>
+  <label className="block text-sm font-medium mb-2">希望勤務期間</label>
+  <select
+    value={formData.desiredWorkPeriod}
+    onChange={(e) => setFormData({ ...formData, desiredWorkPeriod: e.target.value })}
+    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+  >
+    <option value="">選択してください</option>
+    <option value="1週間以内">1週間以内</option>
+    <option value="3週間以内">3週間以内</option>
+    <option value="1〜2ヶ月">1〜2ヶ月</option>
+    <option value="3〜4ヶ月">3〜4ヶ月</option>
+    <option value="4ヶ月以上">4ヶ月以上</option>
+  </select>
+</div>
+```
+
+#### 2-6. 希望曜日に「特になし」を追加
+
+weekDays定数を変更:
+
+```typescript
+const weekDays = ['月', '火', '水', '木', '金', '土', '日', '特になし'];
+```
+
+「特になし」チェック時は他をクリアするロジックを追加:
+
+```typescript
+const handleCheckboxChange = (field: 'qualifications' | 'experienceFields' | 'desiredWorkDays', value: string) => {
+  setFormData(prev => {
+    // 希望曜日で「特になし」がチェックされた場合
+    if (field === 'desiredWorkDays' && value === '特になし') {
+      if (prev.desiredWorkDays.includes('特になし')) {
+        // 「特になし」を解除
+        return { ...prev, desiredWorkDays: [] };
+      } else {
+        // 「特になし」のみにする
+        return { ...prev, desiredWorkDays: ['特になし'] };
+      }
+    }
+
+    // 希望曜日で「特になし」以外がチェックされた場合、「特になし」を外す
+    if (field === 'desiredWorkDays' && value !== '特になし') {
+      const filtered = prev.desiredWorkDays.filter(d => d !== '特になし');
+      const isRemoving = filtered.includes(value);
+      return {
+        ...prev,
+        desiredWorkDays: isRemoving
+          ? filtered.filter(item => item !== value)
+          : [...filtered, value]
+      };
+    }
+
+    // 既存のロジック（経験分野など）
+    const isRemoving = prev[field].includes(value);
+    const newFormData = {
+      ...prev,
+      [field]: isRemoving
+        ? prev[field].filter(item => item !== value)
+        : [...prev[field], value]
+    };
+
+    if (field === 'experienceFields' && isRemoving) {
+      const newExperienceYears = { ...prev.experienceYears };
+      delete newExperienceYears[value];
+      newFormData.experienceYears = newExperienceYears;
+    }
+
+    return newFormData;
+  });
+};
+```
+
+#### 2-7. 希望開始・終了時刻を時間のみ選択に変更
+
+```tsx
+{/* 時間選択オプションを生成する関数 */}
+const timeOptions = Array.from({ length: 24 }, (_, i) => {
+  const hour = i.toString().padStart(2, '0');
+  return `${hour}:00`;
+});
+
+{/* 希望開始時刻 */}
+<div>
+  <label className="block text-sm font-medium mb-2">希望開始時刻</label>
+  <select
+    value={formData.desiredStartTime}
+    onChange={(e) => setFormData({ ...formData, desiredStartTime: e.target.value })}
+    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+  >
+    <option value="">選択してください</option>
+    {timeOptions.map((time) => (
+      <option key={time} value={time}>{time}</option>
+    ))}
+  </select>
 </div>
 
-{/* 募集終了日・時間 */}
-<div className="grid grid-cols-2 gap-4 mt-4">
-  <div>
-    <label className="block text-sm font-medium text-gray-700 mb-2">
-      募集終了日 <span className="text-red-500">*</span>
-    </label>
-    <select
-      value={formData.recruitmentEndDay}
-      onChange={(e) => handleInputChange('recruitmentEndDay', Number(e.target.value))}
-      className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-    >
-      {RECRUITMENT_END_DAY_OPTIONS.map(option => (
-        <option key={option.value} value={option.value}>{option.label}</option>
-      ))}
-    </select>
-  </div>
-  {formData.recruitmentEndDay !== 0 && formData.recruitmentEndDay !== -1 && (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-2">
-        募集終了時間 <span className="text-red-500">*</span>
-      </label>
-      <input
-        type="time"
-        value={formData.recruitmentEndTime}
-        onChange={(e) => handleInputChange('recruitmentEndTime', e.target.value)}
-        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-      />
-    </div>
+{/* 希望終了時刻 */}
+<div>
+  <label className="block text-sm font-medium mb-2">希望終了時刻</label>
+  <select
+    value={formData.desiredEndTime}
+    onChange={(e) => setFormData({ ...formData, desiredEndTime: e.target.value })}
+    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+  >
+    <option value="">選択してください</option>
+    {timeOptions.map((time) => (
+      <option key={time} value={time}>{time}</option>
+    ))}
+  </select>
+</div>
+```
+
+#### 2-8. 資格リストに「実務者研修」を追加
+
+「介護職員実務者研修」が既にあるが、念のため確認。qualificationsListを確認:
+
+```typescript
+const qualificationsList = [
+  '介護福祉士',
+  '介護職員初任者研修',
+  '介護職員実務者研修',  // これが「実務者研修」に該当
+  'ケアマネージャー',
+  '社会福祉士',
+  '看護師',
+  '准看護師',
+  'その他',
+];
+```
+
+※「介護職員実務者研修」が既に存在する。これをそのまま使用。
+
+#### 2-9. handleSubmit に desiredWorkPeriod を追加
+
+```typescript
+// 働き方・希望
+form.append('desiredWorkDaysPerWeek', formData.desiredWorkDaysPerWeek);  // Int→String変更対応
+form.append('desiredWorkPeriod', formData.desiredWorkPeriod);             // 新規追加
+```
+
+---
+
+### Part 3: バリデーション追加
+
+#### 3-1. バリデーション用のstate追加
+
+```typescript
+const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+```
+
+#### 3-2. バリデーション関数を追加
+
+```typescript
+// カタカナのみ許可（全角カタカナ）
+const validateKatakana = (value: string): boolean => {
+  return /^[ァ-ヶー　\s]*$/.test(value);
+};
+
+// メールアドレス形式
+const validateEmail = (value: string): boolean => {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+};
+
+// 電話番号形式（数字とハイフンのみ）
+const validatePhone = (value: string): boolean => {
+  return /^[0-9\-]+$/.test(value);
+};
+
+// 郵便番号形式（XXX-XXXX または XXXXXXX）
+const validatePostalCode = (value: string): boolean => {
+  return /^[0-9]{3}-?[0-9]{4}$/.test(value);
+};
+
+// バリデーションを実行してエラーメッセージを返す
+const validateField = (field: string, value: string): string => {
+  if (!value) return '';  // 空の場合はチェックしない
+
+  switch (field) {
+    case 'lastNameKana':
+    case 'firstNameKana':
+    case 'accountName':
+      if (!validateKatakana(value)) {
+        return 'カタカナで入力してください';
+      }
+      break;
+    case 'email':
+      if (!validateEmail(value)) {
+        return '正しいメールアドレス形式で入力してください';
+      }
+      break;
+    case 'phone':
+    case 'emergencyContactPhone':
+      if (!validatePhone(value)) {
+        return '電話番号は数字とハイフンのみで入力してください';
+      }
+      break;
+    case 'postalCode':
+      if (!validatePostalCode(value)) {
+        return '郵便番号は「123-4567」または「1234567」の形式で入力してください';
+      }
+      break;
+  }
+  return '';
+};
+```
+
+#### 3-3. 入力変更時にバリデーション実行
+
+各入力フィールドの onChange を修正して、バリデーションを追加:
+
+```typescript
+// 例: 姓カナの入力
+<div>
+  <label className="block text-sm font-medium mb-2">姓（カナ） <span className="text-red-500">*</span></label>
+  <input
+    type="text"
+    value={formData.lastNameKana}
+    onChange={(e) => {
+      const value = e.target.value;
+      setFormData({ ...formData, lastNameKana: value });
+      const error = validateField('lastNameKana', value);
+      setValidationErrors(prev => ({ ...prev, lastNameKana: error }));
+    }}
+    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${
+      validationErrors.lastNameKana ? 'border-red-500' : 'border-gray-300'
+    }`}
+    required
+  />
+  {validationErrors.lastNameKana && (
+    <p className="text-red-500 text-xs mt-1">{validationErrors.lastNameKana}</p>
   )}
 </div>
 ```
 
-#### 4. その他セクション (Other Section)
-
-| Item | new/page.tsx | edit/page.tsx | Fix Required |
-|------|-------------|---------------|--------------|
-| アイコンの説明文 | `チェックが多いほどより多くのワーカーから応募がきます!` | MISSING | Add blue explanation text |
-| アイコンの必須マーク | `アイコン <span className="text-red-500">*</span>` | `アイコン` | Add asterisk |
-| 添付ファイルラベル | `その他添付文章（3つまで）` | `添付ファイル（3つまで）` | Change label |
-| 添付ファイル説明文 | `登録された文章は公開されます` (red text) | MISSING | Add red warning text |
-| 労働条件通知書 | EXISTS (line 1510-1529) | MISSING | Add entire section |
-
-**New page その他 section** (line 1410-1530):
-```tsx
-<div>
-  <label className="block text-sm font-medium text-gray-700 mb-2">
-    アイコン <span className="text-red-500">*</span>
-  </label>
-  <p className="text-xs text-blue-600 mb-2">チェックが多いほどより多くのワーカーから応募がきます!</p>
-  {/* icons checkboxes */}
-</div>
-
-<div>
-  <label className="block text-sm font-medium text-gray-700 mb-2">
-    その他添付文章（3つまで）
-  </label>
-  <p className="text-xs text-red-500 mb-2">登録された文章は公開されます</p>
-  {/* file upload */}
-</div>
-
-<div>
-  <label className="block text-sm font-medium text-gray-700 mb-2">
-    労働条件通知書 <span className="text-red-500">*</span>
-  </label>
-  <p className="text-xs text-gray-500 mb-2">入力いただいた情報を元に作成しています。</p>
-  <p className="text-xs text-gray-500 mb-3">「解雇の事由/その他関連する事項」のみ下記から変更可能です</p>
-  <button
-    type="button"
-    onClick={() => toast('労働条件通知書の表示機能は開発中です', { icon: '🚧' })}
-    className="px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors mb-3"
-  >
-    労働条件通知書
-  </button>
-  <textarea
-    value={formData.dismissalReasons}
-    onChange={(e) => handleInputChange('dismissalReasons', e.target.value)}
-    rows={12}
-    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600 font-mono"
-  />
-</div>
-```
-
-#### 5. FormData State Additions
-
-Add these fields to edit page's formData state:
-```tsx
-const [formData, setFormData] = useState({
-  // ... existing fields ...
-  jobType: '単発', // ADD
-  recruitmentEndDay: 1, // ADD
-  recruitmentEndTime: '12:00', // ADD
-});
-```
-
-#### 6. Import Additions
-
-Add these imports to edit page:
-```tsx
-import {
-  // ... existing imports ...
-  RECRUITMENT_END_DAY_OPTIONS, // ADD
-} from '@/constants';
-```
-
-### Step-by-Step Instructions
-
-1. **Open** `app/admin/jobs/[id]/edit/page.tsx`
-
-2. **Add imports** at top:
-   - Add `RECRUITMENT_END_DAY_OPTIONS` to the import from '@/constants'
-
-3. **Update formData state** (around line 45-71):
-   - Add `jobType: '単発'`
-   - Add `recruitmentEndDay: 1`
-   - Add `recruitmentEndTime: '12:00'`
-
-4. **Update 基本セクション** (around line 490-590):
-   - Add asterisk to 施設 label
-   - Change grid from 2 columns to 3 columns
-   - Add jobType select (but make it readonly for edit)
-   - Update TOP画像 label and add description text
-   - Add drag & drop functionality to image upload
-
-5. **Update 勤務日選択セクション** (around line 593-743):
-   - Change title from `勤務日` to `勤務日選択`
-   - Update description text
-   - Add "この月全てを選択" checkbox
-   - Change preview title from `選択中の勤務日` to `選択された求人カード（{count}件）`
-   - Add 勤務日条件 section (disabled for edit)
-
-6. **Update 勤務時間セクション** (around line 745-788):
-   - Add 募集開始日 (disabled/readonly)
-   - Add 募集終了日/時間 selects
-
-7. **Update その他セクション** (around line 1083-1162):
-   - Add asterisk and blue text to アイコン
-   - Change 添付ファイル label to その他添付文章
-   - Add red warning text
-   - Add entire 労働条件通知書 section
-
-8. **Run build** to verify no errors:
-   ```bash
-   npm run build
-   ```
-
-9. **Test in browser**:
-   - Go to http://localhost:3000/admin/jobs
-   - Click 編集 on any job
-   - Verify all UI elements match the 新規作成 page
-
-### After Fixing
-
-1. Run `npm run build` - must pass
-2. Test edit page visually against new page
-3. Update this file with your progress in the Worker Report Section
-4. Commit with message: `UI統一: 求人編集画面を作成画面と統一`
+以下のフィールドに同様のバリデーションを追加:
+- `lastNameKana` (姓カナ)
+- `firstNameKana` (名カナ)
+- `email` (メールアドレス)
+- `phone` (電話番号)
+- `postalCode` (郵便番号)
+- `emergencyContactPhone` (緊急連絡先電話番号)
+- `accountName` (口座名義カナ)
 
 ---
 
-## Worker LLM Report Section
+### Part 4: actions.ts の更新
 
-### Progress Log
-- Analyzed requirements for SYNC-001.
-- Created implementation plan.
-- Updated `app/admin/jobs/[id]/edit/page.tsx` to match `app/admin/jobs/new/page.tsx`.
-- Verified build with `npm run build`.
+ファイル: `src/lib/actions.ts`
 
-### Fixes Applied
-- **Basic Section**: Added asterisk to facility label, added job type select (readonly), updated TOP image label and description, changed grid to 3 columns.
-- **Work Date Selection**: Changed title, updated description, added "Select All Month" checkbox, added "Work Date Conditions" (disabled), updated preview card title.
-- **Work Time**: Added recruitment start day (readonly), recruitment end day/time (editable).
-- **Other Section**: Added icon description and asterisk, changed attachment label and added warning, added Labor Condition Notification section.
-- **State/Logic**: Added `jobType`, `recruitmentEndDay`, `recruitmentEndTime` to formData state.
+#### 4-1. getUserProfile に desiredWorkPeriod を追加
 
-### Files Changed
-- `app/admin/jobs/[id]/edit/page.tsx`
+```typescript
+return {
+  // ... 既存フィールド ...
+  desired_work_days_week: user.desired_work_days_week,  // Int→String対応済み
+  desired_work_period: user.desired_work_period,         // 新規追加
+  // ...
+};
+```
 
-### Build Status
-- [x] `npm run build` passes
-- [x] Visual comparison passed
+#### 4-2. updateUserProfile に desiredWorkPeriod を追加
 
-### Commit Info
-- **Commit Hash**:
-- **Branch**: main
+FormDataから取得:
+```typescript
+const desiredWorkPeriod = formData.get('desiredWorkPeriod') as string | null;
+```
+
+prisma.user.update の data に追加:
+```typescript
+data: {
+  // ... 既存フィールド ...
+  desired_work_days_week: desiredWorkDaysPerWeek || null,  // Int→String対応（parseIntを削除）
+  desired_work_period: desiredWorkPeriod || null,           // 新規追加
+  // ...
+}
+```
+
+#### 4-3. getWorkerDetail にも同様に追加
+
+```typescript
+return {
+  // ... 既存フィールド ...
+  desiredWorkDaysPerWeek: user.desired_work_days_week,  // String型に変更
+  desiredWorkPeriod: user.desired_work_period,           // 新規追加
+  // ...
+};
+```
 
 ---
 
-## Lead LLM Review Section
+## ✅ 完了条件
+
+1. `npx prisma db push` がエラーなく完了
+2. `npx prisma generate` がエラーなく完了
+3. `npx prisma validate` がエラーなく完了
+4. `npx tsc --noEmit` がエラーなく完了
+5. プロフィール編集画面で以下が動作確認できる:
+   - 国籍が「日本」「その他」の選択式になっている
+   - 希望勤務日数が選択式になっている
+   - 勤務期間の選択肢が追加されている
+   - 希望曜日に「特になし」がある
+   - 時刻選択が時間単位（0:00〜23:00）になっている
+   - カナ入力時に漢字/ひらがなを入力するとエラーメッセージが表示される
+   - メール、電話番号、郵便番号の形式チェックが動作する
+
+---
+
+## 📊 Worker LLM Report Section
+
+### 作業完了後、以下を記入してください：
+
+**作業ステータス**:
+
+**実行したコマンドと結果**:
+```
+
+```
+
+**変更したファイル一覧**:
+| ファイル | 変更内容 |
+|---------|---------|
+| | |
+
+**エラーがあった場合**:
+```
+
+```
+
+**動作確認結果**:
+- [ ] 国籍が選択式になっている
+- [ ] 希望勤務日数が選択式になっている
+- [ ] 勤務期間の選択肢がある
+- [ ] 希望曜日に「特になし」がある
+- [ ] 時刻選択が時間単位になっている
+- [ ] バリデーションが動作する
+
+### Task Execution Status
+- [x] DB Schema Changes
+- [x] UI Implementation (`ProfileEditClient.tsx`)
+- [x] Backend Logic Update (`actions.ts`)
+- [x] Validation Implementation
+- [x] Verification (`tsc`, `prisma validate`)
+
+### Executed Commands
+```bash
+npx prisma db push
+npx prisma generate
+npx prisma validate
+npx tsc --noEmit
+```
+
+### Implementation Details
+1. **Schema Changes**:
+   - Changed `desired_work_days_week` from `Int` to `String`.
+   - Added `desired_work_period` (String).
+   - Added all other requested fields (address, emergency contact, experience, etc.).
+
+2. **UI Updates**:
+   - Converted Nationality, Desired Work Days, and Time inputs to Select dropdowns.
+   - Added "特になし" option for Desired Days.
+   - Implemented real-time validation for Kana, Email, Phone, and Postal Code.
+
+3. **Backend Updates**:
+   - Updated `getUserProfile` and `updateUserProfile` to handle new fields.
+   - Updated `getWorkerDetail` to include new fields.
+   - Fixed type mismatch in `app/admin/workers/[id]/page.tsx` (`desiredWorkDaysPerWeek`).
+
+### Notes
+- `npx tsc --noEmit` passed successfully.
+- `desired_work_days` defaults to an empty array `[]`.
+- `desired_work_days_week` is now stored as a string (e.g., "週3〜4日").
+
+---
+
+## 🔄 Lead LLM Review Section
 
 ### Review Status: `PENDING`
 
+**確認項目**:
+- [ ] DBスキーマが正しく変更されている
+- [ ] 型変更（Int→String）が全箇所で対応されている
+- [ ] 新フィールドが追加されている
+- [ ] バリデーションが正しく動作している
+
 ---
 
-## History
+## 📜 History
 
 | Date | Action | By |
 |------|--------|-----|
-| 2024-11-29 | BUG-001 completed | Worker LLM |
-| 2024-11-29 | BUG-002 - CSS fixed via cache clear | Lead LLM |
-| 2024-11-29 | BUG-003 completed - admin/jobs/page.tsx fixed | Lead LLM |
-| 2024-11-29 | SYNC-001 assigned - Sync edit page with new page UI | Lead LLM |
-
-## Codebase Review Report
-
-### 1. 🐞 バグとDB接続の不整合の可能性
-
-#### バグの可能性
-- **[CRITICAL] 認証フォールバックの危険性**: `src/lib/actions.ts` の `getAuthenticatedUser` 関数において、セッションがない場合に `ID=1` のテストユーザーにフォールバックするロジックが含まれています。
-  - **リスク**: 本番環境で認証がバイパスされ、誰でも管理者や他のユーザーとして操作できてしまう重大なセキュリティリスクです。
-  - **推奨**: 開発環境（`process.env.NODE_ENV === 'development'`）のみに制限するか、このフォールバックロジックを完全に削除してください。
-
-- **ページネーションの欠如**: `src/lib/actions.ts` の `getJobs` 関数は、条件に一致する**すべての求人**を取得しています。
-  - **リスク**: 求人数が増えると、サーバーのメモリ不足やタイムアウト、クライアントへの巨大なペイロード送信によるクラッシュを引き起こします。
-  - **推奨**: Prismaの `take` と `skip` を使用したサーバーサイドページネーションを実装してください。
-
-- **検索パラメータのマッピング**: `app/page.tsx` で `searchParams` を手動でパースし、`actions.ts` でまた手動でマッピングしています。
-  - **リスク**: パラメータ名や型が変更された際に不整合が起きやすく、メンテナンス性が低いです。
-  - **推奨**: Zodなどのバリデーションライブラリを使用して、パラメータの型定義と検証を一元化してください。
-
-#### DB接続・クエリの不整合
-- **N+1問題の可能性**: `getJobs` 内で `include: { facility: true, workDates: ... }` を使用していますが、取得した全件に対して `map` 処理を行っています。
-  - 現状は `include` を使っているためN+1クエリ自体は発生していませんが、取得データ量が多すぎるため、DB負荷が高くなります。
-  - `getAdminJobsList` も同様に全件取得しています。
-
-### 2. 💡 効率化とパフォーマンス向上の提案
-
-#### フロントエンド (Next.js/React)
-- **`force-dynamic` の使用**: `app/page.tsx` で `export const dynamic = 'force-dynamic'` が指定されています。
-  - **問題**: ページ全体がリクエストごとにサーバーサイドでレンダリングされ、CDNや静的キャッシュの恩恵を一切受けられません。
-  - **改善**: `searchParams` に依存する部分は `Suspense` でラップされていますが、データ取得自体をキャッシュ可能にするか、ISR (Incremental Static Regeneration) の利用を検討してください。少なくとも `force-dynamic` は避け、必要な部分のみ動的に取得するようにすべきです。
-
-- **クライアントサイドでのフィルタリングとページネーション**: `components/job/JobListClient.tsx` は、全求人データを受け取ってからクライアントサイドでページネーション（`slice`）とフィルタリング（日付、ミュート）を行っています。
-  - **問題**: 初期ロード時のデータ転送量が巨大になり、求人数が増えるとブラウザの動作が重くなります。
-  - **改善**: フィルタリングとページネーションをサーバーサイド（`getJobs` アクション）に移動し、必要な20件のみをクライアントに送信するように変更してください。
-
-#### バックエンド (Node.js/Express/Server Actions)
-- **データ取得の最適化**: `getJobs` で必要なフィールドのみを `select` するように変更してください。現在は `include` で関連テーブルの全カラムを取得していますが、一覧表示に必要なデータは限られています。
-  - 例: `description` や `initial_message` などの大きなテキストデータは一覧取得時には除外する。
-
-### 3. 📝 Mockデータのリストアップ
-
-以下のデータはコード内にハードコードされており、動的に管理されるべきか、環境変数/DBに移行すべきものです。
-
-| ファイルパス | 行番号 | 変数名/内容 | 説明 |
-|-------------|--------|------------|------|
-| `src/lib/actions.ts` | 31-48 | `getAuthenticatedUser` 内のユーザー作成ロジック | セッションなし時に作成されるテストユーザー (email: test@example.com) |
-| `src/lib/actions.ts` | 144-150 | `transportationMapping` | 移動手段のUI表示とDBカラムのマッピング |
-| `src/lib/actions.ts` | 166-175 | `otherConditionMapping` | こだわり条件のマッピング |
-| `src/lib/actions.ts` | 204-213 | `qualificationMapping` | 資格のマッピング |
-| `app/page.tsx` | 108 | `mapImage: '/images/map-placeholder.png'` | 地図のプレースホルダー画像 |
-| `app/page.tsx` | 104 | `managerAvatar: job.manager_avatar || '👤'` | 管理者アバターのフォールバック |
-| `constants/job.ts` | 5-61 | `JOB_TYPES`, `WORK_CONTENT_OPTIONS` 等 | 求人の選択肢データ（これらは定数として適切ですが、変更頻度が高い場合はDB管理検討） |
-| `mock/` ディレクトリ | 全体 | `*.html`, `README-MOCK.md` | 開発初期のモックファイル群（削除推奨） |
+| 2024-12-01 | SCHEMA-001 completed - User model extension | Worker LLM |
+| 2024-12-01 | SCHEMA-001 approved by Lead LLM | Lead LLM |
+| 2024-12-01 | PROFILE-002 assigned - Profile form improvements | Lead LLM |
+```
