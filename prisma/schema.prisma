@@ -27,6 +27,55 @@ model User {
   created_at     DateTime  @default(now()) @map("created_at")
   updated_at     DateTime  @updatedAt @map("updated_at")
 
+  // ========================================
+  // 追加フィールド（2024-12-01）
+  // ========================================
+
+  // 基本情報
+  last_name_kana    String?   @map("last_name_kana")    // 姓カナ
+  first_name_kana   String?   @map("first_name_kana")   // 名カナ
+  gender            String?                              // 性別: 男性, 女性, その他, 未登録
+  nationality       String?                              // 国籍
+
+  // 住所
+  postal_code       String?   @map("postal_code")       // 郵便番号
+  prefecture        String?                              // 都道府県
+  city              String?                              // 市区町村
+  address_line      String?   @map("address_line")      // 番地
+  building          String?                              // 建物名
+
+  // 緊急連絡先
+  emergency_name     String?   @map("emergency_name")      // 緊急連絡先氏名
+  emergency_relation String?   @map("emergency_relation")  // 続柄
+  emergency_phone    String?   @map("emergency_phone")     // 電話番号
+  emergency_address  String?   @map("emergency_address")   // 住所
+
+  // 働き方・希望
+  current_work_style      String?   @map("current_work_style")      // 現在の働き方
+  desired_work_style      String?   @map("desired_work_style")      // 希望の働き方
+  job_change_desire       String?   @map("job_change_desire")       // 転職意欲
+  desired_work_days_week  String?   @map("desired_work_days_week")  // 希望勤務日数/週: "週1〜2日", "週3〜4日", "週5日以上"
+  desired_work_period     String?   @map("desired_work_period")     // 希望勤務期間: "1週間以内", "3週間以内", "1〜2ヶ月", "3〜6ヶ月", "6ヶ月以上", "未定"
+  desired_work_days       String[]  @default([]) @map("desired_work_days")  // 希望曜日
+  desired_start_time      String?   @map("desired_start_time")      // 希望開始時刻
+  desired_end_time        String?   @map("desired_end_time")        // 希望終了時刻
+
+  // 経験
+  experience_fields Json?     @map("experience_fields")  // 経験分野と年数 {"特別養護老人ホーム": "3〜5年", ...}
+  work_histories    String[]  @default([]) @map("work_histories")  // 職歴（配列）
+
+  // 自己PR
+  self_pr           String?   @db.Text @map("self_pr")
+
+  // 銀行口座
+  bank_name         String?   @map("bank_name")
+  branch_name       String?   @map("branch_name")
+  account_name      String?   @map("account_name")
+  account_number    String?   @map("account_number")
+
+  // その他
+  pension_number    String?   @map("pension_number")     // 年金番号
+
   // リレーション
   applications     Application[]
   reviews          Review[]

@@ -769,6 +769,43 @@ export async function getUserProfile() {
       qualifications: user.qualifications,
       created_at: user.created_at.toISOString(),
       updated_at: user.updated_at.toISOString(),
+      // 追加フィールド
+      last_name_kana: user.last_name_kana,
+      first_name_kana: user.first_name_kana,
+      gender: user.gender,
+      nationality: user.nationality,
+      // 住所
+      postal_code: user.postal_code,
+      prefecture: user.prefecture,
+      city: user.city,
+      address_line: user.address_line,
+      building: user.building,
+      // 緊急連絡先
+      emergency_name: user.emergency_name,
+      emergency_relation: user.emergency_relation,
+      emergency_phone: user.emergency_phone,
+      emergency_address: user.emergency_address,
+      // 働き方・希望
+      current_work_style: user.current_work_style,
+      desired_work_style: user.desired_work_style,
+      job_change_desire: user.job_change_desire,
+      desired_work_days_week: user.desired_work_days_week,
+      desired_work_period: user.desired_work_period,
+      desired_work_days: user.desired_work_days,
+      desired_start_time: user.desired_start_time,
+      desired_end_time: user.desired_end_time,
+      // 経験
+      experience_fields: user.experience_fields as Record<string, string> | null,
+      work_histories: user.work_histories,
+      // 自己PR
+      self_pr: user.self_pr,
+      // 銀行口座
+      bank_name: user.bank_name,
+      branch_name: user.branch_name,
+      account_name: user.account_name,
+      account_number: user.account_number,
+      // その他
+      pension_number: user.pension_number,
     };
   } catch (error) {
     console.error('[getUserProfile] Error:', error);
@@ -790,8 +827,69 @@ export async function updateUserProfile(formData: FormData) {
     const qualificationsStr = formData.get('qualifications') as string;
     const profileImageFile = formData.get('profileImage') as File | null;
 
+    // 追加フィールド
+    const lastNameKana = formData.get('lastNameKana') as string | null;
+    const firstNameKana = formData.get('firstNameKana') as string | null;
+    const gender = formData.get('gender') as string | null;
+    const nationality = formData.get('nationality') as string | null;
+
+    // 住所
+    const postalCode = formData.get('postalCode') as string | null;
+    const prefecture = formData.get('prefecture') as string | null;
+    const city = formData.get('city') as string | null;
+    const addressLine = formData.get('addressLine') as string | null;
+    const building = formData.get('building') as string | null;
+
+    // 緊急連絡先
+    const emergencyName = formData.get('emergencyName') as string | null;
+    const emergencyRelation = formData.get('emergencyRelation') as string | null;
+    const emergencyPhone = formData.get('emergencyPhone') as string | null;
+    const emergencyAddress = formData.get('emergencyAddress') as string | null;
+
+    // 働き方・希望
+    const currentWorkStyle = formData.get('currentWorkStyle') as string | null;
+    const desiredWorkStyle = formData.get('desiredWorkStyle') as string | null;
+    const jobChangeDesire = formData.get('jobChangeDesire') as string | null;
+    const desiredWorkDaysPerWeek = formData.get('desiredWorkDaysPerWeek') as string | null;
+    const desiredWorkPeriod = formData.get('desiredWorkPeriod') as string | null;
+    const desiredWorkDaysStr = formData.get('desiredWorkDays') as string | null;
+    const desiredStartTime = formData.get('desiredStartTime') as string | null;
+    const desiredEndTime = formData.get('desiredEndTime') as string | null;
+
+    // 経験
+    const experienceFieldsStr = formData.get('experienceFields') as string | null;
+    const workHistoriesStr = formData.get('workHistories') as string | null;
+
+    // 自己PR
+    const selfPR = formData.get('selfPR') as string | null;
+
+    // 銀行口座
+    const bankName = formData.get('bankName') as string | null;
+    const branchName = formData.get('branchName') as string | null;
+    const accountName = formData.get('accountName') as string | null;
+    const accountNumber = formData.get('accountNumber') as string | null;
+
+    // その他
+    const pensionNumber = formData.get('pensionNumber') as string | null;
+
     // 資格は配列に変換
     const qualifications = qualificationsStr ? qualificationsStr.split(',').filter(q => q.trim()) : [];
+
+    // 希望曜日は配列に変換
+    const desiredWorkDays = desiredWorkDaysStr ? desiredWorkDaysStr.split(',').filter(d => d.trim()) : [];
+
+    // 職歴は配列に変換（|||で区切り）
+    const workHistories = workHistoriesStr ? workHistoriesStr.split('|||').filter(h => h.trim()) : [];
+
+    // 経験分野はJSONパース
+    let experienceFields: Record<string, string> | null = null;
+    if (experienceFieldsStr) {
+      try {
+        experienceFields = JSON.parse(experienceFieldsStr);
+      } catch {
+        experienceFields = null;
+      }
+    }
 
     // バリデーション
     if (!name || !email || !phoneNumber) {
@@ -845,6 +943,43 @@ export async function updateUserProfile(formData: FormData) {
         birth_date: birthDate ? new Date(birthDate) : null,
         qualifications,
         profile_image: profileImagePath,
+        // 追加フィールド
+        last_name_kana: lastNameKana || null,
+        first_name_kana: firstNameKana || null,
+        gender: gender || null,
+        nationality: nationality || null,
+        // 住所
+        postal_code: postalCode || null,
+        prefecture: prefecture || null,
+        city: city || null,
+        address_line: addressLine || null,
+        building: building || null,
+        // 緊急連絡先
+        emergency_name: emergencyName || null,
+        emergency_relation: emergencyRelation || null,
+        emergency_phone: emergencyPhone || null,
+        emergency_address: emergencyAddress || null,
+        // 働き方・希望
+        current_work_style: currentWorkStyle || null,
+        desired_work_style: desiredWorkStyle || null,
+        job_change_desire: jobChangeDesire || null,
+        desired_work_days_week: desiredWorkDaysPerWeek,
+        desired_work_period: desiredWorkPeriod || null,
+        desired_work_days: desiredWorkDays,
+        desired_start_time: desiredStartTime || null,
+        desired_end_time: desiredEndTime || null,
+        // 経験
+        experience_fields: experienceFields || undefined,
+        work_histories: workHistories,
+        // 自己PR
+        self_pr: selfPR || null,
+        // 銀行口座
+        bank_name: bankName || null,
+        branch_name: branchName || null,
+        account_name: accountName || null,
+        account_number: accountNumber || null,
+        // その他
+        pension_number: pensionNumber || null,
       },
     });
 
@@ -4097,7 +4232,7 @@ export async function getWorkerDetail(workerId: number, facilityId: number) {
           work_date: 'asc',
         },
       },
-      take: 3,
+      take: 30,
     });
 
     // 年齢計算
@@ -4117,6 +4252,43 @@ export async function getWorkerDetail(workerId: number, facilityId: number) {
       qualifications: user.qualifications,
       birthDate: user.birth_date ? user.birth_date.toISOString().split('T')[0] : null,
       age,
+      // 追加フィールド（2024-12-01）
+      gender: user.gender,
+      nationality: user.nationality,
+      lastNameKana: user.last_name_kana,
+      firstNameKana: user.first_name_kana,
+      // 住所
+      postalCode: user.postal_code,
+      prefecture: user.prefecture,
+      city: user.city,
+      addressLine: user.address_line,
+      building: user.building,
+      // 緊急連絡先
+      emergencyName: user.emergency_name,
+      emergencyRelation: user.emergency_relation,
+      emergencyPhone: user.emergency_phone,
+      emergencyAddress: user.emergency_address,
+      // 働き方・希望
+      currentWorkStyle: user.current_work_style,
+      desiredWorkStyle: user.desired_work_style,
+      jobChangeDesire: user.job_change_desire,
+      desiredWorkDaysPerWeek: user.desired_work_days_week,
+      desiredWorkPeriod: user.desired_work_period,
+      desiredWorkDays: user.desired_work_days,
+      desiredStartTime: user.desired_start_time,
+      desiredEndTime: user.desired_end_time,
+      // 経験
+      experienceFields: user.experience_fields as Record<string, string> | null,
+      workHistories: user.work_histories,
+      // 自己PR
+      selfPR: user.self_pr,
+      // 銀行口座
+      bankName: user.bank_name,
+      branchName: user.branch_name,
+      accountName: user.account_name,
+      accountNumber: user.account_number,
+      // その他
+      pensionNumber: user.pension_number,
       // 自社データ
       ourFacilityWorkDays: ourFacilityCompletedApps.length,
       ourFacilityAvgRating: ourAvgRating,
@@ -4155,18 +4327,93 @@ export async function getWorkerDetail(workerId: number, facilityId: number) {
         rating: r.rating,
         comment: r.good_points,
       })),
-      // === 以下はDBにないフィールド（フロント側で「DBにないよ！」表示） ===
-      // gender: null, // スキーマになし
-      // experienceYears: null, // スキーマになし
-      // selfIntroduction: null, // スキーマになし
-      // jobChangeIntent: null, // スキーマになし
-      // preferredWorkStyle: null, // スキーマになし
-      // qualificationCertificateImages: null, // スキーマになし
-      // detailedScores (時間、遂行、挨拶等): null, // Reviewは単一ratingのみ
+      // お気に入り・ブロック状態を取得
+      isFavorite: await prisma.bookmark.findFirst({
+        where: {
+          facility_id: facilityId,
+          target_user_id: workerId,
+          type: 'FAVORITE',
+        },
+      }).then(b => !!b),
+      isBlocked: await prisma.bookmark.findFirst({
+        where: {
+          facility_id: facilityId,
+          target_user_id: workerId,
+          type: 'WATCH_LATER', // WATCH_LATERをブロック扱いとして使用
+        },
+      }).then(b => !!b),
     };
   } catch (error) {
     console.error('[getWorkerDetail] Error:', error);
     return null;
+  }
+}
+
+/**
+ * ワーカーのお気に入りをトグル
+ */
+export async function toggleWorkerFavorite(workerId: number, facilityId: number): Promise<{ success: boolean; isFavorite?: boolean; error?: string }> {
+  try {
+    const existing = await prisma.bookmark.findFirst({
+      where: {
+        facility_id: facilityId,
+        target_user_id: workerId,
+        type: 'FAVORITE',
+      },
+    });
+
+    if (existing) {
+      await prisma.bookmark.delete({
+        where: { id: existing.id },
+      });
+      return { success: true, isFavorite: false };
+    } else {
+      await prisma.bookmark.create({
+        data: {
+          facility_id: facilityId,
+          target_user_id: workerId,
+          type: 'FAVORITE',
+        },
+      });
+      return { success: true, isFavorite: true };
+    }
+  } catch (error) {
+    console.error('[toggleWorkerFavorite] Error:', error);
+    return { success: false, error: 'お気に入りの更新に失敗しました' };
+  }
+}
+
+/**
+ * ワーカーのブロックをトグル（WATCH_LATERをブロック扱いとして使用）
+ */
+export async function toggleWorkerBlock(workerId: number, facilityId: number): Promise<{ success: boolean; isBlocked?: boolean; error?: string }> {
+  try {
+    const existing = await prisma.bookmark.findFirst({
+      where: {
+        facility_id: facilityId,
+        target_user_id: workerId,
+        type: 'WATCH_LATER',
+      },
+    });
+
+    if (existing) {
+      await prisma.bookmark.delete({
+        where: { id: existing.id },
+      });
+      return { success: true, isBlocked: false };
+    } else {
+      await prisma.bookmark.create({
+        data: {
+          facility_id: facilityId,
+          target_user_id: workerId,
+          type: 'WATCH_LATER',
+        },
+      });
+      return { success: true, isBlocked: true };
+    }
+  } catch (error) {
+    console.error('[toggleWorkerBlock] Error:', error);
+    return { success: false, error: 'ブロックの更新に失敗しました' };
   }
 }
 
@@ -4388,6 +4635,403 @@ export async function updateJob(
   } catch (error) {
     console.error('[updateJob] Error:', error);
     return { success: false, error: '求人の更新に失敗しました' };
+  }
+}
+
+// ========================================
+// ワーカー一覧（施設管理者向け）
+// ========================================
+
+export type WorkerListStatus = 'NOT_STARTED' | 'WORKING' | 'COMPLETED' | 'CANCELLED';
+
+export interface WorkerListItem {
+  userId: number;
+  name: string;
+  profileImage: string | null;
+  qualifications: string[];
+  prefecture: string | null;
+  city: string | null;
+  // ステータス
+  statuses: WorkerListStatus[];
+  hasCompleted: boolean;
+  hasCancelled: boolean;
+  // 統計（自社）
+  ourWorkCount: number;          // この施設での勤務回数
+  lastOurWorkDate: string | null; // この施設での最終勤務日
+  // 統計（他社）
+  otherWorkCount: number;        // 他社での勤務回数
+  lastOtherWorkDate: string | null; // 他社での最終勤務日
+  // 統計（合計）
+  totalWorkCount: number;        // 総勤務回数
+  lastWorkDate: string | null;   // 最終勤務日（自社/他社問わず）
+  lastWorkFacilityType: 'our' | 'other' | null; // 最終勤務が自社か他社か
+  // キャンセル率
+  cancelRate: number;            // キャンセル率（%）
+  lastMinuteCancelRate: number;  // 直前キャンセル率（%）
+  // 経験分野
+  experienceFields: Record<string, string> | null; // {"特養": "3年", ...}
+  // 評価
+  avgRating: number | null;
+  reviewCount: number;
+  // ブックマーク状態
+  isFavorite: boolean;
+  isBlocked: boolean;
+}
+
+interface WorkerListSearchParams {
+  keyword?: string;           // 氏名・住所で検索
+  status?: WorkerListStatus | 'all';
+  jobCategory?: 'kaigo' | 'kango' | 'yakuzai' | 'all'; // 介護・看護・薬剤師
+  sortBy?: 'workCount_desc' | 'workCount_asc' | 'lastWorkDate_desc' | 'lastWorkDate_asc';
+}
+
+/**
+ * 施設にマッチしたワーカー一覧を取得（検索・フィルター・並び替え対応）
+ */
+export async function getWorkerListForFacility(
+  facilityId: number,
+  params?: WorkerListSearchParams
+) {
+  try {
+    console.log('[getWorkerListForFacility] Fetching workers for facility:', facilityId);
+
+    // この施設にマッチしたユーザーを取得（SCHEDULED以上のステータス）
+    const ourApplications = await prisma.application.findMany({
+      where: {
+        workDate: {
+          job: {
+            facility_id: facilityId,
+          },
+        },
+        status: {
+          in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED', 'CANCELLED'],
+        },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            profile_image: true,
+            qualifications: true,
+            prefecture: true,
+            city: true,
+            experience_fields: true,
+          },
+        },
+        workDate: {
+          select: {
+            work_date: true,
+          },
+        },
+      },
+    });
+
+    // ユーザーIDを抽出
+    const userIds = Array.from(new Set(ourApplications.map(app => app.user.id)));
+
+    if (userIds.length === 0) {
+      return [];
+    }
+
+    // 他社での勤務データを取得
+    const otherApplications = await prisma.application.findMany({
+      where: {
+        user_id: { in: userIds },
+        workDate: {
+          job: {
+            facility_id: { not: facilityId },
+          },
+        },
+        status: {
+          in: ['COMPLETED_PENDING', 'COMPLETED_RATED'],
+        },
+      },
+      include: {
+        workDate: {
+          select: {
+            work_date: true,
+          },
+        },
+      },
+    });
+
+    // お気に入り・ブロック状態を取得
+    const bookmarks = await prisma.bookmark.findMany({
+      where: {
+        facility_id: facilityId,
+        target_user_id: { in: userIds },
+      },
+      select: {
+        target_user_id: true,
+        type: true,
+      },
+    });
+
+    // ブックマークをマップ化
+    const favoriteSet = new Set<number>();
+    const blockedSet = new Set<number>();
+    for (const b of bookmarks) {
+      if (b.target_user_id) {
+        if (b.type === 'FAVORITE') {
+          favoriteSet.add(b.target_user_id);
+        }
+        // ブロックはBOOKMARK_TYPEにないため、別テーブルが必要かもしれないが、
+        // 現状はFAVORITE以外をブロックとして扱うか、別途管理が必要
+        // ここでは暫定的にWATCH_LATERをブロックとして扱わない
+      }
+    }
+
+    // 自社での勤務データを集計
+    const ourDataMap = new Map<number, {
+      user: typeof ourApplications[0]['user'];
+      statuses: Set<string>;
+      completedDates: Date[];
+      cancelledCount: number;
+      totalApplications: number; // キャンセル率計算用
+    }>();
+
+    for (const app of ourApplications) {
+      const existing = ourDataMap.get(app.user.id);
+      const isCompleted = app.status === 'COMPLETED_PENDING' || app.status === 'COMPLETED_RATED';
+      const isCancelled = app.status === 'CANCELLED';
+
+      if (existing) {
+        existing.statuses.add(app.status);
+        existing.totalApplications++;
+        if (isCompleted) {
+          existing.completedDates.push(app.workDate.work_date);
+        }
+        if (isCancelled) {
+          existing.cancelledCount++;
+        }
+      } else {
+        ourDataMap.set(app.user.id, {
+          user: app.user,
+          statuses: new Set([app.status]),
+          completedDates: isCompleted ? [app.workDate.work_date] : [],
+          cancelledCount: isCancelled ? 1 : 0,
+          totalApplications: 1,
+        });
+      }
+    }
+
+    // 他社での勤務データを集計
+    const otherDataMap = new Map<number, {
+      completedDates: Date[];
+    }>();
+
+    for (const app of otherApplications) {
+      const existing = otherDataMap.get(app.user_id);
+      if (existing) {
+        existing.completedDates.push(app.workDate.work_date);
+      } else {
+        otherDataMap.set(app.user_id, {
+          completedDates: [app.workDate.work_date],
+        });
+      }
+    }
+
+    // 各ワーカーの評価を取得（自社のみ）
+    const reviews = await prisma.review.findMany({
+      where: {
+        user_id: { in: userIds },
+        facility_id: facilityId,
+        reviewer_type: 'FACILITY',
+      },
+      select: {
+        user_id: true,
+        rating: true,
+      },
+    });
+
+    // ユーザーごとの評価を集計
+    const reviewMap = new Map<number, { totalRating: number; count: number }>();
+    for (const review of reviews) {
+      const existing = reviewMap.get(review.user_id);
+      if (existing) {
+        existing.totalRating += review.rating;
+        existing.count++;
+      } else {
+        reviewMap.set(review.user_id, {
+          totalRating: review.rating,
+          count: 1,
+        });
+      }
+    }
+
+    // 結果を構築
+    let workers: WorkerListItem[] = Array.from(ourDataMap.entries()).map(([userId, data]) => {
+      const reviewData = reviewMap.get(userId);
+      const otherData = otherDataMap.get(userId);
+      const statusSet = data.statuses;
+
+      // ステータスを判定
+      const statuses: WorkerListStatus[] = [];
+      const hasCompleted = statusSet.has('COMPLETED_PENDING') || statusSet.has('COMPLETED_RATED');
+      const hasCancelled = statusSet.has('CANCELLED');
+      const hasScheduled = statusSet.has('SCHEDULED');
+      const hasWorking = statusSet.has('WORKING');
+
+      if (hasScheduled && !hasCompleted) {
+        statuses.push('NOT_STARTED');
+      }
+      if (hasWorking) {
+        statuses.push('WORKING');
+      }
+      if (hasCompleted) {
+        statuses.push('COMPLETED');
+      }
+      if (hasCancelled) {
+        statuses.push('CANCELLED');
+      }
+
+      // 自社の最終勤務日
+      const ourSortedDates = data.completedDates.sort((a, b) => b.getTime() - a.getTime());
+      const lastOurWorkDate = ourSortedDates.length > 0
+        ? ourSortedDates[0].toISOString().split('T')[0]
+        : null;
+
+      // 他社の最終勤務日
+      const otherSortedDates = otherData
+        ? otherData.completedDates.sort((a, b) => b.getTime() - a.getTime())
+        : [];
+      const lastOtherWorkDate = otherSortedDates.length > 0
+        ? otherSortedDates[0].toISOString().split('T')[0]
+        : null;
+
+      // 全体の最終勤務日と施設タイプ
+      let lastWorkDate: string | null = null;
+      let lastWorkFacilityType: 'our' | 'other' | null = null;
+
+      if (lastOurWorkDate && lastOtherWorkDate) {
+        if (new Date(lastOurWorkDate) >= new Date(lastOtherWorkDate)) {
+          lastWorkDate = lastOurWorkDate;
+          lastWorkFacilityType = 'our';
+        } else {
+          lastWorkDate = lastOtherWorkDate;
+          lastWorkFacilityType = 'other';
+        }
+      } else if (lastOurWorkDate) {
+        lastWorkDate = lastOurWorkDate;
+        lastWorkFacilityType = 'our';
+      } else if (lastOtherWorkDate) {
+        lastWorkDate = lastOtherWorkDate;
+        lastWorkFacilityType = 'other';
+      }
+
+      // 勤務回数
+      const ourWorkCount = data.completedDates.length;
+      const otherWorkCount = otherData?.completedDates.length || 0;
+      const totalWorkCount = ourWorkCount + otherWorkCount;
+
+      // キャンセル率（自社）
+      const cancelRate = data.totalApplications > 0
+        ? (data.cancelledCount / data.totalApplications) * 100
+        : 0;
+
+      // 経験分野
+      const experienceFields = data.user.experience_fields as Record<string, string> | null;
+
+      return {
+        userId,
+        name: data.user.name,
+        profileImage: data.user.profile_image,
+        qualifications: data.user.qualifications,
+        prefecture: data.user.prefecture,
+        city: data.user.city,
+        statuses,
+        hasCompleted,
+        hasCancelled,
+        ourWorkCount,
+        lastOurWorkDate,
+        otherWorkCount,
+        lastOtherWorkDate,
+        totalWorkCount,
+        lastWorkDate,
+        lastWorkFacilityType,
+        cancelRate,
+        lastMinuteCancelRate: 0, // TODO: 直前キャンセルの定義が必要
+        experienceFields,
+        avgRating: reviewData ? reviewData.totalRating / reviewData.count : null,
+        reviewCount: reviewData?.count || 0,
+        isFavorite: favoriteSet.has(userId),
+        isBlocked: blockedSet.has(userId),
+      };
+    });
+
+    // キーワード検索（氏名・住所）
+    if (params?.keyword) {
+      const keyword = params.keyword.toLowerCase();
+      workers = workers.filter(w =>
+        w.name.toLowerCase().includes(keyword) ||
+        (w.prefecture && w.prefecture.toLowerCase().includes(keyword)) ||
+        (w.city && w.city.toLowerCase().includes(keyword))
+      );
+    }
+
+    // ステータスフィルター
+    if (params?.status && params.status !== 'all') {
+      workers = workers.filter(w => w.statuses.includes(params.status as WorkerListStatus));
+    }
+
+    // 資格フィルター（介護・看護・薬剤師）
+    if (params?.jobCategory && params.jobCategory !== 'all') {
+      const kaigoQuals = ['介護福祉士', '介護職員初任者研修', '実務者研修', 'ケアマネージャー'];
+      const kangoQuals = ['看護師', '准看護師'];
+      const yakuzaiQuals = ['薬剤師'];
+
+      let targetQuals: string[] = [];
+      switch (params.jobCategory) {
+        case 'kaigo':
+          targetQuals = kaigoQuals;
+          break;
+        case 'kango':
+          targetQuals = kangoQuals;
+          break;
+        case 'yakuzai':
+          targetQuals = yakuzaiQuals;
+          break;
+      }
+
+      workers = workers.filter(w =>
+        w.qualifications.some(q => targetQuals.some(tq => q.includes(tq)))
+      );
+    }
+
+    // 並び替え
+    switch (params?.sortBy) {
+      case 'workCount_desc':
+        workers.sort((a, b) => b.totalWorkCount - a.totalWorkCount);
+        break;
+      case 'workCount_asc':
+        workers.sort((a, b) => a.totalWorkCount - b.totalWorkCount);
+        break;
+      case 'lastWorkDate_desc':
+        workers.sort((a, b) => {
+          if (!a.lastWorkDate && !b.lastWorkDate) return 0;
+          if (!a.lastWorkDate) return 1;
+          if (!b.lastWorkDate) return -1;
+          return new Date(b.lastWorkDate).getTime() - new Date(a.lastWorkDate).getTime();
+        });
+        break;
+      case 'lastWorkDate_asc':
+        workers.sort((a, b) => {
+          if (!a.lastWorkDate && !b.lastWorkDate) return 0;
+          if (!a.lastWorkDate) return 1;
+          if (!b.lastWorkDate) return -1;
+          return new Date(a.lastWorkDate).getTime() - new Date(b.lastWorkDate).getTime();
+        });
+        break;
+      default:
+        // デフォルト: 勤務回数多い順
+        workers.sort((a, b) => b.totalWorkCount - a.totalWorkCount);
+    }
+
+    return workers;
+  } catch (error) {
+    console.error('[getWorkerListForFacility] Error:', error);
+    return [];
   }
 }
 
