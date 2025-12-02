@@ -1,136 +1,112 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { BottomNav } from '@/components/layout/BottomNav';
-import { MapPin, Calendar, Clock, DollarSign, ChevronRight, Star } from 'lucide-react';
+import { MapPin, Calendar, Clock, Star } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import type { WorkerStatus } from '@/types/worker';
+import { getMyApplications } from '@/src/lib/actions';
 
-interface Job {
+type ApplicationStatus = 'APPLIED' | 'SCHEDULED' | 'WORKING' | 'COMPLETED_PENDING' | 'COMPLETED_RATED' | 'CANCELLED';
+
+interface Application {
   id: number;
-  jobId: number;
-  facilityName: string;
-  jobTitle: string;
-  jobDate: string;
-  startTime: string;
-  endTime: string;
-  hourlyWage: number;
-  transportationFee: number;
-  totalPay: number;
-  location: string;
-  status: WorkerStatus;
-  cancelledAt?: string;
-  cancelReason?: string;
+  job_id: number;
+  status: ApplicationStatus;
+  created_at: string;
+  worker_review_status: 'PENDING' | 'COMPLETED' | null;
+  facility_review_status: 'PENDING' | 'COMPLETED' | null;
+  job: {
+    id: number;
+    title: string;
+    work_date: string;
+    start_time: string;
+    end_time: string;
+    hourly_wage: number;
+    transportation_fee: number;
+    wage: number;
+    address: string;
+    facility: {
+      id: number;
+      facility_name: string;
+    };
+  };
 }
 
-type TabType = 'scheduled' | 'working' | 'completed_pending' | 'completed_rated' | 'cancelled';
+type TabType = 'scheduled' | 'working' | 'completed_rated' | 'cancelled';
 
 export default function MyJobsPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>('scheduled');
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // ダミーデータ
-  const [jobs] = useState<Job[]>([
-    {
-      id: 1,
-      jobId: 1,
-      facilityName: 'さくら介護施設',
-      jobTitle: '訪問介護スタッフ',
-      jobDate: '2025-12-01',
-      startTime: '09:00',
-      endTime: '17:00',
-      hourlyWage: 1800,
-      transportationFee: 1000,
-      totalPay: 15400,
-      location: '東京都渋谷区',
-      status: 'scheduled',
-    },
-    {
-      id: 2,
-      jobId: 2,
-      facilityName: 'ひまわりクリニック',
-      jobTitle: '看護師',
-      jobDate: '2025-12-05',
-      startTime: '08:30',
-      endTime: '16:30',
-      hourlyWage: 2200,
-      transportationFee: 800,
-      totalPay: 18400,
-      location: '東京都新宿区',
-      status: 'scheduled',
-    },
-    {
-      id: 3,
-      jobId: 3,
-      facilityName: 'もみじ薬局',
-      jobTitle: '薬剤師',
-      jobDate: '2025-11-23',
-      startTime: '10:00',
-      endTime: '18:00',
-      hourlyWage: 2500,
-      transportationFee: 1200,
-      totalPay: 21200,
-      location: '東京都世田谷区',
-      status: 'working',
-    },
-    {
-      id: 4,
-      jobId: 4,
-      facilityName: 'すみれ訪問看護ステーション',
-      jobTitle: '訪問看護師',
-      jobDate: '2025-11-20',
-      startTime: '09:00',
-      endTime: '17:00',
-      hourlyWage: 2000,
-      transportationFee: 1000,
-      totalPay: 17000,
-      location: '東京都目黒区',
-      status: 'completed_pending',
-    },
-    {
-      id: 5,
-      jobId: 5,
-      facilityName: 'つばきデイサービス',
-      jobTitle: '介護スタッフ',
-      jobDate: '2025-11-15',
-      startTime: '08:00',
-      endTime: '16:00',
-      hourlyWage: 1600,
-      transportationFee: 500,
-      totalPay: 13300,
-      location: '東京都品川区',
-      status: 'completed_rated',
-    },
-  ]);
+  useEffect(() => {
+    const fetchApplications = async () => {
+      try {
+        // ステータス更新をトリガー
+        await fetch('/api/cron/update-statuses');
 
-  const tabs: Array<{ id: TabType; label: string }> = [
-    { id: 'scheduled', label: '仕事の予定' },
-    { id: 'working', label: '勤務中' },
-    { id: 'completed_pending', label: '評価待' },
-    { id: 'completed_rated', label: '完了' },
-    { id: 'cancelled', label: 'キャンセル' },
+        const data = await getMyApplications();
+        setApplications(data as Application[]);
+      } catch (error) {
+        console.error('Failed to fetch applications:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchApplications();
+  }, []);
+
+  const tabs: Array<{ id: TabType; label: string; status: ApplicationStatus }> = [
+    { id: 'scheduled', label: '仕事の予定', status: 'SCHEDULED' },
+    { id: 'working', label: '勤務中', status: 'WORKING' },
+    { id: 'completed_rated', label: '完了', status: 'COMPLETED_RATED' },
+    { id: 'cancelled', label: 'キャンセル', status: 'CANCELLED' },
   ];
 
-  const filteredJobs = jobs.filter((job) => {
-    if (activeTab === 'cancelled') {
-      return job.status === 'scheduled' && job.cancelledAt; // キャンセルフラグがある場合
-    }
-    return job.status === activeTab;
+  const getStatusFromTab = (tabId: TabType): ApplicationStatus => {
+    const tab = tabs.find(t => t.id === tabId);
+    return tab?.status || 'SCHEDULED';
+  };
+
+  const filteredApplications = applications.filter((app) => {
+    const targetStatus = getStatusFromTab(activeTab);
+    return app.status === targetStatus;
   });
 
   const handleJobClick = (jobId: number) => {
     router.push(`/jobs/${jobId}`);
   };
 
-  const getStatusBadge = (status: WorkerStatus) => {
-    const badges = {
-      scheduled: { text: '予定', color: 'bg-purple-100 text-purple-700' },
-      working: { text: '勤務中', color: 'bg-green-100 text-green-700' },
-      completed_pending: { text: '評価待', color: 'bg-red-100 text-red-700' },
-      completed_rated: { text: '完了', color: 'bg-gray-100 text-gray-700' },
+  const getStatusBadge = (status: ApplicationStatus) => {
+    const badges: Record<ApplicationStatus, { text: string; color: string }> = {
+      APPLIED: { text: '応募中', color: 'bg-blue-100 text-blue-700' },
+      SCHEDULED: { text: '予定', color: 'bg-purple-100 text-purple-700' },
+      WORKING: { text: '勤務中', color: 'bg-green-100 text-green-700' },
+      COMPLETED_PENDING: { text: '評価待', color: 'bg-red-100 text-red-700' },
+      COMPLETED_RATED: { text: '完了', color: 'bg-gray-100 text-gray-700' },
+      CANCELLED: { text: 'キャンセル', color: 'bg-gray-100 text-gray-500' },
     };
-    return badges[status as keyof typeof badges];
+    return badges[status] || { text: status, color: 'bg-gray-100 text-gray-700' };
   };
+
+  const formatTime = (timeString: string): string => {
+    return timeString.substring(0, 5);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 pb-20">
+        <div className="bg-white border-b border-gray-200 px-4 py-4">
+          <h1 className="text-xl font-bold text-gray-900">仕事管理</h1>
+        </div>
+        <div className="flex justify-center items-center h-64">
+          <div className="text-gray-500">読み込み中...</div>
+        </div>
+        <BottomNav />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
@@ -142,66 +118,58 @@ export default function MyJobsPage() {
       {/* タブ */}
       <div className="bg-white border-b border-gray-200 overflow-x-auto">
         <div className="flex">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex-shrink-0 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                activeTab === tab.id
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              {tab.label}
-              {(() => {
-                const count = jobs.filter((job) => {
-                  if (tab.id === 'cancelled') {
-                    return job.status === 'scheduled' && job.cancelledAt;
-                  }
-                  return job.status === tab.id;
-                }).length;
-                return count > 0 ? ` (${count})` : '';
-              })()}
-            </button>
-          ))}
+          {tabs.map((tab) => {
+            const count = applications.filter((app) => app.status === tab.status).length;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex-shrink-0 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === tab.id
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+              >
+                {tab.label}
+                {count > 0 ? ` (${count})` : ''}
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {/* 求人カード一覧 */}
       <div className="p-3 space-y-2">
-        {filteredJobs.length === 0 ? (
+        {filteredApplications.length === 0 ? (
           <div className="bg-white rounded-lg p-8 text-center">
             <p className="text-gray-500">
               {activeTab === 'scheduled' && '予定されている仕事はありません'}
               {activeTab === 'working' && '現在勤務中の仕事はありません'}
-              {activeTab === 'completed_pending' && '評価待ちの仕事はありません'}
               {activeTab === 'completed_rated' && '完了した仕事はありません'}
               {activeTab === 'cancelled' && 'キャンセルした仕事はありません'}
             </p>
           </div>
         ) : (
-          filteredJobs.map((job) => (
-            <button
-              key={job.id}
-              onClick={() => handleJobClick(job.jobId)}
-              className="w-full bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow text-left overflow-hidden"
+          filteredApplications.map((app) => (
+            <div
+              key={app.id}
+              onClick={() => handleJobClick(app.job.id)}
+              className="w-full bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow text-left overflow-hidden cursor-pointer"
             >
               <div className="p-3">
                 {/* 上部: ステータスと施設名・職種 */}
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="flex-1 min-w-0">
                     <h3 className="font-bold text-gray-900 text-sm truncate mb-0.5">
-                      {job.facilityName}
+                      {app.job.facility.facility_name}
                     </h3>
-                    <p className="text-xs text-gray-600 truncate">{job.jobTitle}</p>
+                    <p className="text-xs text-gray-600 truncate">{app.job.title}</p>
                   </div>
                   {activeTab !== 'cancelled' && (
                     <span
-                      className={`flex-shrink-0 px-2 py-0.5 text-xs font-medium rounded ${
-                        getStatusBadge(job.status).color
-                      }`}
+                      className={`flex-shrink-0 px-2 py-0.5 text-xs font-medium rounded ${getStatusBadge(app.status).color
+                        }`}
                     >
-                      {getStatusBadge(job.status).text}
+                      {getStatusBadge(app.status).text}
                     </span>
                   )}
                 </div>
@@ -210,15 +178,15 @@ export default function MyJobsPage() {
                 <div className="flex items-center gap-3 text-xs text-gray-600 mb-2">
                   <div className="flex items-center gap-1">
                     <Calendar className="w-3 h-3 flex-shrink-0" />
-                    <span>{new Date(job.jobDate).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}</span>
+                    <span>{new Date(app.job.work_date).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <Clock className="w-3 h-3 flex-shrink-0" />
-                    <span>{job.startTime}-{job.endTime}</span>
+                    <span>{formatTime(app.job.start_time)}-{formatTime(app.job.end_time)}</span>
                   </div>
                   <div className="flex items-center gap-1 flex-1 min-w-0">
                     <MapPin className="w-3 h-3 flex-shrink-0" />
-                    <span className="truncate">{job.location}</span>
+                    <span className="truncate">{app.job.address}</span>
                   </div>
                 </div>
 
@@ -227,17 +195,17 @@ export default function MyJobsPage() {
                   <div className="flex items-center gap-2 text-xs">
                     <div className="flex items-center gap-0.5 text-gray-600">
                       <span>時給</span>
-                      <span className="font-bold">¥{job.hourlyWage.toLocaleString()}</span>
+                      <span className="font-bold">¥{app.job.hourly_wage.toLocaleString()}</span>
                     </div>
                     <span className="text-gray-300">|</span>
                     <div className="flex items-center gap-0.5 text-gray-600">
                       <span>交通費</span>
-                      <span className="font-medium">¥{job.transportationFee.toLocaleString()}</span>
+                      <span className="font-medium">¥{app.job.transportation_fee.toLocaleString()}</span>
                     </div>
                     <span className="text-gray-300">|</span>
                     <div className="flex items-center gap-0.5 text-primary">
                       <span>総額</span>
-                      <span className="font-bold">¥{job.totalPay.toLocaleString()}</span>
+                      <span className="font-bold">¥{app.job.wage.toLocaleString()}</span>
                     </div>
                   </div>
 
@@ -247,7 +215,7 @@ export default function MyJobsPage() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          console.log('キャンセル:', job.id);
+                          console.log('キャンセル:', app.id);
                         }}
                         className="px-3 py-1 bg-white border border-gray-300 text-gray-700 text-xs font-medium rounded hover:bg-gray-50 transition-colors"
                       >
@@ -256,7 +224,7 @@ export default function MyJobsPage() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          router.push(`/messages?roomId=${job.facilityName}`);
+                          router.push(`/messages?roomId=${app.job.facility.facility_name}`);
                         }}
                         className="px-3 py-1 bg-primary text-white text-xs font-medium rounded hover:bg-primary/90 transition-colors"
                       >
@@ -266,45 +234,53 @@ export default function MyJobsPage() {
                   )}
 
                   {activeTab === 'working' && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        router.push(`/messages?roomId=${job.facilityName}`);
-                      }}
-                      className="px-3 py-1 bg-primary text-white text-xs font-medium rounded hover:bg-primary/90 transition-colors"
-                    >
-                      メッセージ
-                    </button>
-                  )}
-
-                  {activeTab === 'completed_pending' && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        router.push(`/jobs/${job.jobId}/review`);
-                      }}
-                      className="px-3 py-1 bg-primary text-white text-xs font-medium rounded hover:bg-primary/90 transition-colors flex items-center gap-1"
-                    >
-                      <Star className="w-3 h-3" />
-                      評価する
-                    </button>
+                    <div className="flex gap-1.5">
+                      {app.worker_review_status !== 'COMPLETED' ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(`/mypage/reviews/${app.id}`);
+                          }}
+                          className="px-3 py-1 bg-orange-500 text-white text-xs font-medium rounded hover:bg-orange-600 transition-colors flex items-center gap-1"
+                        >
+                          <Star className="w-3 h-3" />
+                          レビュー
+                        </button>
+                      ) : (
+                        <span className="px-3 py-1 bg-gray-100 text-gray-500 text-xs font-medium rounded flex items-center gap-1">
+                          <Star className="w-3 h-3" />
+                          レビュー済
+                        </span>
+                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/messages?roomId=${app.job.facility.facility_name}`);
+                        }}
+                        className="px-3 py-1 bg-primary text-white text-xs font-medium rounded hover:bg-primary/90 transition-colors"
+                      >
+                        メッセージ
+                      </button>
+                    </div>
                   )}
 
                   {activeTab === 'completed_rated' && (
                     <div className="flex items-center gap-1">
                       <span className="text-xs text-gray-500">評価済み</span>
-                      <ChevronRight className="w-4 h-4 text-gray-400" />
                     </div>
                   )}
-
-                  {activeTab === 'cancelled' && job.cancelReason && (
-                    <span className="text-xs text-gray-500 truncate">
-                      {job.cancelReason}
-                    </span>
-                  )}
                 </div>
+
+                {/* 勤務中の注意書き */}
+                {activeTab === 'working' && app.worker_review_status !== 'COMPLETED' && (
+                  <div className="mt-2 pt-2 border-t border-gray-100">
+                    <p className="text-xs text-orange-600 flex items-center gap-1">
+                      <span>※勤務終了までにレビューをお願いします</span>
+                    </p>
+                  </div>
+                )}
               </div>
-            </button>
+            </div>
           ))
         )}
       </div>

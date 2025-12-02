@@ -57,7 +57,6 @@ export const ICON_OPTIONS = [
   '送迎あり',
   '寮・社宅あり',
   '食事補助',
-  '制服貸与',
 ] as const;
 
 export type JobType = typeof JOB_TYPES[number];

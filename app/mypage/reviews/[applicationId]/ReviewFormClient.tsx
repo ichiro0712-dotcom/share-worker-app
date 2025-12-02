@@ -54,7 +54,7 @@ export default function ReviewFormClient({ applicationData }: ReviewFormClientPr
 
     try {
       const result = await submitReview(
-        applicationData.applicationId,
+        applicationData.jobId.toString(),
         rating,
         formData.goodPoints,
         formData.improvements
@@ -117,11 +117,10 @@ export default function ReviewFormClient({ applicationData }: ReviewFormClientPr
                 className="focus:outline-none"
               >
                 <Star
-                  className={`w-10 h-10 transition-colors ${
-                    value <= (hoveredRating || rating)
+                  className={`w-10 h-10 transition-colors ${value <= (hoveredRating || rating)
                       ? 'text-yellow-400 fill-yellow-400'
                       : 'text-gray-300'
-                  }`}
+                    }`}
                 />
               </button>
             ))}

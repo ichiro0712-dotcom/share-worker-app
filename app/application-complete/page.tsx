@@ -18,38 +18,35 @@ export default function ApplicationComplete() {
   // プロフィール編集ページから取得したデータ（実際はAPIから取得）
   const [formData, setFormData] = useState({
     // 1. 基本情報
-    lastName: '山田',
-    firstName: '太郎',
-    lastNameKana: 'ヤマダ',
-    firstNameKana: 'タロウ',
-    birthDate: '1990-04-15',
-    gender: '男性',
-    nationality: '日本',
+    lastName: '',
+    firstName: '',
+    lastNameKana: '',
+    firstNameKana: '',
+    birthDate: '',
+    gender: '',
+    nationality: '',
 
     // 2. 連絡先情報
-    phone: '090-1234-5678',
-    email: 'yamada.taro@example.com',
-    postalCode: '123-4567',
-    prefecture: '東京都',
-    city: '新宿区',
-    address: '西新宿1-2-3',
-    building: 'サンプルマンション101',
+    phone: '',
+    email: '',
+    postalCode: '',
+    prefecture: '',
+    city: '',
+    address: '',
+    building: '',
 
     // 4. 資格
-    qualifications: ['介護福祉士', '介護職員実務者研修'] as string[],
+    qualifications: [] as string[],
 
     // 5. 経験・職歴
-    experienceFields: ['特別養護老人ホーム', 'デイサービス'] as string[],
+    experienceFields: [] as string[],
 
     // 6. 自己PR
-    selfPR: '介護福祉士として5年以上の経験があります。利用者様一人ひとりに寄り添った介護を心がけています。',
+    selfPR: '',
   });
 
-  // 資格証明書の状態管理（ダミーデータとして2つの画像を登録済み）
-  const [qualificationCertificates, setQualificationCertificates] = useState<Record<string, string | null>>({
-    '介護福祉士': '/images/dummy-certificate-1.jpg',
-    '介護職員実務者研修': '/images/dummy-certificate-2.jpg',
-  });
+  // 資格証明書の状態管理
+  const [qualificationCertificates, setQualificationCertificates] = useState<Record<string, string | null>>({});
 
   const qualificationsList = [
     '介護福祉士',

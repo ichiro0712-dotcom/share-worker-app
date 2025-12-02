@@ -33,6 +33,7 @@ interface WorkDateData {
   formattedDate: string;
   recruitmentCount: number;
   appliedCount: number;
+  matchedCount: number;
   deadline: string;
 }
 
@@ -51,6 +52,7 @@ interface JobData {
   workDates: WorkDateData[];
   totalWorkDates: number;
   totalApplied: number;
+  totalMatched: number;
   totalRecruitment: number;
   nearestWorkDate: string | null;
   dateRange: string;
@@ -564,7 +566,7 @@ export default function AdminJobsList() {
               const status = getJobStatus(job);
               const statusInfo = statusConfig[status];
               const applicationRate = job.totalRecruitment > 0
-                ? Math.round((job.totalApplied / job.totalRecruitment) * 100)
+                ? Math.round((job.totalMatched / job.totalRecruitment) * 100)
                 : 0;
 
               return (
@@ -630,13 +632,14 @@ export default function AdminJobsList() {
                       <div className="flex-shrink-0">
                         <div className="flex items-center gap-1 text-xs">
                           <Users className="w-3 h-3 text-gray-400" />
+                          <span className="text-gray-600">応募: {job.totalApplied}名</span>
+                          <span className="text-gray-300">/</span>
                           <span className={`font-medium ${applicationRate >= 100 ? 'text-green-600' :
                             applicationRate >= 50 ? 'text-orange-600' :
                               'text-red-600'
                             }`}>
-                            {job.totalApplied}/{job.totalRecruitment}名
+                            マッチング: {job.totalMatched}/{job.totalRecruitment}名
                           </span>
-                          <span className="text-gray-500">({applicationRate}%)</span>
                         </div>
                       </div>
 

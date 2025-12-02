@@ -1,4 +1,4 @@
-import { getJobById, getJobs, hasUserAppliedForJob, getFacilityReviews } from '@/src/lib/actions';
+import { getJobById, getJobs, hasUserAppliedForJob, getFacilityReviews, getUserApplicationStatuses } from '@/src/lib/actions';
 import { JobDetailClient } from '@/components/job/JobDetailClient';
 import { notFound } from 'next/navigation';
 
@@ -57,6 +57,7 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
       workDate: wd.work_date ? wd.work_date.split('T')[0] : '',
       deadline: wd.deadline,
       appliedCount: wd.applied_count,
+      matchedCount: wd.matched_count,
       recruitmentCount: wd.recruitment_count,
     })) || [],
     startTime: jobData.start_time,
@@ -70,6 +71,7 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
     access: jobData.access,
     recruitmentCount: jobData.recruitment_count,
     appliedCount: jobData.applied_count,
+    matchedCount: jobData.matched_count,
     transportationFee: jobData.transportation_fee,
     overview: jobData.overview,
     workContent: jobData.work_content,
@@ -134,6 +136,7 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
 
   // ユーザーが既に応募済みかチェック
   const initialHasApplied = await hasUserAppliedForJob(id);
+  const appliedWorkDateIds = await getUserApplicationStatuses(id);
 
   return (
     <JobDetailClient
@@ -142,6 +145,7 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
       relatedJobs={relatedJobs}
       facilityReviews={facilityReviews}
       initialHasApplied={initialHasApplied}
+      initialAppliedWorkDateIds={appliedWorkDateIds}
       selectedDate={selectedDate}
     />
   );

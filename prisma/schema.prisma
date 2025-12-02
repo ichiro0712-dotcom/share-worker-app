@@ -268,6 +268,7 @@ model Job {
   workDates    JobWorkDate[]  // 複数の勤務日
   bookmarks    Bookmark[]
   messages     Message[]
+  reviews      Review[]       // 求人に対するレビュー
 
   @@map("jobs")
 }
@@ -283,6 +284,7 @@ model JobWorkDate {
   deadline          DateTime                            // 応募締切
   recruitment_count Int      @map("recruitment_count") // この日の募集人数
   applied_count     Int      @default(0) @map("applied_count") // この日の応募済み人数
+  matched_count     Int      @default(0) @map("matched_count") // この日のマッチング済み人数
   created_at        DateTime @default(now()) @map("created_at")
   updated_at        DateTime @updatedAt @map("updated_at")
 
@@ -360,8 +362,9 @@ model Review {
   id              Int          @id @default(autoincrement())
   facility_id     Int          @map("facility_id")
   user_id         Int          @map("user_id")
-  work_date_id    Int          @map("work_date_id")  // JobWorkDateへの参照
-  application_id  Int          @map("application_id")
+  job_id          Int          @map("job_id")        // 求人ID（求人単位での評価に変更）
+  work_date_id    Int?         @map("work_date_id")  // 互換性のために残すが任意
+  application_id  Int?         @map("application_id") // 互換性のために残すが任意
   reviewer_type   ReviewerType @map("reviewer_type") // 誰が評価したか
   rating          Int                                // 1-5
   rating_attendance   Int?  @map("rating_attendance")   // 勤怠・時間
@@ -375,11 +378,13 @@ model Review {
   updated_at      DateTime     @updatedAt @map("updated_at")
 
   // リレーション
-  facility    Facility    @relation(fields: [facility_id], references: [id], onDelete: Cascade)
-  user        User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  workDate    JobWorkDate @relation(fields: [work_date_id], references: [id], onDelete: Cascade)
-  application Application @relation(fields: [application_id], references: [id], onDelete: Cascade)
+  facility    Facility     @relation(fields: [facility_id], references: [id], onDelete: Cascade)
+  user        User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  job         Job          @relation(fields: [job_id], references: [id], onDelete: Cascade)
+  workDate    JobWorkDate? @relation(fields: [work_date_id], references: [id], onDelete: Cascade)
+  application Application? @relation(fields: [application_id], references: [id], onDelete: Cascade)
 
+  @@unique([job_id, user_id, reviewer_type]) // 求人×ワーカー×レビュアーで1件のみ
   @@map("reviews")
 }
 

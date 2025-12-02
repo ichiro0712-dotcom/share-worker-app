@@ -152,9 +152,11 @@ export default function TestIndexPage() {
                   label: '求人詳細',
                   icon: Briefcase,
                   children: [
-                    { href: '/facilities/11', label: '施設詳細', icon: Building2, children: [
-                      { href: '/facilities/11/review/new', label: '口コミ投稿', icon: FileText },
-                    ]},
+                    {
+                      href: '/facilities/11', label: '施設詳細', icon: Building2, children: [
+                        { href: '/facilities/11/review/new', label: '口コミ投稿', icon: FileText },
+                      ]
+                    },
                   ]
                 },
               ]
@@ -221,10 +223,12 @@ export default function TestIndexPage() {
               icon: Briefcase,
               children: [
                 { href: '/admin/jobs/new', label: '求人作成', icon: Briefcase },
-                { href: '/admin/jobs/templates', label: 'テンプレート一覧', icon: FileText, children: [
-                  { href: '/admin/jobs/templates/new', label: 'テンプレート作成', icon: FileText },
-                  { href: '/admin/jobs/templates/1/edit', label: 'テンプレート編集', icon: FileText },
-                ]},
+                {
+                  href: '/admin/jobs/templates', label: 'テンプレート一覧', icon: FileText, children: [
+                    { href: '/admin/jobs/templates/new', label: 'テンプレート作成', icon: FileText },
+                    { href: '/admin/jobs/templates/1/edit', label: 'テンプレート編集', icon: FileText },
+                  ]
+                },
               ]
             },
             {
@@ -405,6 +409,14 @@ export default function TestIndexPage() {
             >
               使い方
             </a>
+            <Link
+              href="/style-guide"
+              target="_blank"
+              className="px-4 py-2 bg-white text-primary rounded-lg text-sm font-bold transition-colors hover:bg-gray-100 shadow-sm flex items-center gap-2"
+            >
+              <ClipboardList className="w-4 h-4" />
+              デザイン確認用（スタイルガイド）
+            </Link>
           </div>
         </div>
 
@@ -766,11 +778,10 @@ export default function TestIndexPage() {
                             )}
                           </button>
                           <span
-                            className={`text-sm ${
-                              isCompleted(task.id)
+                            className={`text-sm ${isCompleted(task.id)
                                 ? 'text-gray-500 line-through'
                                 : 'text-gray-900'
-                            }`}
+                              }`}
                           >
                             {task.label}
                           </span>

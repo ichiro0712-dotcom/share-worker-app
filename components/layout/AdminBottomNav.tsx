@@ -16,7 +16,7 @@ export const AdminBottomNav = () => {
     { href: '/admin', icon: LayoutDashboard, label: 'ダッシュボード' },
     { href: '/admin/applications', icon: ClipboardList, label: '応募管理' },
     { href: '/admin/workers', icon: Users, label: 'ワーカー' },
-    { href: '/admin/reviews', icon: Star, label: 'レビュー' },
+    { href: '/admin/reviews', icon: Star, label: '施設レビュー' },
     { href: '/admin/notifications', icon: Bell, label: '通知' },
   ];
 

@@ -89,7 +89,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       active: pathname === '/admin/facility',
     },
     {
-      title: 'レビュー',
+      title: '施設レビュー',
       icon: <Star className="w-4 h-4" />,
       href: '/admin/reviews',
       active: pathname === '/admin/reviews',

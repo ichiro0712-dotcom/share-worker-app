@@ -2,6 +2,20 @@
  * 時間関連の定数定義
  */
 
+// 時間選択用（0〜23時）
+export const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => ({
+  value: i.toString().padStart(2, '0'),
+  label: `${i}時`,
+}));
+
+// 分選択用（00, 15, 30, 45）
+export const MINUTE_OPTIONS = [
+  { value: '00', label: '00分' },
+  { value: '15', label: '15分' },
+  { value: '30', label: '30分' },
+  { value: '45', label: '45分' },
+] as const;
+
 export const BREAK_TIME_OPTIONS = [
   { value: 0, label: 'なし' },
   { value: 10, label: '10分' },

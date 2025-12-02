@@ -157,25 +157,40 @@ export default function WorkerLogin() {
           </h3>
           <div className="space-y-2">
             <button
-              onClick={() => handleTestLogin('test1@example.com', 'password123')}
-              className="w-full text-left px-3 py-2 bg-white border border-green-300 rounded text-sm hover:bg-green-50 transition-colors"
+              onClick={() => handleTestLogin('yamada@example.com', 'password123')}
+              className="w-full text-left px-3 py-2 bg-white border border-green-300 rounded text-sm hover:bg-green-50 transition-colors flex items-center gap-3"
             >
-              <div className="font-medium">田中 花子</div>
-              <div className="text-xs text-gray-600">test1@example.com</div>
+              <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden flex-shrink-0">
+                <img src="/images/users/user1.svg" alt="" className="w-full h-full object-cover" />
+              </div>
+              <div>
+                <div className="font-medium">山田 太郎</div>
+                <div className="text-xs text-gray-600">yamada@example.com</div>
+              </div>
             </button>
             <button
-              onClick={() => handleTestLogin('test2@example.com', 'password123')}
-              className="w-full text-left px-3 py-2 bg-white border border-green-300 rounded text-sm hover:bg-green-50 transition-colors"
+              onClick={() => handleTestLogin('sato@example.com', 'password123')}
+              className="w-full text-left px-3 py-2 bg-white border border-green-300 rounded text-sm hover:bg-green-50 transition-colors flex items-center gap-3"
             >
-              <div className="font-medium">佐藤 太郎</div>
-              <div className="text-xs text-gray-600">test2@example.com</div>
+              <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden flex-shrink-0">
+                <img src="/images/users/user2.svg" alt="" className="w-full h-full object-cover" />
+              </div>
+              <div>
+                <div className="font-medium">佐藤 花子</div>
+                <div className="text-xs text-gray-600">sato@example.com</div>
+              </div>
             </button>
             <button
-              onClick={() => handleTestLogin('test3@example.com', 'password123')}
-              className="w-full text-left px-3 py-2 bg-white border border-green-300 rounded text-sm hover:bg-green-50 transition-colors"
+              onClick={() => handleTestLogin('suzuki@example.com', 'password123')}
+              className="w-full text-left px-3 py-2 bg-white border border-green-300 rounded text-sm hover:bg-green-50 transition-colors flex items-center gap-3"
             >
-              <div className="font-medium">鈴木 一郎</div>
-              <div className="text-xs text-gray-600">test3@example.com</div>
+              <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden flex-shrink-0">
+                <img src="/images/users/user3.svg" alt="" className="w-full h-full object-cover" />
+              </div>
+              <div>
+                <div className="font-medium">鈴木 一郎</div>
+                <div className="text-xs text-gray-600">suzuki@example.com</div>
+              </div>
             </button>
           </div>
           <p className="text-xs text-green-700 mt-3">

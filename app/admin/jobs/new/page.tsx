@@ -20,6 +20,8 @@ import {
   DEFAULT_DISMISSAL_REASONS,
   RECRUITMENT_START_DAY_OPTIONS,
   RECRUITMENT_END_DAY_OPTIONS,
+  HOUR_OPTIONS,
+  MINUTE_OPTIONS,
 } from '@/constants';
 
 interface TemplateData {
@@ -70,8 +72,8 @@ export default function NewJobPage() {
     recruitmentCount: 1,
     title: '',
     name: '',
-    startTime: '09:00',
-    endTime: '18:00',
+    startTime: '06:00',
+    endTime: '15:00',
     breakTime: 60,
     hourlyWage: 1200,
     transportationFee: 500,
@@ -977,24 +979,64 @@ export default function NewJobPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     開始時刻 <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="time"
-                    value={formData.startTime}
-                    onChange={(e) => handleInputChange('startTime', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                  />
+                  <div className="flex gap-1">
+                    <select
+                      value={formData.startTime.split(':')[0]}
+                      onChange={(e) => {
+                        const minute = formData.startTime.split(':')[1] || '00';
+                        handleInputChange('startTime', `${e.target.value}:${minute}`);
+                      }}
+                      className="flex-1 px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    >
+                      {HOUR_OPTIONS.map(option => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={formData.startTime.split(':')[1] || '00'}
+                      onChange={(e) => {
+                        const hour = formData.startTime.split(':')[0] || '06';
+                        handleInputChange('startTime', `${hour}:${e.target.value}`);
+                      }}
+                      className="flex-1 px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    >
+                      {MINUTE_OPTIONS.map(option => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     終了時刻 <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="time"
-                    value={formData.endTime}
-                    onChange={(e) => handleInputChange('endTime', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                  />
+                  <div className="flex gap-1">
+                    <select
+                      value={formData.endTime.split(':')[0]}
+                      onChange={(e) => {
+                        const minute = formData.endTime.split(':')[1] || '00';
+                        handleInputChange('endTime', `${e.target.value}:${minute}`);
+                      }}
+                      className="flex-1 px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    >
+                      {HOUR_OPTIONS.map(option => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={formData.endTime.split(':')[1] || '00'}
+                      onChange={(e) => {
+                        const hour = formData.endTime.split(':')[0] || '15';
+                        handleInputChange('endTime', `${hour}:${e.target.value}`);
+                      }}
+                      className="flex-1 px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    >
+                      {MINUTE_OPTIONS.map(option => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 <div>

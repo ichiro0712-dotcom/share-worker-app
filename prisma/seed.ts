@@ -1,6 +1,10 @@
 import { PrismaClient, JobStatus, WorkerStatus, ReviewStatus, ReviewerType, BookmarkType, NotificationType } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
+
+// パスワードをハッシュ化するヘルパー関数
+const hashPassword = (password: string) => bcrypt.hashSync(password, 10);
 
 // ========================================
 // 定数データ
@@ -113,35 +117,35 @@ async function main() {
     // プロフィール充実ユーザー
     {
       email: 'yamada@example.com',
-      password_hash: 'password123',
+      password_hash: hashPassword('password123'),
       name: '山田 太郎',
       birth_date: new Date('1985-05-15'),
       phone_number: '090-1234-5678',
-      profile_image: '/images/users/user1.jpg',
+      profile_image: '/images/users/user1.svg',
       qualifications: ['介護福祉士', '実務者研修'],
     },
     {
       email: 'sato@example.com',
-      password_hash: 'password123',
+      password_hash: hashPassword('password123'),
       name: '佐藤 花子',
       birth_date: new Date('1990-08-20'),
       phone_number: '090-2345-6789',
-      profile_image: '/images/users/user2.jpg',
+      profile_image: '/images/users/user2.svg',
       qualifications: ['正看護師', 'ケアマネージャー'],
     },
     {
       email: 'suzuki@example.com',
-      password_hash: 'password123',
+      password_hash: hashPassword('password123'),
       name: '鈴木 一郎',
       birth_date: new Date('1988-03-10'),
       phone_number: '090-3456-7890',
-      profile_image: '/images/users/user3.jpg',
+      profile_image: '/images/users/user3.svg',
       qualifications: ['介護福祉士'],
     },
     // プロフィール一部空白のユーザー
     {
       email: 'takahashi@example.com',
-      password_hash: 'password123',
+      password_hash: hashPassword('password123'),
       name: '高橋 美咲',
       birth_date: new Date('1995-11-25'),
       phone_number: '090-4567-8901',
@@ -150,7 +154,7 @@ async function main() {
     },
     {
       email: 'tanaka@example.com',
-      password_hash: 'password123',
+      password_hash: hashPassword('password123'),
       name: '田中 健太',
       birth_date: null,
       phone_number: '090-5678-9012',
@@ -160,7 +164,7 @@ async function main() {
     // 資格なし新人ユーザー
     {
       email: 'ito@example.com',
-      password_hash: 'password123',
+      password_hash: hashPassword('password123'),
       name: '伊藤 直子',
       birth_date: new Date('2000-01-05'),
       phone_number: '090-6789-0123',
@@ -170,7 +174,7 @@ async function main() {
     // 経験豊富なベテラン
     {
       email: 'watanabe@example.com',
-      password_hash: 'password123',
+      password_hash: hashPassword('password123'),
       name: '渡辺 大輔',
       birth_date: new Date('1975-07-18'),
       phone_number: '090-7890-1234',
@@ -179,7 +183,7 @@ async function main() {
     },
     {
       email: 'yamamoto@example.com',
-      password_hash: 'password123',
+      password_hash: hashPassword('password123'),
       name: '山本 理恵',
       birth_date: new Date('1992-04-30'),
       phone_number: '090-8901-2345',
@@ -188,7 +192,7 @@ async function main() {
     },
     {
       email: 'nakamura@example.com',
-      password_hash: 'password123',
+      password_hash: hashPassword('password123'),
       name: '中村 翔太',
       birth_date: new Date('1998-09-12'),
       phone_number: '090-9012-3456',
@@ -197,7 +201,7 @@ async function main() {
     },
     {
       email: 'kobayashi@example.com',
-      password_hash: 'password123',
+      password_hash: hashPassword('password123'),
       name: '小林 麻衣',
       birth_date: new Date('1993-12-08'),
       phone_number: '090-0123-4567',
@@ -472,11 +476,30 @@ async function main() {
   // ========================================
   console.log('\n👨‍💼 施設管理者を作成中...');
 
+  // 固定の管理者名リスト（施設ごとに1名）
+  const adminNames = [
+    '木村 一郎',     // ひかり介護センター
+    '山田 健太',     // あおぞら訪問看護ステーション
+    '佐藤 大輔',     // さくらの里特別養護老人ホーム
+    '田中 直樹',     // グループホームみどりの家
+    '高橋 翔太',     // ゆうわ老人保健施設
+    '伊藤 和也',     // けやきデイサービス
+    '渡辺 雄介',     // つばさ小規模多機能ホーム
+    '中村 俊介',     // はなみずき有料老人ホーム
+    '小林 拓也',     // あすなろサービス付き高齢者向け住宅
+    '加藤 太郎',     // わかばショートステイ
+    '吉田 健太',     // こすもす訪問介護ステーション
+    '松本 一郎',     // すみれデイケアセンター
+    '井上 大輔',     // たんぽぽ病院併設老健
+    '山本 直樹',     // ひまわりグループホーム
+    '鈴木 翔太',     // オリーブ有料老人ホーム
+  ];
+
   const adminsData = createdFacilities.map((facility, index) => ({
     email: `admin${index + 1}@facility.com`,
-    password_hash: 'password123',
+    password_hash: hashPassword('password123'),
     facility_id: facility.id,
-    name: `${getRandomItem(lastNames)} ${getRandomItem(firstNames.male)}`,
+    name: adminNames[index] || `管理者 ${index + 1}`,
     phone_number: `03-${String(1000 + index).padStart(4, '0')}-${String(1000 + index).padStart(4, '0')}`,
     role: 'admin',
   }));
@@ -973,6 +996,7 @@ async function main() {
       data: {
         facility_id: facility.id,
         user_id: user.id,
+        job_id: app.work_date.job_id,
         work_date_id: app.work_date.id,
         application_id: app.id,
         reviewer_type: ReviewerType.WORKER,
@@ -989,6 +1013,7 @@ async function main() {
       data: {
         facility_id: facility.id,
         user_id: user.id,
+        job_id: app.work_date.job_id,
         work_date_id: app.work_date.id,
         application_id: app.id,
         reviewer_type: ReviewerType.FACILITY,
@@ -1071,6 +1096,7 @@ async function main() {
         data: {
           facility_id: facility.id,
           user_id: user.id,
+          job_id: dummyJob.id,
           work_date_id: dummyWorkDate.id,
           application_id: dummyApp.id,
           reviewer_type: ReviewerType.WORKER,

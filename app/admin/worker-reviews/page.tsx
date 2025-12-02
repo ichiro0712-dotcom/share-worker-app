@@ -6,6 +6,8 @@ import { Star, AlertTriangle, Clock, FileText, Heart, Ban, X } from 'lucide-reac
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
 
+import { getPendingWorkerReviews, getCompletedWorkerReviews, submitWorkerReviewByJob } from '@/src/lib/actions';
+
 // 評価項目の定義
 const RATING_CATEGORIES = [
     { key: 'attendance', label: '勤怠・時間', description: '始業・休憩・終業等の時間をきちんと守れていましたか？' },
@@ -17,6 +19,7 @@ const RATING_CATEGORIES = [
 
 interface PendingReview {
     applicationId: number;
+    jobId: number; // 追加
     userId: number;
     userName: string;
     userProfileImage: string | null;
@@ -67,14 +70,33 @@ export default function WorkerReviewsPage() {
 
     // データ取得
     useEffect(() => {
+        // AdminLoadingが完了するまで待つ
+        if (isAdminLoading) {
+            console.log('[worker-reviews] Still loading admin, waiting...');
+            return;
+        }
+
         const fetchData = async () => {
-            if (!admin?.facilityId) return;
+            console.log('[worker-reviews] admin:', admin);
+            console.log('[worker-reviews] facilityId:', admin?.facilityId);
+            if (!admin?.facilityId) {
+                console.log('[worker-reviews] No facilityId, skipping fetch');
+                setIsLoading(false);
+                return;
+            }
             setIsLoading(true);
             try {
-                // TODO: API実装後に接続
-                // const pending = await getPendingWorkerReviews(admin.facilityId);
-                // const completed = await getCompletedWorkerReviews(admin.facilityId);
-                // const templates = await getReviewTemplates(admin.facilityId);
+                // ステータス更新をトリガー
+                await fetch('/api/cron/update-statuses');
+
+                console.log('[worker-reviews] Fetching pending reviews for facilityId:', admin.facilityId);
+                const pending = await getPendingWorkerReviews(admin.facilityId);
+                console.log('[worker-reviews] Pending reviews:', pending);
+                const completed = await getCompletedWorkerReviews(admin.facilityId);
+                console.log('[worker-reviews] Completed reviews:', completed);
+
+                setPendingReviews(pending as PendingReview[]);
+                setCompletedReviews(completed);
             } catch (error) {
                 console.error('Failed to fetch data:', error);
                 toast.error('データの取得に失敗しました');
@@ -83,25 +105,42 @@ export default function WorkerReviewsPage() {
             }
         };
         fetchData();
-    }, [admin?.facilityId]);
+    }, [admin?.facilityId, isAdminLoading]);
 
     // レビュー投稿
     const handleSubmitReview = async (action: 'submit' | 'favorite' | 'block') => {
         if (!selectedApplication || !admin) return;
 
         try {
-            // TODO: API実装
-            // await submitWorkerReview({
-            //   applicationId: selectedApplication.applicationId,
-            //   facilityId: admin.facilityId,
-            //   ratings,
-            //   comment,
-            //   action, // 'favorite' or 'block' の場合は追加処理
-            // });
+            const result = await submitWorkerReviewByJob({
+                jobId: selectedApplication.jobId,
+                userId: selectedApplication.userId,
+                facilityId: admin.facilityId,
+                ratings,
+                comment,
+                action: action === 'submit' ? undefined : action,
+            });
 
-            toast.success('レビューを登録しました');
-            setSelectedApplication(null);
-            // リストを更新
+            if (result.success) {
+                toast.success('レビューを登録しました');
+                setSelectedApplication(null);
+                // 評価をリセット
+                setRatings({
+                    attendance: 5,
+                    skill: 5,
+                    execution: 5,
+                    communication: 5,
+                    attitude: 5,
+                });
+                setComment('');
+                // リストを更新
+                const pending = await getPendingWorkerReviews(admin.facilityId);
+                const completed = await getCompletedWorkerReviews(admin.facilityId);
+                setPendingReviews(pending as PendingReview[]);
+                setCompletedReviews(completed);
+            } else {
+                toast.error(result.error || 'レビューの登録に失敗しました');
+            }
         } catch (error) {
             console.error('Failed to submit review:', error);
             toast.error('レビューの登録に失敗しました');
@@ -143,8 +182,8 @@ export default function WorkerReviewsPage() {
                     <button
                         onClick={() => setActiveTab('pending')}
                         className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${activeTab === 'pending'
-                                ? 'border-blue-600 text-blue-600'
-                                : 'border-transparent text-gray-500 hover:text-gray-700'
+                            ? 'border-blue-600 text-blue-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700'
                             }`}
                     >
                         未入力 ({pendingReviews.length})
@@ -152,8 +191,8 @@ export default function WorkerReviewsPage() {
                     <button
                         onClick={() => setActiveTab('completed')}
                         className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${activeTab === 'completed'
-                                ? 'border-blue-600 text-blue-600'
-                                : 'border-transparent text-gray-500 hover:text-gray-700'
+                            ? 'border-blue-600 text-blue-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700'
                             }`}
                     >
                         入力済み ({completedReviews.length})
@@ -222,10 +261,41 @@ export default function WorkerReviewsPage() {
 
                 {activeTab === 'completed' && (
                     <div className="space-y-4">
-                        {/* 入力済みレビュー一覧 - 読み取り専用 */}
-                        <div className="bg-white rounded-lg p-8 text-center">
-                            <p className="text-gray-600">入力済みのレビューはありません</p>
-                        </div>
+                        {completedReviews.length === 0 ? (
+                            <div className="bg-white rounded-lg p-8 text-center">
+                                <p className="text-gray-600">入力済みのレビューはありません</p>
+                            </div>
+                        ) : (
+                            completedReviews.map((review) => (
+                                <div key={review.id} className="bg-white rounded-lg border border-gray-200 p-4">
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden">
+                                            {review.userProfileImage ? (
+                                                <img src={review.userProfileImage} alt="" className="w-full h-full object-cover" />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-gray-400 font-bold">
+                                                    {review.userName.charAt(0)}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <p className="font-bold">{review.userName}</p>
+                                            <p className="text-sm text-gray-600">{review.jobTitle}</p>
+                                        </div>
+                                        <div className="ml-auto flex items-center gap-1">
+                                            <Star className="w-4 h-4 text-yellow-400 fill-current" />
+                                            <span className="font-bold">{review.rating}</span>
+                                        </div>
+                                    </div>
+                                    <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg">
+                                        {review.comment}
+                                    </p>
+                                    <p className="text-xs text-gray-400 mt-2 text-right">
+                                        {new Date(review.createdAt).toLocaleDateString('ja-JP')}
+                                    </p>
+                                </div>
+                            ))
+                        )}
                     </div>
                 )}
             </div>
