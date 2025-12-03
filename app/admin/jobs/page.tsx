@@ -257,13 +257,15 @@ export default function AdminJobsList() {
   }, [searchQuery, statusFilter, periodStartFilter, periodEndFilter, templateFilter]);
 
   // ステータスのラベルと色
+  // バッジ用: パターン5（青ベース統一）
+  // フィルターボタン用: ドットインジケーター風
   const statusConfig = {
-    recruiting: { label: '公開中', color: 'bg-green-100 text-green-700', activeColor: 'bg-green-600 text-white' },
-    paused: { label: '停止中', color: 'bg-gray-100 text-gray-700', activeColor: 'bg-gray-600 text-white' },
-    working: { label: '勤務中', color: 'bg-blue-100 text-blue-700', activeColor: 'bg-blue-600 text-white' },
-    review: { label: '評価待ち', color: 'bg-yellow-100 text-yellow-700', activeColor: 'bg-yellow-600 text-white' },
-    completed: { label: '完了', color: 'bg-gray-100 text-gray-600', activeColor: 'bg-gray-600 text-white' },
-    failed: { label: '不成立', color: 'bg-red-100 text-red-700', activeColor: 'bg-red-600 text-white' },
+    recruiting: { label: '公開中', badge: 'bg-blue-600 text-white', dotColor: 'bg-green-500' },
+    paused: { label: '停止中', badge: 'bg-blue-100 text-blue-400', dotColor: 'bg-gray-400' },
+    working: { label: '勤務中', badge: 'bg-blue-800 text-white', dotColor: 'bg-blue-500' },
+    review: { label: '評価待ち', badge: 'bg-blue-300 text-blue-900', dotColor: 'bg-amber-500' },
+    completed: { label: '完了', badge: 'bg-blue-50 text-blue-300', dotColor: 'bg-gray-400' },
+    failed: { label: '不成立', badge: 'bg-red-100 text-red-600', dotColor: 'bg-red-500' },
   };
 
   // チェックボックスの処理
@@ -367,7 +369,7 @@ export default function AdminJobsList() {
   if (isLoading || isAdminLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-admin-primary"></div>
       </div>
     );
   }
@@ -402,35 +404,35 @@ export default function AdminJobsList() {
             <button
               onClick={handleBulkPublish}
               disabled={selectedJobIds.length === 0}
-              className="flex items-center gap-2 px-4 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-4 py-2 text-sm bg-admin-primary text-white rounded-admin-button hover:bg-admin-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               公開する
             </button>
             <button
               onClick={handleBulkPause}
               disabled={selectedJobIds.length === 0}
-              className="flex items-center gap-2 px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-4 py-2 text-sm bg-gray-600 text-white rounded-admin-button hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               停止する
             </button>
             <button
               onClick={handleBulkDelete}
               disabled={selectedJobIds.length === 0}
-              className="flex items-center gap-2 px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-4 py-2 text-sm bg-red-600 text-white rounded-admin-button hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Trash2 className="w-4 h-4" />
               削除する
             </button>
             <button
               onClick={() => window.open('/admin/jobs/templates', '_blank')}
-              className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-300 text-gray-700 rounded-admin-button hover:bg-gray-50 transition-colors"
             >
               <FileText className="w-4 h-4" />
               テンプレート管理
             </button>
             <button
               onClick={() => router.push('/admin/jobs/new')}
-              className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 text-sm bg-admin-primary text-white rounded-admin-button hover:bg-admin-primary-dark transition-colors"
             >
               <Plus className="w-4 h-4" />
               求人作成
@@ -452,7 +454,7 @@ export default function AdminJobsList() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="求人タイトル or ワーカー名"
-                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-admin-primary"
               />
             </div>
 
@@ -461,7 +463,7 @@ export default function AdminJobsList() {
               <select
                 value={templateFilter}
                 onChange={(e) => setTemplateFilter(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-admin-primary"
               >
                 <option value="all">すべてのテンプレート</option>
                 {jobTemplates.map((template) => (
@@ -481,7 +483,7 @@ export default function AdminJobsList() {
             <select
               value={periodStartFilter}
               onChange={(e) => setPeriodStartFilter(e.target.value)}
-              className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+              className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-admin-primary"
             >
               <option value="">開始月（未指定）</option>
               {periodOptions.map((option) => (
@@ -497,7 +499,7 @@ export default function AdminJobsList() {
             <select
               value={periodEndFilter}
               onChange={(e) => setPeriodEndFilter(e.target.value)}
-              className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+              className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-admin-primary"
             >
               <option value="">終了月（未指定）</option>
               {periodOptions.map((option) => (
@@ -513,7 +515,7 @@ export default function AdminJobsList() {
             <button
               onClick={() => setStatusFilter('all')}
               className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${statusFilter === 'all'
-                ? 'bg-blue-600 text-white'
+                ? 'bg-admin-primary text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
             >
@@ -523,11 +525,12 @@ export default function AdminJobsList() {
               <button
                 key={status}
                 onClick={() => setStatusFilter(status)}
-                className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${statusFilter === status
-                  ? statusConfig[status].activeColor
-                  : statusConfig[status].color + ' hover:opacity-80'
+                className={`px-3 py-1.5 text-xs font-medium rounded transition-colors flex items-center gap-1.5 ${statusFilter === status
+                  ? 'bg-gray-200 text-gray-900'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
               >
+                <span className={`w-2 h-2 rounded-full ${statusConfig[status].dotColor}`}></span>
                 {statusConfig[status].label}
               </button>
             ))}
@@ -544,7 +547,7 @@ export default function AdminJobsList() {
               type="checkbox"
               checked={selectedJobIds.length === paginatedJobs.length && paginatedJobs.length > 0}
               onChange={handleSelectAll}
-              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              className="w-4 h-4 text-admin-primary border-gray-300 rounded focus:ring-admin-primary"
             />
             <label className="text-sm text-gray-700 cursor-pointer" onClick={handleSelectAll}>
               全選択
@@ -573,7 +576,7 @@ export default function AdminJobsList() {
                 <div
                   key={job.id}
                   onClick={() => handleCheckboxChange(job.id)}
-                  className="bg-white rounded border border-gray-200 hover:border-blue-400 hover:shadow-sm transition-all p-3 flex items-center gap-3 cursor-pointer"
+                  className="bg-white rounded-admin-card border border-gray-200 hover:border-admin-primary hover:shadow-md transition-all p-3 flex items-center gap-3 cursor-pointer"
                 >
                   {/* チェックボックス（カードの縦方向中央） */}
                   <div className="flex-shrink-0">
@@ -582,7 +585,7 @@ export default function AdminJobsList() {
                       checked={selectedJobIds.includes(job.id)}
                       onChange={() => handleCheckboxChange(job.id)}
                       onClick={(e) => e.stopPropagation()}
-                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      className="w-4 h-4 text-admin-primary border-gray-300 rounded focus:ring-admin-primary"
                     />
                   </div>
 
@@ -590,9 +593,9 @@ export default function AdminJobsList() {
                   <div className="flex-1 min-w-0">
                     {/* 1行目 */}
                     <div className="flex items-center gap-3 mb-2">
-                      {/* ステータスバッジ */}
+                      {/* ステータスバッジ（パターン5: 青ベース統一） */}
                       <div className="flex-shrink-0">
-                        <span className={`px-2 py-0.5 text-xs font-medium rounded ${statusInfo.color}`}>
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded ${statusInfo.badge}`}>
                           {statusInfo.label}
                         </span>
                       </div>
@@ -762,7 +765,7 @@ export default function AdminJobsList() {
                 onClick={confirmBulkAction}
                 disabled={isDeleting}
                 className={`flex-1 px-4 py-2 text-sm text-white rounded transition-colors disabled:opacity-50 ${bulkActionConfirm === 'publish'
-                  ? 'bg-green-600 hover:bg-green-700'
+                  ? 'bg-admin-primary hover:bg-admin-primary-dark'
                   : bulkActionConfirm === 'delete'
                     ? 'bg-red-600 hover:bg-red-700'
                     : 'bg-gray-600 hover:bg-gray-700'

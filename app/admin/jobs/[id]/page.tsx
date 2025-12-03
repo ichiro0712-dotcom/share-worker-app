@@ -94,7 +94,7 @@ export default function AdminJobDetailPage() {
   if (isLoading || isAdminLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-admin-primary"></div>
       </div>
     );
   }
@@ -111,13 +111,14 @@ export default function AdminJobDetailPage() {
     CANCELLED: 'キャンセル',
   }[job.status] || job.status;
 
-  const statusColor = {
-    PUBLISHED: 'bg-green-100 text-green-800',
-    DRAFT: 'bg-gray-100 text-gray-800',
-    STOPPED: 'bg-yellow-100 text-yellow-800',
-    COMPLETED: 'bg-blue-100 text-blue-800',
-    CANCELLED: 'bg-red-100 text-red-800',
-  }[job.status] || 'bg-gray-100 text-gray-800';
+  // パターン5（青ベース統一）用の色
+  const statusBadgeColor = {
+    PUBLISHED: 'bg-blue-600 text-white',
+    DRAFT: 'bg-blue-100 text-blue-400',
+    STOPPED: 'bg-blue-100 text-blue-400',
+    COMPLETED: 'bg-blue-50 text-blue-300',
+    CANCELLED: 'bg-red-100 text-red-600',
+  }[job.status] || 'bg-blue-100 text-blue-400';
 
   const totalRecruitment = job.workDates?.reduce((sum, wd) => sum + wd.recruitment_count, 0) || 0;
   const totalApplied = job.workDates?.reduce((sum, wd) => sum + wd.applied_count, 0) || 0;
@@ -135,7 +136,7 @@ export default function AdminJobDetailPage() {
               <ArrowLeft className="w-5 h-5" />
             </button>
             <h1 className="text-xl font-bold text-gray-900">求人詳細</h1>
-            <span className={`px-2 py-1 text-xs font-medium rounded ${statusColor}`}>
+            <span className={`px-2 py-0.5 text-xs font-medium rounded ${statusBadgeColor}`}>
               {statusLabel}
             </span>
           </div>

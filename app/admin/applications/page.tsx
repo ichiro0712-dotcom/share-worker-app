@@ -23,7 +23,6 @@ import {
   getJobsWithApplications,
   updateApplicationStatus,
 } from '@/src/lib/actions';
-import { Badge } from '@/components/ui/badge';
 
 // 型定義
 interface Worker {
@@ -77,7 +76,7 @@ function ApplicationsContent() {
   const [isUpdating, setIsUpdating] = useState<number | null>(null);
 
   // フィルタ・検索状態
-  const [statusFilter, setStatusFilter] = useState<'all' | 'recruiting' | 'stopped'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'stopped' | 'completed'>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   // モーダル状態
@@ -176,8 +175,15 @@ function ApplicationsContent() {
 
     // ステータスフィルタ
     if (statusFilter !== 'all') {
-      const targetStatus = statusFilter === 'recruiting' ? 'PUBLISHED' : 'STOPPED';
-      filtered = filtered.filter(job => job.status === targetStatus);
+      const statusMap: Record<string, string> = {
+        published: 'PUBLISHED',
+        stopped: 'STOPPED',
+        completed: 'COMPLETED',
+      };
+      const targetStatus = statusMap[statusFilter];
+      if (targetStatus) {
+        filtered = filtered.filter(job => job.status === targetStatus);
+      }
     }
 
     // 検索フィルタ
@@ -219,7 +225,7 @@ function ApplicationsContent() {
   if (isLoading && jobs.length === 0) {
     return (
       <div className="h-full bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-admin-primary"></div>
       </div>
     );
   }
@@ -238,24 +244,34 @@ function ApplicationsContent() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setStatusFilter('all')}
-              className={`px-3 py-1.5 text-sm font-medium rounded-full transition-colors ${statusFilter === 'all' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${statusFilter === 'all' ? 'bg-admin-primary text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
             >
               すべて
             </button>
             <button
-              onClick={() => setStatusFilter('recruiting')}
-              className={`px-3 py-1.5 text-sm font-medium rounded-full transition-colors ${statusFilter === 'recruiting' ? 'bg-green-600 text-white' : 'bg-green-50 text-green-700 hover:bg-green-100'
+              onClick={() => setStatusFilter('published')}
+              className={`px-3 py-1.5 text-xs font-medium rounded transition-colors flex items-center gap-1.5 ${statusFilter === 'published' ? 'bg-gray-200 text-gray-900' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
             >
-              募集中
+              <span className="w-2 h-2 rounded-full bg-green-500"></span>
+              公開中
             </button>
             <button
               onClick={() => setStatusFilter('stopped')}
-              className={`px-3 py-1.5 text-sm font-medium rounded-full transition-colors ${statusFilter === 'stopped' ? 'bg-gray-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              className={`px-3 py-1.5 text-xs font-medium rounded transition-colors flex items-center gap-1.5 ${statusFilter === 'stopped' ? 'bg-gray-200 text-gray-900' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
             >
+              <span className="w-2 h-2 rounded-full bg-gray-400"></span>
               停止中
+            </button>
+            <button
+              onClick={() => setStatusFilter('completed')}
+              className={`px-3 py-1.5 text-xs font-medium rounded transition-colors flex items-center gap-1.5 ${statusFilter === 'completed' ? 'bg-gray-200 text-gray-900' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-gray-400"></span>
+              完了
             </button>
           </div>
 
@@ -266,7 +282,7 @@ function ApplicationsContent() {
               placeholder="求人タイトルで検索..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-admin-primary"
             />
           </div>
         </div>
@@ -294,15 +310,15 @@ function ApplicationsContent() {
                       .map(wd => wd.id);
                     setExpandedDates(new Set(activeDateIds));
                   }}
-                  className="bg-white rounded-lg border border-gray-200 p-5 hover:shadow-md hover:border-primary/30 transition-all cursor-pointer group"
+                  className="bg-white rounded-admin-card border border-gray-200 p-5 hover:shadow-md hover:border-admin-primary transition-all cursor-pointer group"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
-                        <Badge variant="default" className={job.status === 'PUBLISHED' ? 'bg-green-600' : 'bg-gray-500'}>
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded ${job.status === 'PUBLISHED' ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-400'}`}>
                           {job.status === 'PUBLISHED' ? '公開中' : '停止中'}
-                        </Badge>
-                        <h3 className="text-lg font-bold text-gray-900 group-hover:text-primary transition-colors">
+                        </span>
+                        <h3 className="text-lg font-bold text-gray-900 group-hover:text-admin-primary transition-colors">
                           {job.title}
                         </h3>
                       </div>
@@ -371,9 +387,9 @@ function ApplicationsContent() {
             <div className="p-6 border-b border-gray-200 flex items-start justify-between bg-gray-50">
               <div>
                 <div className="flex items-center gap-3 mb-2">
-                  <Badge variant="default" className={selectedJob.status === 'PUBLISHED' ? 'bg-green-600' : 'bg-gray-500'}>
+                  <span className={`px-2 py-0.5 text-xs font-medium rounded ${selectedJob.status === 'PUBLISHED' ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-400'}`}>
                     {selectedJob.status === 'PUBLISHED' ? '公開中' : '停止中'}
-                  </Badge>
+                  </span>
                   <h2 className="text-xl font-bold text-gray-900">{selectedJob.title}</h2>
                 </div>
                 <div className="flex items-center gap-4 text-sm text-gray-600">
@@ -400,14 +416,14 @@ function ApplicationsContent() {
               <div className="flex justify-end gap-2 mb-4">
                 <button
                   onClick={() => toggleAllDates(true)}
-                  className="text-xs text-primary hover:underline"
+                  className="text-xs text-admin-primary hover:underline"
                 >
                   すべて展開
                 </button>
                 <span className="text-gray-300">|</span>
                 <button
                   onClick={() => toggleAllDates(false)}
-                  className="text-xs text-primary hover:underline"
+                  className="text-xs text-admin-primary hover:underline"
                 >
                   すべて折りたたみ
                 </button>
@@ -534,7 +550,7 @@ function ApplicationsContent() {
 
                                     <div>
                                       <div className="flex items-center gap-2">
-                                        <Link href={`/admin/workers/${app.worker.id}`} className="font-bold text-gray-900 hover:text-primary hover:underline">
+                                        <Link href={`/admin/workers/${app.worker.id}`} className="font-bold text-gray-900 hover:text-admin-primary hover:underline">
                                           {app.worker.name}
                                         </Link>
                                         <div className="flex items-center text-xs text-yellow-500">
@@ -557,7 +573,7 @@ function ApplicationsContent() {
                                         <button
                                           onClick={() => handleStatusUpdate(app.id, 'SCHEDULED')}
                                           disabled={isUpdating === app.id}
-                                          className="px-3 py-1.5 bg-primary text-white text-xs font-medium rounded hover:bg-primary/90 transition-colors disabled:opacity-50"
+                                          className="px-3 py-1.5 bg-admin-primary text-white text-xs font-medium rounded-admin-button hover:bg-admin-primary-dark transition-colors disabled:opacity-50"
                                         >
                                           マッチング
                                         </button>
@@ -619,7 +635,7 @@ export default function ApplicationsPage() {
   return (
     <Suspense fallback={
       <div className="h-full bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-admin-primary"></div>
       </div>
     }>
       <ApplicationsContent />

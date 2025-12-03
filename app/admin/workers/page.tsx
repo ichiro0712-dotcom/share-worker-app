@@ -259,7 +259,7 @@ export default function AdminWorkersPage() {
   if (isLoading || isAdminLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-admin-primary"></div>
       </div>
     );
   }
@@ -287,7 +287,7 @@ export default function AdminWorkersPage() {
               placeholder="氏名・住所で検索"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent text-sm"
             />
           </div>
 
@@ -298,7 +298,7 @@ export default function AdminWorkersPage() {
                 type="checkbox"
                 checked={jobCategories.includes('kaigo')}
                 onChange={() => toggleJobCategory('kaigo')}
-                className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                className="w-4 h-4 rounded border-gray-300 text-admin-primary focus:ring-admin-primary"
               />
               <span className="text-sm">介護</span>
             </label>
@@ -307,7 +307,7 @@ export default function AdminWorkersPage() {
                 type="checkbox"
                 checked={jobCategories.includes('kango')}
                 onChange={() => toggleJobCategory('kango')}
-                className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                className="w-4 h-4 rounded border-gray-300 text-admin-primary focus:ring-admin-primary"
               />
               <span className="text-sm">看護</span>
             </label>
@@ -316,7 +316,7 @@ export default function AdminWorkersPage() {
                 type="checkbox"
                 checked={jobCategories.includes('yakuzai')}
                 onChange={() => toggleJobCategory('yakuzai')}
-                className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                className="w-4 h-4 rounded border-gray-300 text-admin-primary focus:ring-admin-primary"
               />
               <span className="text-sm">薬剤師</span>
             </label>
@@ -331,31 +331,45 @@ export default function AdminWorkersPage() {
           <div className="flex items-center gap-1">
             {(['all', 'NOT_STARTED', 'WORKING', 'COMPLETED', 'CANCELLED'] as StatusFilterType[]).map(
               (filter) => {
-                const getFilterButtonStyle = () => {
-                  if (statusFilter === filter) {
-                    switch (filter) {
-                      case 'all': return 'bg-gray-600 text-white';
-                      case 'NOT_STARTED': return 'bg-purple-500 text-white';
-                      case 'WORKING': return 'bg-green-500 text-white';
-                      case 'COMPLETED': return 'bg-blue-500 text-white';
-                      case 'CANCELLED': return 'bg-red-500 text-white';
-                    }
-                  } else {
-                    switch (filter) {
-                      case 'all': return 'bg-gray-100 text-gray-600 hover:bg-gray-200';
-                      case 'NOT_STARTED': return 'bg-purple-50 text-purple-600 hover:bg-purple-100';
-                      case 'WORKING': return 'bg-green-50 text-green-600 hover:bg-green-100';
-                      case 'COMPLETED': return 'bg-blue-50 text-blue-600 hover:bg-blue-100';
-                      case 'CANCELLED': return 'bg-red-50 text-red-600 hover:bg-red-100';
-                    }
+                const getDotColor = () => {
+                  switch (filter) {
+                    case 'NOT_STARTED': return 'bg-purple-500';
+                    case 'WORKING': return 'bg-green-500';
+                    case 'COMPLETED': return 'bg-blue-500';
+                    case 'CANCELLED': return 'bg-red-500';
+                    default: return '';
                   }
                 };
+
+                // 「すべて」はドットなしの青ボタン
+                if (filter === 'all') {
+                  return (
+                    <button
+                      key={filter}
+                      onClick={() => setStatusFilter(filter)}
+                      className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                        statusFilter === filter
+                          ? 'bg-admin-primary text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {getFilterLabel(filter)}
+                    </button>
+                  );
+                }
+
+                // 他はドットインジケーター風
                 return (
                   <button
                     key={filter}
                     onClick={() => setStatusFilter(filter)}
-                    className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${getFilterButtonStyle()}`}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5 ${
+                      statusFilter === filter
+                        ? 'bg-gray-200 text-gray-900'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
                   >
+                    <span className={`w-2 h-2 rounded-full ${getDotColor()}`}></span>
                     {getFilterLabel(filter)}
                   </button>
                 );
@@ -370,7 +384,7 @@ export default function AdminWorkersPage() {
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as SortByType)}
-                className="appearance-none bg-white border border-gray-300 rounded-lg pl-3 pr-8 py-1.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent cursor-pointer"
+                className="appearance-none bg-white border border-gray-300 rounded-lg pl-3 pr-8 py-1.5 text-sm focus:ring-2 focus:ring-admin-primary focus:border-transparent cursor-pointer"
               >
                 <option value="workCount_desc">勤務回数（多い順）</option>
                 <option value="workCount_asc">勤務回数（少ない順）</option>
@@ -461,22 +475,20 @@ export default function AdminWorkersPage() {
                           <div className="flex gap-1 flex-shrink-0 ml-2">
                             <button
                               onClick={(e) => handleToggleFavorite(e, worker.userId)}
-                              className={`w-6 h-6 border rounded-full flex items-center justify-center transition-colors ${
-                                worker.isFavorite
-                                  ? 'bg-pink-50 border-pink-200 text-pink-500'
-                                  : 'bg-white border-gray-200 hover:bg-pink-50 text-gray-400 hover:text-pink-500'
-                              }`}
+                              className={`w-6 h-6 border rounded-full flex items-center justify-center transition-colors ${worker.isFavorite
+                                ? 'bg-pink-50 border-pink-200 text-pink-500'
+                                : 'bg-white border-gray-200 hover:bg-pink-50 text-gray-400 hover:text-pink-500'
+                                }`}
                               title="お気に入り"
                             >
                               <Heart className={`w-3 h-3 ${worker.isFavorite ? 'fill-current' : ''}`} />
                             </button>
                             <button
                               onClick={(e) => handleToggleBlock(e, worker.userId)}
-                              className={`w-6 h-6 border rounded-full flex items-center justify-center transition-colors ${
-                                worker.isBlocked
-                                  ? 'bg-red-50 border-red-200 text-red-500'
-                                  : 'bg-white border-gray-200 hover:bg-gray-100 text-gray-400 hover:text-gray-700'
-                              }`}
+                              className={`w-6 h-6 border rounded-full flex items-center justify-center transition-colors ${worker.isBlocked
+                                ? 'bg-red-50 border-red-200 text-red-500'
+                                : 'bg-white border-gray-200 hover:bg-gray-100 text-gray-400 hover:text-gray-700'
+                                }`}
                               title="ブロック"
                             >
                               <Ban className="w-3 h-3" />
@@ -581,11 +593,10 @@ export default function AdminWorkersPage() {
                           month: 'short',
                           day: 'numeric',
                         })}
-                        <span className={`px-1 py-0.5 rounded text-[10px] ${
-                          worker.lastWorkFacilityType === 'our'
-                            ? 'bg-blue-100 text-blue-700'
-                            : 'bg-gray-200 text-gray-600'
-                        }`}>
+                        <span className={`px-1 py-0.5 rounded text-[10px] ${worker.lastWorkFacilityType === 'our'
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'bg-gray-200 text-gray-600'
+                          }`}>
                           {worker.lastWorkFacilityType === 'our' ? '自社' : '他社'}
                         </span>
                       </span>
