@@ -1,10 +1,17 @@
 'use client';
 
-import { createContext, useContext, ReactNode, useState, useEffect } from 'react';
+import { createContext, useContext, ReactNode, useState, useEffect, useCallback } from 'react';
 import { SessionProvider, useSession, signIn, signOut } from 'next-auth/react';
 import { Session } from 'next-auth';
 import { FacilityAdmin } from '@/types/admin';
 import { authenticateFacilityAdmin } from '@/src/lib/actions';
+import {
+  createAdminSession,
+  getAdminSession,
+  clearAdminSession,
+  extendAdminSession,
+  getSessionRemainingMinutes,
+} from '@/lib/admin-session';
 
 interface AuthContextType {
   // ワーカー認証（NextAuth）
@@ -13,12 +20,15 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
-  // 施設管理者認証（DBベース）
+  // 施設管理者認証（改善版）
   admin: FacilityAdmin | null;
   isAdmin: boolean;
   isAdminLoading: boolean;
   adminLogin: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   adminLogout: () => void;
+  // セッション管理
+  sessionRemainingMinutes: number;
+  extendSession: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -27,18 +37,91 @@ function AuthContextProvider({ children }: { children: ReactNode }) {
   const { data: session, status } = useSession();
   const isLoading = status === 'loading';
 
-  // 施設管理者の状態（従来の方式を維持）
+  // 施設管理者の状態
   const [admin, setAdmin] = useState<FacilityAdmin | null>(null);
   const [adminLoaded, setAdminLoaded] = useState(false);
+  const [sessionRemainingMinutes, setSessionRemainingMinutes] = useState(0);
 
-  // ページ読み込み時にlocalStorageから管理者情報を復元
+  // セッション状態を復元
   useEffect(() => {
-    const storedAdmin = localStorage.getItem('currentAdmin');
-    if (storedAdmin) {
-      setAdmin(JSON.parse(storedAdmin));
-    }
-    setAdminLoaded(true);
+    const restoreSession = () => {
+      const sessionData = getAdminSession();
+
+      if (sessionData) {
+        const adminData = {
+          id: sessionData.adminId,
+          email: sessionData.email,
+          password: '', // パスワードは保存しない
+          facilityId: sessionData.facilityId,
+          name: sessionData.name,
+          phone: '',
+          role: sessionData.role as 'admin',
+        };
+        setAdmin(adminData);
+        setSessionRemainingMinutes(getSessionRemainingMinutes());
+      } else {
+        // 互換性のためlocalStorageもチェック
+        const storedAdmin = localStorage.getItem('currentAdmin');
+        if (storedAdmin) {
+          try {
+            const parsed = JSON.parse(storedAdmin);
+            // 旧形式のデータを新形式に移行
+            createAdminSession({
+              adminId: parsed.id,
+              facilityId: parsed.facilityId,
+              name: parsed.name,
+              email: parsed.email,
+              role: parsed.role || 'admin',
+            });
+            setAdmin(parsed);
+          } catch {
+            localStorage.removeItem('currentAdmin');
+          }
+        }
+      }
+      setAdminLoaded(true);
+    };
+
+    restoreSession();
+  }, []); // 初回マウント時のみ実行
+
+  // セッション有効期限を定期的にチェック（1分ごと）
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const remaining = getSessionRemainingMinutes();
+      setSessionRemainingMinutes(remaining);
+
+      // セッション切れの場合はログアウト
+      if (remaining === 0) {
+        const currentSession = getAdminSession();
+        if (!currentSession) {
+          setAdmin(null);
+          clearAdminSession();
+        }
+      }
+    }, 60000);
+
+    return () => clearInterval(interval);
   }, []);
+
+  // ユーザーアクティビティを監視してセッションを延長
+  useEffect(() => {
+    if (!admin) return;
+
+    const handleActivity = () => {
+      extendAdminSession();
+      setSessionRemainingMinutes(getSessionRemainingMinutes());
+    };
+
+    // クリックやキー入力でセッションを延長
+    window.addEventListener('click', handleActivity);
+    window.addEventListener('keydown', handleActivity);
+
+    return () => {
+      window.removeEventListener('click', handleActivity);
+      window.removeEventListener('keydown', handleActivity);
+    };
+  }, [admin]);
 
   // ワーカーログイン
   const login = async (email: string, password: string) => {
@@ -63,12 +146,21 @@ function AuthContextProvider({ children }: { children: ReactNode }) {
     await signOut({ redirect: false });
   };
 
-  // 施設管理者ログイン（DBベース）
+  // 施設管理者ログイン（改善版）
   const adminLogin = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
       const result = await authenticateFacilityAdmin(email, password);
 
       if (result.success && result.admin) {
+        // セキュアなセッションを作成
+        createAdminSession({
+          adminId: result.admin.id,
+          facilityId: result.admin.facilityId,
+          name: result.admin.name,
+          email: result.admin.email,
+          role: 'admin',
+        });
+
         const adminData: FacilityAdmin = {
           id: result.admin.id,
           email: result.admin.email,
@@ -79,7 +171,7 @@ function AuthContextProvider({ children }: { children: ReactNode }) {
           role: 'admin',
         };
         setAdmin(adminData);
-        localStorage.setItem('currentAdmin', JSON.stringify(adminData));
+        setSessionRemainingMinutes(getSessionRemainingMinutes());
         return { success: true };
       }
 
@@ -90,12 +182,15 @@ function AuthContextProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const adminLogout = () => {
+  const adminLogout = useCallback(() => {
     setAdmin(null);
-    localStorage.removeItem('currentAdmin');
-  };
+    clearAdminSession();
+  }, []);
 
-
+  const extendSession = useCallback(() => {
+    extendAdminSession();
+    setSessionRemainingMinutes(getSessionRemainingMinutes());
+  }, []);
 
   return (
     <AuthContext.Provider
@@ -110,6 +205,8 @@ function AuthContextProvider({ children }: { children: ReactNode }) {
         isAdminLoading: !adminLoaded,
         adminLogin,
         adminLogout,
+        sessionRemainingMinutes,
+        extendSession,
       }}
     >
       {children}

@@ -265,7 +265,7 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
   };
 
   return (
-    <div className="min-h-screen bg-white pb-20">
+    <div className="min-h-screen bg-background pb-20">
       {/* ヘッダー */}
       <div className="sticky top-0 bg-white border-b border-gray-200 z-20">
         <div className="px-4 py-3 flex items-center justify-between">
@@ -298,7 +298,7 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
 
         {/* 画像カルーセル */}
         <div className="relative mb-4">
-          <div className="relative aspect-video overflow-hidden rounded-lg">
+          <div className="relative aspect-video overflow-hidden rounded-card">
             <Image
               src={jobImages[currentImageIndex]}
               alt="施設画像"
@@ -388,7 +388,7 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
                 <div
                   key={wd.id || index}
                   onClick={() => !isApplied && toggleWorkDateSelection(wd.id)}
-                  className={`p-4 border-2 rounded-lg transition-colors ${isApplied
+                  className={`p-4 border-2 rounded-card transition-colors ${isApplied
                     ? 'border-gray-200 bg-gray-50 cursor-not-allowed'
                     : selectedWorkDateIds.includes(wd.id)
                       ? 'border-primary bg-primary-light/30 cursor-pointer'
@@ -450,7 +450,7 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
                     <div
                       key={wd.id || index}
                       onClick={() => !isApplied && toggleWorkDateSelection(wd.id)}
-                      className={`flex items-center gap-3 p-3 border rounded-lg transition-colors ${isApplied
+                      className={`flex items-center gap-3 p-3 border rounded-card transition-colors ${isApplied
                         ? 'border-gray-200 bg-gray-50 cursor-not-allowed'
                         : selectedWorkDateIds.includes(wd.id)
                           ? 'border-primary bg-primary-light/20 cursor-pointer'
@@ -755,8 +755,11 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
               <MapPin className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 text-red-500" />
             </div>
             <button
-              onClick={() => toast('Google Map連携はPhase 3で実装予定です', { icon: '🚧' })}
-              className="text-sm text-blue-500"
+              onClick={() => {
+                const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(job.address)}`;
+                window.open(url, '_blank');
+              }}
+              className="text-sm text-blue-500 hover:text-blue-700 hover:underline"
             >
               🗺️ Google Mapで開く
             </button>

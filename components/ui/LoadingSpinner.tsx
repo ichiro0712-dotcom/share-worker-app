@@ -1,6 +1,7 @@
 interface LoadingSpinnerProps {
   size?: 'sm' | 'md' | 'lg';
-  color?: 'primary' | 'white' | 'gray';
+  color?: 'primary' | 'white' | 'gray' | 'admin';
+  variant?: 'worker' | 'admin';
   className?: string;
 }
 
@@ -14,16 +15,20 @@ const colorClasses = {
   primary: 'border-primary border-t-transparent',
   white: 'border-white border-t-transparent',
   gray: 'border-gray-300 border-t-gray-600',
+  admin: 'border-admin-primary border-t-transparent',
 };
 
 export function LoadingSpinner({
   size = 'md',
-  color = 'primary',
+  color,
+  variant = 'worker',
   className = '',
 }: LoadingSpinnerProps) {
+  const effectiveColor = color || (variant === 'admin' ? 'admin' : 'primary');
+
   return (
     <div
-      className={`rounded-full animate-spin ${sizeClasses[size]} ${colorClasses[color]} ${className}`}
+      className={`rounded-full animate-spin ${sizeClasses[size]} ${colorClasses[effectiveColor]} ${className}`}
       role="status"
       aria-label="読み込み中"
     />

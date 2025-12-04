@@ -1,4 +1,4 @@
-import { prisma } from './prisma';
+import { prisma } from '@/lib/prisma';
 
 /**
  * 求人の勤務期間を取得する（最初の勤務日と最後の勤務日）

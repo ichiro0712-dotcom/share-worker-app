@@ -1,6 +1,6 @@
 'use server';
 
-import { prisma } from './prisma';
+import { prisma } from '@/lib/prisma';
 import { revalidatePath, unstable_noStore } from 'next/cache';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
@@ -3464,12 +3464,11 @@ export async function getFacilityInfo(facilityId: number) {
     where: { id: facilityId },
   });
 
-  if (!facility) {
-    return null;
-  }
+  if (!facility) return null;
 
   return {
     id: facility.id,
+    // 基本情報
     corporationName: facility.corporation_name,
     facilityName: facility.facility_name,
     facilityType: facility.facility_type,
@@ -3479,9 +3478,49 @@ export async function getFacilityInfo(facilityId: number) {
     phoneNumber: facility.phone_number,
     description: facility.description,
     images: facility.images,
+    mapImage: facility.map_image,
     rating: facility.rating,
     reviewCount: facility.review_count,
     initialMessage: facility.initial_message,
+
+    // 法人情報
+    representativeLastName: facility.representative_last_name,
+    representativeFirstName: facility.representative_first_name,
+    prefecture: facility.prefecture,
+    city: facility.city,
+    addressDetail: facility.address_detail,
+    email: facility.email,
+    contactPersonLastName: facility.contact_person_last_name,
+    contactPersonFirstName: facility.contact_person_first_name,
+
+    // 責任者情報
+    managerLastName: facility.manager_last_name,
+    managerFirstName: facility.manager_first_name,
+    managerPhoto: facility.manager_photo,
+    managerGreeting: facility.manager_greeting,
+
+    // 担当者情報
+    staffSameAsManager: facility.staff_same_as_manager,
+    staffLastName: facility.staff_last_name,
+    staffFirstName: facility.staff_first_name,
+    staffPhone: facility.staff_phone,
+    emergencyContact: facility.emergency_contact,
+    staffEmails: facility.staff_emails,
+
+    // アクセス情報
+    stations: facility.stations as { name: string; minutes: number }[] | null,
+    accessDescription: facility.access_description,
+    transportation: facility.transportation,
+    parking: facility.parking,
+    transportationNote: facility.transportation_note,
+
+    // 服装情報
+    dresscodeItems: facility.dresscode_items,
+    dresscodeImages: facility.dresscode_images,
+
+    // 喫煙情報
+    smokingMeasure: facility.smoking_measure,
+    workInSmokingArea: facility.work_in_smoking_area,
   };
 }
 
@@ -3512,36 +3551,145 @@ export async function updateFacilityInitialMessage(
 export async function updateFacilityBasicInfo(
   facilityId: number,
   data: {
+    // 基本情報
     corporationName?: string;
     facilityName?: string;
     facilityType?: string;
-    address?: string;
-    phoneNumber?: string;
-    description?: string;
     initialMessage?: string;
+
+    // 法人情報
+    representativeLastName?: string;
+    representativeFirstName?: string;
+    phone?: string;
+    prefecture?: string;
+    city?: string;
+    addressDetail?: string;
+    email?: string;
+    contactPersonLastName?: string;
+    contactPersonFirstName?: string;
+
+    // 責任者情報
+    managerLastName?: string;
+    managerFirstName?: string;
+    managerPhoto?: string;
+    managerGreeting?: string;
+
+    // 担当者情報
+    staffSameAsManager?: boolean;
+    staffLastName?: string;
+    staffFirstName?: string;
+    staffPhone?: string;
+    emergencyContact?: string;
+    staffEmails?: string[];
+
+    // アクセス情報
+    stations?: { name: string; minutes: number }[];
+    accessDescription?: string;
+    transportation?: string[];
+    parking?: string;
+    transportationNote?: string;
+
+    // 服装情報
+    dresscodeItems?: string[];
+    dresscodeImages?: string[];
+
+    // 喫煙情報
+    smokingMeasure?: string;
+    workInSmokingArea?: string;
   }
 ) {
   try {
-    const updateData: any = {};
-
-    if (data.corporationName !== undefined) updateData.corporation_name = data.corporationName;
-    if (data.facilityName !== undefined) updateData.facility_name = data.facilityName;
-    if (data.facilityType !== undefined) updateData.facility_type = data.facilityType;
-    if (data.address !== undefined) updateData.address = data.address;
-    if (data.phoneNumber !== undefined) updateData.phone_number = data.phoneNumber;
-    if (data.description !== undefined) updateData.description = data.description;
-    if (data.initialMessage !== undefined) updateData.initial_message = data.initialMessage;
-
     await prisma.facility.update({
       where: { id: facilityId },
-      data: updateData,
+      data: {
+        // 基本情報
+        corporation_name: data.corporationName,
+        facility_name: data.facilityName,
+        facility_type: data.facilityType,
+        initial_message: data.initialMessage,
+
+        // 法人情報
+        representative_last_name: data.representativeLastName,
+        representative_first_name: data.representativeFirstName,
+        phone_number: data.phone,
+        prefecture: data.prefecture,
+        city: data.city,
+        address_detail: data.addressDetail,
+        email: data.email,
+        contact_person_last_name: data.contactPersonLastName,
+        contact_person_first_name: data.contactPersonFirstName,
+
+        // 責任者情報
+        manager_last_name: data.managerLastName,
+        manager_first_name: data.managerFirstName,
+        manager_photo: data.managerPhoto,
+        manager_greeting: data.managerGreeting,
+
+        // 担当者情報
+        staff_same_as_manager: data.staffSameAsManager,
+        staff_last_name: data.staffLastName,
+        staff_first_name: data.staffFirstName,
+        staff_phone: data.staffPhone,
+        emergency_contact: data.emergencyContact,
+        staff_emails: data.staffEmails,
+
+        // アクセス情報
+        stations: data.stations,
+        access_description: data.accessDescription,
+        transportation: data.transportation,
+        parking: data.parking,
+        transportation_note: data.transportationNote,
+
+        // 服装情報
+        dresscode_items: data.dresscodeItems,
+        dresscode_images: data.dresscodeImages,
+
+        // 喫煙情報
+        smoking_measure: data.smokingMeasure,
+        work_in_smoking_area: data.workInSmokingArea,
+      },
     });
 
-    revalidatePath('/admin/facility');
     return { success: true };
   } catch (error) {
-    console.error('Failed to update facility info:', error);
-    return { success: false, error: 'Failed to update facility info' };
+    console.error('Failed to update facility:', error);
+    return { success: false, error: 'Failed to update facility' };
+  }
+}
+
+/**
+ * 施設の地図画像を取得・更新
+ */
+export async function updateFacilityMapImage(facilityId: number, address: string) {
+  try {
+    // API Routeを呼び出して地図画像を取得・保存
+    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+    const response = await fetch(`${baseUrl}/api/maps/static`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address, facilityId }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Map API returned ${response.status}`);
+    }
+
+    const result = await response.json();
+
+    if (result.success && result.mapImage) {
+      // DBに地図画像パスを保存
+      await prisma.facility.update({
+        where: { id: facilityId },
+        data: { map_image: result.mapImage },
+      });
+
+      return { success: true, mapImage: result.mapImage };
+    }
+
+    return { success: false, error: 'Failed to get map image' };
+  } catch (error) {
+    console.error('[updateFacilityMapImage] Error:', error);
+    return { success: false, error: 'Failed to update map image' };
   }
 }
 
@@ -5772,4 +5920,50 @@ export async function getJobsWithApplications(facilityId: number) {
         console.error('[getJobsWithApplications] Error:', error);
         throw error;
     }
+}
+
+
+// ========================================
+// テストユーザー取得（ログイン画面用）
+// ========================================
+
+/**
+ * テストユーザー一覧を取得（ログイン画面表示用）
+ * 特定のメールアドレスを持つユーザーをDBから取得
+ */
+export async function getTestUsers() {
+  const testEmails = [
+    'yamada@example.com',
+    'sato@example.com',
+    'suzuki@example.com',
+  ];
+
+  try {
+    const users = await prisma.user.findMany({
+      where: {
+        email: {
+          in: testEmails,
+        },
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        profile_image: true,
+      },
+      orderBy: {
+        id: 'asc',
+      },
+    });
+
+    return users.map((user) => ({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      profileImage: user.profile_image,
+    }));
+  } catch (error) {
+    console.error('[getTestUsers] Error:', error);
+    return [];
+  }
 }

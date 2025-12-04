@@ -109,7 +109,7 @@ export default function FacilityWorkerReviewPage() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-admin-primary"></div>
       </div>
     );
   }
@@ -196,11 +196,10 @@ export default function FacilityWorkerReviewPage() {
                 className="p-1 transition-transform hover:scale-110"
               >
                 <Star
-                  className={`w-10 h-10 ${
-                    value <= (hoverRating || rating)
-                      ? 'text-yellow-400 fill-yellow-400'
-                      : 'text-gray-300'
-                  }`}
+                  className={`w-10 h-10 ${value <= (hoverRating || rating)
+                    ? 'text-yellow-400 fill-yellow-400'
+                    : 'text-gray-300'
+                    }`}
                 />
               </button>
             ))}
@@ -225,7 +224,7 @@ export default function FacilityWorkerReviewPage() {
               value={goodPoints}
               onChange={(e) => setGoodPoints(e.target.value)}
               placeholder="勤務態度、スキル、コミュニケーションなど良かった点を記入してください"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-admin-primary resize-none"
               rows={3}
             />
           </div>
@@ -239,7 +238,7 @@ export default function FacilityWorkerReviewPage() {
               value={improvements}
               onChange={(e) => setImprovements(e.target.value)}
               placeholder="今後改善してほしい点があれば記入してください"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-admin-primary resize-none"
               rows={3}
             />
           </div>

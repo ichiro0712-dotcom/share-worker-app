@@ -67,7 +67,7 @@ export const JobCard: React.FC<JobCardProps> = ({ job, facility, selectedDate })
 
   return (
     <Link href={jobDetailUrl} className="h-full block">
-      <div className="border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow cursor-pointer h-full flex flex-col">
+      <div className="bg-surface rounded-card p-4 shadow-card hover:shadow-card-hover transition-all hover:-translate-y-0.5 cursor-pointer h-full flex flex-col">
         {/* PC版: 横並びレイアウト */}
         <div className="hidden md:flex">
           {/* 画像 - 長方形 */}
@@ -83,11 +83,10 @@ export const JobCard: React.FC<JobCardProps> = ({ job, facility, selectedDate })
               className="absolute top-2 right-2"
             >
               <Bookmark
-                className={`w-5 h-5 ${
-                  isBookmarked
+                className={`w-5 h-5 ${isBookmarked
                     ? 'fill-blue-500 text-blue-500'
                     : 'text-white'
-                }`}
+                  }`}
               />
             </button>
           </div>
@@ -125,11 +124,10 @@ export const JobCard: React.FC<JobCardProps> = ({ job, facility, selectedDate })
             </div>
 
             <div className="flex justify-end mb-2">
-              <span className={`inline-block text-xs px-2 py-1 rounded ${
-                isUrgent
+              <span className={`inline-block text-xs px-2 py-1 rounded ${isUrgent
                   ? 'bg-red-500 text-white'
                   : 'bg-gray-300 text-gray-800'
-              }`}>
+                }`}>
                 締切まで{deadlineText}
               </span>
             </div>
@@ -159,11 +157,10 @@ export const JobCard: React.FC<JobCardProps> = ({ job, facility, selectedDate })
               className="absolute top-2 right-2"
             >
               <Bookmark
-                className={`w-5 h-5 ${
-                  isBookmarked
+                className={`w-5 h-5 ${isBookmarked
                     ? 'fill-blue-500 text-blue-500'
                     : 'text-white'
-                }`}
+                  }`}
               />
             </button>
           </div>
@@ -201,11 +198,10 @@ export const JobCard: React.FC<JobCardProps> = ({ job, facility, selectedDate })
             </div>
 
             <div className="flex justify-end mb-1">
-              <span className={`inline-block text-[10px] px-1.5 py-0.5 rounded ${
-                isUrgent
+              <span className={`inline-block text-[10px] px-1.5 py-0.5 rounded ${isUrgent
                   ? 'bg-red-500 text-white'
                   : 'bg-gray-300 text-gray-800'
-              }`}>
+                }`}>
                 締切まで{deadlineText}
               </span>
             </div>

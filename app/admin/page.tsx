@@ -29,7 +29,7 @@ interface Tasks {
 
 export default function AdminDashboard() {
   const router = useRouter();
-  const { admin, isAdmin } = useAuth();
+  const { admin, isAdmin, isAdminLoading } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [facilityName, setFacilityName] = useState<string>('');
   const [stats, setStats] = useState<Stats>({
@@ -47,10 +47,13 @@ export default function AdminDashboard() {
 
   // ログインしていない、または管理者でない場合はログインページへリダイレクト
   useEffect(() => {
+    // セッション復元中はリダイレクトしない
+    if (isAdminLoading) return;
+
     if (!isAdmin || !admin) {
       router.push('/admin/login');
     }
-  }, [isAdmin, admin, router]);
+  }, [isAdmin, admin, isAdminLoading, router]);
 
   // データ取得
   useEffect(() => {
@@ -82,15 +85,19 @@ export default function AdminDashboard() {
     }
   }, [admin?.facilityId, isAdmin, admin]);
 
-  // ログインしていない場合は何も表示しない
-  if (!isAdmin || !admin) {
-    return null;
+  // セッション復元中またはログインしていない場合はローディング表示
+  if (isAdminLoading || !isAdmin || !admin) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-admin-primary"></div>
+      </div>
+    );
   }
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-admin-primary"></div>
       </div>
     );
   }

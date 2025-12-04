@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Home, Briefcase, Building2, User, UserCircle, LogIn, FileText, Heart, Settings, Construction, MessageSquare, MessageCircle, CheckCircle2, Circle, ChevronDown, ChevronUp, Bookmark, Search, Clock, Star, ClipboardList } from 'lucide-react';
+import { Home, Briefcase, Building2, User, UserCircle, LogIn, FileText, Heart, Settings, Construction, MessageSquare, MessageCircle, CheckCircle2, Circle, ChevronDown, ChevronUp, Bookmark, Search, Clock, Star, ClipboardList, QrCode } from 'lucide-react';
 
 export default function TestIndexPage() {
   // 完了したタスクの管理
@@ -284,20 +284,6 @@ export default function TestIndexPage() {
   // 未実装の機能リスト（Phase 2以降）
   const unimplementedFeatures = [
     {
-      feature: '共有機能',
-      page: '施設詳細',
-      pageHref: '/facilities/11',
-      section: 'ワーカー向けページ',
-      description: 'Web Share APIを使った施設情報の共有'
-    },
-    {
-      feature: 'Google Map連携',
-      page: '求人詳細',
-      pageHref: '/jobs/49',
-      section: 'ワーカー向けページ',
-      description: '施設の住所をGoogle Mapで開く機能'
-    },
-    {
       feature: 'メッセージ機能',
       page: 'メッセージ',
       pageHref: '/messages',
@@ -416,6 +402,14 @@ export default function TestIndexPage() {
             >
               <ClipboardList className="w-4 h-4" />
               デザイン確認用（スタイルガイド）
+            </Link>
+            <Link
+              href="/dev/qr"
+              target="_blank"
+              className="px-4 py-2 bg-secondary text-white rounded-lg text-sm font-bold transition-colors hover:bg-secondary-dark shadow-sm flex items-center gap-2"
+            >
+              <QrCode className="w-4 h-4" />
+              スマホテスト用QR
             </Link>
           </div>
         </div>

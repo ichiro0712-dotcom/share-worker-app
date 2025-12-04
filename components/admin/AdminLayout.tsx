@@ -112,12 +112,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   return (
     <div className="flex h-screen bg-gray-50">
       {/* サイドバー */}
-      <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
+      <div className="w-64 bg-admin-sidebar border-r border-gray-800 flex flex-col">
         {/* ロゴ・施設名 */}
-        <div className="p-4 border-b border-gray-200">
+        <div className="p-4 border-b border-gray-800">
           <Link href="/admin" className="block">
-            <h1 className="text-lg font-bold text-blue-600 mb-1">S WORKS</h1>
-            <p className="text-xs text-gray-600">施設管理画面</p>
+            <h1 className="text-lg font-bold text-white mb-1">S WORKS</h1>
+            <p className="text-xs text-gray-400">施設管理画面</p>
           </Link>
         </div>
 
@@ -125,13 +125,13 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         <nav className="flex-1 overflow-y-auto py-4">
           {menuItems.map((item, index) => (
             <div key={index}>
-              {item.divider && <div className="my-2 border-t border-gray-200"></div>}
+              {item.divider && <div className="my-2 border-t border-gray-800"></div>}
               <Link
                 href={item.href}
-                className={`flex items-center gap-3 py-2.5 text-sm transition-colors ${item.isSubItem ? 'pl-8 pr-4' : 'px-4'
+                className={`flex items-center gap-3 py-2.5 mx-2 rounded-admin-button text-sm transition-colors ${item.isSubItem ? 'pl-8 pr-4' : 'px-4'
                   } ${item.active
-                    ? 'bg-blue-50 text-blue-600 font-medium border-r-2 border-blue-600'
-                    : 'text-gray-700 hover:bg-gray-50'
+                    ? 'bg-blue-500/20 text-blue-400 font-medium'
+                    : 'text-gray-300 hover:text-white hover:bg-white/10'
                   }`}
               >
                 {item.icon}
@@ -142,23 +142,23 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         </nav>
 
         {/* ユーザー情報・ログアウト */}
-        <div className="p-4 border-t border-gray-200">
+        <div className="p-4 border-t border-gray-800">
           <div className="mb-3">
             <p className="text-xs text-gray-500 mb-1">ログイン中</p>
-            <p className="text-sm font-medium text-gray-900">{admin?.name}</p>
+            <p className="text-sm font-medium text-white">{admin?.name}</p>
           </div>
-          <div className="mb-3 flex items-center justify-center gap-3 text-xs text-gray-600">
-            <Link href="/admin/terms" className="hover:text-blue-600 hover:underline">
+          <div className="mb-3 flex items-center justify-center gap-3 text-xs text-gray-500">
+            <Link href="/admin/terms" className="hover:text-blue-400 hover:underline">
               利用規約
             </Link>
             <span>•</span>
-            <Link href="/admin/privacy" className="hover:text-blue-600 hover:underline">
+            <Link href="/admin/privacy" className="hover:text-blue-400 hover:underline">
               プライバシーポリシー
             </Link>
           </div>
           <button
             onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm text-gray-400 border border-gray-700 rounded-admin-button hover:bg-white/5 hover:text-white transition-colors"
           >
             <LogOut className="w-4 h-4" />
             ログアウト

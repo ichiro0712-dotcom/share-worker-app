@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Upload, X, Eye, User, Loader2 } from 'lucide-react';
-import Image from 'next/image';
 import toast from 'react-hot-toast';
 import { getFacilityInfo, updateFacilityBasicInfo } from '@/src/lib/actions';
 
@@ -69,6 +68,8 @@ export default function FacilityPage() {
     items: [] as string[],
     images: [] as File[],
   });
+  // 既存の服装画像URL
+  const [existingDresscodeImages, setExistingDresscodeImages] = useState<string[]>([]);
 
   const dresscodeOptions = [
     '制服貸与', '私服', '動きやすい服装', 'スニーカー', '靴下', 'エプロン',
@@ -87,6 +88,7 @@ export default function FacilityPage() {
     transportationNote: '',
     mapLat: 35.6465,
     mapLng: 139.7102,
+    mapImage: '' as string,
   });
 
   const transportationOptions = ['車', 'バイク', '自転車', '公共交通機関（電車・バス・徒歩）'];
@@ -232,11 +234,21 @@ export default function FacilityPage() {
       try {
         const data = await getFacilityInfo(admin.facilityId);
         if (data) {
+          console.log('[loadFacilityInfo] Loaded data:', data);
+
           // 法人情報をセット
-          setCorporateInfo((prev) => ({
-            ...prev,
+          setCorporateInfo({
             name: data.corporationName || '',
-          }));
+            representativeLastName: data.representativeLastName || '',
+            representativeFirstName: data.representativeFirstName || '',
+            phone: data.phoneNumber || '',
+            prefecture: data.prefecture || '',
+            city: data.city || '',
+            addressDetail: data.addressDetail || '',
+            email: data.email || '',
+            contactPersonLastName: data.contactPersonLastName || '',
+            contactPersonFirstName: data.contactPersonFirstName || '',
+          });
 
           // 施設情報をセット
           setFacilityInfo({
@@ -244,7 +256,57 @@ export default function FacilityPage() {
             serviceType: data.facilityType || '',
           });
 
-          // 初回メッセージをセット（DBに保存されていればそれを使う、なければデフォルト）
+          // 責任者情報をセット
+          setManagerInfo((prev) => ({
+            ...prev,
+            lastName: data.managerLastName || '斉藤',
+            firstName: data.managerFirstName || '健一',
+            photoPreview: data.managerPhoto || '',
+            greeting: data.managerGreeting || prev.greeting,
+          }));
+
+          // 担当者情報をセット
+          setStaffInfo({
+            sameAsManager: data.staffSameAsManager || false,
+            lastName: data.staffLastName || '田中',
+            firstName: data.staffFirstName || '美咲',
+            phone: data.staffPhone || '080-1234-5678',
+            emergencyContact: data.emergencyContact || `担当不在の場合は、電話口の者に伝言をお願いいたします。
+誰も出ない場合は、下記番号にお電話くださいませ。
+大東（ダイトウ）：080-7441-7699`,
+            emails: data.staffEmails && data.staffEmails.length > 0
+              ? data.staffEmails
+              : ['tanaka@caretech.co.jp'],
+          });
+
+          // アクセス情報をセット
+          setAccessInfo({
+            stations: data.stations && data.stations.length > 0
+              ? data.stations
+              : [{ name: '恵比寿駅', minutes: 5 }],
+            accessDescription: data.accessDescription || '恵比寿駅東口より徒歩5分、明治通り沿い',
+            transportation: data.transportation || [],
+            parking: data.parking || '',
+            transportationNote: data.transportationNote || '',
+            mapLat: data.lat || 35.6465,
+            mapLng: data.lng || 139.7102,
+            mapImage: data.mapImage || '',
+          });
+
+          // 服装情報をセット
+          setDresscodeInfo({
+            items: data.dresscodeItems || [],
+            images: [], // File[]なので、ここでは空配列
+          });
+          setExistingDresscodeImages(data.dresscodeImages || []);
+
+          // 喫煙情報をセット
+          setSmokingInfo({
+            measure: data.smokingMeasure || '',
+            workInSmokingArea: data.workInSmokingArea || '',
+          });
+
+          // 初回メッセージをセット
           setWelcomeMessage((prev) => ({
             ...prev,
             text: data.initialMessage || defaultWelcomeMessage,
@@ -392,17 +454,63 @@ export default function FacilityPage() {
 
     if (!admin?.facilityId) {
       toast.error('施設IDが取得できません');
+      console.error('[handleSave] No facilityId. admin:', admin);
       return;
     }
+
+    console.log('[handleSave] Saving with facilityId:', admin.facilityId);
 
     setIsSaving(true);
     try {
       const result = await updateFacilityBasicInfo(admin.facilityId, {
+        // 基本情報
         corporationName: corporateInfo.name,
         facilityName: facilityInfo.name,
         facilityType: facilityInfo.serviceType,
         initialMessage: welcomeMessage.text,
+
+        // 法人情報
+        representativeLastName: corporateInfo.representativeLastName,
+        representativeFirstName: corporateInfo.representativeFirstName,
+        phone: corporateInfo.phone,
+        prefecture: corporateInfo.prefecture,
+        city: corporateInfo.city,
+        addressDetail: corporateInfo.addressDetail,
+        email: corporateInfo.email,
+        contactPersonLastName: corporateInfo.contactPersonLastName,
+        contactPersonFirstName: corporateInfo.contactPersonFirstName,
+
+        // 責任者情報
+        managerLastName: managerInfo.lastName,
+        managerFirstName: managerInfo.firstName,
+        managerPhoto: managerInfo.photoPreview, // 注: 画像アップロード処理が別途必要
+        managerGreeting: managerInfo.greeting,
+
+        // 担当者情報
+        staffSameAsManager: staffInfo.sameAsManager,
+        staffLastName: staffInfo.lastName,
+        staffFirstName: staffInfo.firstName,
+        staffPhone: staffInfo.phone,
+        emergencyContact: staffInfo.emergencyContact,
+        staffEmails: staffInfo.emails,
+
+        // アクセス情報
+        stations: accessInfo.stations,
+        accessDescription: accessInfo.accessDescription,
+        transportation: accessInfo.transportation,
+        parking: accessInfo.parking,
+        transportationNote: accessInfo.transportationNote,
+
+        // 服装情報（画像アップロード処理が別途必要）
+        dresscodeItems: dresscodeInfo.items,
+        // dresscodeImages: [], // 画像URLの配列を渡す（アップロード後）
+
+        // 喫煙情報
+        smokingMeasure: smokingInfo.measure,
+        workInSmokingArea: smokingInfo.workInSmokingArea,
       });
+
+      console.log('[handleSave] Result:', result);
 
       if (result.success) {
         toast.success('保存しました');
@@ -461,7 +569,7 @@ export default function FacilityPage() {
                     type="text"
                     value={corporateInfo.name}
                     onChange={(e) => setCorporateInfo({ ...corporateInfo, name: e.target.value })}
-                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
                   />
                 </div>
                 <div>
@@ -474,14 +582,14 @@ export default function FacilityPage() {
                       value={corporateInfo.representativeLastName}
                       onChange={(e) => setCorporateInfo({ ...corporateInfo, representativeLastName: e.target.value })}
                       placeholder="姓"
-                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
                     />
                     <input
                       type="text"
                       value={corporateInfo.representativeFirstName}
                       onChange={(e) => setCorporateInfo({ ...corporateInfo, representativeFirstName: e.target.value })}
                       placeholder="名"
-                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
                     />
                   </div>
                 </div>
@@ -498,7 +606,7 @@ export default function FacilityPage() {
                     onChange={(e) => {
                       setCorporateInfo({ ...corporateInfo, prefecture: e.target.value, city: '' });
                     }}
-                    className="col-span-1 px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    className="col-span-1 px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
                   >
                     <option value="">選択</option>
                     {prefectures.map((pref) => (
@@ -511,7 +619,7 @@ export default function FacilityPage() {
                     value={corporateInfo.city}
                     onChange={(e) => setCorporateInfo({ ...corporateInfo, city: e.target.value })}
                     disabled={!corporateInfo.prefecture}
-                    className="col-span-2 px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
+                    className="col-span-2 px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
                   >
                     <option value="">
                       {corporateInfo.prefecture ? '選択してください' : '都道府県を選択してください'}
@@ -527,7 +635,7 @@ export default function FacilityPage() {
                     value={corporateInfo.addressDetail}
                     onChange={(e) => setCorporateInfo({ ...corporateInfo, addressDetail: e.target.value })}
                     placeholder="その他住所"
-                    className="col-span-3 px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    className="col-span-3 px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
                   />
                 </div>
               </div>
@@ -544,14 +652,14 @@ export default function FacilityPage() {
                       value={corporateInfo.contactPersonLastName}
                       onChange={(e) => setCorporateInfo({ ...corporateInfo, contactPersonLastName: e.target.value })}
                       placeholder="姓"
-                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
                     />
                     <input
                       type="text"
                       value={corporateInfo.contactPersonFirstName}
                       onChange={(e) => setCorporateInfo({ ...corporateInfo, contactPersonFirstName: e.target.value })}
                       placeholder="名"
-                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
                     />
                   </div>
                 </div>
@@ -563,7 +671,7 @@ export default function FacilityPage() {
                     type="tel"
                     value={corporateInfo.phone}
                     onChange={(e) => setCorporateInfo({ ...corporateInfo, phone: e.target.value })}
-                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
                   />
                 </div>
                 <div className="col-span-2">
@@ -574,7 +682,7 @@ export default function FacilityPage() {
                     type="email"
                     value={corporateInfo.email}
                     onChange={(e) => setCorporateInfo({ ...corporateInfo, email: e.target.value })}
-                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
                   />
                 </div>
               </div>
@@ -597,7 +705,7 @@ export default function FacilityPage() {
                     type="text"
                     value={facilityInfo.name}
                     onChange={(e) => setFacilityInfo({ ...facilityInfo, name: e.target.value })}
-                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
                   />
                 </div>
                 <div>
@@ -607,7 +715,7 @@ export default function FacilityPage() {
                   <select
                     value={facilityInfo.serviceType}
                     onChange={(e) => setFacilityInfo({ ...facilityInfo, serviceType: e.target.value })}
-                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
                   >
                     <option value="">選択してください</option>
                     {serviceTypes.map((type) => (
@@ -634,14 +742,14 @@ export default function FacilityPage() {
                         value={managerInfo.lastName}
                         onChange={(e) => setManagerInfo({ ...managerInfo, lastName: e.target.value })}
                         placeholder="姓"
-                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
                       />
                       <input
                         type="text"
                         value={managerInfo.firstName}
                         onChange={(e) => setManagerInfo({ ...managerInfo, firstName: e.target.value })}
                         placeholder="名"
-                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
                       />
                     </div>
                   </div>
@@ -655,11 +763,9 @@ export default function FacilityPage() {
                       <div className="relative">
                         <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-gray-200 bg-gray-100 flex items-center justify-center">
                           {managerInfo.photoPreview ? (
-                            <Image
+                            <img
                               src={managerInfo.photoPreview}
                               alt="責任者写真"
-                              width={96}
-                              height={96}
                               className="w-full h-full object-cover"
                             />
                           ) : (
@@ -709,7 +815,7 @@ export default function FacilityPage() {
                       value={managerInfo.greeting}
                       onChange={(e) => setManagerInfo({ ...managerInfo, greeting: e.target.value })}
                       rows={5}
-                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
                     />
                   </div>
                 </div>
@@ -726,7 +832,7 @@ export default function FacilityPage() {
                         type="checkbox"
                         checked={staffInfo.sameAsManager}
                         onChange={(e) => setStaffInfo({ ...staffInfo, sameAsManager: e.target.checked })}
-                        className="rounded border-gray-300 text-primary focus:ring-primary"
+                        className="rounded border-gray-300 text-admin-primary focus:ring-admin-primary"
                       />
                       <span className="text-sm text-gray-700">責任者と同じ</span>
                     </label>
@@ -743,14 +849,14 @@ export default function FacilityPage() {
                           value={staffInfo.lastName}
                           onChange={(e) => setStaffInfo({ ...staffInfo, lastName: e.target.value })}
                           placeholder="姓"
-                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
                         />
                         <input
                           type="text"
                           value={staffInfo.firstName}
                           onChange={(e) => setStaffInfo({ ...staffInfo, firstName: e.target.value })}
                           placeholder="名"
-                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
                         />
                       </div>
                     </div>
@@ -764,7 +870,7 @@ export default function FacilityPage() {
                       type="tel"
                       value={staffInfo.phone}
                       onChange={(e) => setStaffInfo({ ...staffInfo, phone: e.target.value })}
-                      className="w-full max-w-xs px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                      className="w-full max-w-xs px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
                     />
                   </div>
 
@@ -776,7 +882,7 @@ export default function FacilityPage() {
                       value={staffInfo.emergencyContact}
                       onChange={(e) => setStaffInfo({ ...staffInfo, emergencyContact: e.target.value })}
                       rows={3}
-                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
                       placeholder="担当不在の場合は、電話口の者に伝言をお願いいたします。&#10;誰も出ない場合は、下記番号にお電話くださいませ。&#10;大東（ダイトウ）：080-7441-7699"
                     />
                   </div>
@@ -793,7 +899,7 @@ export default function FacilityPage() {
                             value={email}
                             onChange={(e) => updateEmail(index, e.target.value)}
                             placeholder={index === 0 ? 'メインアドレス（必須）' : `サブアドレス ${index}`}
-                            className="flex-1 max-w-md px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                            className="flex-1 max-w-md px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
                           />
                           {index > 0 && (
                             <button
@@ -808,7 +914,7 @@ export default function FacilityPage() {
                       {staffInfo.emails.length < 10 && (
                         <button
                           onClick={addEmail}
-                          className="text-sm text-primary hover:text-primary-dark"
+                          className="text-sm text-admin-primary hover:text-admin-primary-dark"
                         >
                           + メールアドレスを追加
                         </button>
@@ -839,7 +945,7 @@ export default function FacilityPage() {
                         value={station.name}
                         onChange={(e) => updateStation(index, 'name', e.target.value)}
                         placeholder="駅名を入力"
-                        className="flex-1 max-w-xs px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                        className="flex-1 max-w-xs px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
                       />
                       <span className="text-sm text-gray-600">から</span>
                       <input
@@ -848,7 +954,7 @@ export default function FacilityPage() {
                         onChange={(e) => updateStation(index, 'minutes', parseInt(e.target.value) || 0)}
                         placeholder="0"
                         min="0"
-                        className="w-20 px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                        className="w-20 px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
                       />
                       <span className="text-sm text-gray-600">分</span>
                       {accessInfo.stations.length > 1 && (
@@ -864,7 +970,7 @@ export default function FacilityPage() {
                   {accessInfo.stations.length < 3 && (
                     <button
                       onClick={addStation}
-                      className="text-sm text-primary hover:text-primary-dark"
+                      className="text-sm text-admin-primary hover:text-admin-primary-dark"
                     >
                       + 駅を追加
                     </button>
@@ -883,7 +989,7 @@ export default function FacilityPage() {
                   onChange={(e) => setAccessInfo({ ...accessInfo, accessDescription: e.target.value })}
                   maxLength={40}
                   placeholder="例：恵比寿駅東口より徒歩5分、明治通り沿い"
-                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
                 />
               </div>
 
@@ -911,7 +1017,7 @@ export default function FacilityPage() {
                             });
                           }
                         }}
-                        className="rounded border-gray-300 text-primary focus:ring-primary"
+                        className="rounded border-gray-300 text-admin-primary focus:ring-admin-primary"
                       />
                       <span className="text-gray-700">{option}</span>
                     </label>
@@ -927,7 +1033,7 @@ export default function FacilityPage() {
                 <select
                   value={accessInfo.parking}
                   onChange={(e) => setAccessInfo({ ...accessInfo, parking: e.target.value })}
-                  className="w-full max-w-md px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  className="w-full max-w-md px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
                 >
                   {parkingOptions.map((option) => (
                     <option key={option} value={option}>
@@ -947,7 +1053,7 @@ export default function FacilityPage() {
                   onChange={(e) => setAccessInfo({ ...accessInfo, transportationNote: e.target.value })}
                   rows={3}
                   placeholder="例：車通勤の場合は事前に申請が必要です"
-                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
                 />
               </div>
 
@@ -957,12 +1063,19 @@ export default function FacilityPage() {
                   マップ
                 </label>
                 <div className="space-y-2">
-                  <div className="w-full h-64 bg-gray-100 rounded-lg border border-gray-300 flex items-center justify-center">
-                    <div className="text-center text-gray-500">
-                      <p className="text-sm mb-2">Google Maps プレビュー</p>
-                      <p className="text-xs">住所: {corporateInfo.prefecture}{corporateInfo.city}{corporateInfo.addressDetail}</p>
-                      <p className="text-xs">座標: {accessInfo.mapLat}, {accessInfo.mapLng}</p>
-                    </div>
+                  <div className="w-full h-64 bg-gray-100 rounded-lg border border-gray-300 flex items-center justify-center overflow-hidden">
+                    {accessInfo.mapImage ? (
+                      <img
+                        src={accessInfo.mapImage}
+                        alt="施設周辺地図"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="text-center text-gray-500">
+                        <p className="text-sm mb-2">地図画像がありません</p>
+                        <p className="text-xs">住所を登録後、「地図画像を更新」ボタンで取得できます</p>
+                      </div>
+                    )}
                   </div>
                   <button
                     onClick={() => toast('マップピンの調整機能は開発中です', { icon: '🚧' })}
@@ -989,15 +1102,38 @@ export default function FacilityPage() {
                     服装サンプル画像
                   </label>
                   <div className="space-y-2">
+                    {/* 既存画像の表示 */}
+                    {existingDresscodeImages.length > 0 && (
+                      <div className="grid grid-cols-4 gap-2 mb-2">
+                        {existingDresscodeImages.map((url, index) => (
+                          <div key={`existing-${index}`} className="relative aspect-video">
+                            <img
+                              src={url}
+                              alt={`服装サンプル${index + 1}`}
+                              className="absolute inset-0 w-full h-full object-cover rounded-lg border border-gray-200"
+                            />
+                            <button
+                              onClick={() => {
+                                setExistingDresscodeImages(existingDresscodeImages.filter((_, i) => i !== index));
+                              }}
+                              className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-600"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* 新規アップロード画像の表示 */}
                     {dresscodeInfo.images.length > 0 && (
                       <div className="grid grid-cols-4 gap-2">
                         {dresscodeInfo.images.map((file, index) => (
                           <div key={index} className="relative aspect-video">
-                            <Image
+                            <img
                               src={URL.createObjectURL(file)}
                               alt={`服装サンプル${index + 1}`}
-                              fill
-                              className="object-cover rounded-lg border border-gray-200"
+                              className="absolute inset-0 w-full h-full object-cover rounded-lg border border-gray-200"
                             />
                             <button
                               onClick={() => removeDresscodeImage(index)}
@@ -1046,7 +1182,7 @@ export default function FacilityPage() {
                     <select
                       value={smokingInfo.measure}
                       onChange={(e) => setSmokingInfo({ ...smokingInfo, measure: e.target.value })}
-                      className="w-full max-w-md px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                      className="w-full max-w-md px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
                     >
                       {smokingMeasures.map((measure) => (
                         <option key={measure} value={measure}>
@@ -1068,7 +1204,7 @@ export default function FacilityPage() {
                           value="有り"
                           checked={smokingInfo.workInSmokingArea === '有り'}
                           onChange={(e) => setSmokingInfo({ ...smokingInfo, workInSmokingArea: e.target.value })}
-                          className="border-gray-300 text-primary focus:ring-primary"
+                          className="border-gray-300 text-admin-primary focus:ring-admin-primary"
                         />
                         <span className="text-sm text-gray-700">有り</span>
                       </label>
@@ -1079,7 +1215,7 @@ export default function FacilityPage() {
                           value="無し"
                           checked={smokingInfo.workInSmokingArea === '無し'}
                           onChange={(e) => setSmokingInfo({ ...smokingInfo, workInSmokingArea: e.target.value })}
-                          className="border-gray-300 text-primary focus:ring-primary"
+                          className="border-gray-300 text-admin-primary focus:ring-admin-primary"
                         />
                         <span className="text-sm text-gray-700">無し</span>
                       </label>

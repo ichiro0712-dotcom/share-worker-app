@@ -309,16 +309,15 @@ export function JobListClient({ jobs, facilities }: JobListClientProps) {
   }, [dates, selectedDateIndex]);
 
   return (
-    <div className="min-h-screen bg-white pb-20">
+    <div className="min-h-screen bg-background pb-20">
       {/* ヘッダー */}
       <div className="bg-white sticky top-0 z-10 border-b border-gray-200">
         {/* タブ */}
         <div className="flex border-b border-gray-200">
           <button
             onClick={() => handleTabClick('all')}
-            className={`flex-1 py-3 text-sm relative flex items-center justify-center ${
-              activeTab === 'all' ? 'text-primary' : 'text-gray-500'
-            }`}
+            className={`flex-1 py-3 text-sm relative flex items-center justify-center ${activeTab === 'all' ? 'text-primary' : 'text-gray-500'
+              }`}
           >
             全体
             {activeTab === 'all' && (
@@ -327,9 +326,8 @@ export function JobListClient({ jobs, facilities }: JobListClientProps) {
           </button>
           <button
             onClick={() => handleTabClick('limited')}
-            className={`flex-1 py-3 text-sm relative flex items-center justify-center ${
-              activeTab === 'limited' ? 'text-primary' : 'text-gray-500'
-            }`}
+            className={`flex-1 py-3 text-sm relative flex items-center justify-center ${activeTab === 'limited' ? 'text-primary' : 'text-gray-500'
+              }`}
           >
             限定
             {activeTab === 'limited' && (
@@ -338,9 +336,8 @@ export function JobListClient({ jobs, facilities }: JobListClientProps) {
           </button>
           <button
             onClick={() => handleTabClick('nominated')}
-            className={`flex-1 py-3 text-sm relative flex items-center justify-center ${
-              activeTab === 'nominated' ? 'text-primary' : 'text-gray-500'
-            }`}
+            className={`flex-1 py-3 text-sm relative flex items-center justify-center ${activeTab === 'nominated' ? 'text-primary' : 'text-gray-500'
+              }`}
           >
             指名
             {activeTab === 'nominated' && (
@@ -379,9 +376,8 @@ export function JobListClient({ jobs, facilities }: JobListClientProps) {
                         setSortOrder('distance');
                         setShowSortMenu(false);
                       }}
-                      className={`block w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${
-                        sortOrder === 'distance' ? 'text-primary' : ''
-                      }`}
+                      className={`block w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${sortOrder === 'distance' ? 'text-primary' : ''
+                        }`}
                     >
                       近い順
                     </button>
@@ -390,9 +386,8 @@ export function JobListClient({ jobs, facilities }: JobListClientProps) {
                         setSortOrder('wage');
                         setShowSortMenu(false);
                       }}
-                      className={`block w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${
-                        sortOrder === 'wage' ? 'text-primary' : ''
-                      }`}
+                      className={`block w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${sortOrder === 'wage' ? 'text-primary' : ''
+                        }`}
                     >
                       時給順
                     </button>
@@ -401,9 +396,8 @@ export function JobListClient({ jobs, facilities }: JobListClientProps) {
                         setSortOrder('deadline');
                         setShowSortMenu(false);
                       }}
-                      className={`block w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${
-                        sortOrder === 'deadline' ? 'text-primary' : ''
-                      }`}
+                      className={`block w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${sortOrder === 'deadline' ? 'text-primary' : ''
+                        }`}
                     >
                       締切順
                     </button>
@@ -477,35 +471,33 @@ export function JobListClient({ jobs, facilities }: JobListClientProps) {
 
           {/* ページネーション */}
           <div className="px-4 py-4 flex items-center justify-center gap-4">
-        <button
-          onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-          disabled={currentPage === 1}
-          className={`px-4 py-2 rounded-lg ${
-            currentPage === 1
-              ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-              : 'bg-primary text-white hover:bg-primary/90'
-          }`}
-        >
-          ← 前へ
-        </button>
-        <span className="text-sm text-gray-600">
-          {currentPage} / {Math.ceil(sortedJobs.length / itemsPerPage)}
-        </span>
-        <button
-          onClick={() =>
-            setCurrentPage((prev) =>
-              Math.min(Math.ceil(sortedJobs.length / itemsPerPage), prev + 1)
-            )
-          }
-          disabled={currentPage === Math.ceil(sortedJobs.length / itemsPerPage)}
-          className={`px-4 py-2 rounded-lg ${
-            currentPage === Math.ceil(sortedJobs.length / itemsPerPage)
-              ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-              : 'bg-primary text-white hover:bg-primary/90'
-          }`}
-        >
-          次へ →
-        </button>
+            <button
+              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className={`px-4 py-2 rounded-lg ${currentPage === 1
+                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  : 'bg-primary text-white hover:bg-primary/90'
+                }`}
+            >
+              ← 前へ
+            </button>
+            <span className="text-sm text-gray-600">
+              {currentPage} / {Math.ceil(sortedJobs.length / itemsPerPage)}
+            </span>
+            <button
+              onClick={() =>
+                setCurrentPage((prev) =>
+                  Math.min(Math.ceil(sortedJobs.length / itemsPerPage), prev + 1)
+                )
+              }
+              disabled={currentPage === Math.ceil(sortedJobs.length / itemsPerPage)}
+              className={`px-4 py-2 rounded-lg ${currentPage === Math.ceil(sortedJobs.length / itemsPerPage)
+                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  : 'bg-primary text-white hover:bg-primary/90'
+                }`}
+            >
+              次へ →
+            </button>
           </div>
         </>
       )}

@@ -85,7 +85,7 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
     managerAvatar: jobData.manager_avatar || '👤',
     images: jobData.images,
     badges: [],
-    mapImage: '/images/map-placeholder.png',
+    mapImage: jobData.facility.map_image || '/images/map-placeholder.png',
     transportMethods,
     parking: jobData.has_parking,
     accessDescription: jobData.access,
