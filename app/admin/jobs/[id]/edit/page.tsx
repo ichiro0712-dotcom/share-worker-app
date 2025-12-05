@@ -95,6 +95,7 @@ export default function EditJobPage() {
     recruitmentEndDay: 1,
     recruitmentEndTime: '12:00',
     dismissalReasons: DEFAULT_DISMISSAL_REASONS,
+    requiresInterview: false, // 面接してからマッチング
   });
 
   const [skillInput, setSkillInput] = useState('');
@@ -217,6 +218,7 @@ export default function EditJobPage() {
           recruitmentEndDay: 1,
           recruitmentEndTime: '12:00',
           dismissalReasons: DEFAULT_DISMISSAL_REASONS,
+          requiresInterview: jobData.requires_interview || false,
         });
       } catch (error) {
         console.error('Failed to fetch data:', error);
@@ -526,6 +528,7 @@ export default function EditJobPage() {
         attachments: attachmentUrls,
         addWorkDates: addedWorkDates,
         removeWorkDateIds: removedWorkDateIds,
+        requiresInterview: formData.requiresInterview,
       });
 
       if (result.success) {
@@ -625,6 +628,25 @@ export default function EditJobPage() {
                     ))}
                   </select>
                 </div>
+              </div>
+
+              {/* マッチング方法 */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.requiresInterview}
+                    onChange={(e) => handleInputChange('requiresInterview', e.target.checked)}
+                    className="mt-0.5 w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <div>
+                    <span className="text-sm font-medium text-gray-900">面接してからマッチング</span>
+                    <p className="text-xs text-gray-600 mt-1">
+                      ワーカーからの応募後に面接・選考を行ってからマッチングを決定できます。<br />
+                      <span className="text-red-500 font-bold">※チェックを入れない方がマッチング率は高くなります</span>
+                    </p>
+                  </div>
+                </label>
               </div>
 
               {/* テンプレート選択 */}

@@ -25,6 +25,7 @@ export interface Job {
   access: string;
   recruitmentCount: number; // 募集人数
   appliedCount: number; // 応募済み人数
+  matchedCount?: number; // マッチング済み人数
   transportationFee: number;
   overview: string;
   workContent: string[];
@@ -46,4 +47,6 @@ export interface Job {
   mapImage: string;
   // 特徴タグ（こだわり条件）
   featureTags?: string[];
+  // マッチング方法
+  requiresInterview?: boolean;
 }

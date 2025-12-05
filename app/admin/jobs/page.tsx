@@ -87,6 +87,7 @@ interface JobData {
   facilityWithin5years: boolean;
   weeklyFrequency: number | null;
   monthlyCommitment: boolean;
+  requiresInterview: boolean;
 }
 
 interface TemplateData {
@@ -599,6 +600,15 @@ export default function AdminJobsList() {
                           {statusInfo.label}
                         </span>
                       </div>
+
+                      {/* 面接ありバッジ */}
+                      {job.requiresInterview && (
+                        <div className="flex-shrink-0">
+                          <span className="px-2 py-0.5 text-xs font-medium rounded bg-orange-100 text-orange-700">
+                            面接あり
+                          </span>
+                        </div>
+                      )}
 
                       {/* テンプレート名（求人名） */}
                       <div className="flex-1 min-w-0">

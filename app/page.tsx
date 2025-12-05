@@ -92,6 +92,7 @@ export default async function JobListPage({ searchParams }: PageProps) {
       access: job.access,
       recruitmentCount: job.recruitment_count,
       appliedCount: job.applied_count,
+      matchedCount: job.matched_count,
       transportationFee: job.transportation_fee,
       overview: job.overview,
       workContent: job.work_content,
@@ -110,6 +111,7 @@ export default async function JobListPage({ searchParams }: PageProps) {
       parking: job.has_parking,
       accessDescription: job.access,
       featureTags,
+      requiresInterview: job.requires_interview,
     };
   });
 

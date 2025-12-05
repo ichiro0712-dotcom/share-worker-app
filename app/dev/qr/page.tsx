@@ -12,7 +12,7 @@ export default function DevQRPage() {
   useEffect(() => {
     // ローカルIPを取得（手動設定）
     // 実際のIPは ifconfig | grep "inet " で確認
-    const ip = '192.168.0.108';
+    const ip = '10.118.154.240';
     setLocalIP(ip);
 
     const url = `http://${ip}:${port}`;

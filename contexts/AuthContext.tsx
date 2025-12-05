@@ -45,9 +45,11 @@ function AuthContextProvider({ children }: { children: ReactNode }) {
   // セッション状態を復元
   useEffect(() => {
     const restoreSession = () => {
+      console.log('[AuthContext] restoreSession started');
       const sessionData = getAdminSession();
 
       if (sessionData) {
+        console.log('[AuthContext] Session found in localStorage (secure)');
         const adminData = {
           id: sessionData.adminId,
           email: sessionData.email,
@@ -60,6 +62,7 @@ function AuthContextProvider({ children }: { children: ReactNode }) {
         setAdmin(adminData);
         setSessionRemainingMinutes(getSessionRemainingMinutes());
       } else {
+        console.log('[AuthContext] No secure session found, checking legacy');
         // 互換性のためlocalStorageもチェック
         const storedAdmin = localStorage.getItem('currentAdmin');
         if (storedAdmin) {
@@ -79,6 +82,7 @@ function AuthContextProvider({ children }: { children: ReactNode }) {
           }
         }
       }
+      console.log('[AuthContext] restoreSession completed, setting adminLoaded to true');
       setAdminLoaded(true);
     };
 

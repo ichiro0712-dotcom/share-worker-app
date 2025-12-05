@@ -235,6 +235,8 @@ model Job {
   weekly_frequency        Int?          @map("weekly_frequency")
   /// 1ヶ月以上勤務できる人を募集
   monthly_commitment      Boolean       @default(false) @map("monthly_commitment")
+  /// 面接してからマッチング（true: 応募後に施設が手動でマッチング決定、false: 即時マッチング）
+  requires_interview      Boolean       @default(false) @map("requires_interview")
   created_at              DateTime      @default(now()) @map("created_at")
   updated_at              DateTime      @updatedAt @map("updated_at")
   bookmarks               Bookmark[]
@@ -266,17 +268,21 @@ model JobWorkDate {
 }
 
 model Application {
-  id                     Int          @id @default(autoincrement())
-  work_date_id           Int          @map("work_date_id")
-  user_id                Int          @map("user_id")
-  status                 WorkerStatus @default(APPLIED)
-  worker_review_status   ReviewStatus @default(PENDING) @map("worker_review_status")
-  facility_review_status ReviewStatus @default(PENDING) @map("facility_review_status")
+  id                     Int           @id @default(autoincrement())
+  work_date_id           Int           @map("work_date_id")
+  user_id                Int           @map("user_id")
+  status                 WorkerStatus  @default(APPLIED)
+  worker_review_status   ReviewStatus  @default(PENDING) @map("worker_review_status")
+  facility_review_status ReviewStatus  @default(PENDING) @map("facility_review_status")
   message                String?
-  created_at             DateTime     @default(now()) @map("created_at")
-  updated_at             DateTime     @updatedAt @map("updated_at")
-  user                   User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  workDate               JobWorkDate  @relation(fields: [work_date_id], references: [id], onDelete: Cascade)
+  /// キャンセル実行者（WORKER: ワーカー、FACILITY: 施設）
+  cancelled_by           CancelledBy?  @map("cancelled_by")
+  /// 施設キャンセル通知の既読日時（nullなら未読）
+  cancel_notified_at     DateTime?     @map("cancel_notified_at")
+  created_at             DateTime      @default(now()) @map("created_at")
+  updated_at             DateTime      @updatedAt @map("updated_at")
+  user                   User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  workDate               JobWorkDate   @relation(fields: [work_date_id], references: [id], onDelete: Cascade)
   messages               Message[]
   reviews                Review[]
 
@@ -426,6 +432,14 @@ enum NotificationType {
   NEW_MESSAGE
   REVIEW_REQUEST
   SYSTEM
+  APPLICATION_CANCELLED
 
   @@map("notification_type")
+}
+
+enum CancelledBy {
+  WORKER
+  FACILITY
+
+  @@map("cancelled_by")
 }

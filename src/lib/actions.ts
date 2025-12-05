@@ -328,6 +328,10 @@ export async function getJobs(searchParams?: JobSearchParams) {
     const nearestWorkDate = job.workDates.length > 0 ? job.workDates[0] : null;
     // 総応募数を計算
     const totalAppliedCount = job.workDates.reduce((sum, wd) => sum + wd.applied_count, 0);
+    // 総マッチング数を計算
+    const totalMatchedCount = job.workDates.reduce((sum, wd) => sum + wd.matched_count, 0);
+    // 総募集数を計算
+    const totalRecruitmentCount = job.workDates.reduce((sum, wd) => sum + wd.recruitment_count, 0);
 
     return {
       ...job,
@@ -335,6 +339,8 @@ export async function getJobs(searchParams?: JobSearchParams) {
       work_date: nearestWorkDate ? nearestWorkDate.work_date.toISOString() : null,
       deadline: nearestWorkDate ? nearestWorkDate.deadline.toISOString() : null,
       applied_count: totalAppliedCount,
+      matched_count: totalMatchedCount,
+      recruitment_count: totalRecruitmentCount,
       // 全ての勤務日情報
       workDates: job.workDates.map((wd) => ({
         ...wd,
@@ -350,6 +356,7 @@ export async function getJobs(searchParams?: JobSearchParams) {
         created_at: job.facility.created_at.toISOString(),
         updated_at: job.facility.updated_at.toISOString(),
       },
+      requires_interview: job.requires_interview,
     };
   });
 }
@@ -446,6 +453,8 @@ export async function getAdminJobsList(facilityId: number) {
       breakTime: job.break_time,
       templateId: job.template_id,
       templateName: job.template?.name || null,
+      // マッチング方法
+      requiresInterview: job.requires_interview,
     };
   });
 }
@@ -507,6 +516,7 @@ export async function getJobById(id: string) {
       created_at: job.facility.created_at.toISOString(),
       updated_at: job.facility.updated_at.toISOString(),
     },
+    requires_interview: job.requires_interview,
   };
 }
 
@@ -583,6 +593,24 @@ export async function applyForJob(jobId: string, workDateId?: number) {
 
     // 応募対象の勤務日を決定（指定がなければ最初の勤務日）
     const targetWorkDateId = workDateId || job.workDates[0].id;
+    const targetWorkDate = job.workDates.find(wd => wd.id === targetWorkDateId);
+
+    if (!targetWorkDate) {
+      console.error('[applyForJob] Target work date not found:', targetWorkDateId);
+      return {
+        success: false,
+        error: '勤務日が見つかりません',
+      };
+    }
+
+    // 募集人数上限チェック（マッチング済み人数が募集人数以上ならエラー）
+    // ただし、面接ありの求人は上限を超えて応募可能
+    if (!job.requires_interview && targetWorkDate.matched_count >= targetWorkDate.recruitment_count) {
+      return {
+        success: false,
+        error: 'この勤務日は既に募集人数に達しています',
+      };
+    }
 
     // 既に応募済みかチェック（キャンセル済みは除く）
     const existingApplication = await prisma.application.findFirst({
@@ -603,24 +631,36 @@ export async function applyForJob(jobId: string, workDateId?: number) {
       };
     }
 
+    // マッチング方式を判定
+    // 通常求人: 即時マッチング（SCHEDULED）
+    // 面接あり求人: 応募中（APPLIED）
+    const initialStatus = job.requires_interview ? 'APPLIED' : 'SCHEDULED';
+    const isImmediateMatch = !job.requires_interview;
+
+    console.log('[applyForJob] Creating application...', {
+      workDateId: targetWorkDateId,
+      userId: user.id,
+      requiresInterview: job.requires_interview,
+      initialStatus,
+    });
+
     // 応募を作成
-    console.log('[applyForJob] Creating application...', { workDateId: targetWorkDateId, userId: user.id });
     const application = await prisma.$transaction(async (tx) => {
       const app = await tx.application.create({
         data: {
           work_date_id: targetWorkDateId,
           user_id: user.id,
-          status: 'APPLIED',
+          status: initialStatus,
         },
       });
 
       // 応募数をインクリメント
+      // 即時マッチングの場合はmatched_countもインクリメント
       await tx.jobWorkDate.update({
         where: { id: targetWorkDateId },
         data: {
-          applied_count: {
-            increment: 1,
-          },
+          applied_count: { increment: 1 },
+          ...(isImmediateMatch && { matched_count: { increment: 1 } }),
         },
       });
 
@@ -637,9 +677,15 @@ export async function applyForJob(jobId: string, workDateId?: number) {
       application.id
     );
 
+    // メッセージを変更
+    const message = isImmediateMatch
+      ? 'マッチングが成立しました！勤務日をお待ちください。'
+      : '応募が完了しました。施設からの連絡をお待ちください。';
+
     return {
       success: true,
-      message: '応募が完了しました',
+      message,
+      isMatched: isImmediateMatch,
     };
   } catch (error) {
     console.error('[applyForJob] Error details:', {
@@ -751,6 +797,7 @@ export async function getMyApplications() {
           facility_id: job.facility_id,
           template_id: job.template_id,
           status: job.status,
+          requires_interview: job.requires_interview,
           title: job.title,
           // 互換性のため、応募した勤務日の情報をwork_dateとdeadlineに設定
           work_date: workDate.work_date.toISOString(),
@@ -2454,15 +2501,35 @@ export async function updateApplicationStatus(
       };
     }
 
+    // 施設側からのキャンセル時: 勤務開始時刻チェック
+    if (newStatus === 'CANCELLED' && application.status === 'SCHEDULED') {
+      const workDate = application.workDate.work_date;
+      const startTime = application.workDate.job.start_time; // "HH:MM" format
+      const [hours, minutes] = startTime.split(':').map(Number);
+
+      // 勤務開始日時を作成
+      const workStartDateTime = new Date(workDate);
+      workStartDateTime.setHours(hours, minutes, 0, 0);
+
+      const now = new Date();
+      if (now >= workStartDateTime) {
+        return {
+          success: false,
+          error: '勤務開始時刻を過ぎているためキャンセルできません',
+        };
+      }
+    }
+
     // ステータスを更新
     await prisma.$transaction(async (tx) => {
       // マッチング成立（APPLIED -> SCHEDULED）の場合のチェック
       if (newStatus === 'SCHEDULED' && application.status === 'APPLIED') {
-        const workDate = await tx.jobWorkDate.findUnique({
+        const workDate = await prisma.jobWorkDate.findUnique({
           where: { id: application.work_date_id },
+          include: { job: true },
         });
 
-        if (workDate && workDate.matched_count >= workDate.recruitment_count) {
+        if (workDate && !workDate.job.requires_interview && workDate.matched_count >= workDate.recruitment_count) {
           throw new Error('この勤務日は既に募集人数に達しています');
         }
 
@@ -2494,6 +2561,8 @@ export async function updateApplicationStatus(
         where: { id: applicationId },
         data: {
           status: newStatus,
+          // 施設側からのキャンセル時はcancelled_byを設定
+          ...(newStatus === 'CANCELLED' && { cancelled_by: 'FACILITY' }),
         },
       });
 
@@ -2541,6 +2610,33 @@ export async function updateApplicationStatus(
         application.workDate.job.title,
         applicationId
       );
+    }
+
+    // 施設キャンセル時はワーカーへ通知とシステムメッセージを送信
+    if (newStatus === 'CANCELLED' && application.status === 'SCHEDULED') {
+      const workDateStr = application.workDate.work_date.toISOString().split('T')[0];
+
+      // システムメッセージを送信（施設→ワーカー）
+      await prisma.message.create({
+        data: {
+          application_id: applicationId,
+          job_id: application.workDate.job_id,
+          from_facility_id: facilityId,
+          to_user_id: application.user_id,
+          content: `【システムメッセージ】\n「${application.workDate.job.title}」（${workDateStr}）のマッチングが施設によりキャンセルされました。\nご不明な点がございましたら、メッセージにてお問い合わせください。`,
+        },
+      });
+
+      // 通知を送信
+      await sendCancelNotification(
+        application.user_id,
+        application.workDate.job.title,
+        application.workDate.job.facility.facility_name,
+        workDateStr,
+        application.workDate.job.id
+      );
+
+      console.log('[updateApplicationStatus] Cancel notification and message sent');
     }
 
     console.log('[updateApplicationStatus] Status updated successfully');
@@ -2667,6 +2763,7 @@ export async function getFacilityApplicationsByWorker(facilityId: number) {
                 start_time: true,
                 end_time: true,
                 hourly_wage: true,
+                requires_interview: true,
               },
             },
           },
@@ -2769,6 +2866,7 @@ export async function getFacilityApplicationsByWorker(facilityId: number) {
             startTime: string;
             endTime: string;
             hourlyWage: number;
+            requiresInterview: boolean;
           };
         }[];
         latestApplicationAt: Date;
@@ -2790,6 +2888,7 @@ export async function getFacilityApplicationsByWorker(facilityId: number) {
           startTime: app.workDate.job.start_time,
           endTime: app.workDate.job.end_time,
           hourlyWage: app.workDate.job.hourly_wage,
+          requiresInterview: app.workDate.job.requires_interview,
         },
       };
 
@@ -3186,7 +3285,7 @@ export async function submitFacilityReviewForWorker(
  */
 async function createNotification(data: {
   userId: number;
-  type: 'APPLICATION_APPROVED' | 'APPLICATION_REJECTED' | 'NEW_MESSAGE' | 'REVIEW_REQUEST' | 'SYSTEM';
+  type: 'APPLICATION_APPROVED' | 'APPLICATION_REJECTED' | 'APPLICATION_CANCELLED' | 'NEW_MESSAGE' | 'REVIEW_REQUEST' | 'SYSTEM';
   title: string;
   message: string;
   link?: string;
@@ -3404,6 +3503,26 @@ export async function sendReviewRequestNotification(
     title: '評価をお願いします',
     message: `${facilityName}での「${jobTitle}」の勤務が完了しました。評価をお願いします。`,
     link: `/mypage/reviews/${applicationId}`,
+  });
+}
+
+/**
+ * 応募キャンセル通知を送信（ワーカー宛）
+ * 施設がマッチング済み応募をキャンセルした場合に送信
+ */
+export async function sendCancelNotification(
+  userId: number,
+  jobTitle: string,
+  facilityName: string,
+  workDate: string,
+  jobId: number
+) {
+  return createNotification({
+    userId,
+    type: 'APPLICATION_CANCELLED',
+    title: 'マッチングがキャンセルされました',
+    message: `${facilityName}の「${jobTitle}」（${workDate}）のマッチングがキャンセルされました。`,
+    link: `/jobs/${jobId}`,
   });
 }
 
@@ -3694,6 +3813,94 @@ export async function updateFacilityMapImage(facilityId: number, address: string
 }
 
 /**
+ * 施設の緯度経度を更新
+ */
+export async function updateFacilityLatLng(
+  facilityId: number,
+  lat: number,
+  lng: number
+) {
+  try {
+    await prisma.facility.update({
+      where: { id: facilityId },
+      data: { lat, lng },
+    });
+
+    revalidatePath('/admin/facility');
+    return { success: true };
+  } catch (error) {
+    console.error('[updateFacilityLatLng] Error:', error);
+    return { success: false, error: '緯度経度の更新に失敗しました' };
+  }
+}
+
+/**
+ * 緯度経度を指定して施設の地図画像を取得・更新
+ */
+export async function updateFacilityMapImageByLatLng(
+  facilityId: number,
+  lat: number,
+  lng: number
+) {
+  try {
+    // Google Maps Static APIで地図画像を取得
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+    if (!apiKey) {
+      return { success: false, error: 'Google Maps APIキーが設定されていません' };
+    }
+
+    const mapUrl = new URL('https://maps.googleapis.com/maps/api/staticmap');
+    mapUrl.searchParams.set('center', `${lat},${lng}`);
+    mapUrl.searchParams.set('zoom', '16');
+    mapUrl.searchParams.set('size', '600x300');
+    mapUrl.searchParams.set('scale', '2');
+    mapUrl.searchParams.set('markers', `color:red|${lat},${lng}`);
+    mapUrl.searchParams.set('key', apiKey);
+
+    const response = await fetch(mapUrl.toString());
+
+    if (!response.ok) {
+      console.error('[Maps API] Error:', response.status, response.statusText);
+      return { success: false, error: '地図画像の取得に失敗しました' };
+    }
+
+    const imageBuffer = await response.arrayBuffer();
+
+    // 保存先ディレクトリを作成
+    const { writeFile, mkdir } = await import('fs/promises');
+    const path = await import('path');
+    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'maps');
+    await mkdir(uploadDir, { recursive: true });
+
+    // ファイル名を生成（facility-{id}.png）
+    const fileName = `facility-${facilityId}.png`;
+    const filePath = path.join(uploadDir, fileName);
+
+    // 画像を保存
+    await writeFile(filePath, Buffer.from(imageBuffer));
+
+    // 公開URLを返す
+    const publicUrl = `/uploads/maps/${fileName}`;
+
+    // DBに地図画像パスと緯度経度を保存
+    await prisma.facility.update({
+      where: { id: facilityId },
+      data: {
+        map_image: publicUrl,
+        lat,
+        lng,
+      },
+    });
+
+    revalidatePath('/admin/facility');
+    return { success: true, mapImage: publicUrl };
+  } catch (error) {
+    console.error('[updateFacilityMapImageByLatLng] Error:', error);
+    return { success: false, error: '地図画像の更新に失敗しました' };
+  }
+}
+
+/**
  * 管理者ダッシュボード用の統計情報を取得
  */
 export async function getAdminDashboardStats(facilityId: number) {
@@ -3968,6 +4175,8 @@ export interface CreateJobInput {
   // 募集条件
   weeklyFrequency?: number | null; // 週N回以上
   monthlyCommitment?: boolean; // 1ヶ月以上勤務
+  // マッチング方法
+  requiresInterview?: boolean; // 面接してからマッチング
 }
 
 export async function createJobs(input: CreateJobInput) {
@@ -4057,6 +4266,8 @@ export async function createJobs(input: CreateJobInput) {
       // 募集条件
       weekly_frequency: input.weeklyFrequency || null,
       monthly_commitment: input.monthlyCommitment || false,
+      // マッチング方法
+      requires_interview: input.requiresInterview || false,
     },
   });
 
@@ -4300,9 +4511,10 @@ export async function updateJobTemplate(
  * 管理者用: ワーカー詳細を取得
  */
 export async function getWorkerDetail(workerId: number, facilityId: number) {
+  console.log('[getWorkerDetail] Started', { workerId, facilityId });
   try {
-    // この施設の求人に応募したことがあるワーカーかどうか確認
-    const hasApplications = await prisma.application.findFirst({
+    // 1. この施設の求人に応募したことがあるかチェック
+    const hasApplied = await prisma.application.findFirst({
       where: {
         user_id: workerId,
         workDate: {
@@ -4313,16 +4525,21 @@ export async function getWorkerDetail(workerId: number, facilityId: number) {
       },
     });
 
-    if (!hasApplications) {
+    console.log('[getWorkerDetail] hasApplied check result:', !!hasApplied);
+
+    if (!hasApplied) {
+      console.log('[getWorkerDetail] No application found for this facility');
       return null;
     }
 
     // ユーザー情報を取得
+    console.log('[getWorkerDetail] Fetching user info for id:', workerId);
     const user = await prisma.user.findUnique({
       where: { id: workerId },
     });
 
     if (!user) {
+      console.log('[getWorkerDetail] User not found');
       return null;
     }
 
@@ -5233,6 +5450,8 @@ export async function updateJob(
     // 勤務日の操作
     addWorkDates?: string[];      // 追加する日付
     removeWorkDateIds?: number[]; // 削除するWorkDateのID
+    // マッチング方法
+    requiresInterview?: boolean;  // 面接してからマッチング
   }
 ): Promise<{ success: boolean; error?: string }> {
   try {
@@ -5291,6 +5510,8 @@ export async function updateJob(
         images: data.images || [],
         dresscode_images: data.dresscodeImages || [],
         attachments: data.attachments || [],
+        // マッチング方法（undefinedの場合は更新しない）
+        ...(data.requiresInterview !== undefined && { requires_interview: data.requiresInterview }),
         updated_at: new Date(),
       },
     });
@@ -5747,179 +5968,436 @@ export async function getWorkerListForFacility(
  * - 各応募者の評価・直前キャンセル率も計算して付与
  */
 export async function getJobsWithApplications(facilityId: number) {
-    try {
-        console.log('[getJobsWithApplications] Fetching jobs for facility:', facilityId);
+  try {
+    console.log('[getJobsWithApplications] Fetching jobs for facility:', facilityId);
 
-        // 1. 施設に関連する求人を取得（応募があるもの、または募集中/勤務中のもの）
-        // ※ 完了した古い求人も履歴として見たい場合があるため、基本的には全て取得し、フロントでフィルタリングする方針
-        const jobs = await prisma.job.findMany({
-            where: {
-                facility_id: facilityId,
-            },
-            include: {
-                workDates: {
-                    include: {
-                        applications: {
-                            include: {
-                                user: {
-                                    select: {
-                                        id: true,
-                                        name: true,
-                                        profile_image: true,
-                                        qualifications: true,
-                                    },
-                                },
-                            },
-                            orderBy: {
-                                created_at: 'desc',
-                            },
-                        },
-                    },
-                    orderBy: {
-                        work_date: 'asc',
-                    },
+    // 1. 施設に関連する求人を取得（応募があるもの、または募集中/勤務中のもの）
+    // ※ 完了した古い求人も履歴として見たい場合があるため、基本的には全て取得し、フロントでフィルタリングする方針
+    const jobs = await prisma.job.findMany({
+      where: {
+        facility_id: facilityId,
+      },
+      include: {
+        workDates: {
+          include: {
+            applications: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    name: true,
+                    profile_image: true,
+                    qualifications: true,
+                  },
                 },
-            },
-            orderBy: {
+              },
+              orderBy: {
                 created_at: 'desc',
+              },
             },
+          },
+          orderBy: {
+            work_date: 'asc',
+          },
+        },
+      },
+      orderBy: {
+        created_at: 'desc',
+      },
+    });
+
+    // 2. 関連する全ワーカーのIDを収集（評価・キャンセル率計算用）
+    const workerIds = new Set<number>();
+    jobs.forEach(job => {
+      job.workDates.forEach(wd => {
+        wd.applications.forEach(app => {
+          workerIds.add(app.user.id);
         });
+      });
+    });
+    const uniqueWorkerIds = Array.from(workerIds);
 
-        // 2. 関連する全ワーカーのIDを収集（評価・キャンセル率計算用）
-        const workerIds = new Set<number>();
-        jobs.forEach(job => {
-            job.workDates.forEach(wd => {
-                wd.applications.forEach(app => {
-                    workerIds.add(app.user.id);
-                });
-            });
-        });
-        const uniqueWorkerIds = Array.from(workerIds);
+    // 3. ワーカーの統計情報を一括取得
+    // 3-1. 評価（施設からの評価）
+    const workerReviews = await prisma.review.findMany({
+      where: {
+        user_id: { in: uniqueWorkerIds },
+        reviewer_type: 'FACILITY',
+      },
+      select: {
+        user_id: true,
+        rating: true,
+      },
+    });
 
-        // 3. ワーカーの統計情報を一括取得
-        // 3-1. 評価（施設からの評価）
-        const workerReviews = await prisma.review.findMany({
-            where: {
-                user_id: { in: uniqueWorkerIds },
-                reviewer_type: 'FACILITY',
-            },
-            select: {
-                user_id: true,
-                rating: true,
-            },
-        });
+    const workerRatings = new Map<number, { total: number; count: number }>();
+    workerReviews.forEach(r => {
+      const current = workerRatings.get(r.user_id) || { total: 0, count: 0 };
+      current.total += r.rating;
+      current.count += 1;
+      workerRatings.set(r.user_id, current);
+    });
 
-        const workerRatings = new Map<number, { total: number; count: number }>();
-        workerReviews.forEach(r => {
-            const current = workerRatings.get(r.user_id) || { total: 0, count: 0 };
-            current.total += r.rating;
-            current.count += 1;
-            workerRatings.set(r.user_id, current);
-        });
+    // 3-2. 直前キャンセル率
+    // 全応募履歴を取得して計算
+    const workerAllApps = await prisma.application.findMany({
+      where: {
+        user_id: { in: uniqueWorkerIds },
+        status: { in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED', 'CANCELLED'] },
+      },
+      include: {
+        workDate: { select: { work_date: true } },
+      },
+    });
 
-        // 3-2. 直前キャンセル率
-        // 全応募履歴を取得して計算
-        const workerAllApps = await prisma.application.findMany({
-            where: {
-                user_id: { in: uniqueWorkerIds },
-                status: { in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED', 'CANCELLED'] },
-            },
-            include: {
-                workDate: { select: { work_date: true } },
-            },
-        });
+    const workerCancelStats = new Map<number, { totalScheduled: number; lastMinuteCancels: number }>();
+    workerAllApps.forEach(app => {
+      const current = workerCancelStats.get(app.user_id) || { totalScheduled: 0, lastMinuteCancels: 0 };
+      current.totalScheduled += 1;
 
-        const workerCancelStats = new Map<number, { totalScheduled: number; lastMinuteCancels: number }>();
-        workerAllApps.forEach(app => {
-            const current = workerCancelStats.get(app.user_id) || { totalScheduled: 0, lastMinuteCancels: 0 };
-            current.totalScheduled += 1;
+      if (app.status === 'CANCELLED') {
+        const workDate = new Date(app.workDate.work_date);
+        const updatedAt = new Date(app.updated_at);
+        const dayBefore = new Date(workDate);
+        dayBefore.setDate(dayBefore.getDate() - 1);
+        dayBefore.setHours(0, 0, 0, 0);
 
-            if (app.status === 'CANCELLED') {
-                const workDate = new Date(app.workDate.work_date);
-                const updatedAt = new Date(app.updated_at);
-                const dayBefore = new Date(workDate);
-                dayBefore.setDate(dayBefore.getDate() - 1);
-                dayBefore.setHours(0, 0, 0, 0);
+        if (updatedAt >= dayBefore) {
+          current.lastMinuteCancels += 1;
+        }
+      }
+      workerCancelStats.set(app.user_id, current);
+    });
 
-                if (updatedAt >= dayBefore) {
-                    current.lastMinuteCancels += 1;
-                }
-            }
-            workerCancelStats.set(app.user_id, current);
-        });
+    // 4. データを整形して返却
+    return jobs.map(job => {
+      // 集計値
+      const totalRecruitment = job.workDates.reduce((sum, wd) => sum + wd.recruitment_count, 0);
+      const totalApplied = job.workDates.reduce((sum, wd) => sum + wd.applied_count, 0);
+      const totalMatched = job.workDates.reduce((sum, wd) => sum + wd.matched_count, 0);
 
-        // 4. データを整形して返却
-        return jobs.map(job => {
-            // 集計値
-            const totalRecruitment = job.workDates.reduce((sum, wd) => sum + wd.recruitment_count, 0);
-            const totalApplied = job.workDates.reduce((sum, wd) => sum + wd.applied_count, 0);
-            const totalMatched = job.workDates.reduce((sum, wd) => sum + wd.matched_count, 0);
+      // 日付範囲
+      let dateRange = '';
+      if (job.workDates.length > 0) {
+        const firstDate = job.workDates[0].work_date;
+        const lastDate = job.workDates[job.workDates.length - 1].work_date;
+        const formatDate = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`;
+        dateRange = job.workDates.length > 1
+          ? `${formatDate(firstDate)}〜${formatDate(lastDate)}`
+          : formatDate(firstDate);
+      }
 
-            // 日付範囲
-            let dateRange = '';
-            if (job.workDates.length > 0) {
-                const firstDate = job.workDates[0].work_date;
-                const lastDate = job.workDates[job.workDates.length - 1].work_date;
-                const formatDate = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`;
-                dateRange = job.workDates.length > 1
-                    ? `${formatDate(firstDate)}〜${formatDate(lastDate)}`
-                    : formatDate(firstDate);
-            }
+      return {
+        id: job.id,
+        title: job.title,
+        status: job.status,
+        startTime: job.start_time,
+        endTime: job.end_time,
+        hourlyWage: job.hourly_wage,
+        workContent: job.work_content,
+        requiredQualifications: job.required_qualifications,
+        requiresInterview: job.requires_interview,
+        totalRecruitment,
+        totalApplied,
+        totalMatched,
+        dateRange,
+        workDates: job.workDates.map(wd => ({
+          id: wd.id,
+          date: wd.work_date.toISOString(),
+          formattedDate: new Date(wd.work_date).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' }),
+          recruitmentCount: wd.recruitment_count,
+          appliedCount: wd.applied_count,
+          matchedCount: wd.matched_count,
+          applications: wd.applications.map(app => {
+            // ワーカー統計
+            const ratingData = workerRatings.get(app.user.id);
+            const rating = ratingData && ratingData.count > 0 ? ratingData.total / ratingData.count : null;
+            const reviewCount = ratingData ? ratingData.count : 0;
+
+            const cancelData = workerCancelStats.get(app.user.id);
+            const lastMinuteCancelRate = cancelData && cancelData.totalScheduled > 0
+              ? (cancelData.lastMinuteCancels / cancelData.totalScheduled) * 100
+              : 0;
 
             return {
-                id: job.id,
-                title: job.title,
-                status: job.status,
-                startTime: job.start_time,
-                endTime: job.end_time,
-                hourlyWage: job.hourly_wage,
-                workContent: job.work_content,
-                requiredQualifications: job.required_qualifications,
-                totalRecruitment,
-                totalApplied,
-                totalMatched,
-                dateRange,
-                workDates: job.workDates.map(wd => ({
-                    id: wd.id,
-                    date: wd.work_date.toISOString(),
-                    formattedDate: new Date(wd.work_date).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' }),
-                    recruitmentCount: wd.recruitment_count,
-                    appliedCount: wd.applied_count,
-                    matchedCount: wd.matched_count,
-                    applications: wd.applications.map(app => {
-                        // ワーカー統計
-                        const ratingData = workerRatings.get(app.user.id);
-                        const rating = ratingData && ratingData.count > 0 ? ratingData.total / ratingData.count : null;
-                        const reviewCount = ratingData ? ratingData.count : 0;
-
-                        const cancelData = workerCancelStats.get(app.user.id);
-                        const lastMinuteCancelRate = cancelData && cancelData.totalScheduled > 0
-                            ? (cancelData.lastMinuteCancels / cancelData.totalScheduled) * 100
-                            : 0;
-
-                        return {
-                            id: app.id,
-                            status: app.status,
-                            createdAt: app.created_at.toISOString(),
-                            worker: {
-                                id: app.user.id,
-                                name: app.user.name,
-                                profileImage: app.user.profile_image,
-                                qualifications: app.user.qualifications,
-                            },
-                            rating,
-                            reviewCount,
-                            lastMinuteCancelRate,
-                        };
-                    }),
-                })),
+              id: app.id,
+              status: app.status,
+              createdAt: app.created_at.toISOString(),
+              worker: {
+                id: app.user.id,
+                name: app.user.name,
+                profileImage: app.user.profile_image,
+                qualifications: app.user.qualifications,
+              },
+              rating,
+              reviewCount,
+              lastMinuteCancelRate,
             };
-        });
+          }),
+        })),
+      };
+    });
 
-    } catch (error) {
-        console.error('[getJobsWithApplications] Error:', error);
-        throw error;
-    }
+  } catch (error) {
+    console.error('[getJobsWithApplications] Error:', error);
+    throw error;
+  }
+}
+
+
+/**
+ * 応募管理リデザイン用: ワーカーベースで応募情報を取得
+ * - ワーカー -> 応募リスト（求人情報付き）の構造
+ * - 各ワーカーの評価・直前キャンセル率も計算して付与
+ */
+export async function getApplicationsByWorker(facilityId: number) {
+  try {
+    console.log('[getApplicationsByWorker] Fetching applications for facility:', facilityId);
+
+    // 1. 施設の求人に対する全応募を取得
+    const applications = await prisma.application.findMany({
+      where: {
+        workDate: {
+          job: {
+            facility_id: facilityId,
+          },
+        },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            profile_image: true,
+            qualifications: true,
+            prefecture: true,
+            city: true,
+            experience_fields: true,
+          },
+        },
+        workDate: {
+          include: {
+            job: {
+              select: {
+                id: true,
+                title: true,
+                start_time: true,
+                end_time: true,
+                hourly_wage: true,
+                requires_interview: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        created_at: 'desc',
+      },
+    });
+
+    // 2. ワーカーIDを収集
+    const workerIds = Array.from(new Set(applications.map(app => app.user.id)));
+
+    // ワーカーのお気に入り・ブロック状態を取得
+    const workerBookmarks = await prisma.bookmark.findMany({
+      where: {
+        facility_id: facilityId,
+        target_user_id: { in: workerIds },
+        type: { in: ['FAVORITE', 'WATCH_LATER'] },
+      },
+      select: {
+        target_user_id: true,
+        type: true,
+      },
+    });
+
+    const favoriteWorkerIds = new Set(
+      workerBookmarks.filter(b => b.type === 'FAVORITE').map(b => b.target_user_id)
+    );
+    const blockedWorkerIds = new Set(
+      workerBookmarks.filter(b => b.type === 'WATCH_LATER').map(b => b.target_user_id)
+    );
+
+    // 3. 各ワーカーの評価・キャンセル率を取得
+    // 3-1. 評価（施設からの評価）
+    const workerReviews = await prisma.review.findMany({
+      where: {
+        user_id: { in: workerIds },
+        reviewer_type: 'FACILITY',
+      },
+      select: {
+        user_id: true,
+        rating: true,
+      },
+    });
+
+    const workerRatings = new Map<number, { total: number; count: number }>();
+    workerReviews.forEach(r => {
+      const current = workerRatings.get(r.user_id) || { total: 0, count: 0 };
+      current.total += r.rating;
+      current.count += 1;
+      workerRatings.set(r.user_id, current);
+    });
+
+    // 3-2. 直前キャンセル率
+    const workerAllApps = await prisma.application.findMany({
+      where: {
+        user_id: { in: workerIds },
+        status: { in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED', 'CANCELLED'] },
+      },
+      include: {
+        workDate: { select: { work_date: true } },
+      },
+    });
+
+    const workerCancelStats = new Map<number, { totalScheduled: number; lastMinuteCancels: number }>();
+    workerAllApps.forEach(app => {
+      const current = workerCancelStats.get(app.user_id) || { totalScheduled: 0, lastMinuteCancels: 0 };
+      current.totalScheduled += 1;
+
+      if (app.status === 'CANCELLED') {
+        const workDate = new Date(app.workDate.work_date);
+        const updatedAt = new Date(app.updated_at);
+        const dayBefore = new Date(workDate);
+        dayBefore.setDate(dayBefore.getDate() - 1);
+        dayBefore.setHours(0, 0, 0, 0);
+
+        if (updatedAt >= dayBefore) {
+          current.lastMinuteCancels += 1;
+        }
+      }
+      workerCancelStats.set(app.user_id, current);
+    });
+
+    // 3-3. 各ワーカーの勤務実績数
+    const workerWorkCounts = await prisma.application.groupBy({
+      by: ['user_id'],
+      where: {
+        user_id: { in: workerIds },
+        status: { in: ['COMPLETED_PENDING', 'COMPLETED_RATED'] },
+      },
+      _count: true,
+    });
+    const workerWorkCountMap = new Map(workerWorkCounts.map(w => [w.user_id, w._count]));
+
+    // 4. ワーカーごとにグループ化
+    const workerMap = new Map<number, {
+      worker: {
+        id: number;
+        name: string;
+        profileImage: string | null;
+        qualifications: string[];
+        location: string | null;
+        rating: number | null;
+        reviewCount: number;
+        totalWorkDays: number;
+        lastMinuteCancelRate: number;
+        experienceFields: Array<{ field: string; years: string }>;
+        isFavorite: boolean;
+        isBlocked: boolean;
+      };
+      applications: {
+        id: number;
+        status: string;
+        createdAt: string;
+        job: {
+          id: number;
+          title: string;
+          workDate: string;
+          startTime: string;
+          endTime: string;
+          hourlyWage: number;
+          requiresInterview: boolean;
+        };
+      }[];
+    }>();
+
+    applications.forEach(app => {
+      const workerId = app.user.id;
+
+      // ワーカー統計
+      const ratingData = workerRatings.get(workerId);
+      const rating = ratingData && ratingData.count > 0 ? ratingData.total / ratingData.count : null;
+      const reviewCount = ratingData ? ratingData.count : 0;
+      const cancelData = workerCancelStats.get(workerId);
+      const lastMinuteCancelRate = cancelData && cancelData.totalScheduled > 0
+        ? (cancelData.lastMinuteCancels / cancelData.totalScheduled) * 100
+        : 0;
+      const totalWorkDays = workerWorkCountMap.get(workerId) || 0;
+
+      if (!workerMap.has(workerId)) {
+        const location = app.user.prefecture && app.user.city
+          ? `${app.user.prefecture}${app.user.city}`
+          : app.user.prefecture || null;
+
+        // experience_fieldsをパース（DBはオブジェクト形式 { "老健": "1〜2年" } で保存）
+        let experienceFields: Array<{ field: string; years: string }> = [];
+        const userWithExp = app.user as any;
+        if (userWithExp.experience_fields) {
+          try {
+            const parsed = typeof userWithExp.experience_fields === 'string'
+              ? JSON.parse(userWithExp.experience_fields)
+              : userWithExp.experience_fields;
+            // オブジェクト形式 { "老健": "1〜2年" } を配列形式に変換
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+              experienceFields = Object.entries(parsed).map(([field, years]) => ({
+                field,
+                years: String(years),
+              }));
+            } else if (Array.isArray(parsed)) {
+              experienceFields = parsed;
+            }
+          } catch {
+            experienceFields = [];
+          }
+        }
+
+        workerMap.set(workerId, {
+          worker: {
+            id: workerId,
+            name: app.user.name,
+            profileImage: app.user.profile_image,
+            qualifications: app.user.qualifications,
+            location,
+            rating,
+            reviewCount,
+            totalWorkDays,
+            lastMinuteCancelRate,
+            experienceFields,
+            isFavorite: favoriteWorkerIds.has(workerId),
+            isBlocked: blockedWorkerIds.has(workerId),
+          },
+          applications: [],
+        });
+      }
+
+      const workerData = workerMap.get(workerId)!;
+      workerData.applications.push({
+        id: app.id,
+        status: app.status,
+        createdAt: app.created_at.toISOString(),
+        job: {
+          id: app.workDate.job.id,
+          title: app.workDate.job.title,
+          workDate: app.workDate.work_date.toISOString(),
+          startTime: app.workDate.job.start_time,
+          endTime: app.workDate.job.end_time,
+          hourlyWage: app.workDate.job.hourly_wage,
+          requiresInterview: app.workDate.job.requires_interview,
+        },
+      });
+    });
+
+    // 5. 配列に変換して返却（応募が多いワーカー順）
+    const result = Array.from(workerMap.values());
+    result.sort((a, b) => b.applications.length - a.applications.length);
+
+    return result;
+
+  } catch (error) {
+    console.error('[getApplicationsByWorker] Error:', error);
+    throw error;
+  }
 }
 
 

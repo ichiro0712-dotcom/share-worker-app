@@ -96,6 +96,7 @@ export default function NewJobPage() {
     recruitmentEndTime: '12:00',
     genderRequirement: '不問',
     dismissalReasons: DEFAULT_DISMISSAL_REASONS,
+    requiresInterview: false, // 面接してからマッチング
   });
 
   const [recruitmentOptions, setRecruitmentOptions] = useState({
@@ -501,6 +502,8 @@ export default function NewJobPage() {
         // 募集条件
         weeklyFrequency: recruitmentOptions.weeklyFrequency,
         monthlyCommitment: recruitmentOptions.monthlyCommitment,
+        // マッチング方法
+        requiresInterview: formData.requiresInterview,
       });
 
       if (result.success) {
@@ -591,6 +594,25 @@ export default function NewJobPage() {
                     ))}
                   </select>
                 </div>
+              </div>
+
+              {/* マッチング方法 */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.requiresInterview}
+                    onChange={(e) => handleInputChange('requiresInterview', e.target.checked)}
+                    className="mt-0.5 w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <div>
+                    <span className="text-sm font-medium text-gray-900">面接してからマッチング</span>
+                    <p className="text-xs text-gray-600 mt-1">
+                      ワーカーからの応募後に面接・選考を行ってからマッチングを決定できます。<br />
+                      <span className="text-red-500 font-bold">※チェックを入れない方がマッチング率は高くなります</span>
+                    </p>
+                  </div>
+                </label>
               </div>
 
               {/* 2行目：テンプレート選択 */}

@@ -100,6 +100,30 @@ rm -rf .next && npm run dev
 - **原因**: Next.jsの`.next`キャッシュが古いスタイルを保持している
 - **対策**: Tailwind設定やCSSを変更した後は、必ず`rm -rf .next`を実行してからビルド/起動する
 
+## トラブルシューティング
+
+### CSSが効かなくなった時（よくある問題）
+
+**症状**: スタイルが適用されない、レイアウトが崩れる、色が反映されない
+
+**解決手順**:
+```bash
+# 1. 開発サーバーを停止（ポート3000を使用中のプロセスを終了）
+lsof -ti :3000 | xargs kill -9 2>/dev/null
+
+# 2. キャッシュを削除して再ビルド
+rm -rf .next && npm run build
+
+# 3. 開発サーバーを再起動
+npm run dev
+```
+
+**ブラウザ側の対応**:
+- ハードリロード: `Cmd+Shift+R`（Mac）/ `Ctrl+Shift+R`（Windows）
+- または DevTools → Network タブ → 「Disable cache」をチェック
+
+**補足**: この問題はNext.jsの`.next`キャッシュが原因で頻繁に発生する。CSS関連の変更をした後は予防的にキャッシュクリアを行うと良い。
+
 ## Development Guidelines
 
 ### Git Workflow

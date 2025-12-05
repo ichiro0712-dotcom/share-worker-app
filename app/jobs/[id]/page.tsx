@@ -94,6 +94,7 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
     // 募集条件
     weeklyFrequency: jobData.weekly_frequency,
     monthlyCommitment: jobData.monthly_commitment,
+    requiresInterview: jobData.requires_interview,
   };
 
   const facility = {

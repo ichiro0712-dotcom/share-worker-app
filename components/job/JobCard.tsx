@@ -36,6 +36,10 @@ export const JobCard: React.FC<JobCardProps> = ({ job, facility, selectedDate })
   const isUrgent = mounted ? isDeadlineUrgent(job.deadline) : false;
   const deadlineText = mounted ? getDeadlineText(job.deadline) : '計算中...';
 
+  // 募集終了判定（マッチング数が募集人数以上の場合）
+  // ただし、面接ありの求人は募集終了を表示しない
+  const isRecruitmentEnded = !job.requiresInterview && (job.matchedCount ?? 0) >= job.recruitmentCount;
+
   const handleBookmark = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -76,16 +80,29 @@ export const JobCard: React.FC<JobCardProps> = ({ job, facility, selectedDate })
               src={jobImage}
               alt={facility.name}
               fill
-              className="object-cover"
+              className={`object-cover ${isRecruitmentEnded ? 'opacity-60' : ''}`}
             />
+            {/* 面接ありバッジ - 画像左上 */}
+            {job.requiresInterview && (
+              <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded z-10">
+                面接あり
+              </span>
+            )}
+            {isRecruitmentEnded && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="bg-gray-800 text-white text-sm font-bold px-3 py-1.5 rounded">
+                  募集終了
+                </span>
+              </div>
+            )}
             <button
               onClick={handleBookmark}
               className="absolute top-2 right-2"
             >
               <Bookmark
                 className={`w-5 h-5 ${isBookmarked
-                    ? 'fill-blue-500 text-blue-500'
-                    : 'text-white'
+                  ? 'fill-blue-500 text-blue-500'
+                  : 'text-white'
                   }`}
               />
             </button>
@@ -125,8 +142,8 @@ export const JobCard: React.FC<JobCardProps> = ({ job, facility, selectedDate })
 
             <div className="flex justify-end mb-2">
               <span className={`inline-block text-xs px-2 py-1 rounded ${isUrgent
-                  ? 'bg-red-500 text-white'
-                  : 'bg-gray-300 text-gray-800'
+                ? 'bg-red-500 text-white'
+                : 'bg-gray-300 text-gray-800'
                 }`}>
                 締切まで{deadlineText}
               </span>
@@ -150,16 +167,29 @@ export const JobCard: React.FC<JobCardProps> = ({ job, facility, selectedDate })
               src={jobImage}
               alt={facility.name}
               fill
-              className="object-cover"
+              className={`object-cover ${isRecruitmentEnded ? 'opacity-60' : ''}`}
             />
+            {/* 面接ありバッジ - 画像左上 */}
+            {job.requiresInterview && (
+              <span className="absolute top-2 left-2 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded z-10">
+                面接あり
+              </span>
+            )}
+            {isRecruitmentEnded && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="bg-gray-800 text-white text-xs font-bold px-2 py-1 rounded">
+                  募集終了
+                </span>
+              </div>
+            )}
             <button
               onClick={handleBookmark}
               className="absolute top-2 right-2"
             >
               <Bookmark
                 className={`w-5 h-5 ${isBookmarked
-                    ? 'fill-blue-500 text-blue-500'
-                    : 'text-white'
+                  ? 'fill-blue-500 text-blue-500'
+                  : 'text-white'
                   }`}
               />
             </button>
@@ -199,8 +229,8 @@ export const JobCard: React.FC<JobCardProps> = ({ job, facility, selectedDate })
 
             <div className="flex justify-end mb-1">
               <span className={`inline-block text-[10px] px-1.5 py-0.5 rounded ${isUrgent
-                  ? 'bg-red-500 text-white'
-                  : 'bg-gray-300 text-gray-800'
+                ? 'bg-red-500 text-white'
+                : 'bg-gray-300 text-gray-800'
                 }`}>
                 締切まで{deadlineText}
               </span>

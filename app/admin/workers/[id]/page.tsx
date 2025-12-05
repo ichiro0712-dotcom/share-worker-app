@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronLeft, Star, MapPin, Heart, Ban } from 'lucide-react';
 import { getWorkerDetail, toggleWorkerFavorite, toggleWorkerBlock } from '@/src/lib/actions';
@@ -172,6 +172,7 @@ export default function WorkerDetailPage({
   params: { id: string };
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { admin, isAdmin, isAdminLoading } = useAuth();
   const workerId = parseInt(params.id);
   const [worker, setWorker] = useState<WorkerDetailData | null>(null);
@@ -180,6 +181,7 @@ export default function WorkerDetailPage({
   const [isBlocked, setIsBlocked] = useState(false);
 
   useEffect(() => {
+    console.log('[WorkerDetail] useEffect triggered', { isAdminLoading, isAdmin, admin, workerId });
     if (isAdminLoading) return;
     if (!isAdmin || !admin) {
       router.push('/admin/login');
@@ -187,9 +189,12 @@ export default function WorkerDetailPage({
     }
 
     const loadWorker = async () => {
+      console.log('[WorkerDetail] loadWorker started');
       setLoading(true);
       try {
+        console.log('[WorkerDetail] Calling getWorkerDetail', { workerId, facilityId: admin.facilityId });
         const data = await getWorkerDetail(workerId, admin.facilityId);
+        console.log('[WorkerDetail] getWorkerDetail result:', data ? 'Data received' : 'Null');
         setWorker(data);
         if (data) {
           setIsFavorite(data.isFavorite || false);
@@ -198,6 +203,7 @@ export default function WorkerDetailPage({
       } catch (error) {
         console.error('Failed to load worker:', error);
       } finally {
+        console.log('[WorkerDetail] loadWorker finished, setting loading to false');
         setLoading(false);
       }
     };
@@ -229,12 +235,14 @@ export default function WorkerDetailPage({
     }
   };
 
+  console.log('[WorkerDetail] Render', { loading, isAdminLoading, hasWorker: !!worker });
+
   if (loading || isAdminLoading) {
     return (
       <div className="h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
-          <p className="text-gray-500">読み込み中...</p>
+          <p className="text-gray-500">読み込み中... (Loading: {loading ? 'Yes' : 'No'}, AdminLoading: {isAdminLoading ? 'Yes' : 'No'})</p>
         </div>
       </div>
     );
@@ -246,7 +254,16 @@ export default function WorkerDetailPage({
         <div className="text-center">
           <p className="text-gray-500 mb-4">ワーカーが見つかりません</p>
           <button
-            onClick={() => router.back()}
+            onClick={() => {
+              const returnTab = searchParams.get('returnTab');
+              if (returnTab === 'workers') {
+                router.push('/admin/applications?tab=workers');
+              } else if (returnTab === 'jobs') {
+                router.push('/admin/applications?tab=jobs');
+              } else {
+                router.back();
+              }
+            }}
             className="text-blue-500 hover:underline"
           >
             戻る
@@ -267,7 +284,16 @@ export default function WorkerDetailPage({
       <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-4">
           <button
-            onClick={() => router.back()}
+            onClick={() => {
+              const returnTab = searchParams.get('returnTab');
+              if (returnTab === 'workers') {
+                router.push('/admin/applications?tab=workers');
+              } else if (returnTab === 'jobs') {
+                router.push('/admin/applications?tab=jobs');
+              } else {
+                router.back();
+              }
+            }}
             className="p-2 hover:bg-gray-100 rounded-full transition-colors"
           >
             <ChevronLeft className="w-5 h-5 text-gray-600" />

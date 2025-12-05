@@ -79,7 +79,9 @@ export default async function ApplicationsPage() {
                     {/* ステータスバッジ */}
                     <div className="flex justify-between items-start mb-3">
                       <Badge variant={statusColors[application.status] || 'default'}>
-                        {statusLabels[application.status] || application.status}
+                        {application.status === 'CANCELLED' && application.job.requires_interview
+                          ? '不採用'
+                          : statusLabels[application.status] || application.status}
                       </Badge>
                       <span className="text-xs text-gray-500">
                         応募日: {formatDate(application.created_at)}

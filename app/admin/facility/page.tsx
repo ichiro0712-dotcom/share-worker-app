@@ -5,13 +5,17 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Upload, X, Eye, User, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { getFacilityInfo, updateFacilityBasicInfo } from '@/src/lib/actions';
+import { getFacilityInfo, updateFacilityBasicInfo, updateFacilityMapImage } from '@/src/lib/actions';
+import { MapPin } from 'lucide-react';
 
 export default function FacilityPage() {
   const router = useRouter();
   const { admin, isAdmin, isAdminLoading } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUpdatingMap, setIsUpdatingMap] = useState(false);
+  // 住所変更検知用：ロード時の住所を保存
+  const [originalAddress, setOriginalAddress] = useState('');
 
   useEffect(() => {
     if (isAdminLoading) return;
@@ -306,6 +310,14 @@ export default function FacilityPage() {
             workInSmokingArea: data.workInSmokingArea || '',
           });
 
+          // 住所変更検知用：ロード時の住所を保存
+          const loadedAddress = [
+            data.prefecture || '',
+            data.city || '',
+            data.addressDetail || '',
+          ].filter(Boolean).join('');
+          setOriginalAddress(loadedAddress);
+
           // 初回メッセージをセット
           setWelcomeMessage((prev) => ({
             ...prev,
@@ -514,6 +526,37 @@ export default function FacilityPage() {
 
       if (result.success) {
         toast.success('保存しました');
+
+        // 住所変更検知: 住所が変更された場合、または地図画像が未設定の場合のみ地図を自動更新
+        const currentAddress = [
+          corporateInfo.prefecture,
+          corporateInfo.city,
+          corporateInfo.addressDetail,
+        ].filter(Boolean).join('');
+
+        const addressChanged = currentAddress !== originalAddress;
+        const noMapImage = !accessInfo.mapImage;
+
+        if (currentAddress && (addressChanged || noMapImage)) {
+          console.log('[handleSave] Address changed or no map image, updating map...');
+          console.log('[handleSave] Original:', originalAddress, 'Current:', currentAddress);
+
+          try {
+            const mapResult = await updateFacilityMapImage(admin.facilityId, currentAddress);
+            if (mapResult.success && mapResult.mapImage) {
+              setAccessInfo(prev => ({ ...prev, mapImage: mapResult.mapImage! }));
+              toast.success('地図画像を自動更新しました');
+              // 新しい住所を「元の住所」として保存
+              setOriginalAddress(currentAddress);
+            }
+          } catch (mapError) {
+            console.error('Failed to auto-update map:', mapError);
+            // 地図更新失敗はエラー表示しない（保存自体は成功しているため）
+          }
+        } else {
+          // 住所変更なしの場合も、originalAddressを更新
+          setOriginalAddress(currentAddress);
+        }
       } else {
         toast.error(result.error || '保存に失敗しました');
       }
@@ -522,6 +565,45 @@ export default function FacilityPage() {
       toast.error('保存に失敗しました');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // 地図画像を更新
+  const handleUpdateMap = async () => {
+    if (isUpdatingMap) return;
+
+    if (!admin?.facilityId) {
+      toast.error('施設IDが取得できません');
+      return;
+    }
+
+    // 住所を構築
+    const fullAddress = [
+      corporateInfo.prefecture,
+      corporateInfo.city,
+      corporateInfo.addressDetail,
+    ].filter(Boolean).join('');
+
+    if (!fullAddress) {
+      toast.error('住所を入力してください');
+      return;
+    }
+
+    setIsUpdatingMap(true);
+    try {
+      const result = await updateFacilityMapImage(admin.facilityId, fullAddress);
+
+      if (result.success && result.mapImage) {
+        setAccessInfo(prev => ({ ...prev, mapImage: result.mapImage! }));
+        toast.success('地図画像を更新しました');
+      } else {
+        toast.error(result.error || '地図画像の取得に失敗しました');
+      }
+    } catch (error) {
+      console.error('Failed to update map:', error);
+      toast.error('地図画像の更新に失敗しました');
+    } finally {
+      setIsUpdatingMap(false);
     }
   };
 
@@ -1077,12 +1159,23 @@ export default function FacilityPage() {
                       </div>
                     )}
                   </div>
-                  <button
-                    onClick={() => toast('マップピンの調整機能は開発中です', { icon: '🚧' })}
-                    className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-                  >
-                    マップピンを調整
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleUpdateMap}
+                      disabled={isUpdatingMap}
+                      className="px-3 py-1.5 text-sm bg-admin-primary text-white rounded-lg hover:bg-admin-primary-dark disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                    >
+                      {isUpdatingMap ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <MapPin className="w-4 h-4" />
+                      )}
+                      {isUpdatingMap ? '取得中...' : '地図画像を更新'}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    ※ ピン位置の微調整が必要な場合は、運営サポートまでお問い合わせください
+                  </p>
                 </div>
               </div>
             </div>

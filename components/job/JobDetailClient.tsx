@@ -33,20 +33,36 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
   const [showAllDates, setShowAllDates] = useState(false);
   const [selectedWorkDateIds, setSelectedWorkDateIds] = useState<number[]>(() => {
     if (!job.workDates || job.workDates.length === 0) {
+      // 旧形式：募集上限チェック
+      const matchedCount = job.matchedCount || 0;
+      const recruitmentCount = job.recruitmentCount || 1;
+      const isFull = matchedCount >= recruitmentCount;
+      if (isFull) return [];
+      // selectedDateがない場合は自動選択しない
+      if (!selectedDate) return [];
       return [job.id];
     }
+
+    // selectedDateが指定されている場合のみ、その日付が応募可能かチェックして選択
     if (selectedDate) {
       const selected = job.workDates.find((wd: any) => wd.workDate === selectedDate);
       if (selected) {
-        return [selected.id];
+        const isApplied = initialAppliedWorkDateIds.includes(selected.id);
+        const matchedCount = selected.matchedCount || 0;
+        const recruitmentCount = selected.recruitmentCount || job.recruitmentCount || 1;
+        // 面接ありの場合は満員でも応募可能
+        const isFull = !job.requiresInterview && matchedCount >= recruitmentCount;
+        // 応募可能な場合のみチェックを入れる
+        if (!isApplied && !isFull) {
+          return [selected.id];
+        }
       }
+      // selectedDateが募集終了または見つからない場合は空配列（ワーカーが自分で選ぶ）
+      return [];
     }
-    // 応募済みでない最初の日付を選択、すべて応募済みの場合は最初の日付
-    const notAppliedDates = job.workDates.filter((wd: any) => !initialAppliedWorkDateIds.includes(wd.id));
-    if (notAppliedDates.length > 0) {
-      return [notAppliedDates[0].id];
-    }
-    return job.workDates.length > 0 ? [job.workDates[0].id] : [];
+
+    // selectedDateがない場合は自動選択しない（ワーカーが自分で選ぶ）
+    return [];
   });
   const [isApplying, setIsApplying] = useState(false);
   // const [hasApplied, setHasApplied] = useState(initialHasApplied); // 廃止: 個別の応募状態を使用
@@ -71,6 +87,25 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
     const isFacilityMuted = mutedFacilities.some((f: any) => f.facilityId === facility.id);
     setIsMuted(isFacilityMuted);
   }, [job.id, facility.id]);
+
+  // 応募可能な日程があるかチェック
+  const hasAvailableDates = useMemo(() => {
+    if (!job.workDates || job.workDates.length === 0) {
+      // 旧形式
+      const matchedCount = job.matchedCount || 0;
+      const recruitmentCount = job.recruitmentCount || 1;
+      return matchedCount < recruitmentCount;
+    }
+
+    return job.workDates.some((wd: any) => {
+      const isApplied = appliedWorkDateIds.includes(wd.id);
+      const matchedCount = wd.matchedCount || 0;
+      const recruitmentCount = wd.recruitmentCount || job.recruitmentCount || 1;
+      // 面接ありの場合は満員でも応募可能
+      const isFull = !job.requiresInterview && matchedCount >= recruitmentCount;
+      return !isApplied && !isFull;
+    });
+  }, [job.workDates, job.matchedCount, job.recruitmentCount, appliedWorkDateIds]);
 
   // 選択された日付と他の日付を分離
   const { selectedWorkDates, otherWorkDates } = useMemo(() => {
@@ -298,13 +333,22 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
 
         {/* 画像カルーセル */}
         <div className="relative mb-4">
-          <div className="relative aspect-video overflow-hidden rounded-card">
+          {/* 面接ありバッジ - overflow-hiddenの外に配置 */}
+          {job.requiresInterview && (
+            <div className="absolute top-3 left-3 z-30">
+              <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded shadow-md">
+                面接あり
+              </span>
+            </div>
+          )}
+          <div className="relative aspect-video rounded-card overflow-hidden">
             <Image
               src={jobImages[currentImageIndex]}
               alt="施設画像"
               fill
               className="object-cover"
             />
+            {/* 面接ありバッジ - 画像左上 */}
             {jobImages.length > 1 && (
               <>
                 <button
@@ -352,7 +396,8 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
 
         {/* 施設情報 */}
         <div className="mb-4">
-          <h2 className="text-lg font-bold mb-1">{facility.name}</h2>
+          <h2 className="text-lg font-bold mb-1">{job.title}</h2>
+          <p className="text-sm text-gray-500">{facility.name}</p>
           <p className="text-sm text-gray-500 mb-2">{facility.type}</p>
           <div className="flex items-center gap-1 text-sm text-gray-600 mb-2">
             <MapPin className="w-4 h-4" />
@@ -384,49 +429,64 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
           <div className="space-y-2">
             {selectedWorkDates.map((wd: any, index: number) => {
               const isApplied = appliedWorkDateIds.includes(wd.id);
+              const recruitmentCount = wd.recruitmentCount || job.recruitmentCount;
+              const matchedCount = wd.matchedCount || 0;
+              // 面接ありの場合は満員でも応募可能
+              const isFull = !job.requiresInterview && matchedCount >= recruitmentCount;
+              const isDisabled = isApplied || isFull;
               return (
                 <div
                   key={wd.id || index}
-                  onClick={() => !isApplied && toggleWorkDateSelection(wd.id)}
-                  className={`p-4 border-2 rounded-card transition-colors ${isApplied
-                    ? 'border-gray-200 bg-gray-50 cursor-not-allowed'
-                    : selectedWorkDateIds.includes(wd.id)
-                      ? 'border-primary bg-primary-light/30 cursor-pointer'
-                      : 'border-gray-200 hover:border-primary cursor-pointer'
+                  onClick={() => !isDisabled && toggleWorkDateSelection(wd.id)}
+                  className={`p-4 border-2 rounded-card transition-colors relative ${isFull && !isApplied
+                    ? 'border-gray-300 bg-gray-200 cursor-not-allowed opacity-60'
+                    : isApplied
+                      ? 'border-gray-200 bg-gray-50 cursor-not-allowed'
+                      : selectedWorkDateIds.includes(wd.id)
+                        ? 'border-primary bg-primary-light/30 cursor-pointer'
+                        : 'border-gray-200 hover:border-primary cursor-pointer'
                     }`}
                 >
+                  {/* 募集終了オーバーレイ */}
+                  {isFull && !isApplied && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-gray-900/20 rounded-card">
+                      <span className="bg-gray-800 text-white text-xs font-bold px-3 py-1.5 rounded">
+                        募集終了
+                      </span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-3">
                     <input
                       type="checkbox"
                       checked={selectedWorkDateIds.includes(wd.id)}
-                      onChange={() => !isApplied && toggleWorkDateSelection(wd.id)}
+                      onChange={() => !isDisabled && toggleWorkDateSelection(wd.id)}
                       onClick={(e) => e.stopPropagation()}
-                      disabled={isApplied}
+                      disabled={isDisabled}
                       className="w-5 h-5 text-primary flex-shrink-0 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                     />
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <div className="text-sm font-bold">
+                        <div className={`text-sm font-bold ${isFull ? 'text-gray-500' : ''}`}>
                           {formatDateTime(wd.workDate, job.startTime, job.endTime)}
                         </div>
                         {isApplied && (
                           <Badge variant="default" className="text-xs">応募済み</Badge>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 text-xs text-gray-600">
+                      <div className={`flex items-center gap-2 text-xs ${isFull ? 'text-gray-400' : 'text-gray-600'}`}>
                         <span>休憩 {job.breakTime}</span>
                         <span>•</span>
                         <span>時給 {job.hourlyWage.toLocaleString()}円</span>
                       </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        募集人数 {wd.appliedCount || 0}/{wd.recruitmentCount || job.recruitmentCount}人
+                      <div className={`text-xs mt-1 ${isFull ? 'text-red-500 font-bold' : 'text-gray-500'}`}>
+                        {isFull ? '募集枠なし' : `募集人数 ${matchedCount}/${recruitmentCount}人`}
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-lg font-bold text-red-500">
+                      <div className={`text-lg font-bold ${isFull ? 'text-gray-400' : 'text-red-500'}`}>
                         {job.wage.toLocaleString()}円
                       </div>
-                      <div className="text-xs text-gray-600">
+                      <div className={`text-xs ${isFull ? 'text-gray-400' : 'text-gray-600'}`}>
                         交通費{job.transportationFee.toLocaleString()}円込
                       </div>
                     </div>
@@ -446,48 +506,64 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
                 .slice(0, showAllDates ? undefined : 6)
                 .map((wd: any, index: number) => {
                   const isApplied = appliedWorkDateIds.includes(wd.id);
+                  const recruitmentCount = wd.recruitmentCount || job.recruitmentCount;
+                  const matchedCount = wd.matchedCount || 0;
+                  // 面接ありの場合は満員でも応募可能
+                  const isFull = !job.requiresInterview && matchedCount >= recruitmentCount;
+                  const isDisabled = isApplied || isFull;
+                  const remainingSlots = Math.max(0, recruitmentCount - matchedCount);
                   return (
                     <div
                       key={wd.id || index}
-                      onClick={() => !isApplied && toggleWorkDateSelection(wd.id)}
-                      className={`flex items-center gap-3 p-3 border rounded-card transition-colors ${isApplied
-                        ? 'border-gray-200 bg-gray-50 cursor-not-allowed'
-                        : selectedWorkDateIds.includes(wd.id)
-                          ? 'border-primary bg-primary-light/20 cursor-pointer'
-                          : 'border-gray-200 hover:border-primary cursor-pointer'
+                      onClick={() => !isDisabled && toggleWorkDateSelection(wd.id)}
+                      className={`flex items-center gap-3 p-3 border rounded-card transition-colors relative ${isFull && !isApplied
+                        ? 'border-gray-300 bg-gray-200 cursor-not-allowed opacity-60'
+                        : isApplied
+                          ? 'border-gray-200 bg-gray-50 cursor-not-allowed'
+                          : selectedWorkDateIds.includes(wd.id)
+                            ? 'border-primary bg-primary-light/20 cursor-pointer'
+                            : 'border-gray-200 hover:border-primary cursor-pointer'
                         }`}
                     >
+                      {/* 募集終了オーバーレイ */}
+                      {isFull && !isApplied && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-gray-900/20 rounded-card">
+                          <span className="bg-gray-800 text-white text-xs font-bold px-3 py-1.5 rounded">
+                            募集終了
+                          </span>
+                        </div>
+                      )}
                       <input
                         type="checkbox"
                         checked={selectedWorkDateIds.includes(wd.id)}
-                        onChange={() => !isApplied && toggleWorkDateSelection(wd.id)}
+                        onChange={() => !isDisabled && toggleWorkDateSelection(wd.id)}
                         onClick={(e) => e.stopPropagation()}
-                        disabled={isApplied}
+                        disabled={isDisabled}
                         className="w-5 h-5 text-primary flex-shrink-0 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                       />
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <div className="text-sm font-bold">
+                          <div className={`text-sm font-bold ${isFull ? 'text-gray-500' : ''}`}>
                             {formatDateTime(wd.workDate, job.startTime, job.endTime)}
                           </div>
                           {isApplied && (
                             <Badge variant="default" className="text-xs">応募済み</Badge>
                           )}
                         </div>
-                        <div className="flex items-center gap-2 text-xs text-gray-600">
+                        <div className={`flex items-center gap-2 text-xs ${isFull ? 'text-gray-400' : 'text-gray-600'}`}>
                           <span>休憩 {job.breakTime}</span>
                           <span>•</span>
                           <span>時給 {job.hourlyWage.toLocaleString()}円</span>
                         </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          残り枠 {Math.max(0, (wd.recruitmentCount || job.recruitmentCount) - (wd.matchedCount || 0))}人
+                        <div className={`text-xs mt-1 ${isFull ? 'text-red-500 font-bold' : 'text-gray-500'}`}>
+                          {isFull ? '募集枠なし' : `残り枠 ${remainingSlots}人`}
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-lg font-bold text-red-500">
+                        <div className={`text-lg font-bold ${isFull ? 'text-gray-400' : 'text-red-500'}`}>
                           {job.wage.toLocaleString()}円
                         </div>
-                        <div className="text-xs text-gray-600">
+                        <div className={`text-xs ${isFull ? 'text-gray-400' : 'text-gray-600'}`}>
                           交通費{job.transportationFee.toLocaleString()}円込
                         </div>
                       </div>
@@ -515,7 +591,7 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
           className="w-full"
           disabled={isApplying || selectedWorkDateIds.length === 0}
         >
-          {isApplying ? '応募中...' : selectedWorkDateIds.length > 0 ? `${selectedWorkDateIds.length}件の日程に応募する` : '日程を選択してください'}
+          {isApplying ? '応募中...' : selectedWorkDateIds.length > 0 ? `${selectedWorkDateIds.length}件の日程に応募する` : !hasAvailableDates ? '応募できる日程がありません' : '日程を選択してください'}
         </Button>
       </div>
       {/* 責任者 */}
@@ -917,7 +993,7 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
           className="w-full"
           disabled={isApplying || selectedWorkDateIds.length === 0}
         >
-          {isApplying ? '応募中...' : selectedWorkDateIds.length > 0 ? `${selectedWorkDateIds.length}件の日程に応募する` : '日程を選択してください'}
+          {isApplying ? '応募中...' : selectedWorkDateIds.length > 0 ? `${selectedWorkDateIds.length}件の日程に応募する` : !hasAvailableDates ? '応募できる日程がありません' : '日程を選択してください'}
         </Button>
       </div>
     </div>
