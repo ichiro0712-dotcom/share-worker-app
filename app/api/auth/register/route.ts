@@ -1,11 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
+import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, password, name, phoneNumber, birthDate, qualifications } = body;
+    const {
+      email,
+      password,
+      name,
+      phoneNumber,
+      birthDate,
+      qualifications,
+      lastNameKana,
+      firstNameKana,
+      gender,
+      nationality,
+      postalCode,
+      experienceFields,
+      workHistories,
+      qualificationCertificates,
+    } = body;
 
     // バリデーション
     if (!email || !password || !name || !phoneNumber) {
@@ -30,6 +46,9 @@ export async function POST(request: NextRequest) {
     // パスワードのハッシュ化
     const hashedPassword = await bcrypt.hash(password, 12);
 
+    // 職歴を文字列として保存
+    const workHistoriesStr = workHistories && workHistories.length > 0 ? workHistories.join('|||') : null;
+
     // ユーザー作成
     const user = await prisma.user.create({
       data: {
@@ -39,6 +58,14 @@ export async function POST(request: NextRequest) {
         phone_number: phoneNumber,
         birth_date: birthDate ? new Date(birthDate) : null,
         qualifications: qualifications || [],
+        last_name_kana: lastNameKana || null,
+        first_name_kana: firstNameKana || null,
+        gender: gender || null,
+        nationality: nationality || null,
+        postal_code: postalCode || null,
+        experience_fields: experienceFields && Object.keys(experienceFields).length > 0 ? experienceFields : Prisma.DbNull,
+        work_histories: workHistoriesStr,
+        qualification_certificates: qualificationCertificates && Object.keys(qualificationCertificates).length > 0 ? qualificationCertificates : Prisma.DbNull,
       },
     });
 

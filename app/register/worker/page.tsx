@@ -15,7 +15,7 @@ export default function WorkerRegisterPage() {
     // 基本情報
     lastName: '',
     firstName: '',
-    birthDate: '',
+    birthDate: '1980-01-01',
     gender: '',
     nationality: '',
 
@@ -34,7 +34,73 @@ export default function WorkerRegisterPage() {
     // パスワード
     password: '',
     passwordConfirm: '',
+
+    // フリガナ
+    lastNameKana: '',
+    firstNameKana: '',
   });
+
+  // 経験情報（プロフィール編集と同じ形式）
+  const [experienceFields, setExperienceFields] = useState<string[]>([]);
+  const [experienceYearsMap, setExperienceYearsMap] = useState<Record<string, string>>({});
+  const [workHistories, setWorkHistories] = useState<string[]>(['']);
+
+  // 経験分野リスト
+  const experienceFieldsList = [
+    '特別養護老人ホーム',
+    '介護老人保健施設',
+    'グループホーム',
+    'デイサービス',
+    '訪問介護',
+    '有料老人ホーム',
+    'サービス付き高齢者向け住宅',
+    'その他',
+  ];
+
+  // 経験年数オプション
+  const experienceYearOptions = [
+    '1年未満',
+    '1〜2年',
+    '3〜5年',
+    '5〜10年',
+    '10年以上',
+  ];
+
+  // 経験分野チェックボックスハンドラ
+  const handleExperienceFieldChange = (field: string) => {
+    if (experienceFields.includes(field)) {
+      setExperienceFields(experienceFields.filter(f => f !== field));
+      const newYears = { ...experienceYearsMap };
+      delete newYears[field];
+      setExperienceYearsMap(newYears);
+    } else {
+      setExperienceFields([...experienceFields, field]);
+    }
+  };
+
+  // 経験年数変更ハンドラ
+  const handleExperienceYearChange = (field: string, value: string) => {
+    setExperienceYearsMap(prev => ({ ...prev, [field]: value }));
+  };
+
+  // 職歴追加
+  const addWorkHistory = () => {
+    if (workHistories.length < 5) {
+      setWorkHistories([...workHistories, '']);
+    }
+  };
+
+  // 職歴削除
+  const removeWorkHistory = (index: number) => {
+    setWorkHistories(workHistories.filter((_, i) => i !== index));
+  };
+
+  // 職歴更新
+  const updateWorkHistory = (index: number, value: string) => {
+    const newHistories = [...workHistories];
+    newHistories[index] = value;
+    setWorkHistories(newHistories);
+  };
 
   // 資格証明書の状態管理
   const [qualificationCertificates, setQualificationCertificates] = useState<Record<string, string | null>>({});
@@ -94,9 +160,21 @@ export default function WorkerRegisterPage() {
       return;
     }
 
+    // 経験分野確認
+    if (experienceFields.length === 0) {
+      toast.error('少なくとも1つの経験分野を選択してください');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
+      // 経験分野と経験年数をexperience_fieldsの形式に変換
+      const experienceFieldsData: Record<string, string> = {};
+      experienceFields.forEach(field => {
+        experienceFieldsData[field] = experienceYearsMap[field] || '';
+      });
+
       // API送信処理
       const response = await fetch('/api/auth/register', {
         method: 'POST',
@@ -108,6 +186,14 @@ export default function WorkerRegisterPage() {
           phoneNumber: formData.phoneNumber,
           birthDate: formData.birthDate,
           qualifications: formData.qualifications,
+          lastNameKana: formData.lastNameKana,
+          firstNameKana: formData.firstNameKana,
+          gender: formData.gender,
+          nationality: formData.nationality,
+          postalCode: formData.postalCode,
+          experienceFields: experienceFieldsData,
+          workHistories: workHistories.filter(h => h.trim() !== ''),
+          qualificationCertificates: qualificationCertificates,
         }),
       });
 
@@ -215,6 +301,32 @@ export default function WorkerRegisterPage() {
                     <option value="女性">女性</option>
                     <option value="その他">その他</option>
                   </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    セイ（フリガナ） <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.lastNameKana}
+                    onChange={(e) => setFormData({ ...formData, lastNameKana: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                    placeholder="ヤマダ"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    メイ（フリガナ） <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.firstNameKana}
+                    onChange={(e) => setFormData({ ...formData, firstNameKana: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                    placeholder="タロウ"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -331,7 +443,7 @@ export default function WorkerRegisterPage() {
                                 className="hidden"
                               />
                             </label>
-                            <p className="text-xs text-gray-500 mt-2">ファイル形式: JPG, PNG, PDF</p>
+                            <p className="text-xs text-gray-500 mt-2">5MB以下 / JPG, PNG, HEIC, PDF形式</p>
                           </div>
                         </div>
                       ) : (
@@ -340,16 +452,103 @@ export default function WorkerRegisterPage() {
                             type="file"
                             accept="image/*,.pdf"
                             onChange={(e) => handleQualificationCertificateChange(qual, e)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+                            className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                             required
                           />
-                          <p className="text-xs text-gray-500 mt-1">ファイル形式: JPG, PNG, PDF</p>
+                          <p className="text-xs text-gray-500 mt-1">5MB以下 / JPG, PNG, HEIC, PDF形式</p>
                         </div>
                       )}
                     </div>
                   ))}
                 </div>
               )}
+            </div>
+
+            {/* 経験セクション */}
+            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
+              <h3 className="font-bold text-gray-900">経験・職歴 <span className="text-red-500">*</span></h3>
+
+              {/* 経験分野チェックボックス */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  経験分野 <span className="text-red-500">*</span>
+                </label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {experienceFieldsList.map((field) => (
+                    <label key={field} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={experienceFields.includes(field)}
+                        onChange={() => handleExperienceFieldChange(field)}
+                        className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                      />
+                      <span className="text-sm">{field}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* 選択された経験分野の経験年数入力 */}
+              {experienceFields.length > 0 && (
+                <div className="p-4 bg-white rounded-lg border border-gray-200">
+                  <label className="block text-sm font-medium text-gray-700 mb-3">経験年数</label>
+                  <div className="space-y-3">
+                    {experienceFields.map((field) => (
+                      <div key={field} className="flex items-center gap-4">
+                        <span className="text-sm min-w-[180px]">{field}</span>
+                        <select
+                          value={experienceYearsMap[field] || ''}
+                          onChange={(e) => handleExperienceYearChange(field, e.target.value)}
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+                        >
+                          <option value="">選択してください</option>
+                          {experienceYearOptions.map((option) => (
+                            <option key={option} value={option}>{option}</option>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 職歴（任意） */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  職歴 <span className="text-gray-500 text-xs">（任意）</span>
+                </label>
+                <div className="space-y-3">
+                  {workHistories.map((history, index) => (
+                    <div key={index} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={history}
+                        onChange={(e) => updateWorkHistory(index, e.target.value)}
+                        placeholder="例：2018年4月〜2021年3月 ◯◯施設 介護職員"
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                      />
+                      {workHistories.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeWorkHistory(index)}
+                          className="px-3 py-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors text-sm"
+                        >
+                          削除
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {workHistories.length < 5 && (
+                  <button
+                    type="button"
+                    onClick={addWorkHistory}
+                    className="mt-3 w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-primary hover:text-primary transition-colors text-sm"
+                  >
+                    + 職歴を追加
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* 4. パスワード設定 */}
