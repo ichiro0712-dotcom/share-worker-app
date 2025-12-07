@@ -193,7 +193,7 @@ export default function AdminMessagesPage() {
     return (
       <div className="h-[calc(100vh-4rem)] flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
+          <Loader2 className="w-8 h-8 animate-spin mx-auto text-admin-primary" />
           <p className="mt-2 text-gray-600">読み込み中...</p>
         </div>
       </div>
@@ -229,7 +229,7 @@ export default function AdminMessagesPage() {
               <div
                 key={conv.applicationId}
                 onClick={() => setSelectedApplicationId(conv.applicationId)}
-                className={`p-4 border-b border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors ${selectedApplicationId === conv.applicationId ? 'bg-primary-light' : ''
+                className={`p-4 border-b border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors ${selectedApplicationId === conv.applicationId ? 'bg-admin-primary-light' : ''
                   }`}
               >
                 <div className="flex items-start gap-3">
@@ -313,14 +313,14 @@ export default function AdminMessagesPage() {
                     >
                       <div
                         className={`max-w-md px-4 py-2 rounded-lg ${message.senderType === 'facility'
-                          ? 'bg-primary text-white'
+                          ? 'bg-admin-primary text-white'
                           : 'bg-white border border-gray-200 text-gray-900'
                           }`}
                       >
                         <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                         <p
                           className={`text-xs mt-1 ${message.senderType === 'facility'
-                            ? 'text-primary-light'
+                            ? 'text-admin-primary-light'
                             : 'text-gray-400'
                             }`}
                         >
@@ -386,13 +386,13 @@ export default function AdminMessagesPage() {
                     }
                   }}
                   placeholder="メッセージを入力..."
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-admin-primary focus:border-transparent resize-none"
                   rows={3}
                 />
                 <button
                   onClick={handleSendMessage}
                   disabled={!messageText.trim() || isSending}
-                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 bg-admin-primary text-white rounded-lg hover:bg-admin-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSending ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -486,7 +486,7 @@ export default function AdminMessagesPage() {
               <div className="pt-4 border-t border-gray-200">
                 <a
                   href={`/admin/workers/${currentApplication.userId}`}
-                  className="block w-full px-4 py-2 text-center text-primary border border-primary rounded-lg hover:bg-primary-light transition-colors text-sm"
+                  className="block w-full px-4 py-2 text-center text-admin-primary border border-admin-primary rounded-lg hover:bg-admin-primary-light transition-colors text-sm"
                 >
                   ワーカー詳細を見る
                 </a>

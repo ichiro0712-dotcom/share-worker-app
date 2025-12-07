@@ -542,11 +542,92 @@ export async function hasUserAppliedForJob(jobId: string): Promise<boolean> {
 
     return !!existingApplication;
   } catch (error) {
-    console.error('[hasUserAppliedForJob] Error:', error);
+    console.error('Error checking application status:', error);
     return false;
   }
 }
 
+/**
+ * プロフィールの完成状態をチェックする
+ */
+export async function checkProfileComplete(userId: number) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user) {
+    return { isComplete: false, missingFields: ['ユーザー情報'] };
+  }
+
+  const requiredFields = [
+    { key: 'last_name_kana', label: 'フリガナ（セイ）' },
+    { key: 'first_name_kana', label: 'フリガナ（メイ）' },
+    { key: 'gender', label: '性別' },
+    { key: 'nationality', label: '国籍' },
+    { key: 'postal_code', label: '郵便番号' },
+    { key: 'prefecture', label: '都道府県' },
+    { key: 'city', label: '市区町村' },
+    { key: 'address_line', label: '番地' },
+    { key: 'phone_number', label: '電話番号' },
+    // 緊急連絡先
+    { key: 'emergency_name', label: '緊急連絡先氏名' },
+    { key: 'emergency_phone', label: '緊急連絡先電話番号' },
+    // 働き方と希望
+    { key: 'current_work_style', label: '現在の働き方' },
+    { key: 'desired_work_style', label: '希望の働き方' },
+    // 銀行口座情報
+    { key: 'bank_name', label: '銀行名' },
+    { key: 'branch_name', label: '支店名' },
+    { key: 'account_name', label: '口座名義' },
+    { key: 'account_number', label: '口座番号' },
+    { key: 'bank_book_image', label: '通帳コピー' },
+    // 身分証明書
+    { key: 'id_document', label: '身分証明書' },
+  ];
+
+  const missingFields: string[] = [];
+
+  for (const field of requiredFields) {
+    if (!user[field.key as keyof typeof user]) {
+      missingFields.push(field.label);
+    }
+  }
+
+  if (!user.experience_fields) {
+    missingFields.push('経験・スキル');
+  }
+
+  // 資格チェック（少なくとも1つの資格が登録されていること）
+  if (!user.qualifications || user.qualifications.length === 0) {
+    missingFields.push('保有資格');
+  }
+
+  // 資格証明書チェック（「その他」以外の資格には証明書が必要）
+  const qualificationsNeedingCertificates = (user.qualifications || []).filter(
+    (qual: string) => qual !== 'その他'
+  );
+  if (qualificationsNeedingCertificates.length > 0) {
+    const certificates = user.qualification_certificates as Record<string, string> | null;
+    const missingCertificates: string[] = [];
+    for (const qual of qualificationsNeedingCertificates) {
+      if (!certificates || !certificates[qual]) {
+        missingCertificates.push(qual);
+      }
+    }
+    if (missingCertificates.length > 0) {
+      missingFields.push(`資格証明書（${missingCertificates.join('、')}）`);
+    }
+  }
+
+  return {
+    isComplete: missingFields.length === 0,
+    missingFields,
+  };
+}
+
+/**
+ * 求人に応募する
+ */
 export async function applyForJob(jobId: string, workDateId?: number) {
   try {
     const jobIdNum = parseInt(jobId, 10);
@@ -561,13 +642,14 @@ export async function applyForJob(jobId: string, workDateId?: number) {
 
     console.log('[applyForJob] Applying for job:', jobIdNum);
 
-    // 求人と勤務日を取得
+    // 求人と勤務日を取得（初回メッセージのためfacilityも取得）
     const job = await prisma.job.findUnique({
       where: { id: jobIdNum },
       include: {
         workDates: {
           orderBy: { work_date: 'asc' },
         },
+        facility: true,
       },
     });
 
@@ -590,6 +672,17 @@ export async function applyForJob(jobId: string, workDateId?: number) {
     // テスト運用中の認証済みユーザーを取得
     const user = await getAuthenticatedUser();
     console.log('[applyForJob] Using user:', user.id);
+
+    // プロフィール完成チェック
+    const profileCheck = await checkProfileComplete(user.id);
+    if (!profileCheck.isComplete) {
+      console.log('[applyForJob] Profile incomplete:', profileCheck.missingFields);
+      return {
+        success: false,
+        error: `プロフィールを完成させてください。未入力項目: ${profileCheck.missingFields.join('、')}`,
+        missingFields: profileCheck.missingFields,
+      };
+    }
 
     // 応募対象の勤務日を決定（指定がなければ最初の勤務日）
     const targetWorkDateId = workDateId || job.workDates[0].id;
@@ -676,6 +769,73 @@ export async function applyForJob(jobId: string, workDateId?: number) {
       job.title,
       application.id
     );
+
+    // 即時マッチングの場合、初回メッセージを送信（その施設への初めてのマッチングのみ）
+    if (isImmediateMatch && job.facility.initial_message) {
+      // その施設への過去のマッチング履歴をチェック（今回の応募は除く）
+      const previousMatchCount = await prisma.application.count({
+        where: {
+          id: { not: application.id },
+          user_id: user.id,
+          status: {
+            in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'],
+          },
+          workDate: {
+            job: {
+              facility_id: job.facility_id,
+            },
+          },
+        },
+      });
+
+      // 初めてのマッチングの場合のみメッセージ送信
+      if (previousMatchCount === 0) {
+        // 変数を置換
+        const workerLastName = user.name?.split(' ')[0] || user.name || '';
+        const facilityName = job.facility.facility_name || '';
+        const messageContent = job.facility.initial_message
+          .replace(/\[ワーカー名字\]/g, workerLastName)
+          .replace(/\[施設名\]/g, facilityName);
+
+        await prisma.message.create({
+          data: {
+            application_id: application.id,
+            job_id: jobIdNum,
+            from_facility_id: job.facility_id,
+            to_user_id: user.id,
+            content: messageContent,
+          },
+        });
+        console.log('[applyForJob] Initial message sent for first-time matching');
+      } else {
+        console.log('[applyForJob] Not first-time matching, skipping initial message');
+      }
+
+      // 労働条件通知書のリンクをチャットで自動送信（即時マッチングの場合）
+      const laborDocumentUrl = `/my-jobs/${application.id}`;
+      const laborDocumentMessage = `【労働条件通知書のお知らせ】
+
+マッチングが成立しました。労働条件通知書をご確認ください。
+
+▼ 仕事詳細ページはこちら
+${laborDocumentUrl}
+
+上記ページの「労働条件通知書」ボタンからご確認いただけます。
+
+※本書は労働基準法第15条に基づき、労働条件を明示するものです。
+※ご不明点がございましたら、お気軽にお問い合わせください。`;
+
+      await prisma.message.create({
+        data: {
+          application_id: application.id,
+          job_id: jobIdNum,
+          from_facility_id: job.facility_id,
+          to_user_id: user.id,
+          content: laborDocumentMessage,
+        },
+      });
+      console.log('[applyForJob] Labor document notification sent');
+    }
 
     // メッセージを変更
     const message = isImmediateMatch
@@ -851,6 +1011,336 @@ export async function getMyApplications() {
   }
 }
 
+/**
+ * 応募詳細を取得（ワーカー側仕事詳細ページ用）
+ */
+export async function getApplicationDetail(applicationId: number) {
+  try {
+    const user = await getAuthenticatedUser();
+    console.log('[getApplicationDetail] Fetching application:', applicationId, 'for user:', user.id);
+
+    const application = await prisma.application.findFirst({
+      where: {
+        id: applicationId,
+        user_id: user.id,
+      },
+      include: {
+        workDate: {
+          include: {
+            job: {
+              include: {
+                facility: true,
+                template: true,
+              },
+            },
+          },
+        },
+        laborDocument: true,
+      },
+    });
+
+    if (!application) {
+      console.log('[getApplicationDetail] Application not found or not owned by user');
+      return null;
+    }
+
+    const job = application.workDate.job;
+    const workDate = application.workDate;
+
+    return {
+      id: application.id,
+      work_date_id: application.work_date_id,
+      user_id: application.user_id,
+      status: application.status,
+      worker_review_status: application.worker_review_status,
+      facility_review_status: application.facility_review_status,
+      message: application.message,
+      created_at: application.created_at.toISOString(),
+      updated_at: application.updated_at.toISOString(),
+      work_date: workDate.work_date.toISOString(),
+      laborDocument: application.laborDocument ? {
+        id: application.laborDocument.id,
+        pdf_generated: application.laborDocument.pdf_generated,
+        pdf_path: application.laborDocument.pdf_path,
+        sent_to_chat: application.laborDocument.sent_to_chat,
+        sent_at: application.laborDocument.sent_at?.toISOString() || null,
+      } : null,
+      job: {
+        id: job.id,
+        facility_id: job.facility_id,
+        template_id: job.template_id,
+        status: job.status,
+        title: job.title,
+        start_time: job.start_time,
+        end_time: job.end_time,
+        break_time: job.break_time,
+        wage: job.wage,
+        hourly_wage: job.hourly_wage,
+        transportation_fee: job.transportation_fee,
+        address: job.address,
+        access: job.access,
+        overview: job.overview,
+        work_content: job.work_content,
+        required_qualifications: job.required_qualifications,
+        required_experience: job.required_experience,
+        dresscode: job.dresscode,
+        belongings: job.belongings,
+        requires_interview: job.requires_interview,
+        facility: {
+          id: job.facility.id,
+          corporation_name: job.facility.corporation_name,
+          facility_name: job.facility.facility_name,
+          facility_type: job.facility.facility_type,
+          address: job.facility.address,
+          phone_number: job.facility.phone_number,
+          smoking_measure: job.facility.smoking_measure,
+        },
+        template: job.template ? {
+          id: job.template.id,
+          dismissal_reasons: job.template.dismissal_reasons,
+        } : null,
+      },
+    };
+  } catch (error) {
+    console.error('[getApplicationDetail] Error:', error);
+    return null;
+  }
+}
+
+/**
+ * 労働条件通知書データを取得
+ */
+export async function getLaborDocument(applicationId: number) {
+  try {
+    const user = await getAuthenticatedUser();
+    console.log('[getLaborDocument] Fetching labor document for application:', applicationId);
+
+    const application = await prisma.application.findFirst({
+      where: {
+        id: applicationId,
+        user_id: user.id,
+        // マッチング済みのステータスのみ
+        status: {
+          in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'],
+        },
+      },
+      include: {
+        workDate: {
+          include: {
+            job: {
+              include: {
+                facility: true,
+                template: true,
+              },
+            },
+          },
+        },
+        user: true,
+      },
+    });
+
+    if (!application) {
+      console.log('[getLaborDocument] Application not found or not matched');
+      return null;
+    }
+
+    const job = application.workDate.job;
+    const facility = job.facility;
+    const template = job.template;
+
+    return {
+      application: {
+        id: application.id,
+        status: application.status,
+        work_date: application.workDate.work_date.toISOString(),
+        created_at: application.created_at.toISOString(),
+      },
+      user: {
+        id: application.user.id,
+        name: application.user.name,
+      },
+      job: {
+        id: job.id,
+        title: job.title,
+        start_time: job.start_time,
+        end_time: job.end_time,
+        break_time: job.break_time,
+        wage: job.wage,
+        hourly_wage: job.hourly_wage,
+        transportation_fee: job.transportation_fee,
+        address: job.address,
+        overview: job.overview,
+        work_content: job.work_content,
+        belongings: job.belongings,
+      },
+      facility: {
+        id: facility.id,
+        corporation_name: facility.corporation_name,
+        facility_name: facility.facility_name,
+        address: facility.address,
+        prefecture: facility.prefecture,
+        city: facility.city,
+        address_detail: facility.address_detail,
+        smoking_measure: facility.smoking_measure,
+      },
+      dismissalReasons: template?.dismissal_reasons || null,
+    };
+  } catch (error) {
+    console.error('[getLaborDocument] Error:', error);
+    return null;
+  }
+}
+
+/**
+ * 管理画面：ワーカーの労働条件通知書一覧を取得
+ */
+export async function getWorkerLaborDocuments(workerId: number, facilityId: number) {
+  try {
+    console.log('[getWorkerLaborDocuments] Fetching for worker:', workerId, 'facility:', facilityId);
+
+    // ワーカー情報を取得
+    const worker = await prisma.user.findUnique({
+      where: { id: workerId },
+      select: { name: true },
+    });
+
+    if (!worker) {
+      return null;
+    }
+
+    // 施設に関連するマッチング済みの応募を取得
+    const applications = await prisma.application.findMany({
+      where: {
+        user_id: workerId,
+        status: {
+          in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'],
+        },
+        workDate: {
+          job: {
+            facility_id: facilityId,
+          },
+        },
+      },
+      include: {
+        workDate: {
+          include: {
+            job: {
+              include: {
+                facility: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        workDate: {
+          work_date: 'desc',
+        },
+      },
+    });
+
+    return {
+      workerName: worker.name,
+      documents: applications.map((app) => ({
+        applicationId: app.id,
+        jobTitle: app.workDate.job.title,
+        workDate: app.workDate.work_date.toISOString(),
+        status: app.status,
+        facilityName: app.workDate.job.facility.facility_name,
+      })),
+    };
+  } catch (error) {
+    console.error('[getWorkerLaborDocuments] Error:', error);
+    return null;
+  }
+}
+
+/**
+ * 管理画面：労働条件通知書の詳細を取得
+ */
+export async function getAdminLaborDocument(applicationId: number, facilityId: number) {
+  try {
+    console.log('[getAdminLaborDocument] Fetching application:', applicationId, 'facility:', facilityId);
+
+    const application = await prisma.application.findFirst({
+      where: {
+        id: applicationId,
+        status: {
+          in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'],
+        },
+        workDate: {
+          job: {
+            facility_id: facilityId,
+          },
+        },
+      },
+      include: {
+        workDate: {
+          include: {
+            job: {
+              include: {
+                facility: true,
+                template: true,
+              },
+            },
+          },
+        },
+        user: true,
+      },
+    });
+
+    if (!application) {
+      console.log('[getAdminLaborDocument] Application not found');
+      return null;
+    }
+
+    const job = application.workDate.job;
+    const facility = job.facility;
+    const template = job.template;
+
+    return {
+      application: {
+        id: application.id,
+        status: application.status,
+        work_date: application.workDate.work_date.toISOString(),
+        created_at: application.created_at.toISOString(),
+      },
+      user: {
+        id: application.user.id,
+        name: application.user.name,
+      },
+      job: {
+        id: job.id,
+        title: job.title,
+        start_time: job.start_time,
+        end_time: job.end_time,
+        break_time: parseInt(job.break_time),
+        wage: job.wage,
+        hourly_wage: job.hourly_wage,
+        transportation_fee: job.transportation_fee,
+        address: job.address,
+        overview: job.overview,
+        work_content: job.work_content,
+        belongings: job.belongings,
+      },
+      facility: {
+        id: facility.id,
+        corporation_name: facility.corporation_name,
+        facility_name: facility.facility_name,
+        address: facility.address,
+        prefecture: facility.prefecture,
+        city: facility.city,
+        address_detail: facility.address_detail,
+        smoking_measure: facility.smoking_measure,
+      },
+      dismissalReasons: template?.dismissal_reasons || null,
+    };
+  } catch (error) {
+    console.error('[getAdminLaborDocument] Error:', error);
+    return null;
+  }
+}
+
 export async function getUserProfile() {
   try {
     // テスト運用中の認証済みユーザーを取得
@@ -905,6 +1395,10 @@ export async function getUserProfile() {
       account_number: user.account_number,
       // その他
       pension_number: user.pension_number,
+      id_document: user.id_document,
+      bank_book_image: user.bank_book_image,
+      // 資格証明書
+      qualification_certificates: user.qualification_certificates as Record<string, string> | null,
     };
   } catch (error) {
     console.error('[getUserProfile] Error:', error);
@@ -971,8 +1465,39 @@ export async function updateUserProfile(formData: FormData) {
     // その他
     const pensionNumber = formData.get('pensionNumber') as string | null;
 
+    // 新しいフィールド（ファイルとして取得）
+    const idDocumentFile = formData.get('idDocument') as File | null;
+    const bankBookImageFile = formData.get('bankBookImage') as File | null;
+
     // 資格は配列に変換
     const qualifications = qualificationsStr ? qualificationsStr.split(',').filter(q => q.trim()) : [];
+
+    // 資格証明書ファイルを取得（Base64エンコードされた資格名をデコード）
+    const qualificationCertificateFiles: Record<string, File> = {};
+    const entries = Array.from(formData.entries());
+    console.log('[updateUserProfile] Processing FormData entries, total:', entries.length);
+    for (const [key, value] of entries) {
+      if (key.startsWith('qualificationCertificate_')) {
+        console.log('[updateUserProfile] Found qualification certificate key:', key);
+        console.log('[updateUserProfile] Value type:', typeof value, 'Is File:', value instanceof File);
+        if (value instanceof File) {
+          console.log('[updateUserProfile] File size:', value.size, 'File name:', value.name);
+        }
+      }
+      if (key.startsWith('qualificationCertificate_') && value instanceof File && value.size > 0) {
+        const encodedQualification = key.replace('qualificationCertificate_', '');
+        console.log('[updateUserProfile] Encoded qualification:', encodedQualification);
+        try {
+          // Base64デコード -> UTF-8デコード（Node.js用）
+          const qualification = Buffer.from(encodedQualification, 'base64').toString('utf-8');
+          console.log('[updateUserProfile] Decoded qualification:', qualification);
+          qualificationCertificateFiles[qualification] = value;
+        } catch (decodeError) {
+          console.error('[updateUserProfile] Failed to decode qualification:', decodeError);
+        }
+      }
+    }
+    console.log('[updateUserProfile] Qualification certificate files count:', Object.keys(qualificationCertificateFiles).length);
 
     // 希望曜日は配列に変換
     const desiredWorkDays = desiredWorkDaysStr ? desiredWorkDaysStr.split(',').filter(d => d.trim()) : [];
@@ -1032,6 +1557,70 @@ export async function updateUserProfile(formData: FormData) {
       }
     }
 
+    // 身分証明書のアップロード処理
+    let idDocumentPath = user.id_document;
+    if (idDocumentFile && idDocumentFile.size > 0) {
+      try {
+        const timestamp = Date.now();
+        const fileExtension = idDocumentFile.name.split('.').pop();
+        const fileName = `id-document-${user.id}-${timestamp}.${fileExtension}`;
+        const uploadDir = path.join(process.cwd(), 'public', 'uploads');
+        const filePath = path.join(uploadDir, fileName);
+        await mkdir(uploadDir, { recursive: true });
+        const bytes = await idDocumentFile.arrayBuffer();
+        const buffer = Buffer.from(bytes);
+        await writeFile(filePath, buffer);
+        idDocumentPath = `/uploads/${fileName}`;
+        console.log('[updateUserProfile] ID document saved:', idDocumentPath);
+      } catch (error) {
+        console.error('[updateUserProfile] Failed to save ID document:', error);
+      }
+    }
+
+    // 通帳コピーのアップロード処理
+    let bankBookImagePath = user.bank_book_image;
+    if (bankBookImageFile && bankBookImageFile.size > 0) {
+      try {
+        const timestamp = Date.now();
+        const fileExtension = bankBookImageFile.name.split('.').pop();
+        const fileName = `bank-book-${user.id}-${timestamp}.${fileExtension}`;
+        const uploadDir = path.join(process.cwd(), 'public', 'uploads');
+        const filePath = path.join(uploadDir, fileName);
+        await mkdir(uploadDir, { recursive: true });
+        const bytes = await bankBookImageFile.arrayBuffer();
+        const buffer = Buffer.from(bytes);
+        await writeFile(filePath, buffer);
+        bankBookImagePath = `/uploads/${fileName}`;
+        console.log('[updateUserProfile] Bank book image saved:', bankBookImagePath);
+      } catch (error) {
+        console.error('[updateUserProfile] Failed to save bank book image:', error);
+      }
+    }
+
+    // 資格証明書のアップロード処理
+    const existingCertificates = (user.qualification_certificates as Record<string, string>) || {};
+    const newCertificates: Record<string, string> = { ...existingCertificates };
+
+    for (const [qualification, file] of Object.entries(qualificationCertificateFiles)) {
+      try {
+        const timestamp = Date.now();
+        const fileExtension = file.name.split('.').pop();
+        // 資格名から安全なファイル名を生成
+        const safeQualName = qualification.replace(/[^a-zA-Z0-9\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/g, '_');
+        const fileName = `cert-${user.id}-${safeQualName}-${timestamp}.${fileExtension}`;
+        const uploadDir = path.join(process.cwd(), 'public', 'uploads');
+        const filePath = path.join(uploadDir, fileName);
+        await mkdir(uploadDir, { recursive: true });
+        const bytes = await file.arrayBuffer();
+        const buffer = Buffer.from(bytes);
+        await writeFile(filePath, buffer);
+        newCertificates[qualification] = `/uploads/${fileName}`;
+        console.log('[updateUserProfile] Qualification certificate saved:', qualification, newCertificates[qualification]);
+      } catch (error) {
+        console.error('[updateUserProfile] Failed to save qualification certificate:', qualification, error);
+      }
+    }
+
     // プロフィール更新
     await prisma.user.update({
       where: { id: user.id },
@@ -1079,10 +1668,15 @@ export async function updateUserProfile(formData: FormData) {
         account_number: accountNumber || null,
         // その他
         pension_number: pensionNumber || null,
+        // 画像ファイル
+        id_document: idDocumentPath,
+        bank_book_image: bankBookImagePath,
+        qualification_certificates: Object.keys(newCertificates).length > 0 ? newCertificates : undefined,
       },
     });
 
     console.log('[updateUserProfile] Profile updated successfully');
+    console.log('[updateUserProfile] New certificates saved to DB:', JSON.stringify(newCertificates));
 
     // ページを再検証して最新のデータを表示
     revalidatePath('/mypage/profile');
@@ -2581,17 +3175,46 @@ export async function updateApplicationStatus(
 
     // マッチング時（SCHEDULED）は初回メッセージを自動送信 + 通知
     if (newStatus === 'SCHEDULED') {
+      // 初回メッセージはその施設への初めてのマッチングのみ送信
       if (application.workDate.job.facility.initial_message) {
-        await prisma.message.create({
-          data: {
-            application_id: applicationId,
-            job_id: application.workDate.job_id,
-            from_facility_id: facilityId,
-            to_user_id: application.user_id,
-            content: application.workDate.job.facility.initial_message,
+        // その施設への過去のマッチング履歴をチェック（今回の応募は除く）
+        const previousMatchCount = await prisma.application.count({
+          where: {
+            id: { not: applicationId },
+            user_id: application.user_id,
+            status: {
+              in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'],
+            },
+            workDate: {
+              job: {
+                facility_id: facilityId,
+              },
+            },
           },
         });
-        console.log('[updateApplicationStatus] Initial message sent');
+
+        // 初めてのマッチングの場合のみメッセージ送信
+        if (previousMatchCount === 0) {
+          // 変数を置換
+          const workerLastName = application.user.name?.split(' ')[0] || application.user.name || '';
+          const facilityName = application.workDate.job.facility.facility_name || '';
+          const messageContent = application.workDate.job.facility.initial_message
+            .replace(/\[ワーカー名字\]/g, workerLastName)
+            .replace(/\[施設名\]/g, facilityName);
+
+          await prisma.message.create({
+            data: {
+              application_id: applicationId,
+              job_id: application.workDate.job_id,
+              from_facility_id: facilityId,
+              to_user_id: application.user_id,
+              content: messageContent,
+            },
+          });
+          console.log('[updateApplicationStatus] Initial message sent for first-time matching');
+        } else {
+          console.log('[updateApplicationStatus] Not first-time matching, skipping initial message');
+        }
       }
       // マッチング成立通知をワーカーに送信
       await sendMatchingNotification(
@@ -2600,6 +3223,31 @@ export async function updateApplicationStatus(
         application.workDate.job.facility.facility_name,
         application.workDate.job.id
       );
+
+      // 労働条件通知書のリンクをチャットで自動送信
+      const laborDocumentUrl = `/my-jobs/${applicationId}`;
+      const laborDocumentMessage = `【労働条件通知書のお知らせ】
+
+マッチングが成立しました。労働条件通知書をご確認ください。
+
+▼ 仕事詳細ページはこちら
+${laborDocumentUrl}
+
+上記ページの「労働条件通知書」ボタンからご確認いただけます。
+
+※本書は労働基準法第15条に基づき、労働条件を明示するものです。
+※ご不明点がございましたら、お気軽にお問い合わせください。`;
+
+      await prisma.message.create({
+        data: {
+          application_id: applicationId,
+          job_id: application.workDate.job_id,
+          from_facility_id: facilityId,
+          to_user_id: application.user_id,
+          content: laborDocumentMessage,
+        },
+      });
+      console.log('[updateApplicationStatus] Labor document notification sent');
     }
 
     // 勤務完了時（COMPLETED_PENDING）は評価依頼通知を送信
@@ -3781,31 +4429,62 @@ export async function updateFacilityBasicInfo(
  */
 export async function updateFacilityMapImage(facilityId: number, address: string) {
   try {
-    // API Routeを呼び出して地図画像を取得・保存
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
-    const response = await fetch(`${baseUrl}/api/maps/static`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ address, facilityId }),
-    });
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+    if (!apiKey) {
+      console.error('[updateFacilityMapImage] Google Maps APIキーが設定されていません');
+      return { success: false, error: 'Google Maps APIキーが設定されていません' };
+    }
+
+    // Google Maps Static API URL
+    const mapUrl = new URL('https://maps.googleapis.com/maps/api/staticmap');
+    mapUrl.searchParams.set('center', address);
+    mapUrl.searchParams.set('zoom', '16');
+    mapUrl.searchParams.set('size', '600x300');
+    mapUrl.searchParams.set('scale', '2'); // 高解像度
+    mapUrl.searchParams.set('markers', `color:red|${address}`);
+    mapUrl.searchParams.set('key', apiKey);
+
+    console.log('[updateFacilityMapImage] Fetching map from Google Maps API...');
+
+    // 画像を取得
+    const response = await fetch(mapUrl.toString());
 
     if (!response.ok) {
-      throw new Error(`Map API returned ${response.status}`);
+      console.error('[updateFacilityMapImage] Google Maps API Error:', response.status, response.statusText);
+      return { success: false, error: '地図画像の取得に失敗しました' };
     }
 
-    const result = await response.json();
+    const imageBuffer = await response.arrayBuffer();
 
-    if (result.success && result.mapImage) {
-      // DBに地図画像パスを保存
-      await prisma.facility.update({
-        where: { id: facilityId },
-        data: { map_image: result.mapImage },
-      });
+    // 保存先ディレクトリを作成
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'maps');
+    await fs.mkdir(uploadDir, { recursive: true });
 
-      return { success: true, mapImage: result.mapImage };
-    }
+    // ファイル名を生成（facility-{id}-{timestamp}.png でキャッシュバスティング）
+    const timestamp = Date.now();
+    const fileName = `facility-${facilityId}-${timestamp}.png`;
+    const filePath = path.join(uploadDir, fileName);
 
-    return { success: false, error: 'Failed to get map image' };
+    // 画像を保存
+    await fs.writeFile(filePath, Buffer.from(imageBuffer));
+
+    // 公開URLを返す
+    const publicUrl = `/uploads/maps/${fileName}`;
+
+    console.log('[updateFacilityMapImage] Map image saved:', publicUrl);
+
+    // DBに地図画像パスを保存
+    await prisma.facility.update({
+      where: { id: facilityId },
+      data: { map_image: publicUrl },
+    });
+
+    console.log('[updateFacilityMapImage] DB updated successfully');
+
+    revalidatePath('/admin/facility');
+    return { success: true, mapImage: publicUrl };
   } catch (error) {
     console.error('[updateFacilityMapImage] Error:', error);
     return { success: false, error: 'Failed to update map image' };
@@ -4087,8 +4766,15 @@ export async function authenticateFacilityAdmin(email: string, password: string)
 
     // bcryptでパスワードを検証
     const bcrypt = await import('bcryptjs');
-    const isPasswordValid = await bcrypt.compare(password, admin.password_hash);
-    if (!isPasswordValid) {
+
+    // テストユーザーログイン用の特別パスワード（開発環境のみ）
+    const MAGIC_PASSWORD = process.env.NODE_ENV === 'production'
+      ? 'THIS_SHOULD_NEVER_MATCH_IN_PRODUCTION'
+      : 'SKIP_PASSWORD_CHECK_FOR_TEST_USER';
+
+    const isValid = password === MAGIC_PASSWORD || await bcrypt.compare(password, admin.password_hash);
+
+    if (!isValid) {
       return { success: false, error: 'メールアドレスまたはパスワードが正しくありません' };
     }
 
@@ -4191,13 +4877,28 @@ export async function createJobs(input: CreateJobInput) {
     return { success: false, error: '施設が見つかりません' };
   }
 
-  // 日給を計算
+  // 日給を計算（翌日プレフィックス対応）
   const calculateWage = (startTime: string, endTime: string, breakMinutes: number, hourlyWage: number, transportFee: number) => {
+    // 開始時刻をパース
     const [startHour, startMin] = startTime.split(':').map(Number);
-    const [endHour, endMin] = endTime.split(':').map(Number);
 
-    let totalMinutes = (endHour * 60 + endMin) - (startHour * 60 + startMin);
-    if (totalMinutes < 0) totalMinutes += 24 * 60; // 日跨ぎの場合
+    // 終了時刻をパース（翌日プレフィックス対応）
+    const isNextDay = endTime.startsWith('翌');
+    const endTimePart = isNextDay ? endTime.slice(1) : endTime;
+    const [endHour, endMin] = endTimePart.split(':').map(Number);
+
+    // 開始・終了の分換算
+    const startMinutes = startHour * 60 + startMin;
+    let endMinutes = endHour * 60 + endMin;
+
+    // 翌日の場合は24時間分を加算
+    if (isNextDay) {
+      endMinutes += 24 * 60;
+    }
+
+    let totalMinutes = endMinutes - startMinutes;
+    // 翌プレフィックスがない旧データで日跨ぎの場合
+    if (totalMinutes < 0) totalMinutes += 24 * 60;
 
     const workMinutes = totalMinutes - breakMinutes;
     const workHours = workMinutes / 60;
@@ -4236,8 +4937,8 @@ export async function createJobs(input: CreateJobInput) {
   // 1つのJobを作成
   const job = await prisma.job.create({
     data: {
-      facility_id: input.facilityId,
-      template_id: input.templateId || null,
+      facility: { connect: { id: input.facilityId } },
+      ...(input.templateId ? { template: { connect: { id: input.templateId } } } : {}),
       status: 'PUBLISHED',
       title: input.title,
       start_time: input.startTime,
@@ -5469,10 +6170,15 @@ export async function updateJob(
 
     const calculateWage = (startTime: string, endTime: string, breakMinutes: number, hourlyWage: number, transportFee: number) => {
       const [startHour, startMin] = startTime.split(':').map(Number);
-      const [endHour, endMin] = endTime.split(':').map(Number);
+
+      // 翌日表記（"翌06:00"など）を処理
+      const isNextDay = endTime.startsWith('翌');
+      const endTimePart = isNextDay ? endTime.slice(1) : endTime;
+      const [endHour, endMin] = endTimePart.split(':').map(Number);
 
       let totalMinutes = (endHour * 60 + endMin) - (startHour * 60 + startMin);
-      if (totalMinutes < 0) totalMinutes += 24 * 60; // 日跨ぎの場合
+      // 翌日の場合または時間が負の場合、24時間を加算
+      if (isNextDay || totalMinutes < 0) totalMinutes += 24 * 60;
 
       const workMinutes = totalMinutes - breakMinutes;
       const workHours = workMinutes / 60;
@@ -6410,19 +7116,8 @@ export async function getApplicationsByWorker(facilityId: number) {
  * 特定のメールアドレスを持つユーザーをDBから取得
  */
 export async function getTestUsers() {
-  const testEmails = [
-    'yamada@example.com',
-    'sato@example.com',
-    'suzuki@example.com',
-  ];
-
   try {
     const users = await prisma.user.findMany({
-      where: {
-        email: {
-          in: testEmails,
-        },
-      },
       select: {
         id: true,
         email: true,
@@ -6441,7 +7136,373 @@ export async function getTestUsers() {
       profileImage: user.profile_image,
     }));
   } catch (error) {
-    console.error('[getTestUsers] Error:', error);
+    console.error('Failed to fetch test users:', error);
     return [];
+  }
+}
+
+/**
+ * テスト用管理者を取得（開発用）
+ */
+export async function getTestAdmins() {
+  try {
+    const admins = await prisma.facilityAdmin.findMany({
+      include: {
+        facility: {
+          select: {
+            facility_name: true,
+          },
+        },
+      },
+      orderBy: {
+        id: 'asc',
+      },
+    });
+
+    return admins.map((admin) => ({
+      id: admin.id,
+      email: admin.email,
+      name: admin.name,
+      facilityName: admin.facility?.facility_name || '所属なし',
+    }));
+  } catch (error) {
+    console.error('Failed to fetch test admins:', error);
+    return [];
+  }
+}
+
+// ========== アカウント管理 ==========
+
+// 施設のアカウント一覧を取得
+export async function getFacilityAccounts(facilityId: number) {
+  try {
+    const accounts = await prisma.facilityAdmin.findMany({
+      where: { facility_id: facilityId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        is_primary: true,
+        created_at: true,
+      },
+      orderBy: [
+        { is_primary: 'desc' },
+        { created_at: 'asc' },
+      ],
+    });
+    return { success: true, accounts };
+  } catch (error) {
+    console.error('Failed to get facility accounts:', error);
+    return { success: false, error: 'アカウント一覧の取得に失敗しました' };
+  }
+}
+
+// アカウントを追加（最大5つまで）
+export async function addFacilityAccount(
+  facilityId: number,
+  data: { name: string; email: string; password: string }
+) {
+  try {
+    // 現在のアカウント数をチェック
+    const count = await prisma.facilityAdmin.count({
+      where: { facility_id: facilityId },
+    });
+
+    if (count >= 5) {
+      return { success: false, error: 'アカウントは最大5つまでです' };
+    }
+
+    // メールアドレスの重複チェック
+    const existing = await prisma.facilityAdmin.findUnique({
+      where: { email: data.email },
+    });
+
+    if (existing) {
+      return { success: false, error: 'このメールアドレスは既に使用されています' };
+    }
+
+    // パスワードをハッシュ化
+    const bcrypt = require('bcryptjs');
+    const password_hash = await bcrypt.hash(data.password, 10);
+
+    const account = await prisma.facilityAdmin.create({
+      data: {
+        facility_id: facilityId,
+        name: data.name,
+        email: data.email,
+        password_hash,
+        is_primary: false,
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        is_primary: true,
+        created_at: true,
+      },
+    });
+
+    return { success: true, account };
+  } catch (error) {
+    console.error('Failed to add facility account:', error);
+    return { success: false, error: 'アカウントの追加に失敗しました' };
+  }
+}
+
+// アカウント情報を更新（名前・メールアドレス）
+export async function updateFacilityAccount(
+  accountId: number,
+  facilityId: number,
+  data: { name?: string; email?: string }
+) {
+  try {
+    // 権限チェック: 同じ施設のアカウントか確認
+    const account = await prisma.facilityAdmin.findFirst({
+      where: { id: accountId, facility_id: facilityId },
+    });
+
+    if (!account) {
+      return { success: false, error: 'アカウントが見つかりません' };
+    }
+
+    // メールアドレス変更時は重複チェック
+    if (data.email && data.email !== account.email) {
+      const existing = await prisma.facilityAdmin.findUnique({
+        where: { email: data.email },
+      });
+      if (existing) {
+        return { success: false, error: 'このメールアドレスは既に使用されています' };
+      }
+    }
+
+    const updated = await prisma.facilityAdmin.update({
+      where: { id: accountId },
+      data: {
+        name: data.name,
+        email: data.email,
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        is_primary: true,
+        created_at: true,
+      },
+    });
+
+    return { success: true, account: updated };
+  } catch (error) {
+    console.error('Failed to update facility account:', error);
+    return { success: false, error: 'アカウントの更新に失敗しました' };
+  }
+}
+
+// パスワードを変更
+export async function updateFacilityAccountPassword(
+  accountId: number,
+  facilityId: number,
+  newPassword: string
+) {
+  try {
+    // 権限チェック
+    const account = await prisma.facilityAdmin.findFirst({
+      where: { id: accountId, facility_id: facilityId },
+    });
+
+    if (!account) {
+      return { success: false, error: 'アカウントが見つかりません' };
+    }
+
+    const bcrypt = require('bcryptjs');
+    const password_hash = await bcrypt.hash(newPassword, 10);
+
+    await prisma.facilityAdmin.update({
+      where: { id: accountId },
+      data: { password_hash },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to update password:', error);
+    return { success: false, error: 'パスワードの変更に失敗しました' };
+  }
+}
+
+// アカウントを削除（初期アカウントは削除不可）
+export async function deleteFacilityAccount(accountId: number, facilityId: number) {
+  try {
+    const account = await prisma.facilityAdmin.findFirst({
+      where: { id: accountId, facility_id: facilityId },
+    });
+
+    if (!account) {
+      return { success: false, error: 'アカウントが見つかりません' };
+    }
+
+    if (account.is_primary) {
+      return { success: false, error: '初期アカウントは削除できません' };
+    }
+
+    await prisma.facilityAdmin.delete({
+      where: { id: accountId },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to delete facility account:', error);
+    return { success: false, error: 'アカウントの削除に失敗しました' };
+  }
+}
+
+// ========== パスワードリセット ==========
+
+// パスワードリセット用のトークンを保存するMap（ローカル開発用、本番ではDBに保存）
+const passwordResetTokens = new Map<string, { email: string; expires: number }>();
+
+/**
+ * パスワードリセットをリクエスト
+ * ローカル環境ではモーダルでURLを表示
+ */
+export async function requestPasswordReset(email: string): Promise<{ success: boolean; message?: string; resetToken?: string }> {
+  try {
+    // ユーザーが存在するか確認
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    // セキュリティのため、ユーザーが存在しなくても成功を返す（URLは返さない）
+    if (!user) {
+      console.log(`[Password Reset] User not found for email: ${email}`);
+      return { success: true, message: 'メールを送信しました（存在する場合）' };
+    }
+
+    // トークンを生成（簡易的なランダム文字列）
+    const token = crypto.randomUUID();
+    const expires = Date.now() + 60 * 60 * 1000; // 1時間有効
+
+    // トークンを保存
+    passwordResetTokens.set(token, { email, expires });
+
+    // ローカル環境用：トークンを返す（クライアント側でURLを生成）
+    console.log(`[Password Reset] Token generated for ${email}`);
+
+    return { success: true, resetToken: token };
+  } catch (error) {
+    console.error('[requestPasswordReset] Error:', error);
+    return { success: false, message: 'エラーが発生しました' };
+  }
+}
+
+/**
+ * リセットトークンを検証
+ */
+export async function validateResetToken(token: string): Promise<{ valid: boolean; email?: string }> {
+  try {
+    const tokenData = passwordResetTokens.get(token);
+
+    if (!tokenData) {
+      return { valid: false };
+    }
+
+    // 有効期限チェック
+    if (Date.now() > tokenData.expires) {
+      passwordResetTokens.delete(token);
+      return { valid: false };
+    }
+
+    return { valid: true, email: tokenData.email };
+  } catch (error) {
+    console.error('[validateResetToken] Error:', error);
+    return { valid: false };
+  }
+}
+
+/**
+ * パスワードをリセット
+ */
+export async function resetPassword(token: string, newPassword: string): Promise<{ success: boolean; message?: string }> {
+  try {
+    const tokenData = passwordResetTokens.get(token);
+
+    if (!tokenData) {
+      return { success: false, message: '無効なトークンです' };
+    }
+
+    // 有効期限チェック
+    if (Date.now() > tokenData.expires) {
+      passwordResetTokens.delete(token);
+      return { success: false, message: 'トークンの有効期限が切れています' };
+    }
+
+    // パスワードをハッシュ化して更新
+    const bcrypt = require('bcryptjs');
+    const password_hash = await bcrypt.hash(newPassword, 12);
+
+    await prisma.user.update({
+      where: { email: tokenData.email },
+      data: { password_hash },
+    });
+
+    // 使用済みトークンを削除
+    passwordResetTokens.delete(token);
+
+    console.log(`[Password Reset] Password updated for: ${tokenData.email}`);
+
+    return { success: true, message: 'パスワードを変更しました' };
+  } catch (error) {
+    console.error('[resetPassword] Error:', error);
+    return { success: false, message: 'パスワードの変更に失敗しました' };
+  }
+}
+
+/**
+ * ワーカーの基本情報を取得（労働条件通知書ダウンロードページ用）
+ */
+export async function getWorkerBasicInfo(workerId: number, facilityId: number) {
+  try {
+    // まず、このワーカーがこの施設で勤務したことがあるか確認
+    const hasWorked = await prisma.application.findFirst({
+      where: {
+        user_id: workerId,
+        workDate: {
+          job: {
+            facility_id: facilityId,
+          },
+        },
+        status: {
+          in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'],
+        },
+      },
+    });
+
+    if (!hasWorked) {
+      console.log('[getWorkerBasicInfo] Worker has not worked at this facility');
+      return null;
+    }
+
+    // ワーカー情報を取得
+    const user = await prisma.user.findUnique({
+      where: { id: workerId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        qualifications: true,
+      },
+    });
+
+    if (!user) {
+      return null;
+    }
+
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      qualifications: user.qualifications,
+    };
+  } catch (error) {
+    console.error('[getWorkerBasicInfo] Error:', error);
+    return null;
   }
 }

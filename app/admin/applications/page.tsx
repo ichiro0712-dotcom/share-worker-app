@@ -1015,7 +1015,7 @@ function ApplicationsContent() {
                                           マッチング済
                                         </span>
                                         <button
-                                          onClick={() => handleStatusUpdate(app.id, selectedJob.requiresInterview ? 'CANCELLED' : 'APPLIED', selectedJob.requiresInterview ? 'このマッチングをキャンセルしますか？' : 'マッチングを取り消して応募中に戻しますか？')}
+                                          onClick={() => handleStatusUpdate(app.id, 'CANCELLED', 'このマッチングをキャンセルしますか？')}
                                           disabled={isUpdating === app.id}
                                           className="text-xs text-gray-400 hover:text-red-500 underline"
                                         >

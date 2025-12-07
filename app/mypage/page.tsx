@@ -38,7 +38,7 @@ export default function MyPage() {
   const handleLogout = async () => {
     if (confirm('ログアウトしますか？')) {
       await logout();
-      router.push('/');
+      router.push('/login');
       router.refresh();
     }
   };
@@ -46,8 +46,8 @@ export default function MyPage() {
   const menuItems: MenuItem[] = [
     {
       icon: <Calendar className="w-5 h-5" />,
-      label: '応募履歴',
-      href: '/mypage/applications',
+      label: '仕事管理',
+      href: '/my-jobs',
     },
     {
       icon: <MessageSquare className="w-5 h-5" />,

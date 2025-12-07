@@ -8,6 +8,21 @@ export const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => ({
   label: `${i}時`,
 }));
 
+// 終了時刻選択用（0〜23時 + 翌0〜12時）
+// 翌日の時刻は "翌HH" の形式で表示・保存
+export const END_HOUR_OPTIONS = [
+  // 当日 0〜23時
+  ...Array.from({ length: 24 }, (_, i) => ({
+    value: i.toString().padStart(2, '0'),
+    label: `${i}時`,
+  })),
+  // 翌日 0〜12時
+  ...Array.from({ length: 13 }, (_, i) => ({
+    value: `翌${i.toString().padStart(2, '0')}`,
+    label: `翌${i}時`,
+  })),
+];
+
 // 分選択用（00, 15, 30, 45）
 export const MINUTE_OPTIONS = [
   { value: '00', label: '00分' },

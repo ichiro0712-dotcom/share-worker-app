@@ -7,15 +7,33 @@ import { authOptions } from '@/lib/auth';
 
 // 許可するファイルタイプ（MIMEタイプ）
 const ALLOWED_MIME_TYPES = [
+  // 画像（スマホ撮影・スキャナー対応）
   'image/jpeg',
   'image/png',
   'image/gif',
   'image/webp',
+  'image/heic',  // iPhone
+  'image/heif',  // iPhone
+  'image/bmp',   // Windows標準
+  'image/tiff',  // スキャナー
+  'image/svg+xml', // ベクター画像
+  // ドキュメント
   'application/pdf',
+  'application/msword', // .doc
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+  'application/vnd.ms-excel', // .xls
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+  'text/plain', // .txt
+  'text/csv', // .csv
 ];
 
 // 許可するファイル拡張子
-const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf'];
+const ALLOWED_EXTENSIONS = [
+  // 画像（スマホ撮影・スキャナー対応）
+  'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif', 'bmp', 'tiff', 'tif', 'svg',
+  // ドキュメント
+  'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'csv',
+];
 
 // 最大ファイルサイズ（5MB）
 const MAX_FILE_SIZE = 5 * 1024 * 1024;

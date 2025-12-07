@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import { JobPreviewModal } from '@/components/admin/JobPreviewModal';
 import { JobConfirmModal } from '@/components/admin/JobConfirmModal';
 import { calculateDailyWage } from '@/utils/salary';
+import { validateImageFiles, validateAttachmentFiles } from '@/utils/fileValidation';
 import { createJobs, getAdminJobTemplates, getFacilityInfo } from '@/src/lib/actions';
 import {
   JOB_TYPES,
@@ -21,6 +22,7 @@ import {
   RECRUITMENT_START_DAY_OPTIONS,
   RECRUITMENT_END_DAY_OPTIONS,
   HOUR_OPTIONS,
+  END_HOUR_OPTIONS,
   MINUTE_OPTIONS,
 } from '@/constants';
 
@@ -177,9 +179,16 @@ export default function NewJobPage() {
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    const totalImages = formData.existingImages.length + formData.images.length + files.length;
+    const result = validateImageFiles(files);
+
+    // エラーがあれば表示
+    result.errors.forEach(error => toast.error(error));
+
+    if (result.validFiles.length === 0) return;
+
+    const totalImages = formData.existingImages.length + formData.images.length + result.validFiles.length;
     if (totalImages <= 3) {
-      handleInputChange('images', [...formData.images, ...files]);
+      handleInputChange('images', [...formData.images, ...result.validFiles]);
     } else {
       toast.error('画像は最大3枚までアップロードできます');
     }
@@ -195,9 +204,16 @@ export default function NewJobPage() {
 
   const handleAttachmentUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    const totalAttachments = formData.existingAttachments.length + formData.attachments.length + files.length;
+    const result = validateAttachmentFiles(files);
+
+    // エラーがあれば表示
+    result.errors.forEach(error => toast.error(error));
+
+    if (result.validFiles.length === 0) return;
+
+    const totalAttachments = formData.existingAttachments.length + formData.attachments.length + result.validFiles.length;
     if (totalAttachments <= 3) {
-      handleInputChange('attachments', [...formData.attachments, ...files]);
+      handleInputChange('attachments', [...formData.attachments, ...result.validFiles]);
     } else {
       toast.error('添付ファイルは最大3つまでアップロードできます');
     }
@@ -213,9 +229,16 @@ export default function NewJobPage() {
 
   const handleDresscodeImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    const totalDresscodeImages = formData.existingDresscodeImages.length + formData.dresscodeImages.length + files.length;
+    const result = validateImageFiles(files);
+
+    // エラーがあれば表示
+    result.errors.forEach(error => toast.error(error));
+
+    if (result.validFiles.length === 0) return;
+
+    const totalDresscodeImages = formData.existingDresscodeImages.length + formData.dresscodeImages.length + result.validFiles.length;
     if (totalDresscodeImages <= 3) {
-      handleInputChange('dresscodeImages', [...formData.dresscodeImages, ...files]);
+      handleInputChange('dresscodeImages', [...formData.dresscodeImages, ...result.validFiles]);
     } else {
       toast.error('服装サンプル画像は最大3枚までアップロードできます');
     }
@@ -672,15 +695,17 @@ export default function NewJobPage() {
                       onDrop={(e) => {
                         e.preventDefault();
                         e.currentTarget.classList.remove('border-blue-500', 'bg-blue-50');
-                        const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
-                        const validFiles = files.filter(file => file.size <= 5 * 1024 * 1024);
-                        if (files.length !== validFiles.length) {
-                          toast.error('5MBを超えるファイルは登録できません');
-                          return;
-                        }
-                        const totalImages = formData.existingImages.length + formData.images.length + validFiles.length;
+                        const files = Array.from(e.dataTransfer.files);
+                        const result = validateImageFiles(files);
+
+                        // エラーがあれば表示
+                        result.errors.forEach(error => toast.error(error));
+
+                        if (result.validFiles.length === 0) return;
+
+                        const totalImages = formData.existingImages.length + formData.images.length + result.validFiles.length;
                         if (totalImages <= 3) {
-                          handleInputChange('images', [...formData.images, ...validFiles]);
+                          handleInputChange('images', [...formData.images, ...result.validFiles]);
                         } else {
                           toast.error('画像は最大3枚までアップロードできます');
                         }
@@ -1035,22 +1060,40 @@ export default function NewJobPage() {
                   </label>
                   <div className="flex gap-1">
                     <select
-                      value={formData.endTime.split(':')[0]}
+                      value={(() => {
+                        // 翌日の場合: "翌15:00" → "翌15", 当日の場合: "15:00" → "15"
+                        const isNextDay = formData.endTime.startsWith('翌');
+                        const timePart = isNextDay ? formData.endTime.slice(1) : formData.endTime;
+                        const hour = timePart.split(':')[0] || '15';
+                        return isNextDay ? `翌${hour}` : hour;
+                      })()}
                       onChange={(e) => {
-                        const minute = formData.endTime.split(':')[1] || '00';
-                        handleInputChange('endTime', `${e.target.value}:${minute}`);
+                        // 現在の分を取得
+                        const isNextDay = formData.endTime.startsWith('翌');
+                        const timePart = isNextDay ? formData.endTime.slice(1) : formData.endTime;
+                        const minute = timePart.split(':')[1] || '00';
+                        // 新しい時間を設定
+                        const newIsNextDay = e.target.value.startsWith('翌');
+                        const newHour = newIsNextDay ? e.target.value.slice(1) : e.target.value;
+                        handleInputChange('endTime', newIsNextDay ? `翌${newHour}:${minute}` : `${newHour}:${minute}`);
                       }}
                       className="flex-1 px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
                     >
-                      {HOUR_OPTIONS.map(option => (
+                      {END_HOUR_OPTIONS.map(option => (
                         <option key={option.value} value={option.value}>{option.label}</option>
                       ))}
                     </select>
                     <select
-                      value={formData.endTime.split(':')[1] || '00'}
+                      value={(() => {
+                        const isNextDay = formData.endTime.startsWith('翌');
+                        const timePart = isNextDay ? formData.endTime.slice(1) : formData.endTime;
+                        return timePart.split(':')[1] || '00';
+                      })()}
                       onChange={(e) => {
-                        const hour = formData.endTime.split(':')[0] || '15';
-                        handleInputChange('endTime', `${hour}:${e.target.value}`);
+                        const isNextDay = formData.endTime.startsWith('翌');
+                        const timePart = isNextDay ? formData.endTime.slice(1) : formData.endTime;
+                        const hour = timePart.split(':')[0] || '15';
+                        handleInputChange('endTime', isNextDay ? `翌${hour}:${e.target.value}` : `${hour}:${e.target.value}`);
                       }}
                       className="flex-1 px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
                     >
@@ -1350,7 +1393,7 @@ export default function NewJobPage() {
                   服装サンプル画像（3枚まで）
                 </label>
                 <p className="text-xs text-gray-500 mb-2">推奨画像サイズ: 1200×800px（比率 3:2）</p>
-                <p className="text-xs text-gray-500 mb-3">登録できるファイルサイズは5MBまでです</p>
+                <p className="text-xs text-gray-500 mb-3">5MB以下 / JPG, PNG, HEIC, GIF, PDF形式</p>
                 <div className="space-y-2">
                   {(formData.existingDresscodeImages.length + formData.dresscodeImages.length) < 3 && (
                     <label
@@ -1496,6 +1539,7 @@ export default function NewJobPage() {
                   その他添付文章（3つまで）
                 </label>
                 <p className="text-xs text-red-500 mb-2">登録された文章は公開されます</p>
+                <p className="text-xs text-gray-500 mb-3">5MB以下 / 画像(JPG, PNG, HEIC等)・PDF・Word・Excel・テキスト形式</p>
                 <div className="space-y-2">
                   {(formData.existingAttachments.length + formData.attachments.length) < 3 && (
                     <label

@@ -3,8 +3,9 @@
 import { useState, useRef } from 'react';
 import { Upload, ArrowLeft, Plus, X, User as UserIcon } from 'lucide-react';
 import Link from 'next/link';
-import Image from 'next/image';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { updateUserProfile } from '@/src/lib/actions';
+import { validateFile } from '@/utils/fileValidation';
 import toast from 'react-hot-toast';
 
 interface UserProfile {
@@ -52,6 +53,10 @@ interface UserProfile {
   account_number: string | null;
   // その他
   pension_number: string | null;
+  id_document: string | null;
+  bank_book_image: string | null;
+  // 資格証明書
+  qualification_certificates: Record<string, string> | null;
 }
 
 interface ProfileEditClientProps {
@@ -59,6 +64,12 @@ interface ProfileEditClientProps {
 }
 
 export default function ProfileEditClient({ userProfile }: ProfileEditClientProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // 戻り先URL（求人ページから来た場合）
+  const returnUrl = searchParams.get('returnUrl');
+
   // ユーザー名を姓と名に分割
   const nameParts = userProfile.name.split(' ');
   const lastName = nameParts[0] || '';
@@ -68,15 +79,29 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
   const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
   const profileImageInputRef = useRef<HTMLInputElement>(null);
 
+  // 身分証明書
+  const [idDocument, setIdDocument] = useState<string | null>(userProfile.id_document);
+  const [idDocumentFile, setIdDocumentFile] = useState<File | null>(null);
+
+  // 通帳コピー
+  const [bankBookImage, setBankBookImage] = useState<string | null>(userProfile.bank_book_image);
+  const [bankBookImageFile, setBankBookImageFile] = useState<File | null>(null);
+
   const [workHistories, setWorkHistories] = useState<string[]>(
     userProfile.work_histories?.length > 0 ? userProfile.work_histories : []
   );
 
   // DBの経験データからexperienceFieldsとexperienceYearsを初期化
+  // 古い形式のデータ（years, histories）はフィルタリングして除外
+  const invalidKeys = ['years', 'histories'];
   const initialExperienceFields = userProfile.experience_fields
-    ? Object.keys(userProfile.experience_fields)
+    ? Object.keys(userProfile.experience_fields).filter(key => !invalidKeys.includes(key))
     : [];
-  const initialExperienceYears = userProfile.experience_fields || {};
+  const initialExperienceYears = userProfile.experience_fields
+    ? Object.fromEntries(
+      Object.entries(userProfile.experience_fields).filter(([key]) => !invalidKeys.includes(key))
+    )
+    : {};
 
   const [formData, setFormData] = useState({
     // 1. 基本情報（データベースから取得）
@@ -181,14 +206,18 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
     return '';
   };
 
-  // 資格証明書の状態管理（データベースの資格に基づいて初期化）
+  // 資格証明書の状態管理（データベースから初期化）
   const [qualificationCertificates, setQualificationCertificates] = useState<Record<string, string | null>>(() => {
     const certs: Record<string, string | null> = {};
     userProfile.qualifications.forEach((qual) => {
-      certs[qual] = null; // 証明書画像は後で実装予定
+      // DBから読み込んだ証明書があれば設定
+      certs[qual] = userProfile.qualification_certificates?.[qual] || null;
     });
     return certs;
   });
+
+  // 資格証明書のファイル（新規アップロード用）
+  const [qualificationCertificateFiles, setQualificationCertificateFiles] = useState<Record<string, File>>({});
 
   const qualificationsList = [
     '介護福祉士',
@@ -284,6 +313,12 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
   const handleProfileImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      const result = validateFile(file, 'image');
+      if (!result.isValid) {
+        toast.error(result.error!);
+        return;
+      }
+
       // ファイルオブジェクトを保存（サーバーアップロード用）
       setProfileImageFile(file);
 
@@ -299,12 +334,61 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
   const handleQualificationCertificateChange = (qualification: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      const result = validateFile(file, 'all'); // 画像+PDF
+      if (!result.isValid) {
+        toast.error(result.error!);
+        return;
+      }
+
+      // ファイルオブジェクトを保存（サーバーアップロード用）
+      setQualificationCertificateFiles(prev => ({
+        ...prev,
+        [qualification]: file
+      }));
+
+      // プレビュー用にDataURLを生成
       const reader = new FileReader();
       reader.onloadend = () => {
         setQualificationCertificates(prev => ({
           ...prev,
           [qualification]: reader.result as string
         }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleIdDocumentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const result = validateFile(file, 'all'); // 画像+PDF
+      if (!result.isValid) {
+        toast.error(result.error!);
+        return;
+      }
+
+      setIdDocumentFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setIdDocument(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleBankBookImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const result = validateFile(file, 'all'); // 画像+PDF
+      if (!result.isValid) {
+        toast.error(result.error!);
+        return;
+      }
+
+      setBankBookImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setBankBookImage(reader.result as string);
       };
       reader.readAsDataURL(file);
     }
@@ -386,6 +470,22 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
       form.append('profileImage', profileImageFile);
     }
 
+    if (idDocumentFile) {
+      form.append('idDocument', idDocumentFile);
+    }
+
+    if (bankBookImageFile) {
+      form.append('bankBookImage', bankBookImageFile);
+    }
+
+    // 資格証明書ファイルを追加（日本語キー名をBase64エンコード）
+    console.log('[ProfileEditClient] qualificationCertificateFiles:', Object.keys(qualificationCertificateFiles));
+    Object.entries(qualificationCertificateFiles).forEach(([qualification, file]) => {
+      const encodedQualification = btoa(unescape(encodeURIComponent(qualification)));
+      console.log('[ProfileEditClient] Appending certificate:', qualification, '→', encodedQualification, 'file:', file.name, file.size);
+      form.append(`qualificationCertificate_${encodedQualification}`, file);
+    });
+
     // サーバーアクションを呼び出し
     const result = await updateUserProfile(form);
 
@@ -393,6 +493,15 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
       toast.success(result.message || 'プロフィールを更新しました');
       // 画像アップロード後はファイル状態をリセット
       setProfileImageFile(null);
+      setIdDocumentFile(null);
+      setBankBookImageFile(null);
+      setQualificationCertificateFiles({});
+      // リダイレクト: returnUrlがあれば戻り先へ、なければマイページへ
+      if (returnUrl) {
+        router.push(returnUrl);
+      } else {
+        router.push('/mypage');
+      }
     } else {
       toast.error(result.error || 'プロフィールの更新に失敗しました');
     }
@@ -411,6 +520,14 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
       </div>
 
       <form onSubmit={handleSubmit} className="max-w-4xl mx-auto px-4 py-6">
+        {/* 必須項目の説明 */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <p className="text-sm text-blue-800">
+            <span className="text-red-500 font-bold">*</span> が付いている項目は、求人に応募する際に必要な情報です。
+            プロフィールは少しずつ登録できますが、応募時にはこれらの項目が入力されている必要があります。
+          </p>
+        </div>
+
         {/* プロフィール画像 */}
         <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <h2 className="text-lg font-bold mb-4 pb-3 border-b">プロフィール画像</h2>
@@ -431,6 +548,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
               onChange={handleProfileImageChange}
               className="hidden"
             />
+            <p className="text-xs text-gray-500 mt-2">20MB以下 / JPG, PNG, HEIC形式</p>
 
             <button
               type="button"
@@ -457,7 +575,6 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 value={formData.lastName}
                 onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                required
               />
             </div>
             <div>
@@ -467,7 +584,6 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 value={formData.firstName}
                 onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                required
               />
             </div>
             <div>
@@ -483,7 +599,6 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 }}
                 className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${validationErrors.lastNameKana ? 'border-red-500' : 'border-gray-300'
                   }`}
-                required
               />
               {validationErrors.lastNameKana && (
                 <p className="text-red-500 text-xs mt-1">{validationErrors.lastNameKana}</p>
@@ -502,7 +617,6 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 }}
                 className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${validationErrors.firstNameKana ? 'border-red-500' : 'border-gray-300'
                   }`}
-                required
               />
               {validationErrors.firstNameKana && (
                 <p className="text-red-500 text-xs mt-1">{validationErrors.firstNameKana}</p>
@@ -515,7 +629,6 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 value={formData.birthDate}
                 onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                required
               />
             </div>
             <div>
@@ -524,7 +637,6 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 value={formData.gender}
                 onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                required
               >
                 <option value="">選択してください</option>
                 <option value="男性">男性</option>
@@ -538,7 +650,6 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 value={formData.nationality}
                 onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                required
               >
                 <option value="">選択してください</option>
                 <option value="日本">日本</option>
@@ -560,7 +671,6 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                   value={formData.currentWorkStyle}
                   onChange={(e) => setFormData({ ...formData, currentWorkStyle: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  required
                 >
                   <option value="">選択してください</option>
                   <option value="正社員">正社員</option>
@@ -576,7 +686,6 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                   value={formData.desiredWorkStyle}
                   onChange={(e) => setFormData({ ...formData, desiredWorkStyle: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  required
                 >
                   <option value="">選択してください</option>
                   <option value="正社員">正社員</option>
@@ -594,7 +703,6 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 value={formData.jobChangeDesire}
                 onChange={(e) => setFormData({ ...formData, jobChangeDesire: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                required
               >
                 <option value="">選択してください</option>
                 <option value="今はない">今はない</option>
@@ -701,7 +809,6 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 }}
                 className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${validationErrors.phone ? 'border-red-500' : 'border-gray-300'
                   }`}
-                required
               />
               {validationErrors.phone && (
                 <p className="text-red-500 text-xs mt-1">{validationErrors.phone}</p>
@@ -720,7 +827,6 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 }}
                 className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${validationErrors.email ? 'border-red-500' : 'border-gray-300'
                   }`}
-                required
               />
               {validationErrors.email && (
                 <p className="text-red-500 text-xs mt-1">{validationErrors.email}</p>
@@ -740,7 +846,6 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${validationErrors.postalCode ? 'border-red-500' : 'border-gray-300'
                   }`}
                 placeholder="123-4567"
-                required
               />
               {validationErrors.postalCode && (
                 <p className="text-red-500 text-xs mt-1">{validationErrors.postalCode}</p>
@@ -753,7 +858,6 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 value={formData.prefecture}
                 onChange={(e) => setFormData({ ...formData, prefecture: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                required
               />
             </div>
             <div>
@@ -763,7 +867,6 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 value={formData.city}
                 onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                required
               />
             </div>
             <div>
@@ -773,7 +876,6 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 value={formData.address}
                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                required
               />
             </div>
             <div className="md:col-span-2">
@@ -793,10 +895,10 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
           {/* 緊急連絡先 */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
-              <h3 className="text-md font-semibold mb-3">緊急連絡先</h3>
+              <h3 className="text-md font-semibold mb-3">緊急連絡先 <span className="text-red-500">*</span></h3>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">氏名</label>
+              <label className="block text-sm font-medium mb-2">氏名 <span className="text-red-500">*</span></label>
               <input
                 type="text"
                 value={formData.emergencyContactName}
@@ -814,7 +916,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">電話番号</label>
+              <label className="block text-sm font-medium mb-2">電話番号 <span className="text-red-500">*</span></label>
               <input
                 type="tel"
                 value={formData.emergencyContactPhone}
@@ -868,26 +970,26 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
             {/* 資格証明書アップロード - 選択された資格（その他以外）の数だけ表示 */}
             {formData.qualifications.filter(qual => qual !== 'その他').length > 0 && (
               <div className="space-y-4">
-                <label className="block text-sm font-medium">資格証明書アップロード</label>
+                <label className="block text-sm font-medium">資格証明書アップロード <span className="text-red-500">*</span></label>
                 {formData.qualifications.filter(qual => qual !== 'その他').map((qual) => (
                   <div key={qual} className="border border-gray-200 rounded-lg p-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-3">{qual}</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">{qual} <span className="text-red-500">*</span></label>
 
-                    {/* 既存の証明書がある場合はプレビュー表示（横並び） */}
+                    {/* 既存の証明書がある場合はプレビュー表示 */}
                     {qualificationCertificates[qual] ? (
-                      <div className="flex items-start gap-4">
-                        <div className="flex-1">
-                          <div className="relative w-full h-40 border border-gray-300 rounded-lg overflow-hidden bg-gray-50">
-                            <img
-                              src={qualificationCertificates[qual]!}
-                              alt={`${qual}の証明書`}
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                          <p className="text-xs text-green-600 mt-1">✓ 登録済み</p>
+                      <div className="flex flex-col gap-3">
+                        {/* 画像プレビュー */}
+                        <div className="relative w-full h-48 sm:h-40 border border-gray-300 rounded-lg overflow-hidden bg-gray-50">
+                          <img
+                            src={qualificationCertificates[qual]!}
+                            alt={`${qual}の証明書`}
+                            className="w-full h-full object-contain"
+                          />
                         </div>
-                        <div className="flex flex-col justify-start">
-                          <label className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer text-center text-sm font-medium whitespace-nowrap">
+                        <p className="text-xs text-green-600">✓ 登録済み</p>
+                        {/* 変更ボタン */}
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                          <label className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer text-center text-sm font-medium">
                             画像を変更
                             <input
                               type="file"
@@ -896,18 +998,21 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                               className="hidden"
                             />
                           </label>
-                          <p className="text-xs text-gray-500 mt-2">ファイル形式: JPG, PNG, PDF</p>
+                          <p className="text-xs text-gray-500">20MB以下 / JPG, PNG, HEIC, PDF形式（自動圧縮）</p>
                         </div>
                       </div>
                     ) : (
-                      <div>
-                        <input
-                          type="file"
-                          accept="image/*,.pdf"
-                          onChange={(e) => handleQualificationCertificateChange(qual, e)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">ファイル形式: JPG, PNG, PDF</p>
+                      <div className="space-y-2">
+                        <label className="block w-full px-4 py-3 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors cursor-pointer text-center text-sm font-medium border-2 border-dashed border-blue-200">
+                          📷 ファイルを選択
+                          <input
+                            type="file"
+                            accept="image/*,.pdf"
+                            onChange={(e) => handleQualificationCertificateChange(qual, e)}
+                            className="hidden"
+                          />
+                        </label>
+                        <p className="text-xs text-gray-500 text-center">20MB以下 / JPG, PNG, HEIC, PDF形式（自動圧縮）</p>
                       </div>
                     )}
                   </div>
@@ -945,12 +1050,12 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 <label className="block text-sm font-medium mb-3">経験年数</label>
                 <div className="space-y-3">
                   {formData.experienceFields.map((field) => (
-                    <div key={field} className="flex items-center gap-4">
-                      <span className="text-sm min-w-[180px]">{field}</span>
+                    <div key={field} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                      <span className="text-sm sm:min-w-[180px] font-medium">{field}</span>
                       <select
                         value={formData.experienceYears[field] || ''}
                         onChange={(e) => handleExperienceYearChange(field, e.target.value)}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+                        className="w-full sm:flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
                       >
                         <option value="">選択してください</option>
                         {experienceYearOptions.map((option) => (
@@ -1024,12 +1129,12 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
 
         {/* 7. 銀行口座情報 */}
         <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <h2 className="text-lg font-bold mb-4 pb-3 border-b">7. 銀行口座情報（任意）</h2>
+          <h2 className="text-lg font-bold mb-4 pb-3 border-b">7. 銀行口座情報 <span className="text-red-500">*</span></h2>
 
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-2">銀行名</label>
+                <label className="block text-sm font-medium mb-2">銀行名 <span className="text-red-500">*</span></label>
                 <input
                   type="text"
                   value={formData.bankName}
@@ -1038,7 +1143,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">支店名</label>
+                <label className="block text-sm font-medium mb-2">支店名 <span className="text-red-500">*</span></label>
                 <input
                   type="text"
                   value={formData.branchName}
@@ -1047,7 +1152,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">口座名義（カナ）</label>
+                <label className="block text-sm font-medium mb-2">口座名義（カナ） <span className="text-red-500">*</span></label>
                 <input
                   type="text"
                   value={formData.accountName}
@@ -1056,7 +1161,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">口座番号</label>
+                <label className="block text-sm font-medium mb-2">口座番号 <span className="text-red-500">*</span></label>
                 <input
                   type="text"
                   value={formData.accountNumber}
@@ -1067,13 +1172,44 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">通帳コピーアップロード</label>
-              <input
-                type="file"
-                accept="image/*,.pdf"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-              />
-              <p className="text-xs text-gray-500 mt-1">ファイル形式: JPG, PNG, PDF</p>
+              <div>
+                <label className="block text-sm font-medium mb-2">通帳コピーアップロード <span className="text-red-500">*</span></label>
+                {bankBookImage ? (
+                  <div className="flex flex-col gap-3">
+                    {/* 画像プレビュー */}
+                    <div className="relative w-full h-48 sm:h-40 border border-gray-300 rounded-lg overflow-hidden bg-gray-50">
+                      <img src={bankBookImage} alt="通帳コピー" className="w-full h-full object-contain" />
+                    </div>
+                    <p className="text-xs text-green-600">✓ 登録済み</p>
+                    {/* 変更ボタン */}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                      <label className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer text-center text-sm font-medium">
+                        画像を変更
+                        <input
+                          type="file"
+                          accept="image/*,.pdf"
+                          onChange={handleBankBookImageChange}
+                          className="hidden"
+                        />
+                      </label>
+                      <p className="text-xs text-gray-500">20MB以下 / JPG, PNG, HEIC, PDF形式</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <label className="block w-full px-4 py-3 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors cursor-pointer text-center text-sm font-medium border-2 border-dashed border-blue-200">
+                      📷 ファイルを選択
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        onChange={handleBankBookImageChange}
+                        className="hidden"
+                      />
+                    </label>
+                    <p className="text-xs text-gray-500 text-center">20MB以下 / JPG, PNG, HEIC, PDF形式</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </section>
@@ -1095,13 +1231,43 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">身分証明書アップロード</label>
-              <input
-                type="file"
-                accept="image/*,.pdf"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-              />
-              <p className="text-xs text-gray-500 mt-1">運転免許証、マイナンバーカードなど（ファイル形式: JPG, PNG, PDF）</p>
+              <label className="block text-sm font-medium mb-2">身分証明書アップロード <span className="text-red-500">*</span></label>
+              {idDocument ? (
+                <div className="flex flex-col gap-3">
+                  {/* 画像プレビュー */}
+                  <div className="relative w-full h-48 sm:h-40 border border-gray-300 rounded-lg overflow-hidden bg-gray-50">
+                    <img src={idDocument} alt="身分証明書" className="w-full h-full object-contain" />
+                  </div>
+                  <p className="text-xs text-green-600">✓ 登録済み</p>
+                  {/* 変更ボタン */}
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                    <label className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer text-center text-sm font-medium">
+                      画像を変更
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        onChange={handleIdDocumentChange}
+                        className="hidden"
+                      />
+                    </label>
+                    <p className="text-xs text-gray-500">20MB以下 / JPG, PNG, HEIC, PDF形式</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <label className="block w-full px-4 py-3 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors cursor-pointer text-center text-sm font-medium border-2 border-dashed border-blue-200">
+                    📷 ファイルを選択
+                    <input
+                      type="file"
+                      accept="image/*,.pdf"
+                      onChange={handleIdDocumentChange}
+                      className="hidden"
+                    />
+                  </label>
+                  <p className="text-xs text-gray-500 text-center">20MB以下 / JPG, PNG, HEIC, PDF形式</p>
+                </div>
+              )}
+              <p className="text-xs text-gray-500 mt-2">運転免許証、マイナンバーカードなど</p>
             </div>
           </div>
         </section>

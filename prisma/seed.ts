@@ -123,6 +123,23 @@ async function main() {
       phone_number: '090-1234-5678',
       profile_image: '/images/users/user1.svg',
       qualifications: ['介護福祉士', '実務者研修'],
+      last_name_kana: 'ヤマダ',
+      first_name_kana: 'タロウ',
+      gender: '男性',
+      nationality: '日本',
+      postal_code: '123-4567',
+      prefecture: '東京都',
+      city: '新宿区',
+      address_line: '西新宿1-1-1',
+      building: '新宿ビル101',
+
+      emergency_name: '山田 花子',
+      emergency_relation: '妻',
+      emergency_phone: '090-8765-4321',
+      emergency_address: '東京都新宿区西新宿1-1-1',
+      experience_fields: { "デイサービス": "3年以上5年未満", "訪問介護": "1年以上3年未満" },
+      id_document: '/images/sample-id.jpg',
+      bank_book_image: '/images/sample-bank.jpg',
     },
     {
       email: 'sato@example.com',
@@ -160,6 +177,9 @@ async function main() {
       phone_number: '090-5678-9012',
       profile_image: null,
       qualifications: ['実務者研修', '初任者研修'],
+      last_name_kana: 'タナカ',
+      first_name_kana: 'ケンタ',
+      experience_fields: { "特別養護老人ホーム": "1年未満" },
     },
     // 資格なし新人ユーザー
     {

@@ -622,6 +622,12 @@ export default function WorkerDetailPage({
               >
                 緊急連絡先
               </Link>
+              <Link
+                href={`/admin/workers/${workerId}/labor-documents`}
+                className="text-blue-600 hover:text-blue-800 hover:underline"
+              >
+                労働条件通知書
+              </Link>
             </div>
           </div>
 

@@ -74,8 +74,8 @@ export default function MyJobsPage() {
     return app.status === targetStatus;
   });
 
-  const handleJobClick = (jobId: number) => {
-    router.push(`/jobs/${jobId}`);
+  const handleJobClick = (applicationId: number) => {
+    router.push(`/my-jobs/${applicationId}`);
   };
 
   const getStatusBadge = (status: ApplicationStatus) => {
@@ -152,7 +152,7 @@ export default function MyJobsPage() {
           filteredApplications.map((app) => (
             <div
               key={app.id}
-              onClick={() => handleJobClick(app.job.id)}
+              onClick={() => handleJobClick(app.id)}
               className="w-full bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow text-left overflow-hidden cursor-pointer"
             >
               <div className="p-3">

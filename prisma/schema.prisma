@@ -47,6 +47,9 @@ model User {
   account_name           String?        @map("account_name")
   account_number         String?        @map("account_number")
   pension_number         String?        @map("pension_number")
+  id_document            String?        @map("id_document")
+  bank_book_image        String?        @map("bank_book_image")
+  qualification_certificates Json?      @map("qualification_certificates")
   applications           Application[]
   bookmarkedBy           Bookmark[]     @relation("BookmarkedUsers")
   bookmarks              Bookmark[]     @relation("UserBookmarks")
@@ -66,6 +69,7 @@ model FacilityAdmin {
   name          String
   phone_number  String?  @map("phone_number")
   role          String   @default("admin")
+  is_primary    Boolean  @default(false) @map("is_primary")
   created_at    DateTime @default(now()) @map("created_at")
   updated_at    DateTime @updatedAt @map("updated_at")
   facility      Facility @relation(fields: [facility_id], references: [id], onDelete: Cascade)
@@ -168,6 +172,8 @@ model JobTemplate {
   attachments        String[]
   notes              String?
   tags               String[]
+  /// 解雇の事由（労働条件通知書用、nullの場合はデフォルト文言を使用）
+  dismissal_reasons  String?  @map("dismissal_reasons")
   created_at         DateTime @default(now()) @map("created_at")
   updated_at         DateTime @updatedAt @map("updated_at")
   facility           Facility @relation(fields: [facility_id], references: [id], onDelete: Cascade)
@@ -268,26 +274,84 @@ model JobWorkDate {
 }
 
 model Application {
-  id                     Int           @id @default(autoincrement())
-  work_date_id           Int           @map("work_date_id")
-  user_id                Int           @map("user_id")
-  status                 WorkerStatus  @default(APPLIED)
-  worker_review_status   ReviewStatus  @default(PENDING) @map("worker_review_status")
-  facility_review_status ReviewStatus  @default(PENDING) @map("facility_review_status")
+  id                     Int            @id @default(autoincrement())
+  work_date_id           Int            @map("work_date_id")
+  user_id                Int            @map("user_id")
+  status                 WorkerStatus   @default(APPLIED)
+  worker_review_status   ReviewStatus   @default(PENDING) @map("worker_review_status")
+  facility_review_status ReviewStatus   @default(PENDING) @map("facility_review_status")
   message                String?
   /// キャンセル実行者（WORKER: ワーカー、FACILITY: 施設）
-  cancelled_by           CancelledBy?  @map("cancelled_by")
+  cancelled_by           CancelledBy?   @map("cancelled_by")
   /// 施設キャンセル通知の既読日時（nullなら未読）
-  cancel_notified_at     DateTime?     @map("cancel_notified_at")
-  created_at             DateTime      @default(now()) @map("created_at")
-  updated_at             DateTime      @updatedAt @map("updated_at")
-  user                   User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  workDate               JobWorkDate   @relation(fields: [work_date_id], references: [id], onDelete: Cascade)
+  cancel_notified_at     DateTime?      @map("cancel_notified_at")
+  created_at             DateTime       @default(now()) @map("created_at")
+  updated_at             DateTime       @updatedAt @map("updated_at")
+  user                   User           @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  workDate               JobWorkDate    @relation(fields: [work_date_id], references: [id], onDelete: Cascade)
   messages               Message[]
   reviews                Review[]
+  laborDocument          LaborDocument?
 
   @@unique([work_date_id, user_id])
   @@map("applications")
+}
+
+/// 労働条件通知書データ（マッチング時に生成）
+model LaborDocument {
+  id               Int         @id @default(autoincrement())
+  application_id   Int         @unique @map("application_id")
+  /// 労働条件通知書のデータをJSONで保存（PDF生成用）
+  document_data    Json        @map("document_data")
+  /// PDF生成済みフラグ
+  pdf_generated    Boolean     @default(false) @map("pdf_generated")
+  /// PDFファイルパス（生成済みの場合）
+  pdf_path         String?     @map("pdf_path")
+  /// チャット送信済みフラグ
+  sent_to_chat     Boolean     @default(false) @map("sent_to_chat")
+  /// チャット送信日時
+  sent_at          DateTime?   @map("sent_at")
+  created_at       DateTime    @default(now()) @map("created_at")
+  updated_at       DateTime    @updatedAt @map("updated_at")
+  application      Application @relation(fields: [application_id], references: [id], onDelete: Cascade)
+
+  @@map("labor_documents")
+}
+
+/// 労働条件通知書ダウンロードトークン
+model LaborDocumentDownloadToken {
+  id                      Int      @id @default(autoincrement())
+  token                   String   @unique
+  /// リクエストした施設管理者のID
+  facility_admin_id       Int      @map("facility_admin_id")
+  /// 対象ワーカーのID
+  worker_id               Int      @map("worker_id")
+  /// 対象施設のID
+  facility_id             Int      @map("facility_id")
+  /// 対象期間（開始）
+  start_date              DateTime @map("start_date")
+  /// 対象期間（終了）
+  end_date                DateTime @map("end_date")
+  /// 資格証明書を含むか
+  include_qualifications  Boolean  @default(false) @map("include_qualifications")
+  /// 送信先メールアドレス
+  email                   String
+  /// 有効期限（72時間）
+  expires_at              DateTime @map("expires_at")
+  /// ダウンロード済みフラグ
+  downloaded              Boolean  @default(false)
+  /// ダウンロード日時
+  downloaded_at           DateTime? @map("downloaded_at")
+  /// ZIPファイルパス（生成済みの場合）
+  zip_path                String?  @map("zip_path")
+  /// 処理状態（PENDING: 処理中, COMPLETED: 完了, FAILED: 失敗）
+  status                  String   @default("PENDING")
+  /// エラーメッセージ（失敗時）
+  error_message           String?  @map("error_message")
+  created_at              DateTime @default(now()) @map("created_at")
+  updated_at              DateTime @updatedAt @map("updated_at")
+
+  @@map("labor_document_download_tokens")
 }
 
 model Review {

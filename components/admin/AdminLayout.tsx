@@ -83,7 +83,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       active: pathname === '/admin/messages',
     },
     {
-      title: '法人・施設',
+      title: '施設管理',
       icon: <Building2 className="w-4 h-4" />,
       href: '/admin/facility',
       active: pathname === '/admin/facility',

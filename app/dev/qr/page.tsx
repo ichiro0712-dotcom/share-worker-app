@@ -5,17 +5,14 @@ import QRCode from 'qrcode';
 
 export default function DevQRPage() {
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
-  const [localIP, setLocalIP] = useState<string>('');
+  const [localIP, setLocalIP] = useState<string>('192.168.11.7');
   const [port] = useState('3000');
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     // ローカルIPを取得（手動設定）
     // 実際のIPは ifconfig | grep "inet " で確認
-    const ip = '10.118.154.240';
-    setLocalIP(ip);
-
-    const url = `http://${ip}:${port}`;
+    const url = `http://${localIP}:${port}`;
 
     QRCode.toDataURL(url, {
       width: 300,
@@ -25,7 +22,7 @@ export default function DevQRPage() {
         light: '#FFFFFF',
       },
     }).then(setQrDataUrl);
-  }, [port]);
+  }, [localIP, port]);
 
   const url = `http://${localIP}:${port}`;
 
@@ -44,6 +41,19 @@ export default function DevQRPage() {
         <p className="text-gray-500 text-sm mb-6">
           同じWi-Fiに接続したスマホでスキャンしてください
         </p>
+
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-1 text-left">
+            IPアドレス設定
+          </label>
+          <input
+            type="text"
+            value={localIP}
+            onChange={(e) => setLocalIP(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            placeholder="例: 192.168.1.10"
+          />
+        </div>
 
         {qrDataUrl && (
           <div className="bg-white p-4 rounded-xl border-2 border-gray-200 inline-block mb-6">

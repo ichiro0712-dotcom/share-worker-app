@@ -3,10 +3,20 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { Upload, X, Eye, User, Loader2 } from 'lucide-react';
+import { Upload, X, Eye, User, Loader2, Plus, Trash2, Key } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { getFacilityInfo, updateFacilityBasicInfo, updateFacilityMapImage } from '@/src/lib/actions';
+import {
+  getFacilityInfo,
+  updateFacilityBasicInfo,
+  updateFacilityMapImage,
+  getFacilityAccounts,
+  addFacilityAccount,
+  updateFacilityAccount,
+  updateFacilityAccountPassword,
+  deleteFacilityAccount,
+} from '@/src/lib/actions';
 import { MapPin } from 'lucide-react';
+import { validateFile } from '@/utils/fileValidation';
 
 export default function FacilityPage() {
   const router = useRouter();
@@ -16,6 +26,20 @@ export default function FacilityPage() {
   const [isUpdatingMap, setIsUpdatingMap] = useState(false);
   // 住所変更検知用：ロード時の住所を保存
   const [originalAddress, setOriginalAddress] = useState('');
+
+  // アカウント管理
+  const [accounts, setAccounts] = useState<{
+    id: number;
+    email: string;
+    name: string;
+    is_primary: boolean;
+    created_at: Date;
+  }[]>([]);
+  const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
+  const [showAddAccountModal, setShowAddAccountModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState<number | null>(null);
+  const [newAccount, setNewAccount] = useState({ name: '', email: '', password: '' });
+  const [newPassword, setNewPassword] = useState('');
 
   useEffect(() => {
     if (isAdminLoading) return;
@@ -73,7 +97,8 @@ export default function FacilityPage() {
     images: [] as File[],
   });
   // 既存の服装画像URL
-  const [existingDresscodeImages, setExistingDresscodeImages] = useState<string[]>([]);
+  // 既存の服装画像URL
+  // 削除済み
 
   const dresscodeOptions = [
     '制服貸与', '私服', '動きやすい服装', 'スニーカー', '靴下', 'エプロン',
@@ -302,7 +327,7 @@ export default function FacilityPage() {
             items: data.dresscodeItems || [],
             images: [], // File[]なので、ここでは空配列
           });
-          setExistingDresscodeImages(data.dresscodeImages || []);
+          // setExistingDresscodeImages(data.dresscodeImages || []); // 削除
 
           // 喫煙情報をセット
           setSmokingInfo({
@@ -335,9 +360,35 @@ export default function FacilityPage() {
     loadFacilityInfo();
   }, [admin?.facilityId]);
 
+  // アカウント一覧を読み込む
+  useEffect(() => {
+    const loadAccounts = async () => {
+      if (!admin?.facilityId) return;
+
+      setIsLoadingAccounts(true);
+      try {
+        const result = await getFacilityAccounts(admin.facilityId);
+        if (result.success && result.accounts) {
+          setAccounts(result.accounts);
+        }
+      } catch (error) {
+        console.error('Failed to load accounts:', error);
+      } finally {
+        setIsLoadingAccounts(false);
+      }
+    };
+
+    loadAccounts();
+  }, [admin?.facilityId]);
+
   const handleManagerPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      const result = validateFile(file, 'image');
+      if (!result.isValid) {
+        toast.error(result.error!);
+        return;
+      }
       setManagerInfo({
         ...managerInfo,
         photo: file,
@@ -357,6 +408,11 @@ export default function FacilityPage() {
     const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
     if (files.length > 0) {
       const file = files[0];
+      const result = validateFile(file, 'image');
+      if (!result.isValid) {
+        toast.error(result.error!);
+        return;
+      }
       setManagerInfo({
         ...managerInfo,
         photo: file,
@@ -365,36 +421,70 @@ export default function FacilityPage() {
     }
   };
 
-  const handleDresscodeImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    setDresscodeInfo({
-      ...dresscodeInfo,
-      images: [...dresscodeInfo.images, ...files],
-    });
-  };
+  // アカウント追加
+  const handleAddAccount = async () => {
+    if (!admin?.facilityId) return;
+    if (!newAccount.name || !newAccount.email || !newAccount.password) {
+      toast.error('すべての項目を入力してください');
+      return;
+    }
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
-    if (files.length > 0) {
-      setDresscodeInfo({
-        ...dresscodeInfo,
-        images: [...dresscodeInfo.images, ...files],
-      });
+    try {
+      const result = await addFacilityAccount(admin.facilityId, newAccount);
+      if (result.success && result.account) {
+        setAccounts([...accounts, result.account]);
+        setShowAddAccountModal(false);
+        setNewAccount({ name: '', email: '', password: '' });
+        toast.success('アカウントを追加しました');
+      } else {
+        toast.error(result.error || 'アカウントの追加に失敗しました');
+      }
+    } catch (error) {
+      console.error('Failed to add account:', error);
+      toast.error('アカウントの追加に失敗しました');
     }
   };
 
-  const removeDresscodeImage = (index: number) => {
-    setDresscodeInfo({
-      ...dresscodeInfo,
-      images: dresscodeInfo.images.filter((_, i) => i !== index),
-    });
+  // パスワード変更
+  const handleChangePassword = async (accountId: number) => {
+    if (!admin?.facilityId) return;
+    if (!newPassword || newPassword.length < 6) {
+      toast.error('パスワードは6文字以上で入力してください');
+      return;
+    }
+
+    try {
+      const result = await updateFacilityAccountPassword(accountId, admin.facilityId, newPassword);
+      if (result.success) {
+        setShowPasswordModal(null);
+        setNewPassword('');
+        toast.success('パスワードを変更しました');
+      } else {
+        toast.error(result.error || 'パスワードの変更に失敗しました');
+      }
+    } catch (error) {
+      console.error('Failed to change password:', error);
+      toast.error('パスワードの変更に失敗しました');
+    }
+  };
+
+  // アカウント削除
+  const handleDeleteAccount = async (accountId: number) => {
+    if (!admin?.facilityId) return;
+    if (!confirm('このアカウントを削除しますか？')) return;
+
+    try {
+      const result = await deleteFacilityAccount(accountId, admin.facilityId);
+      if (result.success) {
+        setAccounts(accounts.filter(a => a.id !== accountId));
+        toast.success('アカウントを削除しました');
+      } else {
+        toast.error(result.error || 'アカウントの削除に失敗しました');
+      }
+    } catch (error) {
+      console.error('Failed to delete account:', error);
+      toast.error('アカウントの削除に失敗しました');
+    }
   };
 
   const addEmail = () => {
@@ -467,6 +557,39 @@ export default function FacilityPage() {
     if (!admin?.facilityId) {
       toast.error('施設IDが取得できません');
       console.error('[handleSave] No facilityId. admin:', admin);
+      return;
+    }
+
+    // Validation
+    const errors: string[] = [];
+
+    // 責任者情報
+    if (!managerInfo.photoPreview) errors.push('責任者の顔写真は必須です');
+    if (!managerInfo.greeting?.trim()) errors.push('責任者の挨拶文は必須です');
+
+    // アクセス
+    const validStations = accessInfo.stations.filter(s => s.name?.trim() && (s.minutes || s.minutes === 0));
+    if (validStations.length === 0) errors.push('最寄駅は少なくとも1つ入力してください（駅名と所要時間）');
+
+    if (!accessInfo.accessDescription?.trim()) errors.push('アクセスの説明は必須です');
+    if (accessInfo.accessDescription && accessInfo.accessDescription.length > 40) errors.push('アクセスの説明は40文字以内で入力してください');
+
+    if (accessInfo.transportation.length === 0) errors.push('移動可能な通勤手段は必須です');
+    if (!accessInfo.parking) errors.push('敷地内駐車場は必須です');
+
+    // その他の設定
+    if (!smokingInfo.measure) errors.push('受動喫煙防止対策措置は必須です');
+    if (!smokingInfo.workInSmokingArea) errors.push('喫煙可能エリアでの作業可否は必須です');
+
+    if (errors.length > 0) {
+      toast.error(
+        <div className="text-sm">
+          <p className="font-bold mb-1">入力内容を確認してください</p>
+          <ul className="list-disc pl-4 space-y-0.5">
+            {errors.map((err, i) => <li key={i}>{err}</li>)}
+          </ul>
+        </div>
+      );
       return;
     }
 
@@ -612,7 +735,7 @@ export default function FacilityPage() {
     return (
       <div className="h-full flex flex-col">
         <div className="bg-white border-b border-gray-200 px-6 py-4">
-          <h1 className="text-2xl font-bold text-gray-900">法人・施設情報</h1>
+          <h1 className="text-2xl font-bold text-gray-900">施設管理</h1>
         </div>
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
@@ -628,7 +751,7 @@ export default function FacilityPage() {
     <div className="h-full flex flex-col">
       {/* ヘッダー */}
       <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <h1 className="text-2xl font-bold text-gray-900">法人・施設情報</h1>
+        <h1 className="text-2xl font-bold text-gray-900">施設管理</h1>
       </div>
 
       {/* コンテンツ */}
@@ -726,7 +849,7 @@ export default function FacilityPage() {
               <div className="grid grid-cols-6 gap-2">
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    担当者名 <span className="text-red-500">*</span>
+                    担当者名
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     <input
@@ -838,7 +961,7 @@ export default function FacilityPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      顔写真
+                      顔写真 <span className="text-red-500">*</span>
                     </label>
                     <div className="flex items-center gap-4">
                       {/* 円形の写真プレビュー */}
@@ -885,13 +1008,14 @@ export default function FacilityPage() {
                             className="hidden"
                           />
                         </label>
+                        <p className="text-xs text-gray-500 mt-2">5MB以下 / JPG, PNG, HEIC形式</p>
                       </div>
                     </div>
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      挨拶文
+                      挨拶文 <span className="text-red-500">*</span>
                     </label>
                     <textarea
                       value={managerInfo.greeting}
@@ -1008,6 +1132,78 @@ export default function FacilityPage() {
             </div>
           </div>
 
+          {/* アカウント管理 */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            <div className="bg-gray-50 px-5 py-3 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="text-base font-bold text-gray-900">アカウント管理</h2>
+              {accounts.length < 5 && (
+                <button
+                  onClick={() => setShowAddAccountModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-admin-primary text-white rounded-lg hover:bg-admin-primary-dark"
+                >
+                  <Plus className="w-4 h-4" />
+                  アカウント追加
+                </button>
+              )}
+            </div>
+            <div className="p-5">
+              <p className="text-sm text-gray-600 mb-4">
+                この施設の管理画面にログインできるアカウントを管理します。最大5アカウントまで登録できます。
+              </p>
+
+              {isLoadingAccounts ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {accounts.map((account) => (
+                    <div
+                      key={account.id}
+                      className="flex items-center justify-between p-4 border border-gray-200 rounded-lg"
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-900">{account.name}</span>
+                          {account.is_primary && (
+                            <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-700 rounded">
+                              初期アカウント
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-500 mt-0.5">{account.email}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setShowPasswordModal(account.id)}
+                          className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                        >
+                          <Key className="w-4 h-4" />
+                          パスワード変更
+                        </button>
+                        {!account.is_primary && (
+                          <button
+                            onClick={() => handleDeleteAccount(account.id)}
+                            className="flex items-center gap-1 px-3 py-1.5 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            削除
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+
+                  {accounts.length === 0 && (
+                    <p className="text-center text-gray-500 py-8">
+                      アカウントがありません
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* アクセス */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200">
             <div className="bg-gray-50 px-5 py-3 border-b border-gray-200">
@@ -1017,7 +1213,7 @@ export default function FacilityPage() {
               {/* 最寄駅 */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  最寄駅 <span className="text-gray-500 text-xs">(最大3つまで)</span>
+                  最寄駅 <span className="text-red-500">*</span> <span className="text-gray-500 text-xs">(最大3つまで / 分も必須)</span>
                 </label>
                 <div className="space-y-2">
                   {accessInfo.stations.map((station, index) => (
@@ -1063,7 +1259,7 @@ export default function FacilityPage() {
               {/* アクセス説明 */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  アクセス <span className="text-gray-500 text-xs">(40文字以内)</span>
+                  アクセス <span className="text-red-500">*</span> <span className="text-gray-500 text-xs">(40文字以内)</span>
                 </label>
                 <input
                   type="text"
@@ -1078,7 +1274,7 @@ export default function FacilityPage() {
               {/* 移動可能な通勤手段 */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  移動可能な通勤手段
+                  移動可能な通勤手段 <span className="text-red-500">*</span>
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   {transportationOptions.map((option) => (
@@ -1110,7 +1306,7 @@ export default function FacilityPage() {
               {/* 敷地内駐車場 */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  敷地内駐車場
+                  敷地内駐車場 <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={accessInfo.parking}
@@ -1187,82 +1383,7 @@ export default function FacilityPage() {
               <h2 className="text-base font-bold text-gray-900">その他の設定</h2>
             </div>
             <div className="p-5 space-y-3">
-              {/* 服装 */}
-              <div className="border-b border-gray-200 pb-3">
-                <h3 className="text-sm font-bold text-gray-900 mb-3">服装</h3>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    服装サンプル画像
-                  </label>
-                  <div className="space-y-2">
-                    {/* 既存画像の表示 */}
-                    {existingDresscodeImages.length > 0 && (
-                      <div className="grid grid-cols-4 gap-2 mb-2">
-                        {existingDresscodeImages.map((url, index) => (
-                          <div key={`existing-${index}`} className="relative aspect-video">
-                            <img
-                              src={url}
-                              alt={`服装サンプル${index + 1}`}
-                              className="absolute inset-0 w-full h-full object-cover rounded-lg border border-gray-200"
-                            />
-                            <button
-                              onClick={() => {
-                                setExistingDresscodeImages(existingDresscodeImages.filter((_, i) => i !== index));
-                              }}
-                              className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-600"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
 
-                    {/* 新規アップロード画像の表示 */}
-                    {dresscodeInfo.images.length > 0 && (
-                      <div className="grid grid-cols-4 gap-2">
-                        {dresscodeInfo.images.map((file, index) => (
-                          <div key={index} className="relative aspect-video">
-                            <img
-                              src={URL.createObjectURL(file)}
-                              alt={`服装サンプル${index + 1}`}
-                              className="absolute inset-0 w-full h-full object-cover rounded-lg border border-gray-200"
-                            />
-                            <button
-                              onClick={() => removeDresscodeImage(index)}
-                              className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-600"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <div
-                      onDragOver={handleDragOver}
-                      onDrop={handleDrop}
-                      className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-primary transition-colors cursor-pointer"
-                    >
-                      <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                      <p className="text-sm text-gray-600 mb-1">
-                        画像をドラッグ&ドロップ
-                      </p>
-                      <p className="text-xs text-gray-500 mb-2">または</p>
-                      <label className="cursor-pointer inline-flex items-center gap-1.5 bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                        <Upload className="w-4 h-4" />
-                        ファイルを選択
-                        <input
-                          type="file"
-                          accept="image/*"
-                          multiple
-                          onChange={handleDresscodeImageUpload}
-                          className="hidden"
-                        />
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              </div>
 
               {/* 受動喫煙防止対策 */}
               <div className="border-b border-gray-200 pb-3">
@@ -1270,7 +1391,7 @@ export default function FacilityPage() {
                 <div className="space-y-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      受動喫煙防止対策措置
+                      受動喫煙防止対策措置 <span className="text-red-500">*</span>
                     </label>
                     <select
                       value={smokingInfo.measure}
@@ -1287,7 +1408,7 @@ export default function FacilityPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      喫煙可能エリアでの作業
+                      喫煙可能エリアでの作業 <span className="text-red-500">*</span>
                     </label>
                     <div className="flex gap-4">
                       <label className="flex items-center gap-2">
@@ -1382,6 +1503,109 @@ export default function FacilityPage() {
           </div>
         </div>
       </div>
+      {/* アカウント追加モーダル */}
+      {showAddAccountModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowAddAccountModal(false)}></div>
+          <div className="relative bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">アカウント追加</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  利用者名 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newAccount.name}
+                  onChange={(e) => setNewAccount({ ...newAccount, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
+                  placeholder="例: 山田太郎"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  メールアドレス <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="email"
+                  value={newAccount.email}
+                  onChange={(e) => setNewAccount({ ...newAccount, email: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
+                  placeholder="例: yamada@example.com"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  パスワード <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="password"
+                  value={newAccount.password}
+                  onChange={(e) => setNewAccount({ ...newAccount, password: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
+                  placeholder="6文字以上"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowAddAccountModal(false);
+                  setNewAccount({ name: '', email: '', password: '' });
+                }}
+                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={handleAddAccount}
+                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-admin-primary rounded-lg hover:bg-admin-primary-dark"
+              >
+                追加
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* パスワード変更モーダル */}
+      {showPasswordModal !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowPasswordModal(null)}></div>
+          <div className="relative bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">パスワード変更</h3>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                新しいパスワード <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
+                placeholder="6文字以上"
+              />
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowPasswordModal(null);
+                  setNewPassword('');
+                }}
+                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={() => handleChangePassword(showPasswordModal)}
+                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-admin-primary rounded-lg hover:bg-admin-primary-dark"
+              >
+                変更
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

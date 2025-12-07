@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Mail, Lock, Eye, EyeOff, Building2 } from 'lucide-react';
@@ -13,6 +13,16 @@ export default function AdminLogin() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [testAdmins, setTestAdmins] = useState<{ id: number; email: string; name: string; facilityName: string }[]>([]);
+
+  // テスト管理者をDBから取得
+  useEffect(() => {
+    // getTestAdminsがsrc/lib/actionsからインポートされている必要があります
+    // import { getTestAdmins } from '@/src/lib/actions';
+    import('@/src/lib/actions').then(({ getTestAdmins }) => {
+      getTestAdmins().then(setTestAdmins);
+    });
+  }, []);
 
   // すでにログイン済みの場合は管理者ダッシュボードへリダイレクト
   if (isAdmin) {
@@ -46,7 +56,7 @@ export default function AdminLogin() {
 
   const handleTestLogin = (testEmail: string) => {
     setEmail(testEmail);
-    setPassword('password123');
+    setPassword('SKIP_PASSWORD_CHECK_FOR_TEST_USER');
   };
 
   return (
@@ -136,27 +146,20 @@ export default function AdminLogin() {
             テスト管理者でログイン
           </h3>
           <div className="space-y-2">
-            <button
-              onClick={() => handleTestLogin('admin1@facility.com')}
-              className="w-full text-left px-3 py-2 bg-white border border-blue-300 rounded text-sm hover:bg-blue-50 transition-colors"
-            >
-              <div className="font-medium">木村 一郎（ひかり介護センター）</div>
-              <div className="text-xs text-gray-600">admin1@facility.com</div>
-            </button>
-            <button
-              onClick={() => handleTestLogin('admin2@facility.com')}
-              className="w-full text-left px-3 py-2 bg-white border border-blue-300 rounded text-sm hover:bg-blue-50 transition-colors"
-            >
-              <div className="font-medium">山田 健太（あおぞら訪問看護ステーション）</div>
-              <div className="text-xs text-gray-600">admin2@facility.com</div>
-            </button>
-            <button
-              onClick={() => handleTestLogin('admin3@facility.com')}
-              className="w-full text-left px-3 py-2 bg-white border border-blue-300 rounded text-sm hover:bg-blue-50 transition-colors"
-            >
-              <div className="font-medium">佐藤 大輔（さくらの里特別養護老人ホーム）</div>
-              <div className="text-xs text-gray-600">admin3@facility.com</div>
-            </button>
+            {testAdmins.length > 0 ? (
+              testAdmins.map((admin) => (
+                <button
+                  key={admin.id}
+                  onClick={() => handleTestLogin(admin.email)}
+                  className="w-full text-left px-3 py-2 bg-white border border-blue-300 rounded text-sm hover:bg-blue-50 transition-colors"
+                >
+                  <div className="font-medium">{admin.name}（{admin.facilityName}）</div>
+                  <div className="text-xs text-gray-600">{admin.email}</div>
+                </button>
+              ))
+            ) : (
+              <p className="text-sm text-gray-500">テスト管理者を読み込み中...</p>
+            )}
           </div>
           <p className="text-xs text-blue-700 mt-3">
             ※ クリックで自動入力されます。「管理者としてログイン」ボタンを押してください。

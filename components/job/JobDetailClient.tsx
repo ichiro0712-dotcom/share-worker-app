@@ -1,7 +1,8 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect, useMemo } from 'react';
+import { X } from 'lucide-react';
 import { ChevronLeft, Heart, Clock, MapPin, ChevronRight, ChevronLeft as ChevronLeftIcon, Bookmark, VolumeX, Volume2 } from 'lucide-react';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
@@ -26,44 +27,18 @@ interface JobDetailClientProps {
 
 export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, initialHasApplied, initialAppliedWorkDateIds = [], selectedDate }: JobDetailClientProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // URLパラメータからselectedを読み取る（プロフィール編集から戻った場合）
+  const selectedFromUrl = searchParams.get('selected');
+  const preselectedIds = selectedFromUrl ? selectedFromUrl.split(',').map(id => parseInt(id, 10)).filter(id => !isNaN(id)) : [];
+
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isFavorite, setIsFavorite] = useState(false);
   const [savedForLater, setSavedForLater] = useState(false);
   const [isOverviewExpanded, setIsOverviewExpanded] = useState(false);
   const [showAllDates, setShowAllDates] = useState(false);
-  const [selectedWorkDateIds, setSelectedWorkDateIds] = useState<number[]>(() => {
-    if (!job.workDates || job.workDates.length === 0) {
-      // 旧形式：募集上限チェック
-      const matchedCount = job.matchedCount || 0;
-      const recruitmentCount = job.recruitmentCount || 1;
-      const isFull = matchedCount >= recruitmentCount;
-      if (isFull) return [];
-      // selectedDateがない場合は自動選択しない
-      if (!selectedDate) return [];
-      return [job.id];
-    }
-
-    // selectedDateが指定されている場合のみ、その日付が応募可能かチェックして選択
-    if (selectedDate) {
-      const selected = job.workDates.find((wd: any) => wd.workDate === selectedDate);
-      if (selected) {
-        const isApplied = initialAppliedWorkDateIds.includes(selected.id);
-        const matchedCount = selected.matchedCount || 0;
-        const recruitmentCount = selected.recruitmentCount || job.recruitmentCount || 1;
-        // 面接ありの場合は満員でも応募可能
-        const isFull = !job.requiresInterview && matchedCount >= recruitmentCount;
-        // 応募可能な場合のみチェックを入れる
-        if (!isApplied && !isFull) {
-          return [selected.id];
-        }
-      }
-      // selectedDateが募集終了または見つからない場合は空配列（ワーカーが自分で選ぶ）
-      return [];
-    }
-
-    // selectedDateがない場合は自動選択しない（ワーカーが自分で選ぶ）
-    return [];
-  });
+  const [selectedWorkDateIds, setSelectedWorkDateIds] = useState<number[]>([]);
   const [isApplying, setIsApplying] = useState(false);
   // const [hasApplied, setHasApplied] = useState(initialHasApplied); // 廃止: 個別の応募状態を使用
   const [appliedWorkDateIds, setAppliedWorkDateIds] = useState<number[]>(initialAppliedWorkDateIds);
@@ -72,6 +47,9 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
   const [isJobBookmarkedState, setIsJobBookmarkedState] = useState(false);
   const [isJobBookmarkProcessing, setIsJobBookmarkProcessing] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  // プロフィール未完了モーダル
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profileMissingFields, setProfileMissingFields] = useState<string[]>([]);
 
   // 画像配列を安全に取得（空配列の場合はプレースホルダーを使用）
   const jobImages = job.images && job.images.length > 0 ? job.images : [DEFAULT_JOB_IMAGE];
@@ -87,6 +65,54 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
     const isFacilityMuted = mutedFacilities.some((f: any) => f.facilityId === facility.id);
     setIsMuted(isFacilityMuted);
   }, [job.id, facility.id]);
+
+  // 選択状態の初期化（URLパラメータ、selectedDate、またはデフォルト）
+  useEffect(() => {
+    // URLパラメータからの選択がある場合（プロフィール編集から戻った場合）
+    if (preselectedIds.length > 0) {
+      // 応募可能なIDのみをフィルタリング
+      const validIds = preselectedIds.filter(id => {
+        const wd = job.workDates?.find((w: any) => w.id === id);
+        if (!wd) return false;
+        const isApplied = initialAppliedWorkDateIds.includes(id);
+        const matchedCount = wd.matchedCount || 0;
+        const recruitmentCount = wd.recruitmentCount || job.recruitmentCount || 1;
+        const isFull = !job.requiresInterview && matchedCount >= recruitmentCount;
+        return !isApplied && !isFull;
+      });
+      if (validIds.length > 0) {
+        setSelectedWorkDateIds(validIds);
+        return;
+      }
+    }
+
+    // 旧形式の場合
+    if (!job.workDates || job.workDates.length === 0) {
+      const matchedCount = job.matchedCount || 0;
+      const recruitmentCount = job.recruitmentCount || 1;
+      const isFull = matchedCount >= recruitmentCount;
+      if (!isFull && selectedDate) {
+        setSelectedWorkDateIds([job.id]);
+      }
+      return;
+    }
+
+    // selectedDateが指定されている場合のみ、その日付が応募可能かチェックして選択
+    if (selectedDate) {
+      const selected = job.workDates.find((wd: any) => wd.workDate === selectedDate);
+      if (selected) {
+        const isApplied = initialAppliedWorkDateIds.includes(selected.id);
+        const matchedCount = selected.matchedCount || 0;
+        const recruitmentCount = selected.recruitmentCount || job.recruitmentCount || 1;
+        const isFull = !job.requiresInterview && matchedCount >= recruitmentCount;
+        if (!isApplied && !isFull) {
+          setSelectedWorkDateIds([selected.id]);
+          return;
+        }
+      }
+    }
+    // デフォルトは空配列（ワーカーが自分で選ぶ）
+  }, []);
 
   // 応募可能な日程があるかチェック
   const hasAvailableDates = useMemo(() => {
@@ -242,15 +268,20 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
         setSelectedWorkDateIds([]);
       } else {
         // 一部または全部失敗
-        const errorMessages = results
-          .filter((result) => !result.success)
-          .map((result) => result.error)
-          .join('\n');
-        toast.error(`応募に失敗しました: ${errorMessages}`);
+        const failedResult = results.find((result) => !result.success);
 
-        // 成功したものだけ応募済みリストに追加（厳密にはサーバーからのレスポンスで判断すべきだが、簡易的に）
-        // ここでは安全のためリロードを促すか、あるいは成功したIDを特定するロジックが必要
-        // 今回は簡易的に、成功したものは追加しない（ユーザーに再試行させる）
+        // プロフィール未完了エラーの場合はモーダル表示
+        if (failedResult && 'missingFields' in failedResult && failedResult.missingFields) {
+          const missingFields = failedResult.missingFields as string[];
+          setProfileMissingFields(missingFields);
+          setShowProfileModal(true);
+        } else {
+          const errorMessages = results
+            .filter((result) => !result.success)
+            .map((result) => result.error)
+            .join('\n');
+          toast.error(`応募に失敗しました: ${errorMessages}`);
+        }
       }
     } catch (error) {
       console.error('Application error:', error);
@@ -707,7 +738,7 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
       </div>
 
       {/* 事前情報 */}
-      <div className="mb-4">
+      <div id="pre-info" className="mb-4 scroll-mt-16">
         <h3 className="mb-3 text-sm bg-primary-light px-4 py-3 -mx-4">事前情報</h3>
         <div className="mt-3 space-y-4">
           {/* 施設詳細への導線 */}
@@ -822,12 +853,23 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
             <h4 className="text-sm mb-2 font-bold">住所</h4>
             <p className="text-sm text-gray-600 mb-2">{job.address}</p>
             <div className="relative aspect-video overflow-hidden rounded-lg bg-gray-100 mb-2">
-              <Image
-                src={job.mapImage}
-                alt="地図"
-                fill
-                className="object-cover"
-              />
+              {/* 地図画像: 施設が登録した画像があればそれを使用、なければGoogle Maps Static APIで動的生成 */}
+              {job.mapImage && !job.mapImage.includes('map-placeholder') ? (
+                <Image
+                  src={job.mapImage}
+                  alt="地図"
+                  fill
+                  className="object-cover"
+                />
+              ) : (
+                <Image
+                  src={`https://maps.googleapis.com/maps/api/staticmap?center=${encodeURIComponent(job.address)}&zoom=15&size=600x400&maptype=roadmap&markers=color:red%7C${encodeURIComponent(job.address)}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''}`}
+                  alt="地図"
+                  fill
+                  className="object-cover"
+                  unoptimized
+                />
+              )}
               <MapPin className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 text-red-500" />
             </div>
             <button
@@ -996,6 +1038,55 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
           {isApplying ? '応募中...' : selectedWorkDateIds.length > 0 ? `${selectedWorkDateIds.length}件の日程に応募する` : !hasAvailableDates ? '応募できる日程がありません' : '日程を選択してください'}
         </Button>
       </div>
+
+      {/* プロフィール未完了モーダル */}
+      {showProfileModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6 relative">
+            <button
+              onClick={() => setShowProfileModal(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <h2 className="text-lg font-bold mb-4">プロフィールを完成させてください</h2>
+
+            <p className="text-sm text-gray-600 mb-4">
+              応募するには、以下のプロフィール項目を入力する必要があります。
+            </p>
+
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+              <p className="text-sm font-bold text-red-800 mb-2">未入力の項目:</p>
+              <ul className="text-sm text-red-700 space-y-1">
+                {profileMissingFields.map((field, index) => (
+                  <li key={index}>・{field}</li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowProfileModal(false)}
+              >
+                キャンセル
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={() => {
+                  // 戻り先URLを生成（選択中の勤務日IDを含める）
+                  const returnUrl = `/jobs/${job.id}${selectedWorkDateIds.length > 0 ? `?selected=${selectedWorkDateIds.join(',')}` : ''}`;
+                  router.push(`/mypage/profile?returnUrl=${encodeURIComponent(returnUrl)}`);
+                }}
+              >
+                プロフィールを編集
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

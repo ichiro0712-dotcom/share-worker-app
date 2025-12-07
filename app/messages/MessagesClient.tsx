@@ -92,11 +92,23 @@ export default function MessagesClient({ initialConversations }: MessagesClientP
     },
   ]);
 
-  // URLパラメータからapplicationIdを取得して自動的に開く
+  // URLパラメータからapplicationIdまたはfacilityIdを取得して自動的に開く
   useEffect(() => {
+    if (selectedConversation) return;
+
     const appId = searchParams.get('applicationId');
-    if (appId && !selectedConversation) {
+    const facilityId = searchParams.get('facilityId');
+
+    if (appId) {
       const conv = conversations.find((c) => c.applicationId === parseInt(appId, 10));
+      if (conv) {
+        handleSelectConversation(conv);
+      }
+    } else if (facilityId) {
+      // facilityIdで検索し、最新のメッセージを持つ会話を開く
+      const conv = conversations
+        .filter((c) => c.facilityId === parseInt(facilityId, 10))
+        .sort((a, b) => new Date(b.lastMessageTimestamp).getTime() - new Date(a.lastMessageTimestamp).getTime())[0];
       if (conv) {
         handleSelectConversation(conv);
       }

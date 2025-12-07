@@ -412,48 +412,25 @@ export default function AdminWorkersPage() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredWorkers.map((worker) => {
-              const experienceData = worker.experienceFields
-                ? Object.entries(worker.experienceFields).slice(0, 4)
-                : [];
+          <div className="bg-white rounded-lg border border-gray-200">
+            <div className="divide-y divide-gray-100">
+              {filteredWorkers.map((worker) => {
+                const experienceData = worker.experienceFields
+                  ? Object.entries(worker.experienceFields).slice(0, 8)
+                  : [];
+                const primaryStatus = getPrimaryStatus(worker.statuses);
+                const statusInfo = primaryStatus ? getStatusLabel(primaryStatus) : null;
 
-              return (
-                <Link
-                  key={worker.userId}
-                  href={`/admin/workers/${worker.userId}`}
-                  className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow flex flex-col h-full"
-                >
-                  {/* カード本体 */}
-                  <div className="p-4 flex-1 flex flex-col relative">
-                    {/* 左上三角リボン（ステータス表示） */}
-                    {(() => {
-                      const primaryStatus = getPrimaryStatus(worker.statuses);
-                      if (!primaryStatus) return null;
-                      const statusInfo = getStatusLabel(primaryStatus);
-                      return (
-                        <div className="absolute top-0 left-0 w-12 h-12 overflow-hidden pointer-events-none z-10">
-                          {/* 三角形の背景 */}
-                          <div
-                            className={`absolute top-0 left-0 w-full h-full ${statusInfo.ribbonColor}`}
-                            style={{
-                              clipPath: 'polygon(0 0, 100% 0, 0 100%)',
-                            }}
-                          />
-                          {/* テキスト */}
-                          <span
-                            className={`absolute top-2.5 left-1 text-[10px] font-bold ${statusInfo.textColor} transform -rotate-45`}
-                            style={{ textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}
-                          >
-                            {statusInfo.text}
-                          </span>
-                        </div>
-                      );
-                    })()}
-
-                    <div className="flex items-start gap-3 pl-4">
-                      {/* プロフィール画像 */}
-                      <div className="w-16 h-16 rounded-full bg-gray-200 overflow-hidden flex-shrink-0 ring-2 ring-gray-100">
+                return (
+                  <Link
+                    key={worker.userId}
+                    href={`/admin/workers/${worker.userId}`}
+                    className="block p-4 hover:bg-gray-50 transition-colors group"
+                  >
+                    {/* ワーカー情報（横並び: 顔写真 | 情報 | アクションエリア） */}
+                    <div className="flex items-center gap-5">
+                      {/* プロフィール写真 - 丸形 w-20 h-20 */}
+                      <div className="relative w-20 h-20 rounded-full overflow-hidden flex-shrink-0 border-2 border-gray-200 shadow-md">
                         {worker.profileImage ? (
                           <img
                             src={worker.profileImage}
@@ -461,150 +438,160 @@ export default function AdminWorkersPage() {
                             className="w-full h-full object-cover"
                           />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-gray-400 text-xl font-bold">
-                            {worker.name.charAt(0)}
+                          <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+                            <span className="text-2xl font-bold text-gray-400">
+                              {worker.name.charAt(0)}
+                            </span>
+                          </div>
+                        )}
+                        {/* ステータスバッジ（左上に小さく） */}
+                        {statusInfo && (
+                          <div className={`absolute -top-1 -left-1 px-1.5 py-0.5 ${statusInfo.ribbonColor} text-white text-[9px] font-bold rounded shadow`}>
+                            {statusInfo.text}
                           </div>
                         )}
                       </div>
 
-                      {/* 基本情報 */}
+                      {/* メイン情報エリア */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <h3 className="font-bold text-gray-900 truncate">{worker.name}</h3>
-                          {/* お気に入り・ブロックボタン */}
-                          <div className="flex gap-1 flex-shrink-0 ml-2">
-                            <button
-                              onClick={(e) => handleToggleFavorite(e, worker.userId)}
-                              className={`w-6 h-6 border rounded-full flex items-center justify-center transition-colors ${worker.isFavorite
-                                ? 'bg-pink-50 border-pink-200 text-pink-500'
-                                : 'bg-white border-gray-200 hover:bg-pink-50 text-gray-400 hover:text-pink-500'
-                                }`}
-                              title="お気に入り"
-                            >
-                              <Heart className={`w-3 h-3 ${worker.isFavorite ? 'fill-current' : ''}`} />
-                            </button>
-                            <button
-                              onClick={(e) => handleToggleBlock(e, worker.userId)}
-                              className={`w-6 h-6 border rounded-full flex items-center justify-center transition-colors ${worker.isBlocked
-                                ? 'bg-red-50 border-red-200 text-red-500'
-                                : 'bg-white border-gray-200 hover:bg-gray-100 text-gray-400 hover:text-gray-700'
-                                }`}
-                              title="ブロック"
-                            >
-                              <Ban className="w-3 h-3" />
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* 住所 */}
-                        {(worker.prefecture || worker.city) && (
-                          <div className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
-                            <MapPin className="w-3 h-3" />
-                            <span className="truncate">
-                              {worker.prefecture}
-                              {worker.city}
+                        {/* 1行目: 名前・地域・評価・統計 */}
+                        <div className="flex items-center gap-4 mb-2 flex-wrap">
+                          <h3 className="font-bold text-gray-900 text-lg group-hover:text-admin-primary transition-colors">
+                            {worker.name}
+                          </h3>
+                          {(worker.prefecture || worker.city) && (
+                            <span className="text-sm text-gray-500 flex items-center gap-1">
+                              <MapPin className="w-3 h-3" />
+                              {worker.prefecture}{worker.city}
                             </span>
-                          </div>
-                        )}
-
-                        {/* 評価 */}
-                        {worker.avgRating !== null && (
-                          <div className="flex items-center gap-1 mt-1">
-                            <Star className="w-3.5 h-3.5 text-yellow-400 fill-current" />
-                            <span className="text-sm font-medium text-gray-900">
-                              {worker.avgRating.toFixed(1)}
-                            </span>
-                            <span className="text-xs text-gray-500">({worker.reviewCount}件)</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-
-                    {/* 資格 */}
-                    <div className="flex flex-wrap gap-1 mt-3">
-                      {worker.qualifications.slice(0, 3).map((qual, index) => (
-                        <span
-                          key={index}
-                          className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded"
-                        >
-                          {qual}
-                        </span>
-                      ))}
-                      {worker.qualifications.length > 3 && (
-                        <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded">
-                          +{worker.qualifications.length - 3}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* 経験分野アイコン */}
-                    {experienceData.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-3">
-                        {experienceData.map(([field, years], i) => (
-                          <div
-                            key={i}
-                            className={`group relative px-1.5 py-0.5 ${getExperienceColor(field)} text-white rounded text-[10px] font-medium cursor-help`}
-                          >
-                            {getAbbreviation(field)} {years}
-                            {/* Tooltip */}
-                            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 bg-gray-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
-                              {field}
-                              <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
+                          )}
+                          <div className="flex items-center gap-4 text-sm">
+                            {/* 総合評価 */}
+                            <div className="flex items-center gap-1">
+                              <Star className="w-4 h-4 text-yellow-400 fill-current" />
+                              {worker.avgRating !== null ? (
+                                <>
+                                  <span className="font-bold text-gray-900">{worker.avgRating.toFixed(1)}</span>
+                                  <span className="text-gray-400">({worker.reviewCount})</span>
+                                </>
+                              ) : (
+                                <span className="text-gray-400">--</span>
+                              )}
+                            </div>
+                            <span className="text-gray-300">|</span>
+                            {/* 勤務回数（自社/他社） */}
+                            <div className="flex items-center gap-1">
+                              <Building2 className="w-3 h-3 text-blue-500" />
+                              <span className="text-gray-500">勤務</span>
+                              <span className="font-bold text-blue-600">{worker.ourWorkCount}</span>
+                              <span className="text-gray-400">/</span>
+                              <span className="font-bold text-gray-600">{worker.otherWorkCount}</span>
+                              <span className="text-gray-400 text-xs">回</span>
+                            </div>
+                            <span className="text-gray-300">|</span>
+                            {/* キャンセル率（通常/直前） */}
+                            <div className="flex items-center gap-1">
+                              <AlertTriangle className={`w-3 h-3 ${worker.cancelRate > 10 || worker.lastMinuteCancelRate > 10 ? 'text-red-500' : 'text-gray-400'}`} />
+                              <span className="text-gray-500">CN</span>
+                              <span className={`font-bold ${worker.cancelRate > 10 ? 'text-red-500' : 'text-gray-900'}`}>
+                                {worker.cancelRate.toFixed(0)}
+                              </span>
+                              <span className="text-gray-400">/</span>
+                              <span className={`font-bold ${worker.lastMinuteCancelRate > 10 ? 'text-red-500' : 'text-gray-900'}`}>
+                                {worker.lastMinuteCancelRate.toFixed(0)}
+                              </span>
+                              <span className="text-gray-400 text-xs">%</span>
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    )}
+                        </div>
 
-                    {/* 勤務統計（カード下部に固定） */}
-                    <div className="mt-auto pt-3 border-t border-gray-100">
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        {/* 自社/他社勤務回数 */}
-                        <div className="flex items-center gap-1">
-                          <Building2 className="w-3 h-3 text-blue-500" />
-                          <span className="text-gray-600">自社:</span>
-                          <span className="font-medium text-gray-900">{worker.ourWorkCount}回</span>
+                        {/* 2行目: 資格バッジ */}
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                          {worker.qualifications.map((qual, index) => (
+                            <span
+                              key={index}
+                              className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded-md font-medium"
+                            >
+                              {qual}
+                            </span>
+                          ))}
                         </div>
-                        <div className="flex items-center gap-1">
-                          <Building2 className="w-3 h-3 text-gray-400" />
-                          <span className="text-gray-600">他社:</span>
-                          <span className="font-medium text-gray-900">{worker.otherWorkCount}回</span>
+
+                        {/* 3行目: 経験分野アイコン */}
+                        {experienceData.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {experienceData.map(([field, years], i) => (
+                              <div
+                                key={i}
+                                className={`group/exp relative px-2 py-1 ${getExperienceColor(field)} text-white rounded-md cursor-help shadow-sm text-xs font-medium`}
+                              >
+                                {getAbbreviation(field)} {years}
+                                {/* ホバーツールチップ */}
+                                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-[10px] rounded opacity-0 group-hover/exp:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-20 shadow-lg">
+                                  {field}
+                                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                                </div>
+                              </div>
+                            ))}
+                            {worker.experienceFields && Object.keys(worker.experienceFields).length > 8 && (
+                              <span className="px-2 py-1 bg-gray-100 text-gray-500 rounded-md text-xs font-medium">
+                                +{Object.keys(worker.experienceFields).length - 8}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 右側: アクションエリア */}
+                      <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                        {/* お気に入り・ブロックボタン */}
+                        <div className="flex gap-1.5">
+                          <button
+                            onClick={(e) => handleToggleFavorite(e, worker.userId)}
+                            className={`p-2 rounded-full transition-all ${worker.isFavorite
+                              ? 'bg-pink-500 text-white hover:bg-pink-600'
+                              : 'bg-gray-100 text-gray-400 hover:bg-pink-50 hover:text-pink-500'
+                              }`}
+                            title={worker.isFavorite ? 'お気に入り解除' : 'お気に入り追加'}
+                          >
+                            <Heart className={`w-4 h-4 ${worker.isFavorite ? 'fill-current' : ''}`} />
+                          </button>
+                          <button
+                            onClick={(e) => handleToggleBlock(e, worker.userId)}
+                            className={`p-2 rounded-full transition-all ${worker.isBlocked
+                              ? 'bg-red-500 text-white hover:bg-red-600'
+                              : 'bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-red-500'
+                              }`}
+                            title={worker.isBlocked ? 'ブロック解除' : 'ブロック'}
+                          >
+                            <Ban className="w-4 h-4" />
+                          </button>
                         </div>
-                        {/* 直前キャンセル率 */}
-                        <div className="flex items-center gap-1 col-span-2">
-                          <AlertTriangle className={`w-3 h-3 ${worker.lastMinuteCancelRate > 10 ? 'text-red-500' : 'text-gray-400'}`} />
-                          <span className="text-gray-600">直前キャンセル率:</span>
-                          <span className={`font-medium ${worker.lastMinuteCancelRate > 10 ? 'text-red-600' : 'text-gray-900'}`}>
-                            {worker.lastMinuteCancelRate.toFixed(0)}%
-                          </span>
-                        </div>
+
+                        {/* 最終勤務情報 */}
+                        {worker.lastWorkDate && (
+                          <div className="text-right text-xs text-gray-500">
+                            <div className="flex items-center justify-end gap-1">
+                              最終勤務:
+                              {new Date(worker.lastWorkDate).toLocaleDateString('ja-JP', {
+                                month: 'short',
+                                day: 'numeric',
+                              })}
+                              <span className={`px-1 py-0.5 rounded text-[10px] ${worker.lastWorkFacilityType === 'our'
+                                ? 'bg-blue-100 text-blue-700'
+                                : 'bg-gray-200 text-gray-600'
+                                }`}>
+                                {worker.lastWorkFacilityType === 'our' ? '自社' : '他社'}
+                              </span>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
-                  </div>
-
-                  {/* カードフッター */}
-                  <div className="bg-gray-50 px-4 py-2 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
-                    <span>総勤務 {worker.totalWorkCount}回</span>
-                    {worker.lastWorkDate && (
-                      <span className="flex items-center gap-1">
-                        最終:
-                        {new Date(worker.lastWorkDate).toLocaleDateString('ja-JP', {
-                          month: 'short',
-                          day: 'numeric',
-                        })}
-                        <span className={`px-1 py-0.5 rounded text-[10px] ${worker.lastWorkFacilityType === 'our'
-                          ? 'bg-blue-100 text-blue-700'
-                          : 'bg-gray-200 text-gray-600'
-                          }`}>
-                          {worker.lastWorkFacilityType === 'our' ? '自社' : '他社'}
-                        </span>
-                      </span>
-                    )}
-                  </div>
-                </Link>
-              );
-            })}
+                  </Link>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Star, AlertTriangle, Clock, FileText, Heart, Ban, X } from 'lucide-react';
+import { Star, AlertTriangle, FileText, Heart, Ban, X, Plus, Trash2, Edit3 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
 
-import { getPendingWorkerReviews, getCompletedWorkerReviews, submitWorkerReviewByJob } from '@/src/lib/actions';
+import { getPendingWorkerReviews, getCompletedWorkerReviews, submitWorkerReviewByJob, getReviewTemplates, createReviewTemplate, updateReviewTemplate, deleteReviewTemplate } from '@/src/lib/actions';
 
 // 評価項目の定義
 const RATING_CATEGORIES = [
@@ -60,6 +60,12 @@ export default function WorkerReviewsPage() {
     const [comment, setComment] = useState('');
     const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
 
+    // テンプレート編集状態
+    const [editingTemplate, setEditingTemplate] = useState<ReviewTemplate | null>(null);
+    const [newTemplateName, setNewTemplateName] = useState('');
+    const [newTemplateContent, setNewTemplateContent] = useState('');
+    const [isCreatingTemplate, setIsCreatingTemplate] = useState(false);
+
     // 認証チェック
     useEffect(() => {
         if (isAdminLoading) return;
@@ -97,6 +103,10 @@ export default function WorkerReviewsPage() {
 
                 setPendingReviews(pending as PendingReview[]);
                 setCompletedReviews(completed);
+
+                // テンプレート取得
+                const templateData = await getReviewTemplates(admin.facilityId);
+                setTemplates(templateData as ReviewTemplate[]);
             } catch (error) {
                 console.error('Failed to fetch data:', error);
                 toast.error('データの取得に失敗しました');
@@ -106,6 +116,64 @@ export default function WorkerReviewsPage() {
         };
         fetchData();
     }, [admin?.facilityId, isAdminLoading]);
+
+    // テンプレートの再取得
+    const refreshTemplates = async () => {
+        if (!admin?.facilityId) return;
+        const templateData = await getReviewTemplates(admin.facilityId);
+        setTemplates(templateData as ReviewTemplate[]);
+    };
+
+    // テンプレート作成
+    const handleCreateTemplate = async () => {
+        if (!admin?.facilityId || !newTemplateName.trim() || !newTemplateContent.trim()) {
+            toast.error('タイトルと内容を入力してください');
+            return;
+        }
+        try {
+            await createReviewTemplate(admin.facilityId, newTemplateName.trim(), newTemplateContent.trim());
+            toast.success('テンプレートを作成しました');
+            setNewTemplateName('');
+            setNewTemplateContent('');
+            setIsCreatingTemplate(false);
+            await refreshTemplates();
+        } catch (error) {
+            console.error('Failed to create template:', error);
+            toast.error('テンプレートの作成に失敗しました');
+        }
+    };
+
+    // テンプレート更新
+    const handleUpdateTemplate = async () => {
+        if (!editingTemplate || !newTemplateName.trim() || !newTemplateContent.trim()) {
+            toast.error('タイトルと内容を入力してください');
+            return;
+        }
+        try {
+            await updateReviewTemplate(editingTemplate.id, newTemplateName.trim(), newTemplateContent.trim());
+            toast.success('テンプレートを更新しました');
+            setEditingTemplate(null);
+            setNewTemplateName('');
+            setNewTemplateContent('');
+            await refreshTemplates();
+        } catch (error) {
+            console.error('Failed to update template:', error);
+            toast.error('テンプレートの更新に失敗しました');
+        }
+    };
+
+    // テンプレート削除
+    const handleDeleteTemplate = async (templateId: number) => {
+        if (!confirm('このテンプレートを削除しますか？')) return;
+        try {
+            await deleteReviewTemplate(templateId);
+            toast.success('テンプレートを削除しました');
+            await refreshTemplates();
+        } catch (error) {
+            console.error('Failed to delete template:', error);
+            toast.error('テンプレートの削除に失敗しました');
+        }
+    };
 
     // レビュー投稿
     const handleSubmitReview = async (action: 'submit' | 'favorite' | 'block') => {
@@ -397,33 +465,40 @@ export default function WorkerReviewsPage() {
 
                         {/* アクションボタン */}
                         <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4">
-                            <div className="grid grid-cols-4 gap-2">
-                                <button
-                                    onClick={() => handleSubmitReview('submit')}
-                                    className="px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
-                                >
-                                    レビュー登録
-                                </button>
-                                <button
-                                    onClick={() => handleSubmitReview('favorite')}
-                                    className="px-3 py-2 bg-pink-600 text-white text-sm font-medium rounded-lg hover:bg-pink-700 flex items-center justify-center gap-1"
-                                >
-                                    <Heart className="w-4 h-4" />
-                                    お気に入り
-                                </button>
-                                <button
-                                    onClick={() => handleSubmitReview('block')}
-                                    className="px-3 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 flex items-center justify-center gap-1"
-                                >
-                                    <Ban className="w-4 h-4" />
-                                    ブロック
-                                </button>
-                                <button
-                                    onClick={() => setSelectedApplication(null)}
-                                    className="px-3 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300"
-                                >
-                                    キャンセル
-                                </button>
+                            <div className="space-y-2">
+                                {/* 1行目：レビュー登録 + キャンセル */}
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                        onClick={() => handleSubmitReview('submit')}
+                                        className="px-4 py-3 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
+                                    >
+                                        レビュー登録
+                                    </button>
+                                    <button
+                                        onClick={() => setSelectedApplication(null)}
+                                        className="px-4 py-3 bg-gray-100 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-200"
+                                    >
+                                        キャンセル
+                                    </button>
+                                </div>
+
+                                {/* 2行目：お気に入り + ブロック */}
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                        onClick={() => handleSubmitReview('favorite')}
+                                        className="px-3 py-2.5 bg-pink-50 text-pink-700 border border-pink-200 text-sm font-medium rounded-lg hover:bg-pink-100 flex items-center justify-center gap-1.5"
+                                    >
+                                        <Heart className="w-4 h-4" />
+                                        お気に入りして登録
+                                    </button>
+                                    <button
+                                        onClick={() => handleSubmitReview('block')}
+                                        className="px-3 py-2.5 bg-red-50 text-red-700 border border-red-200 text-sm font-medium rounded-lg hover:bg-red-100 flex items-center justify-center gap-1.5"
+                                    >
+                                        <Ban className="w-4 h-4" />
+                                        ブロックして登録
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -433,18 +508,132 @@ export default function WorkerReviewsPage() {
             {/* テンプレート編集モーダル */}
             {showTemplateModal && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center">
-                    <div className="absolute inset-0 bg-black/50" onClick={() => setShowTemplateModal(false)} />
-                    <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
-                        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-                            <h2 className="text-lg font-bold">テンプレート編集</h2>
-                            <button onClick={() => setShowTemplateModal(false)}>
+                    <div className="absolute inset-0 bg-black/50" onClick={() => {
+                        setShowTemplateModal(false);
+                        setEditingTemplate(null);
+                        setIsCreatingTemplate(false);
+                        setNewTemplateName('');
+                        setNewTemplateContent('');
+                    }} />
+                    <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto">
+                        <div className="sticky top-0 bg-white px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                            <h2 className="text-lg font-bold">テンプレート管理</h2>
+                            <button onClick={() => {
+                                setShowTemplateModal(false);
+                                setEditingTemplate(null);
+                                setIsCreatingTemplate(false);
+                                setNewTemplateName('');
+                                setNewTemplateContent('');
+                            }}>
                                 <X className="w-5 h-5 text-gray-500" />
                             </button>
                         </div>
-                        <div className="p-6">
-                            {/* テンプレート一覧・編集フォーム */}
-                            <p className="text-sm text-gray-600">テンプレートの作成・編集機能</p>
-                            {/* TODO: テンプレートCRUD実装 */}
+                        <div className="p-6 space-y-4">
+                            {/* 新規作成/編集フォーム */}
+                            {(isCreatingTemplate || editingTemplate) && (
+                                <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                                    <h3 className="text-sm font-bold text-gray-900">
+                                        {editingTemplate ? 'テンプレートを編集' : '新規テンプレート作成'}
+                                    </h3>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            タイトル
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={newTemplateName}
+                                            onChange={(e) => setNewTemplateName(e.target.value)}
+                                            placeholder="例：良い評価テンプレート"
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            内容
+                                        </label>
+                                        <textarea
+                                            value={newTemplateContent}
+                                            onChange={(e) => setNewTemplateContent(e.target.value)}
+                                            placeholder="テンプレートの内容を入力..."
+                                            rows={4}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm resize-none"
+                                        />
+                                    </div>
+                                    <div className="flex gap-2 justify-end">
+                                        <button
+                                            onClick={() => {
+                                                setEditingTemplate(null);
+                                                setIsCreatingTemplate(false);
+                                                setNewTemplateName('');
+                                                setNewTemplateContent('');
+                                            }}
+                                            className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-200 rounded-lg"
+                                        >
+                                            キャンセル
+                                        </button>
+                                        <button
+                                            onClick={editingTemplate ? handleUpdateTemplate : handleCreateTemplate}
+                                            className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                                        >
+                                            {editingTemplate ? '更新' : '作成'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* 新規作成ボタン */}
+                            {!isCreatingTemplate && !editingTemplate && (
+                                <button
+                                    onClick={() => setIsCreatingTemplate(true)}
+                                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-colors"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    新規テンプレートを作成
+                                </button>
+                            )}
+
+                            {/* テンプレート一覧 */}
+                            <div className="space-y-2">
+                                <h3 className="text-sm font-bold text-gray-700">保存済みテンプレート</h3>
+                                {templates.length === 0 ? (
+                                    <p className="text-sm text-gray-500 text-center py-4">
+                                        テンプレートはまだありません
+                                    </p>
+                                ) : (
+                                    templates.map((template) => (
+                                        <div
+                                            key={template.id}
+                                            className="bg-white border border-gray-200 rounded-lg p-3 hover:border-gray-300 transition-colors"
+                                        >
+                                            <div className="flex items-start justify-between mb-1">
+                                                <span className="font-medium text-gray-900">{template.name}</span>
+                                                <div className="flex gap-1">
+                                                    <button
+                                                        onClick={() => {
+                                                            setEditingTemplate(template);
+                                                            setNewTemplateName(template.name);
+                                                            setNewTemplateContent(template.content);
+                                                            setIsCreatingTemplate(false);
+                                                        }}
+                                                        className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+                                                        title="編集"
+                                                    >
+                                                        <Edit3 className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteTemplate(template.id)}
+                                                        className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                                                        title="削除"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <p className="text-sm text-gray-600 line-clamp-2">{template.content}</p>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>

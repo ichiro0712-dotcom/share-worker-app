@@ -6,6 +6,7 @@ import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { compressImage, MAX_FILE_SIZE, formatFileSize } from '@/utils/fileValidation';
 
 export default function WorkerRegisterPage() {
   const router = useRouter();
@@ -125,17 +126,35 @@ export default function WorkerRegisterPage() {
     }));
   };
 
-  const handleQualificationCertificateChange = (qualification: string, e: React.ChangeEvent<HTMLInputElement>) => {
+  // 圧縮中の状態管理
+  const [compressingQual, setCompressingQual] = useState<string | null>(null);
+
+  const handleQualificationCertificateChange = async (qualification: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setQualificationCertificates(prev => ({
-          ...prev,
-          [qualification]: reader.result as string
-        }));
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    // ファイルサイズチェック（20MB）
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error(`ファイルサイズが大きすぎます（${formatFileSize(file.size)}）。20MB以下にしてください。`);
+      return;
+    }
+
+    try {
+      setCompressingQual(qualification);
+      toast.loading('画像を圧縮中...', { id: 'compress' });
+
+      const compressedData = await compressImage(file);
+
+      setQualificationCertificates(prev => ({
+        ...prev,
+        [qualification]: compressedData
+      }));
+
+      toast.success('画像を圧縮しました', { id: 'compress' });
+    } catch (error) {
+      toast.error('画像の処理中にエラーが発生しました', { id: 'compress' });
+    } finally {
+      setCompressingQual(null);
     }
   };
 
@@ -248,6 +267,7 @@ export default function WorkerRegisterPage() {
               <h3 className="font-bold text-gray-900">基本情報 <span className="text-red-500">*</span></h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* 姓名 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     姓 <span className="text-red-500">*</span>
@@ -274,6 +294,34 @@ export default function WorkerRegisterPage() {
                     placeholder="太郎"
                   />
                 </div>
+                {/* フリガナ（姓名の直後） */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    セイ（フリガナ） <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.lastNameKana}
+                    onChange={(e) => setFormData({ ...formData, lastNameKana: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                    placeholder="ヤマダ"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    メイ（フリガナ） <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.firstNameKana}
+                    onChange={(e) => setFormData({ ...formData, firstNameKana: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                    placeholder="タロウ"
+                  />
+                </div>
+                {/* 生年月日・性別 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     生年月日 <span className="text-red-500">*</span>
@@ -302,44 +350,21 @@ export default function WorkerRegisterPage() {
                     <option value="その他">その他</option>
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    セイ（フリガナ） <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.lastNameKana}
-                    onChange={(e) => setFormData({ ...formData, lastNameKana: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                    placeholder="ヤマダ"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    メイ（フリガナ） <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.firstNameKana}
-                    onChange={(e) => setFormData({ ...formData, firstNameKana: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                    placeholder="タロウ"
-                  />
-                </div>
+                {/* 国籍（ドロップダウン） */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     国籍 <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
+                  <select
                     required
                     value={formData.nationality}
                     onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                    placeholder="日本"
-                  />
+                  >
+                    <option value="">選択してください</option>
+                    <option value="日本">日本</option>
+                    <option value="その他">その他</option>
+                  </select>
                 </div>
               </div>
             </div>
@@ -420,21 +445,21 @@ export default function WorkerRegisterPage() {
                     <div key={qual} className="border border-gray-200 rounded-lg p-4">
                       <label className="block text-sm font-medium text-gray-700 mb-3">{qual}</label>
 
-                      {/* 既存の証明書がある場合はプレビュー表示（横並び） */}
+                      {/* 既存の証明書がある場合はプレビュー表示 */}
                       {qualificationCertificates[qual] ? (
-                        <div className="flex items-start gap-4">
-                          <div className="flex-1">
-                            <div className="relative w-full h-40 border border-gray-300 rounded-lg overflow-hidden bg-gray-50">
-                              <img
-                                src={qualificationCertificates[qual]!}
-                                alt={`${qual}の証明書`}
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
-                            <p className="text-xs text-green-600 mt-1">✓ 登録済み</p>
+                        <div className="flex flex-col gap-3">
+                          {/* 画像プレビュー */}
+                          <div className="relative w-full h-48 sm:h-40 border border-gray-300 rounded-lg overflow-hidden bg-gray-50">
+                            <img
+                              src={qualificationCertificates[qual]!}
+                              alt={`${qual}の証明書`}
+                              className="w-full h-full object-contain"
+                            />
                           </div>
-                          <div className="flex flex-col justify-start">
-                            <label className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer text-center text-sm font-medium whitespace-nowrap">
+                          <p className="text-xs text-green-600">✓ 登録済み</p>
+                          {/* 変更ボタン */}
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                            <label className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer text-center text-sm font-medium">
                               画像を変更
                               <input
                                 type="file"
@@ -443,19 +468,22 @@ export default function WorkerRegisterPage() {
                                 className="hidden"
                               />
                             </label>
-                            <p className="text-xs text-gray-500 mt-2">5MB以下 / JPG, PNG, HEIC, PDF形式</p>
+                            <p className="text-xs text-gray-500">20MB以下 / JPG, PNG, HEIC, PDF形式（自動圧縮）</p>
                           </div>
                         </div>
                       ) : (
-                        <div>
-                          <input
-                            type="file"
-                            accept="image/*,.pdf"
-                            onChange={(e) => handleQualificationCertificateChange(qual, e)}
-                            className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                            required
-                          />
-                          <p className="text-xs text-gray-500 mt-1">5MB以下 / JPG, PNG, HEIC, PDF形式</p>
+                        <div className="space-y-2">
+                          <label className="block w-full px-4 py-3 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors cursor-pointer text-center text-sm font-medium border-2 border-dashed border-blue-200">
+                            📷 ファイルを選択
+                            <input
+                              type="file"
+                              accept="image/*,.pdf"
+                              onChange={(e) => handleQualificationCertificateChange(qual, e)}
+                              className="hidden"
+                              required
+                            />
+                          </label>
+                          <p className="text-xs text-gray-500 text-center">20MB以下 / JPG, PNG, HEIC, PDF形式（自動圧縮）</p>
                         </div>
                       )}
                     </div>
@@ -494,12 +522,12 @@ export default function WorkerRegisterPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-3">経験年数</label>
                   <div className="space-y-3">
                     {experienceFields.map((field) => (
-                      <div key={field} className="flex items-center gap-4">
-                        <span className="text-sm min-w-[180px]">{field}</span>
+                      <div key={field} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                        <span className="text-sm sm:min-w-[180px] font-medium">{field}</span>
                         <select
                           value={experienceYearsMap[field] || ''}
                           onChange={(e) => handleExperienceYearChange(field, e.target.value)}
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+                          className="w-full sm:flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
                         >
                           <option value="">選択してください</option>
                           {experienceYearOptions.map((option) => (

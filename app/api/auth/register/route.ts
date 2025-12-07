@@ -46,8 +46,10 @@ export async function POST(request: NextRequest) {
     // パスワードのハッシュ化
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // 職歴を文字列として保存
-    const workHistoriesStr = workHistories && workHistories.length > 0 ? workHistories.join('|||') : null;
+    // 職歴を配列として保存（空文字を除外）
+    const workHistoriesArray = workHistories && Array.isArray(workHistories)
+      ? workHistories.filter((h: string) => h && h.trim() !== '')
+      : [];
 
     // ユーザー作成
     const user = await prisma.user.create({
@@ -64,7 +66,7 @@ export async function POST(request: NextRequest) {
         nationality: nationality || null,
         postal_code: postalCode || null,
         experience_fields: experienceFields && Object.keys(experienceFields).length > 0 ? experienceFields : Prisma.DbNull,
-        work_histories: workHistoriesStr,
+        work_histories: workHistoriesArray,
         qualification_certificates: qualificationCertificates && Object.keys(qualificationCertificates).length > 0 ? qualificationCertificates : Prisma.DbNull,
       },
     });
