@@ -2,13 +2,12 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect, useMemo } from 'react';
-import { X } from 'lucide-react';
-import { ChevronLeft, Heart, Clock, MapPin, ChevronRight, ChevronLeft as ChevronLeftIcon, Bookmark, VolumeX, Volume2 } from 'lucide-react';
+import { X, ChevronLeft, Heart, Clock, MapPin, ChevronRight, ChevronLeft as ChevronLeftIcon, Bookmark, VolumeX, Volume2, ExternalLink, Building2 } from 'lucide-react';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/tag';
-import { formatDateTime, getDeadlineText } from '@/utils/date';
+import { formatDateTime, getDeadlineText, isDeadlineUrgent } from '@/utils/date';
 import { applyForJob, addJobBookmark, removeJobBookmark, isJobBookmarked, toggleFacilityFavorite, isFacilityFavorited } from '@/src/lib/actions';
 import toast from 'react-hot-toast';
 
@@ -355,8 +354,14 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
 
       {/* コンテンツ */}
       <div className="px-4 py-4">
-        {/* 募集人数 */}
-        <div className="flex justify-end mb-3">
+        {/* 締切バッジ + 募集人数 */}
+        <div className="flex justify-end items-center gap-2 mb-3">
+          <span className={`inline-block text-xs px-2 py-1 rounded ${isDeadlineUrgent(job.deadline)
+            ? 'bg-red-500 text-white'
+            : 'bg-gray-300 text-gray-800'
+          }`}>
+            締切まで{getDeadlineText(job.deadline)}
+          </span>
           <Badge variant="red">
             募集人数 {job.appliedCount}/{job.recruitmentCount}人
           </Badge>
@@ -656,21 +661,17 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
         </div>
       )}
 
-      {/* 仕事内容 */}
-      <div className="border-t border-gray-200 pt-4 mb-4">
-        <h3 className="mb-3 text-sm font-bold">仕事内容</h3>
-        <div className="flex flex-wrap gap-2">
-          {job.workContent.map((content: string, index: number) => (
-            <Tag key={index}>{content}</Tag>
-          ))}
-        </div>
-      </div>
-
       {/* 仕事概要 */}
       <div className="mb-4">
         <h3 className="mb-3 text-sm bg-primary-light px-4 py-3 -mx-4">仕事概要</h3>
         <div className="mt-3">
           <h4 className="mb-2 text-sm font-bold">仕事詳細</h4>
+          {/* 仕事内容アイコン */}
+          <div className="flex flex-wrap gap-2 mb-3">
+            {job.workContent.map((content: string, index: number) => (
+              <Tag key={index}>{content}</Tag>
+            ))}
+          </div>
           <div
             className={`text-sm text-gray-600 whitespace-pre-line overflow-hidden transition-all ${isOverviewExpanded ? 'max-h-none' : 'max-h-[10.5rem] md:max-h-[7.5rem]'
               }`}
@@ -690,7 +691,6 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
 
       {/* 申込条件 */}
       <div className="mb-4">
-        <h3 className="mb-3 text-sm bg-primary-light px-4 py-3 -mx-4">申込条件</h3>
         <div className="mt-3 space-y-4">
           <div>
             <h4 className="text-sm mb-2 font-bold">必要な資格</h4>
@@ -709,12 +709,6 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
                 <p key={index}>・{exp}</p>
               ))}
             </div>
-            <button
-              onClick={() => toast('労働条件通知書のダミーデータです', { icon: '📄' })}
-              className="mt-3 px-4 py-2 text-sm text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors"
-            >
-              労働条件通知書を確認
-            </button>
           </div>
           {/* 募集条件（週N回以上・1ヶ月以上） */}
           {(job.weeklyFrequency || job.monthlyCommitment) && (
@@ -741,17 +735,6 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
       <div id="pre-info" className="mb-4 scroll-mt-16">
         <h3 className="mb-3 text-sm bg-primary-light px-4 py-3 -mx-4">事前情報</h3>
         <div className="mt-3 space-y-4">
-          {/* 施設詳細への導線 */}
-          <div>
-            <button
-              onClick={() => router.push(`/facilities/${facility.id}`)}
-              className="w-full py-3 text-sm text-primary border border-primary rounded-lg hover:bg-primary-light transition-colors flex items-center justify-center gap-2"
-            >
-              <span>この施設の詳細を見る</span>
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-
           {/* 服装など */}
           <div>
             <h4 className="text-sm mb-2 font-bold">服装など</h4>
@@ -838,19 +821,26 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
             </div>
           )}
 
-          {/* 法人名 */}
+          {/* 施設情報 */}
           <div>
-            <h4 className="text-sm mb-2 font-bold">法人名</h4>
+            <h4 className="text-sm mb-2 font-bold">施設情報</h4>
             <div className="text-sm text-gray-600 space-y-1">
               <p>{facility.corporationName}</p>
               <p>{facility.name}</p>
               <p>電話番号: {facility.phoneNumber}</p>
+              <button
+                onClick={() => router.push(`/facilities/${facility.id}`)}
+                className="mt-2 text-sm text-primary hover:text-primary/80 hover:underline flex items-center gap-1"
+              >
+                <Building2 className="w-4 h-4" />
+                この施設の詳細を見る
+              </button>
             </div>
           </div>
 
-          {/* 住所 */}
+          {/* アクセス（住所+交通手段を統合） */}
           <div>
-            <h4 className="text-sm mb-2 font-bold">住所</h4>
+            <h4 className="text-sm mb-2 font-bold">アクセス</h4>
             <p className="text-sm text-gray-600 mb-2">{job.address}</p>
             <div className="relative aspect-video overflow-hidden rounded-lg bg-gray-100 mb-2">
               {/* 地図画像: 施設が登録した画像があればそれを使用、なければGoogle Maps Static APIで動的生成 */}
@@ -877,16 +867,13 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
                 const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(job.address)}`;
                 window.open(url, '_blank');
               }}
-              className="text-sm text-blue-500 hover:text-blue-700 hover:underline"
+              className="text-sm text-blue-500 hover:text-blue-700 hover:underline flex items-center gap-1"
             >
-              🗺️ Google Mapで開く
+              <ExternalLink className="w-4 h-4" />
+              Google Mapで開く
             </button>
-          </div>
-
-          {/* アクセス */}
-          <div>
-            <h4 className="text-sm mb-2 font-bold">アクセス</h4>
-            <p className="text-xs text-gray-600 mb-2">交通手段</p>
+            {/* 交通手段 */}
+            <p className="text-xs text-gray-600 mt-4 mb-2">交通手段</p>
             <div className="flex flex-wrap gap-2 mb-3">
               {job.transportMethods.map((method: any, index: number) => (
                 <span
@@ -906,6 +893,16 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
             </div>
           </div>
         </div>
+      </div>
+
+      {/* 労働条件通知書ボタン */}
+      <div className="mb-4 px-4">
+        <button
+          onClick={() => toast('労働条件通知書のダミーデータです', { icon: '📄' })}
+          className="px-3 py-1.5 text-xs text-white bg-primary rounded hover:bg-primary/90 transition-colors"
+        >
+          労働条件通知書を確認
+        </button>
       </div>
 
       {/* レビュー */}
