@@ -25,23 +25,17 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
   // DBのBooleanから移動手段配列を生成
   const transportMethods = [
     { name: '車', available: jobData.allow_car },
-    { name: 'バイク', available: jobData.allow_bike },
-    { name: '自転車', available: jobData.allow_bicycle },
-    { name: '電車', available: jobData.allow_public_transit },
-    { name: 'バス', available: jobData.allow_public_transit },
-    { name: '徒歩', available: jobData.allow_public_transit },
   ];
 
-  // DBのBooleanから特徴タグ配列を生成
+  // DBのBooleanから特徴タグ配列を生成（7項目のみ）
   const featureTags = [
-    jobData.no_bathing_assist && '入浴介助なし',
-    jobData.has_driver && '送迎ドライバーあり',
+    jobData.inexperienced_ok && '未経験者歓迎',
+    jobData.blank_ok && 'ブランク歓迎',
     jobData.hair_style_free && '髪型・髪色自由',
     jobData.nail_ok && 'ネイルOK',
     jobData.uniform_provided && '制服貸与',
-    jobData.inexperienced_ok && '介護業務未経験歓迎',
-    jobData.beginner_ok && 'SWORK初心者歓迎',
-    jobData.facility_within_5years && '施設オープン5年以内',
+    jobData.allow_car && '車通勤OK',
+    jobData.meal_support && '食事補助',
   ].filter(Boolean) as string[];
 
   // DBのデータをフロントエンドの型に変換（既に文字列化済み）
@@ -68,6 +62,9 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
     deadline: jobData.deadline,
     tags: jobData.tags,
     address: jobData.address,
+    prefecture: jobData.prefecture,
+    city: jobData.city,
+    addressLine: jobData.address_line,
     access: jobData.access,
     recruitmentCount: jobData.recruitment_count,
     appliedCount: jobData.applied_count,
@@ -80,14 +77,16 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
     dresscode: jobData.dresscode,
     dresscodeImages: jobData.dresscode_images || [],
     belongings: jobData.belongings,
-    managerName: jobData.manager_name,
-    managerMessage: jobData.manager_message || '',
-    managerAvatar: jobData.manager_avatar || '👤',
+    // 施設の責任者情報を優先、なければ求人の担当者情報を使用
+    managerName: (jobData.facility.manager_last_name || jobData.facility.manager_first_name)
+      ? `${jobData.facility.manager_last_name || ''}${jobData.facility.manager_first_name || ''}`
+      : jobData.manager_name,
+    managerMessage: jobData.facility.manager_greeting || jobData.manager_message || '',
+    managerAvatar: jobData.facility.manager_photo || jobData.manager_avatar || '👤',
     images: jobData.images,
     badges: [],
     mapImage: jobData.facility.map_image || '/images/map-placeholder.png',
     transportMethods,
-    parking: jobData.has_parking,
     accessDescription: jobData.access,
     featureTags,
     attachments: jobData.attachments || [],
@@ -103,6 +102,9 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
     corporationName: jobData.facility.corporation_name,
     type: jobData.facility.facility_type,
     address: jobData.facility.address,
+    prefecture: jobData.facility.prefecture,
+    city: jobData.facility.city,
+    addressLine: jobData.facility.address_line,
     lat: jobData.facility.lat,
     lng: jobData.facility.lng,
     phoneNumber: jobData.facility.phone_number,
@@ -110,6 +112,12 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
     images: jobData.facility.images,
     rating: jobData.facility.rating,
     reviewCount: jobData.facility.review_count,
+    // アクセス情報（施設から取得）
+    stations: jobData.facility.stations || [],
+    accessDescription: jobData.facility.access_description || '',
+    transportation: jobData.facility.transportation || [],
+    parking: jobData.facility.parking || '',
+    transportationNote: jobData.facility.transportation_note || '',
   };
 
   const relatedJobs = relatedJobsData.map((relatedJob) => ({
@@ -126,6 +134,9 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
     deadline: relatedJob.deadline,
     tags: relatedJob.tags,
     address: relatedJob.address,
+    prefecture: relatedJob.prefecture,
+    city: relatedJob.city,
+    addressLine: relatedJob.address_line,
     access: relatedJob.access,
     recruitmentCount: relatedJob.recruitment_count,
     appliedCount: relatedJob.applied_count,

@@ -58,7 +58,7 @@ interface JobData {
   dateRange: string;
   overview: string;
   images: string[];
-  address: string;
+  address: string | null;
   access: string;
   tags: string[];
   managerName: string;
@@ -72,19 +72,14 @@ interface JobData {
   belongings: string[];
   attachments: string[];
   requiredExperience: string[];
-  allowCar: boolean;
-  allowBike: boolean;
-  allowBicycle: boolean;
-  allowPublicTransit: boolean;
-  hasParking: boolean;
-  noBathingAssist: boolean;
-  hasDriver: boolean;
+  // こだわり条件（7項目）
+  inexperiencedOk: boolean;
+  blankOk: boolean;
   hairStyleFree: boolean;
   nailOk: boolean;
   uniformProvided: boolean;
-  inexperiencedOk: boolean;
-  beginnerOk: boolean;
-  facilityWithin5years: boolean;
+  allowCar: boolean;
+  mealSupport: boolean;
   weeklyFrequency: number | null;
   monthlyCommitment: boolean;
   requiresInterview: boolean;
@@ -1105,27 +1100,13 @@ export default function AdminJobsList() {
                     </ul>
                   </div>
                 )}
-                {(selectedJob.allowCar || selectedJob.allowBike || selectedJob.allowBicycle || selectedJob.allowPublicTransit) && (
+                {selectedJob.allowCar && (
                   <div className="mt-3">
                     <p className="text-xs text-gray-600 mb-2">利用可能な交通手段</p>
                     <div className="flex flex-wrap gap-2">
-                      {selectedJob.allowCar && (
-                        <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">車</span>
-                      )}
-                      {selectedJob.allowBike && (
-                        <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">バイク</span>
-                      )}
-                      {selectedJob.allowBicycle && (
-                        <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">自転車</span>
-                      )}
-                      {selectedJob.allowPublicTransit && (
-                        <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">公共交通機関</span>
-                      )}
+                      <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">車通勤OK</span>
                     </div>
                   </div>
-                )}
-                {selectedJob.hasParking && (
-                  <p className="text-sm text-gray-600 mt-3">駐車場: あり</p>
                 )}
               </div>
 

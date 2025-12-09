@@ -12,7 +12,7 @@ interface PendingReview {
   jobDate: string;
   facilityId: number;
   facilityName: string;
-  facilityAddress: string;
+  facilityAddress: string | null;
   completedAt: string;
 }
 
@@ -64,11 +64,10 @@ export default function ReviewsClient({ pendingReviews, myReviews }: ReviewsClie
         <div className="flex border-t border-gray-200">
           <button
             onClick={() => setActiveTab('pending')}
-            className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'pending'
+            className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'pending'
                 ? 'border-primary text-primary'
                 : 'border-transparent text-gray-500'
-            }`}
+              }`}
           >
             評価待ち
             {pendingReviews.length > 0 && (
@@ -79,11 +78,10 @@ export default function ReviewsClient({ pendingReviews, myReviews }: ReviewsClie
           </button>
           <button
             onClick={() => setActiveTab('completed')}
-            className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'completed'
+            className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'completed'
                 ? 'border-primary text-primary'
                 : 'border-transparent text-gray-500'
-            }`}
+              }`}
           >
             投稿済み
           </button>
@@ -189,11 +187,10 @@ export default function ReviewsClient({ pendingReviews, myReviews }: ReviewsClie
                       {[1, 2, 3, 4, 5].map((value) => (
                         <Star
                           key={value}
-                          className={`w-4 h-4 ${
-                            value <= review.rating
+                          className={`w-4 h-4 ${value <= review.rating
                               ? 'text-yellow-400 fill-yellow-400'
                               : 'text-gray-300'
-                          }`}
+                            }`}
                         />
                       ))}
                       <span className="ml-1 text-sm font-semibold text-gray-700">

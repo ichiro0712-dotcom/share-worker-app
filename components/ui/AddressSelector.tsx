@@ -1,0 +1,213 @@
+'use client';
+
+import { useState, useMemo } from 'react';
+import { PREFECTURES } from '@/src/lib/analytics-constants';
+import { CITIES_BY_PREFECTURE } from '@/constants/japan-cities';
+import { X } from 'lucide-react';
+
+interface AddressSelectorProps {
+    prefecture: string;
+    city: string;
+    addressLine?: string;
+    building?: string;
+    postalCode?: string;
+    onChange: (data: {
+        prefecture: string;
+        city: string;
+        addressLine?: string;
+        building?: string;
+        postalCode?: string;
+    }) => void;
+    showPostalCode?: boolean;
+    showBuilding?: boolean;
+    required?: boolean;
+}
+
+export default function AddressSelector({
+    prefecture,
+    city,
+    addressLine = '',
+    building = '',
+    postalCode = '',
+    onChange,
+    showPostalCode = true,
+    showBuilding = true,
+    required = false
+}: AddressSelectorProps) {
+    const [citySearch, setCitySearch] = useState('');
+
+    // 選択された都道府県の市区町村リスト
+    const availableCities = useMemo(() => {
+        if (!prefecture) return [];
+        return CITIES_BY_PREFECTURE[prefecture] || [];
+    }, [prefecture]);
+
+    // 検索フィルター
+    const filteredCities = useMemo(() => {
+        if (!citySearch) return availableCities.slice(0, 50); // 初期表示は50件まで
+        return availableCities.filter(c =>
+            c.toLowerCase().includes(citySearch.toLowerCase())
+        );
+    }, [availableCities, citySearch]);
+
+    const handlePrefectureChange = (newPref: string) => {
+        onChange({
+            prefecture: newPref,
+            city: '', // 都道府県変更時は市区町村リセット
+            addressLine,
+            building,
+            postalCode
+        });
+        setCitySearch('');
+    };
+
+    const handleCityChange = (newCity: string) => {
+        onChange({
+            prefecture,
+            city: newCity,
+            addressLine,
+            building,
+            postalCode
+        });
+    };
+
+    return (
+        <div className="space-y-4">
+            {/* 郵便番号 */}
+            {showPostalCode && (
+                <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                        郵便番号
+                    </label>
+                    <input
+                        type="text"
+                        value={postalCode}
+                        onChange={e => onChange({ prefecture, city, addressLine, building, postalCode: e.target.value })}
+                        className="w-full max-w-[200px] px-3 py-2 border border-slate-300 rounded-lg"
+                        placeholder="123-4567"
+                    />
+                </div>
+            )}
+
+            {/* 都道府県 */}
+            <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                    都道府県 {required && <span className="text-red-500">*</span>}
+                </label>
+                <select
+                    value={prefecture}
+                    onChange={e => handlePrefectureChange(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                    required={required}
+                >
+                    <option value="">選択してください</option>
+                    {PREFECTURES.map(pref => (
+                        <option key={pref} value={pref}>{pref}</option>
+                    ))}
+                </select>
+            </div>
+
+            {/* 市区町村 */}
+            <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                    市区町村 {required && <span className="text-red-500">*</span>}
+                    {!prefecture && (
+                        <span className="ml-2 text-xs text-amber-600 font-normal">
+                            ※先に都道府県を選択してください
+                        </span>
+                    )}
+                </label>
+                {prefecture ? (
+                    <>
+                        {/* 選択済み表示 */}
+                        {city && (
+                            <div className="flex items-center gap-2 mb-2">
+                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-100 text-indigo-700 text-sm rounded">
+                                    {city}
+                                    <button
+                                        type="button"
+                                        onClick={() => handleCityChange('')}
+                                        className="hover:text-indigo-900"
+                                    >
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                </span>
+                            </div>
+                        )}
+                        {!city && (
+                            <>
+                                <input
+                                    type="text"
+                                    value={citySearch}
+                                    onChange={e => setCitySearch(e.target.value)}
+                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg mb-2"
+                                    placeholder="市区町村を検索..."
+                                />
+                                <div className="flex flex-wrap gap-2 p-3 border border-slate-300 rounded-lg max-h-40 overflow-y-auto">
+                                    {filteredCities.length === 0 ? (
+                                        <span className="text-sm text-slate-400">
+                                            {citySearch ? '検索結果がありません' : '市区町村がありません'}
+                                        </span>
+                                    ) : (
+                                        filteredCities.map(c => (
+                                            <button
+                                                key={c}
+                                                type="button"
+                                                onClick={() => handleCityChange(c)}
+                                                className="px-2 py-1 text-xs bg-slate-100 text-slate-700 rounded hover:bg-slate-200"
+                                            >
+                                                {c}
+                                            </button>
+                                        ))
+                                    )}
+                                </div>
+                                {availableCities.length > 50 && !citySearch && (
+                                    <p className="mt-1 text-xs text-slate-500">
+                                        {availableCities.length}件中50件表示。検索で絞り込めます
+                                    </p>
+                                )}
+                            </>
+                        )}
+                    </>
+                ) : (
+                    <input
+                        type="text"
+                        disabled
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 text-slate-400"
+                        placeholder="都道府県を先に選択"
+                    />
+                )}
+            </div>
+
+            {/* 町名・番地 */}
+            <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                    町名・番地
+                </label>
+                <input
+                    type="text"
+                    value={addressLine}
+                    onChange={e => onChange({ prefecture, city, addressLine: e.target.value, building, postalCode })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                    placeholder="例: ●●町1-2-3"
+                />
+            </div>
+
+            {/* 建物名 */}
+            {showBuilding && (
+                <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                        建物名・部屋番号
+                    </label>
+                    <input
+                        type="text"
+                        value={building}
+                        onChange={e => onChange({ prefecture, city, addressLine, building: e.target.value, postalCode })}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                        placeholder="例: ○○マンション 101号室"
+                    />
+                </div>
+            )}
+        </div>
+    );
+}

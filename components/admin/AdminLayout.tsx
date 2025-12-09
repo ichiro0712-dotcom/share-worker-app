@@ -1,9 +1,10 @@
 'use client';
 
-import { ReactNode, useState } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { getFacilityStaffName } from '@/src/lib/actions';
 import toast from 'react-hot-toast';
 import {
   Briefcase,
@@ -16,6 +17,11 @@ import {
   FileText,
   MessageCircle,
   UserCheck,
+  AlertTriangle,
+  Lock,
+  Trash2,
+  KeyRound,
+  Shield,
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -27,6 +33,48 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const router = useRouter();
   const { admin, adminLogout } = useAuth();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  // 仮登録状態をチェック（localStorage から取得）
+  const [isPending, setIsPending] = useState(false);
+  // マスカレード状態をチェック
+  const [isMasquerade, setIsMasquerade] = useState(false);
+  // 担当者名（DBから取得）
+  const [staffName, setStaffName] = useState<string | null>(null);
+
+  useEffect(() => {
+    const checkSessionStatus = () => {
+      try {
+        const sessionStr = localStorage.getItem('admin_session');
+        if (sessionStr) {
+          const session = JSON.parse(sessionStr);
+          setIsPending(session.isPending === true);
+          setIsMasquerade(session.isMasquerade === true);
+        }
+      } catch {
+        // ignore
+      }
+    };
+    checkSessionStatus();
+  }, []);
+
+  // 担当者名を取得
+  useEffect(() => {
+    const fetchStaffName = async () => {
+      if (admin?.facilityId) {
+        const name = await getFacilityStaffName(admin.facilityId);
+        setStaffName(name);
+      }
+    };
+    fetchStaffName();
+  }, [admin?.facilityId]);
+
+  // 仮登録状態で施設管理以外にアクセスしたらリダイレクト
+  useEffect(() => {
+    if (isPending && pathname && pathname !== '/admin/facility' && !pathname.startsWith('/admin/masquerade')) {
+      toast.error('施設情報を登録してください');
+      router.push('/admin/facility');
+    }
+  }, [isPending, pathname, router]);
 
   const handleLogout = () => {
     setShowLogoutConfirm(true);
@@ -123,29 +171,106 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
         {/* メニュー */}
         <nav className="flex-1 overflow-y-auto py-4">
-          {menuItems.map((item, index) => (
-            <div key={index}>
-              {item.divider && <div className="my-2 border-t border-gray-800"></div>}
+          {/* 仮登録状態の警告バナー */}
+          {isPending && (
+            <div className="mx-2 mb-4 p-3 bg-amber-500/20 border border-amber-500/30 rounded-lg">
+              <div className="flex items-center gap-2 text-amber-400 text-xs font-medium">
+                <AlertTriangle className="w-4 h-4" />
+                施設情報未登録
+              </div>
+              <p className="text-amber-300/80 text-xs mt-1">
+                施設情報を入力して保存してください
+              </p>
+            </div>
+          )}
+          {menuItems.map((item, index) => {
+            // 仮登録状態では施設管理以外は無効化
+            const isDisabled = isPending && item.href !== '/admin/facility';
+
+            return (
+              <div key={index}>
+                {item.divider && <div className="my-2 border-t border-gray-800"></div>}
+                {isDisabled ? (
+                  // 無効状態（クリック不可）
+                  <div
+                    className={`flex items-center gap-3 py-2.5 mx-2 rounded-admin-button text-sm ${item.isSubItem ? 'pl-8 pr-4' : 'px-4'
+                      } text-gray-600 cursor-not-allowed`}
+                  >
+                    {item.icon}
+                    <span>{item.title}</span>
+                    <Lock className="w-3 h-3 ml-auto" />
+                  </div>
+                ) : (
+                  // 通常状態（クリック可能）
+                  <Link
+                    href={item.href}
+                    className={`flex items-center gap-3 py-2.5 mx-2 rounded-admin-button text-sm transition-colors ${item.isSubItem ? 'pl-8 pr-4' : 'px-4'
+                      } ${item.active
+                        ? 'bg-blue-500/20 text-blue-400 font-medium'
+                        : 'text-gray-300 hover:text-white hover:bg-white/10'
+                      }`}
+                  >
+                    {item.icon}
+                    <span>{item.title}</span>
+                  </Link>
+                )}
+              </div>
+            );
+          })}
+
+          {/* マスカレード時のみ表示される管理メニュー */}
+          {isMasquerade && (
+            <>
+              <div className="my-2 border-t border-gray-800"></div>
+              <div className="mx-2 mb-2 px-2">
+                <div className="flex items-center gap-1.5 text-[10px] text-purple-400 font-medium uppercase tracking-wide">
+                  <Shield className="w-3 h-3" />
+                  システム管理者メニュー
+                </div>
+              </div>
               <Link
-                href={item.href}
-                className={`flex items-center gap-3 py-2.5 mx-2 rounded-admin-button text-sm transition-colors ${item.isSubItem ? 'pl-8 pr-4' : 'px-4'
-                  } ${item.active
+                href="/admin/masquerade-actions/delete-facility"
+                className={`flex items-center gap-3 py-2.5 mx-2 rounded-admin-button text-sm transition-colors px-4 ${
+                  pathname === '/admin/masquerade-actions/delete-facility'
+                    ? 'bg-red-500/20 text-red-400 font-medium'
+                    : 'text-gray-300 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>施設削除</span>
+              </Link>
+              <Link
+                href="/admin/masquerade-actions/password-reset"
+                className={`flex items-center gap-3 py-2.5 mx-2 rounded-admin-button text-sm transition-colors px-4 ${
+                  pathname === '/admin/masquerade-actions/password-reset'
                     ? 'bg-blue-500/20 text-blue-400 font-medium'
                     : 'text-gray-300 hover:text-white hover:bg-white/10'
-                  }`}
+                }`}
               >
-                {item.icon}
-                <span>{item.title}</span>
+                <KeyRound className="w-4 h-4" />
+                <span>パスワードリセット</span>
               </Link>
-            </div>
-          ))}
+            </>
+          )}
         </nav>
 
         {/* ユーザー情報・ログアウト */}
         <div className="p-4 border-t border-gray-800">
           <div className="mb-3">
-            <p className="text-xs text-gray-500 mb-1">ログイン中</p>
-            <p className="text-sm font-medium text-white">{admin?.name}</p>
+            {isMasquerade ? (
+              <>
+                <div className="flex items-center gap-1.5 text-xs text-purple-400 mb-1">
+                  <Shield className="w-3 h-3" />
+                  システム管理者としてログイン中
+                </div>
+                <p className="text-sm font-medium text-white">システム管理者</p>
+              </>
+            ) : (
+              <>
+                <p className="text-xs text-gray-500 mb-1">ログイン中</p>
+                <p className="text-sm font-medium text-white">{staffName || admin?.name || '担当者'}</p>
+              </>
+            )}
           </div>
           <div className="mb-3 flex items-center justify-center gap-3 text-xs text-gray-500">
             <Link href="/admin/terms" className="hover:text-blue-400 hover:underline">

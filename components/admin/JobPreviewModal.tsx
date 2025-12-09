@@ -158,9 +158,8 @@ export function JobPreviewModal({
                   {allImages.map((_: any, index: number) => (
                     <div
                       key={index}
-                      className={`h-1 rounded-full transition-all ${
-                        index === currentImageIndex ? 'w-6 bg-gray-800' : 'w-1 bg-gray-300'
-                      }`}
+                      className={`h-1 rounded-full transition-all ${index === currentImageIndex ? 'w-6 bg-gray-800' : 'w-1 bg-gray-300'
+                        }`}
                     />
                   ))}
                 </div>
@@ -184,7 +183,11 @@ export function JobPreviewModal({
               <h2 className="text-lg font-bold mb-1">{facility.name}</h2>
               <div className="flex items-center gap-1 text-sm text-gray-600 mb-2">
                 <MapPin className="w-4 h-4" />
-                <span>{facility.address}</span>
+                <span>
+                  {(facility.prefecture || facility.city || facility.address_line)
+                    ? `${facility.prefecture || ''}${facility.city || ''}${facility.address_line || ''}`
+                    : facility.address}
+                </span>
               </div>
               <div className="flex gap-4">
                 <button className="flex items-center gap-1 text-sm">
@@ -264,9 +267,8 @@ export function JobPreviewModal({
             <div className="mt-3">
               <h4 className="mb-2 text-sm font-bold">仕事詳細</h4>
               <div
-                className={`text-sm text-gray-600 whitespace-pre-line overflow-hidden transition-all ${
-                  isOverviewExpanded ? 'max-h-none' : 'max-h-[10.5rem] md:max-h-[7.5rem]'
-                }`}
+                className={`text-sm text-gray-600 whitespace-pre-line overflow-hidden transition-all ${isOverviewExpanded ? 'max-h-none' : 'max-h-[10.5rem] md:max-h-[7.5rem]'
+                  }`}
               >
                 {formData.jobDescription || '仕事の詳細が入力されていません'}
               </div>

@@ -21,7 +21,7 @@ interface LaborDocumentData {
     wage: number;
     hourly_wage: number;
     transportation_fee: number;
-    address: string;
+    address: string | null;
     overview: string | null;
     work_content: string[];
     belongings: string[];
@@ -30,7 +30,7 @@ interface LaborDocumentData {
     id: number;
     corporation_name: string;
     facility_name: string;
-    address: string;
+    address: string | null;
     prefecture: string | null;
     city: string | null;
     address_detail: string | null;
@@ -67,7 +67,7 @@ function escapeHtml(text: string): string {
  * 労働条件通知書のHTMLを生成
  */
 function generateHtml(data: LaborDocumentData): string {
-  const facilityAddress = `${data.facility.prefecture || ''}${data.facility.city || ''}${data.facility.address_detail || data.facility.address}`;
+  const facilityAddress = `${data.facility.prefecture || ''}${data.facility.city || ''}${data.facility.address_detail || data.facility.address || ''}`;
   const dismissalText = data.dismissalReasons || DEFAULT_DISMISSAL_REASONS;
 
   const workContentHtml = data.job.work_content && data.job.work_content.length > 0
@@ -198,7 +198,7 @@ function generateHtml(data: LaborDocumentData): string {
     <div class="key-value"><span class="key">使用者法人名</span><span class="value">${escapeHtml(data.facility.corporation_name)}</span></div>
     <div class="key-value"><span class="key">法人所在地</span><span class="value">${escapeHtml(facilityAddress)}</span></div>
     <div class="key-value"><span class="key">事業所名称</span><span class="value">${escapeHtml(data.facility.facility_name)}</span></div>
-    <div class="key-value"><span class="key">就業場所</span><span class="value">${escapeHtml(data.job.address)}</span></div>
+    <div class="key-value"><span class="key">就業場所</span><span class="value">${escapeHtml(data.job.address || '')}</span></div>
   </div>
 
   <div class="section">

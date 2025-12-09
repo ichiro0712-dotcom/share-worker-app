@@ -80,14 +80,13 @@ const transportations = [
 ];
 
 const otherConditionsOptions = [
-  '入浴介助なし',
-  '送迎ドライバーあり',
+  '未経験者歓迎',
+  'ブランク歓迎',
   '髪型・髪色自由',
   'ネイルOK',
   '制服貸与',
-  '介護業務未経験歓迎',
-  'SWORK初心者歓迎',
-  '施設オープン５年以内',
+  '車通勤OK',
+  '食事補助',
 ];
 
 const wageOptions = [
@@ -470,7 +469,7 @@ export function FilterModal({ isOpen, onClose, onApply }: FilterModalProps) {
                     その他条件
                   </label>
                   <div className="space-y-2">
-                    {otherConditionsOptions.map((condition, index) => (
+                    {otherConditionsOptions.map((condition) => (
                       <div key={condition}>
                         <label className="flex items-center gap-2">
                           <input
@@ -487,9 +486,6 @@ export function FilterModal({ isOpen, onClose, onApply }: FilterModalProps) {
                           />
                           <span className="text-sm">{condition}</span>
                         </label>
-                        {(index === 1 || index === 4) && (
-                          <div className="my-2 border-t border-gray-200" />
-                        )}
                       </div>
                     ))}
                   </div>

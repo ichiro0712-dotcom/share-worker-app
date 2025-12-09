@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import Link from 'next/link';
 import { MemoPad } from './MemoPad';
-import { Smartphone, Layout, Hash, Shield, Book, Users, Building2, Settings, ExternalLink } from 'lucide-react';
+import { Smartphone, Layout, Hash, Shield, Book, Users, Building2, Settings, ExternalLink, Image as ImageIcon } from 'lucide-react';
 
 // サイトマップ定義（ツリー構造）
 interface SiteMapNode {
@@ -17,62 +17,90 @@ interface SiteMapNode {
 const WORKER_TREE: SiteMapNode[] = [
     { name: '/', title: 'トップページ (LP)', href: '/' },
     { name: 'login', title: 'ログインページ', href: '/login' },
-    { name: 'register', title: '新規登録', href: '/register', children: [
-        { name: 'worker', title: 'ワーカー情報登録', href: '/register/worker' },
-    ]},
-    { name: 'jobs', title: '求人一覧', href: '/jobs', children: [
-        { name: '[id]', title: '求人詳細', isDynamic: true },
-    ]},
+    {
+        name: 'register', title: '新規登録', href: '/register', children: [
+            { name: 'worker', title: 'ワーカー情報登録', href: '/register/worker' },
+        ]
+    },
+    {
+        name: 'jobs', title: '求人一覧', href: '/jobs', children: [
+            { name: '[id]', title: '求人詳細', isDynamic: true },
+        ]
+    },
     { name: 'job-list', title: '求人リスト（別形式）', href: '/job-list' },
-    { name: 'mypage', title: 'マイページ', href: '/mypage', children: [
-        { name: 'profile', title: 'プロフィール編集', href: '/mypage/profile' },
-        { name: 'applications', title: '応募一覧', href: '/mypage/applications' },
-        { name: 'reviews', title: 'レビュー', href: '/mypage/reviews', children: [
-            { name: 'received', title: '受け取ったレビュー', href: '/mypage/reviews/received' },
-            { name: '[applicationId]', title: 'レビュー投稿', isDynamic: true },
-        ]},
-        { name: 'muted-facilities', title: 'ミュート施設', href: '/mypage/muted-facilities' },
-    ]},
-    { name: 'my-jobs', title: '自分の求人', href: '/my-jobs', children: [
-        { name: '[id]', title: '求人詳細', isDynamic: true, children: [
-            { name: 'labor-document', title: '労働条件通知書', isDynamic: true },
-        ]},
-    ]},
+    {
+        name: 'mypage', title: 'マイページ', href: '/mypage', children: [
+            { name: 'profile', title: 'プロフィール編集', href: '/mypage/profile' },
+            { name: 'applications', title: '応募一覧', href: '/mypage/applications' },
+            {
+                name: 'reviews', title: 'レビュー', href: '/mypage/reviews', children: [
+                    { name: 'received', title: '受け取ったレビュー', href: '/mypage/reviews/received' },
+                    { name: '[applicationId]', title: 'レビュー投稿', isDynamic: true },
+                ]
+            },
+            { name: 'muted-facilities', title: 'ミュート施設', href: '/mypage/muted-facilities' },
+        ]
+    },
+    {
+        name: 'my-jobs', title: '自分の求人', href: '/my-jobs', children: [
+            {
+                name: '[id]', title: '求人詳細', isDynamic: true, children: [
+                    { name: 'labor-document', title: '労働条件通知書', isDynamic: true },
+                ]
+            },
+        ]
+    },
     { name: 'applications', title: '応募管理', href: '/applications' },
     { name: 'messages', title: 'メッセージ', href: '/messages' },
     { name: 'favorites', title: 'お気に入り', href: '/favorites' },
     { name: 'bookmarks', title: 'ブックマーク', href: '/bookmarks' },
     { name: 'application-complete', title: '応募完了', href: '/application-complete' },
-    { name: 'password-reset', title: 'パスワードリセット', href: '/password-reset', children: [
-        { name: '[token]', title: 'パスワード再設定', isDynamic: true },
-    ]},
+    {
+        name: 'password-reset', title: 'パスワードリセット', href: '/password-reset', children: [
+            { name: '[token]', title: 'パスワード再設定', isDynamic: true },
+        ]
+    },
 ];
 
 // 施設管理画面（ツリー構造）
 const ADMIN_TREE: SiteMapNode[] = [
     { name: '/', title: '管理ダッシュボード', href: '/admin' },
     { name: 'login', title: '管理者ログイン', href: '/admin/login' },
-    { name: 'jobs', title: '求人管理', href: '/admin/jobs', children: [
-        { name: 'new', title: '求人作成', href: '/admin/jobs/new' },
-        { name: '[id]', title: '求人詳細', isDynamic: true, children: [
-            { name: 'edit', title: '求人編集', isDynamic: true },
-        ]},
-        { name: 'templates', title: 'テンプレート一覧', href: '/admin/jobs/templates', children: [
-            { name: 'new', title: 'テンプレート作成', href: '/admin/jobs/templates/new' },
-            { name: '[id]', title: 'テンプレート詳細', isDynamic: true, children: [
-                { name: 'edit', title: 'テンプレート編集', isDynamic: true },
-            ]},
-        ]},
-    ]},
+    {
+        name: 'jobs', title: '求人管理', href: '/admin/jobs', children: [
+            { name: 'new', title: '求人作成', href: '/admin/jobs/new' },
+            {
+                name: '[id]', title: '求人詳細', isDynamic: true, children: [
+                    { name: 'edit', title: '求人編集', isDynamic: true },
+                ]
+            },
+            {
+                name: 'templates', title: 'テンプレート一覧', href: '/admin/jobs/templates', children: [
+                    { name: 'new', title: 'テンプレート作成', href: '/admin/jobs/templates/new' },
+                    {
+                        name: '[id]', title: 'テンプレート詳細', isDynamic: true, children: [
+                            { name: 'edit', title: 'テンプレート編集', isDynamic: true },
+                        ]
+                    },
+                ]
+            },
+        ]
+    },
     { name: 'applications', title: '応募管理', href: '/admin/applications' },
-    { name: 'workers', title: 'ワーカー管理', href: '/admin/workers', children: [
-        { name: '[id]', title: 'ワーカー詳細', isDynamic: true, children: [
-            { name: 'review', title: 'レビュー投稿', isDynamic: true },
-            { name: 'labor-documents', title: '労働条件通知書一覧', isDynamic: true, children: [
-                { name: '[applicationId]', title: '労働条件通知書詳細', isDynamic: true },
-            ]},
-        ]},
-    ]},
+    {
+        name: 'workers', title: 'ワーカー管理', href: '/admin/workers', children: [
+            {
+                name: '[id]', title: 'ワーカー詳細', isDynamic: true, children: [
+                    { name: 'review', title: 'レビュー投稿', isDynamic: true },
+                    {
+                        name: 'labor-documents', title: '労働条件通知書一覧', isDynamic: true, children: [
+                            { name: '[applicationId]', title: '労働条件通知書詳細', isDynamic: true },
+                        ]
+                    },
+                ]
+            },
+        ]
+    },
     { name: 'worker-reviews', title: 'ワーカーレビュー管理', href: '/admin/worker-reviews' },
     { name: 'reviews', title: '施設レビュー管理', href: '/admin/reviews' },
     { name: 'facility', title: '施設情報', href: '/admin/facility' },
@@ -82,12 +110,35 @@ const ADMIN_TREE: SiteMapNode[] = [
     { name: 'privacy', title: 'プライバシーポリシー', href: '/admin/privacy' },
 ];
 
+// システム管理画面（ツリー構造）
+const SYSTEM_ADMIN_TREE: SiteMapNode[] = [
+    { name: '/', title: 'システム管理ダッシュボード', href: '/system-admin' },
+    { name: 'login', title: 'システム管理者ログイン', href: '/system-admin/login' },
+    { name: 'facilities', title: '施設管理', href: '/system-admin/facilities' },
+    { name: 'jobs', title: '求人管理', href: '/system-admin/jobs' },
+    { name: 'applications', title: '応募管理', href: '/system-admin/applications' },
+    { name: 'workers', title: 'ワーカー管理', href: '/system-admin/workers' },
+    {
+        name: 'announcements', title: 'お知らせ管理', href: '/system-admin/announcements', children: [
+            { name: 'create', title: '新規作成', href: '/system-admin/announcements/create' },
+            { name: '[id]', title: '編集', isDynamic: true },
+        ]
+    },
+    {
+        name: 'settings', title: 'システム設定', href: '/system-admin/settings', children: [
+            { name: 'admins', title: '管理者アカウント管理', href: '/system-admin/settings/admins' },
+        ]
+    },
+];
+
 // 独立画面（ツリー構造）
 const STANDALONE_TREE: SiteMapNode[] = [
     { name: 'style-guide', title: 'スタイルガイド', href: '/style-guide' },
-    { name: 'dev', title: 'モバイルテスト', href: '/dev', children: [
-        { name: 'qr', title: 'QR生成', href: '/dev/qr' },
-    ]},
+    {
+        name: 'dev', title: 'モバイルテスト', href: '/dev', children: [
+            { name: 'qr', title: 'QR生成', href: '/dev/qr' },
+        ]
+    },
     { name: 'dev-portal', title: '開発ポータル', href: '/dev-portal' },
     { name: 'under-construction', title: '準備中ページ', href: '/under-construction' },
     { name: 'auth-construction', title: '認証準備中', href: '/auth-construction' },
@@ -233,6 +284,20 @@ export default function DevPortalPage() {
                             </div>
                             <p className="text-xs text-gray-500">施設管理画面へ</p>
                         </Link>
+                        <Link href="/system-admin" target="_blank" rel="noopener noreferrer" className="block w-full text-left p-3 rounded-lg border border-gray-200 hover:border-red-300 hover:shadow-md transition-all group bg-white">
+                            <div className="flex items-center justify-between mb-1">
+                                <div className="font-bold text-gray-800 group-hover:text-red-600">システム管理</div>
+                                <Shield className="w-4 h-4 text-gray-400 group-hover:text-red-500" />
+                            </div>
+                            <p className="text-xs text-gray-500">全体管理者ダッシュボード</p>
+                        </Link>
+                        <Link href="/dev-portal/sample-images" target="_blank" rel="noopener noreferrer" className="block w-full text-left p-3 rounded-lg border border-gray-200 hover:border-pink-300 hover:shadow-md transition-all group bg-white">
+                            <div className="flex items-center justify-between mb-1">
+                                <div className="font-bold text-gray-800 group-hover:text-pink-600">サンプル画像</div>
+                                <ImageIcon className="w-4 h-4 text-gray-400 group-hover:text-pink-500" />
+                            </div>
+                            <p className="text-xs text-gray-500">モック用画像素材集</p>
+                        </Link>
                     </div>
                 </div>
 
@@ -263,6 +328,17 @@ export default function DevPortalPage() {
                             </h3>
                             <div className="bg-green-50/50 rounded-lg border border-green-100 p-4">
                                 <SiteMapTree nodes={ADMIN_TREE} colorScheme="green" />
+                            </div>
+                        </div>
+
+                        {/* システム管理画面 */}
+                        <div>
+                            <h3 className="text-sm font-bold text-red-700 mb-3 flex items-center gap-2">
+                                <Shield className="w-4 h-4" />
+                                システム管理画面 <span className="text-xs font-normal text-gray-400">(/system-admin)</span>
+                            </h3>
+                            <div className="bg-red-50/50 rounded-lg border border-red-100 p-4">
+                                <SiteMapTree nodes={SYSTEM_ADMIN_TREE} colorScheme="purple" />
                             </div>
                         </div>
 

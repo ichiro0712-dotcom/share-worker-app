@@ -7,6 +7,7 @@ import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { compressImage, MAX_FILE_SIZE, formatFileSize } from '@/utils/fileValidation';
+import AddressSelector from '@/components/ui/AddressSelector';
 
 export default function WorkerRegisterPage() {
   const router = useRouter();
@@ -25,6 +26,10 @@ export default function WorkerRegisterPage() {
 
     // 郵便番号
     postalCode: '',
+    prefecture: '',
+    city: '',
+    address: '',
+    building: '',
 
     // 電話番号
     phoneNumber: '',
@@ -210,6 +215,10 @@ export default function WorkerRegisterPage() {
           gender: formData.gender,
           nationality: formData.nationality,
           postalCode: formData.postalCode,
+          prefecture: formData.prefecture,
+          city: formData.city,
+          addressLine: formData.address,
+          building: formData.building,
           experienceFields: experienceFieldsData,
           workHistories: workHistories.filter(h => h.trim() !== ''),
           qualificationCertificates: qualificationCertificates,
@@ -388,15 +397,23 @@ export default function WorkerRegisterPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    郵便番号 <span className="text-red-500">*</span>
+                    住所 <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.postalCode}
-                    onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
-                    placeholder="123-4567"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                  <AddressSelector
+                    prefecture={formData.prefecture}
+                    city={formData.city}
+                    addressLine={formData.address}
+                    building={formData.building}
+                    postalCode={formData.postalCode}
+                    onChange={(data) => setFormData({
+                      ...formData,
+                      prefecture: data.prefecture,
+                      city: data.city,
+                      address: data.addressLine || '',
+                      building: data.building || '',
+                      postalCode: data.postalCode || ''
+                    })}
+                    required={true}
                   />
                 </div>
                 <div>

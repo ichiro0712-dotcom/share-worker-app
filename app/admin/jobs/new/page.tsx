@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Upload, X, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { JobPreviewModal } from '@/components/admin/JobPreviewModal';
+import AddressSelector from '@/components/ui/AddressSelector';
 import { JobConfirmModal } from '@/components/admin/JobConfirmModal';
 import { calculateDailyWage } from '@/utils/salary';
 import { validateImageFiles, validateAttachmentFiles } from '@/utils/fileValidation';
@@ -24,6 +25,8 @@ import {
   HOUR_OPTIONS,
   END_HOUR_OPTIONS,
   MINUTE_OPTIONS,
+  WORK_FREQUENCY_ICONS,
+  MONTHLY_COMMITMENT_ICON,
 } from '@/constants';
 
 interface TemplateData {
@@ -53,6 +56,10 @@ interface FacilityData {
   id: number;
   facilityName: string;
   address: string;
+  prefecture?: string;
+  city?: string;
+  addressLine?: string;
+  building?: string;
 }
 
 export default function NewJobPage() {
@@ -99,6 +106,13 @@ export default function NewJobPage() {
     genderRequirement: '不問',
     dismissalReasons: DEFAULT_DISMISSAL_REASONS,
     requiresInterview: false, // 面接してからマッチング
+    // 住所情報
+    postalCode: '',
+    prefecture: '',
+    city: '',
+    addressLine: '',
+    building: '',
+    address: '', // 後方互換性用
   });
 
   const [recruitmentOptions, setRecruitmentOptions] = useState({
@@ -129,9 +143,25 @@ export default function NewJobPage() {
           ]);
           setJobTemplates(templates);
           if (facility) {
-            setFacilityInfo(facility);
-            // 施設IDをフォームにセット
-            setFormData(prev => ({ ...prev, facilityId: admin.facilityId }));
+            setFacilityInfo({
+              ...facility,
+              addressLine: (facility as any).address_line || '',
+              building: (facility as any).building || '',
+              // Keep original address for backward compatibility if needed
+              address: facility.address
+            } as any);
+
+            // 施設IDと住所情報をフォームにセット
+            setFormData(prev => ({
+              ...prev,
+              facilityId: admin.facilityId,
+              postalCode: '', // 施設情報に郵便番号があればセット
+              prefecture: facility.prefecture || '',
+              city: facility.city || '',
+              addressLine: (facility as any).address_line || '', // address_line from DB
+              building: (facility as any).building || '',
+              address: facility.address || '',
+            }));
           }
         } catch (error) {
           console.error('Failed to fetch data:', error);
@@ -159,10 +189,48 @@ export default function NewJobPage() {
 
   const toggleArrayItem = (field: string, item: string) => {
     const currentArray = formData[field as keyof typeof formData] as string[];
-    if (currentArray.includes(item)) {
+    const isRemoving = currentArray.includes(item);
+
+    if (isRemoving) {
       handleInputChange(field, currentArray.filter(i => i !== item));
     } else {
       handleInputChange(field, [...currentArray, item]);
+    }
+
+    // アイコンの場合、勤務日条件との連動を処理
+    if (field === 'icons') {
+      // 週X回アイコンの場合
+      const frequencyEntry = Object.entries(WORK_FREQUENCY_ICONS).find(([_, icon]) => icon === item);
+      if (frequencyEntry) {
+        const frequencyValue = parseInt(frequencyEntry[0]) as 2 | 3 | 4;
+        if (isRemoving) {
+          // アイコンを外した場合、勤務日条件も外す
+          setRecruitmentOptions(prev => ({
+            ...prev,
+            weeklyFrequency: prev.weeklyFrequency === frequencyValue ? null : prev.weeklyFrequency,
+          }));
+        } else {
+          // アイコンをつけた場合、勤務日条件も連動（排他的なので他を外す）
+          setRecruitmentOptions(prev => ({
+            ...prev,
+            weeklyFrequency: frequencyValue,
+          }));
+          // 他の週X回アイコンを外す
+          const otherFrequencyIcons: string[] = Object.values(WORK_FREQUENCY_ICONS).filter(icon => icon !== item);
+          setFormData(prev => ({
+            ...prev,
+            icons: prev.icons.filter(icon => !otherFrequencyIcons.includes(icon)),
+          }));
+        }
+      }
+
+      // 1ヶ月以上アイコンの場合
+      if (item === MONTHLY_COMMITMENT_ICON) {
+        setRecruitmentOptions(prev => ({
+          ...prev,
+          monthlyCommitment: !isRemoving,
+        }));
+      }
     }
   };
 
@@ -303,6 +371,15 @@ export default function NewJobPage() {
           monthlyCommitment: false,
         });
         setSelectedDates([]); // カレンダーの選択をクリア
+        // 関連アイコンを全てクリア
+        const iconsToRemove = [
+          ...Object.values(WORK_FREQUENCY_ICONS),
+          MONTHLY_COMMITMENT_ICON,
+        ];
+        setFormData(prev => ({
+          ...prev,
+          icons: prev.icons.filter(icon => !iconsToRemove.includes(icon)),
+        }));
       } else {
         setRecruitmentOptions({
           ...recruitmentOptions,
@@ -311,16 +388,42 @@ export default function NewJobPage() {
       }
     } else if (option === 'weeklyFrequency') {
       // 週2回/週3回/週4回の選択（排他的）
-      const frequency = value as 2 | 3 | 4 | null;
+      const frequency = value as 2 | 3 | 4;
+      const newValue = recruitmentOptions.weeklyFrequency === frequency ? null : frequency;
       setRecruitmentOptions({
         ...recruitmentOptions,
-        weeklyFrequency: recruitmentOptions.weeklyFrequency === frequency ? null : frequency,
+        weeklyFrequency: newValue,
+      });
+      // アイコンも連動して更新
+      const allFrequencyIcons: string[] = Object.values(WORK_FREQUENCY_ICONS);
+      const newIcon = newValue ? WORK_FREQUENCY_ICONS[newValue as keyof typeof WORK_FREQUENCY_ICONS] : null;
+      setFormData(prev => {
+        // 既存の週X回アイコンを全て削除
+        const filteredIcons = prev.icons.filter(icon => !allFrequencyIcons.includes(icon));
+        // 新しいアイコンを追加（nullでない場合）
+        return {
+          ...prev,
+          icons: newIcon ? [...filteredIcons, newIcon] : filteredIcons,
+        };
       });
     } else if (option === 'monthlyCommitment') {
       // 1ヶ月以上勤務（独立してチェック可能）
       setRecruitmentOptions({
         ...recruitmentOptions,
         monthlyCommitment: value as boolean,
+      });
+      // アイコンも連動して更新
+      setFormData(prev => {
+        if (value) {
+          // アイコンを追加（既にない場合）
+          if (!prev.icons.includes(MONTHLY_COMMITMENT_ICON)) {
+            return { ...prev, icons: [...prev.icons, MONTHLY_COMMITMENT_ICON] };
+          }
+        } else {
+          // アイコンを削除
+          return { ...prev, icons: prev.icons.filter(icon => icon !== MONTHLY_COMMITMENT_ICON) };
+        }
+        return prev;
       });
     }
   };
@@ -329,6 +432,29 @@ export default function NewJobPage() {
     const template = jobTemplates.find(t => t.id === templateId);
     if (template) {
       setSelectedTemplateId(templateId);
+
+      const templateTags = template.tags || [];
+
+      // テンプレートのtagsからrecruitmentOptionsを算出
+      // 週X回アイコンをチェック
+      let weeklyFrequency: 2 | 3 | 4 | null = null;
+      for (const [freq, icon] of Object.entries(WORK_FREQUENCY_ICONS)) {
+        if (templateTags.includes(icon)) {
+          weeklyFrequency = parseInt(freq) as 2 | 3 | 4;
+          break;
+        }
+      }
+
+      // 1ヶ月以上勤務アイコンをチェック
+      const monthlyCommitment = templateTags.includes(MONTHLY_COMMITMENT_ICON);
+
+      // recruitmentOptionsを更新
+      setRecruitmentOptions(prev => ({
+        ...prev,
+        weeklyFrequency,
+        monthlyCommitment,
+      }));
+
       setFormData({
         ...formData,
         name: template.name,
@@ -345,7 +471,7 @@ export default function NewJobPage() {
         skills: template.skills || [],
         dresscode: template.dresscode || [],
         belongings: template.belongings || [],
-        icons: template.tags || [], // テンプレートのtagsをiconsとして使用
+        icons: templateTags, // テンプレートのtagsをiconsとして使用
         // テンプレートの画像をセット
         existingImages: template.images || [],
         existingDresscodeImages: template.dresscodeImages || [],
@@ -526,7 +652,13 @@ export default function NewJobPage() {
         weeklyFrequency: recruitmentOptions.weeklyFrequency,
         monthlyCommitment: recruitmentOptions.monthlyCommitment,
         // マッチング方法
+        // マッチング方法
         requiresInterview: formData.requiresInterview,
+        // 住所情報
+        prefecture: formData.prefecture,
+        city: formData.city,
+        addressLine: `${formData.addressLine || ''}${formData.building ? ' ' + formData.building : ''}`.trim(),
+        address: formData.address,
       });
 
       if (result.success) {
@@ -586,6 +718,30 @@ export default function NewJobPage() {
                     readOnly
                     className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-gray-100"
                   />
+                </div>
+
+                <div className="col-span-3">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    勤務地住所 <span className="text-red-500">*</span>
+                  </label>
+                  <div className="bg-gray-50 p-4 rounded-md border border-gray-200">
+                    <AddressSelector
+                      postalCode={formData.postalCode}
+                      prefecture={formData.prefecture}
+                      city={formData.city}
+                      addressLine={formData.addressLine}
+                      building={formData.building}
+                      onChange={(data) => {
+                        setFormData(prev => ({
+                          ...prev,
+                          ...data,
+                          // 住所文字列も更新（プレビュー等で使用）
+                          address: `${data.prefecture} ${data.city} ${data.addressLine} ${data.building || ''}`.trim()
+                        }));
+                      }}
+                      required
+                    />
+                  </div>
                 </div>
 
                 <div>

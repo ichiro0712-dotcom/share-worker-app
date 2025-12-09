@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { updateUserProfile } from '@/src/lib/actions';
 import { validateFile } from '@/utils/fileValidation';
 import toast from 'react-hot-toast';
+import AddressSelector from '@/components/ui/AddressSelector';
 
 interface UserProfile {
   id: number;
@@ -832,60 +833,35 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 <p className="text-red-500 text-xs mt-1">{validationErrors.email}</p>
               )}
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">郵便番号 <span className="text-red-500">*</span></label>
-              <input
-                type="text"
-                value={formData.postalCode}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setFormData({ ...formData, postalCode: value });
-                  const error = validateField('postalCode', value);
-                  setValidationErrors(prev => ({ ...prev, postalCode: error }));
+            {/* 住所入力（AddressSelectorを使用） */}
+            <div className="md:col-span-2 mt-4 space-y-4 border-t pt-4">
+              <h3 className="font-medium text-gray-900">住所</h3>
+              <AddressSelector
+                prefecture={formData.prefecture}
+                city={formData.city}
+                addressLine={formData.address}
+                building={formData.building}
+                postalCode={formData.postalCode}
+                onChange={(data) => {
+                  setFormData(prev => ({
+                    ...prev,
+                    prefecture: data.prefecture,
+                    city: data.city,
+                    address: data.addressLine || '',
+                    building: data.building || '',
+                    postalCode: data.postalCode || ''
+                  }));
+                  // 郵便番号のバリデーションがある場合
+                  if (data.postalCode) {
+                    const error = validateField('postalCode', data.postalCode);
+                    setValidationErrors(prev => ({ ...prev, postalCode: error }));
+                  }
                 }}
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${validationErrors.postalCode ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                placeholder="123-4567"
+                required={true}
               />
               {validationErrors.postalCode && (
                 <p className="text-red-500 text-xs mt-1">{validationErrors.postalCode}</p>
               )}
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">都道府県 <span className="text-red-500">*</span></label>
-              <input
-                type="text"
-                value={formData.prefecture}
-                onChange={(e) => setFormData({ ...formData, prefecture: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">市区町村 <span className="text-red-500">*</span></label>
-              <input
-                type="text"
-                value={formData.city}
-                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">番地 <span className="text-red-500">*</span></label>
-              <input
-                type="text"
-                value={formData.address}
-                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium mb-2">建物名・部屋番号</label>
-              <input
-                type="text"
-                value={formData.building}
-                onChange={(e) => setFormData({ ...formData, building: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-              />
             </div>
           </div>
 

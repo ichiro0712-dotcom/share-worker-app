@@ -43,7 +43,7 @@ interface LaborDocumentData {
     wage: number;
     hourly_wage: number;
     transportation_fee: number;
-    address: string;
+    address: string | null;
     overview: string | null;
     work_content: string[];
     belongings: string[];
@@ -52,7 +52,7 @@ interface LaborDocumentData {
     id: number;
     corporation_name: string;
     facility_name: string;
-    address: string;
+    address: string | null;
     prefecture: string | null;
     city: string | null;
     address_detail: string | null;

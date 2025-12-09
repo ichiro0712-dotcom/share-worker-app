@@ -17,6 +17,7 @@ import {
 } from '@/src/lib/actions';
 import { MapPin } from 'lucide-react';
 import { validateFile } from '@/utils/fileValidation';
+import AddressSelector from '@/components/ui/AddressSelector';
 
 export default function FacilityPage() {
   const router = useRouter();
@@ -70,25 +71,21 @@ export default function FacilityPage() {
 
   // 責任者情報
   const [managerInfo, setManagerInfo] = useState({
-    lastName: '斉藤',
-    firstName: '健一',
+    lastName: '',
+    firstName: '',
     photo: null as File | null,
     photoPreview: '',
-    greeting: `はじめまして、施設長の斉藤です。
-当施設では、利用者様一人ひとりに寄り添ったケアを心がけております。
-明るく働きやすい職場づくりを目指しておりますので、ぜひ一緒に働きましょう！`,
+    greeting: '',
   });
 
   // 担当者情報
   const [staffInfo, setStaffInfo] = useState({
     sameAsManager: false,
-    lastName: '田中',
-    firstName: '美咲',
-    phone: '080-1234-5678',
-    emergencyContact: `担当不在の場合は、電話口の者に伝言をお願いいたします。
-誰も出ない場合は、下記番号にお電話くださいませ。
-大東（ダイトウ）：080-7441-7699`,
-    emails: ['tanaka@caretech.co.jp'],
+    lastName: '',
+    firstName: '',
+    phone: '',
+    emergencyContact: '',
+    emails: [''],
   });
 
   // 服装情報
@@ -109,14 +106,14 @@ export default function FacilityPage() {
   // アクセス情報
   const [accessInfo, setAccessInfo] = useState({
     stations: [
-      { name: '恵比寿駅', minutes: 5 },
+      { name: '', minutes: 0 },
     ] as { name: string; minutes: number }[],
-    accessDescription: '恵比寿駅東口より徒歩5分、明治通り沿い',
+    accessDescription: '',
     transportation: [] as string[],
     parking: '',
     transportationNote: '',
-    mapLat: 35.6465,
-    mapLng: 139.7102,
+    mapLat: 0,
+    mapLng: 0,
     mapImage: '' as string,
   });
 
@@ -265,6 +262,47 @@ export default function FacilityPage() {
         if (data) {
           console.log('[loadFacilityInfo] Loaded data:', data);
 
+          // 仮登録状態（is_pending）の場合は空のフォームを表示
+          if (data.isPending) {
+            console.log('[loadFacilityInfo] Pending facility - showing empty form');
+            // デフォルトのstate値をそのまま使用（空のフォーム）
+            // 責任者情報のデフォルト値を空にリセット
+            setManagerInfo({
+              lastName: '',
+              firstName: '',
+              photo: null,
+              photoPreview: '',
+              greeting: '',
+            });
+            // 担当者情報のデフォルト値を空にリセット
+            setStaffInfo({
+              sameAsManager: false,
+              lastName: '',
+              firstName: '',
+              phone: '',
+              emergencyContact: '',
+              emails: [''],
+            });
+            // アクセス情報のデフォルト値を空にリセット
+            setAccessInfo({
+              stations: [{ name: '', minutes: 0 }],
+              accessDescription: '',
+              transportation: [],
+              parking: '',
+              transportationNote: '',
+              mapLat: 0,
+              mapLng: 0,
+              mapImage: '',
+            });
+            // 初回メッセージのデフォルト値を空にリセット
+            setWelcomeMessage((prev) => ({
+              ...prev,
+              text: defaultWelcomeMessage,
+            }));
+            setIsLoading(false);
+            return;
+          }
+
           // 法人情報をセット
           setCorporateInfo({
             name: data.corporationName || '',
@@ -286,39 +324,43 @@ export default function FacilityPage() {
           });
 
           // 責任者情報をセット
+          // blob URLは一時的なURLなので、DBに保存されていても無視する
+          // 有効なパス（/uploads/...）のみを使用
+          const validPhotoPath = data.managerPhoto && !data.managerPhoto.startsWith('blob:')
+            ? data.managerPhoto
+            : '';
           setManagerInfo((prev) => ({
             ...prev,
-            lastName: data.managerLastName || '斉藤',
-            firstName: data.managerFirstName || '健一',
-            photoPreview: data.managerPhoto || '',
-            greeting: data.managerGreeting || prev.greeting,
+            lastName: data.managerLastName || '',
+            firstName: data.managerFirstName || '',
+            photo: null, // Fileオブジェクトは常にnullで初期化
+            photoPreview: validPhotoPath,
+            greeting: data.managerGreeting || '',
           }));
 
           // 担当者情報をセット
           setStaffInfo({
             sameAsManager: data.staffSameAsManager || false,
-            lastName: data.staffLastName || '田中',
-            firstName: data.staffFirstName || '美咲',
-            phone: data.staffPhone || '080-1234-5678',
-            emergencyContact: data.emergencyContact || `担当不在の場合は、電話口の者に伝言をお願いいたします。
-誰も出ない場合は、下記番号にお電話くださいませ。
-大東（ダイトウ）：080-7441-7699`,
+            lastName: data.staffLastName || '',
+            firstName: data.staffFirstName || '',
+            phone: data.staffPhone || '',
+            emergencyContact: data.emergencyContact || '',
             emails: data.staffEmails && data.staffEmails.length > 0
               ? data.staffEmails
-              : ['tanaka@caretech.co.jp'],
+              : [''],
           });
 
           // アクセス情報をセット
           setAccessInfo({
             stations: data.stations && data.stations.length > 0
               ? data.stations
-              : [{ name: '恵比寿駅', minutes: 5 }],
-            accessDescription: data.accessDescription || '恵比寿駅東口より徒歩5分、明治通り沿い',
+              : [{ name: '', minutes: 0 }],
+            accessDescription: data.accessDescription || '',
             transportation: data.transportation || [],
             parking: data.parking || '',
             transportationNote: data.transportationNote || '',
-            mapLat: data.lat || 35.6465,
-            mapLng: data.lng || 139.7102,
+            mapLat: data.lat || 0,
+            mapLng: data.lng || 0,
             mapImage: data.mapImage || '',
           });
 
@@ -548,6 +590,34 @@ export default function FacilityPage() {
       .replace(/\[施設名\]/g, facilityInfo.name);
   };
 
+  // 責任者画像のアップロード処理
+  const uploadManagerPhoto = async (file: File): Promise<string | null> => {
+    try {
+      const formData = new FormData();
+      formData.append('files', file);
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'アップロードに失敗しました');
+      }
+
+      const result = await response.json();
+      if (result.success && result.urls && result.urls.length > 0) {
+        // /uploads/jobs/ から /uploads/manager/ に置き換え（同じ場所でもOK）
+        return result.urls[0];
+      }
+      return null;
+    } catch (error) {
+      console.error('Manager photo upload error:', error);
+      throw error;
+    }
+  };
+
   const handleSave = async () => {
     // 二重実行防止
     if (isSaving) {
@@ -564,7 +634,9 @@ export default function FacilityPage() {
     const errors: string[] = [];
 
     // 責任者情報
-    if (!managerInfo.photoPreview) errors.push('責任者の顔写真は必須です');
+    // 有効な写真: Fileオブジェクトがある、または既にアップロード済みの有効なパスがある
+    const hasValidPhoto = managerInfo.photo || (managerInfo.photoPreview && !managerInfo.photoPreview.startsWith('blob:'));
+    if (!hasValidPhoto) errors.push('責任者の顔写真は必須です');
     if (!managerInfo.greeting?.trim()) errors.push('責任者の挨拶文は必須です');
 
     // アクセス
@@ -581,6 +653,32 @@ export default function FacilityPage() {
     if (!smokingInfo.measure) errors.push('受動喫煙防止対策措置は必須です');
     if (!smokingInfo.workInSmokingArea) errors.push('喫煙可能エリアでの作業可否は必須です');
 
+    // 住所は必須
+    if (!corporateInfo.prefecture || !corporateInfo.city || !corporateInfo.addressDetail) {
+      errors.push('住所（都道府県・市区町村・番地）は必須です');
+    }
+
+    // 町名・番地に都道府県や市区町村が含まれていないかチェック
+    if (corporateInfo.addressDetail) {
+      const addressDetail = corporateInfo.addressDetail;
+      // 選択された都道府県・市区町村が町名・番地に含まれていたらエラー
+      if (corporateInfo.prefecture && addressDetail.includes(corporateInfo.prefecture)) {
+        errors.push(`町名・番地に「${corporateInfo.prefecture}」が含まれています。町名・番地には「●●町1-2-3」のように入力してください`);
+      }
+      if (corporateInfo.city && addressDetail.includes(corporateInfo.city)) {
+        errors.push(`町名・番地に「${corporateInfo.city}」が含まれています。町名・番地には「●●町1-2-3」のように入力してください`);
+      }
+      // 一般的な都道府県名パターンをチェック
+      const prefecturePatterns = ['都', '道', '府', '県'];
+      for (const suffix of prefecturePatterns) {
+        const pattern = new RegExp(`[\\u4E00-\\u9FFF]+${suffix}`);
+        if (pattern.test(addressDetail) && (addressDetail.includes('東京都') || addressDetail.includes('北海道') || addressDetail.includes('京都府') || addressDetail.includes('大阪府') || addressDetail.match(/[\\u4E00-\\u9FFF]+県/))) {
+          errors.push('町名・番地に都道府県名が含まれています。町名・番地には「●●町1-2-3」のように入力してください');
+          break;
+        }
+      }
+    }
+
     if (errors.length > 0) {
       toast.error(
         <div className="text-sm">
@@ -594,9 +692,106 @@ export default function FacilityPage() {
     }
 
     console.log('[handleSave] Saving with facilityId:', admin.facilityId);
+    console.log('[handleSave] Full managerInfo state:', JSON.stringify({
+      lastName: managerInfo.lastName,
+      firstName: managerInfo.firstName,
+      photoType: managerInfo.photo ? 'File' : 'null',
+      photoName: managerInfo.photo?.name || 'N/A',
+      photoPreview: managerInfo.photoPreview,
+      greeting: managerInfo.greeting?.substring(0, 50) + '...',
+    }));
 
     setIsSaving(true);
     try {
+      // 責任者画像のアップロード処理
+      let managerPhotoUrl = managerInfo.photoPreview;
+
+      console.log('[handleSave] managerInfo.photo:', managerInfo.photo);
+      console.log('[handleSave] managerInfo.photoPreview:', managerInfo.photoPreview);
+      console.log('[handleSave] photo is truthy:', !!managerInfo.photo);
+
+      // 新しいファイルが選択されている場合（Fileオブジェクトがある場合）はアップロード
+      if (managerInfo.photo) {
+        console.log('[handleSave] Uploading manager photo...');
+        try {
+          const uploadedUrl = await uploadManagerPhoto(managerInfo.photo);
+          console.log('[handleSave] Upload result:', uploadedUrl);
+          if (uploadedUrl) {
+            managerPhotoUrl = uploadedUrl;
+            // アップロード成功後、stateも更新（次回保存時に再アップロードを防ぐ）
+            setManagerInfo(prev => ({
+              ...prev,
+              photo: null,
+              photoPreview: uploadedUrl,
+            }));
+          }
+        } catch (uploadError) {
+          console.error('Manager photo upload failed:', uploadError);
+          toast.error('責任者の顔写真のアップロードに失敗しました');
+          setIsSaving(false);
+          return;
+        }
+      }
+      // blob URLの場合は既存の画像パスを使用（既にアップロード済みのパスがある場合）
+      // blob URLは一時的なので、既存のパスがあればそれを使う
+      if (managerPhotoUrl && managerPhotoUrl.startsWith('blob:')) {
+        // blob URLしかない場合はエラー（既にアップロードされた画像がない）
+        toast.error('責任者の顔写真を再度選択してください');
+        setIsSaving(false);
+        return;
+      }
+
+      // 地図画像の生成（住所が変更された場合、または地図画像がない場合）
+      const fullAddress = [
+        corporateInfo.prefecture,
+        corporateInfo.city,
+        corporateInfo.addressDetail,
+      ].filter(Boolean).join('');
+
+      const addressChanged = fullAddress !== originalAddress;
+      const noMapImage = !accessInfo.mapImage || accessInfo.mapImage.trim() === '';
+
+      let mapImageUrl = accessInfo.mapImage;
+
+      if (fullAddress && (addressChanged || noMapImage)) {
+        console.log('[handleSave] Generating map image before save...');
+        console.log('[handleSave] Address:', fullAddress, 'Changed:', addressChanged, 'NoMap:', noMapImage);
+
+        try {
+          const mapResult = await updateFacilityMapImage(admin.facilityId, fullAddress);
+          if (mapResult.success && mapResult.mapImage) {
+            mapImageUrl = mapResult.mapImage;
+            // stateも更新（UIに反映）
+            setAccessInfo(prev => ({ ...prev, mapImage: mapResult.mapImage! }));
+            console.log('[handleSave] Map image generated:', mapImageUrl);
+          } else {
+            // 地図画像の取得に失敗した場合は保存をブロック
+            toast.error(
+              <div className="text-sm">
+                <p className="font-bold mb-1">住所が存在しない可能性があります</p>
+                <p>住所を確認して再度保存してください。</p>
+                <p className="text-xs mt-1 text-gray-600">入力内容は保持されています。</p>
+              </div>,
+              { duration: 5000 }
+            );
+            setIsSaving(false);
+            return;
+          }
+        } catch (mapError) {
+          console.error('Failed to generate map image:', mapError);
+          toast.error(
+            <div className="text-sm">
+              <p className="font-bold mb-1">地図画像の生成に失敗しました</p>
+              <p>住所を確認して再度保存してください。</p>
+              <p className="text-xs mt-1 text-gray-600">入力内容は保持されています。</p>
+            </div>,
+            { duration: 5000 }
+          );
+          setIsSaving(false);
+          return;
+        }
+      }
+
       const result = await updateFacilityBasicInfo(admin.facilityId, {
         // 基本情報
         corporationName: corporateInfo.name,
@@ -610,7 +805,7 @@ export default function FacilityPage() {
         phone: corporateInfo.phone,
         prefecture: corporateInfo.prefecture,
         city: corporateInfo.city,
-        addressDetail: corporateInfo.addressDetail,
+        addressLine: corporateInfo.addressDetail,
         email: corporateInfo.email,
         contactPersonLastName: corporateInfo.contactPersonLastName,
         contactPersonFirstName: corporateInfo.contactPersonFirstName,
@@ -618,7 +813,7 @@ export default function FacilityPage() {
         // 責任者情報
         managerLastName: managerInfo.lastName,
         managerFirstName: managerInfo.firstName,
-        managerPhoto: managerInfo.photoPreview, // 注: 画像アップロード処理が別途必要
+        managerPhoto: managerPhotoUrl,
         managerGreeting: managerInfo.greeting,
 
         // 担当者情報
@@ -650,35 +845,29 @@ export default function FacilityPage() {
       if (result.success) {
         toast.success('保存しました');
 
-        // 住所変更検知: 住所が変更された場合、または地図画像が未設定の場合のみ地図を自動更新
-        const currentAddress = [
-          corporateInfo.prefecture,
-          corporateInfo.city,
-          corporateInfo.addressDetail,
-        ].filter(Boolean).join('');
+        // 新しい住所を「元の住所」として保存（次回の変更検知用）
+        setOriginalAddress(fullAddress);
 
-        const addressChanged = currentAddress !== originalAddress;
-        const noMapImage = !accessInfo.mapImage;
-
-        if (currentAddress && (addressChanged || noMapImage)) {
-          console.log('[handleSave] Address changed or no map image, updating map...');
-          console.log('[handleSave] Original:', originalAddress, 'Current:', currentAddress);
-
+        // 仮登録状態が解除された場合、localStorageのセッションを更新
+        if (result.isPendingCleared) {
           try {
-            const mapResult = await updateFacilityMapImage(admin.facilityId, currentAddress);
-            if (mapResult.success && mapResult.mapImage) {
-              setAccessInfo(prev => ({ ...prev, mapImage: mapResult.mapImage! }));
-              toast.success('地図画像を自動更新しました');
-              // 新しい住所を「元の住所」として保存
-              setOriginalAddress(currentAddress);
+            const sessionStr = localStorage.getItem('admin_session');
+            if (sessionStr) {
+              const session = JSON.parse(sessionStr);
+              session.isPending = false;
+              localStorage.setItem('admin_session', JSON.stringify(session));
             }
-          } catch (mapError) {
-            console.error('Failed to auto-update map:', mapError);
-            // 地図更新失敗はエラー表示しない（保存自体は成功しているため）
+            const legacyStr = localStorage.getItem('currentAdmin');
+            if (legacyStr) {
+              const legacy = JSON.parse(legacyStr);
+              legacy.isPending = false;
+              localStorage.setItem('currentAdmin', JSON.stringify(legacy));
+            }
+            // ページをリロードしてサイドバーを更新
+            window.location.reload();
+          } catch (e) {
+            console.error('Failed to update session:', e);
           }
-        } else {
-          // 住所変更なしの場合も、originalAddressを更新
-          setOriginalAddress(currentAddress);
         }
       } else {
         toast.error(result.error || '保存に失敗しました');
@@ -800,49 +989,29 @@ export default function FacilityPage() {
                 </div>
               </div>
 
-              {/* 住所を都道府県、市区町村、その他住所に分けて２列目に */}
+              {/* 住所入力（AddressSelectorを使用） */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   住所 <span className="text-red-500">*</span>
                 </label>
-                <div className="grid grid-cols-6 gap-2">
-                  <select
-                    value={corporateInfo.prefecture}
-                    onChange={(e) => {
-                      setCorporateInfo({ ...corporateInfo, prefecture: e.target.value, city: '' });
-                    }}
-                    className="col-span-1 px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
-                  >
-                    <option value="">選択</option>
-                    {prefectures.map((pref) => (
-                      <option key={pref} value={pref}>
-                        {pref}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={corporateInfo.city}
-                    onChange={(e) => setCorporateInfo({ ...corporateInfo, city: e.target.value })}
-                    disabled={!corporateInfo.prefecture}
-                    className="col-span-2 px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
-                  >
-                    <option value="">
-                      {corporateInfo.prefecture ? '選択してください' : '都道府県を選択してください'}
-                    </option>
-                    {corporateInfo.prefecture && citiesByPrefecture[corporateInfo.prefecture]?.map((city) => (
-                      <option key={city} value={city}>
-                        {city}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    type="text"
-                    value={corporateInfo.addressDetail}
-                    onChange={(e) => setCorporateInfo({ ...corporateInfo, addressDetail: e.target.value })}
-                    placeholder="その他住所"
-                    className="col-span-3 px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
-                  />
-                </div>
+                <AddressSelector
+                  prefecture={corporateInfo.prefecture}
+                  city={corporateInfo.city}
+                  addressLine={corporateInfo.addressDetail}
+                  building=""
+                  postalCode=""
+                  onChange={(data) => {
+                    setCorporateInfo({
+                      ...corporateInfo,
+                      prefecture: data.prefecture,
+                      city: data.city,
+                      addressDetail: data.addressLine || ''
+                    });
+                  }}
+                  showPostalCode={false}
+                  showBuilding={false}
+                  required={true}
+                />
               </div>
 
               {/* 担当者名、電話番号、メールアドレスを一列に */}

@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect, useMemo } from 'react';
-import { X, ChevronLeft, Heart, Clock, MapPin, ChevronRight, ChevronLeft as ChevronLeftIcon, Bookmark, VolumeX, Volume2, ExternalLink, Building2 } from 'lucide-react';
+import { X, ChevronLeft, Heart, Clock, MapPin, ChevronRight, ChevronLeft as ChevronLeftIcon, Bookmark, VolumeX, Volume2, ExternalLink, Building2, Train, Car, Bike, Bus } from 'lucide-react';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/Button';
@@ -359,7 +359,7 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
           <span className={`inline-block text-xs px-2 py-1 rounded ${isDeadlineUrgent(job.deadline)
             ? 'bg-red-500 text-white'
             : 'bg-gray-300 text-gray-800'
-          }`}>
+            }`}>
             締切まで{getDeadlineText(job.deadline)}
           </span>
           <Badge variant="red">
@@ -437,7 +437,11 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
           <p className="text-sm text-gray-500 mb-2">{facility.type}</p>
           <div className="flex items-center gap-1 text-sm text-gray-600 mb-2">
             <MapPin className="w-4 h-4" />
-            <span>{job.address}</span>
+            <span>
+              {(job.prefecture || job.city || job.addressLine)
+                ? `${job.prefecture || ''}${job.city || ''}${job.addressLine || ''}`
+                : job.address}
+            </span>
           </div>
           <div className="flex gap-4">
             <button onClick={handleJobBookmark} className="flex items-center gap-1 text-sm">
@@ -634,9 +638,18 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
       <div className="border-t border-gray-200 pt-4 mb-4">
         <h3 className="mb-3 text-sm font-bold">責任者</h3>
         <div className="flex gap-3">
-          <div className="w-12 h-12 rounded-full bg-orange-400 flex items-center justify-center text-white text-2xl flex-shrink-0">
-            {job.managerAvatar}
-          </div>
+          {/* 画像パスの場合はimgタグで表示、それ以外は絵文字として表示 */}
+          {job.managerAvatar && (job.managerAvatar.startsWith('/') || job.managerAvatar.includes('.jpg') || job.managerAvatar.includes('.png') || job.managerAvatar.includes('.jpeg') || job.managerAvatar.includes('.webp')) ? (
+            <img
+              src={job.managerAvatar}
+              alt={job.managerName || '責任者'}
+              className="w-12 h-12 rounded-full object-cover flex-shrink-0"
+            />
+          ) : (
+            <div className="w-12 h-12 rounded-full bg-orange-400 flex items-center justify-center text-white text-2xl flex-shrink-0">
+              {job.managerAvatar || '👤'}
+            </div>
+          )}
           <div className="flex-1">
             <div className="mb-1 font-bold">{job.managerName}</div>
             <p className="text-sm text-gray-600 whitespace-pre-line">{job.managerMessage}</p>
@@ -644,26 +657,9 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
         </div>
       </div>
 
-      {/* この求人の特徴 */}
-      {job.featureTags && job.featureTags.length > 0 && (
-        <div className="border-t border-gray-200 pt-4 mb-4">
-          <h3 className="mb-3 text-sm font-bold">この求人の特徴</h3>
-          <div className="flex flex-wrap gap-2">
-            {job.featureTags.map((tag: string, index: number) => (
-              <span
-                key={index}
-                className="inline-block bg-green-100 text-green-800 rounded-full px-3 py-1 text-xs font-medium"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* 仕事概要 */}
       <div className="mb-4">
-        <h3 className="mb-3 text-sm bg-primary-light px-4 py-3 -mx-4">仕事概要</h3>
+        <h3 className="mb-3 text-base font-bold text-primary px-4 py-3 -mx-4 border-b-2 border-primary">仕事概要</h3>
         <div className="mt-3">
           <h4 className="mb-2 text-sm font-bold">仕事詳細</h4>
           {/* 仕事内容アイコン */}
@@ -716,12 +712,12 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
               <h4 className="text-sm mb-2 font-bold">募集条件</h4>
               <div className="flex flex-wrap gap-2">
                 {job.weeklyFrequency && (
-                  <span className="px-3 py-1 bg-orange-100 text-orange-700 text-sm rounded-full">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                     週{job.weeklyFrequency}回以上勤務できる方
                   </span>
                 )}
                 {job.monthlyCommitment && (
-                  <span className="px-3 py-1 bg-purple-100 text-purple-700 text-sm rounded-full">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                     1ヶ月以上勤務できる方
                   </span>
                 )}
@@ -733,7 +729,7 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
 
       {/* 事前情報 */}
       <div id="pre-info" className="mb-4 scroll-mt-16">
-        <h3 className="mb-3 text-sm bg-primary-light px-4 py-3 -mx-4">事前情報</h3>
+        <h3 className="mb-3 text-base font-bold text-primary px-4 py-3 -mx-4 border-b-2 border-primary">事前情報</h3>
         <div className="mt-3 space-y-4">
           {/* 服装など */}
           <div>
@@ -743,6 +739,21 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
                 <li key={index}>・{item}</li>
               ))}
             </ul>
+            {/* ネイルOK・制服貸与アイコン */}
+            {(job.nailOk || job.uniformProvided) && (
+              <div className="flex flex-wrap gap-2 mb-3">
+                {job.nailOk && (
+                  <span className="inline-flex items-center px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs">
+                    ネイルOK
+                  </span>
+                )}
+                {job.uniformProvided && (
+                  <span className="inline-flex items-center px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs">
+                    制服貸与
+                  </span>
+                )}
+              </div>
+            )}
             {/* サンプル画像 */}
             {job.dresscodeImages && job.dresscodeImages.length > 0 ? (
               <div className="grid grid-cols-3 gap-2">
@@ -838,12 +849,34 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
             </div>
           </div>
 
-          {/* アクセス（住所+交通手段を統合） */}
+          {/* アクセス */}
           <div>
             <h4 className="text-sm mb-2 font-bold">アクセス</h4>
             <p className="text-sm text-gray-600 mb-2">{job.address}</p>
+
+            {/* 最寄駅情報 */}
+            {facility.stations && Array.isArray(facility.stations) && facility.stations.length > 0 && (
+              <div className="flex items-center gap-1 text-sm text-gray-600 mb-2">
+                <Train className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                <span>
+                  {facility.stations.map((station: { name: string; minutes: number }, index: number) => (
+                    <span key={index}>
+                      {index > 0 && '、'}
+                      {station.name}から徒歩{station.minutes}分
+                    </span>
+                  ))}
+                </span>
+              </div>
+            )}
+
+            {/* アクセス説明 */}
+            {(facility.accessDescription || job.accessDescription) && (
+              <p className="text-sm text-gray-600 mb-3">
+                {facility.accessDescription || job.accessDescription}
+              </p>
+            )}
+
             <div className="relative aspect-video overflow-hidden rounded-lg bg-gray-100 mb-2">
-              {/* 地図画像: 施設が登録した画像があればそれを使用、なければGoogle Maps Static APIで動的生成 */}
               {job.mapImage && !job.mapImage.includes('map-placeholder') ? (
                 <Image
                   src={job.mapImage}
@@ -867,30 +900,47 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
                 const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(job.address)}`;
                 window.open(url, '_blank');
               }}
-              className="text-sm text-blue-500 hover:text-blue-700 hover:underline flex items-center gap-1"
+              className="text-sm text-blue-500 hover:text-blue-700 hover:underline flex items-center gap-1 mb-3"
             >
               <ExternalLink className="w-4 h-4" />
               Google Mapで開く
             </button>
-            {/* 交通手段 */}
-            <p className="text-xs text-gray-600 mt-4 mb-2">交通手段</p>
+
+            {/* 交通手段（バッジ形式） */}
+            <h4 className="text-sm font-bold mt-3 mb-2">交通手段</h4>
             <div className="flex flex-wrap gap-2 mb-3">
-              {job.transportMethods.map((method: any, index: number) => (
-                <span
-                  key={index}
-                  className={`px-3 py-1 rounded-full text-xs ${method.available
-                    ? 'bg-primary text-white'
-                    : 'bg-gray-200 text-gray-400 line-through'
-                    }`}
-                >
-                  {method.name}
-                </span>
-              ))}
+              {/* すべての交通手段を表示（利用可能/不可を区別） */}
+              {[
+                { name: '車', Icon: Car },
+                { name: 'バイク', Icon: Bike },
+                { name: '自転車', Icon: Bike },
+                { name: '公共交通機関', Icon: Bus },
+              ].map(({ name, Icon }) => {
+                const isAvailable = facility.transportation?.includes(name);
+                return (
+                  <span
+                    key={name}
+                    className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs ${isAvailable
+                        ? 'bg-primary text-white'
+                        : 'bg-gray-200 text-gray-400 line-through'
+                      }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    {name}
+                  </span>
+                );
+              })}
             </div>
-            <div className="text-sm text-gray-600 space-y-1">
-              <p>駐車場: {job.parking ? 'あり' : 'なし'}</p>
-              <p>{job.accessDescription}</p>
-            </div>
+
+            {/* 駐車場情報 */}
+            {facility.parking && (
+              <p className="text-sm text-gray-600 mb-2">敷地内駐車場: {facility.parking}</p>
+            )}
+
+            {/* 交通手段備考 */}
+            {facility.transportationNote && (
+              <p className="text-xs text-gray-500">※ {facility.transportationNote}</p>
+            )}
           </div>
         </div>
       </div>
@@ -908,7 +958,7 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
       {/* レビュー */}
       {facilityReviews.length > 0 && (
         <div className="mb-4">
-          <h3 className="mb-3 text-sm bg-primary-light px-4 py-3 -mx-4">レビュー ({facilityReviews.length}件)</h3>
+          <h3 className="mb-3 text-base font-bold text-primary px-4 py-3 -mx-4 border-b-2 border-primary">レビュー ({facilityReviews.length}件)</h3>
           <div className="mt-3 space-y-4">
             {/* 評価分布バー */}
             {(() => {

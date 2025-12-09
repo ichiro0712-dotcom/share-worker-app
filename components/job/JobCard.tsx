@@ -150,7 +150,9 @@ export const JobCard: React.FC<JobCardProps> = ({ job, facility, selectedDate })
             </div>
 
             <div className="text-xs text-gray-600 mb-1">
-              {job.address}
+              {(job.prefecture || job.city || job.addressLine)
+                ? `${job.prefecture || ''}${job.city || ''}${job.addressLine || ''}`
+                : job.address}
             </div>
 
             <div className="text-xs text-gray-600">
@@ -239,7 +241,9 @@ export const JobCard: React.FC<JobCardProps> = ({ job, facility, selectedDate })
             {/* 住所・アクセス情報 */}
             <div className="mt-auto pt-1 border-t border-gray-100">
               <div className="text-[10px] text-gray-500 line-clamp-1">
-                {job.address}
+                {(job.prefecture || job.city || job.addressLine)
+                  ? `${job.prefecture || ''}${job.city || ''}${job.addressLine || ''}`
+                  : job.address}
               </div>
               <div className="text-[10px] text-gray-500 line-clamp-1">
                 {job.access}

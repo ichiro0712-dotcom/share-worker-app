@@ -48,23 +48,17 @@ export default async function JobListPage({ searchParams }: PageProps) {
     // DBのBooleanから移動手段配列を生成
     const transportMethods = [
       { name: '車', available: job.allow_car },
-      { name: 'バイク', available: job.allow_bike },
-      { name: '自転車', available: job.allow_bicycle },
-      { name: '電車', available: job.allow_public_transit },
-      { name: 'バス', available: job.allow_public_transit },
-      { name: '徒歩', available: job.allow_public_transit },
     ];
 
-    // DBのBooleanから特徴タグ配列を生成
+    // DBのBooleanから特徴タグ配列を生成（7項目のみ）
     const featureTags = [
-      job.no_bathing_assist && '入浴介助なし',
-      job.has_driver && '送迎ドライバーあり',
+      job.inexperienced_ok && '未経験者歓迎',
+      job.blank_ok && 'ブランク歓迎',
       job.hair_style_free && '髪型・髪色自由',
       job.nail_ok && 'ネイルOK',
       job.uniform_provided && '制服貸与',
-      job.inexperienced_ok && '介護業務未経験歓迎',
-      job.beginner_ok && 'SWORK初心者歓迎',
-      job.facility_within_5years && '施設オープン5年以内',
+      job.allow_car && '車通勤OK',
+      job.meal_support && '食事補助',
     ].filter(Boolean) as string[];
 
     return {
@@ -108,7 +102,6 @@ export default async function JobListPage({ searchParams }: PageProps) {
       otherConditions: [],
       mapImage: '/images/map-placeholder.png',
       transportMethods,
-      parking: job.has_parking,
       accessDescription: job.access,
       featureTags,
       requiresInterview: job.requires_interview,

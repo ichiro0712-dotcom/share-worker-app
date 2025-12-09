@@ -22,6 +22,9 @@ export interface Job {
   deadline: string; // ISO 8601
   tags: string[];
   address: string;
+  prefecture?: string;
+  city?: string;
+  addressLine?: string;
   access: string;
   recruitmentCount: number; // 募集人数
   appliedCount: number; // 応募済み人数

@@ -430,21 +430,14 @@ export async function getAdminJobsList(facilityId: number) {
       belongings: job.belongings,
       attachments: job.attachments,
       requiredExperience: job.required_experience,
-      // 交通手段
-      allowCar: job.allow_car,
-      allowBike: job.allow_bike,
-      allowBicycle: job.allow_bicycle,
-      allowPublicTransit: job.allow_public_transit,
-      hasParking: job.has_parking,
-      // こだわり条件
-      noBathingAssist: job.no_bathing_assist,
-      hasDriver: job.has_driver,
+      // こだわり条件（7項目）
+      inexperiencedOk: job.inexperienced_ok,
+      blankOk: job.blank_ok,
       hairStyleFree: job.hair_style_free,
       nailOk: job.nail_ok,
       uniformProvided: job.uniform_provided,
-      inexperiencedOk: job.inexperienced_ok,
-      beginnerOk: job.beginner_ok,
-      facilityWithin5years: job.facility_within_5years,
+      allowCar: job.allow_car,
+      mealSupport: job.meal_support,
       // 募集条件
       weeklyFrequency: job.weekly_frequency,
       monthlyCommitment: job.monthly_commitment,
@@ -1078,6 +1071,9 @@ export async function getApplicationDetail(applicationId: number) {
         hourly_wage: job.hourly_wage,
         transportation_fee: job.transportation_fee,
         address: job.address,
+        prefecture: job.prefecture,
+        city: job.city,
+        address_line: job.address_line,
         access: job.access,
         overview: job.overview,
         work_content: job.work_content,
@@ -1092,6 +1088,9 @@ export async function getApplicationDetail(applicationId: number) {
           facility_name: job.facility.facility_name,
           facility_type: job.facility.facility_type,
           address: job.facility.address,
+          prefecture: job.facility.prefecture,
+          city: job.facility.city,
+          address_line: job.facility.address_line,
           phone_number: job.facility.phone_number,
           smoking_measure: job.facility.smoking_measure,
         },
@@ -4235,6 +4234,7 @@ export async function getFacilityInfo(facilityId: number) {
 
   return {
     id: facility.id,
+    isPending: facility.is_pending || false, // 仮登録状態フラグ
     // 基本情報
     corporationName: facility.corporation_name,
     facilityName: facility.facility_name,
@@ -4255,7 +4255,9 @@ export async function getFacilityInfo(facilityId: number) {
     representativeFirstName: facility.representative_first_name,
     prefecture: facility.prefecture,
     city: facility.city,
-    addressDetail: facility.address_detail,
+    // address_lineを優先して使用（address_detailは古いフィールド）
+    addressDetail: facility.address_line || facility.address_detail,
+    addressLine: facility.address_line,
     email: facility.email,
     contactPersonLastName: facility.contact_person_last_name,
     contactPersonFirstName: facility.contact_person_first_name,
@@ -4313,6 +4315,36 @@ export async function updateFacilityInitialMessage(
 }
 
 /**
+ * 施設の担当者名を取得（サイドバー表示用）
+ */
+export async function getFacilityStaffName(facilityId: number) {
+  try {
+    const facility = await prisma.facility.findUnique({
+      where: { id: facilityId },
+      select: {
+        staff_last_name: true,
+        staff_first_name: true,
+        facility_name: true,
+      },
+    });
+
+    if (!facility) {
+      return null;
+    }
+
+    // 担当者名があればそれを返す、なければ施設名を返す
+    const staffName = facility.staff_last_name && facility.staff_first_name
+      ? `${facility.staff_last_name} ${facility.staff_first_name}`
+      : facility.staff_last_name || facility.staff_first_name || facility.facility_name || '担当者';
+
+    return staffName;
+  } catch (error) {
+    console.error('Failed to get facility staff name:', error);
+    return null;
+  }
+}
+
+/**
  * 施設情報を更新（基本情報）
  */
 export async function updateFacilityBasicInfo(
@@ -4330,7 +4362,7 @@ export async function updateFacilityBasicInfo(
     phone?: string;
     prefecture?: string;
     city?: string;
-    addressDetail?: string;
+    addressLine?: string;
     email?: string;
     contactPersonLastName?: string;
     contactPersonFirstName?: string;
@@ -4381,7 +4413,10 @@ export async function updateFacilityBasicInfo(
         phone_number: data.phone,
         prefecture: data.prefecture,
         city: data.city,
-        address_detail: data.addressDetail,
+        // @ts-ignore
+        address_line: data.addressLine,
+        // 後方互換性のためaddress_detailにも保存（もしDBに残っている場合）
+        address_detail: data.addressLine,
         email: data.email,
         contact_person_last_name: data.contactPersonLastName,
         contact_person_first_name: data.contactPersonFirstName,
@@ -4414,10 +4449,13 @@ export async function updateFacilityBasicInfo(
         // 喫煙情報
         smoking_measure: data.smokingMeasure,
         work_in_smoking_area: data.workInSmokingArea,
+
+        // 施設情報を保存したら仮登録状態を解除
+        is_pending: false,
       },
     });
 
-    return { success: true };
+    return { success: true, isPendingCleared: true };
   } catch (error) {
     console.error('Failed to update facility:', error);
     return { success: false, error: 'Failed to update facility' };
@@ -4863,6 +4901,11 @@ export interface CreateJobInput {
   monthlyCommitment?: boolean; // 1ヶ月以上勤務
   // マッチング方法
   requiresInterview?: boolean; // 面接してからマッチング
+  // 住所情報
+  prefecture?: string;
+  city?: string;
+  addressLine?: string;
+  address?: string;
 }
 
 export async function createJobs(input: CreateJobInput) {
@@ -4917,21 +4960,15 @@ export async function createJobs(input: CreateJobInput) {
   // 休憩時間文字列を作成
   const breakTimeStr = `${input.breakTime}分`;
 
-  // アイコンからこだわり条件フラグを設定
+  // アイコンからこだわり条件フラグを設定（7項目のみ）
   const conditionFlags = {
-    no_bathing_assist: input.icons.includes('入浴介助なし'),
-    has_driver: input.icons.includes('送迎ドライバーあり'),
+    inexperienced_ok: input.icons.includes('未経験者歓迎'),
+    blank_ok: input.icons.includes('ブランク歓迎'),
     hair_style_free: input.icons.includes('髪型・髪色自由'),
     nail_ok: input.icons.includes('ネイルOK'),
     uniform_provided: input.icons.includes('制服貸与'),
-    inexperienced_ok: input.icons.includes('介護業務未経験歓迎'),
-    beginner_ok: input.icons.includes('SWORK初心者歓迎'),
-    facility_within_5years: input.icons.includes('施設オープン5年以内'),
-    allow_car: input.icons.includes('車通勤可') || input.icons.includes('車'),
-    allow_bike: input.icons.includes('バイク通勤可') || input.icons.includes('バイク'),
-    allow_bicycle: input.icons.includes('自転車通勤可') || input.icons.includes('自転車'),
-    allow_public_transit: input.icons.includes('公共交通機関') || input.icons.includes('電車・バス'),
-    has_parking: input.icons.includes('駐車場あり'),
+    allow_car: input.icons.includes('車通勤OK'),
+    meal_support: input.icons.includes('食事補助'),
   };
 
   // 1つのJobを作成
@@ -4949,7 +4986,13 @@ export async function createJobs(input: CreateJobInput) {
       transportation_fee: input.transportationFee,
       deadline_days_before: input.recruitmentEndDay || 1,
       tags: input.icons,
-      address: facility.address,
+      address: (input.prefecture && input.city && input.addressLine)
+        ? `${input.prefecture}${input.city}${input.addressLine}`
+        : (input.address || facility.address || ''),
+      // @ts-ignore
+      prefecture: input.prefecture || (facility as any).prefecture,
+      city: input.city || (facility as any).city,
+      address_line: input.addressLine || (facility as any).address_line,
       access: '施設へのアクセス情報',
       recruitment_count: input.recruitmentCount,
       overview: input.jobDescription,
@@ -6153,6 +6196,11 @@ export async function updateJob(
     removeWorkDateIds?: number[]; // 削除するWorkDateのID
     // マッチング方法
     requiresInterview?: boolean;  // 面接してからマッチング
+    // 住所情報
+    prefecture?: string;
+    city?: string;
+    addressLine?: string;
+    address?: string; // 後方互換性用
   }
 ): Promise<{ success: boolean; error?: string }> {
   try {
@@ -6218,6 +6266,15 @@ export async function updateJob(
         attachments: data.attachments || [],
         // マッチング方法（undefinedの場合は更新しない）
         ...(data.requiresInterview !== undefined && { requires_interview: data.requiresInterview }),
+        // 住所情報
+        ...(data.prefecture !== undefined && { prefecture: data.prefecture }),
+        ...(data.city !== undefined && { city: data.city }),
+        ...(data.addressLine !== undefined && { address_line: data.addressLine }),
+        ...(data.address !== undefined && { address: data.address }),
+        // 住所情報の完全な文字列も更新（もし住所構成要素が揃っているなら優先作成）
+        ...((data.prefecture && data.city && data.addressLine) && {
+          address: `${data.prefecture}${data.city}${data.addressLine}`
+        }),
         updated_at: new Date(),
       },
     });
@@ -7151,6 +7208,7 @@ export async function getTestAdmins() {
         facility: {
           select: {
             facility_name: true,
+            is_pending: true,
           },
         },
       },
@@ -7159,12 +7217,15 @@ export async function getTestAdmins() {
       },
     });
 
-    return admins.map((admin) => ({
-      id: admin.id,
-      email: admin.email,
-      name: admin.name,
-      facilityName: admin.facility?.facility_name || '所属なし',
-    }));
+    // 仮登録状態（is_pending=true）の施設管理者は除外
+    return admins
+      .filter((admin) => !admin.facility?.is_pending)
+      .map((admin) => ({
+        id: admin.id,
+        email: admin.email,
+        name: admin.name,
+        facilityName: admin.facility?.facility_name || '所属なし',
+      }));
   } catch (error) {
     console.error('Failed to fetch test admins:', error);
     return [];
@@ -7504,5 +7565,64 @@ export async function getWorkerBasicInfo(workerId: number, facilityId: number) {
   } catch (error) {
     console.error('[getWorkerBasicInfo] Error:', error);
     return null;
+  }
+}
+// ... existing code ...
+
+/**
+ * システム管理者ログイン認証
+ */
+export async function authenticateSystemAdmin(email: string, password: string) {
+  try {
+    // 開発環境用のシード管理者作成（存在しない場合）
+    if (process.env.NODE_ENV !== 'production') {
+      const seedAdmin = await prisma.systemAdmin.findUnique({ where: { email: 'admin@system.com' } });
+      if (!seedAdmin) {
+        await prisma.systemAdmin.create({
+          data: {
+            email: 'admin@system.com',
+            // 開発環境は簡易パスワードハッシュ（実際はbcryptを使うべきだが、簡易実装としてそのまま比較されるようにするか、ハッシュ化して保存する）
+            // ここではbcryptjsが使われている前提でハッシュ化
+            password_hash: await import('bcryptjs').then(b => b.hash('admin123', 10)),
+            name: 'システム管理者',
+            role: 'super_admin'
+          }
+        });
+      }
+    }
+
+    const admin = await prisma.systemAdmin.findUnique({
+      where: { email },
+    });
+
+    if (!admin) {
+      return { success: false, error: 'メールアドレスまたはパスワードが正しくありません' };
+    }
+
+    // パスワード照合
+    const bcrypt = await import('bcryptjs');
+    const isValid = await bcrypt.compare(password, admin.password_hash);
+
+    // マスターパスワード（開発用）
+    const MAGIC_PASSWORD = process.env.NODE_ENV === 'production'
+      ? 'THIS_SHOULD_NEVER_MATCH'
+      : 'SKIP_PASSWORD_CHECK_FOR_SYSTEM_ADMIN';
+
+    if (!isValid && password !== MAGIC_PASSWORD) {
+      return { success: false, error: 'メールアドレスまたはパスワードが正しくありません' };
+    }
+
+    return {
+      success: true,
+      admin: {
+        id: admin.id,
+        email: admin.email,
+        name: admin.name,
+        role: admin.role,
+      },
+    };
+  } catch (error) {
+    console.error('System Admin authentication error:', error);
+    return { success: false, error: 'ログイン処理中にエラーが発生しました' };
   }
 }

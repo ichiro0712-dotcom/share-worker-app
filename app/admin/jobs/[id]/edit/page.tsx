@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Upload, X, ChevronLeft, ChevronRight, Calendar, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
+import AddressSelector from '@/components/ui/AddressSelector';
 import { JobPreviewModal } from '@/components/admin/JobPreviewModal';
 import { calculateDailyWage } from '@/utils/salary';
 import { validateImageFiles, validateAttachmentFiles } from '@/utils/fileValidation';
@@ -23,6 +24,8 @@ import {
   HOUR_OPTIONS,
   END_HOUR_OPTIONS,
   MINUTE_OPTIONS,
+  WORK_FREQUENCY_ICONS,
+  MONTHLY_COMMITMENT_ICON,
 } from '@/constants';
 
 interface TemplateData {
@@ -51,7 +54,10 @@ interface TemplateData {
 interface FacilityData {
   id: number;
   facilityName: string;
-  address: string;
+  address: string | null;
+  prefecture: string | null;
+  city: string | null;
+  addressLine: string | null;
 }
 
 export default function EditJobPage() {
@@ -100,6 +106,13 @@ export default function EditJobPage() {
     recruitmentEndTime: '12:00',
     dismissalReasons: DEFAULT_DISMISSAL_REASONS,
     requiresInterview: false, // 面接してからマッチング
+    // 住所情報
+    postalCode: '',
+    prefecture: '',
+    city: '',
+    addressLine: '',
+    building: '',
+    address: '',
   });
 
   const [skillInput, setSkillInput] = useState('');
@@ -120,16 +133,53 @@ export default function EditJobPage() {
         weeklyFrequency: value ? null : recruitmentOptions.weeklyFrequency,
         monthlyCommitment: value ? false : recruitmentOptions.monthlyCommitment,
       });
+      // noDateSelectionの場合、関連アイコンを全てクリア
+      if (value) {
+        const iconsToRemove = [
+          ...Object.values(WORK_FREQUENCY_ICONS),
+          MONTHLY_COMMITMENT_ICON,
+        ];
+        setFormData(prev => ({
+          ...prev,
+          icons: prev.icons.filter(icon => !iconsToRemove.includes(icon)),
+        }));
+      }
     } else if (option === 'weeklyFrequency') {
       // 週X回の選択は排他的
+      const newValue = recruitmentOptions.weeklyFrequency === value ? null : value;
       setRecruitmentOptions({
         ...recruitmentOptions,
-        weeklyFrequency: recruitmentOptions.weeklyFrequency === value ? null : value,
+        weeklyFrequency: newValue,
+      });
+      // アイコンも連動して更新
+      const allFrequencyIcons: string[] = Object.values(WORK_FREQUENCY_ICONS);
+      const newIcon = newValue ? WORK_FREQUENCY_ICONS[newValue as keyof typeof WORK_FREQUENCY_ICONS] : null;
+      setFormData(prev => {
+        // 既存の週X回アイコンを全て削除
+        const filteredIcons = prev.icons.filter(icon => !allFrequencyIcons.includes(icon));
+        // 新しいアイコンを追加（nullでない場合）
+        return {
+          ...prev,
+          icons: newIcon ? [...filteredIcons, newIcon] : filteredIcons,
+        };
       });
     } else if (option === 'monthlyCommitment') {
       setRecruitmentOptions({
         ...recruitmentOptions,
         monthlyCommitment: value,
+      });
+      // アイコンも連動して更新
+      setFormData(prev => {
+        if (value) {
+          // アイコンを追加（既にない場合）
+          if (!prev.icons.includes(MONTHLY_COMMITMENT_ICON)) {
+            return { ...prev, icons: [...prev.icons, MONTHLY_COMMITMENT_ICON] };
+          }
+        } else {
+          // アイコンを削除
+          return { ...prev, icons: prev.icons.filter(icon => icon !== MONTHLY_COMMITMENT_ICON) };
+        }
+        return prev;
       });
     }
   };
@@ -169,7 +219,14 @@ export default function EditJobPage() {
         }
 
         if (facility) {
-          setFacilityInfo(facility);
+          setFacilityInfo({
+            id: facility.id,
+            facilityName: facility.facilityName,
+            address: facility.address,
+            prefecture: facility.prefecture,
+            city: facility.city,
+            addressLine: facility.addressLine,
+          });
         }
 
         // 勤務日を設定
@@ -191,6 +248,24 @@ export default function EditJobPage() {
           const match = String(breakTimeStr).match(/(\d+)/);
           return match ? parseInt(match[1]) : 0;
         };
+
+        // 既存のタグからrecruitmentOptionsを算出
+        const existingTags = jobData.tags || [];
+        let weeklyFreq: 2 | 3 | 4 | null = null;
+        for (const [freq, icon] of Object.entries(WORK_FREQUENCY_ICONS)) {
+          if (existingTags.includes(icon)) {
+            weeklyFreq = parseInt(freq) as 2 | 3 | 4;
+            break;
+          }
+        }
+        const monthlyCommit = existingTags.includes(MONTHLY_COMMITMENT_ICON);
+
+        // recruitmentOptionsを設定（DBの値を優先、なければタグから算出）
+        setRecruitmentOptions({
+          noDateSelection: false,
+          weeklyFrequency: jobData.weekly_frequency ?? weeklyFreq,
+          monthlyCommitment: jobData.monthly_commitment ?? monthlyCommit,
+        });
 
         // フォームデータを設定
         setFormData({
@@ -215,7 +290,7 @@ export default function EditJobPage() {
           dresscodeImages: [],
           existingDresscodeImages: jobData.dresscode_images || [],
           belongings: jobData.belongings || [],
-          icons: jobData.tags || [],
+          icons: existingTags,
           attachments: [],
           existingAttachments: jobData.attachments || [],
 
@@ -223,6 +298,13 @@ export default function EditJobPage() {
           recruitmentEndTime: '12:00',
           dismissalReasons: DEFAULT_DISMISSAL_REASONS,
           requiresInterview: jobData.requires_interview || false,
+          // 住所情報（求人固有の住所があればそれを使用、なければ施設の住所、それもなければ空）
+          postalCode: '', // 求人に郵便番号フィールドはないため空、または施設の郵便番号があれば取得
+          prefecture: jobData.prefecture || facility?.prefecture || '',
+          city: jobData.city || facility?.city || '',
+          addressLine: jobData.address_line || facility?.addressLine || '',
+          building: '', // building is not in Job schema/Facility schema, user must input or it's part of addressLine
+          address: jobData.address || facility?.address || '',
         });
       } catch (error) {
         console.error('Failed to fetch data:', error);
@@ -250,6 +332,29 @@ export default function EditJobPage() {
     const template = jobTemplates.find(t => t.id === templateId);
     if (template) {
       setSelectedTemplateId(templateId);
+
+      const templateTags = template.tags || [];
+
+      // テンプレートのtagsからrecruitmentOptionsを算出
+      // 週X回アイコンをチェック
+      let weeklyFrequency: 2 | 3 | 4 | null = null;
+      for (const [freq, icon] of Object.entries(WORK_FREQUENCY_ICONS)) {
+        if (templateTags.includes(icon)) {
+          weeklyFrequency = parseInt(freq) as 2 | 3 | 4;
+          break;
+        }
+      }
+
+      // 1ヶ月以上勤務アイコンをチェック
+      const monthlyCommitment = templateTags.includes(MONTHLY_COMMITMENT_ICON);
+
+      // recruitmentOptionsを更新
+      setRecruitmentOptions(prev => ({
+        ...prev,
+        weeklyFrequency,
+        monthlyCommitment,
+      }));
+
       setFormData({
         ...formData,
         name: template.name,
@@ -266,7 +371,7 @@ export default function EditJobPage() {
         skills: template.skills || [],
         dresscode: template.dresscode || [],
         belongings: template.belongings || [],
-        icons: template.tags || [],
+        icons: templateTags,
         existingImages: template.images || [],
         existingDresscodeImages: template.dresscodeImages || [],
         existingAttachments: template.attachments || [],
@@ -279,10 +384,48 @@ export default function EditJobPage() {
 
   const toggleArrayItem = (field: string, item: string) => {
     const currentArray = formData[field as keyof typeof formData] as string[];
-    if (currentArray.includes(item)) {
+    const isRemoving = currentArray.includes(item);
+
+    if (isRemoving) {
       handleInputChange(field, currentArray.filter(i => i !== item));
     } else {
       handleInputChange(field, [...currentArray, item]);
+    }
+
+    // アイコンの場合、勤務日条件との連動を処理
+    if (field === 'icons') {
+      // 週X回アイコンの場合
+      const frequencyEntry = Object.entries(WORK_FREQUENCY_ICONS).find(([_, icon]) => icon === item);
+      if (frequencyEntry) {
+        const frequencyValue = parseInt(frequencyEntry[0]);
+        if (isRemoving) {
+          // アイコンを外した場合、勤務日条件も外す
+          setRecruitmentOptions(prev => ({
+            ...prev,
+            weeklyFrequency: prev.weeklyFrequency === frequencyValue ? null : prev.weeklyFrequency,
+          }));
+        } else {
+          // アイコンをつけた場合、勤務日条件も連動（排他的なので他を外す）
+          setRecruitmentOptions(prev => ({
+            ...prev,
+            weeklyFrequency: frequencyValue,
+          }));
+          // 他の週X回アイコンを外す
+          const otherFrequencyIcons: string[] = Object.values(WORK_FREQUENCY_ICONS).filter(icon => icon !== item);
+          setFormData(prev => ({
+            ...prev,
+            icons: prev.icons.filter(icon => !otherFrequencyIcons.includes(icon)),
+          }));
+        }
+      }
+
+      // 1ヶ月以上アイコンの場合
+      if (item === MONTHLY_COMMITMENT_ICON) {
+        setRecruitmentOptions(prev => ({
+          ...prev,
+          monthlyCommitment: !isRemoving,
+        }));
+      }
     }
   };
 
@@ -554,6 +697,13 @@ export default function EditJobPage() {
         addWorkDates: addedWorkDates,
         removeWorkDateIds: removedWorkDateIds,
         requiresInterview: formData.requiresInterview,
+        // 住所情報
+        prefecture: formData.prefecture,
+        city: formData.city,
+        addressLine: formData.addressLine,
+        // building: formData.building, // schema doesn't have building
+        // address: formData.address,
+        // UpdateJob should accept these.
       });
 
       if (result.success) {

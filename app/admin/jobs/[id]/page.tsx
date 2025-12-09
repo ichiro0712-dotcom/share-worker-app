@@ -39,7 +39,10 @@ interface JobData {
   facility: {
     id: number;
     facility_name: string;
-    address: string;
+    address: string | null;
+    prefecture: string | null;
+    city: string | null;
+    address_line: string | null;
   };
 }
 
@@ -350,7 +353,13 @@ export default function AdminJobDetailPage() {
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <MapPin className="w-4 h-4 text-gray-400" />
-                <span className="text-gray-600">{job.facility.address}</span>
+                <span className="text-gray-600">
+                  {[
+                    job.facility.prefecture,
+                    job.facility.city,
+                    job.facility.address_line
+                  ].filter(Boolean).join(' ') || job.facility.address}
+                </span>
               </div>
             </div>
           </div>

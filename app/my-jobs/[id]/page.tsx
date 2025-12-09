@@ -59,7 +59,7 @@ export default async function JobDetailPage({ params }: Props) {
   const job = application.job;
   const facility = job.facility;
   const isMatched = application.status === 'SCHEDULED' || application.status === 'WORKING' ||
-                    application.status === 'COMPLETED_PENDING' || application.status === 'COMPLETED_RATED';
+    application.status === 'COMPLETED_PENDING' || application.status === 'COMPLETED_RATED';
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
@@ -119,9 +119,11 @@ export default async function JobDetailPage({ params }: Props) {
             <div className="flex-1">
               <p className="text-sm text-gray-500">勤務場所</p>
               <p className="font-medium">
-                {job.address}
+                {(job.prefecture || job.city || job.address_line)
+                  ? `${job.prefecture || ''}${job.city || ''}${job.address_line || ''}`
+                  : (job.address || '')}
                 <a
-                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(job.address)}`}
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(job.address || '')}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-xs text-primary hover:underline ml-2"

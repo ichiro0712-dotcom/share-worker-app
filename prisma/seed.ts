@@ -728,19 +728,13 @@ async function main() {
         manager_message: `${facility.facility_name}で一緒に働きませんか？お待ちしています！`,
         manager_avatar: getRandomItem(['👨', '👩', '🧑']),
         images: ['/images/anken.png'],
-        allow_car: Math.random() > 0.3,
-        allow_bike: Math.random() > 0.2,
-        allow_bicycle: Math.random() > 0.2,
-        allow_public_transit: true,
-        has_parking: Math.random() > 0.5,
-        no_bathing_assist: Math.random() > 0.6,
-        has_driver: Math.random() > 0.8,
+        inexperienced_ok: i % 3 === 0,
+        blank_ok: Math.random() > 0.5,
         hair_style_free: Math.random() > 0.7,
         nail_ok: Math.random() > 0.85,
         uniform_provided: Math.random() > 0.4,
-        inexperienced_ok: i % 3 === 0,
-        beginner_ok: Math.random() > 0.4,
-        facility_within_5years: Math.random() > 0.85,
+        allow_car: Math.random() > 0.3,
+        meal_support: Math.random() > 0.6,
       },
     });
     createdJobs.push(job);
@@ -1394,6 +1388,39 @@ ${Math.random() > 0.5 ? '制服は当施設でご用意いたします。' : '�
   console.log(`✅ ${bookmarks.length}件のブックマークを作成しました`);
 
   // ========================================
+  // システム管理者の作成
+  // ========================================
+  console.log('\n🔐 システム管理者を作成中...');
+
+  const systemAdminsData = [
+    {
+      email: 'admin@sworks.com',
+      password_hash: hashPassword('password123'),
+      name: 'システム管理者',
+      role: 'super_admin',
+    },
+    {
+      email: 'editor@sworks.com',
+      password_hash: hashPassword('password123'),
+      name: '編集者',
+      role: 'editor',
+    },
+  ];
+
+  for (const adminData of systemAdminsData) {
+    const existingAdmin = await prisma.systemAdmin.findUnique({
+      where: { email: adminData.email },
+    });
+    if (!existingAdmin) {
+      await prisma.systemAdmin.create({ data: adminData });
+    }
+  }
+  console.log(`✅ ${systemAdminsData.length}名のシステム管理者を作成しました`);
+  console.log('   ログイン情報:');
+  console.log('   - admin@sworks.com / password123 (super_admin)');
+  console.log('   - editor@sworks.com / password123 (editor)');
+
+  // ========================================
   // 完了
   // ========================================
   console.log('\n========================================');
@@ -1404,6 +1431,7 @@ ${Math.random() > 0.5 ? '制服は当施設でご用意いたします。' : '�
   - ユーザー: ${createdUsers.length}名
   - 施設: ${createdFacilities.length}施設
   - 施設管理者: ${adminsData.length}名
+  - システム管理者: ${systemAdminsData.length}名
   - 求人テンプレート: ${templateData.length}件
   - 求人: ${createdJobs.length}件
   - 応募: ${createdApplications.length}件
@@ -1411,6 +1439,10 @@ ${Math.random() > 0.5 ? '制服は当施設でご用意いたします。' : '�
   - メッセージ: ${messageCount}件
   - 通知: ${notifications.length}件
   - ブックマーク: ${bookmarks.length}件
+
+🔐 システム管理者ログイン情報:
+  - admin@sworks.com / password123 (super_admin)
+  - editor@sworks.com / password123 (editor)
   `);
 }
 

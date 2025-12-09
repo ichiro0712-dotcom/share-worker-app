@@ -15,7 +15,7 @@ interface ApplicationData {
   jobDate: string;
   facilityId: number;
   facilityName: string;
-  facilityAddress: string;
+  facilityAddress: string | null;
 }
 
 interface ReviewFormClientProps {
@@ -118,8 +118,8 @@ export default function ReviewFormClient({ applicationData }: ReviewFormClientPr
               >
                 <Star
                   className={`w-10 h-10 transition-colors ${value <= (hoveredRating || rating)
-                      ? 'text-yellow-400 fill-yellow-400'
-                      : 'text-gray-300'
+                    ? 'text-yellow-400 fill-yellow-400'
+                    : 'text-gray-300'
                     }`}
                 />
               </button>

@@ -153,7 +153,7 @@ export default function AdminLogin() {
                   onClick={() => handleTestLogin(admin.email)}
                   className="w-full text-left px-3 py-2 bg-white border border-blue-300 rounded text-sm hover:bg-blue-50 transition-colors"
                 >
-                  <div className="font-medium">{admin.name}（{admin.facilityName}）</div>
+                  <div className="font-medium">{admin.facilityName}</div>
                   <div className="text-xs text-gray-600">{admin.email}</div>
                 </button>
               ))

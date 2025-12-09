@@ -27,6 +27,10 @@ model User {
   city                   String?
   address_line           String?        @map("address_line")
   building               String?
+  /// ワーカー住所の緯度（距離検索用）
+  lat                    Float?
+  /// ワーカー住所の経度（距離検索用）
+  lng                    Float?
   emergency_name         String?        @map("emergency_name")
   emergency_relation     String?        @map("emergency_relation")
   emergency_phone        String?        @map("emergency_phone")
@@ -57,6 +61,12 @@ model User {
   receivedMessages       Message[]      @relation("UserReceivedMessages")
   notifications          Notification[]
   reviews                Review[]
+  is_suspended           Boolean        @default(false) @map("is_suspended")
+  suspended_at           DateTime?      @map("suspended_at")
+  /// 退会日時（nullなら退会していない）
+  deleted_at             DateTime?      @map("deleted_at")
+  /// 退会理由
+  delete_reason          String?        @map("delete_reason")
 
   @@map("users")
 }
@@ -82,10 +92,13 @@ model Facility {
   corporation_name String           @map("corporation_name")
   facility_name    String           @map("facility_name")
   facility_type    String           @map("facility_type")
-  address          String
-  lat              Float
-  lng              Float
-  phone_number     String           @map("phone_number")
+  address          String?
+  prefecture       String?
+  city             String?
+  address_line     String?   @map("address_line")
+  lat              Float     @default(0)
+  lng              Float     @default(0)
+  phone_number     String?          @map("phone_number")
   description      String?
   images           String[]
   map_image        String?          @map("map_image")
@@ -100,8 +113,6 @@ model Facility {
   // 法人情報
   representative_last_name   String?   @map("representative_last_name")
   representative_first_name  String?   @map("representative_first_name")
-  prefecture                 String?
-  city                       String?
   address_detail             String?   @map("address_detail")
   email                      String?
   contact_person_last_name   String?   @map("contact_person_last_name")
@@ -146,6 +157,12 @@ model Facility {
   receivedMessages Message[]        @relation("FacilityReceivedMessages")
   reviewTemplates  ReviewTemplate[]
   reviews          Review[]
+  /// 退会日時（nullなら退会していない）
+  deleted_at       DateTime?        @map("deleted_at")
+  /// 退会理由
+  delete_reason    String?          @map("delete_reason")
+  /// 仮登録状態（true: 未完了、false: 正式登録済み）
+  is_pending       Boolean          @default(false) @map("is_pending")
 
   @@map("facilities")
 }
@@ -196,7 +213,10 @@ model Job {
   transportation_fee      Int           @map("transportation_fee")
   deadline_days_before    Int           @default(1) @map("deadline_days_before")
   tags                    String[]
-  address                 String
+  address                 String?
+  prefecture              String?
+  city                    String?
+  address_line            String?       @map("address_line")
   access                  String
   recruitment_count       Int           @map("recruitment_count")
   overview                String
@@ -211,32 +231,20 @@ model Job {
   manager_message         String?       @map("manager_message")
   manager_avatar          String?       @map("manager_avatar")
   images                  String[]
-  /// 車通勤可
-  allow_car               Boolean       @default(false) @map("allow_car")
-  /// バイク通勤可
-  allow_bike              Boolean       @default(false) @map("allow_bike")
-  /// 自転車通勤可
-  allow_bicycle           Boolean       @default(false) @map("allow_bicycle")
-  /// 公共交通機関（電車・バス・徒歩）可
-  allow_public_transit    Boolean       @default(false) @map("allow_public_transit")
-  /// 敷地内駐車場あり
-  has_parking             Boolean       @default(false) @map("has_parking")
-  /// 入浴介助なし
-  no_bathing_assist       Boolean       @default(false) @map("no_bathing_assist")
-  /// 送迎ドライバーあり
-  has_driver              Boolean       @default(false) @map("has_driver")
+  /// 未経験者歓迎
+  inexperienced_ok        Boolean       @default(false) @map("inexperienced_ok")
+  /// ブランク歓迎
+  blank_ok                Boolean       @default(false) @map("blank_ok")
   /// 髪型・髪色自由
   hair_style_free         Boolean       @default(false) @map("hair_style_free")
   /// ネイルOK
   nail_ok                 Boolean       @default(false) @map("nail_ok")
   /// 制服貸与
   uniform_provided        Boolean       @default(false) @map("uniform_provided")
-  /// 介護業務未経験歓迎
-  inexperienced_ok        Boolean       @default(false) @map("inexperienced_ok")
-  /// SWORK初心者歓迎
-  beginner_ok             Boolean       @default(false) @map("beginner_ok")
-  /// 施設オープン5年以内
-  facility_within_5years  Boolean       @default(false) @map("facility_within_5years")
+  /// 車通勤OK
+  allow_car               Boolean       @default(false) @map("allow_car")
+  /// 食事補助
+  meal_support            Boolean       @default(false) @map("meal_support")
   /// 週N回以上勤務（2, 3, 4など。nullの場合は条件なし）
   weekly_frequency        Int?          @map("weekly_frequency")
   /// 1ヶ月以上勤務できる人を募集
@@ -506,4 +514,83 @@ enum CancelledBy {
   FACILITY
 
   @@map("cancelled_by")
+}
+
+model SystemAdmin {
+  id            Int      @id @default(autoincrement())
+  email         String   @unique
+  password_hash String
+  name          String
+  role          String   @default("admin") // "super_admin", "editor", etc.
+  created_at    DateTime @default(now()) @map("created_at")
+  updated_at    DateTime @updatedAt @map("updated_at")
+
+  @@map("system_admins")
+}
+
+model SystemLog {
+  id          Int      @id @default(autoincrement())
+  admin_id    Int      @map("admin_id")
+  action      String   // e.g., "LOGIN", "UPDATE_USER", "DELETE_JOB"
+  target_type String   @map("target_type")   // "User", "Facility", "Job"
+  target_id   Int?     @map("target_id")
+  details     Json?
+  created_at  DateTime @default(now()) @map("created_at")
+  ip_address  String?  @map("ip_address")
+
+  @@map("system_logs")
+}
+
+model Announcement {
+  id          Int      @id @default(autoincrement())
+  title       String
+  content     String
+  category    String   // "NEWS", "MAINTENANCE", etc.
+  target_type String   @map("target_type")   // "ALL", "WORKER", "FACILITY"
+  published   Boolean  @default(false)
+  published_at DateTime? @map("published_at")
+  created_at  DateTime @default(now()) @map("created_at")
+  updated_at  DateTime @updatedAt @map("updated_at")
+
+  @@map("announcements")
+}
+
+// ========== アナリティクス関連 ==========
+
+/// 分析用地域マスタ
+model AnalyticsRegion {
+  id               Int      @id @default(autoincrement())
+  name             String   // 表示名（例: "関東エリア"）
+  prefecture_cities Json    @default("{}") @map("prefecture_cities") // { "東京都": [], "神奈川県": ["横浜市", "川崎市"] }
+  created_at       DateTime @default(now()) @map("created_at")
+  updated_at       DateTime @updatedAt @map("updated_at")
+
+  @@map("analytics_regions")
+}
+
+/// 集計データキャッシュ（日次バッチ処理用）
+model AnalyticsDailyCache {
+  id          Int      @id @default(autoincrement())
+  date        DateTime // 集計対象日
+  metric_type String   @map("metric_type") // "worker", "facility", "matching"
+  filter_key  String   @default("all") @map("filter_key") // フィルター条件のキー（"all", "age_20", "region_1" 等）
+  data        Json     // 集計データ
+  created_at  DateTime @default(now()) @map("created_at")
+
+  @@unique([date, metric_type, filter_key])
+  @@index([date, metric_type])
+  @@map("analytics_daily_cache")
+}
+
+/// 登録離脱トラッキング（将来用）
+model RegistrationTracking {
+  id           Int       @id @default(autoincrement())
+  session_id   String    @unique @map("session_id")
+  user_type    String    @map("user_type") // "worker", "facility"
+  started_at   DateTime  @map("started_at")
+  completed_at DateTime? @map("completed_at")
+  last_step    String?   @map("last_step") // 最後に完了したステップ
+  created_at   DateTime  @default(now()) @map("created_at")
+
+  @@map("registration_tracking")
 }
