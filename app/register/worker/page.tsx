@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { compressImage, MAX_FILE_SIZE, formatFileSize } from '@/utils/fileValidation';
 import AddressSelector from '@/components/ui/AddressSelector';
+import { QUALIFICATION_GROUPS } from '@/constants/qualifications';
 
 export default function WorkerRegisterPage() {
   const router = useRouter();
@@ -110,17 +111,6 @@ export default function WorkerRegisterPage() {
 
   // 資格証明書の状態管理
   const [qualificationCertificates, setQualificationCertificates] = useState<Record<string, string | null>>({});
-
-  const qualificationsList = [
-    '介護福祉士',
-    '介護職員初任者研修',
-    '介護職員実務者研修',
-    'ケアマネージャー',
-    '社会福祉士',
-    '看護師',
-    '准看護師',
-    'その他',
-  ];
 
   const handleCheckboxChange = (value: string) => {
     setFormData(prev => ({
@@ -439,19 +429,24 @@ export default function WorkerRegisterPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   保有資格 <span className="text-red-500">*</span>
                 </label>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {qualificationsList.map((qual) => (
-                    <label key={qual} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData.qualifications.includes(qual)}
-                        onChange={() => handleCheckboxChange(qual)}
-                        className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
-                      />
-                      <span className="text-sm">{qual}</span>
-                    </label>
-                  ))}
-                </div>
+                {QUALIFICATION_GROUPS.map((group) => (
+                  <div key={group.name} className="mb-4">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2">{group.name}</h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      {group.qualifications.map((qual) => (
+                        <label key={qual} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formData.qualifications.includes(qual)}
+                            onChange={() => handleCheckboxChange(qual)}
+                            className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                          />
+                          <span className="text-sm">{qual}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
 
               {/* 資格証明書アップロード - 選択された資格（その他以外）の数だけ表示 */}

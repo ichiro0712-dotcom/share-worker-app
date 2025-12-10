@@ -18,6 +18,7 @@ import {
 import { MapPin } from 'lucide-react';
 import { validateFile } from '@/utils/fileValidation';
 import AddressSelector from '@/components/ui/AddressSelector';
+import { SERVICE_TYPES } from '@/constants/serviceTypes';
 
 export default function FacilityPage() {
   const router = useRouter();
@@ -142,50 +143,10 @@ export default function FacilityPage() {
   ];
 
   // サービス種別
-  const serviceTypes = [
-    '特別養護老人ホーム',
-    '介護老人保健施設',
-    '介護付き有料老人ホーム',
-    '住宅型有料老人ホーム',
-    'サービス付き高齢者向け住宅',
-    '認知症対応型共同生活介護',
-    '短期入所生活介護',
-    '通所介護',
-    '通所リハビリテーション',
-    '小規模多機能型居宅介護',
-    '看護小規模多機能型居宅介護',
-    '訪問介護',
-    '訪問入浴介護',
-    '訪問看護',
-    '定期巡回・随時対応型訪問介護看護',
-    '軽費老人ホーム',
-    '養護老人ホーム',
-    '居宅介護支援',
-    '地域包括支援センター',
-    '障がい者支援施設',
-    '障がい者グループホーム',
-    '放課後等デイサービス',
-    '介護医療院',
-    '福祉用具貸与・販売',
-    '病院 (回復期リハ)',
-    '病院 (地域包括ケア)',
-    '病院 (急性期一般)',
-    '病院 (療養)',
-    '病院 (医療療養)',
-    '病院 (精神)',
-    '病院 (障がい・特殊疾患)',
-    '病院 (外来)',
-    '病院 (ICU/HCU)',
-    '病院 (OPE室)',
-    'クリニック',
-    '有床クリニック',
-    '検診センター',
-    '自費サービス',
-    '病院 (緩和ケア病棟)',
-    '保育園',
-    '薬局',
-    '病院 (薬剤課)',
-  ];
+
+  // サービス種別
+  // 定数から取得するため削除
+
 
   // 都道府県リスト
   const prefectures = [
@@ -830,6 +791,7 @@ export default function FacilityPage() {
         transportation: accessInfo.transportation,
         parking: accessInfo.parking,
         transportationNote: accessInfo.transportationNote,
+        mapImage: mapImageUrl,
 
         // 服装情報（画像アップロード処理が別途必要）
         dresscodeItems: dresscodeInfo.items,
@@ -1092,7 +1054,7 @@ export default function FacilityPage() {
                     className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
                   >
                     <option value="">選択してください</option>
-                    {serviceTypes.map((type) => (
+                    {SERVICE_TYPES.map((type) => (
                       <option key={type} value={type}>
                         {type}
                       </option>
@@ -1407,9 +1369,9 @@ export default function FacilityPage() {
                       {accessInfo.stations.length > 1 && (
                         <button
                           onClick={() => removeStation(index)}
-                          className="px-2 py-1.5 text-red-600 hover:bg-red-50 rounded-lg"
+                          className="px-2 py-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
                         >
-                          <X className="w-4 h-4" />
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       )}
                     </div>

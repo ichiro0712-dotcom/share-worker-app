@@ -9,7 +9,9 @@ function SystemAdminLayoutWrapper({ children }: { children: React.ReactNode }) {
 
     // Pages where the sidebar layout should NOT be shown
     const noLayoutPages = ['/system-admin/login'];
-    const shouldShowLayout = !noLayoutPages.includes(pathname || '');
+    // dev-portal配下も除外（開発ポータルは独自レイアウトを使用）
+    const isDevPortal = pathname?.startsWith('/system-admin/dev-portal');
+    const shouldShowLayout = !noLayoutPages.includes(pathname || '') && !isDevPortal;
 
     if (!shouldShowLayout) {
         return <>{children}</>;

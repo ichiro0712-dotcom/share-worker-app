@@ -1,13 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import {
     getSystemJobsExtended,
-    forceStopJob,
-    forceResumeJob,
-    forceDeleteJob,
     generateMasqueradeToken
 } from '@/src/lib/system-actions';
 import { useSystemAuth } from '@/contexts/SystemAuthContext';
@@ -16,24 +11,15 @@ import {
     Filter,
     Eye,
     Edit,
-    Trash2,
-    MoreVertical,
-    ChevronDown,
-    X,
     ArrowUpDown,
     Briefcase,
-    StopCircle,
-    PlayCircle,
-    Calendar,
-    Clock,
     RefreshCw,
-    Building2,
-    CheckCircle,
-    AlertCircle,
-    FileText
+    Building2
 } from 'lucide-react';
-import { PREFECTURES, FACILITY_TYPES } from '@/constants/job';
+import { PREFECTURES } from '@/constants/job';
 import { getCitiesByPrefecture, Prefecture } from '@/constants/prefectureCities';
+import { SERVICE_TYPES } from '@/constants/serviceTypes';
+import { JOB_QUALIFICATION_OPTIONS } from '@/constants/qualifications';
 import toast from 'react-hot-toast';
 
 // 返されるデータ型
@@ -90,15 +76,13 @@ export default function SystemAdminJobsPage() {
     const [endDateFilter, setEndDateFilter] = useState('');
     const [prefectureFilter, setPrefectureFilter] = useState('');
     const [cityFilter, setCityFilter] = useState('');
-    const [facilityTypeFilter, setFacilityTypeFilter] = useState('');
+    const [serviceTypeFilter, setServiceTypeFilter] = useState('');
     const [interviewFilter, setInterviewFilter] = useState<'all' | 'true' | 'false'>('all');
+    const [qualificationFilter, setQualificationFilter] = useState('');
 
     // Sort
     const [sortField, setSortField] = useState<SortField>('created_at');
     const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
-
-    // Action Menu
-    const [openMenuId, setOpenMenuId] = useState<number | null>(null);
 
     const fetchJobs = async () => {
         setLoading(true);
@@ -109,8 +93,9 @@ export default function SystemAdminJobsPage() {
                 endDate: endDateFilter || undefined,
                 prefecture: prefectureFilter || undefined,
                 city: cityFilter || undefined,
-                facilityType: facilityTypeFilter || undefined,
+                facilityType: serviceTypeFilter || undefined,
                 requiresInterview: interviewFilter === 'all' ? undefined : interviewFilter === 'true',
+                qualification: qualificationFilter || undefined,
             };
 
             const data = await getSystemJobsExtended(
@@ -138,13 +123,6 @@ export default function SystemAdminJobsPage() {
         fetchJobs();
     }, [page, sortField, sortOrder]);
 
-    // メニュー外クリックで閉じる
-    useEffect(() => {
-        const handleClickOutside = () => setOpenMenuId(null);
-        document.addEventListener('click', handleClickOutside);
-        return () => document.removeEventListener('click', handleClickOutside);
-    }, []);
-
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
         setPage(1);
@@ -158,8 +136,9 @@ export default function SystemAdminJobsPage() {
         setEndDateFilter('');
         setPrefectureFilter('');
         setCityFilter('');
-        setFacilityTypeFilter('');
+        setServiceTypeFilter('');
         setInterviewFilter('all');
+        setQualificationFilter('');
         setPage(1);
         setTimeout(fetchJobs, 0);
     };
@@ -178,46 +157,10 @@ export default function SystemAdminJobsPage() {
         try {
             // 施設管理者としてマスカレード
             const token = await generateMasqueradeToken(job.facilityId, admin.adminId || 1);
-            // 編集画面へリダイレクト
-            window.open(`/masquerade?token=${token}&redirect=/admin/jobs/${job.id}/edit`, '_blank');
+            // 編集画面へリダイレクト（正しいパス: /admin/masquerade）
+            window.open(`/admin/masquerade?token=${token}&redirect=/admin/jobs/${job.id}/edit`, '_blank');
         } catch (error) {
             toast.error('編集画面を開けませんでした');
-        }
-    };
-
-    const handleStop = async (job: Job) => {
-        if (confirm(`求人「${job.title}」を停止しますか？`)) {
-            const result = await forceStopJob(job.id);
-            if (result.success) {
-                toast.success('求人を停止しました');
-                fetchJobs();
-            } else {
-                toast.error('停止に失敗しました');
-            }
-        }
-    };
-
-    const handleResume = async (job: Job) => {
-        if (confirm(`求人「${job.title}」の停止を解除しますか？`)) {
-            const result = await forceResumeJob(job.id);
-            if (result.success) {
-                toast.success('停止を解除しました');
-                fetchJobs();
-            } else {
-                toast.error('解除に失敗しました');
-            }
-        }
-    };
-
-    const handleDelete = async (job: Job) => {
-        if (confirm(`求人「${job.title}」を削除しますか？\nこの操作は取り消せません。`)) {
-            const result = await forceDeleteJob(job.id);
-            if (result.success) {
-                toast.success('求人を削除しました');
-                fetchJobs();
-            } else {
-                toast.error('削除に失敗しました');
-            }
         }
     };
 
@@ -283,6 +226,7 @@ export default function SystemAdminJobsPage() {
 
                     {showFilters && (
                         <div className="pt-4 border-t border-slate-100 grid grid-cols-1 md:grid-cols-4 gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                            {/* 1行目: ステータス、開始日、終了日、都道府県 */}
                             <div>
                                 <label className="block text-xs font-medium text-slate-500 mb-1">ステータス</label>
                                 <select
@@ -293,52 +237,6 @@ export default function SystemAdminJobsPage() {
                                     <option value="ALL">すべて</option>
                                     {Object.entries(statusLabels).map(([key, label]) => (
                                         <option key={key} value={key}>{label}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-medium text-slate-500 mb-1">施設種別</label>
-                                <select
-                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                    value={facilityTypeFilter}
-                                    onChange={(e) => setFacilityTypeFilter(e.target.value)}
-                                >
-                                    <option value="">すべて</option>
-                                    {FACILITY_TYPES.map(type => (
-                                        <option key={type} value={type}>{type}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-medium text-slate-500 mb-1">都道府県</label>
-                                <select
-                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                    value={prefectureFilter}
-                                    onChange={(e) => {
-                                        setPrefectureFilter(e.target.value);
-                                        setCityFilter('');
-                                    }}
-                                >
-                                    <option value="">すべて</option>
-                                    {PREFECTURES.map(pref => (
-                                        <option key={pref} value={pref}>{pref}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-medium text-slate-500 mb-1">市区町村</label>
-                                <select
-                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                    value={cityFilter}
-                                    onChange={(e) => setCityFilter(e.target.value)}
-                                    disabled={!prefectureFilter}
-                                >
-                                    <option value="">すべて</option>
-                                    {cities.map(city => (
-                                        <option key={city} value={city}>{city}</option>
                                     ))}
                                 </select>
                             </div>
@@ -364,6 +262,39 @@ export default function SystemAdminJobsPage() {
                             </div>
 
                             <div>
+                                <label className="block text-xs font-medium text-slate-500 mb-1">都道府県</label>
+                                <select
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    value={prefectureFilter}
+                                    onChange={(e) => {
+                                        setPrefectureFilter(e.target.value);
+                                        setCityFilter('');
+                                    }}
+                                >
+                                    <option value="">すべて</option>
+                                    {PREFECTURES.map(pref => (
+                                        <option key={pref} value={pref}>{pref}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* 2行目: 市区町村、面接、必要資格、サービス種別 */}
+                            <div>
+                                <label className="block text-xs font-medium text-slate-500 mb-1">市区町村</label>
+                                <select
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    value={cityFilter}
+                                    onChange={(e) => setCityFilter(e.target.value)}
+                                    disabled={!prefectureFilter}
+                                >
+                                    <option value="">すべて</option>
+                                    {cities.map(city => (
+                                        <option key={city} value={city}>{city}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
                                 <label className="block text-xs font-medium text-slate-500 mb-1">面接</label>
                                 <select
                                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -376,7 +307,36 @@ export default function SystemAdminJobsPage() {
                                 </select>
                             </div>
 
-                            <div className="md:col-span-1 flex items-end justify-end gap-2">
+                            <div>
+                                <label className="block text-xs font-medium text-slate-500 mb-1">必要資格</label>
+                                <select
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    value={qualificationFilter}
+                                    onChange={(e) => setQualificationFilter(e.target.value)}
+                                >
+                                    <option value="">すべて</option>
+                                    {JOB_QUALIFICATION_OPTIONS.map(qual => (
+                                        <option key={qual} value={qual}>{qual}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-medium text-slate-500 mb-1">サービス種別</label>
+                                <select
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    value={serviceTypeFilter}
+                                    onChange={(e) => setServiceTypeFilter(e.target.value)}
+                                >
+                                    <option value="">すべて</option>
+                                    {SERVICE_TYPES.map(type => (
+                                        <option key={type} value={type}>{type}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* ボタン行 */}
+                            <div className="md:col-span-4 flex justify-end gap-2 mt-2">
                                 <button
                                     onClick={clearFilters}
                                     className="px-4 py-2 text-slate-500 text-sm hover:text-slate-700 hover:bg-slate-50 rounded-lg"
@@ -435,7 +395,18 @@ export default function SystemAdminJobsPage() {
                         ) : jobs.length === 0 ? (
                             <tr>
                                 <td colSpan={8} className="px-6 py-12 text-center text-slate-500">
-                                    求人が見つかりません
+                                    <div className="flex flex-col items-center gap-2">
+                                        <Briefcase className="w-12 h-12 text-slate-300" />
+                                        <p>求人が見つかりません</p>
+                                        {(search || statusFilter !== 'ALL' || startDateFilter || endDateFilter || prefectureFilter || cityFilter || serviceTypeFilter || interviewFilter !== 'all' || qualificationFilter) && (
+                                            <button
+                                                onClick={clearFilters}
+                                                className="text-indigo-600 hover:underline text-sm"
+                                            >
+                                                フィルターをリセット
+                                            </button>
+                                        )}
+                                    </div>
                                 </td>
                             </tr>
                         ) : (
@@ -482,78 +453,25 @@ export default function SystemAdminJobsPage() {
                                         {formatMatchingPeriod(job.matchingPeriod)}
                                     </td>
                                     <td className="px-4 py-4 text-right">
-                                        <div className="relative">
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setOpenMenuId(openMenuId === job.id ? null : job.id);
-                                                }}
-                                                className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+                                        <div className="flex items-center justify-end gap-1">
+                                            {/* 閲覧アイコン */}
+                                            <a
+                                                href={`/jobs/${job.id}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                                title="求人を見る"
                                             >
-                                                <MoreVertical className="w-4 h-4" />
+                                                <Eye className="w-4 h-4" />
+                                            </a>
+                                            {/* 編集アイコン */}
+                                            <button
+                                                onClick={() => handleEdit(job)}
+                                                className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                                title="編集（マスカレード）"
+                                            >
+                                                <Edit className="w-4 h-4" />
                                             </button>
-
-                                            {openMenuId === job.id && (
-                                                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-slate-100 z-10 overflow-hidden">
-                                                    <a
-                                                        href={`/jobs/${job.id}`}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                                                        onClick={() => setOpenMenuId(null)}
-                                                    >
-                                                        <Eye className="w-4 h-4 text-slate-400" />
-                                                        求人を見る
-                                                    </a>
-                                                    <button
-                                                        onClick={() => {
-                                                            handleEdit(job);
-                                                            setOpenMenuId(null);
-                                                        }}
-                                                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors text-left"
-                                                    >
-                                                        <Edit className="w-4 h-4 text-slate-400" />
-                                                        編集 (マスカレード)
-                                                    </button>
-
-                                                    {job.status === 'PUBLISHED' && (
-                                                        <button
-                                                            onClick={() => {
-                                                                handleStop(job);
-                                                                setOpenMenuId(null);
-                                                            }}
-                                                            className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-amber-600 hover:bg-amber-50 transition-colors text-left border-t border-slate-50"
-                                                        >
-                                                            <StopCircle className="w-4 h-4" />
-                                                            募集停止
-                                                        </button>
-                                                    )}
-
-                                                    {job.status === 'STOPPED' && (
-                                                        <button
-                                                            onClick={() => {
-                                                                handleResume(job);
-                                                                setOpenMenuId(null);
-                                                            }}
-                                                            className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-green-600 hover:bg-green-50 transition-colors text-left border-t border-slate-50"
-                                                        >
-                                                            <PlayCircle className="w-4 h-4" />
-                                                            募集再開
-                                                        </button>
-                                                    )}
-
-                                                    <button
-                                                        onClick={() => {
-                                                            handleDelete(job);
-                                                            setOpenMenuId(null);
-                                                        }}
-                                                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors text-left border-t border-slate-50"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                        削除
-                                                    </button>
-                                                </div>
-                                            )}
                                         </div>
                                     </td>
                                 </tr>

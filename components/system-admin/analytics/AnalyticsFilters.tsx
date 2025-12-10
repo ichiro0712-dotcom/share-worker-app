@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { getAnalyticsRegions, RegionData } from '@/src/lib/analytics-actions';
-import { AGE_RANGES, FACILITY_TYPES, GENDERS } from '@/src/lib/analytics-constants';
-import { QUALIFICATION_OPTIONS } from '@/constants/job';
+import { AGE_RANGES, GENDERS } from '@/src/lib/analytics-constants';
+import { SERVICE_CATEGORY_LIST } from '@/constants/serviceTypes';
+import { QUALIFICATION_GROUPS, WORKER_QUALIFICATIONS } from '@/constants/qualifications';
 
 export interface FilterValues {
     viewMode: 'daily' | 'monthly';
@@ -188,20 +189,27 @@ export default function AnalyticsFilters({
                                     {/* 保有資格 */}
                                     <div>
                                         <label className="block text-xs font-medium text-slate-600 mb-2">保有資格</label>
-                                        <div className="flex flex-wrap gap-4">
-                                            {QUALIFICATION_OPTIONS.map(q => (
-                                                <label
-                                                    key={q}
-                                                    className="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer hover:text-slate-900"
-                                                >
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={filters.qualifications.includes(q)}
-                                                        onChange={() => handleCheckboxChange('qualifications', q)}
-                                                        className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
-                                                    />
-                                                    {q}
-                                                </label>
+                                        <div className="space-y-4">
+                                            {QUALIFICATION_GROUPS.map(group => (
+                                                <div key={group.name}>
+                                                    <h4 className="text-xs font-semibold text-slate-500 mb-2">{group.name}</h4>
+                                                    <div className="flex flex-wrap gap-3">
+                                                        {group.qualifications.map(q => (
+                                                            <label
+                                                                key={q}
+                                                                className="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer hover:text-slate-900"
+                                                            >
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={filters.qualifications.includes(q)}
+                                                                    onChange={() => handleCheckboxChange('qualifications', q)}
+                                                                    className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
+                                                                />
+                                                                {q}
+                                                            </label>
+                                                        ))}
+                                                    </div>
+                                                </div>
                                             ))}
                                         </div>
                                     </div>
@@ -211,9 +219,9 @@ export default function AnalyticsFilters({
                             {/* 施設フィルター */}
                             {showFacilityFilters && (
                                 <div>
-                                    <label className="block text-xs font-medium text-slate-600 mb-2">施設種別</label>
+                                    <label className="block text-xs font-medium text-slate-600 mb-2">サービス種別</label>
                                     <div className="flex flex-wrap gap-4">
-                                        {FACILITY_TYPES.map(t => (
+                                        {SERVICE_CATEGORY_LIST.map(t => (
                                             <label
                                                 key={t}
                                                 className="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer hover:text-slate-900"

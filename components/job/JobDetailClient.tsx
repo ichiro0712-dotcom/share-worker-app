@@ -22,9 +22,10 @@ interface JobDetailClientProps {
   initialHasApplied: boolean;
   initialAppliedWorkDateIds?: number[]; // 追加: 応募済みの勤務日IDリスト
   selectedDate?: string; // YYYY-MM-DD形式の選択された日付
+  isPreviewMode?: boolean;
 }
 
-export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, initialHasApplied, initialAppliedWorkDateIds = [], selectedDate }: JobDetailClientProps) {
+export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, initialHasApplied, initialAppliedWorkDateIds = [], selectedDate, isPreviewMode = false }: JobDetailClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -333,6 +334,11 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
     <div className="min-h-screen bg-background pb-20">
       {/* ヘッダー */}
       <div className="sticky top-0 bg-white border-b border-gray-200 z-20">
+        {isPreviewMode && (
+          <div className="bg-blue-600 text-white text-center py-2 text-sm font-bold">
+            プレビューモードで表示中
+          </div>
+        )}
         <div className="px-4 py-3 flex items-center justify-between">
           <button onClick={() => router.back()}>
             <ChevronLeft className="w-6 h-6" />
@@ -629,9 +635,17 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
           onClick={handleApply}
           size="lg"
           className="w-full"
-          disabled={isApplying || selectedWorkDateIds.length === 0}
+          disabled={isPreviewMode || isApplying || selectedWorkDateIds.length === 0}
         >
-          {isApplying ? '応募中...' : selectedWorkDateIds.length > 0 ? `${selectedWorkDateIds.length}件の日程に応募する` : !hasAvailableDates ? '応募できる日程がありません' : '日程を選択してください'}
+          {isPreviewMode
+            ? 'プレビュー中（応募できません）'
+            : isApplying
+              ? '応募中...'
+              : selectedWorkDateIds.length > 0
+                ? `${selectedWorkDateIds.length}件の日程に応募する`
+                : !hasAvailableDates
+                  ? '応募できる日程がありません'
+                  : '日程を選択してください'}
         </Button>
       </div>
       {/* 責任者 */}
@@ -921,8 +935,8 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
                   <span
                     key={name}
                     className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs ${isAvailable
-                        ? 'bg-primary text-white'
-                        : 'bg-gray-200 text-gray-400 line-through'
+                      ? 'bg-primary text-white'
+                      : 'bg-gray-200 text-gray-400 line-through'
                       }`}
                   >
                     <Icon className="w-3.5 h-3.5" />

@@ -10,7 +10,7 @@ const hashPassword = (password: string) => bcrypt.hashSync(password, 10);
 // 定数データ
 // ========================================
 
-// 施設種別
+// サービス種別
 const facilityTypes = [
   'デイサービス',
   '訪問介護',

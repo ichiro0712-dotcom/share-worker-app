@@ -4387,6 +4387,7 @@ export async function updateFacilityBasicInfo(
     transportation?: string[];
     parking?: string;
     transportationNote?: string;
+    mapImage?: string;
 
     // 服装情報
     dresscodeItems?: string[];
@@ -4441,6 +4442,7 @@ export async function updateFacilityBasicInfo(
         transportation: data.transportation,
         parking: data.parking,
         transportation_note: data.transportationNote,
+        map_image: data.mapImage,
 
         // 服装情報
         dresscode_items: data.dresscodeItems,
@@ -4463,7 +4465,8 @@ export async function updateFacilityBasicInfo(
 }
 
 /**
- * 施設の地図画像を取得・更新
+ * 施設の地図画像を取得（プレビュー用、DBには保存しない）
+ * DBへの保存はupdateFacilityBasicInfoで行う
  */
 export async function updateFacilityMapImage(facilityId: number, address: string) {
   try {
@@ -4513,15 +4516,10 @@ export async function updateFacilityMapImage(facilityId: number, address: string
 
     console.log('[updateFacilityMapImage] Map image saved:', publicUrl);
 
-    // DBに地図画像パスを保存
-    await prisma.facility.update({
-      where: { id: facilityId },
-      data: { map_image: publicUrl },
-    });
+    // 注意: DBへの保存とrevalidatePathは行わない
+    // フォーム全体を保存する際にDBに保存される（updateFacilityBasicInfo内）
+    // これにより、地図画像プレビュー時にフォームの入力値がリセットされない
 
-    console.log('[updateFacilityMapImage] DB updated successfully');
-
-    revalidatePath('/admin/facility');
     return { success: true, mapImage: publicUrl };
   } catch (error) {
     console.error('[updateFacilityMapImage] Error:', error);
@@ -5355,7 +5353,7 @@ export async function getWorkerDetail(workerId: number, facilityId: number) {
       ? allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length
       : 0;
 
-    // 施設種別ごとの評価を集計
+    // サービス種別ごとの評価を集計
     const facilityTypeRatings: Record<string, { total: number; count: number }> = {};
     allReviews.forEach((r) => {
       const type = r.facility.facility_type;
@@ -5561,7 +5559,7 @@ export async function getWorkerDetail(workerId: number, facilityId: number) {
       // キャンセル率
       cancelRate,
       lastMinuteCancelRate,
-      // 施設種別ごとの評価
+      // サービス種別ごとの評価
       ratingsByFacilityType,
       // 直近勤務予定
       upcomingSchedules: upcomingSchedules.map((app) => ({

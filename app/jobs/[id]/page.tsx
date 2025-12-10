@@ -4,12 +4,13 @@ import { notFound } from 'next/navigation';
 
 interface PageProps {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ date?: string }>;
+  searchParams: Promise<{ date?: string; preview?: string }>;
 }
 
 export default async function JobDetail({ params, searchParams }: PageProps) {
   const { id } = await params;
-  const { date: selectedDate } = await searchParams;
+  const { date: selectedDate, preview } = await searchParams;
+  const isPreviewMode = preview === 'true';
   const jobData = await getJobById(id);
 
   if (!jobData) {
@@ -159,6 +160,7 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
       initialHasApplied={initialHasApplied}
       initialAppliedWorkDateIds={appliedWorkDateIds}
       selectedDate={selectedDate}
+      isPreviewMode={isPreviewMode}
     />
   );
 }

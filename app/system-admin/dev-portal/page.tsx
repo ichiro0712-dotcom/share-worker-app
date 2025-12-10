@@ -129,6 +129,11 @@ const SYSTEM_ADMIN_TREE: SiteMapNode[] = [
             { name: 'admins', title: '管理者アカウント管理', href: '/system-admin/settings/admins' },
         ]
     },
+    {
+        name: 'dev-portal', title: '開発ポータル', href: '/system-admin/dev-portal', children: [
+            { name: 'sample-images', title: 'サンプル画像', href: '/system-admin/dev-portal/sample-images' },
+        ]
+    },
 ];
 
 // 独立画面（ツリー構造）
@@ -139,7 +144,6 @@ const STANDALONE_TREE: SiteMapNode[] = [
             { name: 'qr', title: 'QR生成', href: '/dev/qr' },
         ]
     },
-    { name: 'dev-portal', title: '開発ポータル', href: '/dev-portal' },
     { name: 'under-construction', title: '準備中ページ', href: '/under-construction' },
     { name: 'auth-construction', title: '認証準備中', href: '/auth-construction' },
 ];
@@ -250,8 +254,8 @@ export default function DevPortalPage() {
                         <p className="text-sm text-gray-500">S WORKS Development Hub</p>
                     </div>
                     <div className="flex gap-3">
-                        <Link href="/" className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
-                            トップへ戻る
+                        <Link href="/system-admin" className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
+                            システム管理へ戻る
                         </Link>
                     </div>
                 </header>
@@ -291,7 +295,7 @@ export default function DevPortalPage() {
                             </div>
                             <p className="text-xs text-gray-500">全体管理者ダッシュボード</p>
                         </Link>
-                        <Link href="/dev-portal/sample-images" target="_blank" rel="noopener noreferrer" className="block w-full text-left p-3 rounded-lg border border-gray-200 hover:border-pink-300 hover:shadow-md transition-all group bg-white">
+                        <Link href="/system-admin/dev-portal/sample-images" target="_blank" rel="noopener noreferrer" className="block w-full text-left p-3 rounded-lg border border-gray-200 hover:border-pink-300 hover:shadow-md transition-all group bg-white">
                             <div className="flex items-center justify-between mb-1">
                                 <div className="font-bold text-gray-800 group-hover:text-pink-600">サンプル画像</div>
                                 <ImageIcon className="w-4 h-4 text-gray-400 group-hover:text-pink-500" />

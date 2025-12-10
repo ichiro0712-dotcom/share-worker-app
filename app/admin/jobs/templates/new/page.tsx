@@ -11,7 +11,6 @@ import { getFacilityById, createJobTemplate } from '@/src/lib/actions';
 import {
   JOB_TYPES,
   WORK_CONTENT_OPTIONS,
-  QUALIFICATION_OPTIONS,
   ICON_OPTIONS,
   BREAK_TIME_OPTIONS,
   TRANSPORTATION_FEE_OPTIONS,
@@ -23,6 +22,7 @@ import {
   END_HOUR_OPTIONS,
   MINUTE_OPTIONS,
 } from '@/constants';
+import { QUALIFICATION_GROUPS } from '@/constants/qualifications';
 
 export default function NewTemplatePage() {
   const router = useRouter();
@@ -800,18 +800,38 @@ export default function NewTemplatePage() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   資格条件（複数選択可） <span className="text-red-500">*</span>
                 </label>
-                <div className="grid grid-cols-3 gap-2 p-2 border border-gray-200 rounded">
-                  {QUALIFICATION_OPTIONS.map(option => (
-                    <label key={option} className="flex items-center space-x-2">
+                <div className="border border-gray-200 rounded p-4">
+                  {QUALIFICATION_GROUPS.map((group) => (
+                    <div key={group.name} className="mb-4">
+                      <h4 className="text-sm font-semibold text-gray-700 mb-2">{group.name}</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                        {group.qualifications.map((qual) => (
+                          <label key={qual} className="flex items-center gap-2 text-sm cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={formData.qualifications.includes(qual)}
+                              onChange={() => toggleArrayItem('qualifications', qual)}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span>{qual}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* 無資格可オプション（求人のみ） */}
+                  <div className="mt-4 pt-4 border-t">
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={formData.qualifications.includes(option)}
-                        onChange={() => toggleArrayItem('qualifications', option)}
-                        className="rounded text-blue-600"
+                        checked={formData.qualifications.includes('無資格可')}
+                        onChange={() => toggleArrayItem('qualifications', '無資格可')}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       />
-                      <span className="text-sm">{option}</span>
+                      <span className="font-medium">無資格可</span>
                     </label>
-                  ))}
+                  </div>
                 </div>
               </div>
 

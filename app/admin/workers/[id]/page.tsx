@@ -65,7 +65,7 @@ interface WorkerDetailData {
   // キャンセル率
   cancelRate: number;
   lastMinuteCancelRate: number;
-  // 施設種別ごとの評価
+  // サービス種別ごとの評価
   ratingsByFacilityType: {
     facilityType: string;
     averageRating: number;
@@ -587,7 +587,7 @@ export default function WorkerDetailPage({
 
             {/* Facility Type Ratings */}
             <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">施設種別ごとの評価</h3>
+              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">サービス種別ごとの評価</h3>
               {worker.ratingsByFacilityType.length > 0 ? (
                 <div className="space-y-3">
                   {worker.ratingsByFacilityType.map((item, i) => (

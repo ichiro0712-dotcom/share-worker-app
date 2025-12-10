@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { X, ChevronDown, ChevronUp, ChevronRight } from 'lucide-react';
+import { SERVICE_TYPES } from '@/constants/serviceTypes';
 
 interface FilterState {
   prefecture: string;
@@ -40,36 +41,7 @@ const cities: Record<string, string[]> = {
   '大阪府': ['大阪市', '堺市', '岸和田市', '豊中市', '池田市', '吹田市', '泉大津市', '高槻市', '貝塚市', '守口市', '枚方市', '茨木市', '八尾市', '泉佐野市', '富田林市', '寝屋川市', '河内長野市', '松原市', '大東市', '和泉市', '箕面市', '柏原市', '羽曳野市', '門真市', '摂津市', '高石市', '藤井寺市', '東大阪市', '泉南市', '四條畷市', '交野市', '大阪狭山市', '阪南市'],
 };
 
-const serviceTypes = [
-  '特別養護老人ホーム',
-  '有料老人ホーム',
-  'グループホーム',
-  'サービス付き高齢者向け住宅',
-  'デイサービス',
-  'デイケア',
-  '訪問介護',
-  '訪問入浴',
-  '訪問看護',
-  '小規模多機能型居宅介護',
-  '看護小規模多機能型居宅介護',
-  '定期巡回・随時対応型訪問介護看護',
-  '夜間対応型訪問介護',
-  'ショートステイ（短期入所生活介護）',
-  'ショートステイ（短期入所療養介護）',
-  '居宅介護支援施設',
-  '地域包括支援センター',
-  '福祉用具貸与・販売',
-  '軽費老人ホーム',
-  '養護老人ホーム',
-  '介護老人保健施設',
-  '介護医療院',
-  '障がい者支援施設',
-  '就労継続支援',
-  '就労移行支援',
-  '生活介護',
-  '共同生活援助',
-  '病院 (療養)',
-];
+// serviceTypes imported from constants
 
 const transportations = [
   '車',
@@ -179,339 +151,339 @@ export function FilterModal({ isOpen, onClose, onApply }: FilterModalProps) {
 
         {/* モーダルコンテンツ */}
         <div className="absolute inset-y-0 right-0 w-full max-w-md bg-white shadow-xl overflow-y-auto">
-        {/* ヘッダー */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between z-10">
-          <h2 className="text-lg font-bold">絞り込み検索</h2>
-          <button onClick={onClose}>
-            <X className="w-6 h-6" />
-          </button>
-        </div>
+          {/* ヘッダー */}
+          <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between z-10">
+            <h2 className="text-lg font-bold">絞り込み検索</h2>
+            <button onClick={onClose}>
+              <X className="w-6 h-6" />
+            </button>
+          </div>
 
-        {/* フィルター内容 */}
-        <div className="p-4 space-y-6">
-          {/* 勤務地 */}
-          <div>
-            <label className="block text-sm font-bold mb-2">勤務地</label>
-            <div className="space-y-2">
-              <select
-                value={filters.prefecture}
-                onChange={(e) => {
-                  setFilters({ ...filters, prefecture: e.target.value, city: '' });
-                }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                <option value="">都道府県を選択</option>
-                {prefectures.map((pref) => (
-                  <option key={pref} value={pref}>
-                    {pref}
-                  </option>
-                ))}
-              </select>
-
-              {filters.prefecture && cities[filters.prefecture] && (
+          {/* フィルター内容 */}
+          <div className="p-4 space-y-6">
+            {/* 勤務地 */}
+            <div>
+              <label className="block text-sm font-bold mb-2">勤務地</label>
+              <div className="space-y-2">
                 <select
-                  value={filters.city}
-                  onChange={(e) =>
-                    setFilters({ ...filters, city: e.target.value })
-                  }
+                  value={filters.prefecture}
+                  onChange={(e) => {
+                    setFilters({ ...filters, prefecture: e.target.value, city: '' });
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 >
-                  <option value="">市区町村を選択</option>
-                  {cities[filters.prefecture].map((city) => (
-                    <option key={city} value={city}>
-                      {city}
+                  <option value="">都道府県を選択</option>
+                  {prefectures.map((pref) => (
+                    <option key={pref} value={pref}>
+                      {pref}
                     </option>
                   ))}
                 </select>
-              )}
-            </div>
-          </div>
 
-          {/* タイプ */}
-          <div>
-            <label className="block text-sm font-bold mb-2">タイプ</label>
-            <div className="space-y-2">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={filters.jobTypes.includes('qualified')}
-                  onChange={(e) =>
-                    handleCheckboxChange('jobTypes', 'qualified', e.target.checked)
-                  }
-                  className="w-4 h-4"
-                />
-                <span className="text-sm">登録した資格で応募できる仕事のみ</span>
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={filters.jobTypes.includes('nursing')}
-                  onChange={(e) =>
-                    handleCheckboxChange('jobTypes', 'nursing', e.target.checked)
-                  }
-                  className="w-4 h-4"
-                />
-                <span className="text-sm">看護の仕事のみ</span>
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={filters.jobTypes.includes('excludeOrientation')}
-                  onChange={(e) =>
-                    handleCheckboxChange(
-                      'jobTypes',
-                      'excludeOrientation',
-                      e.target.checked
-                    )
-                  }
-                  className="w-4 h-4"
-                />
-                <span className="text-sm">説明会を除く</span>
-              </label>
-            </div>
-          </div>
-
-          {/* 勤務時間 */}
-          <div>
-            <label className="block text-sm font-bold mb-2">勤務時間</label>
-            <div className="space-y-3">
-              <div className="flex flex-wrap gap-x-4 gap-y-2">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={filters.workTimeTypes.includes('day')}
-                    onChange={(e) =>
-                      handleCheckboxChange(
-                        'workTimeTypes',
-                        'day',
-                        e.target.checked
-                      )
-                    }
-                    className="w-4 h-4"
-                  />
-                  <span className="text-sm whitespace-nowrap">日勤</span>
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={filters.workTimeTypes.includes('night')}
-                    onChange={(e) =>
-                      handleCheckboxChange(
-                        'workTimeTypes',
-                        'night',
-                        e.target.checked
-                      )
-                    }
-                    className="w-4 h-4"
-                  />
-                  <span className="text-sm whitespace-nowrap">夜勤</span>
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={filters.workTimeTypes.includes('short')}
-                    onChange={(e) =>
-                      handleCheckboxChange(
-                        'workTimeTypes',
-                        'short',
-                        e.target.checked
-                      )
-                    }
-                    className="w-4 h-4"
-                  />
-                  <span className="text-sm whitespace-nowrap">１日４時間以下</span>
-                </label>
-              </div>
-
-              <div>
-                <label className="block text-xs text-gray-600 mb-1">
-                  時間帯
-                </label>
-                <div className="flex items-center gap-2">
+                {filters.prefecture && cities[filters.prefecture] && (
                   <select
-                    value={filters.timeRangeFrom}
+                    value={filters.city}
                     onChange={(e) =>
-                      setFilters({ ...filters, timeRangeFrom: e.target.value })
+                      setFilters({ ...filters, city: e.target.value })
                     }
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                   >
-                    <option value="">開始時間</option>
-                    {timeOptions.map((time) => (
-                      <option key={time} value={time}>
-                        {time}
+                    <option value="">市区町村を選択</option>
+                    {cities[filters.prefecture].map((city) => (
+                      <option key={city} value={city}>
+                        {city}
                       </option>
                     ))}
                   </select>
-                  <span className="text-sm">〜</span>
-                  <select
-                    value={filters.timeRangeTo}
-                    onChange={(e) =>
-                      setFilters({ ...filters, timeRangeTo: e.target.value })
-                    }
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                  >
-                    <option value="">終了時間</option>
-                    {timeOptions.map((time) => (
-                      <option key={time} value={time}>
-                        {time}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                )}
               </div>
             </div>
-          </div>
 
-          {/* 時給 */}
-          <div>
-            <label className="block text-sm font-bold mb-2">時給</label>
-            <select
-              value={filters.minWage}
-              onChange={(e) =>
-                setFilters({ ...filters, minWage: e.target.value })
-              }
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-            >
-              <option value="">選択してください</option>
-              {wageOptions.map((wage) => (
-                <option key={wage} value={wage}>
-                  {wage}
-                </option>
-              ))}
-            </select>
-          </div>
+            {/* タイプ */}
+            <div>
+              <label className="block text-sm font-bold mb-2">タイプ</label>
+              <div className="space-y-2">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={filters.jobTypes.includes('qualified')}
+                    onChange={(e) =>
+                      handleCheckboxChange('jobTypes', 'qualified', e.target.checked)
+                    }
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm">登録した資格で応募できる仕事のみ</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={filters.jobTypes.includes('nursing')}
+                    onChange={(e) =>
+                      handleCheckboxChange('jobTypes', 'nursing', e.target.checked)
+                    }
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm">看護の仕事のみ</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={filters.jobTypes.includes('excludeOrientation')}
+                    onChange={(e) =>
+                      handleCheckboxChange(
+                        'jobTypes',
+                        'excludeOrientation',
+                        e.target.checked
+                      )
+                    }
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm">説明会を除く</span>
+                </label>
+              </div>
+            </div>
 
-          {/* さらに絞り込む */}
-          <div className="border-t border-gray-200 pt-4">
-            <button
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              className="w-full flex items-center justify-between text-sm font-bold mb-2"
-            >
-              <span>さらに絞り込む</span>
-              {showAdvanced ? (
-                <ChevronUp className="w-5 h-5" />
-              ) : (
-                <ChevronDown className="w-5 h-5" />
-              )}
-            </button>
-
-            {showAdvanced && (
-              <div className="space-y-6 mt-4">
-                {/* サービス種別 */}
-                <div>
-                  <label className="block text-sm font-bold mb-2">
-                    サービス種別
+            {/* 勤務時間 */}
+            <div>
+              <label className="block text-sm font-bold mb-2">勤務時間</label>
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-x-4 gap-y-2">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={filters.workTimeTypes.includes('day')}
+                      onChange={(e) =>
+                        handleCheckboxChange(
+                          'workTimeTypes',
+                          'day',
+                          e.target.checked
+                        )
+                      }
+                      className="w-4 h-4"
+                    />
+                    <span className="text-sm whitespace-nowrap">日勤</span>
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowServiceTypeModal(true)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg flex items-center justify-between hover:bg-gray-50 transition-colors"
-                  >
-                    <span className="text-sm text-gray-600">
-                      {filters.serviceTypes.length > 0
-                        ? `${filters.serviceTypes.length}件選択中`
-                        : '選択してください'}
-                    </span>
-                    <ChevronRight className="w-5 h-5 text-gray-400" />
-                  </button>
-                  {filters.serviceTypes.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {filters.serviceTypes.map((type) => (
-                        <span
-                          key={type}
-                          className="inline-flex items-center gap-1 px-2 py-1 bg-primary-light text-primary text-xs rounded"
-                        >
-                          {type}
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleCheckboxChange('serviceTypes', type, false)
-                            }
-                            className="hover:text-primary-dark"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </span>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={filters.workTimeTypes.includes('night')}
+                      onChange={(e) =>
+                        handleCheckboxChange(
+                          'workTimeTypes',
+                          'night',
+                          e.target.checked
+                        )
+                      }
+                      className="w-4 h-4"
+                    />
+                    <span className="text-sm whitespace-nowrap">夜勤</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={filters.workTimeTypes.includes('short')}
+                      onChange={(e) =>
+                        handleCheckboxChange(
+                          'workTimeTypes',
+                          'short',
+                          e.target.checked
+                        )
+                      }
+                      className="w-4 h-4"
+                    />
+                    <span className="text-sm whitespace-nowrap">１日４時間以下</span>
+                  </label>
+                </div>
+
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">
+                    時間帯
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={filters.timeRangeFrom}
+                      onChange={(e) =>
+                        setFilters({ ...filters, timeRangeFrom: e.target.value })
+                      }
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                    >
+                      <option value="">開始時間</option>
+                      {timeOptions.map((time) => (
+                        <option key={time} value={time}>
+                          {time}
+                        </option>
                       ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* 移動手段 */}
-                <div>
-                  <label className="block text-sm font-bold mb-2">
-                    移動手段
-                  </label>
-                  <div className="space-y-2">
-                    {transportations.map((transport) => (
-                      <label key={transport} className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={filters.transportations.includes(transport)}
-                          onChange={(e) =>
-                            handleCheckboxChange(
-                              'transportations',
-                              transport,
-                              e.target.checked
-                            )
-                          }
-                          className="w-4 h-4"
-                        />
-                        <span className="text-sm">{transport}</span>
-                      </label>
-                    ))}
+                    </select>
+                    <span className="text-sm">〜</span>
+                    <select
+                      value={filters.timeRangeTo}
+                      onChange={(e) =>
+                        setFilters({ ...filters, timeRangeTo: e.target.value })
+                      }
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                    >
+                      <option value="">終了時間</option>
+                      {timeOptions.map((time) => (
+                        <option key={time} value={time}>
+                          {time}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
+              </div>
+            </div>
 
-                {/* その他条件 */}
-                <div>
-                  <label className="block text-sm font-bold mb-2">
-                    その他条件
-                  </label>
-                  <div className="space-y-2">
-                    {otherConditionsOptions.map((condition) => (
-                      <div key={condition}>
-                        <label className="flex items-center gap-2">
+            {/* 時給 */}
+            <div>
+              <label className="block text-sm font-bold mb-2">時給</label>
+              <select
+                value={filters.minWage}
+                onChange={(e) =>
+                  setFilters({ ...filters, minWage: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="">選択してください</option>
+                {wageOptions.map((wage) => (
+                  <option key={wage} value={wage}>
+                    {wage}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* さらに絞り込む */}
+            <div className="border-t border-gray-200 pt-4">
+              <button
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                className="w-full flex items-center justify-between text-sm font-bold mb-2"
+              >
+                <span>さらに絞り込む</span>
+                {showAdvanced ? (
+                  <ChevronUp className="w-5 h-5" />
+                ) : (
+                  <ChevronDown className="w-5 h-5" />
+                )}
+              </button>
+
+              {showAdvanced && (
+                <div className="space-y-6 mt-4">
+                  {/* サービス種別 */}
+                  <div>
+                    <label className="block text-sm font-bold mb-2">
+                      サービス種別
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowServiceTypeModal(true)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg flex items-center justify-between hover:bg-gray-50 transition-colors"
+                    >
+                      <span className="text-sm text-gray-600">
+                        {filters.serviceTypes.length > 0
+                          ? `${filters.serviceTypes.length}件選択中`
+                          : '選択してください'}
+                      </span>
+                      <ChevronRight className="w-5 h-5 text-gray-400" />
+                    </button>
+                    {filters.serviceTypes.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {filters.serviceTypes.map((type) => (
+                          <span
+                            key={type}
+                            className="inline-flex items-center gap-1 px-2 py-1 bg-primary-light text-primary text-xs rounded"
+                          >
+                            {type}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleCheckboxChange('serviceTypes', type, false)
+                              }
+                              className="hover:text-primary-dark"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 移動手段 */}
+                  <div>
+                    <label className="block text-sm font-bold mb-2">
+                      移動手段
+                    </label>
+                    <div className="space-y-2">
+                      {transportations.map((transport) => (
+                        <label key={transport} className="flex items-center gap-2">
                           <input
                             type="checkbox"
-                            checked={filters.otherConditions.includes(condition)}
+                            checked={filters.transportations.includes(transport)}
                             onChange={(e) =>
                               handleCheckboxChange(
-                                'otherConditions',
-                                condition,
+                                'transportations',
+                                transport,
                                 e.target.checked
                               )
                             }
                             className="w-4 h-4"
                           />
-                          <span className="text-sm">{condition}</span>
+                          <span className="text-sm">{transport}</span>
                         </label>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* その他条件 */}
+                  <div>
+                    <label className="block text-sm font-bold mb-2">
+                      その他条件
+                    </label>
+                    <div className="space-y-2">
+                      {otherConditionsOptions.map((condition) => (
+                        <div key={condition}>
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={filters.otherConditions.includes(condition)}
+                              onChange={(e) =>
+                                handleCheckboxChange(
+                                  'otherConditions',
+                                  condition,
+                                  e.target.checked
+                                )
+                              }
+                              className="w-4 h-4"
+                            />
+                            <span className="text-sm">{condition}</span>
+                          </label>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
+          </div>
+
+          {/* フッター */}
+          <div className="sticky bottom-0 bg-white border-t border-gray-200 p-4 flex gap-3">
+            <button
+              onClick={handleReset}
+              className="flex-1 py-3 border border-gray-300 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+            >
+              リセット
+            </button>
+            <button
+              onClick={handleApply}
+              className="flex-1 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors"
+            >
+              絞り込む
+            </button>
           </div>
         </div>
-
-        {/* フッター */}
-        <div className="sticky bottom-0 bg-white border-t border-gray-200 p-4 flex gap-3">
-          <button
-            onClick={handleReset}
-            className="flex-1 py-3 border border-gray-300 rounded-lg font-medium hover:bg-gray-50 transition-colors"
-          >
-            リセット
-          </button>
-          <button
-            onClick={handleApply}
-            className="flex-1 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors"
-          >
-            絞り込む
-          </button>
-        </div>
       </div>
-    </div>
 
       {/* サービス種別選択モーダル */}
       {showServiceTypeModal && (
@@ -533,7 +505,7 @@ export function FilterModal({ isOpen, onClose, onApply }: FilterModalProps) {
             {/* サービス種別リスト（2列表示） */}
             <div className="p-4">
               <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                {serviceTypes.map((type) => (
+                {SERVICE_TYPES.map((type) => (
                   <label
                     key={type}
                     className="flex items-center gap-2 cursor-pointer"

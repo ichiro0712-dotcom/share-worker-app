@@ -103,7 +103,7 @@ export default async function SystemAdminDashboard() {
                 </div>
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
                     <PieChart
-                        title="施設種別割合"
+                        title="サービス種別割合"
                         labels={facilityTypes.map(f => f.name)}
                         data={facilityTypes.map(f => f.value)}
                     />

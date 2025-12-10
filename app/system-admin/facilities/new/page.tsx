@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createFacilityWithAdmin } from '@/src/lib/system-actions';
+import { SERVICE_TYPES } from '@/constants/serviceTypes';
 import { ChevronLeft, Building2, User, Lock, Mail, Phone, MapPin } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -107,7 +108,7 @@ export default function SystemAdminNewFacilityPage() {
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">施設種別 <span className="text-red-500">*</span></label>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">サービス種別 <span className="text-red-500">*</span></label>
                             <select
                                 name="facilityType"
                                 value={formData.facilityType}
@@ -116,11 +117,9 @@ export default function SystemAdminNewFacilityPage() {
                                 required
                             >
                                 <option value="">選択してください</option>
-                                <option value="介護施設">介護施設</option>
-                                <option value="医療機関">医療機関</option>
-                                <option value="保育施設">保育施設</option>
-                                <option value="障がい者支援施設">障がい者支援施設</option>
-                                <option value="その他">その他</option>
+                                {SERVICE_TYPES.map(type => (
+                                    <option key={type} value={type}>{type}</option>
+                                ))}
                             </select>
                         </div>
 

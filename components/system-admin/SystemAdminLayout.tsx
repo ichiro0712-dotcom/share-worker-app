@@ -15,8 +15,7 @@ import {
     Shield,
     FileEdit,
     BarChart3,
-    Megaphone, // Added based on instruction
-    Search, // Added based on instruction
+    Code2,
 } from 'lucide-react';
 
 interface SystemAdminLayoutProps {
@@ -88,6 +87,12 @@ export default function SystemAdminLayout({ children }: SystemAdminLayoutProps) 
             href: '/system-admin/settings',
             active: pathname?.startsWith('/system-admin/settings'),
             divider: true,
+        },
+        {
+            title: '開発ポータル',
+            icon: <Code2 className="w-4 h-4" />,
+            href: '/system-admin/dev-portal',
+            active: pathname?.startsWith('/system-admin/dev-portal'),
         },
     ];
 

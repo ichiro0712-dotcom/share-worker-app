@@ -12,6 +12,7 @@ import { Search, Filter, Building2, LogIn, MapPin, ArrowUpDown, RefreshCw, Plus,
 import { useSystemAuth } from '@/contexts/SystemAuthContext';
 import { PREFECTURES } from '@/constants/job';
 import { getCitiesByPrefecture, Prefecture } from '@/constants/prefectureCities';
+import { SERVICE_TYPES } from '@/constants/serviceTypes';
 import toast from 'react-hot-toast';
 
 interface Facility {
@@ -41,7 +42,7 @@ export default function SystemAdminFacilitiesPage() {
 
     // Filters
     const [search, setSearch] = useState('');
-    const [facilityType, setFacilityType] = useState('');
+    const [serviceType, setServiceType] = useState('');
     const [prefecture, setPrefecture] = useState('');
     const [city, setCity] = useState('');
     const [cityOptions, setCityOptions] = useState<string[]>([]);
@@ -78,6 +79,7 @@ export default function SystemAdminFacilitiesPage() {
             setCity('');
         }
     }, [prefecture]);
+
 
     const handleCreateNewFacility = async () => {
         if (!admin) {
@@ -167,7 +169,7 @@ export default function SystemAdminFacilitiesPage() {
                 sort,
                 order,
                 {
-                    facilityType: facilityType || undefined,
+                    facilityType: serviceType || undefined,
                     prefecture: prefecture || undefined,
                     city: city || undefined,
                     distanceFrom
@@ -194,17 +196,29 @@ export default function SystemAdminFacilitiesPage() {
         fetchFacilities();
     };
 
+    // フィルターリセット用のトリガー
+    const [resetTrigger, setResetTrigger] = useState(0);
+
     const clearFilters = () => {
         setSearch('');
-        setFacilityType('');
+        setServiceType('');
         setPrefecture('');
         setCity('');
         setDistanceSearchEnabled(false);
         setAddressFilter('');
         setCurrentLocation(null);
         setPage(1);
-        setTimeout(fetchFacilities, 0);
+        // stateが更新された後にfetchするためにトリガーをインクリメント
+        setResetTrigger(prev => prev + 1);
     };
+
+    // リセットトリガーが変更されたらfetch（初回は除く）
+    useEffect(() => {
+        if (resetTrigger > 0) {
+            fetchFacilities();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [resetTrigger]);
 
     // フィルター適用時のハンドラー（距離検索時はジオコーディングも実行）
     const handleApplyFilters = async () => {
@@ -302,19 +316,18 @@ export default function SystemAdminFacilitiesPage() {
                     </div>
 
                     {showFilters && (
-                        <div className="pt-4 border-t border-slate-100 grid grid-cols-1 md:grid-cols-4 gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                        <div className="pt-4 border-t border-slate-100 grid grid-cols-1 md:grid-cols-5 gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
                             <div>
-                                <label className="block text-xs font-medium text-slate-500 mb-1">施設種別</label>
+                                <label className="block text-xs font-medium text-slate-500 mb-1">サービス種別</label>
                                 <select
                                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                    value={facilityType}
-                                    onChange={(e) => setFacilityType(e.target.value)}
+                                    value={serviceType}
+                                    onChange={(e) => setServiceType(e.target.value)}
                                 >
                                     <option value="">すべて</option>
-                                    <option value="介護施設">介護施設</option>
-                                    <option value="医療機関">医療機関</option>
-                                    <option value="保育施設">保育施設</option>
-                                    <option value="障がい者支援施設">障がい者支援施設</option>
+                                    {SERVICE_TYPES.map(type => (
+                                        <option key={type} value={type}>{type}</option>
+                                    ))}
                                 </select>
                             </div>
                             <div>
@@ -347,7 +360,7 @@ export default function SystemAdminFacilitiesPage() {
                             </div>
 
                             {/* Distance Filter - チェックボックストグル形式 */}
-                            <div className="md:col-span-4 pt-4 border-t border-slate-100">
+                            <div className="md:col-span-5 pt-4 border-t border-slate-100">
                                 <div className="flex items-center gap-2 mb-3">
                                     <input
                                         type="checkbox"
@@ -410,7 +423,7 @@ export default function SystemAdminFacilitiesPage() {
                                 )}
                             </div>
 
-                            <div className="md:col-span-4 flex justify-end gap-2 mt-2">
+                            <div className="md:col-span-5 flex justify-end gap-2 mt-2">
                                 <button
                                     onClick={clearFilters}
                                     className="px-4 py-2 text-slate-500 text-sm hover:text-slate-700 hover:bg-slate-50 rounded-lg"
@@ -475,7 +488,18 @@ export default function SystemAdminFacilitiesPage() {
                         ) : facilities.length === 0 ? (
                             <tr>
                                 <td colSpan={9} className="px-6 py-12 text-center text-slate-500">
-                                    施設が見つかりません
+                                    <div className="flex flex-col items-center gap-2">
+                                        <Building2 className="w-12 h-12 text-slate-300" />
+                                        <p>施設が見つかりません</p>
+                                        {(search || serviceType || prefecture || city || distanceSearchEnabled) && (
+                                            <button
+                                                onClick={clearFilters}
+                                                className="text-indigo-600 hover:underline text-sm"
+                                            >
+                                                フィルターをリセット
+                                            </button>
+                                        )}
+                                    </div>
                                 </td>
                             </tr>
                         ) : (

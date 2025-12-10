@@ -30,17 +30,13 @@ export const WORK_CONTENT_OPTIONS = [
   '利用者家族対応', 'イベント企画', '機能訓練補助', '趣味活動支援', '生活相談'
 ] as const;
 
-export const QUALIFICATION_OPTIONS = [
-  '介護福祉士', '実務者研修', '介護職員初任者研修', 'ヘルパー2級', 'ヘルパー1級',
-  '社会福祉士', '社会福祉主事', '精神保健福祉士', 'ケアマネジャー', '介護支援専門員',
-  '看護師', '准看護師', '保健師', '助産師', '理学療法士', '作業療法士',
-  '言語聴覚士', '管理栄養士', '栄養士', '調理師', '医師', '歯科医師',
-  '薬剤師', '歯科衛生士', '柔道整復師', 'あん摩マッサージ指圧師', '鍼灸師',
-  'はり師', 'きゅう師', '視能訓練士', '義肢装具士', '救急救命士',
-  '診療放射線技師', '臨床検査技師', '臨床工学技士', '衛生検査技師',
-  '精神保健福祉相談員', '社会福祉協議会職員', '無資格OK', '無資格可（要相談）',
-  '資格取得支援あり', '資格不問', '経験者優遇'
-] as const;
+// 資格定数のインポート
+export { JOB_QUALIFICATION_OPTIONS, QUALIFICATION_GROUPS } from './qualifications';
+export type { JobQualificationOption } from './qualifications';
+
+// 後方互換性のためにエイリアスとしてエクスポート
+import { JOB_QUALIFICATION_OPTIONS } from './qualifications';
+export const QUALIFICATION_OPTIONS = JOB_QUALIFICATION_OPTIONS;
 
 export const ICON_OPTIONS = [
   '未経験者歓迎',

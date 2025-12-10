@@ -133,7 +133,7 @@ export async function getWorkerDemographics() {
 }
 
 /**
- * 施設種別ごとの登録数
+ * サービス種別ごとの登録数
  */
 export async function getFacilityTypeStats() {
     const facilities = await prisma.facility.groupBy({
@@ -271,7 +271,7 @@ export async function getSystemWorkers(
         const allWorkers = await prisma.user.findMany({
             where: {
                 ...where,
-                ...(isDistanceSearch ? { lat: { not: null }, lng: { not: null } } : {})
+                ...(isDistanceSearch ? { AND: [{ lat: { not: { equals: null } } }, { lng: { not: { equals: null } } }] } : {})
             },
             select: {
                 id: true,
@@ -573,7 +573,7 @@ export async function getSystemWorkerDetail(id: number) {
         status: app.status,
     }));
 
-    // 施設種別ごとの評価（仮実装）
+    // サービス種別ごとの評価（仮実装）
     const facilityTypeRatings: Record<string, { sum: number; count: number }> = {};
     worker.reviews.forEach(review => {
         // reviewにfacility_typeがない場合はスキップ
@@ -901,6 +901,7 @@ export async function getSystemFacilitiesExtended(
         };
     }
 ) {
+  try {
     const skip = (page - 1) * limit;
     const where: any = {};
 
@@ -949,10 +950,11 @@ export async function getSystemFacilitiesExtended(
 
     if (isCalculatedSort || isDistanceSearch) {
         // 全件取得してJS処理
+        // 施設のlat/lngは @default(0) でnullableではないため、0以外の値を持つものを検索
         const allFacilities = await prisma.facility.findMany({
             where: {
                 ...where,
-                ...(isDistanceSearch ? { lat: { not: null }, lng: { not: null } } : {})
+                ...(isDistanceSearch ? { AND: [{ lat: { not: 0 } }, { lng: { not: 0 } }] } : {})
             },
             include: {
                 jobs: {
@@ -1018,8 +1020,8 @@ export async function getSystemFacilitiesExtended(
                 ? jobPeriods.reduce((a, b) => a + b, 0) / jobPeriods.length
                 : 0;
 
-            let distance = null;
-            if (isDistanceSearch && filters?.distanceFrom) {
+            let distance: number | null = null;
+            if (isDistanceSearch && filters?.distanceFrom && f.lat !== null && f.lng !== null) {
                 distance = calculateDistance(
                     filters.distanceFrom.lat,
                     filters.distanceFrom.lng,
@@ -1042,9 +1044,11 @@ export async function getSystemFacilitiesExtended(
             };
         });
 
-        // 距離フィルタ
+        // 距離フィルタ（distanceがnullの場合は除外）
         if (isDistanceSearch && filters?.distanceFrom) {
-            processed = processed.filter(f => (f.distance as number) <= filters.distanceFrom!.maxDistance);
+            processed = processed.filter(f =>
+                f.distance !== null && f.distance <= filters.distanceFrom!.maxDistance
+            );
         }
 
         // ソート
@@ -1130,6 +1134,10 @@ export async function getSystemFacilitiesExtended(
             totalPages: Math.ceil(total / limit)
         };
     }
+  } catch (error) {
+    console.error('[getSystemFacilitiesExtended] Error:', error);
+    throw error;
+  }
 }
 
 /**
@@ -1946,6 +1954,7 @@ export async function getSystemJobsExtended(
         city?: string;
         facilityType?: string;
         requiresInterview?: boolean;
+        qualification?: string;
     }
 ) {
     const skip = (page - 1) * limit;
@@ -2001,7 +2010,7 @@ export async function getSystemJobsExtended(
         };
     }
 
-    // 施設種別フィルター
+    // サービス種別フィルター
     if (filters?.facilityType) {
         where.facility = {
             ...where.facility,
@@ -2012,6 +2021,13 @@ export async function getSystemJobsExtended(
     // 面接ありフィルター
     if (filters?.requiresInterview !== undefined) {
         where.requires_interview = filters.requiresInterview;
+    }
+
+    // 資格フィルター（求人が要求する資格でフィルター）
+    if (filters?.qualification) {
+        where.required_qualifications = {
+            has: filters.qualification
+        };
     }
 
     // 計算フィールドでのソートかどうか

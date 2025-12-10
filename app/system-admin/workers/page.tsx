@@ -138,6 +138,9 @@ export default function SystemAdminWorkersPage() {
         setShowFilters(false);
     };
 
+    // フィルターリセット用のトリガー
+    const [resetTrigger, setResetTrigger] = useState(0);
+
     const handleResetFilters = () => {
         setStatusFilter('all');
         setPrefectureFilter('');
@@ -148,8 +151,17 @@ export default function SystemAdminWorkersPage() {
         setDistanceCoords(null);
         setDistanceKm(10);
         setPage(1);
-        setTimeout(() => fetchWorkers(), 0);
+        // stateが更新された後にfetchするためにトリガーをインクリメント
+        setResetTrigger(prev => prev + 1);
     };
+
+    // リセットトリガーが変更されたらfetch（初回は除く）
+    useEffect(() => {
+        if (resetTrigger > 0) {
+            fetchWorkers();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [resetTrigger]);
 
     const handleSort = (field: SortField) => {
         if (sortField === field) {
