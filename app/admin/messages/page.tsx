@@ -6,23 +6,26 @@ import { useAuth } from '@/contexts/AuthContext';
 import {
   Send,
   Info,
-  Phone,
   Calendar,
-  Star,
-  Briefcase,
   Award,
   ChevronDown,
   Loader2,
   User,
+  Bell,
+  Megaphone,
 } from 'lucide-react';
 import {
   getFacilityConversations,
   getFacilityMessages,
   sendFacilityMessage,
 } from '@/src/lib/actions';
+import {
+  getFacilityAnnouncements,
+  markAnnouncementAsRead,
+} from '@/src/lib/system-actions';
 import toast from 'react-hot-toast';
 
-type FilterType = 'all' | 'unread' | 'scheduled' | 'completed';
+type FilterType = 'all' | 'unread' | 'scheduled' | 'completed' | 'office';
 
 interface Conversation {
   applicationId: number;
@@ -63,6 +66,15 @@ interface ApplicationDetails {
   jobEndTime: string;
 }
 
+interface Announcement {
+  id: number;
+  title: string;
+  content: string;
+  category: string;
+  publishedAt: Date | null;
+  isRead: boolean;
+}
+
 export default function AdminMessagesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -81,6 +93,11 @@ export default function AdminMessagesPage() {
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [showVariables, setShowVariables] = useState(false);
   const [showUserInfo, setShowUserInfo] = useState(true);
+
+  // お知らせ関連
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [announcementsLoading, setAnnouncementsLoading] = useState(false);
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
 
   useEffect(() => {
     if (isAdminLoading) return;
@@ -114,6 +131,55 @@ export default function AdminMessagesPage() {
     loadConversations();
   }, [admin?.facilityId, initialApplicationId]);
 
+  // お知らせを読み込む（初期ロード時に取得して「すべて」でも未読バッジ表示）
+  useEffect(() => {
+    const loadAnnouncements = async () => {
+      if (!admin?.facilityId) return;
+
+      setAnnouncementsLoading(true);
+      try {
+        const data = await getFacilityAnnouncements(admin.facilityId);
+        setAnnouncements(data);
+      } catch (error) {
+        console.error('Failed to load announcements:', error);
+      } finally {
+        setAnnouncementsLoading(false);
+      }
+    };
+
+    loadAnnouncements();
+  }, [admin?.facilityId]);
+
+  // 本文内のURLをクリック可能なリンクに変換する
+  // linkColorStyle: 'default' | 'light' - lightは白文字背景用（施設からのメッセージ内など）
+  const renderContentWithLinks = (content: string, linkColorStyle: 'default' | 'light' = 'default') => {
+    const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g;
+    const parts = content.split(urlRegex);
+
+    const linkClassName = linkColorStyle === 'light'
+      ? 'text-white/90 underline hover:text-white break-all'
+      : 'text-admin-primary underline hover:text-admin-primary-dark break-all';
+
+    return parts.map((part, index) => {
+      if (part.match(urlRegex)) {
+        const href = part.startsWith('www.') ? `https://${part}` : part;
+        return (
+          <a
+            key={index}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={linkClassName}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {part}
+          </a>
+        );
+      }
+      return part;
+    });
+  };
+
   // 選択された会話のメッセージを読み込む
   useEffect(() => {
     const loadMessages = async () => {
@@ -144,6 +210,7 @@ export default function AdminMessagesPage() {
     if (filterType === 'unread') return conv.unreadCount > 0;
     if (filterType === 'scheduled') return conv.status === 'SCHEDULED';
     if (filterType === 'completed') return conv.status.includes('COMPLETED');
+    if (filterType === 'office') return false; // 事務局フィルター時は会話を表示しない
     return true;
   });
 
@@ -185,6 +252,52 @@ export default function AdminMessagesPage() {
     setMessageText(messageText + variable);
   };
 
+  // お知らせを既読にする
+  const handleReadAnnouncement = async (announcement: Announcement) => {
+    setSelectedAnnouncement(announcement);
+    if (!announcement.isRead && admin?.facilityId) {
+      await markAnnouncementAsRead(announcement.id, 'FACILITY', admin.facilityId);
+      setAnnouncements(prev =>
+        prev.map(a => a.id === announcement.id ? { ...a, isRead: true } : a)
+      );
+    }
+  };
+
+  // フィルタ変更時にリセット
+  const handleFilterChange = (newFilter: FilterType) => {
+    setFilterType(newFilter);
+    if (newFilter === 'office') {
+      setSelectedApplicationId(null);
+      setCurrentApplication(null);
+      setSelectedAnnouncement(null);
+    } else {
+      setSelectedAnnouncement(null);
+    }
+  };
+
+  // お知らせ日時をフォーマット
+  const formatAnnouncementDate = (date: Date | null | undefined) => {
+    if (!date) return '';
+    const d = new Date(date);
+    return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+  };
+
+  // カテゴリー別のスタイル
+  const getCategoryStyle = (category: string) => {
+    switch (category) {
+      case 'IMPORTANT':
+        return { bg: 'bg-red-100', text: 'text-red-600', label: '重要' };
+      case 'MAINTENANCE':
+        return { bg: 'bg-yellow-100', text: 'text-yellow-600', label: 'メンテナンス' };
+      case 'EVENT':
+        return { bg: 'bg-green-100', text: 'text-green-600', label: 'イベント' };
+      default:
+        return { bg: 'bg-blue-100', text: 'text-blue-600', label: 'ニュース' };
+    }
+  };
+
+  const unreadAnnouncementsCount = announcements.filter(a => !a.isRead).length;
+
   if (!isAdmin || !admin) {
     return null;
   }
@@ -202,71 +315,253 @@ export default function AdminMessagesPage() {
 
   return (
     <div className="h-[calc(100vh-4rem)] flex">
-      {/* 会話リスト */}
+      {/* 会話リスト / お知らせリスト */}
       <div className="w-80 border-r border-gray-200 bg-white flex flex-col">
         <div className="p-4 border-b border-gray-200">
           <h2 className="text-lg font-bold text-gray-900 mb-3">メッセージ</h2>
           <select
             value={filterType}
-            onChange={(e) => setFilterType(e.target.value as FilterType)}
+            onChange={(e) => handleFilterChange(e.target.value as FilterType)}
             className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-admin-primary focus:border-transparent"
           >
             <option value="all">すべて</option>
             <option value="unread">未読のみ</option>
             <option value="scheduled">勤務予定</option>
             <option value="completed">完了</option>
+            <option value="office">事務局から {unreadAnnouncementsCount > 0 && `(${unreadAnnouncementsCount})`}</option>
           </select>
         </div>
 
-        {/* 会話リスト */}
+        {/* 会話リスト or お知らせリスト */}
         <div className="flex-1 overflow-y-auto">
-          {filteredConversations.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">
-              <p>メッセージはありません</p>
-            </div>
-          ) : (
-            filteredConversations.map((conv) => (
-              <div
-                key={conv.applicationId}
-                onClick={() => setSelectedApplicationId(conv.applicationId)}
-                className={`p-4 border-b border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors ${selectedApplicationId === conv.applicationId ? 'bg-admin-primary-light' : ''
-                  }`}
-              >
-                <div className="flex items-start gap-3">
-                  <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 flex-shrink-0 overflow-hidden">
-                    {conv.userProfileImage ? (
-                      <img
-                        src={conv.userProfileImage}
-                        alt={conv.userName}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <User className="w-6 h-6" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <h3 className="font-medium text-gray-900 truncate">{conv.userName}</h3>
-                      {conv.unreadCount > 0 && (
-                        <span className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">
-                          {conv.unreadCount}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-gray-500 mb-1">{conv.jobTitle}</p>
-                    <p className="text-sm text-gray-600 truncate">{conv.lastMessage}</p>
-                    <p className="text-xs text-gray-400 mt-1">{conv.lastMessageTime}</p>
-                  </div>
-                </div>
+          {filterType === 'office' ? (
+            // 事務局からのお知らせ一覧
+            announcementsLoading ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="w-6 h-6 animate-spin text-admin-primary" />
               </div>
-            ))
+            ) : announcements.length === 0 ? (
+              <div className="p-8 text-center text-gray-500">
+                <Bell className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                <p>事務局からのお知らせはありません</p>
+              </div>
+            ) : (
+              announcements.map((announcement) => {
+                const categoryStyle = getCategoryStyle(announcement.category);
+                return (
+                  <div
+                    key={announcement.id}
+                    onClick={() => handleReadAnnouncement(announcement)}
+                    className={`p-4 border-b border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors ${
+                      selectedAnnouncement?.id === announcement.id ? 'bg-admin-primary-light' : ''
+                    } ${!announcement.isRead ? 'bg-blue-50' : ''}`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${categoryStyle.bg}`}>
+                        {announcement.category === 'IMPORTANT' ? (
+                          <Bell className={`w-5 h-5 ${categoryStyle.text}`} />
+                        ) : (
+                          <Megaphone className={`w-5 h-5 ${categoryStyle.text}`} />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${categoryStyle.bg} ${categoryStyle.text}`}>
+                            {categoryStyle.label}
+                          </span>
+                          {!announcement.isRead && (
+                            <span className="w-2 h-2 bg-red-500 rounded-full flex-shrink-0"></span>
+                          )}
+                        </div>
+                        <h3 className={`font-medium text-sm truncate ${announcement.isRead ? 'text-gray-700' : 'text-gray-900'}`}>
+                          {announcement.title}
+                        </h3>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {formatAnnouncementDate(announcement.publishedAt)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )
+          ) : (
+            // 通常の会話一覧（「すべて」の場合はお知らせも統合表示）
+            (() => {
+              // お知らせを会話形式に変換
+              const announcementItems = (filterType === 'all' ? announcements : []).map((a) => ({
+                type: 'announcement' as const,
+                id: `announcement-${a.id}`,
+                announcement: a,
+                timestamp: a.publishedAt ? new Date(a.publishedAt).getTime() : 0,
+                isUnread: !a.isRead,
+              }));
+
+              // 通常の会話をアイテム形式に変換
+              const conversationItems = filteredConversations.map((conv) => ({
+                type: 'conversation' as const,
+                id: `conversation-${conv.applicationId}`,
+                conversation: conv,
+                timestamp: conv.lastMessageTimestamp ? new Date(conv.lastMessageTimestamp).getTime() : 0,
+                isUnread: conv.unreadCount > 0,
+              }));
+
+              // 統合してソート（未読を優先、その後は新しい順）
+              const allItems = [...announcementItems, ...conversationItems].sort((a, b) => {
+                // 未読を優先
+                if (a.isUnread && !b.isUnread) return -1;
+                if (!a.isUnread && b.isUnread) return 1;
+                // 同じ未読状態なら新しい順
+                return b.timestamp - a.timestamp;
+              });
+
+              if (allItems.length === 0) {
+                return (
+                  <div className="p-8 text-center text-gray-500">
+                    <p>メッセージはありません</p>
+                  </div>
+                );
+              }
+
+              return allItems.map((item) => {
+                if (item.type === 'announcement') {
+                  const announcement = item.announcement;
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => {
+                        setSelectedApplicationId(null);
+                        handleReadAnnouncement(announcement);
+                      }}
+                      className={`p-4 border-b border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors ${
+                        selectedAnnouncement?.id === announcement.id ? 'bg-admin-primary-light' : ''
+                      } ${!announcement.isRead ? 'bg-blue-50' : ''}`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 flex-shrink-0">
+                          <Megaphone className="w-6 h-6" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <h3 className="font-medium text-gray-900 truncate">運営事務局</h3>
+                            {!announcement.isRead && (
+                              <span className="w-2 h-2 bg-red-500 rounded-full flex-shrink-0"></span>
+                            )}
+                          </div>
+                          <p className="text-xs text-indigo-600 mb-1">お知らせ</p>
+                          <p className="text-sm text-gray-600 truncate">{announcement.title}</p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            {formatAnnouncementDate(announcement.publishedAt)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                } else {
+                  const conv = item.conversation;
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => {
+                        setSelectedAnnouncement(null);
+                        setSelectedApplicationId(conv.applicationId);
+                      }}
+                      className={`p-4 border-b border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors ${
+                        selectedApplicationId === conv.applicationId ? 'bg-admin-primary-light' : ''
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 flex-shrink-0 overflow-hidden">
+                          {conv.userProfileImage ? (
+                            <img
+                              src={conv.userProfileImage}
+                              alt={conv.userName}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <User className="w-6 h-6" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <h3 className="font-medium text-gray-900 truncate">{conv.userName}</h3>
+                            {conv.unreadCount > 0 && (
+                              <span className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">
+                                {conv.unreadCount}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-500 mb-1">{conv.jobTitle}</p>
+                          <p className="text-sm text-gray-600 truncate">{conv.lastMessage}</p>
+                          <p className="text-xs text-gray-400 mt-1">{conv.lastMessageTime}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+              });
+            })()
           )}
         </div>
       </div>
 
-      {/* チャット画面 */}
+      {/* チャット画面 / お知らせ詳細 */}
       <div className="flex-1 flex flex-col bg-white">
-        {currentApplication ? (
+        {selectedAnnouncement ? (
+          // お知らせ詳細（事務局フィルターでも、すべてフィルターでも表示）
+          <div className="flex-1 flex flex-col">
+            {/* お知らせヘッダー */}
+            <div className="p-4 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center">
+                  <Megaphone className="w-5 h-5 text-indigo-600" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-medium text-indigo-600">運営事務局</span>
+                    <span className="text-xs text-gray-400">•</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${getCategoryStyle(selectedAnnouncement.category).bg} ${getCategoryStyle(selectedAnnouncement.category).text}`}>
+                      {getCategoryStyle(selectedAnnouncement.category).label}
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      {formatAnnouncementDate(selectedAnnouncement.publishedAt)}
+                    </span>
+                  </div>
+                  <h3 className="font-bold text-gray-900">{selectedAnnouncement.title}</h3>
+                </div>
+              </div>
+            </div>
+
+            {/* お知らせ本文（チャット風に表示） */}
+            <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
+              <div className="flex justify-start">
+                <div className="max-w-lg bg-white border border-gray-200 rounded-lg p-4">
+                  <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">
+                    {renderContentWithLinks(selectedAnnouncement.content)}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-2">
+                    {formatAnnouncementDate(selectedAnnouncement.publishedAt)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* お知らせには返信不可のメッセージ */}
+            <div className="border-t border-gray-200 bg-gray-50 px-4 py-3">
+              <p className="text-sm text-gray-500 text-center">
+                このお知らせは運営事務局からの一方向の通知です
+              </p>
+            </div>
+          </div>
+        ) : filterType === 'office' ? (
+          // 事務局フィルターでお知らせ未選択時
+          <div className="flex-1 flex items-center justify-center text-gray-500">
+            <div className="text-center">
+              <Megaphone className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+              <p>お知らせを選択して内容を表示</p>
+            </div>
+          </div>
+        ) : currentApplication ? (
           <>
             {/* チャットヘッダー */}
             <div className="p-4 border-b border-gray-200 flex items-center justify-between">
@@ -317,7 +612,9 @@ export default function AdminMessagesPage() {
                           : 'bg-white border border-gray-200 text-gray-900'
                           }`}
                       >
-                        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                        <p className="text-sm whitespace-pre-wrap">
+                          {renderContentWithLinks(message.content, message.senderType === 'facility' ? 'light' : 'default')}
+                        </p>
                         <p
                           className={`text-xs mt-1 ${message.senderType === 'facility'
                             ? 'text-admin-primary-light'
@@ -411,7 +708,7 @@ export default function AdminMessagesPage() {
       </div>
 
       {/* ユーザー情報パネル */}
-      {currentApplication && showUserInfo && (
+      {currentApplication && showUserInfo && !selectedAnnouncement && (
         <div className="w-80 border-l border-gray-200 bg-white overflow-y-auto">
           <div className="p-4">
             <h3 className="text-lg font-bold text-gray-900 mb-4">ワーカー情報</h3>

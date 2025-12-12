@@ -1,9 +1,11 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
-import { startOfDay, endOfDay, subDays, format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
+import { startOfDay, endOfDay, subDays, format, subMonths, startOfMonth, endOfMonth, differenceInHours } from 'date-fns';
 import bcrypt from 'bcryptjs';
 import { JobStatus } from '@prisma/client';
+import { generateLaborDocumentPdf } from '@/src/lib/laborDocumentPdf';
+import { requireSystemAdminAuth } from '@/lib/system-admin-session-server';
 
 
 export interface AnalyticsFilter {
@@ -16,6 +18,9 @@ export interface AnalyticsFilter {
  * ダッシュボードの主要な数値を一括取得
  */
 export async function getDashboardStats() {
+    // 認証チェック
+    await requireSystemAdminAuth();
+
     const [
         totalWorkers,
         totalFacilities,
@@ -40,6 +45,7 @@ export async function getDashboardStats() {
  * ワーカー登録推移（直近30日）
  */
 export async function getWorkerRegistrationTrends() {
+    await requireSystemAdminAuth();
     const endDate = new Date();
     const startDate = subDays(endDate, 30);
 
@@ -79,6 +85,7 @@ export async function getWorkerRegistrationTrends() {
  * ワーカー属性分析（性別、年齢層、資格）
  */
 export async function getWorkerDemographics() {
+    await requireSystemAdminAuth();
     const users = await prisma.user.findMany({
         select: {
             gender: true,
@@ -136,6 +143,7 @@ export async function getWorkerDemographics() {
  * サービス種別ごとの登録数
  */
 export async function getFacilityTypeStats() {
+    await requireSystemAdminAuth();
     const facilities = await prisma.facility.groupBy({
         by: ['facility_type'],
         _count: {
@@ -208,6 +216,9 @@ export async function getSystemWorkers(
         };
     }
 ) {
+    // 認証チェック - 機密データへのアクセス
+    await requireSystemAdminAuth();
+
     const skip = (page - 1) * limit;
 
     const where: any = {};
@@ -493,6 +504,7 @@ export async function getSystemWorkers(
  * システム管理用：ワーカー詳細取得（拡張版）
  */
 export async function getSystemWorkerDetail(id: number) {
+    await requireSystemAdminAuth();
     const worker = await prisma.user.findUnique({
         where: { id },
         include: {
@@ -655,6 +667,7 @@ export async function getSystemWorkerDetail(id: number) {
  * システム管理用：ワーカーアカウント停止/解除
  */
 export async function toggleWorkerSuspension(id: number, suspend: boolean) {
+    await requireSystemAdminAuth();
     try {
         const worker = await prisma.user.update({
             where: { id },
@@ -681,6 +694,7 @@ export async function getSystemFacilities(
     sort: string = 'created_at',
     order: 'asc' | 'desc' = 'desc'
 ) {
+    await requireSystemAdminAuth();
     const skip = (page - 1) * limit;
 
     const where: any = {};
@@ -719,6 +733,7 @@ export async function getSystemFacilities(
  * 施設管理者としてログインするためのトークンを生成
  */
 export async function generateMasqueradeToken(facilityId: number, adminId: number) {
+    await requireSystemAdminAuth();
     const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 
     await prisma.systemLog.create({
@@ -738,6 +753,7 @@ export async function generateMasqueradeToken(facilityId: number, adminId: numbe
  * ワーカーとしてログインするためのトークンを生成
  */
 export async function generateWorkerMasqueradeToken(workerId: number) {
+    await requireSystemAdminAuth();
     const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 
     // ワーカーの存在確認
@@ -901,249 +917,251 @@ export async function getSystemFacilitiesExtended(
         };
     }
 ) {
-  try {
-    const skip = (page - 1) * limit;
-    const where: any = {};
+    await requireSystemAdminAuth();
+    try {
+        const skip = (page - 1) * limit;
+        const where: any = {};
 
-    // 検索条件
-    if (search) {
-        const searchTerm = search.trim();
-        if (/^\d+$/.test(searchTerm)) {
-            where.OR = [
-                { id: parseInt(searchTerm, 10) },
-                { facility_name: { contains: searchTerm, mode: 'insensitive' } },
-                { corporation_name: { contains: searchTerm, mode: 'insensitive' } },
-            ];
-        } else {
-            where.OR = [
-                { facility_name: { contains: searchTerm, mode: 'insensitive' } },
-                { corporation_name: { contains: searchTerm, mode: 'insensitive' } },
-            ];
+        // 検索条件
+        if (search) {
+            const searchTerm = search.trim();
+            if (/^\d+$/.test(searchTerm)) {
+                where.OR = [
+                    { id: parseInt(searchTerm, 10) },
+                    { facility_name: { contains: searchTerm, mode: 'insensitive' } },
+                    { corporation_name: { contains: searchTerm, mode: 'insensitive' } },
+                ];
+            } else {
+                where.OR = [
+                    { facility_name: { contains: searchTerm, mode: 'insensitive' } },
+                    { corporation_name: { contains: searchTerm, mode: 'insensitive' } },
+                ];
+            }
         }
-    }
 
-    // フィルター
-    if (filters) {
-        if (filters.facilityType) {
-            where.facility_type = filters.facilityType;
+        // フィルター
+        if (filters) {
+            if (filters.facilityType) {
+                where.facility_type = filters.facilityType;
+            }
+            if (filters.prefecture) {
+                where.prefecture = filters.prefecture;
+            }
+            if (filters.city) {
+                where.city = filters.city;
+            }
         }
-        if (filters.prefecture) {
-            where.prefecture = filters.prefecture;
-        }
-        if (filters.city) {
-            where.city = filters.city;
-        }
-    }
 
-    // 計算フィールドでのソートかどうか
-    const calculatedSortFields = [
-        'parentJobCount',
-        'childJobCount',
-        'applicationCount',
-        'matchingCount',
-        'avgApplicationMatchingPeriod',
-        'avgJobMatchingPeriod',
-        'distance'
-    ];
-    const isCalculatedSort = calculatedSortFields.includes(sort);
-    const isDistanceSearch = filters?.distanceFrom && filters.distanceFrom.lat && filters.distanceFrom.lng;
+        // 計算フィールドでのソートかどうか
+        const calculatedSortFields = [
+            'parentJobCount',
+            'childJobCount',
+            'applicationCount',
+            'matchingCount',
+            'avgApplicationMatchingPeriod',
+            'avgJobMatchingPeriod',
+            'distance'
+        ];
+        const isCalculatedSort = calculatedSortFields.includes(sort);
+        const isDistanceSearch = filters?.distanceFrom && filters.distanceFrom.lat && filters.distanceFrom.lng;
 
-    if (isCalculatedSort || isDistanceSearch) {
-        // 全件取得してJS処理
-        // 施設のlat/lngは @default(0) でnullableではないため、0以外の値を持つものを検索
-        const allFacilities = await prisma.facility.findMany({
-            where: {
-                ...where,
-                ...(isDistanceSearch ? { AND: [{ lat: { not: 0 } }, { lng: { not: 0 } }] } : {})
-            },
-            include: {
-                jobs: {
-                    include: {
-                        workDates: {
-                            include: {
-                                applications: true
+        if (isCalculatedSort || isDistanceSearch) {
+            // 全件取得してJS処理
+            // 施設のlat/lngは @default(0) でnullableではないため、0以外の値を持つものを検索
+            const allFacilities = await prisma.facility.findMany({
+                where: {
+                    ...where,
+                    ...(isDistanceSearch ? { AND: [{ lat: { not: 0 } }, { lng: { not: 0 } }] } : {})
+                },
+                include: {
+                    jobs: {
+                        include: {
+                            workDates: {
+                                include: {
+                                    applications: true
+                                }
                             }
                         }
-                    }
-                },
-                _count: {
-                    select: {
-                        reviews: true
+                    },
+                    _count: {
+                        select: {
+                            reviews: true
+                        }
                     }
                 }
-            }
-        });
+            });
 
-        // データ加工
-        let processed = allFacilities.map(f => {
-            const parentJobCount = f.jobs.length;
-            const childJobCount = f.jobs.reduce((sum, j) => sum + j.workDates.length, 0);
+            // データ加工
+            let processed = allFacilities.map(f => {
+                const parentJobCount = f.jobs.length;
+                const childJobCount = f.jobs.reduce((sum, j) => sum + j.workDates.length, 0);
 
-            // 全応募のフラットリスト
-            const allApplications = f.jobs.flatMap(j => j.workDates.flatMap(wd => wd.applications));
-            const applicationCount = allApplications.length;
+                // 全応募のフラットリスト
+                const allApplications = f.jobs.flatMap(j => j.workDates.flatMap(wd => wd.applications));
+                const applicationCount = allApplications.length;
 
-            // SCHEDULED以上のステータスをマッチングとみなす
-            // JobStatusではなくWorkerStatus: APPLIED, SCHEDULED, WORKING, COMPLETED_PENDING, COMPLETED_RATED, CANCELLED
-            const matchedApps = allApplications.filter(a =>
-                ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'].includes(a.status)
-            );
-            const matchingCount = matchedApps.length;
+                // SCHEDULED以上のステータスをマッチングとみなす
+                // JobStatusではなくWorkerStatus: APPLIED, SCHEDULED, WORKING, COMPLETED_PENDING, COMPLETED_RATED, CANCELLED
+                const matchedApps = allApplications.filter(a =>
+                    ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'].includes(a.status)
+                );
+                const matchingCount = matchedApps.length;
 
-            // 応募マッチング期間 (updated_at - created_at)
-            // statusがSCHEDULED以上の場合、updated_atをマッチング時刻とみなす（厳密ではないが指示通り）
-            const appPeriods = matchedApps.map(a =>
-                (new Date(a.updated_at).getTime() - new Date(a.created_at).getTime()) / (1000 * 60 * 60)
-            );
-            const avgApplicationMatchingPeriod = appPeriods.length > 0
-                ? appPeriods.reduce((a, b) => a + b, 0) / appPeriods.length
-                : 0;
+                // 応募マッチング期間 (updated_at - created_at)
+                // statusがSCHEDULED以上の場合、updated_atをマッチング時刻とみなす（厳密ではないが指示通り）
+                const appPeriods = matchedApps.map(a =>
+                    (new Date(a.updated_at).getTime() - new Date(a.created_at).getTime()) / (1000 * 60 * 60)
+                );
+                const avgApplicationMatchingPeriod = appPeriods.length > 0
+                    ? appPeriods.reduce((a, b) => a + b, 0) / appPeriods.length
+                    : 0;
 
-            // 求人マッチング期間 (最初のマッチング時刻 - Job.created_at)
-            // Jobごとに最初のマッチングを探す
-            const jobPeriods = f.jobs.map(j => {
-                const jobApps = j.workDates.flatMap(wd => wd.applications)
-                    .filter(a => ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'].includes(a.status));
+                // 求人マッチング期間 (最初のマッチング時刻 - Job.created_at)
+                // Jobごとに最初のマッチングを探す
+                const jobPeriods = f.jobs.map(j => {
+                    const jobApps = j.workDates.flatMap(wd => wd.applications)
+                        .filter(a => ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'].includes(a.status));
 
-                if (jobApps.length === 0) return null;
+                    if (jobApps.length === 0) return null;
 
-                // 最初に応募日時ではなくステータス更新日時が早いもの
-                // ここでは Application.updated_at の最小値を使う
-                const firstMatch = jobApps.reduce((min, a) =>
-                    new Date(a.updated_at) < new Date(min.updated_at) ? a : min
-                    , jobApps[0]);
+                    // 最初に応募日時ではなくステータス更新日時が早いもの
+                    // ここでは Application.updated_at の最小値を使う
+                    const firstMatch = jobApps.reduce((min, a) =>
+                        new Date(a.updated_at) < new Date(min.updated_at) ? a : min
+                        , jobApps[0]);
 
-                return (new Date(firstMatch.updated_at).getTime() - new Date(j.created_at).getTime()) / (1000 * 60 * 60);
-            }).filter(p => p !== null) as number[];
+                    return (new Date(firstMatch.updated_at).getTime() - new Date(j.created_at).getTime()) / (1000 * 60 * 60);
+                }).filter(p => p !== null) as number[];
 
-            const avgJobMatchingPeriod = jobPeriods.length > 0
-                ? jobPeriods.reduce((a, b) => a + b, 0) / jobPeriods.length
-                : 0;
+                const avgJobMatchingPeriod = jobPeriods.length > 0
+                    ? jobPeriods.reduce((a, b) => a + b, 0) / jobPeriods.length
+                    : 0;
 
-            let distance: number | null = null;
-            if (isDistanceSearch && filters?.distanceFrom && f.lat !== null && f.lng !== null) {
-                distance = calculateDistance(
-                    filters.distanceFrom.lat,
-                    filters.distanceFrom.lng,
-                    f.lat,
-                    f.lng
+                let distance: number | null = null;
+                if (isDistanceSearch && filters?.distanceFrom && f.lat !== null && f.lng !== null) {
+                    distance = calculateDistance(
+                        filters.distanceFrom.lat,
+                        filters.distanceFrom.lng,
+                        f.lat,
+                        f.lng
+                    );
+                }
+
+                return {
+                    ...f,
+                    parentJobCount,
+                    childJobCount,
+                    applicationCount,
+                    matchingCount,
+                    avgApplicationMatchingPeriod,
+                    avgJobMatchingPeriod,
+                    distance,
+                    // jobsデータが重いので削除して返す
+                    jobs: undefined
+                };
+            });
+
+            // 距離フィルタ（distanceがnullの場合は除外）
+            if (isDistanceSearch && filters?.distanceFrom) {
+                processed = processed.filter(f =>
+                    f.distance !== null && f.distance <= filters.distanceFrom!.maxDistance
                 );
             }
 
+            // ソート
+            processed.sort((a, b) => {
+                const valA = (a as any)[sort] || 0;
+                const valB = (b as any)[sort] || 0;
+                return order === 'asc' ? valA - valB : valB - valA;
+            });
+
+            const total = processed.length;
+            const paged = processed.slice(skip, skip + limit);
+
             return {
-                ...f,
-                parentJobCount,
-                childJobCount,
-                applicationCount,
-                matchingCount,
-                avgApplicationMatchingPeriod,
-                avgJobMatchingPeriod,
-                distance,
-                // jobsデータが重いので削除して返す
-                jobs: undefined
+                facilities: paged,
+                total,
+                totalPages: Math.ceil(total / limit)
             };
-        });
-
-        // 距離フィルタ（distanceがnullの場合は除外）
-        if (isDistanceSearch && filters?.distanceFrom) {
-            processed = processed.filter(f =>
-                f.distance !== null && f.distance <= filters.distanceFrom!.maxDistance
-            );
-        }
-
-        // ソート
-        processed.sort((a, b) => {
-            const valA = (a as any)[sort] || 0;
-            const valB = (b as any)[sort] || 0;
-            return order === 'asc' ? valA - valB : valB - valA;
-        });
-
-        const total = processed.length;
-        const paged = processed.slice(skip, skip + limit);
-
-        return {
-            facilities: paged,
-            total,
-            totalPages: Math.ceil(total / limit)
-        };
-    } else {
-        // DB検索
-        const [facilities, total] = await Promise.all([
-            prisma.facility.findMany({
-                where,
-                skip,
-                take: limit,
-                orderBy: { [sort]: order },
-                include: {
-                    _count: {
-                        select: {
-                            jobs: true,
-                            reviews: true
-                        }
-                    },
-                    jobs: {
-                        select: {
-                            id: true,
-                            workDates: {
-                                select: {
-                                    id: true,
-                                    applications: {
-                                        select: {
-                                            id: true,
-                                            status: true,
-                                            created_at: true,
-                                            updated_at: true
+        } else {
+            // DB検索
+            const [facilities, total] = await Promise.all([
+                prisma.facility.findMany({
+                    where,
+                    skip,
+                    take: limit,
+                    orderBy: { [sort]: order },
+                    include: {
+                        _count: {
+                            select: {
+                                jobs: true,
+                                reviews: true
+                            }
+                        },
+                        jobs: {
+                            select: {
+                                id: true,
+                                workDates: {
+                                    select: {
+                                        id: true,
+                                        applications: {
+                                            select: {
+                                                id: true,
+                                                status: true,
+                                                created_at: true,
+                                                updated_at: true
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
                     }
-                }
-            }),
-            prisma.facility.count({ where }),
-        ]);
+                }),
+                prisma.facility.count({ where }),
+            ]);
 
-        // 統計情報計算（ソートには使わないが表示に必要）
-        const processed = facilities.map(f => {
-            const parentJobCount = f._count.jobs;
-            const childJobCount = f.jobs.reduce((sum, j) => sum + j.workDates.length, 0);
-            const allApplications = f.jobs.flatMap(j => j.workDates.flatMap(wd => wd.applications));
-            const applicationCount = allApplications.length;
+            // 統計情報計算（ソートには使わないが表示に必要）
+            const processed = facilities.map(f => {
+                const parentJobCount = f._count.jobs;
+                const childJobCount = f.jobs.reduce((sum, j) => sum + j.workDates.length, 0);
+                const allApplications = f.jobs.flatMap(j => j.workDates.flatMap(wd => wd.applications));
+                const applicationCount = allApplications.length;
 
-            const matchedApps = allApplications.filter(a =>
-                ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'].includes(a.status)
-            );
-            const matchingCount = matchedApps.length;
+                const matchedApps = allApplications.filter(a =>
+                    ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'].includes(a.status)
+                );
+                const matchingCount = matchedApps.length;
+
+                return {
+                    ...f,
+                    parentJobCount,
+                    childJobCount,
+                    applicationCount,
+                    matchingCount,
+                    avgApplicationMatchingPeriod: 0, // 一覧での詳細計算は負荷が高いのでスキップ（必要なら実装）
+                    avgJobMatchingPeriod: 0,
+                    jobs: undefined
+                };
+            });
 
             return {
-                ...f,
-                parentJobCount,
-                childJobCount,
-                applicationCount,
-                matchingCount,
-                avgApplicationMatchingPeriod: 0, // 一覧での詳細計算は負荷が高いのでスキップ（必要なら実装）
-                avgJobMatchingPeriod: 0,
-                jobs: undefined
+                facilities: processed,
+                total,
+                totalPages: Math.ceil(total / limit)
             };
-        });
-
-        return {
-            facilities: processed,
-            total,
-            totalPages: Math.ceil(total / limit)
-        };
+        }
+    } catch (error) {
+        console.error('[getSystemFacilitiesExtended] Error:', error);
+        throw error;
     }
-  } catch (error) {
-    console.error('[getSystemFacilitiesExtended] Error:', error);
-    throw error;
-  }
 }
 
 /**
  * 施設詳細取得（拡張版）
  */
 export async function getSystemFacilityDetailExtended(id: number) {
+    await requireSystemAdminAuth();
     const facility = await prisma.facility.findUnique({
         where: { id },
         include: {
@@ -1241,6 +1259,7 @@ export async function createFacilityWithAdmin(data: {
     adminPassword: string;
     adminPhone?: string;
 }) {
+    await requireSystemAdminAuth();
     // メールアドレス重複チェック
     const existingAdmin = await prisma.facilityAdmin.findUnique({
         where: { email: data.adminEmail }
@@ -1317,6 +1336,7 @@ export async function createFacilityWithAdmin(data: {
  * 施設の全求人を停止
  */
 export async function stopAllFacilityJobs(facilityId: number) {
+    await requireSystemAdminAuth();
     try {
         await prisma.job.updateMany({
             where: {
@@ -1345,6 +1365,7 @@ export async function stopAllFacilityJobs(facilityId: number) {
  * パスワードリセットメール送信（モック）
  */
 export async function sendPasswordResetEmail(adminId: number) {
+    await requireSystemAdminAuth();
     try {
         const admin = await prisma.facilityAdmin.findUnique({ where: { id: adminId } });
         if (!admin) return { success: false, error: '管理者が存在しません' };
@@ -1469,6 +1490,7 @@ export async function getSystemJobs(
     sort: string = 'created_at',
     order: 'asc' | 'desc' = 'desc'
 ) {
+    await requireSystemAdminAuth();
     const skip = (page - 1) * limit;
     const where: any = {};
 
@@ -1522,6 +1544,7 @@ export async function getSystemApplications(
     sort: string = 'created_at',
     order: 'asc' | 'desc' = 'desc'
 ) {
+    await requireSystemAdminAuth();
     const skip = (page - 1) * limit;
     const where: any = {};
 
@@ -1583,6 +1606,7 @@ export async function getSystemAnnouncements(
     targetType?: string,
     status?: string // 'PUBLISHED' | 'DRAFT'
 ) {
+    await requireSystemAdminAuth();
     const skip = (page - 1) * limit;
     const where: any = {};
 
@@ -1622,23 +1646,61 @@ export async function getSystemAnnouncements(
     };
 }
 
-/**
- * お知らせ作成
- */
-export async function createAnnouncement(data: {
+// お知らせフィルター条件の型定義
+export interface AnnouncementFilterConditions {
+    [key: string]: boolean | number[] | string[] | undefined;
+    selectAll?: boolean;
+    workerSelectAll?: boolean;
+    facilitySelectAll?: boolean;
+    regionIds?: number[];
+    // ワーカー向け
+    ageRanges?: string[];
+    genders?: string[];
+    qualifications?: string[];
+    // 施設向け
+    facilityTypes?: string[];
+}
+
+export interface CreateAnnouncementData {
     title: string;
     content: string;
     category: string;
-    target_type: string;
+    target_type: string; // "WORKER" | "FACILITY" | "BOTH"
     published: boolean;
-}) {
+    scheduled_at?: string | null; // ISO形式の日時文字列（予約公開日時）
+    filter_conditions?: AnnouncementFilterConditions;
+}
+
+/**
+ * お知らせ作成（フィルター条件付き）
+ */
+export async function createAnnouncement(data: CreateAnnouncementData) {
+    await requireSystemAdminAuth();
     try {
+        // 予約公開日時の処理
+        const scheduledAt = data.scheduled_at ? new Date(data.scheduled_at) : null;
+
+        // 「今すぐ公開」の場合のみpublished=true、それ以外はfalse（予約または下書き）
+        const shouldPublishNow = data.published && !scheduledAt;
+
         const announcement = await prisma.announcement.create({
             data: {
-                ...data,
-                published_at: data.published ? new Date() : null,
+                title: data.title,
+                content: data.content,
+                category: data.category,
+                target_type: data.target_type,
+                published: shouldPublishNow,
+                published_at: shouldPublishNow ? new Date() : null,
+                scheduled_at: scheduledAt,
+                filter_conditions: data.filter_conditions ?? undefined,
             },
         });
+
+        // 今すぐ公開の場合、配信先を登録
+        if (shouldPublishNow) {
+            await registerAnnouncementRecipients(announcement.id, data.target_type, data.filter_conditions);
+        }
+
         return { success: true, announcement };
     } catch (error) {
         console.error('Create Announcement Error:', error);
@@ -1647,23 +1709,40 @@ export async function createAnnouncement(data: {
 }
 
 /**
- * お知らせ更新
+ * お知らせ更新（フィルター条件付き）
  */
-export async function updateAnnouncement(id: number, data: {
-    title: string;
-    content: string;
-    category: string;
-    target_type: string;
-    published: boolean;
-}) {
+export async function updateAnnouncement(id: number, data: CreateAnnouncementData) {
+    await requireSystemAdminAuth();
     try {
+        // 既存のお知らせを取得
+        const existing = await prisma.announcement.findUnique({ where: { id } });
+        const wasPublished = existing?.published;
+
+        // 予約公開日時の処理
+        const scheduledAt = data.scheduled_at ? new Date(data.scheduled_at) : null;
+
+        // 「今すぐ公開」の場合のみpublished=true
+        const shouldPublishNow = data.published && !scheduledAt;
+
         const announcement = await prisma.announcement.update({
             where: { id },
             data: {
-                ...data,
-                published_at: data.published ? new Date() : null,
+                title: data.title,
+                content: data.content,
+                category: data.category,
+                target_type: data.target_type,
+                published: shouldPublishNow,
+                published_at: shouldPublishNow && !wasPublished ? new Date() : existing?.published_at,
+                scheduled_at: scheduledAt,
+                filter_conditions: data.filter_conditions ?? undefined,
             }
         });
+
+        // 下書き→公開に変更された場合、配信先を登録
+        if (!wasPublished && shouldPublishNow) {
+            await registerAnnouncementRecipients(announcement.id, data.target_type, data.filter_conditions);
+        }
+
         return { success: true, announcement };
     } catch (error) {
         console.error('Update Announcement Error:', error);
@@ -1675,6 +1754,7 @@ export async function updateAnnouncement(id: number, data: {
  * お知らせ削除
  */
 export async function deleteAnnouncement(id: number) {
+    await requireSystemAdminAuth();
     try {
         await prisma.announcement.delete({
             where: { id },
@@ -1687,12 +1767,325 @@ export async function deleteAnnouncement(id: number) {
 }
 
 /**
+ * 予約公開日時が来たお知らせを公開する
+ * cronジョブまたはAPI呼び出しで定期的に実行する
+ */
+export async function publishScheduledAnnouncements() {
+    try {
+        const now = new Date();
+
+        // 予約公開日時が過ぎている未公開のお知らせを取得
+        const scheduledAnnouncements = await prisma.announcement.findMany({
+            where: {
+                published: false,
+                scheduled_at: {
+                    not: null,
+                    lte: now,
+                },
+            },
+        });
+
+        for (const announcement of scheduledAnnouncements) {
+            // 公開状態に更新
+            await prisma.announcement.update({
+                where: { id: announcement.id },
+                data: {
+                    published: true,
+                    published_at: now,
+                    scheduled_at: null, // 予約日時をクリア
+                },
+            });
+
+            // 配信先を登録
+            const filterConditions = announcement.filter_conditions as AnnouncementFilterConditions | null;
+            await registerAnnouncementRecipients(
+                announcement.id,
+                announcement.target_type,
+                filterConditions ?? undefined
+            );
+        }
+
+        return { success: true, publishedCount: scheduledAnnouncements.length };
+    } catch (error) {
+        console.error('Publish Scheduled Announcements Error:', error);
+        return { success: false, error: '予約公開の処理に失敗しました' };
+    }
+}
+
+/**
  * お知らせ詳細取得
  */
 export async function getAnnouncementDetail(id: number) {
+    await requireSystemAdminAuth();
     return await prisma.announcement.findUnique({
         where: { id },
+        include: {
+            recipients: {
+                select: {
+                    recipient_type: true,
+                    recipient_id: true,
+                    is_read: true,
+                }
+            }
+        }
     });
+}
+
+/**
+ * お知らせ配信先登録（フィルター条件に基づく）
+ */
+async function registerAnnouncementRecipients(
+    announcementId: number,
+    targetType: string,
+    filterConditions?: AnnouncementFilterConditions
+) {
+    const recipients: { announcement_id: number; recipient_type: string; recipient_id: number }[] = [];
+
+    // ワーカー向け配信
+    if (targetType === 'WORKER' || targetType === 'BOTH') {
+        const workerIds = await getFilteredWorkerIds(filterConditions);
+        workerIds.forEach(id => {
+            recipients.push({
+                announcement_id: announcementId,
+                recipient_type: 'WORKER',
+                recipient_id: id,
+            });
+        });
+    }
+
+    // 施設向け配信
+    if (targetType === 'FACILITY' || targetType === 'BOTH') {
+        const facilityIds = await getFilteredFacilityIds(filterConditions);
+        facilityIds.forEach(id => {
+            recipients.push({
+                announcement_id: announcementId,
+                recipient_type: 'FACILITY',
+                recipient_id: id,
+            });
+        });
+    }
+
+    // バッチ挿入
+    if (recipients.length > 0) {
+        await prisma.announcementRecipient.createMany({
+            data: recipients,
+            skipDuplicates: true,
+        });
+    }
+
+    return recipients.length;
+}
+
+/**
+ * フィルター条件に基づくワーカーID取得
+ */
+async function getFilteredWorkerIds(filterConditions?: AnnouncementFilterConditions): Promise<number[]> {
+    if (!filterConditions || filterConditions.selectAll) {
+        const workers = await prisma.user.findMany({ select: { id: true } });
+        return workers.map(w => w.id);
+    }
+
+    const where: any = {};
+
+    // 地域フィルター
+    if (filterConditions.regionIds && filterConditions.regionIds.length > 0) {
+        const regions = await prisma.analyticsRegion.findMany({
+            where: { id: { in: filterConditions.regionIds } }
+        });
+
+        const prefectureCityConditions: any[] = [];
+        for (const region of regions) {
+            const prefCities = region.prefecture_cities as Record<string, string[]>;
+            for (const [pref, cities] of Object.entries(prefCities)) {
+                if (cities.length === 0) {
+                    prefectureCityConditions.push({ prefecture: pref });
+                } else {
+                    prefectureCityConditions.push({ prefecture: pref, city: { in: cities } });
+                }
+            }
+        }
+        if (prefectureCityConditions.length > 0) {
+            where.OR = prefectureCityConditions;
+        }
+    }
+
+    // 性別フィルター
+    if (filterConditions.genders && filterConditions.genders.length > 0) {
+        where.gender = { in: filterConditions.genders };
+    }
+
+    // 資格フィルター
+    if (filterConditions.qualifications && filterConditions.qualifications.length > 0) {
+        where.qualifications = { hasSome: filterConditions.qualifications };
+    }
+
+    // 年齢フィルターは取得後にフィルタリング
+    let workers = await prisma.user.findMany({
+        where,
+        select: { id: true, birth_date: true }
+    });
+
+    // 年齢フィルター適用
+    if (filterConditions.ageRanges && filterConditions.ageRanges.length > 0) {
+        const now = new Date();
+        workers = workers.filter(w => {
+            if (!w.birth_date) return false;
+            const age = now.getFullYear() - w.birth_date.getFullYear();
+            return filterConditions.ageRanges!.some(range => {
+                switch (range) {
+                    case '20代以下': return age <= 29;
+                    case '30代': return age >= 30 && age <= 39;
+                    case '40代': return age >= 40 && age <= 49;
+                    case '50代': return age >= 50 && age <= 59;
+                    case '60代以上': return age >= 60;
+                    default: return false;
+                }
+            });
+        });
+    }
+
+    return workers.map(w => w.id);
+}
+
+/**
+ * フィルター条件に基づく施設ID取得
+ */
+async function getFilteredFacilityIds(filterConditions?: AnnouncementFilterConditions): Promise<number[]> {
+    if (!filterConditions || filterConditions.selectAll) {
+        const facilities = await prisma.facility.findMany({ select: { id: true } });
+        return facilities.map(f => f.id);
+    }
+
+    const where: any = {};
+
+    // 地域フィルター
+    if (filterConditions.regionIds && filterConditions.regionIds.length > 0) {
+        const regions = await prisma.analyticsRegion.findMany({
+            where: { id: { in: filterConditions.regionIds } }
+        });
+
+        const prefectureCityConditions: any[] = [];
+        for (const region of regions) {
+            const prefCities = region.prefecture_cities as Record<string, string[]>;
+            for (const [pref, cities] of Object.entries(prefCities)) {
+                if (cities.length === 0) {
+                    prefectureCityConditions.push({ prefecture: pref });
+                } else {
+                    prefectureCityConditions.push({ prefecture: pref, city: { in: cities } });
+                }
+            }
+        }
+        if (prefectureCityConditions.length > 0) {
+            where.OR = prefectureCityConditions;
+        }
+    }
+
+    // サービス種別フィルター
+    if (filterConditions.facilityTypes && filterConditions.facilityTypes.length > 0) {
+        where.facility_type = { in: filterConditions.facilityTypes };
+    }
+
+    const facilities = await prisma.facility.findMany({
+        where,
+        select: { id: true }
+    });
+
+    return facilities.map(f => f.id);
+}
+
+/**
+ * ワーカー向けお知らせ取得
+ */
+export async function getWorkerAnnouncements(userId: number) {
+    const announcements = await prisma.announcementRecipient.findMany({
+        where: {
+            recipient_type: 'WORKER',
+            recipient_id: userId,
+            announcement: {
+                published: true,
+            }
+        },
+        include: {
+            announcement: true,
+        },
+        orderBy: {
+            announcement: {
+                published_at: 'desc'
+            }
+        }
+    });
+
+    return announcements.map(r => ({
+        id: r.announcement.id,
+        title: r.announcement.title,
+        content: r.announcement.content,
+        category: r.announcement.category,
+        publishedAt: r.announcement.published_at,
+        isRead: r.is_read,
+        readAt: r.read_at,
+    }));
+}
+
+/**
+ * 施設向けお知らせ取得
+ */
+export async function getFacilityAnnouncements(facilityId: number) {
+    const announcements = await prisma.announcementRecipient.findMany({
+        where: {
+            recipient_type: 'FACILITY',
+            recipient_id: facilityId,
+            announcement: {
+                published: true,
+            }
+        },
+        include: {
+            announcement: true,
+        },
+        orderBy: {
+            announcement: {
+                published_at: 'desc'
+            }
+        }
+    });
+
+    return announcements.map(r => ({
+        id: r.announcement.id,
+        title: r.announcement.title,
+        content: r.announcement.content,
+        category: r.announcement.category,
+        publishedAt: r.announcement.published_at,
+        isRead: r.is_read,
+        readAt: r.read_at,
+    }));
+}
+
+/**
+ * お知らせ既読にする
+ */
+export async function markAnnouncementAsRead(
+    announcementId: number,
+    recipientType: 'WORKER' | 'FACILITY',
+    recipientId: number
+) {
+    try {
+        await prisma.announcementRecipient.update({
+            where: {
+                announcement_id_recipient_type_recipient_id: {
+                    announcement_id: announcementId,
+                    recipient_type: recipientType,
+                    recipient_id: recipientId,
+                }
+            },
+            data: {
+                is_read: true,
+                read_at: new Date(),
+            }
+        });
+        return { success: true };
+    } catch (error) {
+        console.error('Mark announcement as read error:', error);
+        return { success: false };
+    }
 }
 
 /**
@@ -2527,4 +2920,592 @@ export async function sendFacilityPasswordResetEmail(adminId: number) {
         console.error('Send password reset email error:', error);
         return { success: false, error: 'メール送信に失敗しました' };
     }
+}
+
+// =====================================
+// 労働条件通知書テンプレート管理
+// =====================================
+
+
+// デフォルトテンプレート
+const DEFAULT_TEMPLATE_CONTENT = `労働条件通知書
+
+発行日: {{発行日}}
+
+■ 使用者情報
+使用者法人名: {{法人名}}
+事業所名称: {{施設名}}
+法人所在地: {{所在地}}
+就業場所: {{就業場所}}
+
+■ 労働者情報
+労働者氏名: {{ワーカー名}} 殿
+
+■ 契約情報
+就労日: {{就労日}}
+労働契約の期間: 1日（単発契約）
+契約更新の有無: 有（ただし条件あり、都度契約）
+
+■ 業務内容
+{{業務内容}}
+
+■ 勤務時間
+始業時刻: {{始業時刻}}
+終業時刻: {{終業時刻}}
+休憩時間: {{休憩時間}}
+所定時間外労働: 原則なし
+
+■ 賃金
+基本賃金: 時給 {{時給}}
+日給合計: {{日給}}
+諸手当（交通費）: {{交通費}}
+時間外労働割増: 法定通り（25%増）
+賃金支払日: 翌月末日払い
+支払方法: 銀行振込
+
+■ 社会保険等
+単発契約のため、社会保険・雇用保険・労災保険の適用については、法定の要件に基づき判断されます。
+
+■ 作業用品その他
+{{持ち物}}
+
+■ 受動喫煙防止措置
+{{喫煙対策}}
+
+■ 解雇の事由その他関連する事項
+当社では、以下に該当する場合、やむを得ず契約解除となる可能性がございます。
+
+【即時契約解除となる事由】
+・正当な理由なく無断欠勤が続いた場合
+・業務上の重大な過失または故意による事故を起こした場合
+・利用者様や他の職員に対する暴力行為、ハラスメント行為があった場合
+・業務上知り得た秘密を漏洩した場合
+・犯罪行為により逮捕または起訴された場合
+
+■ 誓約事項
+1. 業務上知り得た秘密は、在職中のみならず退職後においても第三者に漏洩いたしません。
+2. 利用者様の個人情報は適切に取り扱い、プライバシーを尊重いたします。
+3. 施設の規則・指示に従い、誠実に業務を遂行いたします。
+4. 遅刻・早退・欠勤の際は、速やかに連絡いたします。
+
+---
+本書は労働基準法第15条に基づき、労働条件を明示するものです。
+発行: S WORKS`;
+
+export interface LaborDocumentTemplateData {
+    id?: number;
+    template_content: string;
+    accent_color: string;
+}
+
+/**
+ * 労働条件通知書テンプレートを取得
+ */
+export async function getLaborDocumentTemplate(): Promise<LaborDocumentTemplateData> {
+    try {
+        let template = await prisma.laborDocumentTemplate.findFirst({
+            orderBy: { id: 'asc' },
+        });
+
+        if (!template) {
+            template = await prisma.laborDocumentTemplate.create({
+                data: {
+                    template_content: DEFAULT_TEMPLATE_CONTENT,
+                },
+            });
+        }
+
+        return {
+            id: template.id,
+            template_content: template.template_content,
+            accent_color: template.accent_color,
+        };
+    } catch (error) {
+        console.error('Get labor document template error:', error);
+        throw new Error('テンプレートの取得に失敗しました');
+    }
+}
+
+/**
+ * 労働条件通知書テンプレートを更新
+ */
+export async function updateLaborDocumentTemplate(
+    data: Partial<LaborDocumentTemplateData>
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        let template = await prisma.laborDocumentTemplate.findFirst({
+            orderBy: { id: 'asc' },
+        });
+
+        if (!template) {
+            template = await prisma.laborDocumentTemplate.create({
+                data: {
+                    template_content: data.template_content || DEFAULT_TEMPLATE_CONTENT,
+                },
+            });
+        }
+
+        await prisma.laborDocumentTemplate.update({
+            where: { id: template.id },
+            data: {
+                template_content: data.template_content,
+                accent_color: data.accent_color,
+            },
+        });
+
+        return { success: true };
+    } catch (error) {
+        console.error('Update labor document template error:', error);
+        return { success: false, error: 'テンプレートの更新に失敗しました' };
+    }
+}
+
+/**
+ * 労働条件通知書テンプレートをリセット
+ */
+export async function resetLaborDocumentTemplate(): Promise<{ success: boolean; error?: string }> {
+    try {
+        const template = await prisma.laborDocumentTemplate.findFirst({
+            orderBy: { id: 'asc' },
+        });
+
+        if (template) {
+            await prisma.laborDocumentTemplate.update({
+                where: { id: template.id },
+                data: {
+                    template_content: DEFAULT_TEMPLATE_CONTENT,
+                    accent_color: '#3B82F6',
+                },
+            });
+        }
+
+        return { success: true };
+    } catch (error) {
+        console.error('Reset labor document template error:', error);
+        return { success: false, error: 'テンプレートのリセットに失敗しました' };
+    }
+}
+
+/**
+ * 労働条件通知書テンプレートのプレビューPDFを生成
+ */
+export async function previewLaborDocumentTemplate(
+    templateContent: string,
+    accentColor: string
+): Promise<{ success: boolean; data?: string; error?: string }> {
+    try {
+        // ダミーデータを作成
+        const dummyData = {
+            application: {
+                id: 0,
+                status: 'APPLIED',
+                work_date: new Date().toISOString(),
+                created_at: new Date().toISOString(),
+            },
+            user: {
+                id: 0,
+                name: '山田 太郎',
+            },
+            job: {
+                id: 0,
+                title: '【未経験歓迎】介護アシスタント募集',
+                start_time: '09:00',
+                end_time: '18:00',
+                break_time: 60,
+                wage: 12000,
+                hourly_wage: 1500,
+                transportation_fee: 1000,
+                address: '東京都渋谷区...',
+                overview: '高齢者施設での介護補助業務です。',
+                work_content: ['食事介助', '入浴介助', 'レクリエーション補助'],
+                belongings: ['筆記用具', '動きやすい服装', '上履き'],
+            },
+            facility: {
+                id: 0,
+                corporation_name: '株式会社サンプルケア',
+                facility_name: 'サンプル老人ホーム渋谷',
+                address: '東京都渋谷区渋谷1-1-1',
+                prefecture: '東京都',
+                city: '渋谷区',
+                address_detail: '渋谷1-1-1',
+                smoking_measure: '屋内禁煙（喫煙室あり）',
+            },
+            dismissalReasons: null,
+        };
+
+        const pdfBuffer = await generateLaborDocumentPdf(dummyData, {
+            template_content: templateContent,
+            accent_color: accentColor,
+        });
+
+        // Base64に変換して返す
+        const base64Pdf = pdfBuffer.toString('base64');
+        return { success: true, data: `data:application/pdf;base64,${base64Pdf}` };
+    } catch (error) {
+        console.error('Preview labor document template error:', error);
+        return { success: false, error: 'プレビューの生成に失敗しました' };
+    }
+}
+
+/**
+ * ダッシュボード用の拡張KPIを取得
+ */
+export async function getDashboardKPIs() {
+    const [
+        totalWorkers,
+        totalFacilities,
+        activeParentJobs,
+        totalChildJobs,
+        workDatesWithApps
+    ] = await Promise.all([
+        // 登録ワーカー数
+        prisma.user.count({ where: { deleted_at: null } }),
+        // 登録施設数
+        prisma.facility.count({ where: { deleted_at: null } }),
+        // 親求人数（公開中）
+        prisma.job.count({ where: { status: 'PUBLISHED' } }),
+        // 子求人数（全て）
+        prisma.jobWorkDate.count(),
+        // 応募枠計算用
+        prisma.jobWorkDate.findMany({
+            select: {
+                recruitment_count: true,
+                applications: {
+                    where: {
+                        status: { in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'] }
+                    },
+                    select: { id: true }
+                }
+            }
+        })
+    ]);
+
+    // 残り応募枠の計算
+    const totalRemainingSlots = workDatesWithApps.reduce((sum, wd) => {
+        const filledSlots = wd.applications.length;
+        const remaining = Math.max(0, wd.recruitment_count - filledSlots);
+        return sum + remaining;
+    }, 0);
+
+    return {
+        totalWorkers,
+        totalFacilities,
+        activeParentJobs,
+        totalChildJobs,
+        totalRemainingSlots
+    };
+}
+
+/**
+ * ダッシュボード用トレンドデータ（直近30日）
+ */
+export async function getDashboardTrends() {
+    const endDate = new Date();
+    const startDate = subDays(endDate, 30);
+
+    // 日付リスト生成
+    const dateLabels: string[] = [];
+    for (let i = 30; i >= 0; i--) {
+        dateLabels.push(format(subDays(endDate, i), 'MM/dd'));
+    }
+
+    const [workers, facilities, workDates, applications] = await Promise.all([
+        // 新規ワーカー
+        prisma.user.findMany({
+            where: { created_at: { gte: startDate, lte: endDate }, deleted_at: null },
+            select: { created_at: true }
+        }),
+        // 新規施設
+        prisma.facility.findMany({
+            where: { created_at: { gte: startDate, lte: endDate }, deleted_at: null },
+            select: { created_at: true }
+        }),
+        // 新規子求人
+        prisma.jobWorkDate.findMany({
+            where: { created_at: { gte: startDate, lte: endDate } },
+            select: { created_at: true }
+        }),
+        // 応募（マッチング計算用）
+        prisma.application.findMany({
+            where: { created_at: { gte: startDate, lte: endDate } },
+            select: {
+                created_at: true,
+                updated_at: true,
+                status: true,
+                user_id: true,
+                workDate: {
+                    select: { job: { select: { created_at: true } } }
+                }
+            }
+        })
+    ]);
+
+    // 日付ごとに集計
+    const newWorkersByDate: Record<string, number> = {};
+    const newFacilitiesByDate: Record<string, number> = {};
+    const newChildJobsByDate: Record<string, number> = {};
+    const matchingsByDate: Record<string, number> = {};
+    const applicationsByDate: Record<string, number> = {};
+    const matchingHoursByDate: Record<string, number[]> = {};
+    const activeWorkersByDate: Record<string, Set<number>> = {};
+
+    // 初期化
+    dateLabels.forEach(d => {
+        newWorkersByDate[d] = 0;
+        newFacilitiesByDate[d] = 0;
+        newChildJobsByDate[d] = 0;
+        matchingsByDate[d] = 0;
+        applicationsByDate[d] = 0;
+        matchingHoursByDate[d] = [];
+        activeWorkersByDate[d] = new Set();
+    });
+
+    workers.forEach(w => {
+        const key = format(w.created_at, 'MM/dd');
+        if (newWorkersByDate[key] !== undefined) newWorkersByDate[key]++;
+    });
+
+    facilities.forEach(f => {
+        const key = format(f.created_at, 'MM/dd');
+        if (newFacilitiesByDate[key] !== undefined) newFacilitiesByDate[key]++;
+    });
+
+    workDates.forEach(wd => {
+        const key = format(wd.created_at, 'MM/dd');
+        if (newChildJobsByDate[key] !== undefined) newChildJobsByDate[key]++;
+    });
+
+    applications.forEach(app => {
+        const key = format(app.created_at, 'MM/dd');
+
+        // 応募数
+        if (applicationsByDate[key] !== undefined) {
+            applicationsByDate[key]++;
+            activeWorkersByDate[key].add(app.user_id);
+        }
+
+        // マッチング（SCHEDULED以上）
+        if (app.status !== 'APPLIED' && app.status !== 'CANCELLED') {
+            const matchKey = format(app.updated_at, 'MM/dd');
+            if (matchingsByDate[matchKey] !== undefined) {
+                matchingsByDate[matchKey]++;
+
+                // マッチング期間
+                if (app.workDate?.job?.created_at) {
+                    const hours = differenceInHours(app.updated_at, app.workDate.job.created_at);
+                    if (hours > 0) matchingHoursByDate[matchKey].push(hours);
+                }
+            }
+        }
+    });
+
+    // 配列に変換
+    const graph1 = {
+        labels: dateLabels,
+        newWorkers: dateLabels.map(d => newWorkersByDate[d]),
+        newFacilities: dateLabels.map(d => newFacilitiesByDate[d])
+    };
+
+    const graph2 = {
+        labels: dateLabels,
+        childJobs: dateLabels.map(d => newChildJobsByDate[d]),
+        matchings: dateLabels.map(d => matchingsByDate[d])
+    };
+
+    const graph3 = {
+        labels: dateLabels,
+        applicationsPerWorker: dateLabels.map(d => {
+            const workers = activeWorkersByDate[d].size || 1;
+            return Math.round((applicationsByDate[d] / workers) * 100) / 100;
+        }),
+        matchingsPerWorker: dateLabels.map(d => {
+            const workers = activeWorkersByDate[d].size || 1;
+            return Math.round((matchingsByDate[d] / workers) * 100) / 100;
+        })
+    };
+
+    const graph4 = {
+        labels: dateLabels,
+        avgMatchingHours: dateLabels.map(d => {
+            const hours = matchingHoursByDate[d];
+            if (hours.length === 0) return 0;
+            return Math.round((hours.reduce((a, b) => a + b, 0) / hours.length) * 10) / 10;
+        })
+    };
+
+    return { graph1, graph2, graph3, graph4 };
+}
+
+/**
+ * アラート対象のワーカー/施設を取得
+ */
+export async function getDashboardAlerts() {
+    // 閾値設定を取得
+    const alertSettings = await prisma.notificationSetting.findMany({
+        where: {
+            notification_key: {
+                in: [
+                    'ADMIN_WORKER_LOW_RATING_STREAK',
+                    'ADMIN_FACILITY_LOW_RATING_STREAK',
+                    'ADMIN_WORKER_HIGH_CANCEL_RATE',
+                    'ADMIN_FACILITY_HIGH_CANCEL_RATE'
+                ]
+            }
+        },
+        select: {
+            notification_key: true,
+            alert_thresholds: true
+        }
+    });
+
+    const thresholds: Record<string, any> = {};
+    alertSettings.forEach(s => {
+        thresholds[s.notification_key] = s.alert_thresholds || {};
+    });
+
+    const workerRatingThreshold = thresholds['ADMIN_WORKER_LOW_RATING_STREAK']?.avg_rating_threshold || 2.5;
+    const facilityRatingThreshold = thresholds['ADMIN_FACILITY_LOW_RATING_STREAK']?.avg_rating_threshold || 2.5;
+    const workerCancelThreshold = thresholds['ADMIN_WORKER_HIGH_CANCEL_RATE']?.cancel_rate_threshold || 30;
+    const facilityCancelThreshold = thresholds['ADMIN_FACILITY_HIGH_CANCEL_RATE']?.cancel_rate_threshold || 30;
+
+    const alerts: Array<{
+        id: number;
+        type: 'worker' | 'facility';
+        name: string;
+        alertType: 'low_rating' | 'high_cancel_rate';
+        value: number;
+        threshold: number;
+        detailUrl: string;
+    }> = [];
+
+    // ワーカーの低評価チェック
+    const workersWithRatings = await prisma.user.findMany({
+        where: { deleted_at: null },
+        select: {
+            id: true,
+            name: true,
+            reviews: {
+                where: { reviewer_type: 'FACILITY' },
+                select: { rating: true }
+            }
+        }
+    });
+
+    workersWithRatings.forEach(w => {
+        if (w.reviews.length >= 3) {
+            const avgRating = w.reviews.reduce((sum, r) => sum + r.rating, 0) / w.reviews.length;
+            if (avgRating <= workerRatingThreshold) {
+                alerts.push({
+                    id: w.id,
+                    type: 'worker',
+                    name: w.name,
+                    alertType: 'low_rating',
+                    value: avgRating,
+                    threshold: workerRatingThreshold,
+                    detailUrl: `/system-admin/workers/${w.id}`
+                });
+            }
+        }
+    });
+
+    // 施設の低評価チェック
+    const facilitiesWithRatings = await prisma.facility.findMany({
+        where: { deleted_at: null },
+        select: {
+            id: true,
+            facility_name: true,
+            reviews: {
+                where: { reviewer_type: 'WORKER' },
+                select: { rating: true }
+            }
+        }
+    });
+
+    facilitiesWithRatings.forEach(f => {
+        if (f.reviews.length >= 3) {
+            const avgRating = f.reviews.reduce((sum, r) => sum + r.rating, 0) / f.reviews.length;
+            if (avgRating <= facilityRatingThreshold) {
+                alerts.push({
+                    id: f.id,
+                    type: 'facility',
+                    name: f.facility_name,
+                    alertType: 'low_rating',
+                    value: avgRating,
+                    threshold: facilityRatingThreshold,
+                    detailUrl: `/system-admin/facilities/${f.id}`
+                });
+            }
+        }
+    });
+
+    // ワーカーのキャンセル率チェック
+    const workersWithApps = await prisma.user.findMany({
+        where: { deleted_at: null },
+        select: {
+            id: true,
+            name: true,
+            applications: {
+                select: { status: true, cancelled_by: true }
+            }
+        }
+    });
+
+    workersWithApps.forEach(w => {
+        if (w.applications.length >= 5) {
+            const cancelledByWorker = w.applications.filter(a => a.cancelled_by === 'WORKER').length;
+            const cancelRate = (cancelledByWorker / w.applications.length) * 100;
+            if (cancelRate > workerCancelThreshold) {
+                alerts.push({
+                    id: w.id,
+                    type: 'worker',
+                    name: w.name,
+                    alertType: 'high_cancel_rate',
+                    value: cancelRate,
+                    threshold: workerCancelThreshold,
+                    detailUrl: `/system-admin/workers/${w.id}`
+                });
+            }
+        }
+    });
+
+    // 施設のキャンセル率チェック（施設側キャンセル）
+    const facilitiesWithJobs = await prisma.facility.findMany({
+        where: { deleted_at: null },
+        select: {
+            id: true,
+            facility_name: true,
+            jobs: {
+                select: {
+                    workDates: {
+                        select: {
+                            applications: {
+                                select: { status: true, cancelled_by: true }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    facilitiesWithJobs.forEach(f => {
+        const allApps = f.jobs.flatMap(j => j.workDates.flatMap(wd => wd.applications));
+        if (allApps.length >= 5) {
+            const cancelledByFacility = allApps.filter(a => a.cancelled_by === 'FACILITY').length;
+            const cancelRate = (cancelledByFacility / allApps.length) * 100;
+            if (cancelRate > facilityCancelThreshold) {
+                alerts.push({
+                    id: f.id,
+                    type: 'facility',
+                    name: f.facility_name,
+                    alertType: 'high_cancel_rate',
+                    value: cancelRate,
+                    threshold: facilityCancelThreshold,
+                    detailUrl: `/system-admin/facilities/${f.id}`
+                });
+            }
+        }
+    });
+
+    return alerts;
 }

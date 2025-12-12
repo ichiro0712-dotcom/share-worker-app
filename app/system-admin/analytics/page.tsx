@@ -4,12 +4,15 @@ import { useState } from 'react';
 import WorkerAnalytics from './tabs/WorkerAnalytics';
 import FacilityAnalytics from './tabs/FacilityAnalytics';
 import MatchingAnalytics from './tabs/MatchingAnalytics';
+import MetricDefinitions from './tabs/MetricDefinitions';
 import Link from 'next/link';
+import { Book } from 'lucide-react';
 
 const TABS = [
     { id: 'worker', label: 'ワーカー分析' },
     { id: 'facility', label: '施設分析' },
     { id: 'matching', label: '応募・マッチング' },
+    { id: 'definitions', label: '定義一覧', icon: Book },
 ] as const;
 
 export default function AnalyticsPage() {
@@ -46,18 +49,22 @@ export default function AnalyticsPage() {
 
             {/* Tabs */}
             <div className="flex border-b border-slate-200 mb-6 space-x-6">
-                {TABS.map(tab => (
-                    <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
-                        className={`pb-4 px-2 text-sm font-medium transition-colors whitespace-nowrap ${activeTab === tab.id
-                                ? 'text-indigo-600 border-b-2 border-indigo-600'
-                                : 'text-slate-500 hover:text-slate-700'
-                            }`}
-                    >
-                        {tab.label}
-                    </button>
-                ))}
+                {TABS.map(tab => {
+                    const Icon = 'icon' in tab ? tab.icon : null;
+                    return (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`pb-4 px-2 text-sm font-medium transition-colors whitespace-nowrap flex items-center gap-1.5 ${activeTab === tab.id
+                                    ? 'text-indigo-600 border-b-2 border-indigo-600'
+                                    : 'text-slate-500 hover:text-slate-700'
+                                }`}
+                        >
+                            {Icon && <Icon className="w-4 h-4" />}
+                            {tab.label}
+                        </button>
+                    );
+                })}
             </div>
 
             {/* Content */}
@@ -65,6 +72,7 @@ export default function AnalyticsPage() {
                 {activeTab === 'worker' && <WorkerAnalytics />}
                 {activeTab === 'facility' && <FacilityAnalytics />}
                 {activeTab === 'matching' && <MatchingAnalytics />}
+                {activeTab === 'definitions' && <MetricDefinitions />}
             </div>
         </div>
     );

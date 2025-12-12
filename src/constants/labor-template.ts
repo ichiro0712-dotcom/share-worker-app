@@ -1,0 +1,18 @@
+export const LABOR_TEMPLATE_VARIABLES = [
+    { key: '{{法人名}}', description: '施設の法人名' },
+    { key: '{{施設名}}', description: '施設名' },
+    { key: '{{所在地}}', description: '施設の所在地' },
+    { key: '{{就業場所}}', description: '求人の就業場所' },
+    { key: '{{ワーカー名}}', description: '労働者の氏名' },
+    { key: '{{就労日}}', description: '勤務日（例: 2024年1月15日）' },
+    { key: '{{始業時刻}}', description: '始業時刻（例: 09:00）' },
+    { key: '{{終業時刻}}', description: '終業時刻（例: 18:00）' },
+    { key: '{{休憩時間}}', description: '休憩時間（例: 60分）' },
+    { key: '{{時給}}', description: '時給（例: 1,500円）' },
+    { key: '{{日給}}', description: '日給合計（例: 12,000円）' },
+    { key: '{{交通費}}', description: '交通費（例: 1,000円）' },
+    { key: '{{業務内容}}', description: '業務内容リスト' },
+    { key: '{{持ち物}}', description: '持ち物リスト' },
+    { key: '{{喫煙対策}}', description: '受動喫煙防止措置' },
+    { key: '{{発行日}}', description: '本日の日付' },
+];

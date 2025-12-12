@@ -15,6 +15,7 @@ import {
   updateFacilityAccountPassword,
   deleteFacilityAccount,
 } from '@/src/lib/actions';
+import { getSystemTemplates } from '@/src/lib/content-actions';
 import { MapPin } from 'lucide-react';
 import { validateFile } from '@/utils/fileValidation';
 import AddressSelector from '@/components/ui/AddressSelector';
@@ -193,17 +194,18 @@ export default function FacilityPage() {
   };
 
   // 初回自動送信メッセージ
-  const defaultWelcomeMessage = `[ワーカー名字]様
-
-この度は、[施設名]の求人にご応募いただき、誠にありがとうございます。
-施設長の[施設責任者名字]と申します。
-
-当施設では、働きやすい環境づくりを大切にしております。
-初めての方でも安心して勤務いただけるよう、丁寧にサポートいたしますので、
-どうぞよろしくお願いいたします。
-
-ご不明な点がございましたら、お気軽にお問い合わせください。
-皆様とお会いできることを楽しみにしております。`;
+  // 初回自動送信メッセージ (デフォルト値はDBから取得するように変更)
+  //   const defaultWelcomeMessage = `[ワーカー名字]様
+  //
+  // この度は、[施設名]の求人にご応募いただき、誠にありがとうございます。
+  // 施設長の[施設責任者名字]と申します。
+  //
+  // 当施設では、働きやすい環境づくりを大切にしております。
+  // 初めての方でも安心して勤務いただけるよう、丁寧にサポートいたしますので、
+  // どうぞよろしくお願いいたします。
+  //
+  // ご不明な点がございましたら、お気軽にお問い合わせください。
+  // 皆様とお会いできることを楽しみにしております。`;
 
   const [welcomeMessage, setWelcomeMessage] = useState({
     text: '',
@@ -219,7 +221,14 @@ export default function FacilityPage() {
       }
 
       try {
-        const data = await getFacilityInfo(admin.facilityId);
+        const [data, systemTemplates] = await Promise.all([
+          getFacilityInfo(admin.facilityId),
+          getSystemTemplates()
+        ]);
+
+        // システムテンプレートからデフォルトメッセージを取得（なければ空文字）
+        const systemWelcomeMessage = systemTemplates.welcome_message_template || '';
+
         if (data) {
           console.log('[loadFacilityInfo] Loaded data:', data);
 
@@ -255,10 +264,10 @@ export default function FacilityPage() {
               mapLng: 0,
               mapImage: '',
             });
-            // 初回メッセージのデフォルト値を空にリセット
+            // 初回メッセージのデフォルト値をシステムテンプレートからセット
             setWelcomeMessage((prev) => ({
               ...prev,
-              text: defaultWelcomeMessage,
+              text: systemWelcomeMessage,
             }));
             setIsLoading(false);
             return;
@@ -349,7 +358,7 @@ export default function FacilityPage() {
           // 初回メッセージをセット
           setWelcomeMessage((prev) => ({
             ...prev,
-            text: data.initialMessage || defaultWelcomeMessage,
+            text: data.initialMessage || systemWelcomeMessage,
           }));
         }
       } catch (error) {
@@ -1581,10 +1590,46 @@ export default function FacilityPage() {
                     <p className="mb-1.5">
                       また、メッセージ本文中では、送信時に変換される以下の変数を利用することができます。
                     </p>
-                    <ul className="space-y-0.5 ml-4 text-xs">
-                      <li><code className="bg-blue-100 px-1.5 py-0.5 rounded">[ワーカー名字]</code> ワーカーの名字（例: 山田）に変換されます</li>
-                      <li><code className="bg-blue-100 px-1.5 py-0.5 rounded">[施設責任者名字]</code> 施設責任者の名字（例: 斉藤）に変換されます</li>
-                      <li><code className="bg-blue-100 px-1.5 py-0.5 rounded">[施設名]</code> 施設名（例: カイテク施設）に変換されます</li>
+                    <ul className="space-y-1 ml-4 text-xs">
+                      <li className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText('[ワーカー名字]');
+                            toast.success('コピーしました');
+                          }}
+                          className="bg-blue-100 px-1.5 py-0.5 rounded hover:bg-blue-200 transition-colors cursor-pointer font-mono"
+                        >
+                          [ワーカー名字]
+                        </button>
+                        <span>ワーカーの名字（例: 山田）に変換されます</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText('[施設責任者名字]');
+                            toast.success('コピーしました');
+                          }}
+                          className="bg-blue-100 px-1.5 py-0.5 rounded hover:bg-blue-200 transition-colors cursor-pointer font-mono"
+                        >
+                          [施設責任者名字]
+                        </button>
+                        <span>施設責任者の名字（例: 斉藤）に変換されます</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText('[施設名]');
+                            toast.success('コピーしました');
+                          }}
+                          className="bg-blue-100 px-1.5 py-0.5 rounded hover:bg-blue-200 transition-colors cursor-pointer font-mono"
+                        >
+                          [施設名]
+                        </button>
+                        <span>施設名（例: カイテク施設）に変換されます</span>
+                      </li>
                     </ul>
                   </div>
 

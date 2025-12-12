@@ -65,6 +65,8 @@ export interface MatchingMetrics {
     date: string;
     parentJobCount: number;
     childJobCount: number;
+    totalSlots: number;           // 総応募枠数
+    remainingSlots: number;       // 応募枠数（残り）
     applicationCount: number;
     matchingCount: number;
     avgMatchingHours: number;     // マッチング期間（時間）
@@ -566,6 +568,7 @@ export async function getMatchingAnalyticsData(filter: AnalyticsFilter): Promise
     const [
         jobs,
         jobWorkDates,
+        jobWorkDatesWithSlots,
         applications,
         reviews
     ] = await Promise.all([
@@ -579,6 +582,24 @@ export async function getMatchingAnalyticsData(filter: AnalyticsFilter): Promise
                 job: jobWhere.facility ? { facility: jobWhere.facility } : undefined
             },
             select: { id: true, created_at: true, job: { select: { requires_interview: true } } }
+        }),
+        // スロット計算用（recruitment_countと確定済み応募を含む）
+        prisma.jobWorkDate.findMany({
+            where: {
+                ...periodWhere,
+                job: jobWhere.facility ? { facility: jobWhere.facility } : undefined
+            },
+            select: {
+                id: true,
+                created_at: true,
+                recruitment_count: true,
+                applications: {
+                    where: {
+                        status: { in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'] }
+                    },
+                    select: { id: true }
+                }
+            }
         }),
         prisma.application.findMany({
             where: {
@@ -630,6 +651,16 @@ export async function getMatchingAnalyticsData(filter: AnalyticsFilter): Promise
         );
         const childJobCount = periodWorkDates.length;
 
+        // スロット計算
+        const periodWorkDatesWithSlots = jobWorkDatesWithSlots.filter(jwd =>
+            jwd.created_at >= periodStart && jwd.created_at <= periodEnd
+        );
+        const totalSlots = periodWorkDatesWithSlots.reduce((sum, wd) => sum + wd.recruitment_count, 0);
+        const remainingSlots = periodWorkDatesWithSlots.reduce((sum, wd) => {
+            const filledSlots = wd.applications.length;
+            return sum + Math.max(0, wd.recruitment_count - filledSlots);
+        }, 0);
+
         const periodApps = applications.filter(a =>
             a.created_at >= periodStart && a.created_at <= periodEnd
         );
@@ -676,6 +707,8 @@ export async function getMatchingAnalyticsData(filter: AnalyticsFilter): Promise
             date: dateStr,
             parentJobCount,
             childJobCount,
+            totalSlots,
+            remainingSlots,
             applicationCount,
             matchingCount,
             avgMatchingHours: Math.round(avgMatchingHours * 10) / 10,

@@ -16,6 +16,7 @@ export default async function MessagesPage() {
   }
 
   const conversations = await getConversations();
+  const userId = session.user?.id ? parseInt(session.user.id) : 0;
 
-  return <MessagesClient initialConversations={conversations} />;
+  return <MessagesClient initialConversations={conversations} userId={userId} />;
 }

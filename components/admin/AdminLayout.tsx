@@ -1,10 +1,10 @@
 'use client';
 
-import { ReactNode, useState, useEffect } from 'react';
+import { ReactNode, useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { getFacilityStaffName } from '@/src/lib/actions';
+import { getFacilityStaffName, getFacilitySidebarBadges } from '@/src/lib/actions';
 import toast from 'react-hot-toast';
 import {
   Briefcase,
@@ -22,6 +22,7 @@ import {
   Trash2,
   KeyRound,
   Shield,
+  X,
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -40,6 +41,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const [isMasquerade, setIsMasquerade] = useState(false);
   // 担当者名（DBから取得）
   const [staffName, setStaffName] = useState<string | null>(null);
+  // 通知バッジ用
+  const [badges, setBadges] = useState({
+    unreadMessages: 0,
+    pendingApplications: 0,
+    unreadAnnouncements: 0,
+  });
 
   useEffect(() => {
     const checkSessionStatus = () => {
@@ -68,6 +75,26 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     fetchStaffName();
   }, [admin?.facilityId]);
 
+  // 通知バッジを取得
+  const fetchBadges = useCallback(async () => {
+    if (admin?.facilityId && !isPending) {
+      const data = await getFacilitySidebarBadges(admin.facilityId);
+      setBadges(data);
+    }
+  }, [admin?.facilityId, isPending]);
+
+  useEffect(() => {
+    fetchBadges();
+    // 30秒ごとに更新
+    const interval = setInterval(fetchBadges, 30000);
+    return () => clearInterval(interval);
+  }, [fetchBadges]);
+
+  // ページ遷移時にバッジを更新
+  useEffect(() => {
+    fetchBadges();
+  }, [pathname, fetchBadges]);
+
   // 仮登録状態で施設管理以外にアクセスしたらリダイレクト
   useEffect(() => {
     if (isPending && pathname && pathname !== '/admin/facility' && !pathname.startsWith('/admin/masquerade')) {
@@ -91,6 +118,15 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     setShowLogoutConfirm(false);
   };
 
+  // マスカレード終了処理
+  const handleMasqueradeExit = () => {
+    // admin_sessionからマスカレード情報をクリア
+    localStorage.removeItem('admin_session');
+    localStorage.removeItem('currentAdmin');
+    toast.success('マスカレードを終了しました');
+    router.push('/system-admin/facilities');
+  };
+
   const menuItems = [
     {
       title: '求人管理',
@@ -110,6 +146,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       icon: <UserCheck className="w-4 h-4" />,
       href: '/admin/applications',
       active: pathname?.startsWith('/admin/applications'),
+      badge: badges.pendingApplications,
     },
     {
       title: 'ワーカー管理',
@@ -129,6 +166,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       icon: <MessageCircle className="w-4 h-4" />,
       href: '/admin/messages',
       active: pathname === '/admin/messages',
+      badge: badges.unreadMessages + badges.unreadAnnouncements,
     },
     {
       title: '施設管理',
@@ -145,8 +183,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     {
       title: 'ご利用ガイド・FAQ',
       icon: <HelpCircle className="w-4 h-4" />,
-      href: '/admin/guide',
-      active: pathname === '/admin/guide',
+      href: '/admin/faq',
+      active: pathname === '/admin/faq',
       divider: true,
     },
     {
@@ -211,7 +249,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                       }`}
                   >
                     {item.icon}
-                    <span>{item.title}</span>
+                    <span className="flex-1">{item.title}</span>
+                    {typeof item.badge === 'number' && item.badge > 0 && (
+                      <span className="bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
+                        {item.badge > 99 ? '99+' : item.badge}
+                      </span>
+                    )}
                   </Link>
                 )}
               </div>
@@ -230,22 +273,20 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               </div>
               <Link
                 href="/admin/masquerade-actions/delete-facility"
-                className={`flex items-center gap-3 py-2.5 mx-2 rounded-admin-button text-sm transition-colors px-4 ${
-                  pathname === '/admin/masquerade-actions/delete-facility'
+                className={`flex items-center gap-3 py-2.5 mx-2 rounded-admin-button text-sm transition-colors px-4 ${pathname === '/admin/masquerade-actions/delete-facility'
                     ? 'bg-red-500/20 text-red-400 font-medium'
                     : 'text-gray-300 hover:text-white hover:bg-white/10'
-                }`}
+                  }`}
               >
                 <Trash2 className="w-4 h-4" />
                 <span>施設削除</span>
               </Link>
               <Link
                 href="/admin/masquerade-actions/password-reset"
-                className={`flex items-center gap-3 py-2.5 mx-2 rounded-admin-button text-sm transition-colors px-4 ${
-                  pathname === '/admin/masquerade-actions/password-reset'
+                className={`flex items-center gap-3 py-2.5 mx-2 rounded-admin-button text-sm transition-colors px-4 ${pathname === '/admin/masquerade-actions/password-reset'
                     ? 'bg-blue-500/20 text-blue-400 font-medium'
                     : 'text-gray-300 hover:text-white hover:bg-white/10'
-                }`}
+                  }`}
               >
                 <KeyRound className="w-4 h-4" />
                 <span>パスワードリセット</span>
@@ -264,6 +305,14 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                   システム管理者としてログイン中
                 </div>
                 <p className="text-sm font-medium text-white">システム管理者</p>
+                {/* マスカレード終了ボタンを追加 */}
+                <button
+                  onClick={handleMasqueradeExit}
+                  className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-1.5 text-xs text-purple-300 border border-purple-500/50 rounded-lg hover:bg-purple-500/20 transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                  マスカレード終了
+                </button>
               </>
             ) : (
               <>

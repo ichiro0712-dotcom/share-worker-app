@@ -1,20 +1,25 @@
 import { Suspense } from 'react';
 import {
-    getDashboardStats,
-    getWorkerRegistrationTrends,
+    getDashboardKPIs,
+    getDashboardTrends,
+    getDashboardAlerts,
     getWorkerDemographics,
     getFacilityTypeStats
 } from '@/src/lib/system-actions';
-import LineChart from '@/components/system-admin/analytics/LineChart';
+import DualAxisLineChart from '@/components/system-admin/analytics/DualAxisLineChart';
+import DashboardAlerts from '@/components/system-admin/DashboardAlerts';
 import PieChart from '@/components/system-admin/analytics/PieChart';
 import BarChart from '@/components/system-admin/analytics/BarChart';
-import { Users, Building2, Briefcase, Activity } from 'lucide-react';
+import { Users, Building2, Briefcase, Calendar, Target } from 'lucide-react';
 
 export default async function SystemAdminDashboard() {
-    const stats = await getDashboardStats();
-    const trends = await getWorkerRegistrationTrends();
-    const demographics = await getWorkerDemographics();
-    const facilityTypes = await getFacilityTypeStats();
+    const [kpis, trends, alerts, demographics, facilityTypes] = await Promise.all([
+        getDashboardKPIs(),
+        getDashboardTrends(),
+        getDashboardAlerts(),
+        getWorkerDemographics(),
+        getFacilityTypeStats()
+    ]);
 
     return (
         <div className="p-8">
@@ -23,57 +28,146 @@ export default async function SystemAdminDashboard() {
                 <p className="text-slate-500">システム全体の概況を確認できます</p>
             </div>
 
-            {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-100 flex items-center">
-                    <div className="p-3 bg-blue-100 rounded-lg mr-4 text-blue-600">
-                        <Users className="w-6 h-6" />
-                    </div>
-                    <div>
-                        <p className="text-sm text-slate-500 font-medium">登録ワーカー数</p>
-                        <p className="text-2xl font-bold text-slate-800">{stats.totalWorkers.toLocaleString()}</p>
-                    </div>
-                </div>
-                <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-100 flex items-center">
-                    <div className="p-3 bg-indigo-100 rounded-lg mr-4 text-indigo-600">
-                        <Building2 className="w-6 h-6" />
-                    </div>
-                    <div>
-                        <p className="text-sm text-slate-500 font-medium">登録施設数</p>
-                        <p className="text-2xl font-bold text-slate-800">{stats.totalFacilities.toLocaleString()}</p>
+            {/* アラートセクション */}
+            <DashboardAlerts alerts={alerts} />
+
+            {/* KPI Cards - 5列 */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+                {/* 登録ワーカー数 */}
+                <div className="bg-white rounded-xl shadow-sm p-4 border border-slate-100">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-blue-100 rounded-lg text-blue-600">
+                            <Users className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <p className="text-xs text-slate-500">登録ワーカー</p>
+                            <p className="text-xl font-bold text-slate-800">{kpis.totalWorkers.toLocaleString()}</p>
+                        </div>
                     </div>
                 </div>
-                <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-100 flex items-center">
-                    <div className="p-3 bg-green-100 rounded-lg mr-4 text-green-600">
-                        <Briefcase className="w-6 h-6" />
-                    </div>
-                    <div>
-                        <p className="text-sm text-slate-500 font-medium">公開中求人数</p>
-                        <p className="text-2xl font-bold text-slate-800">{stats.activeJobs.toLocaleString()}</p>
+                {/* 登録施設数 */}
+                <div className="bg-white rounded-xl shadow-sm p-4 border border-slate-100">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600">
+                            <Building2 className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <p className="text-xs text-slate-500">登録施設</p>
+                            <p className="text-xl font-bold text-slate-800">{kpis.totalFacilities.toLocaleString()}</p>
+                        </div>
                     </div>
                 </div>
-                <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-100 flex items-center">
-                    <div className="p-3 bg-orange-100 rounded-lg mr-4 text-orange-600">
-                        <Activity className="w-6 h-6" />
+                {/* 親求人数 */}
+                <div className="bg-white rounded-xl shadow-sm p-4 border border-slate-100">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-green-100 rounded-lg text-green-600">
+                            <Briefcase className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <p className="text-xs text-slate-500">親求人数</p>
+                            <p className="text-xl font-bold text-slate-800">{kpis.activeParentJobs.toLocaleString()}</p>
+                        </div>
                     </div>
-                    <div>
-                        <p className="text-sm text-slate-500 font-medium">総応募数</p>
-                        <p className="text-2xl font-bold text-slate-800">{stats.totalApplications.toLocaleString()}</p>
+                </div>
+                {/* 子求人数 */}
+                <div className="bg-white rounded-xl shadow-sm p-4 border border-slate-100">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-purple-100 rounded-lg text-purple-600">
+                            <Calendar className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <p className="text-xs text-slate-500">子求人数</p>
+                            <p className="text-xl font-bold text-slate-800">{kpis.totalChildJobs.toLocaleString()}</p>
+                        </div>
+                    </div>
+                </div>
+                {/* 残り応募枠 */}
+                <div className="bg-white rounded-xl shadow-sm p-4 border border-slate-100">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-amber-100 rounded-lg text-amber-600">
+                            <Target className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <p className="text-xs text-slate-500">応募枠数(残)</p>
+                            <p className="text-xl font-bold text-slate-800">{kpis.totalRemainingSlots.toLocaleString()}</p>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            {/* Charts Row 1 */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 lg:col-span-2">
-                    <LineChart
-                        title="ワーカー登録推移 (直近30日)"
-                        labels={trends.map(t => t.date)}
-                        data={trends.map(t => t.count)}
-                        label="新規登録数"
-                        color="rgb(59, 130, 246)"
+            {/* トレンドグラフ */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                {/* グラフ1: 入会ワーカー数 + 施設登録数 */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <DualAxisLineChart
+                        title="新規登録推移 (直近30日)"
+                        labels={trends.graph1.labels}
+                        dataset1={{
+                            label: '入会ワーカー',
+                            data: trends.graph1.newWorkers,
+                            color: 'rgb(59, 130, 246)' // blue
+                        }}
+                        dataset2={{
+                            label: '施設登録',
+                            data: trends.graph1.newFacilities,
+                            color: 'rgb(16, 185, 129)' // emerald
+                        }}
                     />
                 </div>
+
+                {/* グラフ2: 子求人数 + マッチング数 */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <DualAxisLineChart
+                        title="求人・マッチング推移"
+                        labels={trends.graph2.labels}
+                        dataset1={{
+                            label: '新規求人(子)',
+                            data: trends.graph2.childJobs,
+                            color: 'rgb(249, 115, 22)' // orange
+                        }}
+                        dataset2={{
+                            label: 'マッチング成立',
+                            data: trends.graph2.matchings,
+                            color: 'rgb(139, 92, 246)' // violet
+                        }}
+                    />
+                </div>
+
+                {/* グラフ3: ワーカーあたり応募数 + マッチング数 */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <DualAxisLineChart
+                        title="アクティビティ (Per Worker)"
+                        labels={trends.graph3.labels}
+                        dataset1={{
+                            label: '平均応募数',
+                            data: trends.graph3.applicationsPerWorker,
+                            color: 'rgb(239, 68, 68)' // red
+                        }}
+                        dataset2={{
+                            label: '平均マッチング',
+                            data: trends.graph3.matchingsPerWorker,
+                            color: 'rgb(59, 130, 246)' // blue
+                        }}
+                    />
+                </div>
+
+                {/* グラフ4: マッチング期間 */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <DualAxisLineChart
+                        title="平均マッチング所要時間 (Hours)"
+                        labels={trends.graph4.labels}
+                        dataset1={{
+                            label: '所要時間',
+                            data: trends.graph4.avgMatchingHours,
+                            color: 'rgb(16, 185, 129)' // emerald
+                        }}
+                        singleAxis={true}
+                    />
+                </div>
+            </div>
+
+            {/* 人口統計グラフ (既存維持) */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
                     <PieChart
                         title="ワーカー性別比率"
@@ -81,10 +175,6 @@ export default async function SystemAdminDashboard() {
                         data={demographics.gender.map(g => g.value)}
                     />
                 </div>
-            </div>
-
-            {/* Charts Row 2 */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
                     <PieChart
                         title="ワーカー年齢層"
@@ -109,7 +199,6 @@ export default async function SystemAdminDashboard() {
                     />
                 </div>
             </div>
-
         </div>
     );
 }

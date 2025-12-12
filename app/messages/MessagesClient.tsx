@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { BottomNav } from '@/components/layout/BottomNav';
-import { ChevronLeft, Send, Paperclip, Calendar, Search, Bell } from 'lucide-react';
+import { ChevronLeft, Send, Paperclip, Calendar, Search, Bell, Megaphone } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getMessages, sendMessage } from '@/src/lib/actions';
+import { getWorkerAnnouncements, markAnnouncementAsRead } from '@/src/lib/system-actions';
 
 interface Message {
   id: number;
@@ -42,13 +43,13 @@ interface ChatData {
   messages: Message[];
 }
 
-interface Notification {
+interface Announcement {
   id: number;
   title: string;
   content: string;
-  timestamp: string;
+  category: string;
+  publishedAt: Date | null;
   isRead: boolean;
-  type: 'system' | 'announcement';
 }
 
 type TabType = 'messages' | 'notifications';
@@ -56,9 +57,10 @@ type SortType = 'newest' | 'workDate';
 
 interface MessagesClientProps {
   initialConversations: Conversation[];
+  userId: number;
 }
 
-export default function MessagesClient({ initialConversations }: MessagesClientProps) {
+export default function MessagesClient({ initialConversations, userId }: MessagesClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [conversations] = useState<Conversation[]>(initialConversations);
@@ -72,25 +74,45 @@ export default function MessagesClient({ initialConversations }: MessagesClientP
   const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // お知らせ（ダミーデータ）
-  const [notifications] = useState<Notification[]>([
-    {
-      id: 1,
-      title: 'システムメンテナンスのお知らせ',
-      content: '2025年12月1日(日) 2:00-5:00の間、システムメンテナンスを実施いたします。',
-      timestamp: '2025-11-20 10:00',
-      isRead: false,
-      type: 'system',
-    },
-    {
-      id: 2,
-      title: '新機能追加のお知らせ',
-      content: 'メッセージ機能が強化されました。検索・ソート機能をご利用いただけます。',
-      timestamp: '2025-11-18 14:00',
-      isRead: true,
-      type: 'announcement',
-    },
-  ]);
+  // お知らせ
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [announcementsLoading, setAnnouncementsLoading] = useState(false);
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
+
+  // お知らせを初期ロード時に取得（新着バッジ表示のため）
+  useEffect(() => {
+    if (userId) {
+      loadAnnouncements();
+    }
+  }, [userId]);
+
+  const loadAnnouncements = async () => {
+    setAnnouncementsLoading(true);
+    try {
+      const data = await getWorkerAnnouncements(userId);
+      setAnnouncements(data);
+    } catch (error) {
+      console.error('Failed to load announcements:', error);
+    } finally {
+      setAnnouncementsLoading(false);
+    }
+  };
+
+  // お知らせを開く（既読にして詳細表示）
+  const handleOpenAnnouncement = async (announcement: Announcement) => {
+    if (!announcement.isRead) {
+      await markAnnouncementAsRead(announcement.id, 'WORKER', userId);
+      setAnnouncements(prev =>
+        prev.map(a => a.id === announcement.id ? { ...a, isRead: true } : a)
+      );
+    }
+    setSelectedAnnouncement({ ...announcement, isRead: true });
+  };
+
+  // お知らせ詳細から戻る
+  const handleBackFromAnnouncement = () => {
+    setSelectedAnnouncement(null);
+  };
 
   // URLパラメータからapplicationIdまたはfacilityIdを取得して自動的に開く
   useEffect(() => {
@@ -198,6 +220,123 @@ export default function MessagesClient({ initialConversations }: MessagesClientP
     return date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
   };
 
+  // お知らせ日時をフォーマット
+  const formatAnnouncementDate = (date: Date | null) => {
+    if (!date) return '';
+    const d = new Date(date);
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+  };
+
+  // カテゴリー別の色とアイコン
+  const getCategoryStyle = (category: string) => {
+    switch (category) {
+      case 'IMPORTANT':
+        return { bg: 'bg-red-100', text: 'text-red-600', label: '重要' };
+      case 'MAINTENANCE':
+        return { bg: 'bg-yellow-100', text: 'text-yellow-600', label: 'メンテナンス' };
+      case 'EVENT':
+        return { bg: 'bg-green-100', text: 'text-green-600', label: 'イベント' };
+      default:
+        return { bg: 'bg-blue-100', text: 'text-blue-600', label: 'ニュース' };
+    }
+  };
+
+  const unreadAnnouncementsCount = announcements.filter(a => !a.isRead).length;
+
+  // テキスト内のURLをリンクに変換する関数
+  // linkColorStyle: 'default' | 'light' - lightは白背景用（自分のメッセージ内など）
+  const renderContentWithLinks = (content: string, linkColorStyle: 'default' | 'light' = 'default') => {
+    // URLパターン（http, https, www）
+    const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g;
+    const parts = content.split(urlRegex);
+
+    const linkClassName = linkColorStyle === 'light'
+      ? 'text-white/90 underline hover:text-white break-all'
+      : 'text-primary underline hover:text-primary/80 break-all';
+
+    return parts.map((part, index) => {
+      if (part.match(urlRegex)) {
+        const href = part.startsWith('www.') ? `https://${part}` : part;
+        return (
+          <a
+            key={index}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={linkClassName}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {part}
+          </a>
+        );
+      }
+      return part;
+    });
+  };
+
+  // お知らせ詳細表示
+  if (selectedAnnouncement) {
+    const categoryStyle = getCategoryStyle(selectedAnnouncement.category);
+    return (
+      <div className="min-h-screen bg-gray-50 pb-20">
+        {/* ヘッダー */}
+        <div className="bg-white border-b border-gray-200 px-4 py-3">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleBackFromAnnouncement}
+              className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+            >
+              <ChevronLeft className="w-6 h-6 text-gray-600" />
+            </button>
+            <h2 className="font-bold text-gray-900">お知らせ</h2>
+          </div>
+        </div>
+
+        {/* お知らせ詳細 */}
+        <div className="p-4">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            {/* カテゴリーバッジ */}
+            <div className={`px-4 py-3 ${categoryStyle.bg}`}>
+              <div className="flex items-center gap-2">
+                {selectedAnnouncement.category === 'IMPORTANT' ? (
+                  <Bell className={`w-5 h-5 ${categoryStyle.text}`} />
+                ) : (
+                  <Megaphone className={`w-5 h-5 ${categoryStyle.text}`} />
+                )}
+                <span className={`text-sm font-medium ${categoryStyle.text}`}>
+                  {categoryStyle.label}
+                </span>
+              </div>
+            </div>
+
+            {/* 本文 */}
+            <div className="p-4">
+              <h1 className="text-lg font-bold text-gray-900 mb-2">
+                {selectedAnnouncement.title}
+              </h1>
+              <p className="text-xs text-gray-500 mb-4">
+                {selectedAnnouncement.publishedAt
+                  ? new Date(selectedAnnouncement.publishedAt).toLocaleDateString('ja-JP', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    })
+                  : ''}
+              </p>
+              <div className="prose prose-sm max-w-none">
+                <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">
+                  {renderContentWithLinks(selectedAnnouncement.content)}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <BottomNav />
+      </div>
+    );
+  }
+
   // チャットルーム一覧表示
   if (!selectedConversation) {
     return (
@@ -229,9 +368,9 @@ export default function MessagesClient({ initialConversations }: MessagesClientP
               }`}
             >
               お知らせ
-              {notifications.filter((n) => !n.isRead).length > 0 && (
+              {unreadAnnouncementsCount > 0 && (
                 <span className="ml-1 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5">
-                  {notifications.filter((n) => !n.isRead).length}
+                  {unreadAnnouncementsCount}
                 </span>
               )}
             </button>
@@ -338,53 +477,69 @@ export default function MessagesClient({ initialConversations }: MessagesClientP
         ) : (
           /* お知らせ一覧 */
           <div className="divide-y divide-gray-200">
-            {notifications.map((notification) => (
-              <div key={notification.id} className="bg-white px-4 py-4">
-                <div className="flex items-start gap-3">
-                  <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                      notification.type === 'system' ? 'bg-blue-100' : 'bg-green-100'
+            {announcementsLoading ? (
+              <div className="flex items-center justify-center py-16">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              </div>
+            ) : announcements.length > 0 ? (
+              announcements.map((announcement) => {
+                const categoryStyle = getCategoryStyle(announcement.category);
+                return (
+                  <button
+                    key={announcement.id}
+                    onClick={() => handleOpenAnnouncement(announcement)}
+                    className={`w-full text-left px-4 py-4 transition-colors hover:bg-gray-50 ${
+                      announcement.isRead ? 'bg-white' : 'bg-blue-50'
                     }`}
                   >
-                    <Bell
-                      className={`w-5 h-5 ${
-                        notification.type === 'system' ? 'text-blue-600' : 'text-green-600'
-                      }`}
-                    />
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2 mb-1">
-                      <h3
-                        className={`font-bold text-sm ${
-                          notification.isRead ? 'text-gray-700' : 'text-gray-900'
-                        }`}
+                    <div className="flex items-start gap-3">
+                      <div
+                        className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${categoryStyle.bg}`}
                       >
-                        {notification.title}
-                      </h3>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className="text-xs text-gray-500">
-                          {notification.timestamp.split(' ')[0].replace('2025-', '')}
-                        </span>
-                        {!notification.isRead && (
-                          <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                        {announcement.category === 'IMPORTANT' ? (
+                          <Bell className={`w-5 h-5 ${categoryStyle.text}`} />
+                        ) : (
+                          <Megaphone className={`w-5 h-5 ${categoryStyle.text}`} />
                         )}
                       </div>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${categoryStyle.bg} ${categoryStyle.text}`}>
+                              {categoryStyle.label}
+                            </span>
+                            <h3
+                              className={`font-bold text-sm ${
+                                announcement.isRead ? 'text-gray-700' : 'text-gray-900'
+                              }`}
+                            >
+                              {announcement.title}
+                            </h3>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className="text-xs text-gray-500">
+                              {formatAnnouncementDate(announcement.publishedAt)}
+                            </span>
+                            {!announcement.isRead && (
+                              <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                            )}
+                          </div>
+                        </div>
+
+                        <p
+                          className={`text-sm line-clamp-2 ${
+                            announcement.isRead ? 'text-gray-500' : 'text-gray-700'
+                          }`}
+                        >
+                          {announcement.content}
+                        </p>
+                      </div>
                     </div>
-
-                    <p
-                      className={`text-sm ${
-                        notification.isRead ? 'text-gray-500' : 'text-gray-700'
-                      }`}
-                    >
-                      {notification.content}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))}
-
-            {notifications.length === 0 && (
+                  </button>
+                );
+              })
+            ) : (
               <div className="flex flex-col items-center justify-center py-16 px-4">
                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
                   <Bell className="w-8 h-8 text-gray-400" />
@@ -446,7 +601,9 @@ export default function MessagesClient({ initialConversations }: MessagesClientP
                     isWorker ? 'bg-primary text-white' : 'bg-white border border-gray-200'
                   } rounded-2xl px-4 py-2`}
                 >
-                  <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                  <p className="text-sm whitespace-pre-wrap break-words">
+                    {renderContentWithLinks(message.content, isWorker ? 'light' : 'default')}
+                  </p>
                   <p className={`text-xs mt-1 ${isWorker ? 'text-white/70' : 'text-gray-500'}`}>
                     {formatTime(message.timestamp)}
                   </p>

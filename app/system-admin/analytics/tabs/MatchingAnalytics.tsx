@@ -8,6 +8,8 @@ import { getMatchingPeriodStats } from '@/src/lib/system-actions';
 const ALL_METRIC_LABELS: Record<string, { label: string; category: 'common' | 'worker' | 'facility' }> = {
     parentJobCount: { label: '親求人数', category: 'facility' },
     childJobCount: { label: '子求人数', category: 'facility' },
+    totalSlots: { label: '総応募枠数', category: 'facility' },
+    remainingSlots: { label: '応募枠数(残)', category: 'facility' },
     applicationCount: { label: '応募数', category: 'common' },
     matchingCount: { label: 'マッチング数', category: 'common' },
     avgMatchingHours: { label: 'マッチング期間(時間)', category: 'common' },

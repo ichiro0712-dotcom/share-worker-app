@@ -10,6 +10,10 @@ const publicPaths = [
   '/api/auth',
   '/dev-portal', // 開発用ポータル
   '/password-reset', // パスワードリセット
+  '/faq',
+  '/terms',
+  '/privacy',
+  '/contact',
 ];
 
 // 静的ファイルとAPI認証エンドポイント
@@ -29,7 +33,7 @@ export async function middleware(request: NextRequest) {
 
   // 管理者ページは別の認証システム（localStorage）を使用しているためスキップ
   // ただし/admin/loginは公開ページ
-  if (pathname.startsWith('/admin')) {
+  if (pathname.startsWith('/admin') || pathname.startsWith('/system-admin') || pathname.startsWith('/api/system-admin')) {
     return NextResponse.next();
   }
 

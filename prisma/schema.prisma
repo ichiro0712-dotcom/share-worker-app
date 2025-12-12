@@ -61,6 +61,7 @@ model User {
   receivedMessages       Message[]      @relation("UserReceivedMessages")
   notifications          Notification[]
   reviews                Review[]
+  pushSubscriptions      PushSubscription[]
   is_suspended           Boolean        @default(false) @map("is_suspended")
   suspended_at           DateTime?      @map("suspended_at")
   /// 退会日時（nullなら退会していない）
@@ -83,6 +84,7 @@ model FacilityAdmin {
   created_at    DateTime @default(now()) @map("created_at")
   updated_at    DateTime @updatedAt @map("updated_at")
   facility      Facility @relation(fields: [facility_id], references: [id], onDelete: Cascade)
+  pushSubscriptions  PushSubscription[]
 
   @@map("facility_admins")
 }
@@ -109,6 +111,8 @@ model Facility {
   updated_at       DateTime         @updatedAt @map("updated_at")
 
   // ========== 以下を追加 ==========
+  // システムテンプレート（初期値設定）
+  systemTemplates  SystemTemplate[]
 
   // 法人情報
   representative_last_name   String?   @map("representative_last_name")
@@ -528,6 +532,66 @@ model SystemAdmin {
   @@map("system_admins")
 }
 
+// ========== コンテンツ管理 ==========
+
+/// FAQカテゴリ
+model FaqCategory {
+  id          Int      @id @default(autoincrement())
+  target_type String   @map("target_type") // "WORKER" | "FACILITY"
+  name        String
+  sort_order  Int      @default(0) @map("sort_order")
+  created_at  DateTime @default(now()) @map("created_at")
+  updated_at  DateTime @updatedAt @map("updated_at")
+  faqs        Faq[]
+
+  @@map("faq_categories")
+}
+
+/// FAQ項目
+model Faq {
+  id           Int         @id @default(autoincrement())
+  category_id  Int         @map("category_id")
+  question     String
+  answer       String      @db.Text
+  sort_order   Int         @default(0) @map("sort_order")
+  is_published Boolean     @default(true) @map("is_published")
+  created_at   DateTime    @default(now()) @map("created_at")
+  updated_at   DateTime    @updatedAt @map("updated_at")
+  category     FaqCategory @relation(fields: [category_id], references: [id], onDelete: Cascade)
+
+  @@map("faqs")
+}
+
+/// ご利用ガイドPDF
+model UserGuide {
+  id          Int      @id @default(autoincrement())
+  target_type String   @map("target_type") // "FACILITY"（施設向けのみ）
+  file_path   String   @map("file_path")
+  file_name   String   @map("file_name")
+  file_size   Int      @map("file_size")
+  uploaded_by Int      @map("uploaded_by") // SystemAdmin ID
+  created_at  DateTime @default(now()) @map("created_at")
+
+  @@map("user_guides")
+}
+
+/// 利用規約・プライバシーポリシー
+model LegalDocument {
+  id           Int       @id @default(autoincrement())
+  doc_type     String    @map("doc_type") // "TERMS" | "PRIVACY"
+  target_type  String    @map("target_type") // "WORKER" | "FACILITY"
+  content      String    @db.Text
+  version      Int       @default(1)
+  is_current   Boolean   @default(true) @map("is_current")
+  published_at DateTime? @map("published_at")
+  created_by   Int       @map("created_by") // SystemAdmin ID
+  created_at   DateTime  @default(now()) @map("created_at")
+  updated_at   DateTime  @updatedAt @map("updated_at")
+
+  @@index([doc_type, target_type, is_current])
+  @@map("legal_documents")
+}
+
 model SystemLog {
   id          Int      @id @default(autoincrement())
   admin_id    Int      @map("admin_id")
@@ -544,15 +608,41 @@ model SystemLog {
 model Announcement {
   id          Int      @id @default(autoincrement())
   title       String
-  content     String
-  category    String   // "NEWS", "MAINTENANCE", etc.
-  target_type String   @map("target_type")   // "ALL", "WORKER", "FACILITY"
+  content     String   @db.Text
+  category    String   // "NEWS", "MAINTENANCE", "EVENT", "IMPORTANT"
+  target_type String   @map("target_type")   // "WORKER", "FACILITY", "BOTH"
   published   Boolean  @default(false)
   published_at DateTime? @map("published_at")
+  scheduled_at DateTime? @map("scheduled_at") // 予約公開日時（この時間になったら自動公開）
   created_at  DateTime @default(now()) @map("created_at")
   updated_at  DateTime @updatedAt @map("updated_at")
 
+  // フィルター条件（JSON形式で保存）
+  // ワーカー向け: { regionIds: [], ageRanges: [], genders: [], qualifications: [], selectAll: true/false }
+  // 施設向け: { regionIds: [], facilityTypes: [], selectAll: true/false }
+  filter_conditions Json? @map("filter_conditions")
+
+  // リレーション
+  recipients AnnouncementRecipient[]
+
   @@map("announcements")
+}
+
+/// お知らせ配信先（配信時にフィルター条件を満たすユーザー/施設を記録）
+model AnnouncementRecipient {
+  id              Int      @id @default(autoincrement())
+  announcement_id Int      @map("announcement_id")
+  recipient_type  String   @map("recipient_type") // "WORKER" | "FACILITY"
+  recipient_id    Int      @map("recipient_id")   // User.id or Facility.id
+  is_read         Boolean  @default(false) @map("is_read")
+  read_at         DateTime? @map("read_at")
+  created_at      DateTime @default(now()) @map("created_at")
+
+  announcement Announcement @relation(fields: [announcement_id], references: [id], onDelete: Cascade)
+
+  @@unique([announcement_id, recipient_type, recipient_id])
+  @@index([recipient_type, recipient_id])
+  @@map("announcement_recipients")
 }
 
 // ========== アナリティクス関連 ==========
@@ -593,4 +683,142 @@ model RegistrationTracking {
   created_at   DateTime  @default(now()) @map("created_at")
 
   @@map("registration_tracking")
+}
+
+/// 労働条件通知書テンプレート設定
+// 労働条件通知書テンプレート設定
+model LaborDocumentTemplate {
+  id         Int      @id @default(autoincrement())
+  
+  // テンプレート本文（変数は {{変数名}} 形式で埋め込み）
+  template_content String @db.Text @map("template_content")
+  
+  // スタイル設定
+  accent_color    String  @default("#3B82F6") @map("accent_color")
+  
+  created_at DateTime @default(now()) @map("created_at")
+  updated_at DateTime @updatedAt @map("updated_at")
+
+  @@map("labor_document_templates")
+}
+
+/// システムテンプレート管理（初期値・定型文）
+model SystemTemplate {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique @db.VarChar(100)
+  value       String   @db.Text
+  description String?  @db.VarChar(255)
+  created_at  DateTime @default(now()) @map("created_at")
+  updated_at  DateTime @updatedAt @map("updated_at")
+
+  // 施設とのリレーション（オプション：特定の施設に関連する場合など、現仕様では不要だが将来的な拡張のため）
+  facility_id Int?     @map("facility_id")
+  facility    Facility? @relation(fields: [facility_id], references: [id])
+
+  @@map("system_templates")
+}
+
+// 仕事詳細フォーマット
+model JobDescriptionFormat {
+  id          Int      @id @default(autoincrement())
+  label       String   // 例: "介護：日勤"
+  content     String   @db.Text // テンプレート本文
+  sort_order  Int      @default(0) // 表示順
+  is_active   Boolean  @default(true) // 有効/無効
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@map("job_description_formats")
+}
+
+model PushSubscription {
+  id         Int       @id @default(autoincrement())
+  user_id    Int?      @map("user_id")
+  admin_id   Int?      @map("admin_id")
+  user_type  String    @map("user_type")  // "worker" | "facility_admin"
+  endpoint   String    @unique
+  p256dh     String
+  auth       String
+  user_agent String?   @map("user_agent")
+  created_at DateTime  @default(now()) @map("created_at")
+  updated_at DateTime  @updatedAt @map("updated_at")
+
+  user       User?          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  admin      FacilityAdmin? @relation(fields: [admin_id], references: [id], onDelete: Cascade)
+
+  @@map("push_subscriptions")
+}
+
+// ========== 通知管理システム ==========
+
+/// 通知設定（ON/OFF・テンプレート）
+model NotificationSetting {
+  id               Int      @id @default(autoincrement())
+  notification_key String   @unique @map("notification_key")
+  name             String
+  description      String?
+  target_type      String   @map("target_type") // "WORKER" | "FACILITY" | "SYSTEM_ADMIN"
+
+  // チャンネル別ON/OFF
+  chat_enabled     Boolean  @default(true) @map("chat_enabled")
+  email_enabled    Boolean  @default(true) @map("email_enabled")
+  push_enabled     Boolean  @default(true) @map("push_enabled")
+
+  // チャット通知テンプレート
+  chat_message     String?  @db.Text @map("chat_message")
+
+  // メールテンプレート
+  email_subject    String?  @map("email_subject")
+  email_body       String?  @db.Text @map("email_body")
+
+  // プッシュ通知テンプレート
+  push_title       String?  @map("push_title")
+  push_body        String?  @map("push_body")
+
+  // アラート閾値設定（システム管理者向けアラート用）
+  // JSON形式で閾値条件を保存
+  // 例: {"avg_rating_threshold": 2.5, "consecutive_low_rating_count": 3, "low_rating_threshold": 2}
+  // 例: {"cancel_rate_threshold": 30, "consecutive_cancel_count": 3}
+  alert_thresholds Json?    @map("alert_thresholds")
+
+  created_at       DateTime @default(now()) @map("created_at")
+  updated_at       DateTime @updatedAt @map("updated_at")
+
+  @@map("notification_settings")
+}
+
+/// 通知送信ログ（メールボックス確認用）
+model NotificationLog {
+  id                  Int      @id @default(autoincrement())
+  notification_key    String   @map("notification_key")
+  channel             String   // "CHAT" | "EMAIL" | "PUSH"
+  target_type         String   @map("target_type") // "WORKER" | "FACILITY" | "SYSTEM_ADMIN"
+
+  // 宛先
+  recipient_id        Int      @map("recipient_id")
+  recipient_name      String?  @map("recipient_name")
+  recipient_email     String?  @map("recipient_email")
+
+  // メール用
+  from_address        String?  @map("from_address")
+  to_addresses        String[] @default([]) @map("to_addresses")
+  subject             String?
+  body                String?  @db.Text
+
+  // チャット用
+  chat_application_id Int?     @map("chat_application_id")
+  chat_message        String?  @db.Text @map("chat_message")
+
+  // プッシュ用
+  push_title          String?  @map("push_title")
+  push_body           String?  @map("push_body")
+  push_url            String?  @map("push_url")
+
+  status              String   @default("SENT") // "SENT" | "FAILED"
+  error_message       String?  @map("error_message")
+  created_at          DateTime @default(now()) @map("created_at")
+
+  @@index([target_type, created_at])
+  @@index([notification_key])
+  @@map("notification_logs")
 }

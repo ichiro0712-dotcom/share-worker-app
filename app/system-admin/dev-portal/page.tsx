@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import Link from 'next/link';
 import { MemoPad } from './MemoPad';
-import { Smartphone, Layout, Hash, Shield, Book, Users, Building2, Settings, ExternalLink, Image as ImageIcon } from 'lucide-react';
+import { Smartphone, Layout, Hash, Shield, Book, Users, Building2, Settings, ExternalLink, Image as ImageIcon, BellRing } from 'lucide-react';
 
 // サイトマップ定義（ツリー構造）
 interface SiteMapNode {
@@ -301,6 +301,13 @@ export default function DevPortalPage() {
                                 <ImageIcon className="w-4 h-4 text-gray-400 group-hover:text-pink-500" />
                             </div>
                             <p className="text-xs text-gray-500">モック用画像素材集</p>
+                        </Link>
+                        <Link href="/system-admin/dev-portal/notification-logs" target="_blank" rel="noopener noreferrer" className="block w-full text-left p-3 rounded-lg border border-gray-200 hover:border-orange-300 hover:shadow-md transition-all group bg-white">
+                            <div className="flex items-center justify-between mb-1">
+                                <div className="font-bold text-gray-800 group-hover:text-orange-600">通知ログ</div>
+                                <BellRing className="w-4 h-4 text-gray-400 group-hover:text-orange-500" />
+                            </div>
+                            <p className="text-xs text-gray-500">送信済み通知の確認</p>
                         </Link>
                     </div>
                 </div>

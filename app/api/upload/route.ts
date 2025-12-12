@@ -35,8 +35,11 @@ const ALLOWED_EXTENSIONS = [
   'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'csv',
 ];
 
-// 最大ファイルサイズ（5MB）
+// 最大ファイルサイズ（通常: 5MB）
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
+
+// ご利用ガイド用最大ファイルサイズ（100MB）
+const MAX_USER_GUIDE_FILE_SIZE = 100 * 1024 * 1024;
 
 // 最大アップロード数
 const MAX_FILES = 10;
@@ -71,8 +74,10 @@ export async function POST(request: NextRequest) {
 
     // 施設管理者の認証チェック（Cookieベース）
     const adminCookie = request.cookies.get('admin_session');
+    // システム管理者の認証チェック（Cookieベース）
+    const systemAdminCookie = request.cookies.get('system_admin_session');
 
-    if (!session?.user && !adminCookie) {
+    if (!session?.user && !adminCookie && !systemAdminCookie) {
       return NextResponse.json(
         { error: '認証が必要です' },
         { status: 401 }
@@ -81,6 +86,7 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const files = formData.getAll('files') as File[];
+    const uploadType = formData.get('type') as string;
 
     if (!files || files.length === 0) {
       return NextResponse.json(
@@ -97,12 +103,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // ファイルサイズ上限を決定（user-guideの場合は100MB、それ以外は5MB）
+    const maxFileSize = uploadType === 'user-guide' ? MAX_USER_GUIDE_FILE_SIZE : MAX_FILE_SIZE;
+
     // 各ファイルの検証
     for (const file of files) {
       // ファイルサイズチェック
-      if (file.size > MAX_FILE_SIZE) {
+      if (file.size > maxFileSize) {
         return NextResponse.json(
-          { error: `ファイルサイズは${MAX_FILE_SIZE / 1024 / 1024}MB以下にしてください: ${file.name}` },
+          { error: `ファイルサイズは${maxFileSize / 1024 / 1024}MB以下にしてください: ${file.name}` },
           { status: 400 }
         );
       }
@@ -138,6 +147,32 @@ export async function POST(request: NextRequest) {
       const timestamp = Date.now();
       const randomStr = Math.random().toString(36).substring(2, 8);
       const sanitizedName = sanitizeFileName(file.name);
+
+      if (uploadType === 'user-guide') {
+        const fileName = `guide-${timestamp}-${randomStr}.pdf`;
+        const guideUploadDir = path.join(process.cwd(), 'public', 'uploads', 'user-guides');
+
+        if (!existsSync(guideUploadDir)) {
+          await mkdir(guideUploadDir, { recursive: true });
+        }
+
+        const filePath = path.join(guideUploadDir, fileName);
+
+        // パストラバーサル対策
+        const resolvedPath = path.resolve(filePath);
+        const resolvedUploadDir = path.resolve(guideUploadDir);
+        if (!resolvedPath.startsWith(resolvedUploadDir)) {
+          return NextResponse.json({ error: '不正なファイルパスです' }, { status: 400 });
+        }
+
+        const bytes = await file.arrayBuffer();
+        const buffer = Buffer.from(bytes);
+        await writeFile(filePath, buffer);
+
+        uploadedUrls.push(`/uploads/user-guides/${fileName}`);
+        continue; // 次のファイルへ
+      }
+
       const ext = sanitizedName.split('.').pop()?.toLowerCase() || 'jpg';
       const fileName = `${timestamp}-${randomStr}.${ext}`;
 

@@ -28,6 +28,7 @@ import {
   updateApplicationStatus,
   toggleWorkerFavorite,
   toggleWorkerBlock,
+  getFacilityPendingApplicationCount,
 } from '@/src/lib/actions';
 
 // 型定義
@@ -165,6 +166,12 @@ function ApplicationsContent() {
   // ワーカーの状態管理（お気に入り・ブロック）
   const [workerStates, setWorkerStates] = useState<Record<number, { isFavorite: boolean; isBlocked: boolean }>>({});
 
+  // タブ別の未対応件数
+  const [tabBadges, setTabBadges] = useState<{
+    byJob: number;
+    byWorker: number;
+  }>({ byJob: 0, byWorker: 0 });
+
   // URLパラメータからタブを復元
   const searchParams = useSearchParams();
   useEffect(() => {
@@ -191,12 +198,19 @@ function ApplicationsContent() {
     setIsLoading(true);
     try {
       // 並列でデータ取得
-      const [jobsData, workersData] = await Promise.all([
+      const [jobsData, workersData, badgeData] = await Promise.all([
         getJobsWithApplications(admin.facilityId),
         getApplicationsByWorker(admin.facilityId),
+        getFacilityPendingApplicationCount(admin.facilityId),
       ]);
       setJobs(jobsData);
       setWorkers(workersData);
+
+      // タブバッジの更新（求人数・ワーカー数）
+      setTabBadges({
+        byJob: badgeData.byJob.length,
+        byWorker: badgeData.byWorker.length,
+      });
 
       // ワーカー状態の初期化
       const initialStates: Record<number, { isFavorite: boolean; isBlocked: boolean }> = {};
@@ -462,23 +476,37 @@ function ApplicationsContent() {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-1 mb-6 inline-flex">
           <button
             onClick={() => setViewMode('jobs')}
-            className={`px-4 py-2 text-sm font-medium rounded transition-colors ${viewMode === 'jobs'
+            className={`px-4 py-2 text-sm font-medium rounded transition-colors flex items-center gap-2 ${viewMode === 'jobs'
               ? 'bg-admin-primary text-white'
               : 'text-gray-600 hover:bg-gray-100'
               }`}
           >
-            <Briefcase className="w-4 h-4 inline mr-2" />
+            <Briefcase className="w-4 h-4" />
             求人から
+            {tabBadges.byJob > 0 && (
+              <span className={`text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 ${
+                viewMode === 'jobs' ? 'bg-white text-admin-primary' : 'bg-red-500 text-white'
+              }`}>
+                {tabBadges.byJob}
+              </span>
+            )}
           </button>
           <button
             onClick={() => setViewMode('workers')}
-            className={`px-4 py-2 text-sm font-medium rounded transition-colors ${viewMode === 'workers'
+            className={`px-4 py-2 text-sm font-medium rounded transition-colors flex items-center gap-2 ${viewMode === 'workers'
               ? 'bg-admin-primary text-white'
               : 'text-gray-600 hover:bg-gray-100'
               }`}
           >
-            <Users className="w-4 h-4 inline mr-2" />
+            <Users className="w-4 h-4" />
             ワーカーから
+            {tabBadges.byWorker > 0 && (
+              <span className={`text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 ${
+                viewMode === 'workers' ? 'bg-white text-admin-primary' : 'bg-red-500 text-white'
+              }`}>
+                {tabBadges.byWorker}
+              </span>
+            )}
           </button>
         </div>
 

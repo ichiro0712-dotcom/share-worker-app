@@ -6,11 +6,12 @@ import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { sendNotification } from './notification-service';
 
 /**
  * 認証済みユーザーを取得する共通ヘルパー関数
  * NextAuthセッションがある場合はそのユーザーを使用
- * 開発環境のみ: セッションがない場合はID=1のテストユーザーにフォールバック
+ * 開発環境: セッションがない場合はID=1のテストユーザーにフォールバック（自動作成しない）
  * 本番環境: セッションがない場合はエラーをスロー
  */
 async function getAuthenticatedUser() {
@@ -34,25 +35,17 @@ async function getAuthenticatedUser() {
   }
 
   // 開発環境のみ: セッションがない場合はID=1のテストユーザーにフォールバック
-  let user = await prisma.user.findUnique({
+  // ※ 自動作成はしない（prisma/seed.ts で事前に作成すること）
+  const user = await prisma.user.findUnique({
     where: { id: 1 },
   });
 
-  // ユーザーが存在しない場合は作成
   if (!user) {
-    console.log('[getAuthenticatedUser] DEV MODE: User with ID=1 not found, creating...');
-    user = await prisma.user.create({
-      data: {
-        email: 'test@example.com',
-        password_hash: 'test_password',
-        name: 'テストユーザー',
-        phone_number: '090-0000-0000',
-        qualifications: [],
-      },
-    });
-    console.log('[getAuthenticatedUser] DEV MODE: Test user created with ID:', user.id);
+    console.error('[getAuthenticatedUser] DEV MODE: User with ID=1 not found. Run `npx prisma db seed` first.');
+    throw new Error('開発用テストユーザー(ID=1)が見つかりません。npx prisma db seed を実行してください。');
   }
 
+  console.log('[getAuthenticatedUser] DEV MODE: Using test user ID=1');
   return user;
 }
 
@@ -3220,7 +3213,8 @@ export async function updateApplicationStatus(
         application.user_id,
         application.workDate.job.title,
         application.workDate.job.facility.facility_name,
-        application.workDate.job.id
+        application.workDate.job.id,
+        application.id
       );
 
       // 労働条件通知書のリンクをチャットで自動送信
@@ -4109,48 +4103,168 @@ export async function sendMatchingNotification(
   userId: number,
   jobTitle: string,
   facilityName: string,
-  jobId: number
+  jobId: number,
+  applicationId?: number
 ) {
-  return createNotification({
+  // DB通知作成
+  await createNotification({
     userId,
     type: 'APPLICATION_APPROVED',
     title: 'マッチングが成立しました',
     message: `${facilityName}の「${jobTitle}」への応募が承認されました。`,
     link: `/jobs/${jobId}`,
   });
+
+  // ユーザー情報を取得
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { name: true, email: true },
+  });
+
+  if (user && applicationId) {
+    const job = await prisma.job.findUnique({
+      where: { id: jobId },
+      select: { hourly_wage: true }
+    });
+
+    // 通知サービス経由で送信
+    await sendNotification({
+      notificationKey: 'WORKER_MATCHED',
+      targetType: 'WORKER',
+      recipientId: userId,
+      recipientName: user.name,
+      recipientEmail: user.email,
+      applicationId: applicationId,
+      variables: {
+        worker_name: user.name,
+        facility_name: facilityName,
+        job_title: jobTitle,
+        wage: job?.hourly_wage?.toLocaleString() || '',
+        job_url: `${process.env.NEXT_PUBLIC_APP_URL}/jobs/${jobId}`,
+      },
+    });
+  }
 }
 
 /**
  * 新規応募通知を送信（施設宛）
  * 注: 現在のNotificationモデルはuser_idのみ対応。施設向け通知は将来実装予定
  */
+/**
+ * 新規応募通知を送信（施設宛）
+ */
 export async function sendApplicationNotification(
-  _facilityId: number,
-  _workerName: string,
-  _jobTitle: string,
-  _applicationId: number
+  facilityId: number,
+  workerName: string,
+  jobTitle: string,
+  applicationId: number
 ) {
-  // TODO: 施設向け通知機能を実装する
-  console.log('[sendApplicationNotification] Facility notifications not yet implemented');
-  return null;
+  try {
+    // 応募情報を取得（勤務日を取得するため）
+    const application = await prisma.application.findUnique({
+      where: { id: applicationId },
+      include: {
+        workDate: {
+          include: {
+            job: {
+              select: { facility_id: true }
+            }
+          }
+        }
+      }
+    });
+
+    if (!application) {
+      console.error('[sendApplicationNotification] Application not found:', applicationId);
+      return;
+    }
+
+    // 施設情報を取得
+    const facility = await prisma.facility.findUnique({
+      where: { id: facilityId },
+      select: { facility_name: true }
+    });
+    const facilityName = facility?.facility_name || '';
+
+    // 勤務日をフォーマット
+    const workDate = new Date(application.workDate.work_date).toLocaleDateString('ja-JP', {
+      month: 'long',
+      day: 'numeric',
+      weekday: 'short'
+    });
+
+    // 施設管理者を取得（通知先）
+    const admins = await prisma.facilityAdmin.findMany({
+      where: { facility_id: facilityId },
+    });
+
+    if (admins.length === 0) {
+      console.warn('[sendApplicationNotification] No facility admins found for facility:', facilityId);
+      return;
+    }
+
+    // 全管理者に通知送信
+    for (const admin of admins) {
+      await sendNotification({
+        notificationKey: 'FACILITY_NEW_APPLICATION',
+        targetType: 'FACILITY',
+        recipientId: admin.id,
+        recipientName: admin.name,
+        recipientEmail: admin.email,
+        facilityEmails: admins.map(a => a.email), // 全管理者にメール送信
+        applicationId: applicationId,
+        variables: {
+          facility_name: facilityName,
+          worker_name: workerName,
+          job_title: jobTitle,
+          work_date: workDate,
+          job_url: `/admin/applications`, // 施設管理画面の応募一覧へ
+        },
+      });
+    }
+
+    console.log('[sendApplicationNotification] Notification sent to admins count:', admins.length);
+
+  } catch (error) {
+    console.error('[sendApplicationNotification] Error:', error);
+  }
 }
 
-/**
- * レビュー依頼通知を送信（ワーカー宛）
- */
 export async function sendReviewRequestNotification(
   userId: number,
   facilityName: string,
   jobTitle: string,
   applicationId: number
 ) {
-  return createNotification({
+  await createNotification({
     userId,
     type: 'REVIEW_REQUEST',
     title: '評価をお願いします',
     message: `${facilityName}での「${jobTitle}」の勤務が完了しました。評価をお願いします。`,
     link: `/mypage/reviews/${applicationId}`,
   });
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { name: true, email: true },
+  });
+
+  if (user) {
+    await sendNotification({
+      notificationKey: 'WORKER_REVIEW_REQUEST',
+      targetType: 'WORKER',
+      recipientId: userId,
+      recipientName: user.name,
+      recipientEmail: user.email,
+      applicationId: applicationId,
+      variables: {
+        worker_name: user.name,
+        facility_name: facilityName,
+        job_title: jobTitle,
+        review_url: `${process.env.NEXT_PUBLIC_APP_URL}/mypage/reviews/${applicationId}`,
+      },
+    });
+  }
 }
 
 /**
@@ -4164,13 +4278,35 @@ export async function sendCancelNotification(
   workDate: string,
   jobId: number
 ) {
-  return createNotification({
+  await createNotification({
     userId,
     type: 'APPLICATION_CANCELLED',
     title: 'マッチングがキャンセルされました',
     message: `${facilityName}の「${jobTitle}」（${workDate}）のマッチングがキャンセルされました。`,
     link: `/jobs/${jobId}`,
   });
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { name: true, email: true },
+  });
+
+  if (user) {
+    await sendNotification({
+      notificationKey: 'WORKER_CANCELLED_BY_FACILITY',
+      targetType: 'WORKER',
+      recipientId: userId,
+      recipientName: user.name,
+      recipientEmail: user.email,
+      variables: {
+        worker_name: user.name,
+        facility_name: facilityName,
+        job_title: jobTitle,
+        work_date: workDate,
+        job_url: `${process.env.NEXT_PUBLIC_APP_URL}/jobs/${jobId}`,
+      }
+    });
+  }
 }
 
 /**
@@ -4190,32 +4326,83 @@ export async function sendReviewReceivedNotificationToFacility(
 /**
  * メッセージ受信通知を送信（ワーカー宛）
  */
+/**
+ * メッセージ受信通知を送信（ワーカー宛）
+ */
 export async function sendMessageNotificationToWorker(
   userId: number,
   facilityName: string,
   applicationId: number
 ) {
-  return createNotification({
+  // アプリ内通知を作成
+  const notification = await createNotification({
     userId,
     type: 'NEW_MESSAGE',
     title: '新しいメッセージが届きました',
     message: `${facilityName}からメッセージが届きました。`,
     link: `/messages/${applicationId}`,
   });
+
+  // 外部通知（メール・LINE・プッシュ）を送信
+  try {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (user) {
+      await sendNotification({
+        notificationKey: 'WORKER_NEW_MESSAGE',
+        targetType: 'WORKER',
+        recipientId: userId,
+        recipientName: user.name,
+        recipientEmail: user.email,
+        applicationId,
+        variables: {
+          facility_name: facilityName,
+          worker_name: user.name,
+          message_url: `/messages`,
+        },
+      });
+    }
+  } catch (error) {
+    console.error('[sendMessageNotificationToWorker] Error sending external notification:', error);
+  }
+
+  return notification;
 }
 
 /**
  * メッセージ受信通知を送信（施設宛）
- * 注: 現在のNotificationモデルはuser_idのみ対応。施設向け通知は将来実装予定
+ * 注: 現在のNotificationモデルはuser_idのみ対応。施設向け通知はメール/プッシュのみ
  */
 export async function sendMessageNotificationToFacility(
-  _facilityId: number,
-  _workerName: string,
-  _applicationId: number
+  facilityId: number,
+  workerName: string,
+  applicationId: number
 ) {
-  // TODO: 施設向け通知機能を実装する
-  console.log('[sendMessageNotificationToFacility] Facility notifications not yet implemented');
-  return null;
+  try {
+    const facility = await prisma.facility.findUnique({
+      where: { id: facilityId },
+      include: { admins: true },
+    });
+
+    if (facility) {
+      const facilityEmails = facility.admins.map(a => a.email);
+
+      await sendNotification({
+        notificationKey: 'FACILITY_NEW_MESSAGE',
+        targetType: 'FACILITY',
+        recipientId: facilityId,
+        recipientName: facility.facility_name,
+        facilityEmails,
+        applicationId,
+        variables: {
+          worker_name: workerName,
+          facility_name: facility.facility_name,
+          message_url: `/admin/messages`,
+        },
+      });
+    }
+  } catch (error) {
+    console.error('[sendMessageNotificationToFacility] Error sending notification:', error);
+  }
 }
 
 // ========================================
@@ -7622,5 +7809,210 @@ export async function authenticateSystemAdmin(email: string, password: string) {
   } catch (error) {
     console.error('System Admin authentication error:', error);
     return { success: false, error: 'ログイン処理中にエラーが発生しました' };
+  }
+}
+
+// ========== 施設向け通知バッジ ==========
+
+/**
+ * 施設の未読メッセージ数を取得
+ */
+export async function getFacilityUnreadMessageCount(facilityId: number): Promise<number> {
+  try {
+    // 施設宛のワーカーからの未読メッセージ数をカウント
+    const count = await prisma.message.count({
+      where: {
+        to_facility_id: facilityId,
+        from_user_id: { not: null }, // ワーカーからのメッセージ
+        read_at: null,
+      },
+    });
+
+    return count;
+  } catch (error) {
+    console.error('[getFacilityUnreadMessageCount] Error:', error);
+    return 0;
+  }
+}
+
+/**
+ * 施設の新規応募数を取得（APPLIED状態の応募 = 未対応の応募）
+ */
+export async function getFacilityPendingApplicationCount(facilityId: number): Promise<{
+  total: number;
+  byJob: { jobId: number; jobTitle: string; count: number }[];
+  byWorker: { workerId: number; workerName: string; count: number }[];
+}> {
+  try {
+    // APPLIED状態の応募を取得（施設がまだ対応していない応募）
+    const pendingApplications = await prisma.application.findMany({
+      where: {
+        workDate: {
+          job: {
+            facility_id: facilityId,
+          },
+        },
+        status: 'APPLIED',
+      },
+      include: {
+        workDate: {
+          include: {
+            job: {
+              select: {
+                id: true,
+                title: true,
+              },
+            },
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    // 求人ごとにグループ化
+    const jobMap = new Map<number, { jobTitle: string; count: number }>();
+    const workerMap = new Map<number, { workerName: string; count: number }>();
+
+    pendingApplications.forEach((app) => {
+      // 求人ごと
+      const job = app.workDate.job;
+      const existing = jobMap.get(job.id);
+      if (existing) {
+        existing.count++;
+      } else {
+        jobMap.set(job.id, { jobTitle: job.title, count: 1 });
+      }
+
+      // ワーカーごと
+      const existingWorker = workerMap.get(app.user.id);
+      if (existingWorker) {
+        existingWorker.count++;
+      } else {
+        workerMap.set(app.user.id, { workerName: app.user.name, count: 1 });
+      }
+    });
+
+    return {
+      total: pendingApplications.length,
+      byJob: Array.from(jobMap.entries()).map(([jobId, data]) => ({
+        jobId,
+        jobTitle: data.jobTitle,
+        count: data.count,
+      })),
+      byWorker: Array.from(workerMap.entries()).map(([workerId, data]) => ({
+        workerId,
+        workerName: data.workerName,
+        count: data.count,
+      })),
+    };
+  } catch (error) {
+    console.error('[getFacilityPendingApplicationCount] Error:', error);
+    return { total: 0, byJob: [], byWorker: [] };
+  }
+}
+
+/**
+ * 施設向けサイドバー通知バッジ情報を一括取得
+ */
+export async function getFacilitySidebarBadges(facilityId: number): Promise<{
+  unreadMessages: number;
+  pendingApplications: number;
+  unreadAnnouncements: number;
+}> {
+  try {
+    // 並列で取得
+    const [unreadMessages, pendingCount, unreadAnnouncementsCount] = await Promise.all([
+      getFacilityUnreadMessageCount(facilityId),
+      prisma.application.count({
+        where: {
+          workDate: {
+            job: {
+              facility_id: facilityId,
+            },
+          },
+          status: 'APPLIED',
+        },
+      }),
+      // お知らせ配信先の未読数をカウント
+      prisma.announcementRecipient.count({
+        where: {
+          recipient_type: 'FACILITY',
+          recipient_id: facilityId,
+          is_read: false,
+        },
+      }),
+    ]);
+
+    return {
+      unreadMessages,
+      pendingApplications: pendingCount,
+      unreadAnnouncements: unreadAnnouncementsCount,
+    };
+  } catch (error) {
+    console.error('[getFacilitySidebarBadges] Error:', error);
+    return {
+      unreadMessages: 0,
+      pendingApplications: 0,
+      unreadAnnouncements: 0,
+    };
+  }
+}
+
+/**
+ * ワーカーの未読メッセージ数を取得
+ */
+export async function getWorkerUnreadMessageCount(userId: number): Promise<number> {
+  try {
+    // ワーカー宛の施設からの未読メッセージ数をカウント
+    const count = await prisma.message.count({
+      where: {
+        to_user_id: userId,
+        from_facility_id: { not: null }, // 施設からのメッセージ
+        read_at: null,
+      },
+    });
+
+    return count;
+  } catch (error) {
+    console.error('[getWorkerUnreadMessageCount] Error:', error);
+    return 0;
+  }
+}
+
+/**
+ * ワーカーのフッターメニュー用バッジデータを取得
+ */
+export async function getWorkerFooterBadges(userId: number): Promise<{
+  unreadMessages: number;
+  unreadAnnouncements: number;
+}> {
+  try {
+    const [unreadMessages, unreadAnnouncementsCount] = await Promise.all([
+      getWorkerUnreadMessageCount(userId),
+      // お知らせ配信先の未読数をカウント
+      prisma.announcementRecipient.count({
+        where: {
+          recipient_type: 'USER',
+          recipient_id: userId,
+          is_read: false,
+        },
+      }),
+    ]);
+
+    return {
+      unreadMessages,
+      unreadAnnouncements: unreadAnnouncementsCount,
+    };
+  } catch (error) {
+    console.error('[getWorkerFooterBadges] Error:', error);
+    return {
+      unreadMessages: 0,
+      unreadAnnouncements: 0,
+    };
   }
 }

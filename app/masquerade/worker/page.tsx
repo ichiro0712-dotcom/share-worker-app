@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { verifyWorkerMasqueradeToken } from '@/src/lib/system-actions';
 import { Shield, AlertCircle, CheckCircle } from 'lucide-react';
+import { createWorkerMasqueradeSession } from '@/src/lib/worker-masquerade-session';
 
 export default function WorkerMasqueradePage() {
     const router = useRouter();
@@ -37,23 +38,14 @@ export default function WorkerMasqueradePage() {
                         email: result.worker.email,
                     });
 
-                    // マスカレードセッション情報をlocalStorageに保存
-                    localStorage.setItem('masqueradeMode', 'worker');
-                    localStorage.setItem('masqueradeWorkerId', result.worker.id.toString());
-                    localStorage.setItem('masqueradeWorkerName', result.worker.name);
-                    localStorage.setItem('masqueradeWorkerEmail', result.worker.email);
-                    if (result.systemAdminId) {
-                        localStorage.setItem('masqueradeSystemAdminId', result.systemAdminId.toString());
-                    }
 
-                    // 通常のワーカーログインセッションも設定
-                    localStorage.setItem('user', JSON.stringify({
-                        id: result.worker.id,
-                        name: result.worker.name,
-                        email: result.worker.email,
-                        profileImage: result.worker.profileImage,
-                        isMasquerade: true,
-                    }));
+                    // 新しいセッション管理を使用
+                    createWorkerMasqueradeSession({
+                        workerId: result.worker.id,
+                        workerName: result.worker.name,
+                        workerEmail: result.worker.email,
+                        systemAdminId: result.systemAdminId || 0,
+                    });
 
                     setStatus('success');
 

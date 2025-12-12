@@ -12,6 +12,8 @@ import {
   Star,
   MessageSquare,
   VolumeX,
+  MessageCircle,
+  Shield,
 } from 'lucide-react';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { useAuth } from '@/contexts/AuthContext';
@@ -71,13 +73,23 @@ export default function MyPage() {
     },
     {
       icon: <HelpCircle className="w-5 h-5" />,
-      label: 'ヘルプ・お問い合わせ',
-      href: '/help',
+      label: 'よくある質問',
+      href: '/faq',
+    },
+    {
+      icon: <MessageCircle className="w-5 h-5" />,
+      label: 'お問い合わせ',
+      href: '/contact',
     },
     {
       icon: <FileText className="w-5 h-5" />,
-      label: '利用規約・プライバシーポリシー',
+      label: '利用規約',
       href: '/terms',
+    },
+    {
+      icon: <Shield className="w-5 h-5" />,
+      label: 'プライバシーポリシー',
+      href: '/privacy',
     },
     {
       icon: <VolumeX className="w-5 h-5" />,
@@ -90,15 +102,7 @@ export default function MyPage() {
     if (item.onClick) {
       item.onClick();
     } else if (item.href) {
-      if (
-        item.href.startsWith('/help') ||
-        item.href.startsWith('/terms')
-      ) {
-        // Phase 2で実装予定の機能はプレースホルダーページへ遷移
-        router.push('/under-construction?page=' + encodeURIComponent(item.label));
-      } else {
-        router.push(item.href);
-      }
+      router.push(item.href);
     }
   };
 

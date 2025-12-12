@@ -7,6 +7,13 @@ import MasqueradeBanner from "@/components/MasqueradeBanner";
 export const metadata: Metadata = {
   title: "S WORKS - 看護師・介護士のための求人マッチング",
   description: "看護師・介護士のための求人マッチングWebサービス",
+  manifest: '/manifest.json',
+  themeColor: '#6366f1',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'S WORKS',
+  },
 };
 
 export default function RootLayout({

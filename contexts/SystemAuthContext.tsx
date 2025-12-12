@@ -1,24 +1,24 @@
 'use client';
 
 import { createContext, useContext, ReactNode, useState, useEffect, useCallback } from 'react';
-import {
-    createSystemAdminSession,
-    getSystemAdminSession,
-    clearSystemAdminSession,
-    extendSystemAdminSession,
-    getSystemAdminSessionRemainingMinutes,
-    SystemAdminSessionData
-} from '@/lib/system-admin-session';
-import { authenticateSystemAdmin } from '@/src/lib/actions';
+
+/**
+ * セッションデータ型（サーバーから取得）
+ */
+export interface SystemAdminSessionData {
+    adminId: number;
+    name: string;
+    email: string;
+    role: string;
+}
 
 interface SystemAuthContextType {
     admin: SystemAdminSessionData | null;
     isAdmin: boolean;
     isAdminLoading: boolean;
     adminLogin: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-    adminLogout: () => void;
-    sessionRemainingMinutes: number;
-    extendSession: () => void;
+    adminLogout: () => Promise<void>;
+    refreshSession: () => Promise<void>;
 }
 
 const SystemAuthContext = createContext<SystemAuthContextType | undefined>(undefined);
@@ -26,86 +26,97 @@ const SystemAuthContext = createContext<SystemAuthContextType | undefined>(undef
 export function SystemAuthProvider({ children }: { children: ReactNode }) {
     const [admin, setAdmin] = useState<SystemAdminSessionData | null>(null);
     const [adminLoaded, setAdminLoaded] = useState(false);
-    const [sessionRemainingMinutes, setSessionRemainingMinutes] = useState(0);
 
-    // Restore session
-    useEffect(() => {
-        const restoreSession = () => {
-            const sessionData = getSystemAdminSession();
-            if (sessionData) {
-                setAdmin(sessionData);
-                setSessionRemainingMinutes(getSystemAdminSessionRemainingMinutes());
+    // セッション確認（サーバーからCookieベースで取得）
+    const checkSession = useCallback(async () => {
+        try {
+            const response = await fetch('/api/system-admin/auth', {
+                method: 'GET',
+                credentials: 'include', // Cookieを含める
+            });
+            const data = await response.json();
+
+            if (data.isLoggedIn && data.admin) {
+                setAdmin({
+                    adminId: data.admin.id,
+                    name: data.admin.name,
+                    email: data.admin.email,
+                    role: data.admin.role,
+                });
+            } else {
+                setAdmin(null);
             }
+        } catch (error) {
+            console.error('Session check error:', error);
+            setAdmin(null);
+        } finally {
             setAdminLoaded(true);
-        };
-        restoreSession();
+        }
     }, []);
 
-    // Check expiration
+    // 初回マウント時にセッション確認
     useEffect(() => {
-        const interval = setInterval(() => {
-            const remaining = getSystemAdminSessionRemainingMinutes();
-            setSessionRemainingMinutes(remaining);
-            if (remaining === 0) {
-                const currentSession = getSystemAdminSession();
-                if (!currentSession && admin) {
-                    setAdmin(null);
-                    clearSystemAdminSession();
-                }
-            }
-        }, 60000);
-        return () => clearInterval(interval);
-    }, [admin]);
+        checkSession();
+    }, [checkSession]);
 
-    // Activity monitor
+    // 定期的なセッション確認（5分ごと）
     useEffect(() => {
         if (!admin) return;
-        const handleActivity = () => {
-            extendSystemAdminSession();
-            setSessionRemainingMinutes(getSystemAdminSessionRemainingMinutes());
-        };
-        window.addEventListener('click', handleActivity);
-        window.addEventListener('keydown', handleActivity);
-        return () => {
-            window.removeEventListener('click', handleActivity);
-            window.removeEventListener('keydown', handleActivity);
-        };
-    }, [admin]);
 
+        const interval = setInterval(() => {
+            checkSession();
+        }, 5 * 60 * 1000); // 5分
+
+        return () => clearInterval(interval);
+    }, [admin, checkSession]);
+
+    // ログイン（API経由でCookieを設定）
     const adminLogin = async (email: string, password: string) => {
         try {
-            const result = await authenticateSystemAdmin(email, password);
-            if (result.success && result.admin) {
-                const sessionData: Omit<SystemAdminSessionData, 'createdAt' | 'expiresAt'> = {
-                    adminId: result.admin.id,
-                    name: result.admin.name,
-                    email: result.admin.email,
-                    role: result.admin.role,
-                };
-                createSystemAdminSession(sessionData);
+            const response = await fetch('/api/system-admin/auth', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ email, password }),
+            });
 
-                // Refetch to get full object with timestamps
-                const fullSession = getSystemAdminSession();
-                setAdmin(fullSession);
-                setSessionRemainingMinutes(getSystemAdminSessionRemainingMinutes());
+            const data = await response.json();
+
+            if (data.success && data.admin) {
+                setAdmin({
+                    adminId: data.admin.id,
+                    name: data.admin.name,
+                    email: data.admin.email,
+                    role: data.admin.role,
+                });
                 return { success: true };
             }
-            return { success: false, error: result.error || 'ログインに失敗しました' };
+
+            return { success: false, error: data.error || 'ログインに失敗しました' };
         } catch (error) {
             console.error('System Admin login error:', error);
             return { success: false, error: 'ログイン中にエラーが発生しました' };
         }
     };
 
-    const adminLogout = useCallback(() => {
-        setAdmin(null);
-        clearSystemAdminSession();
+    // ログアウト（API経由でCookieを削除）
+    const adminLogout = useCallback(async () => {
+        try {
+            await fetch('/api/system-admin/auth', {
+                method: 'DELETE',
+                credentials: 'include',
+            });
+        } catch (error) {
+            console.error('Logout error:', error);
+        } finally {
+            setAdmin(null);
+        }
     }, []);
 
-    const extendSession = useCallback(() => {
-        extendSystemAdminSession();
-        setSessionRemainingMinutes(getSystemAdminSessionRemainingMinutes());
-    }, []);
+    // セッションを手動でリフレッシュ
+    const refreshSession = useCallback(async () => {
+        await checkSession();
+    }, [checkSession]);
 
     return (
         <SystemAuthContext.Provider
@@ -115,8 +126,7 @@ export function SystemAuthProvider({ children }: { children: ReactNode }) {
                 isAdminLoading: !adminLoaded,
                 adminLogin,
                 adminLogout,
-                sessionRemainingMinutes,
-                extendSession,
+                refreshSession,
             }}
         >
             {children}
