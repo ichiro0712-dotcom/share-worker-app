@@ -166,6 +166,69 @@ lsof -ti :3000 | xargs kill -9 2>/dev/null; sleep 1; rm -rf .next && npm run dev
 
 **注意:** このメンテナンスは開発効率のため自動実行される。ユーザーへの確認は不要。
 
+## 本番デプロイ前チェックリスト
+
+デプロイ前に以下を必ず確認・設定すること。
+
+### 1. 環境変数の設定（必須）
+
+本番環境の `.env` に以下を追加：
+
+```bash
+# System Admin認証用シークレット（32文字以上のランダム文字列）
+SYSTEM_ADMIN_SESSION_SECRET=ここに32文字以上のランダムな文字列を設定
+
+# NextAuth設定
+NEXTAUTH_SECRET=本番用のシークレット
+NEXTAUTH_URL=https://本番ドメイン
+
+# データベース接続
+DATABASE_URL=postgresql://user:password@host:5432/dbname
+```
+
+**シークレット生成コマンド:**
+```bash
+openssl rand -base64 32
+```
+
+### 2. データベースマイグレーション
+
+```bash
+npx prisma migrate deploy
+npx prisma db seed  # 必要に応じて
+```
+
+### 3. セキュリティ確認
+
+- [ ] `NODE_ENV=production` が設定されている
+- [ ] 全ての環境変数が本番用に設定されている
+- [ ] HTTPSが有効になっている
+- [ ] System Admin認証がCookieベースで動作確認済み
+- [ ] 開発用バックドアが無効化されている（自動テストユーザー作成は削除済み）
+
+### 4. ビルド確認
+
+```bash
+npm run build  # TypeScriptエラーがないこと
+npm run lint   # Lintエラーがないこと
+```
+
+### 5. 機能テスト
+
+- [ ] ワーカーログイン/登録
+- [ ] 施設管理者ログイン
+- [ ] System Adminログイン（admin@sworks.com）
+- [ ] 求人検索・応募フロー
+- [ ] メッセージ機能
+
+### 6. 本番デプロイ後の確認
+
+- [ ] System Admin管理画面にアクセスできる
+- [ ] セッションが正常に維持される（8時間）
+- [ ] エラーログに異常がない
+
+---
+
 ## Development Guidelines
 
 ### Git Workflow
