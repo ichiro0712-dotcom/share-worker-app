@@ -1,6 +1,8 @@
 import { getLegalDocument } from '@/src/lib/content-actions';
 import LegalDocumentClient from '@/components/legal/LegalDocumentClient';
 
+export const dynamic = 'force-dynamic';
+
 // デフォルトコンテンツ（DBにデータがない場合に表示）
 const defaultTermsContent = `
 <section>

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getDashboardAlerts } from '@/src/lib/system-actions';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
     try {
         const alerts = await getDashboardAlerts();
