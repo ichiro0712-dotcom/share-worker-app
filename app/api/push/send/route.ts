@@ -2,19 +2,35 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import webPush from 'web-push';
 
-// VAPID設定
-const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!;
-const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY!;
-const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:support@example.com';
+// VAPID設定をリクエスト時に遅延初期化
+let vapidConfigured = false;
 
-webPush.setVapidDetails(
-    VAPID_SUBJECT,
-    VAPID_PUBLIC_KEY,
-    VAPID_PRIVATE_KEY
-);
+function ensureVapidConfig() {
+    if (vapidConfigured) return true;
+
+    const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+    const privateKey = process.env.VAPID_PRIVATE_KEY;
+    const subject = process.env.VAPID_SUBJECT || 'mailto:support@example.com';
+
+    if (!publicKey || !privateKey) {
+        return false;
+    }
+
+    webPush.setVapidDetails(subject, publicKey, privateKey);
+    vapidConfigured = true;
+    return true;
+}
 
 export async function POST(request: NextRequest) {
     try {
+        // VAPID設定をリクエスト時に確認
+        if (!ensureVapidConfig()) {
+            return NextResponse.json(
+                { error: 'VAPID keys are not configured' },
+                { status: 500 }
+            );
+        }
+
         const body = await request.json();
         const { userId, userType, title, message, url } = body;
 
