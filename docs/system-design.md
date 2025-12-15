@@ -1,4 +1,4 @@
-# S WORKS - システム設計書
+# +TASTAS - システム設計書
 
 > **更新日**: 2025-12-04
 > **ステータス**: 実装済みシステムに基づく設計書
@@ -549,7 +549,7 @@ tsx prisma/seed.ts
 
 ```env
 # データベース
-DATABASE_URL="postgresql://user:password@localhost:5432/sworks"
+DATABASE_URL="postgresql://user:password@localhost:5432/+tastas"
 
 # NextAuth
 NEXTAUTH_SECRET="your-secret"

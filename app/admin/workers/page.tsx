@@ -66,7 +66,7 @@ export default function AdminWorkersPage() {
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilterType>('all');
   const [jobCategories, setJobCategories] = useState<JobCategoryType[]>([]); // 複数選択
-  const [sortBy, setSortBy] = useState<SortByType>('workCount_desc');
+  const [sortBy, setSortBy] = useState<SortByType>('lastWorkDate_desc');
 
 
   useEffect(() => {
@@ -430,23 +430,25 @@ export default function AdminWorkersPage() {
                     {/* ワーカー情報（横並び: 顔写真 | 情報 | アクションエリア） */}
                     <div className="flex items-center gap-5">
                       {/* プロフィール写真 - 丸形 w-20 h-20 */}
-                      <div className="relative w-20 h-20 rounded-full overflow-hidden flex-shrink-0 border-2 border-gray-200 shadow-md">
-                        {worker.profileImage ? (
-                          <img
-                            src={worker.profileImage}
-                            alt={worker.name}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
-                            <span className="text-2xl font-bold text-gray-400">
-                              {worker.name.charAt(0)}
-                            </span>
-                          </div>
-                        )}
+                      <div className="relative flex-shrink-0">
+                        <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-gray-200 shadow-md">
+                          {worker.profileImage ? (
+                            <img
+                              src={worker.profileImage}
+                              alt={worker.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+                              <span className="text-2xl font-bold text-gray-400">
+                                {worker.name.charAt(0)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
                         {/* ステータスバッジ（左上に小さく） */}
                         {statusInfo && (
-                          <div className={`absolute -top-1 -left-1 px-1.5 py-0.5 ${statusInfo.ribbonColor} text-white text-[9px] font-bold rounded shadow`}>
+                          <div className={`absolute -top-1 -left-1 px-1.5 py-0.5 ${statusInfo.ribbonColor} text-white text-[9px] font-bold rounded shadow z-10`}>
                             {statusInfo.text}
                           </div>
                         )}

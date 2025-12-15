@@ -46,20 +46,18 @@ export const ICON_OPTIONS = [
   '制服貸与',
   '車通勤OK',
   '食事補助',
-  '週2回以上勤務できる方',
-  '週3回以上勤務できる方',
-  '週4回以上勤務できる方',
-  '1ヶ月以上勤務できる方',
 ] as const;
 
-// 勤務日条件のアイコン（連動用）
-export const WORK_FREQUENCY_ICONS = {
-  2: '週2回以上勤務できる方',
-  3: '週3回以上勤務できる方',
-  4: '週4回以上勤務できる方',
+// 勤務日条件のラベル（N回以上勤務）
+export const WORK_FREQUENCY_LABELS = {
+  2: '2回以上勤務',
+  3: '3回以上勤務',
+  4: '4回以上勤務',
+  5: '5回以上勤務',
 } as const;
 
-export const MONTHLY_COMMITMENT_ICON = '1ヶ月以上勤務できる方';
+// 後方互換性のためのエイリアス（非推奨：WORK_FREQUENCY_LABELSを使用してください）
+export const WORK_FREQUENCY_ICONS = WORK_FREQUENCY_LABELS;
 
 export type JobType = typeof JOB_TYPES[number];
 export type WorkContentOption = typeof WORK_CONTENT_OPTIONS[number];

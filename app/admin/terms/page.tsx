@@ -29,7 +29,7 @@ export default function Terms() {
             <section>
               <h2 className="text-lg font-bold text-gray-900 mb-3">第1条（適用）</h2>
               <p className="text-gray-700 leading-relaxed">
-                本規約は、S WORKS（以下「当サービス」といいます）の提供する施設管理サービスの利用に関する条件を、
+                本規約は、+TASTAS（以下「当サービス」といいます）の提供する施設管理サービスの利用に関する条件を、
                 当サービスを利用する施設管理者（以下「利用者」といいます）と当サービスとの間で定めるものです。
               </p>
             </section>

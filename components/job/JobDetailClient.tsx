@@ -2,17 +2,26 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect, useMemo } from 'react';
-import { X, ChevronLeft, Heart, Clock, MapPin, ChevronRight, ChevronLeft as ChevronLeftIcon, Bookmark, VolumeX, Volume2, ExternalLink, Building2, Train, Car, Bike, Bus } from 'lucide-react';
+import { X, ChevronLeft, Heart, Clock, MapPin, ChevronRight, ChevronLeft as ChevronLeftIcon, Bookmark, VolumeX, Volume2, ExternalLink, Building2, Train, Car, Bike, Bus, Edit2, AlertTriangle } from 'lucide-react';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/tag';
 import { formatDateTime, getDeadlineText, isDeadlineUrgent } from '@/utils/date';
-import { applyForJob, addJobBookmark, removeJobBookmark, isJobBookmarked, toggleFacilityFavorite, isFacilityFavorited } from '@/src/lib/actions';
+import { applyForJob, addJobBookmark, removeJobBookmark, isJobBookmarked, toggleFacilityFavorite, isFacilityFavorited, getUserSelfPR, updateUserSelfPR } from '@/src/lib/actions';
+import { useBadge } from '@/contexts/BadgeContext';
 import toast from 'react-hot-toast';
 
 // デフォルトのプレースホルダー画像
 const DEFAULT_JOB_IMAGE = '/images/anken.png';
+
+interface ScheduledJob {
+  date: string;
+  startTime: string;
+  endTime: string;
+  jobId: number;
+  workDateId: number;
+}
 
 interface JobDetailClientProps {
   job: any;
@@ -23,11 +32,30 @@ interface JobDetailClientProps {
   initialAppliedWorkDateIds?: number[]; // 追加: 応募済みの勤務日IDリスト
   selectedDate?: string; // YYYY-MM-DD形式の選択された日付
   isPreviewMode?: boolean;
+  scheduledJobs?: ScheduledJob[]; // ユーザーのスケジュール済み仕事（時間重複判定用）
 }
 
-export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, initialHasApplied, initialAppliedWorkDateIds = [], selectedDate, isPreviewMode = false }: JobDetailClientProps) {
+/**
+ * 時間重複判定: 2つの時間帯が重なっているかチェック
+ */
+function isTimeOverlapping(start1: string, end1: string, start2: string, end2: string): boolean {
+  const toMinutes = (time: string): number => {
+    const [h, m] = time.split(':').map(Number);
+    return h * 60 + m;
+  };
+
+  const s1 = toMinutes(start1);
+  const e1 = toMinutes(end1);
+  const s2 = toMinutes(start2);
+  const e2 = toMinutes(end2);
+
+  return e1 > s2 && e2 > s1;
+}
+
+export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, facilityReviews, initialHasApplied: _initialHasApplied, initialAppliedWorkDateIds = [], selectedDate, isPreviewMode = false, scheduledJobs = [] }: JobDetailClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { refreshBadges } = useBadge();
 
   // URLパラメータからselectedを読み取る（プロフィール編集から戻った場合）
   const selectedFromUrl = searchParams.get('selected');
@@ -50,6 +78,14 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
   // プロフィール未完了モーダル
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileMissingFields, setProfileMissingFields] = useState<string[]>([]);
+
+  // 応募確認モーダル
+  const [showApplyConfirmModal, setShowApplyConfirmModal] = useState(false);
+  const [selfPR, setSelfPR] = useState<string | null>(null);
+  const [selfPRLoading, setSelfPRLoading] = useState(false);
+  const [isEditingSelfPR, setIsEditingSelfPR] = useState(false);
+  const [editSelfPRValue, setEditSelfPRValue] = useState('');
+  const [savingSelfPR, setSavingSelfPR] = useState(false);
 
   // 画像配列を安全に取得（空配列の場合はプレースホルダーを使用）
   const jobImages = job.images && job.images.length > 0 ? job.images : [DEFAULT_JOB_IMAGE];
@@ -236,10 +272,22 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
     }
   };
 
-  const handleApply = async () => {
+  // 応募ボタンクリック時：確認モーダルを表示
+  const handleApplyButtonClick = async () => {
     if (selectedWorkDateIds.length === 0) {
       toast.error('応募する勤務日を選択してください');
       return;
+    }
+
+    // N回以上勤務条件のチェック
+    const weeklyFrequency = job.weekly_frequency || job.weeklyFrequency;
+    if (weeklyFrequency) {
+      // 既に応募済みの日数 + 今回選択した日数
+      const totalDays = appliedWorkDateIds.length + selectedWorkDateIds.length;
+      if (totalDays < weeklyFrequency) {
+        toast.error(`この求人は${weeklyFrequency}回以上の勤務が条件です。あと${weeklyFrequency - totalDays}日選択してください。`);
+        return;
+      }
     }
 
     // 既に応募済みの勤務日が含まれているかチェック
@@ -249,6 +297,44 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
       return;
     }
 
+    // 自己PRを取得
+    setSelfPRLoading(true);
+    setShowApplyConfirmModal(true);
+    try {
+      const result = await getUserSelfPR();
+      if (result) {
+        setSelfPR(result.selfPR);
+        setEditSelfPRValue(result.selfPR || '');
+      }
+    } catch (error) {
+      console.error('Failed to fetch selfPR:', error);
+    } finally {
+      setSelfPRLoading(false);
+    }
+  };
+
+  // 自己PR保存
+  const handleSaveSelfPR = async () => {
+    setSavingSelfPR(true);
+    try {
+      const result = await updateUserSelfPR(editSelfPRValue);
+      if (result.success) {
+        setSelfPR(editSelfPRValue.trim() || null);
+        setIsEditingSelfPR(false);
+        toast.success('自己PRを保存しました');
+      } else {
+        toast.error(result.error || '保存に失敗しました');
+      }
+    } catch {
+      toast.error('保存に失敗しました');
+    } finally {
+      setSavingSelfPR(false);
+    }
+  };
+
+  // 確認モーダルから実際に応募を実行
+  const handleApply = async () => {
+    setShowApplyConfirmModal(false);
     setIsApplying(true);
 
     try {
@@ -261,11 +347,27 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
       const allSuccess = results.every((result) => result.success);
 
       if (allSuccess) {
-        toast.success('応募しました！');
-        // 応募済みIDリストを更新
+        // マッチング成立の場合はメッセージを表示
+        const matchedResults = results.filter((result) => result.isMatched);
+        if (matchedResults.length > 0) {
+          toast.success('マッチングが成立しました！');
+        } else {
+          toast.success('応募しました！');
+        }
+
+        // ローカルステートを即座に更新（応募済みIDに追加）
         setAppliedWorkDateIds(prev => [...prev, ...selectedWorkDateIds]);
-        // 選択を解除
-        setSelectedWorkDateIds([]);
+        setSelectedWorkDateIds([]); // 選択をクリア
+
+        // メッセージバッジを即時更新（新着メッセージが届いている可能性があるため）
+        refreshBadges();
+
+        // サーバーサイドのキャッシュを更新してからリダイレクト
+        router.refresh();
+        // 少し待ってからリダイレクト（refreshが完了するのを待つ）
+        setTimeout(() => {
+          router.push('/');
+        }, 500);
       } else {
         // 一部または全部失敗
         const failedResult = results.find((result) => !result.success);
@@ -379,7 +481,7 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
           {job.requiresInterview && (
             <div className="absolute top-3 left-3 z-30">
               <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded shadow-md">
-                面接あり
+                審査あり
               </span>
             </div>
           )}
@@ -422,10 +524,15 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
           )}
         </div>
 
-        {/* タグとバッジ */}
+        {/* タグとバッジ（N回以上勤務を先頭に） */}
         <div className="flex gap-2 mb-3 flex-wrap">
+          {job.effectiveWeeklyFrequency && (
+            <Badge variant="purple">
+              {job.effectiveWeeklyFrequency}回以上勤務
+            </Badge>
+          )}
           {job.tags.map((tag: string) => (
-            <Badge key={tag} variant="default">
+            <Badge key={tag} variant="red">
               {tag}
             </Badge>
           ))}
@@ -479,25 +586,39 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
               const matchedCount = wd.matchedCount || 0;
               // 面接ありの場合は満員でも応募可能
               const isFull = !job.requiresInterview && matchedCount >= recruitmentCount;
-              const isDisabled = isApplied || isFull;
+
+              // 時間重複チェック
+              const hasTimeConflict = scheduledJobs.some((scheduled) => {
+                if (scheduled.date !== wd.workDate) return false;
+                // 同じ求人の同じ勤務日はスキップ
+                if (scheduled.workDateId === wd.id) return false;
+                return isTimeOverlapping(
+                  job.startTime,
+                  job.endTime,
+                  scheduled.startTime,
+                  scheduled.endTime
+                );
+              });
+
+              const isDisabled = isApplied || isFull || hasTimeConflict;
+              const unavailableReason = isApplied ? '応募済み' : hasTimeConflict ? '時間重複' : isFull ? '募集終了' : null;
+
               return (
                 <div
                   key={wd.id || index}
                   onClick={() => !isDisabled && toggleWorkDateSelection(wd.id)}
-                  className={`p-4 border-2 rounded-card transition-colors relative ${isFull && !isApplied
+                  className={`p-4 border-2 rounded-card transition-colors relative ${isDisabled
                     ? 'border-gray-300 bg-gray-200 cursor-not-allowed opacity-60'
-                    : isApplied
-                      ? 'border-gray-200 bg-gray-50 cursor-not-allowed'
-                      : selectedWorkDateIds.includes(wd.id)
-                        ? 'border-primary bg-primary-light/30 cursor-pointer'
-                        : 'border-gray-200 hover:border-primary cursor-pointer'
+                    : selectedWorkDateIds.includes(wd.id)
+                      ? 'border-primary bg-primary-light/30 cursor-pointer'
+                      : 'border-gray-200 hover:border-primary cursor-pointer'
                     }`}
                 >
-                  {/* 募集終了オーバーレイ */}
-                  {isFull && !isApplied && (
+                  {/* 応募不可オーバーレイ */}
+                  {isDisabled && unavailableReason && (
                     <div className="absolute inset-0 flex items-center justify-center bg-gray-900/20 rounded-card">
                       <span className="bg-gray-800 text-white text-xs font-bold px-3 py-1.5 rounded">
-                        募集終了
+                        {unavailableReason}
                       </span>
                     </div>
                   )}
@@ -512,14 +633,17 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
                     />
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <div className={`text-sm font-bold ${isFull ? 'text-gray-500' : ''}`}>
+                        <div className={`text-sm font-bold ${isDisabled ? 'text-gray-500' : ''}`}>
                           {formatDateTime(wd.workDate, job.startTime, job.endTime)}
                         </div>
                         {isApplied && (
                           <Badge variant="default" className="text-xs">応募済み</Badge>
                         )}
+                        {hasTimeConflict && !isApplied && (
+                          <Badge variant="red" className="text-xs">時間重複</Badge>
+                        )}
                       </div>
-                      <div className={`flex items-center gap-2 text-xs ${isFull ? 'text-gray-400' : 'text-gray-600'}`}>
+                      <div className={`flex items-center gap-2 text-xs ${isDisabled ? 'text-gray-400' : 'text-gray-600'}`}>
                         <span>休憩 {job.breakTime}</span>
                         <span>•</span>
                         <span>時給 {job.hourlyWage.toLocaleString()}円</span>
@@ -529,10 +653,10 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className={`text-lg font-bold ${isFull ? 'text-gray-400' : 'text-red-500'}`}>
+                      <div className={`text-lg font-bold ${isDisabled ? 'text-gray-400' : 'text-red-500'}`}>
                         {job.wage.toLocaleString()}円
                       </div>
-                      <div className={`text-xs ${isFull ? 'text-gray-400' : 'text-gray-600'}`}>
+                      <div className={`text-xs ${isDisabled ? 'text-gray-400' : 'text-gray-600'}`}>
                         交通費{job.transportationFee.toLocaleString()}円込
                       </div>
                     </div>
@@ -556,26 +680,40 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
                   const matchedCount = wd.matchedCount || 0;
                   // 面接ありの場合は満員でも応募可能
                   const isFull = !job.requiresInterview && matchedCount >= recruitmentCount;
-                  const isDisabled = isApplied || isFull;
                   const remainingSlots = Math.max(0, recruitmentCount - matchedCount);
+
+                  // 時間重複チェック
+                  const hasTimeConflict = scheduledJobs.some((scheduled) => {
+                    if (scheduled.date !== wd.workDate) return false;
+                    // 同じ求人の同じ勤務日はスキップ
+                    if (scheduled.workDateId === wd.id) return false;
+                    return isTimeOverlapping(
+                      job.startTime,
+                      job.endTime,
+                      scheduled.startTime,
+                      scheduled.endTime
+                    );
+                  });
+
+                  const isDisabled = isApplied || isFull || hasTimeConflict;
+                  const unavailableReason = isApplied ? '応募済み' : hasTimeConflict ? '時間重複' : isFull ? '募集終了' : null;
+
                   return (
                     <div
                       key={wd.id || index}
                       onClick={() => !isDisabled && toggleWorkDateSelection(wd.id)}
-                      className={`flex items-center gap-3 p-3 border rounded-card transition-colors relative ${isFull && !isApplied
+                      className={`flex items-center gap-3 p-3 border rounded-card transition-colors relative ${isDisabled
                         ? 'border-gray-300 bg-gray-200 cursor-not-allowed opacity-60'
-                        : isApplied
-                          ? 'border-gray-200 bg-gray-50 cursor-not-allowed'
-                          : selectedWorkDateIds.includes(wd.id)
-                            ? 'border-primary bg-primary-light/20 cursor-pointer'
-                            : 'border-gray-200 hover:border-primary cursor-pointer'
+                        : selectedWorkDateIds.includes(wd.id)
+                          ? 'border-primary bg-primary-light/20 cursor-pointer'
+                          : 'border-gray-200 hover:border-primary cursor-pointer'
                         }`}
                     >
-                      {/* 募集終了オーバーレイ */}
-                      {isFull && !isApplied && (
+                      {/* 応募不可オーバーレイ */}
+                      {isDisabled && unavailableReason && (
                         <div className="absolute inset-0 flex items-center justify-center bg-gray-900/20 rounded-card">
                           <span className="bg-gray-800 text-white text-xs font-bold px-3 py-1.5 rounded">
-                            募集終了
+                            {unavailableReason}
                           </span>
                         </div>
                       )}
@@ -589,14 +727,17 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
                       />
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <div className={`text-sm font-bold ${isFull ? 'text-gray-500' : ''}`}>
+                          <div className={`text-sm font-bold ${isDisabled ? 'text-gray-500' : ''}`}>
                             {formatDateTime(wd.workDate, job.startTime, job.endTime)}
                           </div>
                           {isApplied && (
                             <Badge variant="default" className="text-xs">応募済み</Badge>
                           )}
+                          {hasTimeConflict && !isApplied && (
+                            <Badge variant="red" className="text-xs">時間重複</Badge>
+                          )}
                         </div>
-                        <div className={`flex items-center gap-2 text-xs ${isFull ? 'text-gray-400' : 'text-gray-600'}`}>
+                        <div className={`flex items-center gap-2 text-xs ${isDisabled ? 'text-gray-400' : 'text-gray-600'}`}>
                           <span>休憩 {job.breakTime}</span>
                           <span>•</span>
                           <span>時給 {job.hourlyWage.toLocaleString()}円</span>
@@ -606,10 +747,10 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className={`text-lg font-bold ${isFull ? 'text-gray-400' : 'text-red-500'}`}>
+                        <div className={`text-lg font-bold ${isDisabled ? 'text-gray-400' : 'text-red-500'}`}>
                           {job.wage.toLocaleString()}円
                         </div>
-                        <div className={`text-xs ${isFull ? 'text-gray-400' : 'text-gray-600'}`}>
+                        <div className={`text-xs ${isDisabled ? 'text-gray-400' : 'text-gray-600'}`}>
                           交通費{job.transportationFee.toLocaleString()}円込
                         </div>
                       </div>
@@ -629,25 +770,25 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
         )}
       </div>
 
-      {/* 申し込みボタン */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4">
-        <Button
-          onClick={handleApply}
-          size="lg"
-          className="w-full"
-          disabled={isPreviewMode || isApplying || selectedWorkDateIds.length === 0}
-        >
-          {isPreviewMode
-            ? 'プレビュー中（応募できません）'
-            : isApplying
+      {/* 申し込みボタン（プレビューモードでは非表示） - 上部用 */}
+      {!isPreviewMode && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4">
+          <Button
+            onClick={handleApplyButtonClick}
+            size="lg"
+            className="w-full"
+            disabled={isApplying || selectedWorkDateIds.length === 0}
+          >
+            {isApplying
               ? '応募中...'
               : selectedWorkDateIds.length > 0
                 ? `${selectedWorkDateIds.length}件の日程に応募する`
                 : !hasAvailableDates
                   ? '応募できる日程がありません'
                   : '日程を選択してください'}
-        </Button>
-      </div>
+          </Button>
+        </div>
+      )}
       {/* 責任者 */}
       <div className="border-t border-gray-200 pt-4 mb-4">
         <h3 className="mb-3 text-sm font-bold">責任者</h3>
@@ -683,12 +824,12 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
             ))}
           </div>
           <div
-            className={`text-sm text-gray-600 whitespace-pre-line overflow-hidden transition-all ${isOverviewExpanded ? 'max-h-none' : 'max-h-[10.5rem] md:max-h-[7.5rem]'
+            className={`text-sm text-gray-600 whitespace-pre-line overflow-hidden transition-all ${isOverviewExpanded ? 'max-h-none' : 'max-h-[22.5rem]'
               }`}
           >
             {job.overview}
           </div>
-          {job.overview.length > 100 && (
+          {job.overview.split('\n').length > 15 && (
             <button
               className="text-blue-500 text-sm mt-2"
               onClick={() => setIsOverviewExpanded(!isOverviewExpanded)}
@@ -703,13 +844,18 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
       <div className="mb-4">
         <div className="mt-3 space-y-4">
           <div>
-            <h4 className="text-sm mb-2 font-bold">必要な資格</h4>
+            <h4 className="text-sm mb-2 font-bold">必要な資格・条件</h4>
             <div className="flex flex-wrap gap-2">
               {job.requiredQualifications
                 .flatMap((qual: string) => qual.split(/、|または/).map((q: string) => q.trim()).filter((q: string) => q))
                 .map((qual: string, index: number) => (
                   <Tag key={index}>{qual}</Tag>
                 ))}
+              {job.effectiveWeeklyFrequency && (
+                <Badge variant="purple">
+                  {job.effectiveWeeklyFrequency}回以上勤務
+                </Badge>
+              )}
             </div>
           </div>
           <div>
@@ -720,24 +866,6 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
               ))}
             </div>
           </div>
-          {/* 募集条件（週N回以上・1ヶ月以上） */}
-          {(job.weeklyFrequency || job.monthlyCommitment) && (
-            <div>
-              <h4 className="text-sm mb-2 font-bold">募集条件</h4>
-              <div className="flex flex-wrap gap-2">
-                {job.weeklyFrequency && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                    週{job.weeklyFrequency}回以上勤務できる方
-                  </span>
-                )}
-                {job.monthlyCommitment && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                    1ヶ月以上勤務できる方
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
@@ -769,7 +897,7 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
               </div>
             )}
             {/* サンプル画像 */}
-            {job.dresscodeImages && job.dresscodeImages.length > 0 ? (
+            {job.dresscodeImages && job.dresscodeImages.length > 0 && (
               <div className="grid grid-cols-3 gap-2">
                 {job.dresscodeImages.map((imageUrl: string, index: number) => (
                   <div key={index} className="relative aspect-video overflow-hidden rounded-lg border border-gray-200">
@@ -781,33 +909,6 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
                     />
                   </div>
                 ))}
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 gap-2">
-                <div className="relative aspect-video overflow-hidden rounded-lg border border-gray-200">
-                  <Image
-                    src="/images/hukuso.png"
-                    alt="服装サンプル1"
-                    fill
-                    className="object-cover"
-                  />
-                </div>
-                <div className="relative aspect-video overflow-hidden rounded-lg border border-gray-200">
-                  <Image
-                    src="/images/hukuso.png"
-                    alt="服装サンプル2"
-                    fill
-                    className="object-cover"
-                  />
-                </div>
-                <div className="relative aspect-video overflow-hidden rounded-lg border border-gray-200">
-                  <Image
-                    src="/images/hukuso.png"
-                    alt="服装サンプル3"
-                    fill
-                    className="object-cover"
-                  />
-                </div>
               </div>
             )}
           </div>
@@ -1088,17 +1189,19 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
         </div>
       )}
 
-      {/* 申し込みボタン */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4">
-        <Button
-          onClick={handleApply}
-          size="lg"
-          className="w-full"
-          disabled={isApplying || selectedWorkDateIds.length === 0}
-        >
-          {isApplying ? '応募中...' : selectedWorkDateIds.length > 0 ? `${selectedWorkDateIds.length}件の日程に応募する` : !hasAvailableDates ? '応募できる日程がありません' : '日程を選択してください'}
-        </Button>
-      </div>
+      {/* 申し込みボタン（プレビューモードでは非表示） - 下部用 */}
+      {!isPreviewMode && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4">
+          <Button
+            onClick={handleApplyButtonClick}
+            size="lg"
+            className="w-full"
+            disabled={isApplying || selectedWorkDateIds.length === 0}
+          >
+            {isApplying ? '応募中...' : selectedWorkDateIds.length > 0 ? `${selectedWorkDateIds.length}件の日程に応募する` : !hasAvailableDates ? '応募できる日程がありません' : '日程を選択してください'}
+          </Button>
+        </div>
+      )}
 
       {/* プロフィール未完了モーダル */}
       {showProfileModal && (
@@ -1144,6 +1247,167 @@ export function JobDetailClient({ job, facility, relatedJobs, facilityReviews, i
               >
                 プロフィールを編集
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 応募確認モーダル */}
+      {showApplyConfirmModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full shadow-xl max-h-[90vh] overflow-y-auto">
+            {/* ヘッダー */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 sticky top-0 bg-white">
+              <h3 className="text-lg font-bold text-gray-900">応募内容の確認</h3>
+              <button
+                onClick={() => {
+                  setShowApplyConfirmModal(false);
+                  setIsEditingSelfPR(false);
+                }}
+                className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {/* 審査あり/なしの説明 */}
+              {job.requiresInterview ? (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-bold text-yellow-800">審査あり求人です</p>
+                      <p className="text-xs text-yellow-700 mt-1">
+                        応募後、施設による審査があります。審査通過後にマッチングが成立します。
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                  <p className="text-sm text-green-800">
+                    <span className="font-bold">即時マッチング求人です</span>
+                    <br />
+                    <span className="text-xs">応募と同時にマッチングが成立します。</span>
+                  </p>
+                </div>
+              )}
+
+              {/* 応募日程の確認 */}
+              <div>
+                <h4 className="text-sm font-bold text-gray-900 mb-2">応募する日程（{selectedWorkDateIds.length}件）</h4>
+                <div className="bg-gray-50 rounded-lg p-3 space-y-2 max-h-32 overflow-y-auto">
+                  {selectedWorkDateIds.map((workDateId) => {
+                    const wd = job.workDates?.find((w: any) => w.id === workDateId);
+                    if (!wd) return null;
+                    return (
+                      <div key={workDateId} className="text-sm text-gray-700">
+                        {formatDateTime(wd.workDate, job.startTime, job.endTime)}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 自己PR */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-bold text-gray-900">自己PR</h4>
+                  {!isEditingSelfPR && (
+                    <button
+                      onClick={() => {
+                        setIsEditingSelfPR(true);
+                        setEditSelfPRValue(selfPR || '');
+                      }}
+                      className="text-xs text-primary hover:text-primary/80 flex items-center gap-1"
+                    >
+                      <Edit2 className="w-3 h-3" />
+                      編集
+                    </button>
+                  )}
+                </div>
+
+                {selfPRLoading ? (
+                  <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-500">
+                    読み込み中...
+                  </div>
+                ) : isEditingSelfPR ? (
+                  <div className="space-y-2">
+                    <textarea
+                      value={editSelfPRValue}
+                      onChange={(e) => setEditSelfPRValue(e.target.value)}
+                      placeholder="自己PRを入力してください（施設に表示されます）"
+                      className="w-full border border-gray-300 rounded-lg p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                      rows={4}
+                    />
+                    <div className="flex gap-2 justify-end">
+                      <button
+                        onClick={() => {
+                          setIsEditingSelfPR(false);
+                          setEditSelfPRValue(selfPR || '');
+                        }}
+                        className="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                      >
+                        キャンセル
+                      </button>
+                      <button
+                        onClick={handleSaveSelfPR}
+                        disabled={savingSelfPR}
+                        className="px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 transition-colors disabled:opacity-50"
+                      >
+                        {savingSelfPR ? '保存中...' : '保存'}
+                      </button>
+                    </div>
+                  </div>
+                ) : selfPR ? (
+                  <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700 whitespace-pre-wrap">
+                    {selfPR}
+                  </div>
+                ) : (
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 text-orange-500 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm text-orange-800 font-medium">自己PRが未入力です</p>
+                        <p className="text-xs text-orange-700 mt-1">
+                          自己PRを入力すると、施設からの採用率が上がる可能性があります。
+                        </p>
+                        <button
+                          onClick={() => {
+                            setIsEditingSelfPR(true);
+                            setEditSelfPRValue('');
+                          }}
+                          className="mt-2 text-xs text-primary hover:text-primary/80 flex items-center gap-1"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                          今すぐ入力する
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* フッター */}
+            <div className="flex gap-3 p-4 border-t border-gray-200 sticky bottom-0 bg-white">
+              <button
+                onClick={() => {
+                  setShowApplyConfirmModal(false);
+                  setIsEditingSelfPR(false);
+                }}
+                className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                戻る
+              </button>
+              <button
+                onClick={handleApply}
+                disabled={isEditingSelfPR}
+                className="flex-1 px-4 py-2.5 bg-primary text-white font-medium rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {job.requiresInterview ? '応募する（審査あり）' : '応募する'}
+              </button>
             </div>
           </div>
         </div>

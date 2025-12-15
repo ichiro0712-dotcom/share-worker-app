@@ -36,6 +36,9 @@ interface JobPreviewModalProps {
     city?: string;
     serviceType?: string;
     mapImage?: string | null;
+    managerName?: string;
+    managerPhoto?: string | null;
+    managerGreeting?: string | null;
   };
 }
 
@@ -112,6 +115,10 @@ export function JobPreviewModal({ isOpen, onClose, jobData, facilityData }: JobP
     // 募集期間（プレビュー用のダミー）
     recruitment_start: new Date(),
     recruitment_end: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    // 担当者情報（施設から取得）
+    managerName: facilityData.managerName || '担当者',
+    managerAvatar: facilityData.managerPhoto || '👤',
+    managerMessage: facilityData.managerGreeting || 'よろしくお願いいたします。',
   };
 
   const previewFacility = {
@@ -150,13 +157,6 @@ export function JobPreviewModal({ isOpen, onClose, jobData, facilityData }: JobP
           >
             <X className="w-5 h-5" />
           </button>
-        </div>
-
-        {/* プレビューバナー */}
-        <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2">
-          <p className="text-sm text-yellow-800 text-center">
-            📱 これはプレビューです。ワーカーから見た表示を確認できます。
-          </p>
         </div>
 
         {/* 求人詳細（スクロール可能） */}

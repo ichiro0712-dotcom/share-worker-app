@@ -11,7 +11,17 @@ import { useState, useEffect } from 'react';
 import { addJobBookmark, removeJobBookmark, isJobBookmarked } from '@/src/lib/actions';
 
 interface JobCardProps {
-  job: Job;
+  job: Job & {
+    hasAvailableWorkDate?: boolean; // 親求人が応募可能かどうか
+    workDates?: Array<{
+      id: number;
+      workDate: string;
+      canApply?: boolean;
+      isApplied?: boolean;
+      isFull?: boolean;
+      hasTimeConflict?: boolean;
+    }>;
+  };
   facility: Facility;
   selectedDate?: string; // YYYY-MM-DD形式の選択された日付
 }
@@ -36,8 +46,31 @@ export const JobCard: React.FC<JobCardProps> = ({ job, facility, selectedDate })
   const isUrgent = mounted ? isDeadlineUrgent(job.deadline) : false;
   const deadlineText = mounted ? getDeadlineText(job.deadline) : '計算中...';
 
-  // 募集終了判定（マッチング数が募集人数以上の場合）
-  // ただし、面接ありの求人は募集終了を表示しない
+  // 応募不可判定（新ロジック: hasAvailableWorkDateがfalseの場合）
+  // 選択された日付がある場合はその日付の応募可否をチェック
+  const selectedWorkDate = selectedDate && job.workDates
+    ? job.workDates.find(wd => wd.workDate === selectedDate)
+    : null;
+
+  // 選択日付が応募不可、または全ての日付が応募不可の場合
+  const isUnavailable = selectedWorkDate
+    ? !selectedWorkDate.canApply
+    : job.hasAvailableWorkDate === false;
+
+  // 応募不可の理由を特定
+  const unavailableReason = selectedWorkDate
+    ? selectedWorkDate.isApplied
+      ? '応募済み'
+      : selectedWorkDate.hasTimeConflict
+        ? '時間重複'
+        : selectedWorkDate.isFull
+          ? '募集終了'
+          : null
+    : job.hasAvailableWorkDate === false
+      ? '応募できません'
+      : null;
+
+  // 旧ロジック（互換性のため残す）
   const isRecruitmentEnded = !job.requiresInterview && (job.matchedCount ?? 0) >= job.recruitmentCount;
 
   const handleBookmark = async (e: React.MouseEvent) => {
@@ -69,9 +102,12 @@ export const JobCard: React.FC<JobCardProps> = ({ job, facility, selectedDate })
     ? `/jobs/${job.id}?date=${selectedDate}`
     : `/jobs/${job.id}`;
 
+  // 表示するかどうかの判定（応募不可でもグレー表示で出す）
+  const shouldShowUnavailable = isUnavailable || isRecruitmentEnded;
+
   return (
     <Link href={jobDetailUrl} className="h-full block">
-      <div className="bg-surface rounded-card p-4 shadow-card hover:shadow-card-hover transition-all hover:-translate-y-0.5 cursor-pointer h-full flex flex-col">
+      <div className={`bg-surface rounded-card p-4 shadow-card transition-all h-full flex flex-col ${shouldShowUnavailable ? 'opacity-70' : 'hover:shadow-card-hover hover:-translate-y-0.5 cursor-pointer'}`}>
         {/* PC版: 横並びレイアウト */}
         <div className="hidden md:flex">
           {/* 画像 - 長方形 */}
@@ -80,18 +116,18 @@ export const JobCard: React.FC<JobCardProps> = ({ job, facility, selectedDate })
               src={jobImage}
               alt={facility.name}
               fill
-              className={`object-cover ${isRecruitmentEnded ? 'opacity-60' : ''}`}
+              className={`object-cover ${shouldShowUnavailable ? 'opacity-60 grayscale' : ''}`}
             />
             {/* 面接ありバッジ - 画像左上 */}
             {job.requiresInterview && (
               <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded z-10">
-                面接あり
+                審査あり
               </span>
             )}
-            {isRecruitmentEnded && (
+            {shouldShowUnavailable && (
               <div className="absolute inset-0 flex items-center justify-center">
                 <span className="bg-gray-800 text-white text-sm font-bold px-3 py-1.5 rounded">
-                  募集終了
+                  {unavailableReason || '募集終了'}
                 </span>
               </div>
             )}
@@ -119,10 +155,15 @@ export const JobCard: React.FC<JobCardProps> = ({ job, facility, selectedDate })
               </div>
             </div>
 
-            {/* タグ */}
-            <div className="flex gap-1 mb-2">
+            {/* タグ（N回以上勤務を先頭に、他タグは赤） */}
+            <div className="flex flex-wrap gap-1 mb-2">
+              {job.effectiveWeeklyFrequency && (
+                <Badge variant="purple" className="text-[10px] px-1.5 py-0.5">
+                  {job.effectiveWeeklyFrequency}回以上勤務
+                </Badge>
+              )}
               {job.tags.map((tag) => (
-                <Badge key={tag} variant="yellow" className="text-[10px] px-1.5 py-0.5">
+                <Badge key={tag} variant="red" className="text-[10px] px-1.5 py-0.5">
                   {tag}
                 </Badge>
               ))}
@@ -169,18 +210,18 @@ export const JobCard: React.FC<JobCardProps> = ({ job, facility, selectedDate })
               src={jobImage}
               alt={facility.name}
               fill
-              className={`object-cover ${isRecruitmentEnded ? 'opacity-60' : ''}`}
+              className={`object-cover ${shouldShowUnavailable ? 'opacity-60 grayscale' : ''}`}
             />
             {/* 面接ありバッジ - 画像左上 */}
             {job.requiresInterview && (
               <span className="absolute top-2 left-2 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded z-10">
-                面接あり
+                審査あり
               </span>
             )}
-            {isRecruitmentEnded && (
+            {shouldShowUnavailable && (
               <div className="absolute inset-0 flex items-center justify-center">
                 <span className="bg-gray-800 text-white text-xs font-bold px-2 py-1 rounded">
-                  募集終了
+                  {unavailableReason || '募集終了'}
                 </span>
               </div>
             )}
@@ -207,10 +248,15 @@ export const JobCard: React.FC<JobCardProps> = ({ job, facility, selectedDate })
               </div>
             </div>
 
-            {/* タグ */}
+            {/* タグ（N回以上勤務を先頭に、他タグは赤） */}
             <div className="flex flex-wrap gap-1 mb-1">
+              {job.effectiveWeeklyFrequency && (
+                <Badge variant="purple" className="text-[9px] px-1 py-0.5">
+                  {job.effectiveWeeklyFrequency}回以上勤務
+                </Badge>
+              )}
               {job.tags.slice(0, 2).map((tag) => (
-                <Badge key={tag} variant="yellow" className="text-[9px] px-1 py-0.5">
+                <Badge key={tag} variant="red" className="text-[9px] px-1 py-0.5">
                   {tag}
                 </Badge>
               ))}

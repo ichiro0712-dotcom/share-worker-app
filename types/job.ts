@@ -52,4 +52,8 @@ export interface Job {
   featureTags?: string[];
   // マッチング方法
   requiresInterview?: boolean;
+  // 勤務日条件
+  weeklyFrequency?: number | null; // 2-5回以上勤務条件
+  effectiveWeeklyFrequency?: number | null; // 有効なN回以上勤務条件（応募可能日数がN未満なら単発扱いでnull）
+  availableWorkDateCount?: number; // 応募可能な勤務日数
 }

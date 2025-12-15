@@ -347,7 +347,7 @@ export default function AdminLaborDocumentDetailPage({
           {/* フッター */}
           <div className="pt-6 border-t text-center text-sm text-gray-500">
             <p>本書は労働基準法第15条に基づき、労働条件を明示するものです。</p>
-            <p className="mt-2">発行: S WORKS</p>
+            <p className="mt-2">発行: +TASTAS</p>
           </div>
         </div>
       </div>

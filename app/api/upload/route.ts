@@ -41,6 +41,9 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024;
 // ご利用ガイド用最大ファイルサイズ（100MB）
 const MAX_USER_GUIDE_FILE_SIZE = 100 * 1024 * 1024;
 
+// メッセージ添付用最大ファイルサイズ（15MB）
+const MAX_MESSAGE_FILE_SIZE = 15 * 1024 * 1024;
+
 // 最大アップロード数
 const MAX_FILES = 10;
 
@@ -103,8 +106,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ファイルサイズ上限を決定（user-guideの場合は100MB、それ以外は5MB）
-    const maxFileSize = uploadType === 'user-guide' ? MAX_USER_GUIDE_FILE_SIZE : MAX_FILE_SIZE;
+    // ファイルサイズ上限を決定
+    const maxFileSize = uploadType === 'user-guide'
+      ? MAX_USER_GUIDE_FILE_SIZE
+      : uploadType === 'message'
+        ? MAX_MESSAGE_FILE_SIZE
+        : MAX_FILE_SIZE;
 
     // 各ファイルの検証
     for (const file of files) {
@@ -170,6 +177,33 @@ export async function POST(request: NextRequest) {
         await writeFile(filePath, buffer);
 
         uploadedUrls.push(`/uploads/user-guides/${fileName}`);
+        continue; // 次のファイルへ
+      }
+
+      // メッセージ添付ファイル
+      if (uploadType === 'message') {
+        const ext = sanitizedName.split('.').pop()?.toLowerCase() || 'jpg';
+        const fileName = `msg-${timestamp}-${randomStr}.${ext}`;
+        const messageUploadDir = path.join(process.cwd(), 'public', 'uploads', 'messages');
+
+        if (!existsSync(messageUploadDir)) {
+          await mkdir(messageUploadDir, { recursive: true });
+        }
+
+        const filePath = path.join(messageUploadDir, fileName);
+
+        // パストラバーサル対策
+        const resolvedPath = path.resolve(filePath);
+        const resolvedUploadDir = path.resolve(messageUploadDir);
+        if (!resolvedPath.startsWith(resolvedUploadDir)) {
+          return NextResponse.json({ error: '不正なファイルパスです' }, { status: 400 });
+        }
+
+        const bytes = await file.arrayBuffer();
+        const buffer = Buffer.from(bytes);
+        await writeFile(filePath, buffer);
+
+        uploadedUrls.push(`/uploads/messages/${fileName}`);
         continue; // 次のファイルへ
       }
 

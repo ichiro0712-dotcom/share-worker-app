@@ -6,6 +6,11 @@ export default {
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
+  safelist: [
+    'bg-purple-100',
+    'text-purple-700',
+    'text-purple-800',
+  ],
   theme: {
     extend: {
       colors: {

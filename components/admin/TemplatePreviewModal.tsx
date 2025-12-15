@@ -1,7 +1,7 @@
 'use client';
 
-import { X, Clock, Banknote, MapPin, Briefcase, Award, Shirt, Package } from 'lucide-react';
-import Image from 'next/image';
+import { X } from 'lucide-react';
+import { JobDetailClient } from '@/components/job/JobDetailClient';
 import { calculateDailyWage } from '@/utils/salary';
 
 interface TemplatePreviewModalProps {
@@ -27,12 +27,24 @@ interface TemplatePreviewModalProps {
     dresscodeImages?: string[];
     attachments?: string[];
   };
-  facilityName: string;
+  facilityData: {
+    id: number;
+    facilityName: string;
+    address: string;
+    prefecture?: string;
+    city?: string;
+    serviceType?: string;
+    mapImage?: string | null;
+    managerName?: string;
+    managerPhoto?: string | null;
+    managerGreeting?: string | null;
+  };
 }
 
-export function TemplatePreviewModal({ isOpen, onClose, templateData, facilityName }: TemplatePreviewModalProps) {
+export function TemplatePreviewModal({ isOpen, onClose, templateData, facilityData }: TemplatePreviewModalProps) {
   if (!isOpen) return null;
 
+  // 日給計算
   const dailyWage = calculateDailyWage(
     templateData.startTime,
     templateData.endTime,
@@ -41,7 +53,84 @@ export function TemplatePreviewModal({ isOpen, onClose, templateData, facilityNa
     templateData.transportationFee
   );
 
-  const displayImages = templateData.images.length > 0 ? templateData.images : ['/images/anken.png'];
+  // プレビュー用のダミーデータを構築（JobPreviewModalと同じ形式）
+  const previewJob = {
+    id: 0,
+    title: templateData.title || '（タイトル未設定）',
+    // snake_case（データベース形式）
+    start_time: templateData.startTime,
+    end_time: templateData.endTime,
+    break_time: templateData.breakTime,
+    hourly_wage: templateData.hourlyWage,
+    transportation_fee: templateData.transportationFee,
+    recruitment_count: templateData.recruitmentCount,
+    work_content: templateData.workContent,
+    dresscode_images: templateData.dresscodeImages || [],
+    // camelCase（JobDetailClientが使用）
+    startTime: templateData.startTime,
+    endTime: templateData.endTime,
+    breakTime: templateData.breakTime,
+    hourlyWage: templateData.hourlyWage,
+    transportationFee: templateData.transportationFee,
+    recruitmentCount: templateData.recruitmentCount,
+    workContent: templateData.workContent,
+    dresscodeImages: templateData.dresscodeImages || [],
+    // その他のプロパティ
+    description: templateData.jobDescription,
+    overview: templateData.jobDescription,
+    qualifications: templateData.qualifications,
+    requiredQualifications: templateData.qualifications,
+    skills: templateData.skills,
+    requiredExperience: templateData.skills,
+    dresscode: templateData.dresscode,
+    belongings: templateData.belongings,
+    tags: templateData.icons,
+    images: templateData.images.length > 0 ? templateData.images : ['/images/anken.png'],
+    attachments: templateData.attachments || [],
+    status: 'published',
+    requiresInterview: false,
+    badges: [],
+    wage: dailyWage,
+    address: facilityData.address,
+    prefecture: facilityData.prefecture || '',
+    city: facilityData.city || '',
+    addressLine: '',
+    deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    appliedCount: 0,
+    matchedCount: 0,
+    // テンプレートには勤務日がないのでダミーで1日分を追加
+    workDates: [{
+      id: 1,
+      work_date: new Date(),
+      workDate: new Date().toISOString().split('T')[0],
+      recruitmentCount: templateData.recruitmentCount,
+      appliedCount: 0,
+      matchedCount: 0,
+    }],
+    recruitment_start: new Date(),
+    recruitment_end: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    // 担当者情報（施設から取得）
+    managerName: facilityData.managerName || '担当者',
+    managerAvatar: facilityData.managerPhoto || '👤',
+    managerMessage: facilityData.managerGreeting || 'よろしくお願いいたします。',
+  };
+
+  const previewFacility = {
+    id: facilityData.id,
+    facility_name: facilityData.facilityName,
+    name: facilityData.facilityName,
+    address: facilityData.address,
+    prefecture: facilityData.prefecture || '',
+    city: facilityData.city || '',
+    service_type: facilityData.serviceType || '介護施設',
+    type: facilityData.serviceType || '介護施設',
+    map_image: facilityData.mapImage || null,
+    description: '',
+    access_info: '',
+    nearby_station: '',
+    averageRating: 0,
+    totalReviews: 0,
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -52,10 +141,13 @@ export function TemplatePreviewModal({ isOpen, onClose, templateData, facilityNa
       />
 
       {/* モーダルコンテンツ */}
-      <div className="relative w-full max-w-2xl max-h-[90vh] bg-white rounded-lg shadow-xl overflow-hidden flex flex-col">
+      <div className="relative w-full max-w-md h-[90vh] bg-white rounded-lg shadow-xl overflow-hidden flex flex-col">
         {/* ヘッダー */}
         <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50">
-          <h2 className="text-lg font-bold text-gray-900">テンプレートプレビュー</h2>
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">テンプレートプレビュー</h2>
+            <p className="text-xs text-gray-500">{templateData.name || '（テンプレート名未設定）'}</p>
+          </div>
           <button
             onClick={onClose}
             className="p-2 hover:bg-gray-200 rounded-full transition-colors"
@@ -64,182 +156,17 @@ export function TemplatePreviewModal({ isOpen, onClose, templateData, facilityNa
           </button>
         </div>
 
-        {/* プレビューバナー */}
-        <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2">
-          <p className="text-sm text-yellow-800 text-center">
-            📋 これはテンプレートのプレビューです。実際の求人として公開されるものではありません。
-          </p>
-        </div>
-
-        {/* コンテンツ */}
-        <div className="flex-1 overflow-y-auto p-6">
-          {/* テンプレート名 */}
-          <div className="mb-4 pb-4 border-b">
-            <span className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded">テンプレート名</span>
-            <h3 className="text-lg font-bold mt-1">{templateData.name || '（テンプレート名未設定）'}</h3>
-          </div>
-
-          {/* 画像 */}
-          {displayImages.length > 0 && (
-            <div className="mb-6">
-              <div className="grid grid-cols-3 gap-2">
-                {displayImages.map((img, idx) => (
-                  <div key={idx} className="relative aspect-[3/2] rounded-lg overflow-hidden bg-gray-100">
-                    <Image
-                      src={img}
-                      alt={`画像 ${idx + 1}`}
-                      fill
-                      className="object-cover"
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 基本情報 */}
-          <div className="mb-6">
-            <h4 className="font-bold text-gray-900 mb-3">{templateData.title || '（タイトル未設定）'}</h4>
-            <p className="text-sm text-gray-600 mb-2">{facilityName}</p>
-
-            {/* アイコン */}
-            {templateData.icons.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-2">
-                {templateData.icons.map((icon, idx) => (
-                  <span key={idx} className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded">
-                    {icon}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* 勤務条件 */}
-          <div className="grid grid-cols-2 gap-4 mb-6">
-            <div className="flex items-start gap-2">
-              <Clock className="w-5 h-5 text-gray-400 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium">勤務時間</p>
-                <p className="text-sm text-gray-600">
-                  {templateData.startTime} 〜 {templateData.endTime}
-                </p>
-                <p className="text-xs text-gray-500">休憩 {templateData.breakTime}分</p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-2">
-              <Banknote className="w-5 h-5 text-gray-400 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium">給与</p>
-                <p className="text-sm text-gray-600">時給 {templateData.hourlyWage.toLocaleString()}円</p>
-                <p className="text-xs text-gray-500">
-                  交通費 {templateData.transportationFee.toLocaleString()}円 / 日給 {dailyWage.toLocaleString()}円
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* 仕事内容 */}
-          {templateData.workContent.length > 0 && (
-            <div className="mb-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Briefcase className="w-4 h-4 text-gray-400" />
-                <h5 className="text-sm font-medium">仕事内容</h5>
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {templateData.workContent.map((item, idx) => (
-                  <span key={idx} className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded">
-                    {item}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 仕事詳細 */}
-          {templateData.jobDescription && (
-            <div className="mb-4">
-              <h5 className="text-sm font-medium mb-2">仕事詳細</h5>
-              <p className="text-sm text-gray-600 whitespace-pre-wrap bg-gray-50 p-3 rounded">
-                {templateData.jobDescription}
-              </p>
-            </div>
-          )}
-
-          {/* 資格条件 */}
-          {templateData.qualifications.length > 0 && (
-            <div className="mb-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Award className="w-4 h-4 text-gray-400" />
-                <h5 className="text-sm font-medium">資格条件</h5>
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {templateData.qualifications.map((item, idx) => (
-                  <span key={idx} className="px-2 py-1 text-xs bg-green-50 text-green-700 rounded">
-                    {item}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* スキル */}
-          {templateData.skills.length > 0 && (
-            <div className="mb-4">
-              <h5 className="text-sm font-medium mb-2">スキル・経験</h5>
-              <div className="flex flex-wrap gap-1">
-                {templateData.skills.map((item, idx) => (
-                  <span key={idx} className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded">
-                    {item}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 服装 */}
-          {templateData.dresscode.length > 0 && (
-            <div className="mb-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Shirt className="w-4 h-4 text-gray-400" />
-                <h5 className="text-sm font-medium">服装・身だしなみ</h5>
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {templateData.dresscode.map((item, idx) => (
-                  <span key={idx} className="px-2 py-1 text-xs bg-purple-50 text-purple-700 rounded">
-                    {item}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 持ち物 */}
-          {templateData.belongings.length > 0 && (
-            <div className="mb-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Package className="w-4 h-4 text-gray-400" />
-                <h5 className="text-sm font-medium">持ち物・その他</h5>
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {templateData.belongings.map((item, idx) => (
-                  <span key={idx} className="px-2 py-1 text-xs bg-orange-50 text-orange-700 rounded">
-                    {item}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* フッター */}
-        <div className="px-4 py-3 border-t bg-gray-50">
-          <button
-            onClick={onClose}
-            className="w-full py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
-          >
-            閉じる
-          </button>
+        {/* 求人詳細（スクロール可能） */}
+        <div className="flex-1 overflow-y-auto">
+          <JobDetailClient
+            job={previewJob}
+            facility={previewFacility}
+            relatedJobs={[]}
+            facilityReviews={[]}
+            initialHasApplied={false}
+            initialAppliedWorkDateIds={[]}
+            isPreviewMode={true}
+          />
         </div>
       </div>
     </div>

@@ -2,7 +2,7 @@
 
 ## 概要
 
-S WORKS アプリをPWA（Progressive Web App）化し、Web Push APIによるプッシュ通知を実装する。
++TASTAS アプリをPWA（Progressive Web App）化し、Web Push APIによるプッシュ通知を実装する。
 これにより、ネイティブアプリに近い通知体験（ジョブマッチ時の通知など）を実現する。
 
 ## アーキテクチャ

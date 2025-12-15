@@ -185,7 +185,7 @@ export default function MyPage() {
 
       {/* バージョン情報 */}
       <div className="text-center py-4 text-xs text-gray-500">
-        S WORKS v1.0.0 (Phase 1)
+        +TASTAS v1.0.0 (Phase 1)
       </div>
 
       {/* 下部ナビゲーション */}

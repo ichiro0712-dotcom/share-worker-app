@@ -105,7 +105,7 @@ export default function SystemAdminLayout({ children }: SystemAdminLayoutProps) 
                     <Link href="/system-admin" className="block">
                         <div className="flex items-center gap-2 mb-1">
                             <Shield className="w-5 h-5 text-indigo-500" />
-                            <h1 className="text-lg font-bold text-white">S WORKS System</h1>
+                            <h1 className="text-lg font-bold text-white">+TASTAS System</h1>
                         </div>
                         <p className="text-xs text-slate-500 pl-7">システム管理画面</p>
                     </Link>

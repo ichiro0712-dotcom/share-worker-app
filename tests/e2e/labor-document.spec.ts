@@ -7,7 +7,7 @@ const TEST_WORKER = {
 };
 
 const TEST_ADMIN = {
-  email: 'admin@sworks.co.jp',
+  email: 'admin@tastas.jp',
   password: 'admin123',
 };
 

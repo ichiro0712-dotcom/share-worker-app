@@ -239,15 +239,15 @@ export default function AnalyticsFilters({
                                 </div>
                             )}
 
-                            {/* 面接ありフィルター */}
+                            {/* 審査ありフィルター */}
                             {showInterviewFilter && (
                                 <div>
-                                    <label className="block text-xs font-medium text-slate-600 mb-2">面接</label>
+                                    <label className="block text-xs font-medium text-slate-600 mb-2">審査</label>
                                     <div className="flex flex-wrap gap-4">
                                         {[
                                             { value: '', label: 'すべて' },
-                                            { value: 'true', label: '面接あり' },
-                                            { value: 'false', label: '面接なし' }
+                                            { value: 'true', label: '審査あり' },
+                                            { value: 'false', label: '審査なし' }
                                         ].map(opt => (
                                             <label
                                                 key={opt.value}

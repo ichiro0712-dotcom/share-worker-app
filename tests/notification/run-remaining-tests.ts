@@ -351,7 +351,7 @@ async function main() {
             targetType: 'SYSTEM_ADMIN',
             recipientId: 1, // Admin ID
             recipientName: '管理者',
-            recipientEmail: 'admin@sworks.jp',
+            recipientEmail: 'admin@+tastas.jp',
             variables: {
                 user_name: '新規 太郎',
                 user_email: 'new@example.com',
@@ -366,7 +366,7 @@ async function main() {
             targetType: 'SYSTEM_ADMIN',
             recipientId: 1,
             recipientName: '管理者',
-            recipientEmail: 'admin@sworks.jp',
+            recipientEmail: 'admin@+tastas.jp',
             variables: {
                 facility_name: '新規施設',
                 corporation_name: '株式会社テスト',
@@ -381,7 +381,7 @@ async function main() {
             targetType: 'SYSTEM_ADMIN',
             recipientId: 1,
             recipientName: '管理者',
-            recipientEmail: 'admin@sworks.jp',
+            recipientEmail: 'admin@+tastas.jp',
             variables: {
                 target_type: 'ワーカー',
                 target_name: worker!.name,
@@ -399,7 +399,7 @@ async function main() {
             targetType: 'SYSTEM_ADMIN',
             recipientId: 1,
             recipientName: '管理者',
-            recipientEmail: 'admin@sworks.jp',
+            recipientEmail: 'admin@+tastas.jp',
             variables: {
                 target_type: 'ワーカー',
                 target_name: worker!.name,
@@ -417,7 +417,7 @@ async function main() {
             targetType: 'SYSTEM_ADMIN',
             recipientId: 1,
             recipientName: '管理者',
-            recipientEmail: 'admin@sworks.jp',
+            recipientEmail: 'admin@+tastas.jp',
             variables: {
                 user_email: 'suspicious@example.com',
                 ip_address: '192.168.1.100',

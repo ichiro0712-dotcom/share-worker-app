@@ -75,9 +75,8 @@ export default function FacilityPage() {
   const [managerInfo, setManagerInfo] = useState({
     lastName: '',
     firstName: '',
-    photo: null as File | null,
-    photoPreview: '',
-    greeting: '',
+    phone: '',
+    email: '',
   });
 
   // 担当者情報
@@ -86,8 +85,11 @@ export default function FacilityPage() {
     lastName: '',
     firstName: '',
     phone: '',
-    emergencyContact: '',
     emails: [''],
+    photo: null as File | null,
+    photoPreview: '',
+    greeting: '',
+    emergencyContact: '',
   });
 
   // 服装情報
@@ -240,9 +242,8 @@ export default function FacilityPage() {
             setManagerInfo({
               lastName: '',
               firstName: '',
-              photo: null,
-              photoPreview: '',
-              greeting: '',
+              phone: '',
+              email: '',
             });
             // 担当者情報のデフォルト値を空にリセット
             setStaffInfo({
@@ -250,8 +251,11 @@ export default function FacilityPage() {
               lastName: '',
               firstName: '',
               phone: '',
-              emergencyContact: '',
               emails: [''],
+              photo: null,
+              photoPreview: '',
+              greeting: '',
+              emergencyContact: '',
             });
             // アクセス情報のデフォルト値を空にリセット
             setAccessInfo({
@@ -294,30 +298,46 @@ export default function FacilityPage() {
           });
 
           // 責任者情報をセット
-          // blob URLは一時的なURLなので、DBに保存されていても無視する
-          // 有効なパス（/uploads/...）のみを使用
-          const validPhotoPath = data.managerPhoto && !data.managerPhoto.startsWith('blob:')
-            ? data.managerPhoto
-            : '';
           setManagerInfo((prev) => ({
             ...prev,
             lastName: data.managerLastName || '',
             firstName: data.managerFirstName || '',
-            photo: null, // Fileオブジェクトは常にnullで初期化
-            photoPreview: validPhotoPath,
-            greeting: data.managerGreeting || '',
+            phone: data.managerPhone || '',
+            email: data.managerEmail || '',
           }));
 
           // 担当者情報をセット
+          const validPhotoPath = data.staffPhoto && !data.staffPhoto.startsWith('blob:')
+            ? data.staffPhoto
+            : '';
+
+          // staffEmail と staffEmails を統合
+          const allEmails: string[] = [];
+          if (data.staffEmail) {
+            allEmails.push(data.staffEmail);
+          }
+          if (data.staffEmails && data.staffEmails.length > 0) {
+            // staffEmailと重複しないものだけ追加
+            data.staffEmails.forEach((e: string) => {
+              if (e && !allEmails.includes(e)) {
+                allEmails.push(e);
+              }
+            });
+          }
+          if (allEmails.length === 0) {
+            allEmails.push('');
+          }
+
           setStaffInfo({
             sameAsManager: data.staffSameAsManager || false,
             lastName: data.staffLastName || '',
             firstName: data.staffFirstName || '',
             phone: data.staffPhone || '',
+            emails: allEmails,
+            photo: null,
+            photoPreview: validPhotoPath,
+            greeting: data.staffGreeting || '',
             emergencyContact: data.emergencyContact || '',
-            emails: data.staffEmails && data.staffEmails.length > 0
-              ? data.staffEmails
-              : [''],
           });
 
           // アクセス情報をセット
@@ -391,9 +411,29 @@ export default function FacilityPage() {
     };
 
     loadAccounts();
+    loadAccounts();
   }, [admin?.facilityId]);
 
-  const handleManagerPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 責任者情報を担当者情報に同期（チェック時）
+  // 氏名、電話番号、メールアドレスを同期
+  useEffect(() => {
+    if (staffInfo.sameAsManager) {
+      setStaffInfo(prev => {
+        // 責任者のメールを1件目にセット、既存の追加メールは保持
+        const newEmails = [...prev.emails];
+        newEmails[0] = managerInfo.email || '';
+        return {
+          ...prev,
+          lastName: managerInfo.lastName,
+          firstName: managerInfo.firstName,
+          phone: managerInfo.phone,
+          emails: newEmails,
+        };
+      });
+    }
+  }, [staffInfo.sameAsManager, managerInfo]);
+
+  const handleStaffPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const result = validateFile(file, 'image');
@@ -401,20 +441,20 @@ export default function FacilityPage() {
         toast.error(result.error!);
         return;
       }
-      setManagerInfo({
-        ...managerInfo,
+      setStaffInfo({
+        ...staffInfo,
         photo: file,
         photoPreview: URL.createObjectURL(file),
       });
     }
   };
 
-  const handleManagerPhotoDragOver = (e: React.DragEvent) => {
+  const handleStaffPhotoDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
   };
 
-  const handleManagerPhotoDrop = (e: React.DragEvent) => {
+  const handleStaffPhotoDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
@@ -425,8 +465,8 @@ export default function FacilityPage() {
         toast.error(result.error!);
         return;
       }
-      setManagerInfo({
-        ...managerInfo,
+      setStaffInfo({
+        ...staffInfo,
         photo: file,
         photoPreview: URL.createObjectURL(file),
       });
@@ -518,6 +558,7 @@ export default function FacilityPage() {
   };
 
   const removeEmail = (index: number) => {
+    if (index === 0) return; // 1件目は削除不可
     if (staffInfo.emails.length > 1) {
       setStaffInfo({
         ...staffInfo,
@@ -560,8 +601,8 @@ export default function FacilityPage() {
       .replace(/\[施設名\]/g, facilityInfo.name);
   };
 
-  // 責任者画像のアップロード処理
-  const uploadManagerPhoto = async (file: File): Promise<string | null> => {
+  // 担当者画像のアップロード処理
+  const uploadStaffPhoto = async (file: File): Promise<string | null> => {
     try {
       const formData = new FormData();
       formData.append('files', file);
@@ -578,12 +619,11 @@ export default function FacilityPage() {
 
       const result = await response.json();
       if (result.success && result.urls && result.urls.length > 0) {
-        // /uploads/jobs/ から /uploads/manager/ に置き換え（同じ場所でもOK）
         return result.urls[0];
       }
       return null;
     } catch (error) {
-      console.error('Manager photo upload error:', error);
+      console.error('Staff photo upload error:', error);
       throw error;
     }
   };
@@ -604,10 +644,25 @@ export default function FacilityPage() {
     const errors: string[] = [];
 
     // 責任者情報
-    // 有効な写真: Fileオブジェクトがある、または既にアップロード済みの有効なパスがある
-    const hasValidPhoto = managerInfo.photo || (managerInfo.photoPreview && !managerInfo.photoPreview.startsWith('blob:'));
-    if (!hasValidPhoto) errors.push('責任者の顔写真は必須です');
-    if (!managerInfo.greeting?.trim()) errors.push('責任者の挨拶文は必須です');
+    if (!managerInfo.lastName || !managerInfo.firstName) errors.push('責任者の氏名は必須です');
+    if (!managerInfo.phone) errors.push('責任者の電話番号は必須です');
+    if (!managerInfo.email) errors.push('責任者のメールアドレスは必須です');
+
+    // 担当者情報
+    if (!staffInfo.sameAsManager) {
+      if (!staffInfo.lastName || !staffInfo.firstName) errors.push('担当者の氏名は必須です');
+    }
+    const hasValidPhoto = staffInfo.photo || (staffInfo.photoPreview && !staffInfo.photoPreview.startsWith('blob:'));
+    if (!hasValidPhoto) errors.push('担当者の顔写真は必須です');
+    if (!staffInfo.greeting?.trim()) errors.push('担当者の挨拶文は必須です');
+    if (!staffInfo.phone) errors.push('担当者の連絡先番号は必須です');
+
+    // メールアドレスチェック
+    if (!staffInfo.emails[0]?.trim()) {
+      errors.push('通知先メールアドレスは必須です');
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(staffInfo.emails[0])) {
+      errors.push('通知先メールアドレスの形式が正しくありません');
+    }
 
     // アクセス
     const validStations = accessInfo.stations.filter(s => s.name?.trim() && (s.minutes || s.minutes === 0));
@@ -662,56 +717,40 @@ export default function FacilityPage() {
     }
 
     console.log('[handleSave] Saving with facilityId:', admin.facilityId);
-    console.log('[handleSave] Full managerInfo state:', JSON.stringify({
-      lastName: managerInfo.lastName,
-      firstName: managerInfo.firstName,
-      photoType: managerInfo.photo ? 'File' : 'null',
-      photoName: managerInfo.photo?.name || 'N/A',
-      photoPreview: managerInfo.photoPreview,
-      greeting: managerInfo.greeting?.substring(0, 50) + '...',
-    }));
 
     setIsSaving(true);
     try {
-      // 責任者画像のアップロード処理
-      let managerPhotoUrl = managerInfo.photoPreview;
-
-      console.log('[handleSave] managerInfo.photo:', managerInfo.photo);
-      console.log('[handleSave] managerInfo.photoPreview:', managerInfo.photoPreview);
-      console.log('[handleSave] photo is truthy:', !!managerInfo.photo);
+      // 担当者画像のアップロード処理
+      let staffPhotoUrl = staffInfo.photoPreview;
 
       // 新しいファイルが選択されている場合（Fileオブジェクトがある場合）はアップロード
-      if (managerInfo.photo) {
-        console.log('[handleSave] Uploading manager photo...');
+      if (staffInfo.photo) {
         try {
-          const uploadedUrl = await uploadManagerPhoto(managerInfo.photo);
-          console.log('[handleSave] Upload result:', uploadedUrl);
+          const uploadedUrl = await uploadStaffPhoto(staffInfo.photo);
           if (uploadedUrl) {
-            managerPhotoUrl = uploadedUrl;
-            // アップロード成功後、stateも更新（次回保存時に再アップロードを防ぐ）
-            setManagerInfo(prev => ({
+            staffPhotoUrl = uploadedUrl;
+            // アップロード成功後、stateも更新
+            setStaffInfo(prev => ({
               ...prev,
               photo: null,
               photoPreview: uploadedUrl,
             }));
           }
         } catch (uploadError) {
-          console.error('Manager photo upload failed:', uploadError);
-          toast.error('責任者の顔写真のアップロードに失敗しました');
+          console.error('Staff photo upload failed:', uploadError);
+          toast.error('担当者の顔写真のアップロードに失敗しました');
           setIsSaving(false);
           return;
         }
       }
-      // blob URLの場合は既存の画像パスを使用（既にアップロード済みのパスがある場合）
-      // blob URLは一時的なので、既存のパスがあればそれを使う
-      if (managerPhotoUrl && managerPhotoUrl.startsWith('blob:')) {
-        // blob URLしかない場合はエラー（既にアップロードされた画像がない）
-        toast.error('責任者の顔写真を再度選択してください');
+
+      if (staffPhotoUrl && staffPhotoUrl.startsWith('blob:')) {
+        toast.error('担当者の顔写真を再度選択してください');
         setIsSaving(false);
         return;
       }
 
-      // 地図画像の生成（住所が変更された場合、または地図画像がない場合）
+      // 地図画像を更新するかの判定
       const fullAddress = [
         corporateInfo.prefecture,
         corporateInfo.city,
@@ -724,41 +763,15 @@ export default function FacilityPage() {
       let mapImageUrl = accessInfo.mapImage;
 
       if (fullAddress && (addressChanged || noMapImage)) {
-        console.log('[handleSave] Generating map image before save...');
-        console.log('[handleSave] Address:', fullAddress, 'Changed:', addressChanged, 'NoMap:', noMapImage);
-
         try {
           const mapResult = await updateFacilityMapImage(admin.facilityId, fullAddress);
           if (mapResult.success && mapResult.mapImage) {
             mapImageUrl = mapResult.mapImage;
-            // stateも更新（UIに反映）
             setAccessInfo(prev => ({ ...prev, mapImage: mapResult.mapImage! }));
-            console.log('[handleSave] Map image generated:', mapImageUrl);
-          } else {
-            // 地図画像の取得に失敗した場合は保存をブロック
-            toast.error(
-              <div className="text-sm">
-                <p className="font-bold mb-1">住所が存在しない可能性があります</p>
-                <p>住所を確認して再度保存してください。</p>
-                <p className="text-xs mt-1 text-gray-600">入力内容は保持されています。</p>
-              </div>,
-              { duration: 5000 }
-            );
-            setIsSaving(false);
-            return;
           }
         } catch (mapError) {
           console.error('Failed to generate map image:', mapError);
-          toast.error(
-            <div className="text-sm">
-              <p className="font-bold mb-1">地図画像の生成に失敗しました</p>
-              <p>住所を確認して再度保存してください。</p>
-              <p className="text-xs mt-1 text-gray-600">入力内容は保持されています。</p>
-            </div>,
-            { duration: 5000 }
-          );
-          setIsSaving(false);
-          return;
+          // マップ生成失敗でも保存は継続する（警告を表示してもいいが）
         }
       }
 
@@ -783,16 +796,19 @@ export default function FacilityPage() {
         // 責任者情報
         managerLastName: managerInfo.lastName,
         managerFirstName: managerInfo.firstName,
-        managerPhoto: managerPhotoUrl,
-        managerGreeting: managerInfo.greeting,
+        managerPhone: managerInfo.phone,
+        managerEmail: managerInfo.email,
 
         // 担当者情報
         staffSameAsManager: staffInfo.sameAsManager,
         staffLastName: staffInfo.lastName,
         staffFirstName: staffInfo.firstName,
         staffPhone: staffInfo.phone,
+        staffEmail: staffInfo.emails[0] || '', // 後方互換性のため1件目を保存
+        staffEmails: staffInfo.emails.filter(e => e.trim() !== ''),
+        staffPhoto: staffPhotoUrl,
+        staffGreeting: staffInfo.greeting,
         emergencyContact: staffInfo.emergencyContact,
-        staffEmails: staffInfo.emails,
 
         // アクセス情報
         stations: accessInfo.stations,
@@ -1101,67 +1117,25 @@ export default function FacilityPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      顔写真 <span className="text-red-500">*</span>
+                      電話番号 <span className="text-red-500">*</span>
                     </label>
-                    <div className="flex items-center gap-4">
-                      {/* 円形の写真プレビュー */}
-                      <div className="relative">
-                        <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-gray-200 bg-gray-100 flex items-center justify-center">
-                          {managerInfo.photoPreview ? (
-                            <img
-                              src={managerInfo.photoPreview}
-                              alt="責任者写真"
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <User className="w-12 h-12 text-gray-400" />
-                          )}
-                        </div>
-                        {managerInfo.photoPreview && (
-                          <button
-                            onClick={() => setManagerInfo({ ...managerInfo, photo: null, photoPreview: '' })}
-                            className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        )}
-                      </div>
-
-                      {/* 小さなドラッグ&ドロップエリア */}
-                      <div
-                        onDragOver={handleManagerPhotoDragOver}
-                        onDrop={handleManagerPhotoDrop}
-                        className="flex-1 max-w-xs border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-primary transition-colors cursor-pointer"
-                      >
-                        <Upload className="w-6 h-6 mx-auto mb-2 text-gray-400" />
-                        <p className="text-xs text-gray-600 mb-1">
-                          画像をドラッグ&ドロップ
-                        </p>
-                        <p className="text-xs text-gray-500 mb-2">または</p>
-                        <label className="cursor-pointer inline-flex items-center gap-1.5 bg-white border border-gray-300 rounded-lg px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
-                          <Upload className="w-3 h-3" />
-                          ファイルを選択
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={handleManagerPhotoUpload}
-                            className="hidden"
-                          />
-                        </label>
-                        <p className="text-xs text-gray-500 mt-2">5MB以下 / JPG, PNG, HEIC形式</p>
-                      </div>
-                    </div>
+                    <input
+                      type="tel"
+                      value={managerInfo.phone}
+                      onChange={(e) => setManagerInfo({ ...managerInfo, phone: e.target.value })}
+                      className="w-full max-w-xs px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
+                    />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      挨拶文 <span className="text-red-500">*</span>
+                      メールアドレス <span className="text-red-500">*</span>
                     </label>
-                    <textarea
-                      value={managerInfo.greeting}
-                      onChange={(e) => setManagerInfo({ ...managerInfo, greeting: e.target.value })}
-                      rows={5}
-                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
+                    <input
+                      type="email"
+                      value={managerInfo.email}
+                      onChange={(e) => setManagerInfo({ ...managerInfo, email: e.target.value })}
+                      className="w-full max-w-md px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
                     />
                   </div>
                 </div>
@@ -1210,7 +1184,73 @@ export default function FacilityPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      担当電話番号 <span className="text-red-500">*</span>
+                      顔写真 <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex items-center gap-4">
+                      {/* 円形の写真プレビュー */}
+                      <div className="relative">
+                        <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-gray-200 bg-gray-100 flex items-center justify-center">
+                          {staffInfo.photoPreview ? (
+                            <img
+                              src={staffInfo.photoPreview}
+                              alt="担当者写真"
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <User className="w-12 h-12 text-gray-400" />
+                          )}
+                        </div>
+                        {staffInfo.photoPreview && (
+                          <button
+                            onClick={() => setStaffInfo({ ...staffInfo, photo: null, photoPreview: '' })}
+                            className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* 小さなドラッグ&ドロップエリア */}
+                      <div
+                        onDragOver={handleStaffPhotoDragOver}
+                        onDrop={handleStaffPhotoDrop}
+                        className="flex-1 max-w-xs border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-primary transition-colors cursor-pointer"
+                      >
+                        <Upload className="w-6 h-6 mx-auto mb-2 text-gray-400" />
+                        <p className="text-xs text-gray-600 mb-1">
+                          画像をドラッグ&ドロップ
+                        </p>
+                        <p className="text-xs text-gray-500 mb-2">または</p>
+                        <label className="cursor-pointer inline-flex items-center gap-1.5 bg-white border border-gray-300 rounded-lg px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                          <Upload className="w-3 h-3" />
+                          ファイルを選択
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleStaffPhotoUpload}
+                            className="hidden"
+                          />
+                        </label>
+                        <p className="text-xs text-gray-500 mt-2">5MB以下 / JPG, PNG, HEIC形式</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      挨拶文 <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      value={staffInfo.greeting}
+                      onChange={(e) => setStaffInfo({ ...staffInfo, greeting: e.target.value })}
+                      rows={5}
+                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      連絡先電話番号 <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="tel"
@@ -1222,21 +1262,9 @@ export default function FacilityPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      緊急連絡先
+                      通知先メールアドレス <span className="text-red-500">*</span>
                     </label>
-                    <textarea
-                      value={staffInfo.emergencyContact}
-                      onChange={(e) => setStaffInfo({ ...staffInfo, emergencyContact: e.target.value })}
-                      rows={3}
-                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
-                      placeholder="担当不在の場合は、電話口の者に伝言をお願いいたします。&#10;誰も出ない場合は、下記番号にお電話くださいませ。&#10;大東（ダイトウ）：080-7441-7699"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      担当メールアドレス <span className="text-red-500">*</span>
-                    </label>
+                    <p className="text-xs text-gray-500 mb-2">1件目は必須です。複数のアドレスに通知を送信できます。</p>
                     <div className="space-y-2">
                       {staffInfo.emails.map((email, index) => (
                         <div key={index} className="flex gap-2">
@@ -1244,7 +1272,7 @@ export default function FacilityPage() {
                             type="email"
                             value={email}
                             onChange={(e) => updateEmail(index, e.target.value)}
-                            placeholder={index === 0 ? 'メインアドレス（必須）' : `サブアドレス ${index}`}
+                            placeholder={index === 0 ? 'メインの通知先（必須）' : `追加アドレス ${index}`}
                             className="flex-1 max-w-md px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
                           />
                           {index > 0 && (
@@ -1266,6 +1294,19 @@ export default function FacilityPage() {
                         </button>
                       )}
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      緊急連絡先
+                    </label>
+                    <textarea
+                      value={staffInfo.emergencyContact}
+                      onChange={(e) => setStaffInfo({ ...staffInfo, emergencyContact: e.target.value })}
+                      rows={3}
+                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
+                      placeholder="担当不在の場合は、電話口の者に伝言をお願いいたします。&#10;誰も出ない場合は、下記番号にお電話くださいませ。&#10;大東（ダイトウ）：080-7441-7699"
+                    />
                   </div>
                 </div>
               </div>

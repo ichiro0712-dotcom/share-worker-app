@@ -283,8 +283,34 @@ export function JobListClient({ jobs, facilities }: JobListClientProps) {
     });
   }, [filteredByMute, selectedDateIndex, dates]);
 
+  // 選択された日付をYYYY-MM-DD形式で取得（JobCardに渡すため）
+  const selectedDateStr = useMemo(() => {
+    const date = dates[selectedDateIndex];
+    if (!date) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }, [dates, selectedDateIndex]);
+
   // ソート処理
-  const sortedJobs = [...filteredByDate].sort((a, b) => {
+  // 選択された日付に対する応募可否を判定するヘルパー
+  const getCanApplyForDate = (job: any, dateStr: string) => {
+    if (!job.workDates || job.workDates.length === 0) {
+      return job.hasAvailableWorkDate !== false;
+    }
+    const wd = job.workDates.find((w: any) => w.workDate === dateStr);
+    return wd ? wd.canApply !== false : job.hasAvailableWorkDate !== false;
+  };
+
+  const sortedJobs = useMemo(() => [...filteredByDate].sort((a, b) => {
+    // まず応募可能な求人を先に表示
+    const aCanApply = getCanApplyForDate(a, selectedDateStr);
+    const bCanApply = getCanApplyForDate(b, selectedDateStr);
+    if (aCanApply && !bCanApply) return -1;
+    if (!aCanApply && bCanApply) return 1;
+
+    // 同じ応募可否の中でソート
     if (sortOrder === 'wage') {
       // 時給順（高い順）
       return b.hourlyWage - a.hourlyWage;
@@ -296,17 +322,8 @@ export function JobListClient({ jobs, facilities }: JobListClientProps) {
     }
     // distance（近い順）はデフォルトの順序を維持
     return 0;
-  });
-
-  // 選択された日付をYYYY-MM-DD形式で取得（JobCardに渡すため）
-  const selectedDateStr = useMemo(() => {
-    const date = dates[selectedDateIndex];
-    if (!date) return '';
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  }, [dates, selectedDateIndex]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [filteredByDate, selectedDateStr, sortOrder]);
 
   return (
     <div className="min-h-screen bg-background pb-20">

@@ -13,9 +13,9 @@ const METRIC_LABELS: Record<keyof Omit<FacilityMetrics, 'date'>, string> = {
     dropoutRate: '登録離脱率(%)',
     withdrawalRate: '退会率(%)',
     parentJobCount: '親求人数',
-    parentJobInterviewCount: '親求人数(面接あり)',
+    parentJobInterviewCount: '親求人数(審査あり)',
     childJobCount: '子求人数',
-    childJobInterviewCount: '子求人数(面接あり)'
+    childJobInterviewCount: '子求人数(審査あり)'
 };
 
 export default function FacilityAnalytics() {
@@ -73,21 +73,19 @@ export default function FacilityAnalytics() {
                     <div className="flex items-center bg-slate-100 rounded-lg p-1">
                         <button
                             onClick={() => handleViewModeChange('daily')}
-                            className={`px-4 py-1.5 text-sm font-medium rounded-md transition ${
-                                viewMode === 'daily'
+                            className={`px-4 py-1.5 text-sm font-medium rounded-md transition ${viewMode === 'daily'
                                     ? 'bg-white text-indigo-600 shadow-sm'
                                     : 'text-slate-500 hover:text-slate-700'
-                            }`}
+                                }`}
                         >
                             日次
                         </button>
                         <button
                             onClick={() => handleViewModeChange('monthly')}
-                            className={`px-4 py-1.5 text-sm font-medium rounded-md transition ${
-                                viewMode === 'monthly'
+                            className={`px-4 py-1.5 text-sm font-medium rounded-md transition ${viewMode === 'monthly'
                                     ? 'bg-white text-indigo-600 shadow-sm'
                                     : 'text-slate-500 hover:text-slate-700'
-                            }`}
+                                }`}
                         >
                             月次
                         </button>

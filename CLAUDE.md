@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-S WORKS - 看護師・介護士向け求人マッチングWebサービス (Nurse & Caregiver Job Matching Web Service)
++TASTAS - 看護師・介護士向け求人マッチングWebサービス (Nurse & Caregiver Job Matching Web Service)
 
 ## Commands
 
@@ -80,6 +80,12 @@ tsx prisma/seed.ts       # Run database seed
 2. 具体的な変更内容（ファイルパス、変更箇所）
 3. 完了条件と確認方法
 4. **必須チェックリスト**（以下を指示書末尾に必ず記載）
+
+**⚠️ 重要: コンテキスト継続時の注意（コンパクティング後）**
+セッションが長くなりコンテキストがコンパクティング（要約）された後に再開する場合、**指示書を作成した作業は自分で実装しないこと**。
+- 指示書（`ichiro/LLM_TASK_*.md`）が存在する場合、その作業は無料LLMに委託する予定
+- コンパクティング後に「前回の続き」として実装を始めてしまいがちだが、**指示書があれば実装は無料LLMの担当**
+- 再開時は必ず `ichiro/` ディレクトリを確認し、未完了の指示書がないかチェックすること
 
 **無料LLM作業後の必須チェックリスト:**
 指示書の末尾には、以下のチェックリストを必ず含めること：
@@ -217,7 +223,7 @@ npm run lint   # Lintエラーがないこと
 
 - [ ] ワーカーログイン/登録
 - [ ] 施設管理者ログイン
-- [ ] System Adminログイン（admin@sworks.com）
+- [ ] System Adminログイン（admin@tastas.jp）
 - [ ] 求人検索・応募フロー
 - [ ] メッセージ機能
 

@@ -70,11 +70,17 @@ export default async function JobListPage({ searchParams }: PageProps) {
       // 全ての勤務日情報を含める
       workDates: job.workDates?.map((wd: any) => ({
         id: wd.id,
-        workDate: wd.work_date ? wd.work_date.split('T')[0] : '',
+        workDate: wd.workDate || (wd.work_date ? wd.work_date.split('T')[0] : ''),
         deadline: wd.deadline,
         appliedCount: wd.applied_count,
         recruitmentCount: wd.recruitment_count,
+        // 応募可否情報
+        canApply: wd.canApply,
+        isApplied: wd.isApplied,
+        isFull: wd.isFull,
+        hasTimeConflict: wd.hasTimeConflict,
       })) || [],
+      hasAvailableWorkDate: job.hasAvailableWorkDate,
       startTime: job.start_time,
       endTime: job.end_time,
       breakTime: job.break_time,
@@ -105,6 +111,10 @@ export default async function JobListPage({ searchParams }: PageProps) {
       accessDescription: job.access,
       featureTags,
       requiresInterview: job.requires_interview,
+      // N回以上勤務条件
+      weeklyFrequency: job.weekly_frequency,
+      effectiveWeeklyFrequency: job.effectiveWeeklyFrequency,
+      availableWorkDateCount: job.availableWorkDateCount,
     };
   });
 

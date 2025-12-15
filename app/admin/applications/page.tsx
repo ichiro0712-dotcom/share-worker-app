@@ -28,7 +28,8 @@ import {
   updateApplicationStatus,
   toggleWorkerFavorite,
   toggleWorkerBlock,
-  getFacilityPendingApplicationCount,
+  markJobApplicationsAsViewed,
+  markWorkerApplicationsAsViewed,
 } from '@/src/lib/actions';
 
 // 型定義
@@ -42,6 +43,7 @@ interface Worker {
 interface Application {
   id: number;
   status: string;
+  cancelledBy?: 'WORKER' | 'FACILITY' | null;
   createdAt: string;
   worker: Worker;
   rating: number | null;
@@ -74,6 +76,7 @@ interface JobWithApplications {
   totalMatched: number;
   dateRange: string;
   workDates: WorkDate[];
+  unviewedCount: number; // 未確認応募数
 }
 
 // ワーカービュー用の型
@@ -95,7 +98,9 @@ interface WorkerWithApplications {
   applications: {
     id: number;
     status: string;
+    cancelledBy?: 'WORKER' | 'FACILITY' | null;
     createdAt: string;
+    isUnviewed?: boolean; // 未確認フラグ
     job: {
       id: number;
       title: string;
@@ -106,6 +111,7 @@ interface WorkerWithApplications {
       requiresInterview: boolean;
     };
   }[];
+  unviewedCount: number; // ワーカーごとの未確認応募数
 }
 
 // 経験職種の略称を取得するヘルパー関数
@@ -198,18 +204,17 @@ function ApplicationsContent() {
     setIsLoading(true);
     try {
       // 並列でデータ取得
-      const [jobsData, workersData, badgeData] = await Promise.all([
+      const [jobsData, workersData] = await Promise.all([
         getJobsWithApplications(admin.facilityId),
         getApplicationsByWorker(admin.facilityId),
-        getFacilityPendingApplicationCount(admin.facilityId),
       ]);
       setJobs(jobsData);
       setWorkers(workersData);
 
-      // タブバッジの更新（求人数・ワーカー数）
+      // タブバッジの更新（未確認応募がある求人数・ワーカー数）
       setTabBadges({
-        byJob: badgeData.byJob.length,
-        byWorker: badgeData.byWorker.length,
+        byJob: jobsData.filter(j => j.unviewedCount > 0).length,
+        byWorker: workersData.filter(w => w.unviewedCount > 0).length,
       });
 
       // ワーカー状態の初期化
@@ -484,9 +489,8 @@ function ApplicationsContent() {
             <Briefcase className="w-4 h-4" />
             求人から
             {tabBadges.byJob > 0 && (
-              <span className={`text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 ${
-                viewMode === 'jobs' ? 'bg-white text-admin-primary' : 'bg-red-500 text-white'
-              }`}>
+              <span className={`text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 ${viewMode === 'jobs' ? 'bg-white text-admin-primary' : 'bg-red-500 text-white'
+                }`}>
                 {tabBadges.byJob}
               </span>
             )}
@@ -501,9 +505,8 @@ function ApplicationsContent() {
             <Users className="w-4 h-4" />
             ワーカーから
             {tabBadges.byWorker > 0 && (
-              <span className={`text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 ${
-                viewMode === 'workers' ? 'bg-white text-admin-primary' : 'bg-red-500 text-white'
-              }`}>
+              <span className={`text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 ${viewMode === 'workers' ? 'bg-white text-admin-primary' : 'bg-red-500 text-white'
+                }`}>
                 {tabBadges.byWorker}
               </span>
             )}
@@ -584,30 +587,57 @@ function ApplicationsContent() {
                 return (
                   <div
                     key={job.id}
-                    onClick={() => {
+                    onClick={async () => {
                       setSelectedJob(job);
                       // 初期状態で応募がある日付を展開
                       const activeDateIds = job.workDates
                         .filter(wd => wd.applications.length > 0)
                         .map(wd => wd.id);
                       setExpandedDates(new Set(activeDateIds));
+
+                      // この求人の未確認応募を既読にする
+                      if (admin?.facilityId && job.unviewedCount > 0) {
+                        await markJobApplicationsAsViewed(admin.facilityId, job.id);
+                        // ローカルの状態を更新（バッジを消す）
+                        setJobs(prev => prev.map(j =>
+                          j.id === job.id ? { ...j, unviewedCount: 0 } : j
+                        ));
+                        setTabBadges(prev => ({
+                          ...prev,
+                          byJob: Math.max(0, prev.byJob - 1)
+                        }));
+                      }
                     }}
                     className="bg-white rounded-admin-card border border-gray-200 p-5 hover:shadow-md hover:border-admin-primary transition-all cursor-pointer group"
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
-                          <span className={`px-2 py-0.5 text-xs font-medium rounded ${job.status === 'PUBLISHED' ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-400'}`}>
-                            {job.status === 'PUBLISHED' ? '公開中' : '停止中'}
+                          <span className={`px-2 py-0.5 text-xs font-medium rounded ${job.status === 'PUBLISHED' ? 'bg-blue-600 text-white' :
+                            job.status === 'WORKING' ? 'bg-blue-800 text-white' :
+                              job.status === 'COMPLETED' ? 'bg-blue-50 text-blue-300' :
+                                'bg-blue-100 text-blue-400'
+                            }`}>
+                            {job.status === 'PUBLISHED' ? '公開中' :
+                              job.status === 'WORKING' ? '勤務中' :
+                                job.status === 'COMPLETED' ? '完了' :
+                                  job.status === 'STOPPED' ? '停止中' : job.status}
                           </span>
                           {job.requiresInterview && (
                             <span className="px-2 py-0.5 text-xs font-medium rounded bg-orange-100 text-orange-700">
-                              面接あり
+                              審査あり
                             </span>
                           )}
                           <h3 className="text-lg font-bold text-gray-900 group-hover:text-admin-primary transition-colors">
                             {job.title}
                           </h3>
+                          {/* 未確認応募バッジ */}
+                          {job.unviewedCount > 0 && (
+                            <span className="flex items-center gap-1 px-2 py-0.5 text-xs font-bold rounded-full bg-red-500 text-white animate-pulse">
+                              <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
+                              新着 {job.unviewedCount}件
+                            </span>
+                          )}
                         </div>
 
                         <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-gray-600 mb-3">
@@ -676,7 +706,7 @@ function ApplicationsContent() {
             ) : (
               <div className="divide-y divide-gray-100 min-w-[900px]">
                 {filteredWorkers.map((workerData) => {
-                  const { worker, applications } = workerData;
+                  const { worker, applications, unviewedCount } = workerData;
                   const pendingCount = applications.filter(a => a.status === 'APPLIED').length;
                   const totalCount = applications.length;
 
@@ -699,6 +729,12 @@ function ApplicationsContent() {
                               <UserCircle className="w-12 h-12 text-gray-400" />
                             </div>
                           )}
+                          {/* 未確認応募バッジ（プロフィール写真の右上） */}
+                          {unviewedCount > 0 && (
+                            <div className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-md animate-pulse">
+                              {unviewedCount}
+                            </div>
+                          )}
                         </div>
 
                         {/* メイン情報エリア */}
@@ -708,6 +744,13 @@ function ApplicationsContent() {
                             <h3 className="font-bold text-gray-900 text-lg group-hover:text-admin-primary transition-colors">
                               {worker.name}
                             </h3>
+                            {/* 未確認応募バッジ（テキスト版） */}
+                            {unviewedCount > 0 && (
+                              <span className="flex items-center gap-1 px-2 py-0.5 text-xs font-bold rounded-full bg-red-500 text-white animate-pulse">
+                                <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
+                                新着 {unviewedCount}件
+                              </span>
+                            )}
                             {worker.location && (
                               <span className="text-sm text-gray-500">{worker.location}</span>
                             )}
@@ -804,9 +847,28 @@ function ApplicationsContent() {
 
                           {/* 下段: 応募一覧ボタン */}
                           <button
-                            onClick={(e) => {
+                            onClick={async (e) => {
                               e.stopPropagation();
                               setSelectedWorker(workerData);
+
+                              // このワーカーの未確認応募を既読にする
+                              if (admin?.facilityId && unviewedCount > 0) {
+                                await markWorkerApplicationsAsViewed(admin.facilityId, worker.id);
+                                // ローカルの状態を更新（バッジを消す）
+                                setWorkers(prev => prev.map(w =>
+                                  w.worker.id === worker.id
+                                    ? {
+                                      ...w,
+                                      unviewedCount: 0,
+                                      applications: w.applications.map(app => ({ ...app, isUnviewed: false }))
+                                    }
+                                    : w
+                                ));
+                                setTabBadges(prev => ({
+                                  ...prev,
+                                  byWorker: Math.max(0, prev.byWorker - 1)
+                                }));
+                              }
                             }}
                             className="px-4 py-2 bg-admin-primary text-white rounded-lg text-sm font-medium hover:bg-admin-primary/90 transition-colors flex items-center gap-2"
                           >
@@ -832,12 +894,19 @@ function ApplicationsContent() {
             <div className="p-6 border-b border-gray-200 flex items-start justify-between bg-gray-50">
               <div>
                 <div className="flex items-center gap-3 mb-2">
-                  <span className={`px-2 py-0.5 text-xs font-medium rounded ${selectedJob.status === 'PUBLISHED' ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-400'}`}>
-                    {selectedJob.status === 'PUBLISHED' ? '公開中' : '停止中'}
+                  <span className={`px-2 py-0.5 text-xs font-medium rounded ${selectedJob.status === 'PUBLISHED' ? 'bg-blue-600 text-white' :
+                    selectedJob.status === 'WORKING' ? 'bg-blue-800 text-white' :
+                      selectedJob.status === 'COMPLETED' ? 'bg-blue-50 text-blue-300' :
+                        'bg-blue-100 text-blue-400'
+                    }`}>
+                    {selectedJob.status === 'PUBLISHED' ? '公開中' :
+                      selectedJob.status === 'WORKING' ? '勤務中' :
+                        selectedJob.status === 'COMPLETED' ? '完了' :
+                          selectedJob.status === 'STOPPED' ? '停止中' : selectedJob.status}
                   </span>
                   {selectedJob.requiresInterview && (
                     <span className="px-2 py-0.5 text-xs font-medium rounded bg-orange-100 text-orange-700">
-                      面接あり
+                      審査あり
                     </span>
                   )}
                   <h2 className="text-xl font-bold text-gray-900">{selectedJob.title}</h2>
@@ -1052,9 +1121,19 @@ function ApplicationsContent() {
                                       </>
                                     )}
                                     {app.status === 'CANCELLED' && (
-                                      <span className="px-2 py-1 bg-red-50 text-red-600 text-xs font-medium rounded flex items-center gap-1">
+                                      <span className={`px-2 py-1 text-xs font-medium rounded flex items-center gap-1 ${
+                                        app.cancelledBy === 'WORKER'
+                                          ? 'bg-red-50 text-red-600'
+                                          : app.cancelledBy === 'FACILITY'
+                                            ? 'bg-gray-100 text-gray-600'
+                                            : 'bg-yellow-50 text-yellow-700'
+                                      }`}>
                                         <X className="w-3 h-3" />
-                                        キャンセル済
+                                        {app.cancelledBy === 'WORKER'
+                                          ? 'ワーカー辞退'
+                                          : app.cancelledBy === 'FACILITY'
+                                            ? '施設キャンセル'
+                                            : '応募取消'}
                                       </span>
                                     )}
                                     {['WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'].includes(app.status) && (
@@ -1180,9 +1259,19 @@ function ApplicationsContent() {
                           </>
                         )}
                         {app.status === 'CANCELLED' && (
-                          <span className="px-2 py-1 bg-red-50 text-red-600 text-xs font-medium rounded flex items-center gap-1">
+                          <span className={`px-2 py-1 text-xs font-medium rounded flex items-center gap-1 ${
+                            app.cancelledBy === 'WORKER'
+                              ? 'bg-red-50 text-red-600'
+                              : app.cancelledBy === 'FACILITY'
+                                ? 'bg-gray-100 text-gray-600'
+                                : 'bg-yellow-50 text-yellow-700'
+                          }`}>
                             <X className="w-3 h-3" />
-                            キャンセル済
+                            {app.cancelledBy === 'WORKER'
+                              ? 'ワーカー辞退'
+                              : app.cancelledBy === 'FACILITY'
+                                ? '施設キャンセル'
+                                : '応募取消'}
                           </span>
                         )}
                         {['WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'].includes(app.status) && (

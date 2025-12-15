@@ -142,7 +142,7 @@ export default function WorkerLaborDocumentsPage() {
         const facilityName = data.facilityName || '施設';
         const emailContent = `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-【S WORKS】労働条件通知書ダウンロードのご案内
+【+TASTAS】労働条件通知書ダウンロードのご案内
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ${facilityName} 様
@@ -168,7 +168,7 @@ ${data.downloadUrl}
 ZIP形式（解凍してご利用ください）
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-このメールは S WORKS から自動送信されています。
+このメールは +TASTAS から自動送信されています。
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 `;
 

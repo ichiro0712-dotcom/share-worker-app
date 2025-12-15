@@ -66,6 +66,7 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
     const router = useRouter();
     const { admin, isAdmin } = useAuth();
     const [facilityName, setFacilityName] = useState<string>('');
+    const [facilityData, setFacilityData] = useState<any>(null);
     const [saving, setSaving] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
     const [previewImages, setPreviewImages] = useState<string[]>([]);
@@ -155,6 +156,7 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                 const facility = await getFacilityById(admin.facilityId);
                 if (facility) {
                     setFacilityName(facility.facility_name);
+                    setFacilityData(facility);
                 }
             }
         };
@@ -1277,35 +1279,31 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                 isOpen={showPreview}
                 onClose={() => setShowPreview(false)}
                 templateData={{
-                    name: formData.name,
-                    title: formData.title,
-                    startTime: formData.startTime,
-                    endTime: formData.endTime,
-                    breakTime: formData.breakTime,
-                    hourlyWage: formData.hourlyWage,
-                    transportationFee: formData.transportationFee,
-                    recruitmentCount: formData.recruitmentCount,
-                    workContent: formData.workContent,
-                    jobDescription: formData.jobDescription,
-                    qualifications: formData.qualifications,
-                    skills: formData.skills,
-                    dresscode: formData.dresscode,
-                    belongings: formData.belongings,
-                    icons: formData.icons,
-                    images: [
-                        ...formData.existingImages,
-                        ...formData.images.map(file => URL.createObjectURL(file))
-                    ],
+                    ...formData,
+                    images: previewImages,
                     dresscodeImages: [
                         ...formData.existingDresscodeImages,
                         ...formData.dresscodeImages.map(file => URL.createObjectURL(file))
                     ],
                     attachments: [
                         ...formData.existingAttachments,
-                        ...formData.attachments.map(file => file.name)
-                    ],
+                        ...formData.attachments.map(file => URL.createObjectURL(file))
+                    ]
                 }}
-                facilityName={facilityName}
+                facilityData={{
+                    id: facilityData?.id || 0,
+                    facilityName: facilityName,
+                    address: facilityData?.address || '',
+                    prefecture: facilityData?.prefecture || '',
+                    city: facilityData?.city || '',
+                    serviceType: facilityData?.service_type || '介護施設',
+                    mapImage: facilityData?.map_image || null,
+                    managerName: facilityData?.staff_same_as_manager
+                        ? (facilityData.manager_last_name && facilityData.manager_first_name ? `${facilityData.manager_last_name} ${facilityData.manager_first_name}` : '担当者')
+                        : (facilityData?.staff_last_name && facilityData?.staff_first_name ? `${facilityData.staff_last_name} ${facilityData.staff_first_name}` : '担当者'),
+                    managerPhoto: facilityData?.staff_photo || null,
+                    managerGreeting: facilityData?.staff_greeting || null,
+                }}
             />
         </div>
     );

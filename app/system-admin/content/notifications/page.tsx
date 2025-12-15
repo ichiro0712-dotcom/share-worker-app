@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
-import { Bell, Mail, MessageCircle, Edit2, Save, X, Copy, Check, Settings } from 'lucide-react';
+import { Bell, Mail, MessageCircle, Edit2, Save, X, Copy, Check, Settings, LayoutDashboard } from 'lucide-react';
 
 interface NotificationSetting {
     id: number;
@@ -13,6 +13,7 @@ interface NotificationSetting {
     chat_enabled: boolean;
     email_enabled: boolean;
     push_enabled: boolean;
+    dashboard_enabled: boolean;
     chat_message: string | null;
     email_subject: string | null;
     email_body: string | null;
@@ -24,6 +25,9 @@ interface NotificationSetting {
         low_rating_threshold?: number;
         cancel_rate_threshold?: number;
         consecutive_cancel_count?: number;
+        distance_km?: number;
+        max_notifications_per_day?: number;
+        note?: string;
     } | null;
 }
 
@@ -33,6 +37,8 @@ const ALERT_THRESHOLD_KEYS = [
     'ADMIN_FACILITY_LOW_RATING_STREAK',
     'ADMIN_WORKER_HIGH_CANCEL_RATE',
     'ADMIN_FACILITY_HIGH_CANCEL_RATE',
+    'WORKER_NEARBY_NEW_JOB',
+    'WORKER_NEARBY_CANCEL_AVAILABLE',
 ];
 
 // 低評価系かキャンセル系かを判定
@@ -89,7 +95,7 @@ export default function NotificationManagementPage() {
         }
     };
 
-    const handleToggle = async (id: number, field: 'chat_enabled' | 'email_enabled' | 'push_enabled') => {
+    const handleToggle = async (id: number, field: 'chat_enabled' | 'email_enabled' | 'push_enabled' | 'dashboard_enabled') => {
         const setting = settings.find(s => s.id === id);
         if (!setting) return;
 
@@ -212,41 +218,72 @@ export default function NotificationManagementPage() {
 
                         {/* チャンネル別ON/OFF */}
                         <div className="flex gap-6">
-                            {/* チャット */}
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={setting.chat_enabled}
-                                    onChange={() => handleToggle(setting.id, 'chat_enabled')}
-                                    className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                                />
-                                <MessageCircle className="w-4 h-4 text-slate-400" />
-                                <span className="text-sm text-slate-600">チャット</span>
-                            </label>
+                            {/* システム管理者向け: ダッシュボードアラートとメールのみ */}
+                            {setting.target_type === 'SYSTEM_ADMIN' ? (
+                                <>
+                                    {/* ダッシュボードアラート */}
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={setting.dashboard_enabled}
+                                            onChange={() => handleToggle(setting.id, 'dashboard_enabled')}
+                                            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                        />
+                                        <LayoutDashboard className="w-4 h-4 text-slate-400" />
+                                        <span className="text-sm text-slate-600">ダッシュボード</span>
+                                    </label>
 
-                            {/* メール */}
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={setting.email_enabled}
-                                    onChange={() => handleToggle(setting.id, 'email_enabled')}
-                                    className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                                />
-                                <Mail className="w-4 h-4 text-slate-400" />
-                                <span className="text-sm text-slate-600">メール</span>
-                            </label>
+                                    {/* メール */}
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={setting.email_enabled}
+                                            onChange={() => handleToggle(setting.id, 'email_enabled')}
+                                            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                        />
+                                        <Mail className="w-4 h-4 text-slate-400" />
+                                        <span className="text-sm text-slate-600">メール</span>
+                                    </label>
+                                </>
+                            ) : (
+                                <>
+                                    {/* チャット */}
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={setting.chat_enabled}
+                                            onChange={() => handleToggle(setting.id, 'chat_enabled')}
+                                            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                        />
+                                        <MessageCircle className="w-4 h-4 text-slate-400" />
+                                        <span className="text-sm text-slate-600">チャット</span>
+                                    </label>
 
-                            {/* プッシュ */}
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={setting.push_enabled}
-                                    onChange={() => handleToggle(setting.id, 'push_enabled')}
-                                    className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                                />
-                                <Bell className="w-4 h-4 text-slate-400" />
-                                <span className="text-sm text-slate-600">プッシュ</span>
-                            </label>
+                                    {/* メール */}
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={setting.email_enabled}
+                                            onChange={() => handleToggle(setting.id, 'email_enabled')}
+                                            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                        />
+                                        <Mail className="w-4 h-4 text-slate-400" />
+                                        <span className="text-sm text-slate-600">メール</span>
+                                    </label>
+
+                                    {/* プッシュ */}
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={setting.push_enabled}
+                                            onChange={() => handleToggle(setting.id, 'push_enabled')}
+                                            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                        />
+                                        <Bell className="w-4 h-4 text-slate-400" />
+                                        <span className="text-sm text-slate-600">プッシュ</span>
+                                    </label>
+                                </>
+                            )}
                         </div>
                     </div>
                 ))}
@@ -488,6 +525,61 @@ export default function NotificationManagementPage() {
                                                     className="w-16 px-2 py-1 border border-slate-300 rounded text-sm text-center"
                                                 />
                                                 <span className="text-sm text-slate-600">回キャンセルした時</span>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* 近隣通知設定（WORKER_NEARBY_*の場合のみ） */}
+                                    {editingSetting.notification_key.startsWith('WORKER_NEARBY_') && (
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                    通知距離（km）
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    max="100"
+                                                    value={editingSetting.alert_thresholds?.distance_km || 10}
+                                                    onChange={(e) => setEditingSetting({
+                                                        ...editingSetting,
+                                                        alert_thresholds: {
+                                                            ...editingSetting.alert_thresholds,
+                                                            distance_km: parseInt(e.target.value) || 10
+                                                        }
+                                                    })}
+                                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                                                />
+                                                <p className="text-xs text-slate-500 mt-1">
+                                                    ワーカーの登録住所からこの距離以内の求人を通知対象とします
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                    1日の最大通知数
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    max="50"
+                                                    value={editingSetting.alert_thresholds?.max_notifications_per_day || 5}
+                                                    onChange={(e) => setEditingSetting({
+                                                        ...editingSetting,
+                                                        alert_thresholds: {
+                                                            ...editingSetting.alert_thresholds,
+                                                            max_notifications_per_day: parseInt(e.target.value) || 5
+                                                        }
+                                                    })}
+                                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                                                />
+                                                <p className="text-xs text-slate-500 mt-1">
+                                                    1人のワーカーに1日に送る最大通知数
+                                                </p>
+                                            </div>
+                                            <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                                                <p className="text-xs text-amber-700">
+                                                    ⚠️ 現在国土地理院APIを利用しています。精度向上には有料のGoogle Geocoding APIが必要です。
+                                                </p>
                                             </div>
                                         </div>
                                     )}

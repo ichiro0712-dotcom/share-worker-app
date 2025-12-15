@@ -1,4 +1,4 @@
-import { getJobById, getJobs, hasUserAppliedForJob, getFacilityReviews, getUserApplicationStatuses } from '@/src/lib/actions';
+import { getJobById, getJobs, hasUserAppliedForJob, getFacilityReviews, getUserApplicationStatuses, getUserScheduledJobs } from '@/src/lib/actions';
 import { JobDetailClient } from '@/components/job/JobDetailClient';
 import { notFound } from 'next/navigation';
 
@@ -79,11 +79,15 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
     dresscodeImages: jobData.dresscode_images || [],
     belongings: jobData.belongings,
     // 施設の責任者情報を優先、なければ求人の担当者情報を使用
-    managerName: (jobData.facility.manager_last_name || jobData.facility.manager_first_name)
-      ? `${jobData.facility.manager_last_name || ''}${jobData.facility.manager_first_name || ''}`
-      : jobData.manager_name,
-    managerMessage: jobData.facility.manager_greeting || jobData.manager_message || '',
-    managerAvatar: jobData.facility.manager_photo || jobData.manager_avatar || '👤',
+    managerName: jobData.facility.staff_same_as_manager
+      ? (jobData.facility.manager_last_name && jobData.facility.manager_first_name
+        ? `${jobData.facility.manager_last_name} ${jobData.facility.manager_first_name}`
+        : jobData.manager_name)
+      : (jobData.facility.staff_last_name && jobData.facility.staff_first_name
+        ? `${jobData.facility.staff_last_name} ${jobData.facility.staff_first_name}`
+        : jobData.manager_name),
+    managerMessage: jobData.facility.staff_greeting || jobData.manager_message || '',
+    managerAvatar: jobData.facility.staff_photo || jobData.manager_avatar || '👤',
     images: jobData.images,
     badges: [],
     mapImage: jobData.facility.map_image || '/images/map-placeholder.png',
@@ -93,7 +97,7 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
     attachments: jobData.attachments || [],
     // 募集条件
     weeklyFrequency: jobData.weekly_frequency,
-    monthlyCommitment: jobData.monthly_commitment,
+    effectiveWeeklyFrequency: jobData.effectiveWeeklyFrequency,
     requiresInterview: jobData.requires_interview,
   };
 
@@ -151,6 +155,9 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
   const initialHasApplied = await hasUserAppliedForJob(id);
   const appliedWorkDateIds = await getUserApplicationStatuses(id);
 
+  // ユーザーのスケジュール済み仕事を取得（時間重複判定用）
+  const scheduledJobs = await getUserScheduledJobs();
+
   return (
     <JobDetailClient
       job={job}
@@ -161,6 +168,7 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
       initialAppliedWorkDateIds={appliedWorkDateIds}
       selectedDate={selectedDate}
       isPreviewMode={isPreviewMode}
+      scheduledJobs={scheduledJobs}
     />
   );
 }

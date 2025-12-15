@@ -74,7 +74,7 @@ export default function WorkerLogin() {
             </div>
           </div>
           <h1 className="text-3xl font-bold text-primary mb-2">ワーカーログイン</h1>
-          <p className="text-gray-600">S WORKS</p>
+          <p className="text-gray-600">+TASTAS</p>
         </div>
 
         {/* ログインフォーム */}

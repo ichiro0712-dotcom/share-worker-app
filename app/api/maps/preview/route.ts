@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * プレビュー用の地図画像を取得
  * GET /api/maps/preview?lat={lat}&lng={lng}

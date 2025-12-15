@@ -28,7 +28,7 @@ export default function Privacy() {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-6 text-sm">
             <section>
               <p className="text-gray-700 leading-relaxed mb-4">
-                S WORKS（以下「当サービス」といいます）は、利用者の個人情報の取扱いについて、
+                +TASTAS（以下「当サービス」といいます）は、利用者の個人情報の取扱いについて、
                 以下のとおりプライバシーポリシー（以下「本ポリシー」といいます）を定めます。
               </p>
             </section>
@@ -166,7 +166,7 @@ export default function Privacy() {
               <div className="text-gray-700 leading-relaxed">
                 <p>本ポリシーに関するお問い合わせは、下記の窓口までお願いいたします。</p>
                 <div className="mt-3 pl-4">
-                  <p>メールアドレス: privacy@s-works.example.com</p>
+                  <p>メールアドレス: privacy@tastas.jp</p>
                   <p>担当部署: カスタマーサポート部</p>
                 </div>
               </div>

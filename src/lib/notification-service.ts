@@ -4,7 +4,7 @@ import webPush from 'web-push';
 // VAPID設定
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!;
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY!;
-const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:support@s-works.jp';
+const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:support@tastas.jp';
 
 if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
     webPush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
@@ -100,7 +100,7 @@ export async function sendNotification(params: SendNotificationParams): Promise<
     }
 }
 
-// チャット通知を送信
+// チャット通知を送信（システム通知テーブルを使用）
 async function sendChatNotification(params: {
     notificationKey: string;
     targetType: string;
@@ -122,26 +122,17 @@ async function sendChatNotification(params: {
             throw new Error(`Application not found: ${applicationId}`);
         }
 
-        // 事務局からのシステムメッセージとして送信（from_user_id と from_facility_id を両方null）
-        // ワーカー宛の場合: to_user_id を設定
-        // 施設宛の場合: to_facility_id を設定
-        const messageData: any = {
-            content: message,
-            application_id: applicationId,
-            job_id: application.workDate.job_id,
-            from_user_id: null,
-            from_facility_id: null,
-        };
-
-        if (targetType === 'WORKER') {
-            messageData.to_user_id = recipientId;
-            messageData.to_facility_id = application.workDate.job.facility_id;
-        } else {
-            messageData.to_facility_id = application.workDate.job.facility_id;
-            messageData.to_user_id = application.user_id;
-        }
-
-        await prisma.message.create({ data: messageData });
+        // SystemNotificationテーブルに保存
+        await prisma.systemNotification.create({
+            data: {
+                notification_key: notificationKey,
+                target_type: targetType,
+                recipient_id: recipientId,
+                content: message,
+                application_id: applicationId,
+                job_id: application.workDate.job_id,
+            },
+        });
 
         // ログ記録
         await prisma.notificationLog.create({
@@ -157,7 +148,7 @@ async function sendChatNotification(params: {
             },
         });
     } catch (error: any) {
-        console.error('Chat notification failed:', error);
+        console.error('System notification creation failed:', error);
         await prisma.notificationLog.create({
             data: {
                 notification_key: notificationKey,
@@ -199,7 +190,7 @@ async function sendEmailNotification(params: {
                 recipient_id: recipientId,
                 recipient_name: recipientName,
                 recipient_email: recipientEmail,
-                from_address: 'noreply@s-works.jp',
+                from_address: 'noreply@tastas.jp',
                 to_addresses: toAddresses,
                 subject,
                 body,
@@ -216,7 +207,7 @@ async function sendEmailNotification(params: {
                 recipient_id: recipientId,
                 recipient_name: recipientName,
                 recipient_email: recipientEmail,
-                from_address: 'noreply@s-works.jp',
+                from_address: 'noreply@tastas.jp',
                 to_addresses: toAddresses,
                 subject,
                 body,
@@ -302,5 +293,203 @@ async function sendPushNotification(params: {
                 error_message: error.message,
             },
         });
+    }
+}
+
+// ========== 近隣通知・求人通知機能 ==========
+
+/**
+ * Haversine公式による2点間の距離を計算（km）
+ */
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const R = 6371; // 地球の半径（km）
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
+
+/**
+ * 指定した施設から一定距離以内のワーカーを取得
+ * @param facilityId 施設ID
+ * @param distanceKm 距離（km）
+ * @returns 対象ワーカーのID配列
+ */
+export async function getNearbyWorkers(facilityId: number, distanceKm: number): Promise<number[]> {
+    // 施設の座標を取得
+    const facility = await prisma.facility.findUnique({
+        where: { id: facilityId },
+        select: { lat: true, lng: true }
+    });
+
+    if (!facility || (facility.lat === 0 && facility.lng === 0)) {
+        return [];
+    }
+
+    // lat/lngが設定されているワーカーを取得
+    const workers = await prisma.user.findMany({
+        where: {
+            lat: { not: null },
+            lng: { not: null },
+            deleted_at: null,
+            is_suspended: false
+        },
+        select: { id: true, lat: true, lng: true }
+    });
+
+    // 距離フィルタリング（Haversine公式）
+    const nearbyWorkerIds: number[] = [];
+    for (const worker of workers) {
+        if (worker.lat && worker.lng) {
+            const distance = calculateDistance(
+                facility.lat, facility.lng,
+                worker.lat, worker.lng
+            );
+            if (distance <= distanceKm) {
+                nearbyWorkerIds.push(worker.id);
+            }
+        }
+    }
+
+    return nearbyWorkerIds;
+}
+
+/**
+ * ワーカーが今日受け取った近隣通知の数をチェック
+ * @returns 通知可能ならtrue
+ */
+async function canSendNearbyNotification(
+    userId: number,
+    notificationKey: string,
+    maxPerDay: number
+): Promise<boolean> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const count = await prisma.nearbyNotificationLog.count({
+        where: {
+            user_id: userId,
+            notification_key: notificationKey,
+            sent_at: { gte: today }
+        }
+    });
+
+    return count < maxPerDay;
+}
+
+/**
+ * 通知送信後にログを記録
+ */
+async function logNearbyNotification(userId: number, notificationKey: string): Promise<void> {
+    await prisma.nearbyNotificationLog.create({
+        data: {
+            user_id: userId,
+            notification_key: notificationKey
+        }
+    });
+}
+
+/**
+ * 近隣ワーカーへの通知を送信
+ */
+export async function sendNearbyJobNotifications(
+    jobId: number,
+    notificationKey: 'WORKER_NEARBY_NEW_JOB' | 'WORKER_NEARBY_CANCEL_AVAILABLE'
+): Promise<void> {
+
+    // 1. 通知設定を取得
+    const setting = await prisma.notificationSetting.findFirst({
+        where: { notification_key: notificationKey }
+    });
+
+    if (!setting) return;
+
+    // 2. 設定値を取得
+    const thresholds = setting.alert_thresholds as any || {};
+    const distanceKm = thresholds.distance_km || 10;
+    const maxPerDay = thresholds.max_notifications_per_day || 5;
+
+    // 3. 求人と施設情報を取得
+    const job = await prisma.job.findUnique({
+        where: { id: jobId },
+        include: {
+            facility: true,
+            workDates: {
+                take: 1,
+                orderBy: { work_date: 'asc' }
+            }
+        }
+    });
+
+    if (!job) return;
+
+    // 4. 近隣ワーカーを取得
+    const nearbyWorkerIds = await getNearbyWorkers(job.facility_id, distanceKm);
+
+    // 5. 各ワーカーに通知送信
+    for (const workerId of nearbyWorkerIds) {
+        // 頻度チェック
+        const canSend = await canSendNearbyNotification(workerId, notificationKey, maxPerDay);
+        if (!canSend) continue;
+
+        // ワーカー情報を取得（名前に置換するため）
+        const worker = await prisma.user.findUnique({
+            where: { id: workerId },
+            select: { name: true, email: true, last_name_kana: true }
+        });
+
+        if (!worker) continue;
+
+        // 通知データ準備
+        const variables = {
+            facility_name: job.facility.facility_name,
+            job_title: job.title,
+            work_date: job.workDates[0]?.work_date
+                ? new Date(job.workDates[0].work_date).toLocaleDateString('ja-JP')
+                : '未定',
+            worker_name: worker.name,
+            worker_last_name: worker.last_name_kana || worker.name,
+            job_url: `${process.env.NEXTAUTH_URL || 'https://tastas.jp'}/jobs/${job.id}`
+        };
+
+        // 通知送信
+
+        // チャット通知 (Applicationが存在しないため送信不可の場合はスキップ)
+        // ※ここではApplicationIDがないため、sendChatNotificationは使えません。
+        // もしsendNotificationを使うならapplicationIdはundefinedになります。
+
+        // メール通知
+        if (setting.email_enabled && setting.email_subject && setting.email_body) {
+            await sendEmailNotification({
+                notificationKey,
+                targetType: 'WORKER',
+                recipientId: workerId,
+                recipientName: worker.name,
+                recipientEmail: worker.email,
+                toAddresses: [worker.email],
+                subject: replaceVariables(setting.email_subject, variables),
+                body: replaceVariables(setting.email_body, variables),
+            });
+        }
+
+        // プッシュ通知
+        if (setting.push_enabled && setting.push_title && setting.push_body) {
+            await sendPushNotification({
+                notificationKey,
+                targetType: 'WORKER',
+                recipientId: workerId,
+                recipientName: worker.name,
+                title: replaceVariables(setting.push_title, variables),
+                body: replaceVariables(setting.push_body, variables),
+                url: variables.job_url,
+            });
+        }
+
+        // ログ記録
+        await logNearbyNotification(workerId, notificationKey);
     }
 }

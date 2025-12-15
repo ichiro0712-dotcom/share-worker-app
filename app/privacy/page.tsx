@@ -4,7 +4,7 @@ import LegalDocumentClient from '@/components/legal/LegalDocumentClient';
 // デフォルトコンテンツ（DBにデータがない場合に表示）
 const defaultPrivacyContent = `
 <section>
-    <p>S WORKS（以下「当サービス」といいます）は、利用者の個人情報の取扱いについて、以下のとおりプライバシーポリシー（以下「本ポリシー」といいます）を定めます。</p>
+    <p>+TASTAS（以下「当サービス」といいます）は、利用者の個人情報の取扱いについて、以下のとおりプライバシーポリシー（以下「本ポリシー」といいます）を定めます。</p>
 </section>
 <section>
     <h2>1. 個人情報の定義</h2>

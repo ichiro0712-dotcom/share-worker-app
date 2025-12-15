@@ -110,7 +110,7 @@ const DEFAULT_TEMPLATE: TemplateSettings = {
 
 ---
 本書は労働基準法第15条に基づき、労働条件を明示するものです。
-発行: S WORKS`
+発行: +TASTAS`
 };
 
 /**

@@ -15,20 +15,19 @@ export default function AdminLogin() {
   const [isLoading, setIsLoading] = useState(false);
   const [testAdmins, setTestAdmins] = useState<{ id: number; email: string; name: string; facilityName: string }[]>([]);
 
+  // すでにログイン済みの場合は管理者ダッシュボードへリダイレクト
+  useEffect(() => {
+    if (isAdmin) {
+      router.push('/admin');
+    }
+  }, [isAdmin, router]);
+
   // テスト管理者をDBから取得
   useEffect(() => {
-    // getTestAdminsがsrc/lib/actionsからインポートされている必要があります
-    // import { getTestAdmins } from '@/src/lib/actions';
     import('@/src/lib/actions').then(({ getTestAdmins }) => {
       getTestAdmins().then(setTestAdmins);
     });
   }, []);
-
-  // すでにログイン済みの場合は管理者ダッシュボードへリダイレクト
-  if (isAdmin) {
-    router.push('/admin');
-    return null;
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,7 +69,7 @@ export default function AdminLogin() {
             </div>
           </div>
           <h1 className="text-3xl font-bold text-blue-600 mb-2">施設管理者ログイン</h1>
-          <p className="text-gray-600">S WORKS 管理画面</p>
+          <p className="text-gray-600">+TASTAS 管理画面</p>
         </div>
 
         {/* ログインフォーム */}

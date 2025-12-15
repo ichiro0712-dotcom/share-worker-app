@@ -107,7 +107,7 @@ async function main() {
 
         // Log in
         await page.goto('http://localhost:3000/system-admin/login', { waitUntil: 'domcontentloaded' });
-        await page.type('input[type="email"]', 'admin@sworks.com');
+        await page.type('input[type="email"]', 'admin@tastas.jp');
         await page.type('input[type="password"]', 'password123');
 
         const loginClicked = await page.evaluate(() => {

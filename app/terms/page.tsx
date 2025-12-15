@@ -5,7 +5,7 @@ import LegalDocumentClient from '@/components/legal/LegalDocumentClient';
 const defaultTermsContent = `
 <section>
     <h2>第1条（適用）</h2>
-    <p>本規約は、S WORKS（以下「当サービス」といいます）の提供するワーカー向けサービスの利用に関する条件を、当サービスを利用するワーカー（以下「利用者」といいます）と当サービスとの間で定めるものです。</p>
+    <p>本規約は、+TASTAS（以下「当サービス」といいます）の提供するワーカー向けサービスの利用に関する条件を、当サービスを利用するワーカー（以下「利用者」といいます）と当サービスとの間で定めるものです。</p>
 </section>
 <section>
     <h2>第2条（利用登録）</h2>

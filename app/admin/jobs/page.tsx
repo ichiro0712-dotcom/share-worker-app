@@ -81,7 +81,6 @@ interface JobData {
   allowCar: boolean;
   mealSupport: boolean;
   weeklyFrequency: number | null;
-  monthlyCommitment: boolean;
   requiresInterview: boolean;
 }
 
@@ -596,11 +595,11 @@ export default function AdminJobsList() {
                         </span>
                       </div>
 
-                      {/* 面接ありバッジ */}
+                      {/* 審査ありバッジ */}
                       {job.requiresInterview && (
                         <div className="flex-shrink-0">
                           <span className="px-2 py-0.5 text-xs font-medium rounded bg-orange-100 text-orange-700">
-                            面接あり
+                            審査あり
                           </span>
                         </div>
                       )}
@@ -698,6 +697,12 @@ export default function AdminJobsList() {
                           ))
                         ) : (
                           <span className="px-1.5 py-0.5 bg-gray-50 text-gray-500 rounded">資格不問</span>
+                        )}
+                        {/* N回以上勤務バッジ（紫色） */}
+                        {job.weeklyFrequency && (
+                          <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded">
+                            {job.weeklyFrequency}回以上勤務
+                          </span>
                         )}
                       </div>
                     </div>
@@ -1016,21 +1021,14 @@ export default function AdminJobsList() {
                       </div>
                     </div>
                   )}
-                  {/* 募集条件（週N回以上・1ヶ月以上） */}
-                  {(selectedJob.weeklyFrequency || selectedJob.monthlyCommitment) && (
+                  {/* 募集条件（N回以上勤務） */}
+                  {selectedJob.weeklyFrequency && (
                     <div>
                       <p className="text-xs text-gray-600 mb-2">募集条件</p>
                       <div className="flex flex-wrap gap-2">
-                        {selectedJob.weeklyFrequency && (
-                          <span className="px-3 py-1 bg-orange-100 text-orange-700 text-sm rounded-full">
-                            週{selectedJob.weeklyFrequency}回以上勤務できる方
-                          </span>
-                        )}
-                        {selectedJob.monthlyCommitment && (
-                          <span className="px-3 py-1 bg-purple-100 text-purple-700 text-sm rounded-full">
-                            1ヶ月以上勤務できる方
-                          </span>
-                        )}
+                        <span className="px-3 py-1 bg-purple-100 text-purple-700 text-sm rounded-full">
+                          {selectedJob.weeklyFrequency}回以上勤務
+                        </span>
                       </div>
                     </div>
                   )}

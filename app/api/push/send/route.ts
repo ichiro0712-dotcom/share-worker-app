@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
         }
 
         const payload = JSON.stringify({
-            title: title || 'S WORKS',
+            title: title || '+TASTAS',
             body: message || '新しいお知らせがあります',
             url: url || '/',
         });

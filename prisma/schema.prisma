@@ -62,6 +62,8 @@ model User {
   notifications          Notification[]
   reviews                Review[]
   pushSubscriptions      PushSubscription[]
+  nearbyNotificationLogs NearbyNotificationLog[]
+
   is_suspended           Boolean        @default(false) @map("is_suspended")
   suspended_at           DateTime?      @map("suspended_at")
   /// 退会日時（nullなら退会していない）
@@ -125,16 +127,19 @@ model Facility {
   // 責任者情報
   manager_last_name          String?   @map("manager_last_name")
   manager_first_name         String?   @map("manager_first_name")
-  manager_photo              String?   @map("manager_photo")
-  manager_greeting           String?   @map("manager_greeting")
+  manager_phone              String?   @map("manager_phone")
+  manager_email              String?   @map("manager_email")
 
   // 担当者情報
   staff_same_as_manager      Boolean   @default(false) @map("staff_same_as_manager")
   staff_last_name            String?   @map("staff_last_name")
   staff_first_name           String?   @map("staff_first_name")
   staff_phone                String?   @map("staff_phone")
+  staff_email                String?   @map("staff_email")
   emergency_contact          String?   @map("emergency_contact")
   staff_emails               String[]  @default([]) @map("staff_emails")
+  staff_photo                String?   @map("staff_photo")
+  staff_greeting             String?   @map("staff_greeting")
 
   // アクセス情報
   stations                   Json?     // [{ name: string, minutes: number }]
@@ -251,8 +256,6 @@ model Job {
   meal_support            Boolean       @default(false) @map("meal_support")
   /// 週N回以上勤務（2, 3, 4など。nullの場合は条件なし）
   weekly_frequency        Int?          @map("weekly_frequency")
-  /// 1ヶ月以上勤務できる人を募集
-  monthly_commitment      Boolean       @default(false) @map("monthly_commitment")
   /// 面接してからマッチング（true: 応募後に施設が手動でマッチング決定、false: 即時マッチング）
   requires_interview      Boolean       @default(false) @map("requires_interview")
   created_at              DateTime      @default(now()) @map("created_at")
@@ -263,6 +266,7 @@ model Job {
   template                JobTemplate?  @relation(fields: [template_id], references: [id])
   messages                Message[]
   reviews                 Review[]
+  systemNotifications     SystemNotification[]
 
   @@map("jobs")
 }
@@ -295,8 +299,11 @@ model Application {
   message                String?
   /// キャンセル実行者（WORKER: ワーカー、FACILITY: 施設）
   cancelled_by           CancelledBy?   @map("cancelled_by")
+  cancelled_at           DateTime?      @map("cancelled_at")
   /// 施設キャンセル通知の既読日時（nullなら未読）
   cancel_notified_at     DateTime?      @map("cancel_notified_at")
+  /// 施設が応募を確認した日時（nullなら未確認）
+  facility_viewed_at     DateTime?      @map("facility_viewed_at")
   created_at             DateTime       @default(now()) @map("created_at")
   updated_at             DateTime       @updatedAt @map("updated_at")
   user                   User           @relation(fields: [user_id], references: [id], onDelete: Cascade)
@@ -304,6 +311,7 @@ model Application {
   messages               Message[]
   reviews                Review[]
   laborDocument          LaborDocument?
+  systemNotifications    SystemNotification[]
 
   @@unique([work_date_id, user_id])
   @@map("applications")
@@ -433,6 +441,8 @@ model Message {
   application_id   Int         @map("application_id")
   job_id           Int         @map("job_id")
   content          String
+  /// 添付ファイルのURL配列（画像、PDF等）
+  attachments      String[]    @default([])
   read_at          DateTime?   @map("read_at")
   created_at       DateTime    @default(now()) @map("created_at")
   application      Application @relation(fields: [application_id], references: [id], onDelete: Cascade)
@@ -443,6 +453,28 @@ model Message {
   toUser           User?       @relation("UserReceivedMessages", fields: [to_user_id], references: [id], onDelete: Cascade)
 
   @@map("messages")
+}
+
+// システム通知（運営からの自動通知）
+model SystemNotification {
+  id                Int       @id @default(autoincrement())
+  notification_key  String    // 通知種別（例: FACILITY_NEW_APPLICATION）
+  target_type       String    // WORKER または FACILITY
+  recipient_id      Int       // ワーカーID または 施設ID
+  content           String    @db.Text // 通知本文
+  application_id    Int?      // 関連する応募ID（参照用）
+  job_id            Int?      // 関連する求人ID（参照用）
+  read_at           DateTime? // 既読日時
+  created_at        DateTime  @default(now())
+
+  // リレーション
+  application       Application? @relation(fields: [application_id], references: [id], onDelete: SetNull)
+  job               Job?         @relation(fields: [job_id], references: [id], onDelete: SetNull)
+
+  @@index([target_type, recipient_id])
+  @@index([notification_key])
+  @@index([created_at])
+  @@map("system_notifications")
 }
 
 model Notification {
@@ -760,9 +792,10 @@ model NotificationSetting {
   target_type      String   @map("target_type") // "WORKER" | "FACILITY" | "SYSTEM_ADMIN"
 
   // チャンネル別ON/OFF
-  chat_enabled     Boolean  @default(true) @map("chat_enabled")
-  email_enabled    Boolean  @default(true) @map("email_enabled")
-  push_enabled     Boolean  @default(true) @map("push_enabled")
+  chat_enabled      Boolean  @default(true) @map("chat_enabled")
+  email_enabled     Boolean  @default(true) @map("email_enabled")
+  push_enabled      Boolean  @default(true) @map("push_enabled")
+  dashboard_enabled Boolean  @default(true) @map("dashboard_enabled") // システム管理者向けダッシュボードアラート用
 
   // チャット通知テンプレート
   chat_message     String?  @db.Text @map("chat_message")
@@ -821,4 +854,17 @@ model NotificationLog {
   @@index([target_type, created_at])
   @@index([notification_key])
   @@map("notification_logs")
+}
+
+/// 近隣通知の送信履歴（頻度制限用）
+model NearbyNotificationLog {
+  id              Int      @id @default(autoincrement())
+  user_id         Int      @map("user_id")
+  notification_key String  @map("notification_key")
+  sent_at         DateTime @default(now()) @map("sent_at")
+
+  user            User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, notification_key, sent_at])
+  @@map("nearby_notification_logs")
 }

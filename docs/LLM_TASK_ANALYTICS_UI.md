@@ -301,18 +301,18 @@ export default function AnalyticsFilters({
                     </div>
                 )}
 
-                {/* 面接ありフィルター */}
+                {/* 審査ありフィルター */}
                 {showInterviewFilter && (
-                    <div>
-                        <label className="block text-xs text-slate-500 mb-1">面接あり</label>
+                    <div className="flex-1 min-w-[140px]">
+                        <label className="block text-xs text-slate-500 mb-1">審査あり</label>
                         <select
                             value={filters.requiresInterview}
                             onChange={e => handleChange('requiresInterview', e.target.value)}
                             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
                         >
                             <option value="">すべて</option>
-                            <option value="true">面接あり</option>
-                            <option value="false">面接なし</option>
+                            <option value="true">審査あり</option>
+                            <option value="false">審査なし</option>
                         </select>
                     </div>
                 )}
@@ -460,9 +460,9 @@ const METRIC_LABELS: Record<keyof Omit<FacilityMetrics, 'date'>, string> = {
     dropoutRate: '登録離脱率(%)',
     withdrawalRate: '退会率(%)',
     parentJobCount: '親求人数',
-    parentJobInterviewCount: '親求人数(面接あり)',
+    parentJobInterviewCount: '親求人数(審査あり)',
     childJobCount: '子求人数',
-    childJobInterviewCount: '子求人数(面接あり)'
+    childJobInterviewCount: '子求人数(審査あり)'
 };
 
 export default function FacilityAnalytics() {

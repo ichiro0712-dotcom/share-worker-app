@@ -104,7 +104,7 @@ import puppeteer from 'puppeteer';
         // Login as System Admin first (Explicitly)
         await logPage.goto('http://localhost:3000/system-admin/login', { waitUntil: 'domcontentloaded' });
 
-        await logPage.type('input[type="email"]', 'admin@sworks.com');
+        await logPage.type('input[type="email"]', 'admin@tastas.jp');
         await logPage.type('input[type="password"]', 'password123');
 
         const loginClicked = await logPage.evaluate(() => {

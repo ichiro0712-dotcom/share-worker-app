@@ -94,7 +94,7 @@ export default function FacilityFaqPage() {
                         <div className="flex-1">
                             <h2 className="text-lg font-bold mb-1">ご利用ガイド</h2>
                             <p className="text-indigo-100 text-sm">
-                                S WORKSの使い方をまとめたPDFガイドです。初めての方はぜひご覧ください。
+                                +TASTASの使い方をまとめたPDFガイドです。初めての方はぜひご覧ください。
                             </p>
                             {userGuide && (
                                 <p className="text-indigo-200 text-xs mt-1">
@@ -165,7 +165,7 @@ export default function FacilityFaqPage() {
                 {/* お問い合わせ案内 */}
                 <div className="mt-8 p-4 bg-gray-50 rounded-lg border border-gray-200">
                     <p className="text-sm text-gray-600">
-                        解決しない場合は、<a href="mailto:support@s-works.example.com" className="text-indigo-600 hover:underline">support@s-works.example.com</a> までお問い合わせください。
+                        解決しない場合は、<a href="mailto:support@tastas.jp" className="text-indigo-600 hover:underline">support@tastas.jp</a> までお問い合わせください。
                     </p>
                 </div>
             </div>

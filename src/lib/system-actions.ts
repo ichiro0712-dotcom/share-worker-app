@@ -6,6 +6,9 @@ import bcrypt from 'bcryptjs';
 import { JobStatus } from '@prisma/client';
 import { generateLaborDocumentPdf } from '@/src/lib/laborDocumentPdf';
 import { requireSystemAdminAuth } from '@/lib/system-admin-session-server';
+import { geocodeAddress } from '@/src/lib/geocoding';
+export { geocodeAddress };
+
 
 
 export interface AnalyticsFilter {
@@ -175,24 +178,7 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
 /**
  * 国土地理院APIで住所から座標を取得
  */
-export async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
-    try {
-        const encodedAddress = encodeURIComponent(address);
-        const response = await fetch(
-            `https://msearch.gsi.go.jp/address-search/AddressSearch?q=${encodedAddress}`
-        );
-        const data = await response.json();
 
-        if (data && data.length > 0 && data[0].geometry?.coordinates) {
-            const [lng, lat] = data[0].geometry.coordinates;
-            return { lat, lng };
-        }
-        return null;
-    } catch (error) {
-        console.error('Geocoding error:', error);
-        return null;
-    }
-}
 
 /**
  * システム管理用：ワーカー一覧取得（フィルター対応版 - 拡張版）
@@ -2990,7 +2976,7 @@ const DEFAULT_TEMPLATE_CONTENT = `労働条件通知書
 
 ---
 本書は労働基準法第15条に基づき、労働条件を明示するものです。
-発行: S WORKS`;
+発行: +TASTAS`;
 
 export interface LaborDocumentTemplateData {
     id?: number;
@@ -3340,7 +3326,7 @@ export async function getDashboardTrends() {
  * アラート対象のワーカー/施設を取得
  */
 export async function getDashboardAlerts() {
-    // 閾値設定を取得
+    // 閾値設定とダッシュボード表示設定を取得
     const alertSettings = await prisma.notificationSetting.findMany({
         where: {
             notification_key: {
@@ -3348,25 +3334,36 @@ export async function getDashboardAlerts() {
                     'ADMIN_WORKER_LOW_RATING_STREAK',
                     'ADMIN_FACILITY_LOW_RATING_STREAK',
                     'ADMIN_WORKER_HIGH_CANCEL_RATE',
-                    'ADMIN_FACILITY_HIGH_CANCEL_RATE'
+                    'ADMIN_FACILITY_HIGH_CANCEL_RATE',
                 ]
             }
         },
         select: {
             notification_key: true,
-            alert_thresholds: true
+            alert_thresholds: true,
+            dashboard_enabled: true,
         }
     });
 
-    const thresholds: Record<string, any> = {};
+    const settings: Record<string, { thresholds: any; dashboardEnabled: boolean }> = {};
     alertSettings.forEach(s => {
-        thresholds[s.notification_key] = s.alert_thresholds || {};
+        settings[s.notification_key] = {
+            thresholds: s.alert_thresholds || {},
+            dashboardEnabled: s.dashboard_enabled,
+        };
     });
 
-    const workerRatingThreshold = thresholds['ADMIN_WORKER_LOW_RATING_STREAK']?.avg_rating_threshold || 2.5;
-    const facilityRatingThreshold = thresholds['ADMIN_FACILITY_LOW_RATING_STREAK']?.avg_rating_threshold || 2.5;
-    const workerCancelThreshold = thresholds['ADMIN_WORKER_HIGH_CANCEL_RATE']?.cancel_rate_threshold || 30;
-    const facilityCancelThreshold = thresholds['ADMIN_FACILITY_HIGH_CANCEL_RATE']?.cancel_rate_threshold || 30;
+    // 各閾値を取得（デフォルト: 評価2.5点以下、キャンセル率30%超）
+    const workerRatingThreshold = settings['ADMIN_WORKER_LOW_RATING_STREAK']?.thresholds?.avg_rating_threshold || 2.5;
+    const facilityRatingThreshold = settings['ADMIN_FACILITY_LOW_RATING_STREAK']?.thresholds?.avg_rating_threshold || 2.5;
+    const workerCancelThreshold = settings['ADMIN_WORKER_HIGH_CANCEL_RATE']?.thresholds?.cancel_rate_threshold || 30;
+    const facilityCancelThreshold = settings['ADMIN_FACILITY_HIGH_CANCEL_RATE']?.thresholds?.cancel_rate_threshold || 30;
+
+    // ダッシュボード表示ON/OFF
+    const workerRatingEnabled = settings['ADMIN_WORKER_LOW_RATING_STREAK']?.dashboardEnabled ?? true;
+    const facilityRatingEnabled = settings['ADMIN_FACILITY_LOW_RATING_STREAK']?.dashboardEnabled ?? true;
+    const workerCancelEnabled = settings['ADMIN_WORKER_HIGH_CANCEL_RATE']?.dashboardEnabled ?? true;
+    const facilityCancelEnabled = settings['ADMIN_FACILITY_HIGH_CANCEL_RATE']?.dashboardEnabled ?? true;
 
     const alerts: Array<{
         id: number;
@@ -3391,22 +3388,25 @@ export async function getDashboardAlerts() {
         }
     });
 
-    workersWithRatings.forEach(w => {
-        if (w.reviews.length >= 3) {
-            const avgRating = w.reviews.reduce((sum, r) => sum + r.rating, 0) / w.reviews.length;
-            if (avgRating <= workerRatingThreshold) {
-                alerts.push({
-                    id: w.id,
-                    type: 'worker',
-                    name: w.name,
-                    alertType: 'low_rating',
-                    value: avgRating,
-                    threshold: workerRatingThreshold,
-                    detailUrl: `/system-admin/workers/${w.id}`
-                });
+    // ワーカー低評価アラートがONの場合のみ
+    if (workerRatingEnabled) {
+        workersWithRatings.forEach(w => {
+            if (w.reviews.length >= 3) {
+                const avgRating = w.reviews.reduce((sum, r) => sum + r.rating, 0) / w.reviews.length;
+                if (avgRating <= workerRatingThreshold) {
+                    alerts.push({
+                        id: w.id,
+                        type: 'worker',
+                        name: w.name,
+                        alertType: 'low_rating',
+                        value: avgRating,
+                        threshold: workerRatingThreshold,
+                        detailUrl: `/system-admin/workers/${w.id}`
+                    });
+                }
             }
-        }
-    });
+        });
+    }
 
     // 施設の低評価チェック
     const facilitiesWithRatings = await prisma.facility.findMany({
@@ -3421,22 +3421,25 @@ export async function getDashboardAlerts() {
         }
     });
 
-    facilitiesWithRatings.forEach(f => {
-        if (f.reviews.length >= 3) {
-            const avgRating = f.reviews.reduce((sum, r) => sum + r.rating, 0) / f.reviews.length;
-            if (avgRating <= facilityRatingThreshold) {
-                alerts.push({
-                    id: f.id,
-                    type: 'facility',
-                    name: f.facility_name,
-                    alertType: 'low_rating',
-                    value: avgRating,
-                    threshold: facilityRatingThreshold,
-                    detailUrl: `/system-admin/facilities/${f.id}`
-                });
+    // 施設低評価アラートがONの場合のみ
+    if (facilityRatingEnabled) {
+        facilitiesWithRatings.forEach(f => {
+            if (f.reviews.length >= 3) {
+                const avgRating = f.reviews.reduce((sum, r) => sum + r.rating, 0) / f.reviews.length;
+                if (avgRating <= facilityRatingThreshold) {
+                    alerts.push({
+                        id: f.id,
+                        type: 'facility',
+                        name: f.facility_name,
+                        alertType: 'low_rating',
+                        value: avgRating,
+                        threshold: facilityRatingThreshold,
+                        detailUrl: `/system-admin/facilities/${f.id}`
+                    });
+                }
             }
-        }
-    });
+        });
+    }
 
     // ワーカーのキャンセル率チェック
     const workersWithApps = await prisma.user.findMany({
@@ -3450,23 +3453,26 @@ export async function getDashboardAlerts() {
         }
     });
 
-    workersWithApps.forEach(w => {
-        if (w.applications.length >= 5) {
-            const cancelledByWorker = w.applications.filter(a => a.cancelled_by === 'WORKER').length;
-            const cancelRate = (cancelledByWorker / w.applications.length) * 100;
-            if (cancelRate > workerCancelThreshold) {
-                alerts.push({
-                    id: w.id,
-                    type: 'worker',
-                    name: w.name,
-                    alertType: 'high_cancel_rate',
-                    value: cancelRate,
-                    threshold: workerCancelThreshold,
-                    detailUrl: `/system-admin/workers/${w.id}`
-                });
+    // ワーカーキャンセル率アラートがONの場合のみ
+    if (workerCancelEnabled) {
+        workersWithApps.forEach(w => {
+            if (w.applications.length >= 5) {
+                const cancelledByWorker = w.applications.filter(a => a.cancelled_by === 'WORKER').length;
+                const cancelRate = (cancelledByWorker / w.applications.length) * 100;
+                if (cancelRate > workerCancelThreshold) {
+                    alerts.push({
+                        id: w.id,
+                        type: 'worker',
+                        name: w.name,
+                        alertType: 'high_cancel_rate',
+                        value: cancelRate,
+                        threshold: workerCancelThreshold,
+                        detailUrl: `/system-admin/workers/${w.id}`
+                    });
+                }
             }
-        }
-    });
+        });
+    }
 
     // 施設のキャンセル率チェック（施設側キャンセル）
     const facilitiesWithJobs = await prisma.facility.findMany({
@@ -3488,24 +3494,27 @@ export async function getDashboardAlerts() {
         }
     });
 
-    facilitiesWithJobs.forEach(f => {
-        const allApps = f.jobs.flatMap(j => j.workDates.flatMap(wd => wd.applications));
-        if (allApps.length >= 5) {
-            const cancelledByFacility = allApps.filter(a => a.cancelled_by === 'FACILITY').length;
-            const cancelRate = (cancelledByFacility / allApps.length) * 100;
-            if (cancelRate > facilityCancelThreshold) {
-                alerts.push({
-                    id: f.id,
-                    type: 'facility',
-                    name: f.facility_name,
-                    alertType: 'high_cancel_rate',
-                    value: cancelRate,
-                    threshold: facilityCancelThreshold,
-                    detailUrl: `/system-admin/facilities/${f.id}`
-                });
+    // 施設キャンセル率アラートがONの場合のみ
+    if (facilityCancelEnabled) {
+        facilitiesWithJobs.forEach(f => {
+            const allApps = f.jobs.flatMap(j => j.workDates.flatMap(wd => wd.applications));
+            if (allApps.length >= 5) {
+                const cancelledByFacility = allApps.filter(a => a.cancelled_by === 'FACILITY').length;
+                const cancelRate = (cancelledByFacility / allApps.length) * 100;
+                if (cancelRate > facilityCancelThreshold) {
+                    alerts.push({
+                        id: f.id,
+                        type: 'facility',
+                        name: f.facility_name,
+                        alertType: 'high_cancel_rate',
+                        value: cancelRate,
+                        threshold: facilityCancelThreshold,
+                        detailUrl: `/system-admin/facilities/${f.id}`
+                    });
+                }
             }
-        }
-    });
+        });
+    }
 
     return alerts;
 }

@@ -9,7 +9,7 @@ import { getSystemTemplates } from '@/src/lib/content-actions';
 export default function ContactPage() {
     const router = useRouter();
     const [supportInfo, setSupportInfo] = useState({
-        email: 'support@s-works.example.com',
+        email: 'support@tastas.jp',
         phone: '0120-XXX-XXX', // 初期値
         department: 'カスタマーサポート部',
         hours: '平日: 9:00 〜 18:00',
@@ -20,7 +20,7 @@ export default function ContactPage() {
             try {
                 const templates = await getSystemTemplates();
                 setSupportInfo({
-                    email: templates.support_email || 'support@s-works.example.com',
+                    email: templates.support_email || 'support@tastas.jp',
                     phone: templates.support_phone || '0120-XXX-XXX',
                     department: templates.support_department || 'カスタマーサポート部',
                     hours: templates.support_hours || '平日: 9:00 〜 18:00',

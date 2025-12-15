@@ -2,6 +2,7 @@
 
 import { ReactNode, useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { getFacilityStaffName, getFacilitySidebarBadges } from '@/src/lib/actions';
@@ -17,6 +18,7 @@ import {
   FileText,
   MessageCircle,
   UserCheck,
+  Calendar,
   AlertTriangle,
   Lock,
   Trash2,
@@ -149,6 +151,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       badge: badges.pendingApplications,
     },
     {
+      title: 'シフト管理',
+      icon: <Calendar className="w-4 h-4" />,
+      href: '/admin/shifts',
+      active: pathname?.startsWith('/admin/shifts'),
+    },
+    {
       title: 'ワーカー管理',
       icon: <Users className="w-4 h-4" />,
       href: '/admin/workers',
@@ -201,9 +209,18 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       <div className="w-64 bg-admin-sidebar border-r border-gray-800 flex flex-col">
         {/* ロゴ・施設名 */}
         <div className="p-4 border-b border-gray-800">
-          <Link href="/admin" className="block">
-            <h1 className="text-lg font-bold text-white mb-1">S WORKS</h1>
-            <p className="text-xs text-gray-400">施設管理画面</p>
+          <Link href="/admin/jobs" className="flex items-center gap-3">
+            <Image
+              src="/images/logo.png"
+              alt="+TASTAS"
+              width={60}
+              height={60}
+              className="rounded-lg"
+            />
+            <div>
+              <h1 className="text-lg font-bold text-white">+TASTAS</h1>
+              <p className="text-xs text-gray-400">施設管理画面</p>
+            </div>
           </Link>
         </div>
 
@@ -274,8 +291,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               <Link
                 href="/admin/masquerade-actions/delete-facility"
                 className={`flex items-center gap-3 py-2.5 mx-2 rounded-admin-button text-sm transition-colors px-4 ${pathname === '/admin/masquerade-actions/delete-facility'
-                    ? 'bg-red-500/20 text-red-400 font-medium'
-                    : 'text-gray-300 hover:text-white hover:bg-white/10'
+                  ? 'bg-red-500/20 text-red-400 font-medium'
+                  : 'text-gray-300 hover:text-white hover:bg-white/10'
                   }`}
               >
                 <Trash2 className="w-4 h-4" />
@@ -284,8 +301,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               <Link
                 href="/admin/masquerade-actions/password-reset"
                 className={`flex items-center gap-3 py-2.5 mx-2 rounded-admin-button text-sm transition-colors px-4 ${pathname === '/admin/masquerade-actions/password-reset'
-                    ? 'bg-blue-500/20 text-blue-400 font-medium'
-                    : 'text-gray-300 hover:text-white hover:bg-white/10'
+                  ? 'bg-blue-500/20 text-blue-400 font-medium'
+                  : 'text-gray-300 hover:text-white hover:bg-white/10'
                   }`}
               >
                 <KeyRound className="w-4 h-4" />

@@ -7,8 +7,8 @@ import { Mail, Lock, Eye, EyeOff, Shield, UserCog } from 'lucide-react';
 
 // テスト用システム管理者
 const TEST_ADMINS = [
-    { email: 'admin@sworks.com', password: 'password123', name: 'システム管理者', role: 'super_admin' },
-    { email: 'editor@sworks.com', password: 'password123', name: '編集者', role: 'editor' },
+    { email: 'admin@tastas.jp', password: 'password123', name: 'システム管理者', role: 'super_admin' },
+    { email: 'editor@tastas.jp', password: 'password123', name: '編集者', role: 'editor' },
 ];
 
 export default function SystemAdminLoginPage() {
@@ -66,7 +66,7 @@ export default function SystemAdminLoginPage() {
                         </div>
                     </div>
                     <h1 className="text-3xl font-bold text-slate-800 mb-2">システム管理</h1>
-                    <p className="text-slate-500">S WORKS System Administration</p>
+                    <p className="text-slate-500">+TASTAS System Administration</p>
                 </div>
 
                 {/* Login Form */}

@@ -278,7 +278,7 @@ export default function SystemAdminJobsPage() {
                                 </select>
                             </div>
 
-                            {/* 2行目: 市区町村、面接、必要資格、サービス種別 */}
+                            {/* 2行目: 市区町村、審査、必要資格、サービス種別 */}
                             <div>
                                 <label className="block text-xs font-medium text-slate-500 mb-1">市区町村</label>
                                 <select
@@ -295,15 +295,15 @@ export default function SystemAdminJobsPage() {
                             </div>
 
                             <div>
-                                <label className="block text-xs font-medium text-slate-500 mb-1">面接</label>
+                                <label className="block text-xs font-medium text-slate-500 mb-1">審査</label>
                                 <select
                                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                     value={interviewFilter}
                                     onChange={(e) => setInterviewFilter(e.target.value as any)}
                                 >
                                     <option value="all">すべて</option>
-                                    <option value="true">面接あり</option>
-                                    <option value="false">面接なし</option>
+                                    <option value="true">審査あり</option>
+                                    <option value="false">審査なし</option>
                                 </select>
                             </div>
 
@@ -434,7 +434,7 @@ export default function SystemAdminJobsPage() {
                                         </span>
                                         {job.requiresInterview && (
                                             <div className="mt-1">
-                                                <span className="text-[10px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded">面接あり</span>
+                                                <span className="text-[10px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded">審査あり</span>
                                             </div>
                                         )}
                                     </td>

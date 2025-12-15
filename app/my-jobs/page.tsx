@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { BottomNav } from '@/components/layout/BottomNav';
-import { MapPin, Calendar, Clock, Star } from 'lucide-react';
+import { MapPin, Calendar, Clock, Star, X, AlertTriangle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { getMyApplications } from '@/src/lib/actions';
+import { getMyApplications, cancelApplicationByWorker, cancelAppliedApplication } from '@/src/lib/actions';
+import toast from 'react-hot-toast';
 
 type ApplicationStatus = 'APPLIED' | 'SCHEDULED' | 'WORKING' | 'COMPLETED_PENDING' | 'COMPLETED_RATED' | 'CANCELLED';
 
@@ -32,13 +33,18 @@ interface Application {
   };
 }
 
-type TabType = 'scheduled' | 'working' | 'completed_rated' | 'cancelled';
+type TabType = 'applied' | 'scheduled' | 'working' | 'completed_rated' | 'cancelled';
 
 export default function MyJobsPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>('scheduled');
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
+  const [cancelModalApp, setCancelModalApp] = useState<Application | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  // SCHEDULED/WORKINGキャンセル用モーダル
+  const [scheduledCancelModalApp, setScheduledCancelModalApp] = useState<Application | null>(null);
+  const [scheduledCancelling, setScheduledCancelling] = useState(false);
 
   useEffect(() => {
     const fetchApplications = async () => {
@@ -58,6 +64,7 @@ export default function MyJobsPage() {
   }, []);
 
   const tabs: Array<{ id: TabType; label: string; status: ApplicationStatus }> = [
+    { id: 'applied', label: '審査中', status: 'APPLIED' },
     { id: 'scheduled', label: '仕事の予定', status: 'SCHEDULED' },
     { id: 'working', label: '勤務中', status: 'WORKING' },
     { id: 'completed_rated', label: '完了', status: 'COMPLETED_RATED' },
@@ -71,6 +78,10 @@ export default function MyJobsPage() {
 
   const filteredApplications = applications.filter((app) => {
     const targetStatus = getStatusFromTab(activeTab);
+    // 勤務中タブにはWORKINGとCOMPLETED_PENDING（レビュー待ち）を含める
+    if (activeTab === 'working') {
+      return app.status === 'WORKING' || app.status === 'COMPLETED_PENDING';
+    }
     return app.status === targetStatus;
   });
 
@@ -80,7 +91,7 @@ export default function MyJobsPage() {
 
   const getStatusBadge = (status: ApplicationStatus) => {
     const badges: Record<ApplicationStatus, { text: string; color: string }> = {
-      APPLIED: { text: '応募中', color: 'bg-blue-100 text-blue-700' },
+      APPLIED: { text: '審査中', color: 'bg-yellow-100 text-yellow-700' },
       SCHEDULED: { text: '予定', color: 'bg-purple-100 text-purple-700' },
       WORKING: { text: '勤務中', color: 'bg-green-100 text-green-700' },
       COMPLETED_PENDING: { text: '評価待', color: 'bg-red-100 text-red-700' },
@@ -88,6 +99,49 @@ export default function MyJobsPage() {
       CANCELLED: { text: 'キャンセル', color: 'bg-gray-100 text-gray-500' },
     };
     return badges[status] || { text: status, color: 'bg-gray-100 text-gray-700' };
+  };
+
+  const handleCancelApplied = async () => {
+    if (!cancelModalApp) return;
+    setCancelling(true);
+    try {
+      const result = await cancelAppliedApplication(cancelModalApp.id);
+      if (result.success) {
+        toast.success('応募を取り消しました（キャンセル率には影響しません）');
+        setApplications(prev =>
+          prev.map(a => a.id === cancelModalApp.id ? { ...a, status: 'CANCELLED' as ApplicationStatus } : a)
+        );
+      } else {
+        toast.error(result.error || '取り消しに失敗しました');
+      }
+    } catch {
+      toast.error('取り消しに失敗しました');
+    } finally {
+      setCancelling(false);
+      setCancelModalApp(null);
+    }
+  };
+
+  // SCHEDULED/WORKINGのキャンセル処理
+  const handleCancelScheduled = async () => {
+    if (!scheduledCancelModalApp) return;
+    setScheduledCancelling(true);
+    try {
+      const result = await cancelApplicationByWorker(scheduledCancelModalApp.id);
+      if (result.success) {
+        toast.success('キャンセルしました');
+        setApplications(prev =>
+          prev.map(a => a.id === scheduledCancelModalApp.id ? { ...a, status: 'CANCELLED' as ApplicationStatus } : a)
+        );
+      } else {
+        toast.error(result.error || 'キャンセルに失敗しました');
+      }
+    } catch {
+      toast.error('キャンセルに失敗しました');
+    } finally {
+      setScheduledCancelling(false);
+      setScheduledCancelModalApp(null);
+    }
   };
 
   const formatTime = (timeString: string): string => {
@@ -119,7 +173,10 @@ export default function MyJobsPage() {
       <div className="bg-white border-b border-gray-200 overflow-x-auto">
         <div className="flex">
           {tabs.map((tab) => {
-            const count = applications.filter((app) => app.status === tab.status).length;
+            // 勤務中タブはWORKINGとCOMPLETED_PENDINGの両方をカウント
+            const count = tab.id === 'working'
+              ? applications.filter((app) => app.status === 'WORKING' || app.status === 'COMPLETED_PENDING').length
+              : applications.filter((app) => app.status === tab.status).length;
             return (
               <button
                 key={tab.id}
@@ -142,6 +199,7 @@ export default function MyJobsPage() {
         {filteredApplications.length === 0 ? (
           <div className="bg-white rounded-lg p-8 text-center">
             <p className="text-gray-500">
+              {activeTab === 'applied' && '審査中の応募はありません'}
               {activeTab === 'scheduled' && '予定されている仕事はありません'}
               {activeTab === 'working' && '現在勤務中の仕事はありません'}
               {activeTab === 'completed_rated' && '完了した仕事はありません'}
@@ -210,12 +268,26 @@ export default function MyJobsPage() {
                   </div>
 
                   {/* アクションボタン（コンパクト版） */}
+                  {activeTab === 'applied' && (
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCancelModalApp(app);
+                        }}
+                        className="px-3 py-1 bg-white border border-gray-300 text-gray-700 text-xs font-medium rounded hover:bg-gray-50 transition-colors"
+                      >
+                        キャンセル
+                      </button>
+                    </div>
+                  )}
+
                   {activeTab === 'scheduled' && (
                     <div className="flex gap-1.5">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          console.log('キャンセル:', app.id);
+                          setScheduledCancelModalApp(app);
                         }}
                         className="px-3 py-1 bg-white border border-gray-300 text-gray-700 text-xs font-medium rounded hover:bg-gray-50 transition-colors"
                       >
@@ -224,7 +296,7 @@ export default function MyJobsPage() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          router.push(`/messages?roomId=${app.job.facility.facility_name}`);
+                          router.push(`/messages?applicationId=${app.id}`);
                         }}
                         className="px-3 py-1 bg-primary text-white text-xs font-medium rounded hover:bg-primary/90 transition-colors"
                       >
@@ -235,6 +307,15 @@ export default function MyJobsPage() {
 
                   {activeTab === 'working' && (
                     <div className="flex gap-1.5">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setScheduledCancelModalApp(app);
+                        }}
+                        className="px-3 py-1 bg-white border border-gray-300 text-gray-700 text-xs font-medium rounded hover:bg-gray-50 transition-colors"
+                      >
+                        キャンセル
+                      </button>
                       {app.worker_review_status !== 'COMPLETED' ? (
                         <button
                           onClick={(e) => {
@@ -255,7 +336,7 @@ export default function MyJobsPage() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          router.push(`/messages?roomId=${app.job.facility.facility_name}`);
+                          router.push(`/messages?applicationId=${app.id}`);
                         }}
                         className="px-3 py-1 bg-primary text-white text-xs font-medium rounded hover:bg-primary/90 transition-colors"
                       >
@@ -286,6 +367,106 @@ export default function MyJobsPage() {
       </div>
 
       <BottomNav />
+
+      {/* 審査中キャンセル確認モーダル */}
+      {cancelModalApp && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-sm w-full shadow-xl">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h3 className="text-lg font-bold text-gray-900">応募のキャンセル</h3>
+              <button
+                onClick={() => setCancelModalApp(null)}
+                className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            <div className="p-4">
+              <p className="text-gray-700 mb-3">この審査応募をキャンセルしますか？</p>
+              <div className="bg-gray-50 rounded-lg p-3 mb-4">
+                <p className="font-medium text-gray-900 text-sm">{cancelModalApp.job.facility.facility_name}</p>
+                <p className="text-xs text-gray-600 mt-1">{cancelModalApp.job.title}</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {new Date(cancelModalApp.job.work_date).toLocaleDateString('ja-JP', { month: 'long', day: 'numeric' })}
+                </p>
+              </div>
+              <p className="text-xs text-green-600 bg-green-50 p-2 rounded-lg">
+                ※キャンセルしてもキャンセル率には影響ありません
+              </p>
+            </div>
+            <div className="flex gap-3 p-4 border-t border-gray-200">
+              <button
+                onClick={() => setCancelModalApp(null)}
+                className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                戻る
+              </button>
+              <button
+                onClick={handleCancelApplied}
+                disabled={cancelling}
+                className="flex-1 px-4 py-2 bg-red-500 text-white font-medium rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50"
+              >
+                {cancelling ? 'キャンセル中...' : 'キャンセルする'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SCHEDULED/WORKING キャンセル確認モーダル */}
+      {scheduledCancelModalApp && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-sm w-full shadow-xl">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h3 className="text-lg font-bold text-gray-900">キャンセルの確認</h3>
+              <button
+                onClick={() => setScheduledCancelModalApp(null)}
+                className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            <div className="p-4">
+              <p className="text-gray-700 mb-3">この予定をキャンセルしますか？</p>
+              <div className="bg-gray-50 rounded-lg p-3 mb-4">
+                <p className="font-medium text-gray-900 text-sm">{scheduledCancelModalApp.job.facility.facility_name}</p>
+                <p className="text-xs text-gray-600 mt-1">{scheduledCancelModalApp.job.title}</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {new Date(scheduledCancelModalApp.job.work_date).toLocaleDateString('ja-JP', { month: 'long', day: 'numeric' })}
+                </p>
+              </div>
+
+              {/* キャンセル率への影響警告 */}
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-bold text-red-800">ご注意ください</p>
+                    <p className="text-xs text-red-700 mt-1">
+                      このキャンセルはキャンセル率に影響します。キャンセル率は施設から確認できます。
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 p-4 border-t border-gray-200">
+              <button
+                onClick={() => setScheduledCancelModalApp(null)}
+                className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                戻る
+              </button>
+              <button
+                onClick={handleCancelScheduled}
+                disabled={scheduledCancelling}
+                className="flex-1 px-4 py-2 bg-red-500 text-white font-medium rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50"
+              >
+                {scheduledCancelling ? 'キャンセル中...' : 'キャンセルする'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

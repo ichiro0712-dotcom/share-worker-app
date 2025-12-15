@@ -172,7 +172,7 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  const email = 'admin@sworks.jp';
+  const email = 'admin@tastas.jp';
   const password = 'admin123'; // 本番環境では変更必須
   const name = 'システム管理者';
 
@@ -588,7 +588,7 @@ export default function SystemAdminLayout({
       {/* サイドバー */}
       <aside className="w-64 bg-gray-800 text-white flex flex-col">
         <div className="p-4 border-b border-gray-700">
-          <h1 className="text-lg font-bold">S WORKS 管理</h1>
+          <h1 className="text-lg font-bold">+TASTAS 管理</h1>
           <p className="text-xs text-gray-400 mt-1">{admin?.name}</p>
         </div>
         <nav className="flex-1 overflow-y-auto p-2">
@@ -1063,7 +1063,7 @@ rm -rf .next && npm run dev
 
 ### 4. ブラウザ確認
 - `/system-admin/login` でログイン画面が表示される
-- 初期管理者（admin@sworks.jp / admin123）でログインできる
+- 初期管理者（admin@tastas.jp / admin123）でログインできる
 - `/system-admin` でダッシュボードが表示される
 - サイドバーのメニューが表示される
 

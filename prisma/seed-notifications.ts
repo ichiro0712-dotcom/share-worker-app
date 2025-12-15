@@ -19,7 +19,7 @@ const notificationSettings = [
 報酬: {{wage}}円
 
 当日はよろしくお願いいたします。`,
-        email_subject: '【S WORKS】マッチング成立のお知らせ',
+        email_subject: '【+TASTAS】マッチング成立のお知らせ',
         email_body: `{{worker_name}}様
 
 お仕事のマッチングが成立しました。
@@ -35,7 +35,7 @@ const notificationSettings = [
 {{job_url}}
 
 ──────────────────────────
-S WORKS 運営事務局
++TASTAS 運営
 ──────────────────────────`,
         push_title: 'マッチング成立',
         push_body: '{{facility_name}}の勤務が確定しました',
@@ -54,7 +54,7 @@ S WORKS 運営事務局
 日時: {{work_date}} {{start_time}}〜{{end_time}}
 
 当日はよろしくお願いいたします。`,
-        email_subject: '【S WORKS】採用決定のお知らせ',
+        email_subject: '【+TASTAS】採用決定のお知らせ',
         email_body: `{{worker_name}}様
 
 {{facility_name}}への応募が承認され、採用が決定しました。
@@ -70,7 +70,7 @@ S WORKS 運営事務局
 {{job_url}}
 
 ──────────────────────────
-S WORKS 運営事務局
++TASTAS 運営
 ──────────────────────────`,
         push_title: '採用決定',
         push_body: '{{facility_name}}への応募が承認されました',
@@ -87,7 +87,7 @@ S WORKS 運営事務局
 
 選考の結果、今回はご縁がありませんでした。
 また別の求人でお会いできることを楽しみにしております。`,
-        email_subject: '【S WORKS】選考結果のお知らせ',
+        email_subject: '【+TASTAS】選考結果のお知らせ',
         email_body: `{{worker_name}}様
 
 この度は{{facility_name}}へのご応募ありがとうございました。
@@ -95,10 +95,10 @@ S WORKS 運営事務局
 選考の結果、今回はご縁がありませんでした。
 また別の求人でお会いできることを楽しみにしております。
 
-引き続きS WORKSをよろしくお願いいたします。
+引き続き+TASTASをよろしくお願いいたします。
 
 ──────────────────────────
-S WORKS 運営事務局
++TASTAS 運営
 ──────────────────────────`,
         push_title: null,
         push_body: null,
@@ -117,7 +117,7 @@ S WORKS 運営事務局
 
 ご不便をおかけして申し訳ございません。
 他の求人をお探しください。`,
-        email_subject: '【S WORKS】勤務キャンセルのお知らせ',
+        email_subject: '【+TASTAS】勤務キャンセルのお知らせ',
         email_body: `{{worker_name}}様
 
 ご予約いただいていた勤務がキャンセルされました。
@@ -131,7 +131,7 @@ S WORKS 運営事務局
 ご不便をおかけして申し訳ございません。
 
 ──────────────────────────
-S WORKS 運営事務局
++TASTAS 運営
 ──────────────────────────`,
         push_title: '勤務キャンセル',
         push_body: '{{facility_name}}の勤務がキャンセルされました',
@@ -150,7 +150,7 @@ S WORKS 運営事務局
 日時: {{work_date}} {{start_time}}〜{{end_time}}
 
 持ち物や服装をご確認の上、お気をつけてお越しください。`,
-        email_subject: '【S WORKS】明日の勤務リマインド',
+        email_subject: '【+TASTAS】明日の勤務リマインド',
         email_body: `{{worker_name}}様
 
 明日の勤務についてお知らせいたします。
@@ -164,7 +164,7 @@ S WORKS 運営事務局
 持ち物や服装をご確認の上、お気をつけてお越しください。
 
 ──────────────────────────
-S WORKS 運営事務局
++TASTAS 運営
 ──────────────────────────`,
         push_title: '明日の勤務',
         push_body: '{{facility_name}} {{start_time}}〜',
@@ -197,7 +197,7 @@ S WORKS 運営事務局
 ぜひレビューを投稿してください。
 
 {{review_url}}`,
-        email_subject: '【S WORKS】レビューのお願い',
+        email_subject: '【+TASTAS】レビューのお願い',
         email_body: `{{worker_name}}様
 
 {{facility_name}}での勤務お疲れ様でした。
@@ -206,7 +206,7 @@ S WORKS 運営事務局
 {{review_url}}
 
 ──────────────────────────
-S WORKS 運営事務局
++TASTAS 運営
 ──────────────────────────`,
         push_title: null,
         push_body: null,
@@ -224,7 +224,7 @@ S WORKS 運営事務局
 {{facility_name}}でのお仕事について、ぜひご感想をお聞かせください。
 
 {{review_url}}`,
-        email_subject: '【S WORKS】レビュー投稿のリマインド',
+        email_subject: '【+TASTAS】レビュー投稿のリマインド',
         email_body: `{{worker_name}}様
 
 {{facility_name}}でのお仕事のレビューはお済みですか？
@@ -233,7 +233,7 @@ S WORKS 運営事務局
 {{review_url}}
 
 ──────────────────────────
-S WORKS 運営事務局
++TASTAS 運営
 ──────────────────────────`,
         push_title: null,
         push_body: null,
@@ -249,7 +249,7 @@ S WORKS 運営事務局
         chat_message: `{{worker_name}}さん、{{facility_name}}からレビューが届きました！
 
 マイページでご確認ください。`,
-        email_subject: '【S WORKS】レビューが届きました',
+        email_subject: '【+TASTAS】レビューが届きました',
         email_body: `{{worker_name}}様
 
 {{facility_name}}からレビューが届きました。
@@ -257,7 +257,7 @@ S WORKS 運営事務局
 マイページよりご確認ください。
 
 ──────────────────────────
-S WORKS 運営事務局
++TASTAS 運営
 ──────────────────────────`,
         push_title: null,
         push_body: null,
@@ -273,7 +273,7 @@ S WORKS 運営事務局
         chat_message: null,
         email_subject: null,
         email_body: null,
-        push_title: 'S WORKSからのお知らせ',
+        push_title: '+TASTASからのお知らせ',
         push_body: '{{announcement_title}}',
     },
     {
@@ -321,7 +321,7 @@ S WORKS 運営事務局
 勤務希望日: {{work_date}}
 
 応募管理画面でご確認ください。`,
-        email_subject: '【S WORKS】新しい応募がありました',
+        email_subject: '【+TASTAS】新しい応募がありました',
         email_body: `{{facility_name}}様
 
 新しい応募がありました。
@@ -336,7 +336,7 @@ S WORKS 運営事務局
 応募管理画面でご確認ください。
 
 ──────────────────────────
-S WORKS 運営事務局
++TASTAS 運営
 ──────────────────────────`,
         push_title: '新規応募',
         push_body: '{{worker_name}}さんから応募がありました',
@@ -355,7 +355,7 @@ S WORKS 運営事務局
 日時: {{work_date}}
 
 代わりのワーカーをお探しください。`,
-        email_subject: '【S WORKS】勤務キャンセルのお知らせ',
+        email_subject: '【+TASTAS】勤務キャンセルのお知らせ',
         email_body: `{{facility_name}}様
 
 ワーカーから勤務キャンセルの連絡がありました。
@@ -370,7 +370,7 @@ S WORKS 運営事務局
 代わりのワーカーをお探しください。
 
 ──────────────────────────
-S WORKS 運営事務局
++TASTAS 運営
 ──────────────────────────`,
         push_title: 'キャンセル通知',
         push_body: '{{worker_name}}さんが勤務をキャンセルしました',
@@ -390,7 +390,7 @@ S WORKS 運営事務局
 日時: {{work_date}} {{start_time}}〜{{end_time}}
 
 ワーカーの受け入れ準備をお願いいたします。`,
-        email_subject: '【S WORKS】明日の勤務リマインド',
+        email_subject: '【+TASTAS】明日の勤務リマインド',
         email_body: `{{facility_name}}様
 
 明日の勤務についてお知らせいたします。
@@ -405,7 +405,7 @@ S WORKS 運営事務局
 ワーカーの受け入れ準備をお願いいたします。
 
 ──────────────────────────
-S WORKS 運営事務局
++TASTAS 運営
 ──────────────────────────`,
         push_title: '明日の勤務',
         push_body: '{{worker_name}}さんが出勤予定です',
@@ -424,7 +424,7 @@ S WORKS 運営事務局
 今後のマッチングの参考になります。
 
 {{review_url}}`,
-        email_subject: '【S WORKS】レビューのお願い',
+        email_subject: '【+TASTAS】レビューのお願い',
         email_body: `{{facility_name}}様
 
 {{worker_name}}さんの勤務が完了しました。
@@ -433,7 +433,7 @@ S WORKS 運営事務局
 {{review_url}}
 
 ──────────────────────────
-S WORKS 運営事務局
++TASTAS 運営
 ──────────────────────────`,
         push_title: null,
         push_body: null,
@@ -449,7 +449,7 @@ S WORKS 運営事務局
         chat_message: `{{worker_name}}さんからレビューが届きました！
 
 管理画面でご確認ください。`,
-        email_subject: '【S WORKS】レビューが届きました',
+        email_subject: '【+TASTAS】レビューが届きました',
         email_body: `{{facility_name}}様
 
 {{worker_name}}さんからレビューが届きました。
@@ -457,7 +457,7 @@ S WORKS 運営事務局
 管理画面よりご確認ください。
 
 ──────────────────────────
-S WORKS 運営事務局
++TASTAS 運営
 ──────────────────────────`,
         push_title: null,
         push_body: null,
@@ -471,7 +471,7 @@ S WORKS 運営事務局
         email_enabled: true,
         push_enabled: false,
         chat_message: null,
-        email_subject: '【S WORKS】求人の締切が近づいています',
+        email_subject: '【+TASTAS】求人の締切が近づいています',
         email_body: `{{facility_name}}様
 
 以下の求人の締切が近づいています。
@@ -488,7 +488,7 @@ S WORKS 運営事務局
 必要に応じて求人内容の見直しをご検討ください。
 
 ──────────────────────────
-S WORKS 運営事務局
++TASTAS 運営
 ──────────────────────────`,
         push_title: null,
         push_body: null,
@@ -518,7 +518,7 @@ S WORKS 運営事務局
         chat_message: null,
         email_subject: null,
         email_body: null,
-        push_title: 'S WORKSからのお知らせ',
+        push_title: '+TASTASからのお知らせ',
         push_body: '{{announcement_title}}',
     },
 
@@ -532,7 +532,7 @@ S WORKS 運営事務局
         email_enabled: true,
         push_enabled: false,
         chat_message: null,
-        email_subject: '【S WORKS管理】新規施設登録',
+        email_subject: '【+TASTAS管理】新規施設登録',
         email_body: `新しい施設が登録されました。
 
 施設名: {{facility_name}}
@@ -566,7 +566,7 @@ S WORKS 運営事務局
         email_enabled: true,
         push_enabled: false,
         chat_message: null,
-        email_subject: '【S WORKS管理】キャンセル率アラート',
+        email_subject: '【+TASTAS管理】キャンセル率アラート',
         email_body: `キャンセル率が高いユーザーを検知しました。
 
 ユーザー: {{user_name}}
@@ -586,7 +586,7 @@ S WORKS 運営事務局
         email_enabled: true,
         push_enabled: false,
         chat_message: null,
-        email_subject: '【S WORKS管理】低評価アラート',
+        email_subject: '【+TASTAS管理】低評価アラート',
         email_body: `連続で低評価を受けているユーザーを検知しました。
 
 ユーザー: {{user_name}}
@@ -606,7 +606,7 @@ S WORKS 運営事務局
         email_enabled: true,
         push_enabled: false,
         chat_message: null,
-        email_subject: '【S WORKS管理】不正アクセスアラート',
+        email_subject: '【+TASTAS管理】不正アクセスアラート',
         email_body: `不審なアクセスを検知しました。
 
 ユーザー: {{user_name}}
@@ -627,7 +627,7 @@ IPアドレス: {{ip_address}}
         email_enabled: true,
         push_enabled: false,
         chat_message: null,
-        email_subject: '【S WORKS管理】ワーカー低評価アラート',
+        email_subject: '【+TASTAS管理】ワーカー低評価アラート',
         email_body: `ワーカーの低評価アラートが発生しました。
 
 ■ 対象ワーカー
@@ -642,7 +642,7 @@ ID: {{user_id}}
 対応をご検討ください。
 
 ──────────────────────────
-S WORKS 運営事務局
++TASTAS 運営
 ──────────────────────────`,
         push_title: null,
         push_body: null,
@@ -661,7 +661,7 @@ S WORKS 運営事務局
         email_enabled: true,
         push_enabled: false,
         chat_message: null,
-        email_subject: '【S WORKS管理】施設低評価アラート',
+        email_subject: '【+TASTAS管理】施設低評価アラート',
         email_body: `施設の低評価アラートが発生しました。
 
 ■ 対象施設
@@ -676,7 +676,7 @@ ID: {{facility_id}}
 対応をご検討ください。
 
 ──────────────────────────
-S WORKS 運営事務局
++TASTAS 運営
 ──────────────────────────`,
         push_title: null,
         push_body: null,
@@ -695,7 +695,7 @@ S WORKS 運営事務局
         email_enabled: true,
         push_enabled: false,
         chat_message: null,
-        email_subject: '【S WORKS管理】ワーカーキャンセル率アラート',
+        email_subject: '【+TASTAS管理】ワーカーキャンセル率アラート',
         email_body: `ワーカーのキャンセル率アラートが発生しました。
 
 ■ 対象ワーカー
@@ -710,7 +710,7 @@ ID: {{user_id}}
 対応をご検討ください。
 
 ──────────────────────────
-S WORKS 運営事務局
++TASTAS 運営
 ──────────────────────────`,
         push_title: null,
         push_body: null,
@@ -728,7 +728,7 @@ S WORKS 運営事務局
         email_enabled: true,
         push_enabled: false,
         chat_message: null,
-        email_subject: '【S WORKS管理】施設キャンセル率アラート',
+        email_subject: '【+TASTAS管理】施設キャンセル率アラート',
         email_body: `施設のキャンセル率アラートが発生しました。
 
 ■ 対象施設
@@ -743,7 +743,7 @@ ID: {{facility_id}}
 対応をご検討ください。
 
 ──────────────────────────
-S WORKS 運営事務局
++TASTAS 運営
 ──────────────────────────`,
         push_title: null,
         push_body: null,

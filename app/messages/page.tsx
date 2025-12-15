@@ -1,4 +1,4 @@
-import { getConversations } from '@/src/lib/actions';
+import { getGroupedConversations } from '@/src/lib/actions';
 import MessagesClient from './MessagesClient';
 import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth';
@@ -15,7 +15,7 @@ export default async function MessagesPage() {
     redirect('/login?callbackUrl=/messages');
   }
 
-  const conversations = await getConversations();
+  const conversations = await getGroupedConversations();
   const userId = session.user?.id ? parseInt(session.user.id) : 0;
 
   return <MessagesClient initialConversations={conversations} userId={userId} />;
