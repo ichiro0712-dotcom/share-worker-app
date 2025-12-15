@@ -7,7 +7,8 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
+    "postinstall": "prisma generate",
     "start": "next start",
     "lint": "next lint",
     "db:studio": "prisma studio",
@@ -16,6 +17,7 @@
     "test:headed": "playwright test --headed"
   },
   "dependencies": {
+    "@prisma/client": "^5.22.0",
     "@ducanh2912/next-pwa": "^10.2.9",
     "@pdf-lib/fontkit": "^1.1.1",
     "@types/archiver": "^7.0.0",
@@ -43,7 +45,6 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.57.0",
-    "@prisma/client": "^5.22.0",
     "@types/bcrypt": "^6.0.0",
     "@types/node": "^20",
     "@types/puppeteer": "^5.4.7",
