@@ -21,6 +21,7 @@ const ignoredPaths = [
   '/_next',
   '/favicon.ico',
   '/api/auth',
+  '/api/debug', // デバッグ用API
 ];
 
 export async function middleware(request: NextRequest) {
