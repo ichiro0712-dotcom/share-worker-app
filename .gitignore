@@ -29,3 +29,14 @@ yarn-error.log*
 
 # Typescript
 *.tsbuildinfo
+
+# Local uploads (use cloud storage in production)
+public/uploads/
+
+# Local development files
+ichiro/
+claudedocs/
+rogo/
+scripts/
+_AUDIT_PLAN.md
+.!*
