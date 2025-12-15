@@ -55,7 +55,7 @@ export default function AdminLogin() {
 
   const handleTestLogin = (testEmail: string) => {
     setEmail(testEmail);
-    setPassword('SKIP_PASSWORD_CHECK_FOR_TEST_USER');
+    setPassword('password123');
   };
 
   return (

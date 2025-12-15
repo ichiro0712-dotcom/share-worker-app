@@ -174,7 +174,7 @@ export default function WorkerLogin() {
               testUsers.map((user, index) => (
                 <button
                   key={user.id}
-                  onClick={() => handleTestLogin(user.email, 'SKIP_PASSWORD_CHECK_FOR_TEST_USER')}
+                  onClick={() => handleTestLogin(user.email, 'password123')}
                   className="w-full text-left px-3 py-2 bg-white border border-green-300 rounded text-sm hover:bg-green-50 transition-colors flex items-center gap-3"
                 >
                   <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden flex-shrink-0">
