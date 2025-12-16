@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
-import path from 'path';
+import { createClient } from '@supabase/supabase-js';
 
 /**
- * Google Maps Static APIから地図画像を取得して保存
+ * Google Maps Static APIから地図画像を取得してSupabase Storageに保存
  * POST /api/maps/static
  * Body: { address: string, facilityId: number }
  */
@@ -48,23 +47,46 @@ export async function POST(request: NextRequest) {
 
     const imageBuffer = await response.arrayBuffer();
 
-    // 保存先ディレクトリを作成
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'maps');
-    await mkdir(uploadDir, { recursive: true });
+    // Supabase Storageにアップロード
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    // ファイル名を生成（facility-{id}.png）
-    const fileName = `facility-${facilityId}.png`;
-    const filePath = path.join(uploadDir, fileName);
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return NextResponse.json(
+        { error: 'ストレージの設定がありません' },
+        { status: 500 }
+      );
+    }
 
-    // 画像を保存
-    await writeFile(filePath, Buffer.from(imageBuffer));
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // 公開URLを返す
-    const publicUrl = `/uploads/maps/${fileName}`;
+    // ファイル名を生成（facility-{id}-{timestamp}.png でキャッシュバスティング）
+    const timestamp = Date.now();
+    const fileName = `maps/facility-${facilityId}-${timestamp}.png`;
+
+    const { data, error } = await supabase.storage
+      .from('uploads')
+      .upload(fileName, Buffer.from(imageBuffer), {
+        contentType: 'image/png',
+        upsert: true,
+      });
+
+    if (error) {
+      console.error('[Maps API] Supabase Storage Error:', error);
+      return NextResponse.json(
+        { error: '地図画像の保存に失敗しました' },
+        { status: 500 }
+      );
+    }
+
+    // 公開URLを取得
+    const { data: urlData } = supabase.storage
+      .from('uploads')
+      .getPublicUrl(data.path);
 
     return NextResponse.json({
       success: true,
-      mapImage: publicUrl,
+      mapImage: urlData.publicUrl,
     });
   } catch (error) {
     console.error('[Maps API] Error:', error);

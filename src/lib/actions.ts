@@ -1776,77 +1776,84 @@ export async function updateUserProfile(formData: FormData) {
       };
     }
 
+    // Supabase Storage用ヘルパー関数
+    const uploadToSupabaseStorage = async (file: File, folder: string, prefix: string, userId: number): Promise<string | null> => {
+      try {
+        const { createClient } = await import('@supabase/supabase-js');
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+        if (!supabaseUrl || !supabaseServiceKey) {
+          console.error('[uploadToSupabaseStorage] Supabase credentials not configured');
+          return null;
+        }
+
+        const supabase = createClient(supabaseUrl, supabaseServiceKey);
+        const timestamp = Date.now();
+        const fileExtension = file.name.split('.').pop();
+        const fileName = `${folder}/${prefix}-${userId}-${timestamp}.${fileExtension}`;
+
+        const bytes = await file.arrayBuffer();
+        const buffer = Buffer.from(bytes);
+
+        const { data, error } = await supabase.storage
+          .from('uploads')
+          .upload(fileName, buffer, {
+            contentType: file.type,
+            upsert: true,
+          });
+
+        if (error) {
+          console.error('[uploadToSupabaseStorage] Upload error:', error);
+          return null;
+        }
+
+        const { data: urlData } = supabase.storage
+          .from('uploads')
+          .getPublicUrl(data.path);
+
+        return urlData.publicUrl;
+      } catch (error) {
+        console.error('[uploadToSupabaseStorage] Error:', error);
+        return null;
+      }
+    };
+
     // プロフィール画像のアップロード処理
     let profileImagePath = user.profile_image; // デフォルトは既存の画像パス
 
     if (profileImageFile && profileImageFile.size > 0) {
-      try {
-        console.log('[updateUserProfile] Processing profile image upload...');
-
-        // ファイル名を生成（ユーザーIDとタイムスタンプを使用）
-        const timestamp = Date.now();
-        const fileExtension = profileImageFile.name.split('.').pop();
-        const fileName = `profile-${user.id}-${timestamp}.${fileExtension}`;
-
-        // アップロードディレクトリのパス
-        const uploadDir = path.join(process.cwd(), 'public', 'uploads');
-        const filePath = path.join(uploadDir, fileName);
-
-        // ディレクトリが存在しない場合は作成
-        await mkdir(uploadDir, { recursive: true });
-
-        // ファイルをバッファに変換して保存
-        const bytes = await profileImageFile.arrayBuffer();
-        const buffer = Buffer.from(bytes);
-        await writeFile(filePath, buffer);
-
-        // DBに保存するパス（/uploads/profile-1-xxxxx.jpg）
-        profileImagePath = `/uploads/${fileName}`;
-
+      console.log('[updateUserProfile] Processing profile image upload...');
+      const uploadedUrl = await uploadToSupabaseStorage(profileImageFile, 'profiles', 'profile', user.id);
+      if (uploadedUrl) {
+        profileImagePath = uploadedUrl;
         console.log('[updateUserProfile] Profile image saved:', profileImagePath);
-      } catch (imageError) {
-        console.error('[updateUserProfile] Failed to save profile image:', imageError);
-        // 画像保存失敗時もプロフィール更新は続行
+      } else {
+        console.error('[updateUserProfile] Failed to save profile image');
       }
     }
 
     // 身分証明書のアップロード処理
     let idDocumentPath = user.id_document;
     if (idDocumentFile && idDocumentFile.size > 0) {
-      try {
-        const timestamp = Date.now();
-        const fileExtension = idDocumentFile.name.split('.').pop();
-        const fileName = `id-document-${user.id}-${timestamp}.${fileExtension}`;
-        const uploadDir = path.join(process.cwd(), 'public', 'uploads');
-        const filePath = path.join(uploadDir, fileName);
-        await mkdir(uploadDir, { recursive: true });
-        const bytes = await idDocumentFile.arrayBuffer();
-        const buffer = Buffer.from(bytes);
-        await writeFile(filePath, buffer);
-        idDocumentPath = `/uploads/${fileName}`;
+      const uploadedUrl = await uploadToSupabaseStorage(idDocumentFile, 'documents', 'id-document', user.id);
+      if (uploadedUrl) {
+        idDocumentPath = uploadedUrl;
         console.log('[updateUserProfile] ID document saved:', idDocumentPath);
-      } catch (error) {
-        console.error('[updateUserProfile] Failed to save ID document:', error);
+      } else {
+        console.error('[updateUserProfile] Failed to save ID document');
       }
     }
 
     // 通帳コピーのアップロード処理
     let bankBookImagePath = user.bank_book_image;
     if (bankBookImageFile && bankBookImageFile.size > 0) {
-      try {
-        const timestamp = Date.now();
-        const fileExtension = bankBookImageFile.name.split('.').pop();
-        const fileName = `bank-book-${user.id}-${timestamp}.${fileExtension}`;
-        const uploadDir = path.join(process.cwd(), 'public', 'uploads');
-        const filePath = path.join(uploadDir, fileName);
-        await mkdir(uploadDir, { recursive: true });
-        const bytes = await bankBookImageFile.arrayBuffer();
-        const buffer = Buffer.from(bytes);
-        await writeFile(filePath, buffer);
-        bankBookImagePath = `/uploads/${fileName}`;
+      const uploadedUrl = await uploadToSupabaseStorage(bankBookImageFile, 'documents', 'bank-book', user.id);
+      if (uploadedUrl) {
+        bankBookImagePath = uploadedUrl;
         console.log('[updateUserProfile] Bank book image saved:', bankBookImagePath);
-      } catch (error) {
-        console.error('[updateUserProfile] Failed to save bank book image:', error);
+      } else {
+        console.error('[updateUserProfile] Failed to save bank book image');
       }
     }
 
@@ -1855,22 +1862,13 @@ export async function updateUserProfile(formData: FormData) {
     const newCertificates: Record<string, string> = { ...existingCertificates };
 
     for (const [qualification, file] of Object.entries(qualificationCertificateFiles)) {
-      try {
-        const timestamp = Date.now();
-        const fileExtension = file.name.split('.').pop();
-        // 資格名から安全なファイル名を生成
-        const safeQualName = qualification.replace(/[^a-zA-Z0-9\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/g, '_');
-        const fileName = `cert-${user.id}-${safeQualName}-${timestamp}.${fileExtension}`;
-        const uploadDir = path.join(process.cwd(), 'public', 'uploads');
-        const filePath = path.join(uploadDir, fileName);
-        await mkdir(uploadDir, { recursive: true });
-        const bytes = await file.arrayBuffer();
-        const buffer = Buffer.from(bytes);
-        await writeFile(filePath, buffer);
-        newCertificates[qualification] = `/uploads/${fileName}`;
-        console.log('[updateUserProfile] Qualification certificate saved:', qualification, newCertificates[qualification]);
-      } catch (error) {
-        console.error('[updateUserProfile] Failed to save qualification certificate:', qualification, error);
+      const safeQualName = qualification.replace(/[^a-zA-Z0-9\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/g, '_');
+      const uploadedUrl = await uploadToSupabaseStorage(file, 'certificates', `cert-${safeQualName}`, user.id);
+      if (uploadedUrl) {
+        newCertificates[qualification] = uploadedUrl;
+        console.log('[updateUserProfile] Qualification certificate saved:', qualification, uploadedUrl);
+      } else {
+        console.error('[updateUserProfile] Failed to save qualification certificate:', qualification);
       }
     }
 
@@ -5274,6 +5272,7 @@ export async function updateFacilityLatLng(
 
 /**
  * 緯度経度を指定して施設の地図画像を取得・更新
+ * Supabase Storageに保存
  */
 export async function updateFacilityMapImageByLatLng(
   facilityId: number,
@@ -5304,21 +5303,40 @@ export async function updateFacilityMapImageByLatLng(
 
     const imageBuffer = await response.arrayBuffer();
 
-    // 保存先ディレクトリを作成
-    const { writeFile, mkdir } = await import('fs/promises');
-    const path = await import('path');
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'maps');
-    await mkdir(uploadDir, { recursive: true });
+    // Supabase Storageにアップロード
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    // ファイル名を生成（facility-{id}.png）
-    const fileName = `facility-${facilityId}.png`;
-    const filePath = path.join(uploadDir, fileName);
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('[updateFacilityMapImageByLatLng] Supabase credentials not configured');
+      return { success: false, error: 'ストレージの設定がありません' };
+    }
 
-    // 画像を保存
-    await writeFile(filePath, Buffer.from(imageBuffer));
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // 公開URLを返す
-    const publicUrl = `/uploads/maps/${fileName}`;
+    // ファイル名を生成（facility-{id}-{timestamp}.png でキャッシュバスティング）
+    const timestamp = Date.now();
+    const fileName = `maps/facility-${facilityId}-${timestamp}.png`;
+
+    const { data, error } = await supabase.storage
+      .from('uploads')
+      .upload(fileName, Buffer.from(imageBuffer), {
+        contentType: 'image/png',
+        upsert: true,
+      });
+
+    if (error) {
+      console.error('[updateFacilityMapImageByLatLng] Supabase Storage Error:', error);
+      return { success: false, error: '地図画像の保存に失敗しました' };
+    }
+
+    // 公開URLを取得
+    const { data: urlData } = supabase.storage
+      .from('uploads')
+      .getPublicUrl(data.path);
+
+    const publicUrl = urlData.publicUrl;
 
     // DBに地図画像パスと緯度経度を保存
     await prisma.facility.update({
