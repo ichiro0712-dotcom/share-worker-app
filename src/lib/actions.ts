@@ -5171,6 +5171,7 @@ export async function updateFacilityBasicInfo(
 /**
  * 施設の地図画像を取得（プレビュー用、DBには保存しない）
  * DBへの保存はupdateFacilityBasicInfoで行う
+ * Supabase Storageに保存
  */
 export async function updateFacilityMapImage(facilityId: number, address: string) {
   try {
@@ -5201,22 +5202,40 @@ export async function updateFacilityMapImage(facilityId: number, address: string
 
     const imageBuffer = await response.arrayBuffer();
 
-    // 保存先ディレクトリを作成
-    const fs = await import('fs/promises');
-    const path = await import('path');
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'maps');
-    await fs.mkdir(uploadDir, { recursive: true });
+    // Supabase Storageにアップロード
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('[updateFacilityMapImage] Supabase credentials not configured');
+      return { success: false, error: 'ストレージの設定がありません' };
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // ファイル名を生成（facility-{id}-{timestamp}.png でキャッシュバスティング）
     const timestamp = Date.now();
-    const fileName = `facility-${facilityId}-${timestamp}.png`;
-    const filePath = path.join(uploadDir, fileName);
+    const fileName = `maps/facility-${facilityId}-${timestamp}.png`;
 
-    // 画像を保存
-    await fs.writeFile(filePath, Buffer.from(imageBuffer));
+    const { data, error } = await supabase.storage
+      .from('uploads')
+      .upload(fileName, Buffer.from(imageBuffer), {
+        contentType: 'image/png',
+        upsert: true,
+      });
 
-    // 公開URLを返す
-    const publicUrl = `/uploads/maps/${fileName}`;
+    if (error) {
+      console.error('[updateFacilityMapImage] Supabase Storage Error:', error);
+      return { success: false, error: '地図画像の保存に失敗しました' };
+    }
+
+    // 公開URLを取得
+    const { data: urlData } = supabase.storage
+      .from('uploads')
+      .getPublicUrl(data.path);
+
+    const publicUrl = urlData.publicUrl;
 
     console.log('[updateFacilityMapImage] Map image saved:', publicUrl);
 

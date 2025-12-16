@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
-import path from 'path';
-import { existsSync } from 'fs';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { supabaseAdmin, STORAGE_BUCKETS } from '@/lib/supabase';
 
 // 許可するファイルタイプ（MIMEタイプ）
 const ALLOWED_MIME_TYPES = [
@@ -68,6 +66,42 @@ function isValidMimeType(mimeType: string): boolean {
 function sanitizeFileName(filename: string): string {
   // パス区切り文字と危険な文字を除去
   return filename.replace(/[/\\:*?"<>|]/g, '').replace(/\.\./g, '');
+}
+
+/**
+ * Supabase Storageにファイルをアップロード
+ */
+async function uploadToSupabase(
+  file: File,
+  folder: string
+): Promise<string> {
+  const timestamp = Date.now();
+  const randomStr = Math.random().toString(36).substring(2, 8);
+  const sanitizedName = sanitizeFileName(file.name);
+  const ext = sanitizedName.split('.').pop()?.toLowerCase() || 'jpg';
+  const fileName = `${folder}/${timestamp}-${randomStr}.${ext}`;
+
+  const bytes = await file.arrayBuffer();
+  const buffer = Buffer.from(bytes);
+
+  const { data, error } = await supabaseAdmin.storage
+    .from(STORAGE_BUCKETS.UPLOADS)
+    .upload(fileName, buffer, {
+      contentType: file.type,
+      upsert: true,
+    });
+
+  if (error) {
+    console.error('[Supabase Storage] Upload error:', error);
+    throw new Error(`アップロードに失敗しました: ${error.message}`);
+  }
+
+  // 公開URLを取得
+  const { data: urlData } = supabaseAdmin.storage
+    .from(STORAGE_BUCKETS.UPLOADS)
+    .getPublicUrl(data.path);
+
+  return urlData.publicUrl;
 }
 
 export async function POST(request: NextRequest) {
@@ -140,105 +174,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'jobs');
-
-    // ディレクトリが存在しない場合は作成
-    if (!existsSync(uploadDir)) {
-      await mkdir(uploadDir, { recursive: true });
-    }
-
     const uploadedUrls: string[] = [];
 
     for (const file of files) {
-      // ファイル名をユニークにする
-      const timestamp = Date.now();
-      const randomStr = Math.random().toString(36).substring(2, 8);
-      const sanitizedName = sanitizeFileName(file.name);
-
+      // アップロード先のフォルダを決定
+      let folder = 'jobs';
       if (uploadType === 'user-guide') {
-        const fileName = `guide-${timestamp}-${randomStr}.pdf`;
-        const guideUploadDir = path.join(process.cwd(), 'public', 'uploads', 'user-guides');
-
-        if (!existsSync(guideUploadDir)) {
-          await mkdir(guideUploadDir, { recursive: true });
-        }
-
-        const filePath = path.join(guideUploadDir, fileName);
-
-        // パストラバーサル対策
-        const resolvedPath = path.resolve(filePath);
-        const resolvedUploadDir = path.resolve(guideUploadDir);
-        if (!resolvedPath.startsWith(resolvedUploadDir)) {
-          return NextResponse.json({ error: '不正なファイルパスです' }, { status: 400 });
-        }
-
-        const bytes = await file.arrayBuffer();
-        const buffer = Buffer.from(bytes);
-        await writeFile(filePath, buffer);
-
-        uploadedUrls.push(`/uploads/user-guides/${fileName}`);
-        continue; // 次のファイルへ
+        folder = 'user-guides';
+      } else if (uploadType === 'message') {
+        folder = 'messages';
       }
 
-      // メッセージ添付ファイル
-      if (uploadType === 'message') {
-        const ext = sanitizedName.split('.').pop()?.toLowerCase() || 'jpg';
-        const fileName = `msg-${timestamp}-${randomStr}.${ext}`;
-        const messageUploadDir = path.join(process.cwd(), 'public', 'uploads', 'messages');
-
-        if (!existsSync(messageUploadDir)) {
-          await mkdir(messageUploadDir, { recursive: true });
-        }
-
-        const filePath = path.join(messageUploadDir, fileName);
-
-        // パストラバーサル対策
-        const resolvedPath = path.resolve(filePath);
-        const resolvedUploadDir = path.resolve(messageUploadDir);
-        if (!resolvedPath.startsWith(resolvedUploadDir)) {
-          return NextResponse.json({ error: '不正なファイルパスです' }, { status: 400 });
-        }
-
-        const bytes = await file.arrayBuffer();
-        const buffer = Buffer.from(bytes);
-        await writeFile(filePath, buffer);
-
-        uploadedUrls.push(`/uploads/messages/${fileName}`);
-        continue; // 次のファイルへ
-      }
-
-      const ext = sanitizedName.split('.').pop()?.toLowerCase() || 'jpg';
-      const fileName = `${timestamp}-${randomStr}.${ext}`;
-
-      // パストラバーサル対策: ファイル名にパス区切りが含まれていないことを確認
-      if (fileName.includes('/') || fileName.includes('\\')) {
-        return NextResponse.json(
-          { error: '不正なファイル名です' },
-          { status: 400 }
-        );
-      }
-
-      const filePath = path.join(uploadDir, fileName);
-
-      // 最終的なパスがuploadDir内にあることを確認（パストラバーサル対策）
-      const resolvedPath = path.resolve(filePath);
-      const resolvedUploadDir = path.resolve(uploadDir);
-      if (!resolvedPath.startsWith(resolvedUploadDir)) {
-        return NextResponse.json(
-          { error: '不正なファイルパスです' },
-          { status: 400 }
-        );
-      }
-
-      // ファイルをバッファとして読み込み
-      const bytes = await file.arrayBuffer();
-      const buffer = Buffer.from(bytes);
-
-      // ファイルを保存
-      await writeFile(filePath, buffer);
-
-      // 公開URLを生成
-      uploadedUrls.push(`/uploads/jobs/${fileName}`);
+      // Supabase Storageにアップロード
+      const publicUrl = await uploadToSupabase(file, folder);
+      uploadedUrls.push(publicUrl);
     }
 
     return NextResponse.json({
