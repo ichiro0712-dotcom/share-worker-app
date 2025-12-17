@@ -181,7 +181,7 @@ export default function WorkerLogin() {
                     {user.profileImage ? (
                       <img src={user.profileImage} alt="" className="w-full h-full object-cover" />
                     ) : (
-                      <img src={`/images/users/user${index + 1}.svg`} alt="" className="w-full h-full object-cover" />
+                      <img src={`/images/users/user${(index % 2) + 2}.svg`} alt="" className="w-full h-full object-cover" />
                     )}
                   </div>
                   <div>

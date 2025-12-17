@@ -106,7 +106,7 @@ export default async function JobListPage({ searchParams }: PageProps) {
       images: job.images,
       badges: [],
       otherConditions: [],
-      mapImage: '/images/map-placeholder.png',
+      mapImage: job.facility?.map_image || null,
       transportMethods,
       accessDescription: job.access,
       featureTags,

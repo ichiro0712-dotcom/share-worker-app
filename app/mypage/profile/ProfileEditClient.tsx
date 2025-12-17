@@ -79,7 +79,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
 
   // 安全に画像URLを取得（[object Object]などの無効な値を防ぐ）
   const [profileImage, setProfileImage] = useState<string | null>(
-    getSafeImageUrl(userProfile.profile_image, '/images/sample-profile.jpg')
+    getSafeImageUrl(userProfile.profile_image, '/images/users/user2.svg')
   );
   const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
   const profileImageInputRef = useRef<HTMLInputElement>(null);
