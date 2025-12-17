@@ -149,6 +149,44 @@ npm run dev
 
 **補足**: この問題はNext.jsの`.next`キャッシュが原因で頻繁に発生する。CSS関連の変更をした後は予防的にキャッシュクリアを行うと良い。
 
+### シェル環境変数によるDB接続エラー（重要）
+
+**症状**: `.env`ファイルにDocker PostgreSQL（localhost）のURLを設定しているのに、PrismaがSupabaseに接続しようとしてエラーになる
+
+**原因**: ターミナルのシェル環境変数に古いSupabase URLがエクスポートされており、`.env`ファイルの設定を上書きしている
+
+**確認方法**:
+```bash
+echo $DATABASE_URL
+echo $DIRECT_URL
+```
+→ Supabaseの URL が表示されたら、これが原因
+
+**解決方法**:
+
+方法1: 環境変数をクリア
+```bash
+unset DATABASE_URL DIRECT_URL
+npm run dev
+```
+
+方法2: 環境変数を明示的に指定して起動
+```bash
+DATABASE_URL="postgresql://sworks:sworks123@localhost:5432/sworks_dev?schema=public" \
+DIRECT_URL="postgresql://sworks:sworks123@localhost:5432/sworks_dev?schema=public" \
+npm run dev
+```
+
+方法3: 新しいターミナルを開く
+新しいターミナルセッションでは環境変数がリセットされる
+
+**Prismaコマンド実行時も同様**:
+```bash
+DATABASE_URL="postgresql://sworks:sworks123@localhost:5432/sworks_dev?schema=public" \
+DIRECT_URL="postgresql://sworks:sworks123@localhost:5432/sworks_dev?schema=public" \
+npx prisma db push
+```
+
 ## Claude Code自動メンテナンス
 
 ### 開発サーバー自動リフレッシュ

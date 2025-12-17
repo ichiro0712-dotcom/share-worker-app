@@ -7,7 +7,7 @@ import { Job } from '@/types/job';
 import { Facility } from '@/types/facility';
 import { Badge } from '@/components/ui/badge';
 import { getDeadlineText, isDeadlineUrgent } from '@/utils/date';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { addJobBookmark, removeJobBookmark, isJobBookmarked } from '@/src/lib/actions';
 
 interface JobCardProps {
@@ -24,12 +24,13 @@ interface JobCardProps {
   };
   facility: Facility;
   selectedDate?: string; // YYYY-MM-DD形式の選択された日付
+  priority?: boolean;
 }
 
 // デフォルトのプレースホルダー画像
 const DEFAULT_JOB_IMAGE = '/images/anken.png';
 
-export const JobCard: React.FC<JobCardProps> = ({ job, facility, selectedDate }) => {
+const JobCardComponent: React.FC<JobCardProps> = ({ job, facility, selectedDate, priority = false }) => {
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -106,7 +107,7 @@ export const JobCard: React.FC<JobCardProps> = ({ job, facility, selectedDate })
   const shouldShowUnavailable = isUnavailable || isRecruitmentEnded;
 
   return (
-    <Link href={jobDetailUrl} className="h-full block">
+    <Link href={jobDetailUrl} prefetch={true} className="h-full block">
       <div className={`bg-surface rounded-card p-4 shadow-card transition-all h-full flex flex-col ${shouldShowUnavailable ? 'opacity-70' : 'hover:shadow-card-hover hover:-translate-y-0.5 cursor-pointer'}`}>
         {/* PC版: 横並びレイアウト */}
         <div className="hidden md:flex">
@@ -211,6 +212,9 @@ export const JobCard: React.FC<JobCardProps> = ({ job, facility, selectedDate })
               alt={facility.name}
               fill
               className={`object-cover ${shouldShowUnavailable ? 'opacity-60 grayscale' : ''}`}
+              placeholder="blur"
+              blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFgABAQEAAAAAAAAAAAAAAAAAAAUH/8QAIhAAAgIBAwQDAAAAAAAAAAAAAQIDBAAFERIGEyExQVFh/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAZEQACAwEAAAAAAAAAAAAAAAABAgADESH/2gAMAwAAhEDEQA/A/8A0="
+              priority={priority}
             />
             {/* 面接ありバッジ - 画像左上 */}
             {job.requiresInterview && (
@@ -301,3 +305,5 @@ export const JobCard: React.FC<JobCardProps> = ({ job, facility, selectedDate })
     </Link>
   );
 };
+
+export const JobCard = memo(JobCardComponent);

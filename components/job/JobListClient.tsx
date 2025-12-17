@@ -322,7 +322,7 @@ export function JobListClient({ jobs, facilities }: JobListClientProps) {
     }
     // distance（近い順）はデフォルトの順序を維持
     return 0;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [filteredByDate, selectedDateStr, sortOrder]);
 
   return (
@@ -474,13 +474,13 @@ export function JobListClient({ jobs, facilities }: JobListClientProps) {
           <div className="px-4 py-4 grid grid-cols-2 gap-3 md:grid-cols-1 md:gap-4 items-stretch">
             {sortedJobs
               .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-              .map((job) => {
+              .map((job, index) => {
                 const facility = facilities.find((f) => f.id === job.facilityId);
                 if (!facility) return null;
 
                 return (
                   <div key={job.id} className="h-full">
-                    <JobCard job={job} facility={facility} selectedDate={selectedDateStr} />
+                    <JobCard job={job} facility={facility} selectedDate={selectedDateStr} priority={index < 4} />
                   </div>
                 );
               })}
@@ -492,8 +492,8 @@ export function JobListClient({ jobs, facilities }: JobListClientProps) {
               onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
               disabled={currentPage === 1}
               className={`px-4 py-2 rounded-lg ${currentPage === 1
-                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  : 'bg-primary text-white hover:bg-primary/90'
+                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                : 'bg-primary text-white hover:bg-primary/90'
                 }`}
             >
               ← 前へ
@@ -509,8 +509,8 @@ export function JobListClient({ jobs, facilities }: JobListClientProps) {
               }
               disabled={currentPage === Math.ceil(sortedJobs.length / itemsPerPage)}
               className={`px-4 py-2 rounded-lg ${currentPage === Math.ceil(sortedJobs.length / itemsPerPage)
-                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  : 'bg-primary text-white hover:bg-primary/90'
+                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                : 'bg-primary text-white hover:bg-primary/90'
                 }`}
             >
               次へ →

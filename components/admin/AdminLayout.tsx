@@ -209,7 +209,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       <div className="w-64 bg-admin-sidebar border-r border-gray-800 flex flex-col">
         {/* ロゴ・施設名 */}
         <div className="p-4 border-b border-gray-800">
-          <Link href="/admin/jobs" className="flex items-center gap-3">
+          <Link href="/admin/jobs" prefetch={true} className="flex items-center gap-3">
             <Image
               src="/images/logo.png"
               alt="+TASTAS"
@@ -259,6 +259,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                   // 通常状態（クリック可能）
                   <Link
                     href={item.href}
+                    prefetch={true}
                     className={`flex items-center gap-3 py-2.5 mx-2 rounded-admin-button text-sm transition-colors ${item.isSubItem ? 'pl-8 pr-4' : 'px-4'
                       } ${item.active
                         ? 'bg-blue-500/20 text-blue-400 font-medium'
@@ -290,6 +291,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               </div>
               <Link
                 href="/admin/masquerade-actions/delete-facility"
+                prefetch={true}
                 className={`flex items-center gap-3 py-2.5 mx-2 rounded-admin-button text-sm transition-colors px-4 ${pathname === '/admin/masquerade-actions/delete-facility'
                   ? 'bg-red-500/20 text-red-400 font-medium'
                   : 'text-gray-300 hover:text-white hover:bg-white/10'
@@ -300,6 +302,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               </Link>
               <Link
                 href="/admin/masquerade-actions/password-reset"
+                prefetch={true}
                 className={`flex items-center gap-3 py-2.5 mx-2 rounded-admin-button text-sm transition-colors px-4 ${pathname === '/admin/masquerade-actions/password-reset'
                   ? 'bg-blue-500/20 text-blue-400 font-medium'
                   : 'text-gray-300 hover:text-white hover:bg-white/10'
@@ -339,11 +342,11 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             )}
           </div>
           <div className="mb-3 flex items-center justify-center gap-3 text-xs text-gray-500">
-            <Link href="/admin/terms" className="hover:text-blue-400 hover:underline">
+            <Link href="/admin/terms" prefetch={true} className="hover:text-blue-400 hover:underline">
               利用規約
             </Link>
             <span>•</span>
-            <Link href="/admin/privacy" className="hover:text-blue-400 hover:underline">
+            <Link href="/admin/privacy" prefetch={true} className="hover:text-blue-400 hover:underline">
               プライバシーポリシー
             </Link>
           </div>

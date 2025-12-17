@@ -486,12 +486,23 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
             </div>
           )}
           <div className="relative aspect-video rounded-card overflow-hidden">
-            <Image
-              src={jobImages[currentImageIndex]}
-              alt="施設画像"
-              fill
-              className="object-cover"
-            />
+            {jobImages[currentImageIndex].startsWith('blob:') ? (
+              <img
+                src={jobImages[currentImageIndex]}
+                alt="施設画像"
+                className="object-cover w-full h-full"
+              />
+            ) : (
+              <Image
+                src={jobImages[currentImageIndex]}
+                alt="施設画像"
+                fill
+                className="object-cover"
+                placeholder="blur"
+                blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFgABAQEAAAAAAAAAAAAAAAAAAAUH/8QAIhAAAgIBAwQDAAAAAAAAAAAAAQIDBAAFERIGEyExQVFh/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAZEQACAwEAAAAAAAAAAAAAAAABAgADESH/2gAMAwEAAhEDEEQA/8A0="
+                priority={currentImageIndex === 0}
+              />
+            )}
             {/* 面接ありバッジ - 画像左上 */}
             {jobImages.length > 1 && (
               <>
@@ -901,12 +912,20 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
               <div className="grid grid-cols-3 gap-2">
                 {job.dresscodeImages.map((imageUrl: string, index: number) => (
                   <div key={index} className="relative aspect-video overflow-hidden rounded-lg border border-gray-200">
-                    <Image
-                      src={imageUrl}
-                      alt={`服装サンプル${index + 1}`}
-                      fill
-                      className="object-cover"
-                    />
+                    {imageUrl.startsWith('blob:') ? (
+                      <img
+                        src={imageUrl}
+                        alt={`服装サンプル${index + 1}`}
+                        className="object-cover w-full h-full"
+                      />
+                    ) : (
+                      <Image
+                        src={imageUrl}
+                        alt={`服装サンプル${index + 1}`}
+                        fill
+                        className="object-cover"
+                      />
+                    )}
                   </div>
                 ))}
               </div>

@@ -11,14 +11,20 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
   const { id } = await params;
   const { date: selectedDate, preview } = await searchParams;
   const isPreviewMode = preview === 'true';
-  const jobData = await getJobById(id);
+  // 並列でデータを取得
+  const [jobData, allJobsData, initialHasApplied, appliedWorkDateIds, scheduledJobs] = await Promise.all([
+    getJobById(id),
+    getJobs(),
+    hasUserAppliedForJob(id),
+    getUserApplicationStatuses(id),
+    getUserScheduledJobs(),
+  ]);
 
   if (!jobData) {
     notFound();
   }
 
-  // 同じ施設の他の求人を取得
-  const allJobsData = await getJobs();
+  // 同じ施設の他の求人を抽出
   const relatedJobsData = allJobsData.filter(
     (j) => j.facility_id === jobData.facility_id && j.id !== jobData.id
   );
@@ -150,13 +156,6 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
 
   // 施設のレビューを取得
   const facilityReviews = await getFacilityReviews(jobData.facility_id);
-
-  // ユーザーが既に応募済みかチェック
-  const initialHasApplied = await hasUserAppliedForJob(id);
-  const appliedWorkDateIds = await getUserApplicationStatuses(id);
-
-  // ユーザーのスケジュール済み仕事を取得（時間重複判定用）
-  const scheduledJobs = await getUserScheduledJobs();
 
   return (
     <JobDetailClient
