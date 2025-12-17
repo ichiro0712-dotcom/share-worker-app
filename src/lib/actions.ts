@@ -8,6 +8,14 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { sendNotification, sendNearbyJobNotifications } from './notification-service';
 import { geocodeAddress } from '@/src/lib/geocoding';
+import { uploadFile, STORAGE_BUCKETS } from '@/lib/supabase';
+
+// FormDataから受け取るファイルはBlob互換（name, typeプロパティを持つ）
+// サーバーサイド（Node.js）ではFile型が存在しないため、この型を使用
+interface FileBlob extends Blob {
+  name: string;
+  type: string;
+}
 
 
 
@@ -1671,7 +1679,7 @@ export async function updateUserProfile(formData: FormData) {
     const phoneNumber = formData.get('phoneNumber') as string;
     const birthDate = formData.get('birthDate') as string;
     const qualificationsStr = formData.get('qualifications') as string;
-    const profileImageFile = formData.get('profileImage') as File | null;
+    const profileImageFile = formData.get('profileImage') as FileBlob | null;
 
     // 追加フィールド
     const lastNameKana = formData.get('lastNameKana') as string | null;
@@ -1719,32 +1727,36 @@ export async function updateUserProfile(formData: FormData) {
     const pensionNumber = formData.get('pensionNumber') as string | null;
 
     // 新しいフィールド（ファイルとして取得）
-    const idDocumentFile = formData.get('idDocument') as File | null;
-    const bankBookImageFile = formData.get('bankBookImage') as File | null;
+    const idDocumentFile = formData.get('idDocument') as FileBlob | null;
+    const bankBookImageFile = formData.get('bankBookImage') as FileBlob | null;
 
     // 資格は配列に変換
     const qualifications = qualificationsStr ? qualificationsStr.split(',').filter(q => q.trim()) : [];
 
     // 資格証明書ファイルを取得（Base64エンコードされた資格名をデコード）
-    const qualificationCertificateFiles: Record<string, File> = {};
+    // サーバーサイドではFileではなくBlobとして扱う
+    const qualificationCertificateFiles: Record<string, FileBlob> = {};
     const entries = Array.from(formData.entries());
     console.log('[updateUserProfile] Processing FormData entries, total:', entries.length);
     for (const [key, value] of entries) {
       if (key.startsWith('qualificationCertificate_')) {
         console.log('[updateUserProfile] Found qualification certificate key:', key);
-        console.log('[updateUserProfile] Value type:', typeof value, 'Is File:', value instanceof File);
-        if (value instanceof File) {
-          console.log('[updateUserProfile] File size:', value.size, 'File name:', value.name);
+        const isBlob = value instanceof Blob;
+        console.log('[updateUserProfile] Value type:', typeof value, 'Is Blob:', isBlob);
+        if (isBlob) {
+          const blobValue = value as FileBlob;
+          console.log('[updateUserProfile] File size:', blobValue.size, 'File name:', blobValue.name);
         }
       }
-      if (key.startsWith('qualificationCertificate_') && value instanceof File && value.size > 0) {
+      // サーバーサイドではFileではなくBlobでチェック
+      if (key.startsWith('qualificationCertificate_') && value instanceof Blob && value.size > 0) {
         const encodedQualification = key.replace('qualificationCertificate_', '');
         console.log('[updateUserProfile] Encoded qualification:', encodedQualification);
         try {
           // Base64デコード -> UTF-8デコード（Node.js用）
           const qualification = Buffer.from(encodedQualification, 'base64').toString('utf-8');
           console.log('[updateUserProfile] Decoded qualification:', qualification);
-          qualificationCertificateFiles[qualification] = value;
+          qualificationCertificateFiles[qualification] = value as FileBlob;
         } catch (decodeError) {
           console.error('[updateUserProfile] Failed to decode qualification:', decodeError);
         }
@@ -1777,42 +1789,29 @@ export async function updateUserProfile(formData: FormData) {
     }
 
     // Supabase Storage用ヘルパー関数
-    const uploadToSupabaseStorage = async (file: File, folder: string, prefix: string, userId: number): Promise<string | null> => {
+    const uploadToSupabaseStorage = async (file: FileBlob, folder: string, prefix: string, userId: number): Promise<string | null> => {
       try {
-        const { createClient } = await import('@supabase/supabase-js');
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-        if (!supabaseUrl || !supabaseServiceKey) {
-          console.error('[uploadToSupabaseStorage] Supabase credentials not configured');
-          return null;
-        }
-
-        const supabase = createClient(supabaseUrl, supabaseServiceKey);
         const timestamp = Date.now();
         const fileExtension = file.name.split('.').pop();
         const fileName = `${folder}/${prefix}-${userId}-${timestamp}.${fileExtension}`;
 
-        const bytes = await file.arrayBuffer();
-        const buffer = Buffer.from(bytes);
+        // Blobをarraybufferに変換してからBufferに変換
+        const arrayBuffer = await file.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
 
-        const { data, error } = await supabase.storage
-          .from('uploads')
-          .upload(fileName, buffer, {
-            contentType: file.type,
-            upsert: true,
-          });
+        const result = await uploadFile(
+          STORAGE_BUCKETS.UPLOADS,
+          fileName,
+          buffer,
+          file.type
+        );
 
-        if (error) {
-          console.error('[uploadToSupabaseStorage] Upload error:', error);
+        if ('error' in result) {
+          console.error('[uploadToSupabaseStorage] Upload error:', result.error);
           return null;
         }
 
-        const { data: urlData } = supabase.storage
-          .from('uploads')
-          .getPublicUrl(data.path);
-
-        return urlData.publicUrl;
+        return result.url;
       } catch (error) {
         console.error('[uploadToSupabaseStorage] Error:', error);
         return null;
@@ -5218,39 +5217,23 @@ export async function updateFacilityMapImage(facilityId: number, address: string
     const imageBuffer = await response.arrayBuffer();
 
     // Supabase Storageにアップロード
-    const { createClient } = await import('@supabase/supabase-js');
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !supabaseServiceKey) {
-      console.error('[updateFacilityMapImage] Supabase credentials not configured');
-      return { success: false, error: 'ストレージの設定がありません' };
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    // ファイル名を生成（facility-{id}-{timestamp}.png でキャッシュバスティング）
+    // Supabase Storageにアップロード
     const timestamp = Date.now();
     const fileName = `maps/facility-${facilityId}-${timestamp}.png`;
 
-    const { data, error } = await supabase.storage
-      .from('uploads')
-      .upload(fileName, Buffer.from(imageBuffer), {
-        contentType: 'image/png',
-        upsert: true,
-      });
+    const result = await uploadFile(
+      STORAGE_BUCKETS.UPLOADS,
+      fileName,
+      Buffer.from(imageBuffer),
+      'image/png'
+    );
 
-    if (error) {
-      console.error('[updateFacilityMapImage] Supabase Storage Error:', error);
+    if ('error' in result) {
+      console.error('[updateFacilityMapImage] Storage Error:', result.error);
       return { success: false, error: '地図画像の保存に失敗しました' };
     }
 
-    // 公開URLを取得
-    const { data: urlData } = supabase.storage
-      .from('uploads')
-      .getPublicUrl(data.path);
-
-    const publicUrl = urlData.publicUrl;
+    const publicUrl = result.url;
 
     console.log('[updateFacilityMapImage] Map image saved:', publicUrl);
 
@@ -5321,39 +5304,23 @@ export async function updateFacilityMapImageByLatLng(
     const imageBuffer = await response.arrayBuffer();
 
     // Supabase Storageにアップロード
-    const { createClient } = await import('@supabase/supabase-js');
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !supabaseServiceKey) {
-      console.error('[updateFacilityMapImageByLatLng] Supabase credentials not configured');
-      return { success: false, error: 'ストレージの設定がありません' };
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    // ファイル名を生成（facility-{id}-{timestamp}.png でキャッシュバスティング）
+    // Supabase Storageにアップロード
     const timestamp = Date.now();
     const fileName = `maps/facility-${facilityId}-${timestamp}.png`;
 
-    const { data, error } = await supabase.storage
-      .from('uploads')
-      .upload(fileName, Buffer.from(imageBuffer), {
-        contentType: 'image/png',
-        upsert: true,
-      });
+    const result = await uploadFile(
+      STORAGE_BUCKETS.UPLOADS,
+      fileName,
+      Buffer.from(imageBuffer),
+      'image/png'
+    );
 
-    if (error) {
-      console.error('[updateFacilityMapImageByLatLng] Supabase Storage Error:', error);
+    if ('error' in result) {
+      console.error('[updateFacilityMapImageByLatLng] Storage Error:', result.error);
       return { success: false, error: '地図画像の保存に失敗しました' };
     }
 
-    // 公開URLを取得
-    const { data: urlData } = supabase.storage
-      .from('uploads')
-      .getPublicUrl(data.path);
-
-    const publicUrl = urlData.publicUrl;
+    const publicUrl = result.url;
 
     // DBに地図画像パスと緯度経度を保存
     await prisma.facility.update({

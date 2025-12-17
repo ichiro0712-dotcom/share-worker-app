@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { uploadFile, STORAGE_BUCKETS } from '@/lib/supabase';
 
 /**
  * Google Maps Static APIから地図画像を取得してSupabase Storageに保存
@@ -47,46 +47,28 @@ export async function POST(request: NextRequest) {
 
     const imageBuffer = await response.arrayBuffer();
 
-    // Supabase Storageにアップロード
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return NextResponse.json(
-        { error: 'ストレージの設定がありません' },
-        { status: 500 }
-      );
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
     // ファイル名を生成（facility-{id}-{timestamp}.png でキャッシュバスティング）
     const timestamp = Date.now();
     const fileName = `maps/facility-${facilityId}-${timestamp}.png`;
 
-    const { data, error } = await supabase.storage
-      .from('uploads')
-      .upload(fileName, Buffer.from(imageBuffer), {
-        contentType: 'image/png',
-        upsert: true,
-      });
+    const result = await uploadFile(
+      STORAGE_BUCKETS.UPLOADS,
+      fileName,
+      Buffer.from(imageBuffer),
+      'image/png'
+    );
 
-    if (error) {
-      console.error('[Maps API] Supabase Storage Error:', error);
+    if ('error' in result) {
+      console.error('[Maps API] Storage Error:', result.error);
       return NextResponse.json(
         { error: '地図画像の保存に失敗しました' },
         { status: 500 }
       );
     }
 
-    // 公開URLを取得
-    const { data: urlData } = supabase.storage
-      .from('uploads')
-      .getPublicUrl(data.path);
-
     return NextResponse.json({
       success: true,
-      mapImage: urlData.publicUrl,
+      mapImage: result.url,
     });
   } catch (error) {
     console.error('[Maps API] Error:', error);

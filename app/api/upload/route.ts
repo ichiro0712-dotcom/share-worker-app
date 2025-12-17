@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { supabaseAdmin, STORAGE_BUCKETS } from '@/lib/supabase';
+import { uploadFile, STORAGE_BUCKETS } from '@/lib/supabase';
 
 // 許可するファイルタイプ（MIMEタイプ）
 const ALLOWED_MIME_TYPES = [
@@ -69,10 +69,16 @@ function sanitizeFileName(filename: string): string {
 }
 
 /**
- * Supabase Storageにファイルをアップロード
+ * S3 Compatible Storageにファイルをアップロード
+ * FormDataから受け取るファイルはBlob互換（name, typeプロパティを持つ）
  */
+interface FileBlob extends Blob {
+  name: string;
+  type: string;
+}
+
 async function uploadToSupabase(
-  file: File,
+  file: FileBlob,
   folder: string
 ): Promise<string> {
   const timestamp = Date.now();
@@ -81,27 +87,23 @@ async function uploadToSupabase(
   const ext = sanitizedName.split('.').pop()?.toLowerCase() || 'jpg';
   const fileName = `${folder}/${timestamp}-${randomStr}.${ext}`;
 
-  const bytes = await file.arrayBuffer();
-  const buffer = Buffer.from(bytes);
+  // BlobをBufferに変換してからアップロード
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
 
-  const { data, error } = await supabaseAdmin.storage
-    .from(STORAGE_BUCKETS.UPLOADS)
-    .upload(fileName, buffer, {
-      contentType: file.type,
-      upsert: true,
-    });
+  const result = await uploadFile(
+    STORAGE_BUCKETS.UPLOADS,
+    fileName,
+    buffer,
+    file.type
+  );
 
-  if (error) {
-    console.error('[Supabase Storage] Upload error:', error);
-    throw new Error(`アップロードに失敗しました: ${error.message}`);
+  if ('error' in result) {
+    console.error('[S3 Storage] Upload error:', result.error);
+    throw new Error(`アップロードに失敗しました: ${result.error}`);
   }
 
-  // 公開URLを取得
-  const { data: urlData } = supabaseAdmin.storage
-    .from(STORAGE_BUCKETS.UPLOADS)
-    .getPublicUrl(data.path);
-
-  return urlData.publicUrl;
+  return result.url;
 }
 
 export async function POST(request: NextRequest) {
