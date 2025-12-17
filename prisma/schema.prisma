@@ -175,6 +175,9 @@ model Facility {
   /// 仮登録状態（true: 未完了、false: 正式登録済み）
   is_pending       Boolean          @default(false) @map("is_pending")
 
+  // パフォーマンス最適化用インデックス
+  @@index([facility_type])
+  @@index([prefecture, city])
   @@map("facilities")
 }
 
@@ -270,6 +273,10 @@ model Job {
   reviews                 Review[]
   systemNotifications     SystemNotification[]
 
+  // パフォーマンス最適化用インデックス
+  @@index([status, facility_id])
+  @@index([created_at])
+  @@index([status, created_at])
   @@map("jobs")
 }
 
@@ -316,6 +323,9 @@ model Application {
   systemNotifications    SystemNotification[]
 
   @@unique([work_date_id, user_id])
+  // パフォーマンス最適化用インデックス
+  @@index([user_id, status])
+  @@index([status, created_at])
   @@map("applications")
 }
 
@@ -431,6 +441,9 @@ model Bookmark {
   targetUser         User?        @relation("BookmarkedUsers", fields: [target_user_id], references: [id], onDelete: Cascade)
   user               User?        @relation("UserBookmarks", fields: [user_id], references: [id], onDelete: Cascade)
 
+  // パフォーマンス最適化用インデックス
+  @@index([user_id, type])
+  @@index([target_job_id])
   @@map("bookmarks")
 }
 
@@ -454,6 +467,10 @@ model Message {
   toFacility       Facility?   @relation("FacilityReceivedMessages", fields: [to_facility_id], references: [id], onDelete: Cascade)
   toUser           User?       @relation("UserReceivedMessages", fields: [to_user_id], references: [id], onDelete: Cascade)
 
+  // パフォーマンス最適化用インデックス
+  @@index([application_id, created_at])
+  @@index([from_user_id, created_at])
+  @@index([to_user_id, read_at])
   @@map("messages")
 }
 

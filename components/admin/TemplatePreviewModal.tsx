@@ -85,7 +85,7 @@ export function TemplatePreviewModal({ isOpen, onClose, templateData, facilityDa
     dresscode: templateData.dresscode,
     belongings: templateData.belongings,
     tags: templateData.icons,
-    images: templateData.images.length > 0 ? templateData.images : ['/images/anken.png'],
+    images: templateData.images.length > 0 ? templateData.images : ['/images/samples/facility_top_1.png'],
     attachments: templateData.attachments || [],
     status: 'published',
     requiresInterview: false,

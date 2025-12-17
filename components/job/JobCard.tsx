@@ -27,8 +27,8 @@ interface JobCardProps {
   priority?: boolean;
 }
 
-// デフォルトのプレースホルダー画像
-const DEFAULT_JOB_IMAGE = '/images/anken.png';
+// デフォルトのプレースホルダー画像（実在するサンプル画像を使用）
+const DEFAULT_JOB_IMAGE = '/images/samples/facility_top_1.png';
 
 const JobCardComponent: React.FC<JobCardProps> = ({ job, facility, selectedDate, priority = false }) => {
   const [isBookmarked, setIsBookmarked] = useState(false);

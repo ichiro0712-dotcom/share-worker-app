@@ -1858,7 +1858,21 @@ export async function updateUserProfile(formData: FormData) {
     }
 
     // 資格証明書のアップロード処理
-    const existingCertificates = (user.qualification_certificates as Record<string, string>) || {};
+    // 旧形式（{acquired_date, certificate_image}）と新形式（文字列URL）の両方に対応
+    const rawCertificates = (user.qualification_certificates as Record<string, unknown>) || {};
+    const existingCertificates: Record<string, string> = {};
+
+    // 旧形式のデータを新形式に変換
+    for (const [key, value] of Object.entries(rawCertificates)) {
+      if (typeof value === 'string') {
+        existingCertificates[key] = value;
+      } else if (value && typeof value === 'object' && 'certificate_image' in value) {
+        const certImage = (value as { certificate_image?: string }).certificate_image;
+        if (certImage && typeof certImage === 'string') {
+          existingCertificates[key] = certImage;
+        }
+      }
+    }
     const newCertificates: Record<string, string> = { ...existingCertificates };
 
     for (const [qualification, file] of Object.entries(qualificationCertificateFiles)) {

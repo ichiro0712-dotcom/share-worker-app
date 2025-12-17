@@ -56,12 +56,12 @@ const addressData = [
 const corporationPatterns = ['社会福祉法人', '医療法人', '株式会社', '合同会社', 'NPO法人'];
 const corporationNames = ['ひかり', 'あおぞら', 'さくら', 'みどり', 'ゆうわ', 'けやき', 'つばさ', 'はなみずき', 'あすなろ', 'わかば'];
 
-// 画像URL
+// 画像URL（実在するサンプル画像を使用）
 const facilityImages = [
-  '/images/facilities/facility1.jpg',
-  '/images/facilities/facility2.jpg',
-  '/images/facilities/facility3.jpg',
-  '/images/anken.png',
+  '/images/samples/facility_top_1.png',
+  '/images/samples/facility_top_2.png',
+  '/images/samples/facility_top_3.png',
+  '/images/samples/facility_top_4.png',
 ];
 
 // ========================================
@@ -884,7 +884,7 @@ async function main() {
       name: '山田 太郎',
       birth_date: new Date('1990-05-15'),
       phone_number: '090-1234-5678',
-      profile_image: '/uploads/test/profile-test-user.png',
+      profile_image: null, // テスト用ダミー画像は使用しない
       qualifications: ['介護福祉士', '実務者研修'],
       last_name_kana: 'ヤマダ',
       first_name_kana: 'タロウ',
@@ -901,22 +901,14 @@ async function main() {
       emergency_phone: '090-8765-4321',
       emergency_address: '東京都渋谷区神宮前1-1-1',
       experience_fields: { "特別養護老人ホーム": "3年以上", "デイサービス": "3年以上" },
-      id_document: '/uploads/test/id-document-test.png',
-      bank_book_image: '/uploads/test/bank-book-test.png',
+      id_document: null, // テスト用ダミー画像は使用しない
+      bank_book_image: null, // テスト用ダミー画像は使用しない
       bank_name: 'テスト銀行',
       branch_name: 'テスト支店',
       account_number: '1234567',
       account_name: 'ヤマダ タロウ',
-      qualification_certificates: {
-        '介護福祉士': {
-          acquired_date: '2018-04-01',
-          certificate_image: '/uploads/test/cert-kaigo-test.png',
-        },
-        '実務者研修': {
-          acquired_date: '2017-03-15',
-          certificate_image: '/uploads/test/cert-jitsumu-test.png',
-        }
-      },
+      // 資格証明書は文字列URL形式で保存（旧形式のネストされたオブジェクトは使用しない）
+      // qualification_certificatesはJson型なので省略するとnullになる
     },
     {
       email: 'sato@example.com',
@@ -965,7 +957,7 @@ async function main() {
       name: '伊藤 直子',
       birth_date: new Date('2000-01-05'),
       phone_number: '090-6789-0123',
-      profile_image: '/images/users/user6.jpg',
+      profile_image: '/images/samples/20s_female_1.png',
       qualifications: [],
     },
     // 経験豊富なベテラン
@@ -975,7 +967,7 @@ async function main() {
       name: '渡辺 大輔',
       birth_date: new Date('1975-07-18'),
       phone_number: '090-7890-1234',
-      profile_image: '/images/users/user7.jpg',
+      profile_image: '/images/samples/40s_male_1.png',
       qualifications: ['介護福祉士', 'ケアマネージャー', '社会福祉士'],
     },
     {
@@ -984,7 +976,7 @@ async function main() {
       name: '山本 理恵',
       birth_date: new Date('1992-04-30'),
       phone_number: '090-8901-2345',
-      profile_image: '/images/users/user8.jpg',
+      profile_image: '/images/samples/40s_female_1.png',
       qualifications: ['准看護師', '実務者研修'],
     },
     {
@@ -1002,7 +994,7 @@ async function main() {
       name: '小林 麻衣',
       birth_date: new Date('1993-12-08'),
       phone_number: '090-0123-4567',
-      profile_image: '/images/users/user10.jpg',
+      profile_image: '/images/samples/40s_female_2.png',
       qualifications: ['介護福祉士', '正看護師'],
     },
   ];
@@ -1029,7 +1021,7 @@ async function main() {
       lng: 139.6921,
       phone_number: '03-1234-5678',
       description: '開設15年の実績があるデイサービスです。明るく家庭的な雰囲気で、利用者様一人ひとりに寄り添ったケアを提供しています。経験豊富なスタッフが多数在籍しており、新人さんへのサポート体制も万全です。',
-      images: ['/images/anken.png', '/images/facilities/facility1.jpg'],
+      images: ['/images/samples/facility_top_1.png', '/images/samples/facility_top_2.png'],
       rating: 4.5,
       review_count: 28,
       initial_message: `[ワーカー名字]様
@@ -1052,7 +1044,7 @@ async function main() {
       lng: 139.7001,
       phone_number: '03-2345-6789',
       description: '地域密着型の訪問看護ステーションです。24時間対応可能で、利用者様の在宅生活を全力でサポートしています。看護師・療法士が連携し、質の高いケアを提供しています。',
-      images: ['/images/anken.png'],
+      images: ['/images/samples/facility_top_7.png'],
       rating: 4.8,
       review_count: 15,
       initial_message: `ご応募ありがとうございます。あおぞら訪問看護ステーションの管理者です。
@@ -1071,7 +1063,7 @@ async function main() {
       lng: 139.6467,
       phone_number: '045-123-4567',
       description: '定員100名の大型特養です。ユニットケアを導入し、家庭的な雰囲気の中で個別ケアを実践しています。夜勤体制も充実しており、安心して働ける環境です。',
-      images: ['/images/anken.png', '/images/facilities/facility2.jpg'],
+      images: ['/images/samples/facility_top_3.png', '/images/samples/facility_top_4.png'],
       rating: 4.2,
       review_count: 42,
       initial_message: null,
@@ -1085,7 +1077,7 @@ async function main() {
       lng: 139.6455,
       phone_number: '03-3456-7890',
       description: '認知症ケア専門のグループホームです。定員18名の小規模で、利用者様と密に関わりながら、その人らしい生活をサポートしています。',
-      images: ['/images/anken.png'],
+      images: ['/images/samples/facility_top_7.png'],
       rating: 4.6,
       review_count: 19,
       initial_message: `この度はご応募ありがとうございます。
@@ -1101,7 +1093,7 @@ async function main() {
       lng: 139.6283,
       phone_number: '048-234-5678',
       description: 'リハビリテーションに力を入れている老健施設です。在宅復帰を目標に、医師・看護師・理学療法士・作業療法士・介護士がチームで支援しています。',
-      images: ['/images/anken.png', '/images/facilities/facility3.jpg'],
+      images: ['/images/samples/facility_top_5.png', '/images/samples/facility_top_6.png'],
       rating: 4.3,
       review_count: 31,
       initial_message: null,
@@ -1115,7 +1107,7 @@ async function main() {
       lng: 139.9856,
       phone_number: '047-345-6789',
       description: '機能訓練に特化したデイサービスです。理学療法士による個別機能訓練で、利用者様の身体機能維持・向上をサポートしています。',
-      images: ['/images/anken.png'],
+      images: ['/images/samples/facility_top_7.png'],
       rating: 4.4,
       review_count: 12,
       initial_message: `ご応募いただきありがとうございます！
@@ -1131,7 +1123,7 @@ async function main() {
       lng: 139.6020,
       phone_number: '03-4567-8901',
       description: '通い・訪問・泊まりを一体的に提供する小規模多機能ホームです。なじみのスタッフが様々な場面で関わり、利用者様の安心につなげています。',
-      images: ['/images/anken.png'],
+      images: ['/images/samples/facility_top_7.png'],
       rating: 4.7,
       review_count: 8,
       initial_message: null,
@@ -1145,7 +1137,7 @@ async function main() {
       lng: 139.6614,
       phone_number: '044-456-7890',
       description: '介護付き有料老人ホームです。入居者様のニーズに合わせた個別ケアを提供し、充実した日々を過ごしていただけるよう努めています。',
-      images: ['/images/anken.png', '/images/facilities/facility1.jpg'],
+      images: ['/images/samples/facility_top_1.png', '/images/samples/facility_top_2.png'],
       rating: 4.1,
       review_count: 25,
       initial_message: `ご応募ありがとうございます。
@@ -1161,7 +1153,7 @@ async function main() {
       lng: 139.6361,
       phone_number: '03-5678-9012',
       description: '自立度の高い方向けのサ高住です。必要に応じた介護サービスを提供しながら、入居者様の自立した生活をサポートしています。',
-      images: ['/images/anken.png'],
+      images: ['/images/samples/facility_top_7.png'],
       rating: 4.0,
       review_count: 9,
       initial_message: null,
@@ -1175,7 +1167,7 @@ async function main() {
       lng: 139.7240,
       phone_number: '048-567-8901',
       description: 'ご家族のレスパイトケアを支援するショートステイです。短期間でも自宅にいるような安心感を提供できるよう、細やかなケアを心がけています。',
-      images: ['/images/anken.png'],
+      images: ['/images/samples/facility_top_7.png'],
       rating: 4.4,
       review_count: 17,
       initial_message: `この度はご応募いただき、ありがとうございます。
@@ -1192,7 +1184,7 @@ async function main() {
       lng: 139.7109,
       phone_number: '03-6789-0123',
       description: '池袋エリアを中心に訪問介護サービスを提供しています。利用者様の在宅生活を支え、住み慣れた地域で安心して暮らせるようサポートしています。',
-      images: ['/images/anken.png'],
+      images: ['/images/samples/facility_top_7.png'],
       rating: 4.5,
       review_count: 22,
       initial_message: null,
@@ -1206,7 +1198,7 @@ async function main() {
       lng: 139.9751,
       phone_number: '04-7890-1234',
       description: 'リハビリ特化型のデイケアセンターです。専門職による機能訓練で、利用者様のQOL向上を目指しています。',
-      images: ['/images/anken.png', '/images/facilities/facility2.jpg'],
+      images: ['/images/samples/facility_top_3.png', '/images/samples/facility_top_4.png'],
       rating: 4.6,
       review_count: 14,
       initial_message: `ご応募ありがとうございます！
@@ -1222,7 +1214,7 @@ async function main() {
       lng: 139.3715,
       phone_number: '042-890-1234',
       description: '病院併設の老健施設です。医療連携が強みで、安心してご利用いただけます。看護師・介護士の連携も良好です。',
-      images: ['/images/anken.png'],
+      images: ['/images/samples/facility_top_7.png'],
       rating: 4.2,
       review_count: 30,
       initial_message: null,
@@ -1236,7 +1228,7 @@ async function main() {
       lng: 139.6657,
       phone_number: '03-7890-1234',
       description: '定員18名のアットホームなグループホームです。認知症の方が穏やかに過ごせる環境づくりに力を入れています。',
-      images: ['/images/anken.png'],
+      images: ['/images/samples/facility_top_7.png'],
       rating: 4.8,
       review_count: 11,
       initial_message: `ご応募いただきありがとうございます！
@@ -1252,7 +1244,7 @@ async function main() {
       lng: 139.7891,
       phone_number: '048-901-2345',
       description: '2020年オープンの新しい有料老人ホームです。最新設備と快適な環境で、入居者様・スタッフ双方にとって過ごしやすい施設を目指しています。',
-      images: ['/images/anken.png', '/images/facilities/facility3.jpg'],
+      images: ['/images/samples/facility_top_5.png', '/images/samples/facility_top_6.png'],
       rating: 4.9,
       review_count: 6,
       initial_message: `この度はご応募ありがとうございます。
@@ -1336,7 +1328,7 @@ async function main() {
       skills: ['介護経験1年以上', 'コミュニケーション能力'],
       dresscode: ['動きやすい服装', '運動靴'],
       belongings: ['筆記用具', '上履き'],
-      images: ['/images/anken.png'],
+      images: ['/images/samples/facility_top_7.png'],
       notes: '初めての方も丁寧に指導します',
       tags: ['制服貸与', '+TASTAS初心者歓迎', '交通費支給'],
     },
@@ -1356,7 +1348,7 @@ async function main() {
       skills: ['夜勤経験あり', '介護経験3年以上'],
       dresscode: ['動きやすい服装'],
       belongings: ['筆記用具', '上履き', '仮眠用着替え'],
-      images: ['/images/anken.png'],
+      images: ['/images/samples/facility_top_7.png'],
       notes: '夜勤手当あり。仮眠時間2時間確保',
       tags: ['制服貸与', '交通費支給', '夜勤専従'],
     },
@@ -1376,7 +1368,7 @@ async function main() {
       skills: ['訪問看護経験者歓迎', '普通自動車免許'],
       dresscode: ['清潔感のある服装', 'スニーカー'],
       belongings: ['筆記用具', '運転免許証', 'マスク'],
-      images: ['/images/anken.png'],
+      images: ['/images/samples/facility_top_7.png'],
       notes: '訪問用の車両は施設で用意します',
       tags: ['ブランク歓迎', '交通費支給', '制服貸与'],
     },
@@ -1396,7 +1388,7 @@ async function main() {
       skills: ['認知症ケア経験者歓迎', '調理補助可能な方'],
       dresscode: ['動きやすい服装', 'エプロン'],
       belongings: ['筆記用具', '上履き', 'エプロン'],
-      images: ['/images/anken.png'],
+      images: ['/images/samples/facility_top_7.png'],
       notes: 'まかない付き。未経験者でも研修制度が充実しています',
       tags: ['制服貸与', '+TASTAS初心者歓迎', '交通費支給'],
     },
@@ -1416,7 +1408,7 @@ async function main() {
       skills: ['リハビリに興味がある方', '体力に自信のある方'],
       dresscode: ['動きやすい服装', 'スニーカー'],
       belongings: ['筆記用具', '上履き', '動きやすい服装予備'],
-      images: ['/images/anken.png'],
+      images: ['/images/samples/facility_top_7.png'],
       notes: '医療連携が強みの施設です。スキルアップしたい方歓迎',
       tags: ['制服貸与', '未経験者歓迎', '交通費支給'],
     },
@@ -1512,7 +1504,7 @@ async function main() {
         manager_name: `${getRandomItem(lastNames)} ${getRandomItem(firstNames.male)}`,
         manager_message: `${facility.facility_name}で一緒に働きませんか？お待ちしています！`,
         manager_avatar: getRandomItem(['👨', '👩', '🧑']),
-        images: ['/images/anken.png'],
+        images: ['/images/samples/facility_top_7.png'],
         inexperienced_ok: i % 3 === 0,
         blank_ok: Math.random() > 0.5,
         hair_style_free: Math.random() > 0.7,

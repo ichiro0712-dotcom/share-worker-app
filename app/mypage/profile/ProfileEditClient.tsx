@@ -219,9 +219,16 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
   const [qualificationCertificates, setQualificationCertificates] = useState<Record<string, string | null>>(() => {
     const certs: Record<string, string | null> = {};
     userProfile.qualifications.forEach((qual) => {
-      // DBから読み込んだ証明書があれば安全に設定（[object Object]を防ぐ）
-      const certUrl = userProfile.qualification_certificates?.[qual];
-      certs[qual] = getSafeImageUrl(certUrl);
+      // DBから読み込んだ証明書があれば安全に設定
+      const certData = userProfile.qualification_certificates?.[qual];
+
+      // ネストされたオブジェクト形式の場合（旧形式: {acquired_date, certificate_image}）
+      if (certData && typeof certData === 'object' && 'certificate_image' in certData) {
+        certs[qual] = getSafeImageUrl((certData as { certificate_image?: string }).certificate_image);
+      } else {
+        // 文字列URL形式（新形式）または無効な値
+        certs[qual] = getSafeImageUrl(certData);
+      }
     });
     return certs;
   });

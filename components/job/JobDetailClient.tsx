@@ -12,8 +12,8 @@ import { applyForJob, addJobBookmark, removeJobBookmark, isJobBookmarked, toggle
 import { useBadge } from '@/contexts/BadgeContext';
 import toast from 'react-hot-toast';
 
-// デフォルトのプレースホルダー画像
-const DEFAULT_JOB_IMAGE = '/images/anken.png';
+// デフォルトのプレースホルダー画像（実在するサンプル画像を使用）
+const DEFAULT_JOB_IMAGE = '/images/samples/facility_top_1.png';
 
 interface ScheduledJob {
   date: string;
