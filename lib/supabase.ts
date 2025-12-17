@@ -63,7 +63,8 @@ export async function uploadFile(
         Key: path,
         Body: body,
         ContentType: contentType,
-        ACL: 'public-read', // 公開アクセス設定
+        // ACLはSupabase S3互換APIでサポートされていない可能性があるため削除
+        // バケットのポリシーで公開設定を行う
       },
     });
 
@@ -73,6 +74,14 @@ export async function uploadFile(
     return { url: publicUrl };
   } catch (error: any) {
     console.error('[S3 Storage] Upload error:', error);
+    console.error('[S3 Storage] Upload error details:', {
+      bucket,
+      path,
+      contentType,
+      errorName: error?.name,
+      errorCode: error?.Code || error?.$metadata?.httpStatusCode,
+      errorMessage: error?.message,
+    });
     return { error: error.message || 'Upload failed' };
   }
 }
