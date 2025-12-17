@@ -5,6 +5,7 @@
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 
 export async function POST(request: Request) {
   // System Admin認証チェック（簡易版）
@@ -46,7 +47,7 @@ export async function POST(request: Request) {
         profile_image?: null;
         id_document?: null;
         bank_book_image?: null;
-        qualification_certificates?: Record<string, unknown>;
+        qualification_certificates?: Prisma.InputJsonValue;
       } = {};
 
       if (user.profile_image?.includes('/uploads/test/')) {
@@ -90,7 +91,7 @@ export async function POST(request: Request) {
         }
 
         if (certsChanged) {
-          updates.qualification_certificates = cleanedCerts;
+          updates.qualification_certificates = cleanedCerts as Prisma.InputJsonValue;
         }
       }
 
