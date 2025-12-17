@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { useAuth } from '@/contexts/AuthContext';
+import { getSafeImageUrl } from '@/utils/fileValidation';
 
 interface MenuItem {
   icon: React.ReactNode;
@@ -31,10 +32,11 @@ export default function MyPage() {
   const { user: authUser, isAuthenticated, logout } = useAuth();
 
   // 認証ユーザー情報を使用（未ログイン時はデフォルト値）
+  // profileImageは安全に取得（[object Object]などの無効な値を防ぐ）
   const user = {
     name: authUser?.name || 'ゲストユーザー',
     email: authUser?.email || '',
-    profileImage: authUser?.image || null,
+    profileImage: getSafeImageUrl(authUser?.image),
   };
 
   const handleLogout = async () => {

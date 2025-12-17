@@ -3,6 +3,47 @@
  * サーバー側の設定と同期（app/api/upload/route.ts）
  */
 
+/**
+ * 画像URLが有効かどうかを検証する
+ * [object Object]などの無効な値を防ぐ
+ */
+export function isValidImageUrl(url: unknown): url is string {
+  // nullまたはundefinedは無効
+  if (url === null || url === undefined) {
+    return false;
+  }
+
+  // 文字列でなければ無効（オブジェクトなど）
+  if (typeof url !== 'string') {
+    console.warn('[isValidImageUrl] Invalid image URL type:', typeof url, url);
+    return false;
+  }
+
+  // 空文字列は無効
+  if (url.trim() === '') {
+    return false;
+  }
+
+  // [object Object]などの文字列化されたオブジェクトを検出
+  if (url.includes('[object') || url === 'undefined' || url === 'null') {
+    console.warn('[isValidImageUrl] Invalid image URL value:', url);
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * 画像URLを安全に取得する
+ * 無効な場合はnullまたはフォールバックを返す
+ */
+export function getSafeImageUrl(url: unknown, fallback?: string): string | null {
+  if (isValidImageUrl(url)) {
+    return url;
+  }
+  return fallback ?? null;
+}
+
 // 最大ファイルサイズ（20MB）
 export const MAX_FILE_SIZE = 20 * 1024 * 1024;
 

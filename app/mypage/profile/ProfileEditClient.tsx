@@ -5,7 +5,7 @@ import { Upload, ArrowLeft, Plus, X, User as UserIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { updateUserProfile } from '@/src/lib/actions';
-import { validateFile } from '@/utils/fileValidation';
+import { validateFile, getSafeImageUrl, isValidImageUrl } from '@/utils/fileValidation';
 import toast from 'react-hot-toast';
 import AddressSelector from '@/components/ui/AddressSelector';
 import { QUALIFICATION_GROUPS } from '@/constants/qualifications';
@@ -77,16 +77,23 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
   const lastName = nameParts[0] || '';
   const firstName = nameParts[1] || '';
 
-  const [profileImage, setProfileImage] = useState<string | null>(userProfile.profile_image || '/images/sample-profile.jpg');
+  // 安全に画像URLを取得（[object Object]などの無効な値を防ぐ）
+  const [profileImage, setProfileImage] = useState<string | null>(
+    getSafeImageUrl(userProfile.profile_image, '/images/sample-profile.jpg')
+  );
   const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
   const profileImageInputRef = useRef<HTMLInputElement>(null);
 
-  // 身分証明書
-  const [idDocument, setIdDocument] = useState<string | null>(userProfile.id_document);
+  // 身分証明書（安全に取得）
+  const [idDocument, setIdDocument] = useState<string | null>(
+    getSafeImageUrl(userProfile.id_document)
+  );
   const [idDocumentFile, setIdDocumentFile] = useState<File | null>(null);
 
-  // 通帳コピー
-  const [bankBookImage, setBankBookImage] = useState<string | null>(userProfile.bank_book_image);
+  // 通帳コピー（安全に取得）
+  const [bankBookImage, setBankBookImage] = useState<string | null>(
+    getSafeImageUrl(userProfile.bank_book_image)
+  );
   const [bankBookImageFile, setBankBookImageFile] = useState<File | null>(null);
 
   const [workHistories, setWorkHistories] = useState<string[]>(
@@ -208,12 +215,13 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
     return '';
   };
 
-  // 資格証明書の状態管理（データベースから初期化）
+  // 資格証明書の状態管理（データベースから初期化、安全にURLを取得）
   const [qualificationCertificates, setQualificationCertificates] = useState<Record<string, string | null>>(() => {
     const certs: Record<string, string | null> = {};
     userProfile.qualifications.forEach((qual) => {
-      // DBから読み込んだ証明書があれば設定
-      certs[qual] = userProfile.qualification_certificates?.[qual] || null;
+      // DBから読み込んだ証明書があれば安全に設定（[object Object]を防ぐ）
+      const certUrl = userProfile.qualification_certificates?.[qual];
+      certs[qual] = getSafeImageUrl(certUrl);
     });
     return certs;
   });

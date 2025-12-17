@@ -119,6 +119,8 @@ export function JobPreviewModal({ isOpen, onClose, jobData, facilityData }: JobP
     managerName: facilityData.managerName || '担当者',
     managerAvatar: facilityData.managerPhoto || '👤',
     managerMessage: facilityData.managerGreeting || 'よろしくお願いいたします。',
+    // 地図画像（施設から取得）
+    mapImage: facilityData.mapImage || null,
   };
 
   const previewFacility = {

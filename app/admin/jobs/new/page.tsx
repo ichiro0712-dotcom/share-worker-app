@@ -1,7 +1,21 @@
-'use client';
+import { getJobDescriptionFormats, getDismissalReasonsFromLaborTemplate } from '@/src/lib/content-actions';
+import JobFormWrapper from './JobFormWrapper';
 
-import JobForm from '@/components/admin/JobForm';
+// 動的レンダリングを強制（データベースアクセスを含むため）
+export const dynamic = 'force-dynamic';
 
-export default function NewJobPage() {
-  return <JobForm mode="create" />;
+export default async function NewJobPage() {
+  // Server Componentでadmin非依存のデータを事前取得
+  const [formats, dismissalReasons] = await Promise.all([
+    getJobDescriptionFormats(),
+    getDismissalReasonsFromLaborTemplate(),
+  ]);
+
+  return (
+    <JobFormWrapper
+      mode="create"
+      initialFormats={formats}
+      initialDismissalReasons={dismissalReasons}
+    />
+  );
 }

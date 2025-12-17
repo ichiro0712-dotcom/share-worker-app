@@ -61,6 +61,7 @@ interface FacilityData {
     city?: string;
     addressLine?: string;
     building?: string;
+    mapImage?: string | null;
     managerLastName?: string | null;
     managerFirstName?: string | null;
     staffSameAsManager?: boolean;
@@ -77,21 +78,30 @@ interface ExistingWorkDate {
     appliedCount: number;
 }
 
+interface InitialData {
+    templates?: TemplateData[];
+    facilityInfo?: FacilityData | null;
+    formats?: { id: number; label: string; content: string }[];
+    dismissalReasons?: string;
+}
+
 interface JobFormProps {
     mode: 'create' | 'edit';
     jobId?: string;
+    initialData?: InitialData;
 }
 
-export default function JobForm({ mode, jobId }: JobFormProps) {
+export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
     const router = useRouter();
     const { admin, isAdmin, isAdminLoading } = useAuth();
 
     // === 共通 State ===
-    const [isLoading, setIsLoading] = useState(mode === 'edit');
+    // initialDataがある場合はcreateモードでもロード不要（データ事前取得済み）
+    const [isLoading, setIsLoading] = useState(mode === 'edit' || !initialData);
     const [isSaving, setIsSaving] = useState(false);
-    const [jobTemplates, setJobTemplates] = useState<TemplateData[]>([]);
-    const [facilityInfo, setFacilityInfo] = useState<FacilityData | null>(null);
-    const [jobDescriptionFormats, setJobDescriptionFormats] = useState<{ id: number; label: string; content: string }[]>([]);
+    const [jobTemplates, setJobTemplates] = useState<TemplateData[]>(initialData?.templates || []);
+    const [facilityInfo, setFacilityInfo] = useState<FacilityData | null>(initialData?.facilityInfo || null);
+    const [jobDescriptionFormats, setJobDescriptionFormats] = useState<{ id: number; label: string; content: string }[]>(initialData?.formats || []);
     const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
     const [currentMonth, setCurrentMonth] = useState(new Date());
 
@@ -186,6 +196,43 @@ export default function JobForm({ mode, jobId }: JobFormProps) {
             return;
         }
 
+        // initialDataが提供されている場合（JobFormWrapperから呼ばれた場合）
+        if (initialData) {
+            if (mode === 'create') {
+                // 新規作成モード：facilityInfoからformDataを更新
+                if (initialData.facilityInfo) {
+                    const facilityData = initialData.facilityInfo;
+                    setFormData(prev => ({
+                        ...prev,
+                        facilityId: admin.facilityId,
+                        dismissalReasons: initialData.dismissalReasons || '',
+                        // 新規作成時は施設の住所をデフォルトセット
+                        prefecture: facilityData.prefecture || '',
+                        city: facilityData.city || '',
+                        addressLine: facilityData.addressLine || '',
+                        building: facilityData.building || '',
+                        address: facilityData.address || '',
+                    }));
+                }
+                setIsLoading(false);
+                return;
+            } else if (mode === 'edit' && jobId) {
+                // 編集モード：initialDataから基本データをセット、追加で既存求人データを取得
+                const loadEditData = async () => {
+                    try {
+                        await fetchEditData(jobId, initialData.facilityInfo, initialData.dismissalReasons || '');
+                    } catch (error) {
+                        console.error('Failed to load edit data:', error);
+                        toast.error('データの読み込みに失敗しました');
+                        setIsLoading(false);
+                    }
+                };
+                loadEditData();
+                return;
+            }
+        }
+
+        // 従来の処理（initialDataがない場合）
         const loadData = async () => {
             try {
                 const [templates, facility, formats, dismissalReasons] = await Promise.all([
@@ -246,7 +293,7 @@ export default function JobForm({ mode, jobId }: JobFormProps) {
         };
 
         loadData();
-    }, [isAdmin, admin, isAdminLoading, router, mode, jobId]);
+    }, [isAdmin, admin, isAdminLoading, router, mode, jobId, initialData]);
 
     // 編集モードデータの取得
     const fetchEditData = async (id: string, facility: any, defaultDismissalReasons: string) => {
@@ -1873,6 +1920,7 @@ export default function JobForm({ mode, jobId }: JobFormProps) {
                             address: facilityInfo?.address || '',
                             prefecture: facilityInfo?.prefecture || '',
                             city: facilityInfo?.city || '',
+                            mapImage: facilityInfo?.mapImage || null,
                             managerName: facilityInfo?.staffSameAsManager
                                 ? (facilityInfo.managerLastName && facilityInfo.managerFirstName ? `${facilityInfo.managerLastName} ${facilityInfo.managerFirstName}` : '担当者')
                                 : (facilityInfo?.staffLastName && facilityInfo?.staffFirstName ? `${facilityInfo.staffLastName} ${facilityInfo.staffFirstName}` : '担当者'),

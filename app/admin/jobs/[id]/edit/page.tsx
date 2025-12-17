@@ -1,11 +1,27 @@
-'use client';
+import { getJobDescriptionFormats, getDismissalReasonsFromLaborTemplate } from '@/src/lib/content-actions';
+import EditJobFormWrapper from './EditJobFormWrapper';
 
-import JobForm from '@/components/admin/JobForm';
-import { useParams } from 'next/navigation';
+// 動的レンダリングを強制（データベースアクセスを含むため）
+export const dynamic = 'force-dynamic';
 
-export default function EditJobPage() {
-  const params = useParams();
-  const jobId = params.id as string;
+interface PageProps {
+  params: Promise<{ id: string }>;
+}
 
-  return <JobForm mode="edit" jobId={jobId} />;
+export default async function EditJobPage({ params }: PageProps) {
+  const { id } = await params;
+
+  // Server Componentでadmin非依存のデータを事前取得
+  const [formats, dismissalReasons] = await Promise.all([
+    getJobDescriptionFormats(),
+    getDismissalReasonsFromLaborTemplate(),
+  ]);
+
+  return (
+    <EditJobFormWrapper
+      jobId={id}
+      initialFormats={formats}
+      initialDismissalReasons={dismissalReasons}
+    />
+  );
 }
