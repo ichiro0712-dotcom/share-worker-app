@@ -1982,9 +1982,12 @@ export async function updateUserProfile(formData: FormData) {
     };
   } catch (error) {
     console.error('[updateUserProfile] Error:', error);
+    // エラーの詳細をログに出力（デバッグ用）
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[updateUserProfile] Error details:', errorMessage);
     return {
       success: false,
-      error: 'プロフィールの更新に失敗しました',
+      error: `プロフィールの更新に失敗しました: ${errorMessage}`,
     };
   }
 }

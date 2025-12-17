@@ -40,3 +40,4 @@ rogo/
 scripts/
 _AUDIT_PLAN.md
 .!*
+*.backup
