@@ -1875,8 +1875,9 @@ export async function updateUserProfile(formData: FormData) {
     const newCertificates: Record<string, string> = { ...existingCertificates };
 
     for (const [qualification, file] of Object.entries(qualificationCertificateFiles)) {
-      const safeQualName = qualification.replace(/[^a-zA-Z0-9\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/g, '_');
-      const uploadedUrl = await uploadToSupabaseStorage(file, 'certificates', `cert-${safeQualName}`, user.id);
+      // S3キーにはASCII文字のみ使用可能。日本語をBase64エンコードしてファイル名を生成
+      const encodedQualName = Buffer.from(qualification).toString('base64').replace(/[+/=]/g, '_');
+      const uploadedUrl = await uploadToSupabaseStorage(file, 'certificates', `cert-${encodedQualName}`, user.id);
       if (uploadedUrl) {
         newCertificates[qualification] = uploadedUrl;
         console.log('[updateUserProfile] Qualification certificate saved:', qualification, uploadedUrl);

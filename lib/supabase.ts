@@ -32,6 +32,37 @@ export const STORAGE_BUCKETS = {
   UPLOADS: 'uploads',
 } as const;
 
+/**
+ * S3キー（ファイルパス）をサニタイズ
+ * S3はASCII文字のみ対応のため、日本語等のマルチバイト文字を除去
+ */
+function sanitizeS3Key(key: string): string {
+  // パスを分解してファイル名部分のみサニタイズ
+  const parts = key.split('/');
+  const sanitizedParts = parts.map((part, index) => {
+    // 最後の部分（ファイル名）のみ厳格にサニタイズ
+    if (index === parts.length - 1) {
+      // 拡張子を保持
+      const extMatch = part.match(/\.([a-zA-Z0-9]+)$/);
+      const ext = extMatch ? extMatch[1] : '';
+      const nameWithoutExt = ext ? part.slice(0, -ext.length - 1) : part;
+
+      // 非ASCII文字を除去し、安全な文字のみ残す
+      const sanitizedName = nameWithoutExt
+        .replace(/[^\x00-\x7F]/g, '') // 非ASCII文字を除去
+        .replace(/[^a-zA-Z0-9._-]/g, '_') // 安全でない文字をアンダースコアに
+        .replace(/_+/g, '_') // 連続するアンダースコアを1つに
+        .replace(/^_|_$/g, ''); // 先頭・末尾のアンダースコアを除去
+
+      return ext ? `${sanitizedName || 'file'}.${ext}` : (sanitizedName || 'file');
+    }
+    // フォルダ名も非ASCII文字を除去
+    return part.replace(/[^\x00-\x7F]/g, '').replace(/[^a-zA-Z0-9._-]/g, '_');
+  });
+
+  return sanitizedParts.join('/');
+}
+
 // ファイルの公開URLを取得
 export function getPublicUrl(bucket: string, path: string): string {
   // Supabase Storageの公開URL形式
@@ -47,6 +78,9 @@ export async function uploadFile(
   contentType: string
 ): Promise<{ url: string } | { error: string }> {
   try {
+    // S3キーをサニタイズ（日本語等の非ASCII文字を除去）
+    const sanitizedPath = sanitizeS3Key(path);
+
     let body;
     if (file instanceof Blob) {
       // Blobの場合はArrayBufferに変換してからBufferにする（Node.js環境用）
@@ -60,7 +94,7 @@ export async function uploadFile(
       client: s3Client,
       params: {
         Bucket: bucket,
-        Key: path,
+        Key: sanitizedPath,
         Body: body,
         ContentType: contentType,
         // ACLはSupabase S3互換APIでサポートされていない可能性があるため削除
@@ -70,7 +104,7 @@ export async function uploadFile(
 
     await upload.done();
 
-    const publicUrl = getPublicUrl(bucket, path);
+    const publicUrl = getPublicUrl(bucket, sanitizedPath);
     return { url: publicUrl };
   } catch (error: any) {
     console.error('[S3 Storage] Upload error:', error);
