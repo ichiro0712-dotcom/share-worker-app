@@ -1188,73 +1188,72 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                                     </label>
                                 </div>
                             </div>
-                        </div>
 
-                        {/* 選択された日付のプレビューカード */}
-                        <div>
-                            <h3 className="text-sm font-semibold text-gray-900 mb-2">
-                                選択された求人カード（{mode === 'create' ? selectedDates.length : existingWorkDates.length + addedWorkDates.length - removedWorkDateIds.length}件）
-                            </h3>
+                            {/* 選択された日付のプレビューカード */}
+                            <div className="flex-1 min-w-0">
+                                <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                                    選択された求人カード（{mode === 'create' ? selectedDates.length : existingWorkDates.length + addedWorkDates.length - removedWorkDateIds.length}件）
+                                </h3>
 
-                            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                                {(mode === 'create' ? selectedDates : [...existingWorkDates.filter(wd => !removedWorkDateIds.includes(wd.id)).map(wd => wd.date), ...addedWorkDates]).map((date) => {
-                                    const dateObj = new Date(date);
-                                    const dayOfWeek = ['日', '月', '火', '水', '木', '金', '土'][dateObj.getDay()];
-                                    const index = dateObj.getDay();
-                                    const dateColor = index === 0 ? 'text-red-600' : index === 6 ? 'text-blue-600' : 'text-gray-900';
+                                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                                    {(mode === 'create' ? selectedDates : [...existingWorkDates.filter(wd => !removedWorkDateIds.includes(wd.id)).map(wd => wd.date), ...addedWorkDates]).map((date) => {
+                                        const dateObj = new Date(date);
+                                        const dayOfWeek = ['日', '月', '火', '水', '木', '金', '土'][dateObj.getDay()];
+                                        const index = dateObj.getDay();
+                                        const dateColor = index === 0 ? 'text-red-600' : index === 6 ? 'text-blue-600' : 'text-gray-900';
 
-                                    return (
-                                        <div key={date} className="bg-gray-50 border border-gray-200 rounded p-2 relative flex items-center">
-                                            <div className={`text-xs font-semibold ${dateColor} pr-6 leading-tight`}>
-                                                {dateObj.getFullYear()}/{dateObj.getMonth() + 1}/{dateObj.getDate()}（{dayOfWeek}）
+                                        return (
+                                            <div key={date} className="bg-gray-50 border border-gray-200 rounded p-2 relative flex items-center">
+                                                <div className={`text-xs font-semibold ${dateColor} pr-6 leading-tight`}>
+                                                    {dateObj.getFullYear()}/{dateObj.getMonth() + 1}/{dateObj.getDate()}（{dayOfWeek}）
+                                                </div>
+                                                <button
+                                                    onClick={() => handleDateClick(date)}
+                                                    className="absolute top-1/2 -translate-y-1/2 right-2 p-0.5 hover:bg-white rounded transition-colors"
+                                                    title="削除"
+                                                >
+                                                    <X className="w-3 h-3 text-gray-500" />
+                                                </button>
                                             </div>
-                                            <button
-                                                onClick={() => handleDateClick(date)}
-                                                className="absolute top-1/2 -translate-y-1/2 right-2 p-0.5 hover:bg-white rounded transition-colors"
-                                                title="削除"
-                                            >
-                                                <X className="w-3 h-3 text-gray-500" />
-                                            </button>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-
-                        {/* 勤務日条件チェックボックス */}
-                        <div className="space-y-3">
-                            <h3 className="text-sm font-semibold text-gray-900 mb-2">勤務日条件</h3>
-
-                            <div className="space-y-2">
-                                {[2, 3, 4, 5].map(freq => (
-                                    <label key={freq} className="flex items-start gap-2 cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={recruitmentOptions.weeklyFrequency === freq}
-                                            onChange={() => handleRecruitmentOptionChange(freq)}
-                                            className="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-40"
-                                        />
-                                        <span className="text-sm text-gray-700">
-                                            {freq}回以上勤務できる人を募集
-                                        </span>
-                                    </label>
-                                ))}
-                            </div>
-
-                            {/* 勤務日条件の注意文 */}
-                            {recruitmentOptions.weeklyFrequency && (
-                                <div className="mt-2 space-y-1">
-                                    <p className="text-xs text-amber-600">
-                                        ※ワーカーから{recruitmentOptions.weeklyFrequency}回未満の応募ができなくなります
-                                    </p>
-                                    <p className="text-xs text-gray-500">
-                                        ※日付経過などで指定回数を下回った場合は、自動で単発求人に切り替わります
-                                    </p>
+                                        );
+                                    })}
                                 </div>
-                            )}
+                            </div>
+
+                            {/* 勤務日条件チェックボックス */}
+                            <div className="flex-1 min-w-0">
+                                <h3 className="text-sm font-semibold text-gray-900 mb-2">勤務日条件</h3>
+
+                                <div className="space-y-2">
+                                    {[2, 3, 4, 5].map(freq => (
+                                        <label key={freq} className="flex items-start gap-2 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={recruitmentOptions.weeklyFrequency === freq}
+                                                onChange={() => handleRecruitmentOptionChange(freq)}
+                                                className="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-40"
+                                            />
+                                            <span className="text-sm text-gray-700">
+                                                {freq}回以上勤務できる人を募集
+                                            </span>
+                                        </label>
+                                    ))}
+                                </div>
+
+                                {/* 勤務日条件の注意文 */}
+                                {recruitmentOptions.weeklyFrequency && (
+                                    <div className="mt-2 space-y-1">
+                                        <p className="text-xs text-amber-600">
+                                            ※ワーカーから{recruitmentOptions.weeklyFrequency}回未満の応募ができなくなります
+                                        </p>
+                                        <p className="text-xs text-gray-500">
+                                            ※日付経過などで指定回数を下回った場合は、自動で単発求人に切り替わります
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
-                </div>
 
                 {/* 勤務時間 */}
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
@@ -1892,6 +1891,7 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                         </div>
                     </div>
                 </div>
+            </div>
             </div>
 
             {/* 確認モーダル */}
