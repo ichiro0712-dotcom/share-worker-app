@@ -1248,7 +1248,7 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                 </div>
 
                 {/* 勤務時間 */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
                     <h2 className="text-lg font-bold text-gray-900 mb-4">勤務時間</h2>
                     <div className="space-y-4">
                         <div className="grid grid-cols-3 gap-4">
@@ -1424,7 +1424,7 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                 </div>
 
                 {/* 給与 */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
                     <h2 className="text-lg font-bold text-gray-900 mb-4">給与</h2>
                     <div className="grid grid-cols-3 gap-4 mb-4">
                         <div>
@@ -1469,7 +1469,7 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                 </div>
 
                 {/* 業務設定 */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
                     <h2 className="text-lg font-bold text-gray-900 mb-4">業務設定</h2>
                     <div className="space-y-4">
                         <div>
@@ -1541,7 +1541,7 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                 </div>
 
                 {/* 条件設定 */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
                     <h2 className="text-lg font-bold text-gray-900 mb-4">条件設定</h2>
                     <div className="space-y-4">
                         <div>
@@ -1762,7 +1762,7 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                 </div>
 
                 {/* その他 */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
                     <h2 className="text-lg font-bold text-gray-900 mb-4">その他</h2>
                     <div className="space-y-4">
                         <div>

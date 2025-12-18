@@ -5,22 +5,21 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
-  ChevronDown,
-  ChevronUp,
   UserCircle,
   Calendar,
   Users,
   Briefcase,
-  Award,
   Search,
   X,
   CheckCircle,
-  AlertCircle,
   Heart,
   Ban,
-  FileText
+  FileText,
+  CalendarDays
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import JobApplicationModal from '@/components/admin/JobApplicationModal';
+import { MonthlyShiftView } from '@/components/admin/MonthlyShiftView';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   getJobsWithApplications,
@@ -31,6 +30,7 @@ import {
   markJobApplicationsAsViewed,
   markWorkerApplicationsAsViewed,
 } from '@/src/lib/actions';
+import { getQualificationAbbreviations } from '@/src/lib/content-actions';
 
 // 型定義
 interface Worker {
@@ -44,7 +44,7 @@ interface Application {
   id: number;
   status: string;
   cancelledBy?: 'WORKER' | 'FACILITY' | null;
-  createdAt: string;
+  createdAt: string | Date;
   worker: Worker;
   rating: number | null;
   reviewCount: number;
@@ -68,6 +68,7 @@ interface JobWithApplications {
   startTime: string;
   endTime: string;
   hourlyWage: number;
+  transportationFee?: number;
   workContent: string[];
   requiredQualifications: string[];
   requiresInterview: boolean;
@@ -158,7 +159,7 @@ function ApplicationsContent() {
   const [isUpdating, setIsUpdating] = useState<number | null>(null);
 
   // タブ切り替え状態
-  const [viewMode, setViewMode] = useState<'jobs' | 'workers'>('jobs');
+  const [viewMode, setViewMode] = useState<'jobs' | 'workers' | 'shift'>('jobs');
 
   // フィルタ・検索状態
   const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'stopped' | 'completed'>('all');
@@ -178,6 +179,9 @@ function ApplicationsContent() {
     byWorker: number;
   }>({ byJob: 0, byWorker: 0 });
 
+  // 資格略称マッピング
+  const [qualificationAbbreviations, setQualificationAbbreviations] = useState<Record<string, string>>({});
+
   // URLパラメータからタブを復元
   const searchParams = useSearchParams();
   useEffect(() => {
@@ -186,6 +190,8 @@ function ApplicationsContent() {
       setViewMode('workers');
     } else if (tab === 'jobs') {
       setViewMode('jobs');
+    } else if (tab === 'shift') {
+      setViewMode('shift');
     }
   }, [searchParams]);
 
@@ -204,16 +210,20 @@ function ApplicationsContent() {
     setIsLoading(true);
     try {
       // 並列でデータ取得
-      const [jobsData, workersData] = await Promise.all([
+      const [jobsData, workersData, abbreviations] = await Promise.all([
         getJobsWithApplications(admin.facilityId),
         getApplicationsByWorker(admin.facilityId),
+        getQualificationAbbreviations(),
       ]);
       setJobs(jobsData);
       setWorkers(workersData);
+      setQualificationAbbreviations(abbreviations);
 
-      // タブバッジの更新（未確認応募がある求人数・ワーカー数）
+      // タブバッジの更新
+      // - 求人から: 未確認応募の総件数（応募日数単位）
+      // - ワーカーから: 未確認応募があるユニークユーザー数（人単位）
       setTabBadges({
-        byJob: jobsData.filter(j => j.unviewedCount > 0).length,
+        byJob: jobsData.reduce((sum, j) => sum + j.unviewedCount, 0),
         byWorker: workersData.filter(w => w.unviewedCount > 0).length,
       });
 
@@ -511,9 +521,20 @@ function ApplicationsContent() {
               </span>
             )}
           </button>
+          <button
+            onClick={() => setViewMode('shift')}
+            className={`px-4 py-2 text-sm font-medium rounded transition-colors flex items-center gap-2 ${viewMode === 'shift'
+              ? 'bg-admin-primary text-white'
+              : 'text-gray-600 hover:bg-gray-100'
+              }`}
+          >
+            <CalendarDays className="w-4 h-4" />
+            シフトから
+          </button>
         </div>
 
-        {/* フィルタ・検索 */}
+        {/* フィルタ・検索 - シフトビュー以外で表示 */}
+        {viewMode !== 'shift' && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6 flex flex-wrap gap-4 items-center justify-between">
           {/* 求人ビューの場合はステータスフィルタを表示 */}
           {viewMode === 'jobs' && (
@@ -570,6 +591,14 @@ function ApplicationsContent() {
             />
           </div>
         </div>
+        )}
+
+        {/* シフトビュー */}
+        {viewMode === 'shift' && (
+          <div className="h-[calc(100vh-220px)]">
+            <MonthlyShiftView jobs={jobs as any} qualificationAbbreviations={qualificationAbbreviations} />
+          </div>
+        )}
 
         {/* 求人ビュー */}
         {viewMode === 'jobs' && (
@@ -597,6 +626,7 @@ function ApplicationsContent() {
 
                       // この求人の未確認応募を既読にする
                       if (admin?.facilityId && job.unviewedCount > 0) {
+                        const unviewedToRemove = job.unviewedCount;
                         await markJobApplicationsAsViewed(admin.facilityId, job.id);
                         // ローカルの状態を更新（バッジを消す）
                         setJobs(prev => prev.map(j =>
@@ -604,7 +634,7 @@ function ApplicationsContent() {
                         ));
                         setTabBadges(prev => ({
                           ...prev,
-                          byJob: Math.max(0, prev.byJob - 1)
+                          byJob: Math.max(0, prev.byJob - unviewedToRemove)
                         }));
                       }
                     }}
@@ -886,275 +916,15 @@ function ApplicationsContent() {
         )}
       </div>
 
-      {/* 詳細モーダル */}
+      {/* 詳細モーダル（共有コンポーネント使用） */}
       {selectedJob && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-xl shadow-2xl flex flex-col overflow-hidden">
-            {/* モーダルヘッダー */}
-            <div className="p-6 border-b border-gray-200 flex items-start justify-between bg-gray-50">
-              <div>
-                <div className="flex items-center gap-3 mb-2">
-                  <span className={`px-2 py-0.5 text-xs font-medium rounded ${selectedJob.status === 'PUBLISHED' ? 'bg-blue-600 text-white' :
-                    selectedJob.status === 'WORKING' ? 'bg-blue-800 text-white' :
-                      selectedJob.status === 'COMPLETED' ? 'bg-blue-50 text-blue-300' :
-                        'bg-blue-100 text-blue-400'
-                    }`}>
-                    {selectedJob.status === 'PUBLISHED' ? '公開中' :
-                      selectedJob.status === 'WORKING' ? '勤務中' :
-                        selectedJob.status === 'COMPLETED' ? '完了' :
-                          selectedJob.status === 'STOPPED' ? '停止中' : selectedJob.status}
-                  </span>
-                  {selectedJob.requiresInterview && (
-                    <span className="px-2 py-0.5 text-xs font-medium rounded bg-orange-100 text-orange-700">
-                      審査あり
-                    </span>
-                  )}
-                  <h2 className="text-xl font-bold text-gray-900">{selectedJob.title}</h2>
-                </div>
-                <div className="flex items-center gap-4 text-sm text-gray-600">
-                  <div className="flex items-center gap-1">
-                    <Calendar className="w-4 h-4" />
-                    {selectedJob.dateRange}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Users className="w-4 h-4" />
-                    応募: {selectedJob.totalApplied}名 / マッチング: {selectedJob.totalMatched}名
-                  </div>
-                </div>
-              </div>
-              <button
-                onClick={() => setSelectedJob(null)}
-                className="p-2 hover:bg-gray-200 rounded-full transition-colors"
-              >
-                <X className="w-6 h-6 text-gray-500" />
-              </button>
-            </div>
-
-            {/* モーダルコンテンツ（スクロール可能） */}
-            <div className="flex-1 overflow-y-auto p-6 bg-gray-50/50">
-              <div className="flex justify-end gap-2 mb-4">
-                <button
-                  onClick={() => toggleAllDates(true)}
-                  className="text-xs text-admin-primary hover:underline"
-                >
-                  すべて展開
-                </button>
-                <span className="text-gray-300">|</span>
-                <button
-                  onClick={() => toggleAllDates(false)}
-                  className="text-xs text-admin-primary hover:underline"
-                >
-                  すべて折りたたみ
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                {selectedJob.workDates.map(workDate => {
-                  const isExpanded = expandedDates.has(workDate.id);
-                  const isFull = workDate.matchedCount >= workDate.recruitmentCount;
-                  const hasApplicants = workDate.applications.length > 0;
-                  const fillRate = workDate.recruitmentCount > 0
-                    ? (workDate.matchedCount / workDate.recruitmentCount) * 100
-                    : 0;
-
-                  return (
-                    <div
-                      key={workDate.id}
-                      className={`bg-white rounded-lg border transition-all overflow-hidden ${isFull ? 'border-green-200 shadow-sm' :
-                        hasApplicants ? 'border-blue-200 shadow-md' : 'border-gray-200'
-                        }`}
-                    >
-                      {/* 日付ヘッダー */}
-                      <div
-                        onClick={() => toggleDateExpand(workDate.id)}
-                        className={`p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors ${isExpanded ? 'border-b border-gray-100' : ''
-                          }`}
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className={`w-12 h-12 rounded-lg flex flex-col items-center justify-center border ${isFull ? 'bg-green-50 border-green-200 text-green-700' :
-                            hasApplicants ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-gray-50 border-gray-200 text-gray-500'
-                            }`}>
-                            <span className="text-xs font-bold">{workDate.formattedDate.split('(')[0]}</span>
-                            <span className="text-[10px]">({workDate.formattedDate.split('(')[1].replace(')', '')})</span>
-                          </div>
-
-                          <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="font-bold text-gray-900">
-                                {selectedJob.startTime} 〜 {selectedJob.endTime}
-                              </span>
-                              {isFull && (
-                                <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full font-medium">
-                                  満員
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2 text-xs text-gray-500">
-                              <div className="w-24 h-2 bg-gray-100 rounded-full overflow-hidden">
-                                <div
-                                  className={`h-full rounded-full ${isFull ? 'bg-green-500' : 'bg-blue-500'
-                                    }`}
-                                  style={{ width: `${Math.min(fillRate, 100)}%` }}
-                                />
-                              </div>
-                              <span>
-                                募集: {workDate.recruitmentCount}名 /
-                                <span className={isFull ? 'text-green-600 font-bold' : ''}> マッチング: {workDate.matchedCount}</span> /
-                                応募: {workDate.appliedCount}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-4">
-                          {hasApplicants && (
-                            <div className="flex -space-x-2">
-                              {workDate.applications.slice(0, 3).map(app => (
-                                <div key={app.id} className="relative w-8 h-8 rounded-full border-2 border-white overflow-hidden">
-                                  {app.worker.profileImage ? (
-                                    <Image src={app.worker.profileImage} alt={app.worker.name} fill className="object-cover" />
-                                  ) : (
-                                    <div className="w-full h-full bg-gray-200 flex items-center justify-center">
-                                      <UserCircle className="w-5 h-5 text-gray-400" />
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                              {workDate.applications.length > 3 && (
-                                <div className="w-8 h-8 rounded-full border-2 border-white bg-gray-100 flex items-center justify-center text-xs text-gray-500 font-medium">
-                                  +{workDate.applications.length - 3}
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          {isExpanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
-                        </div>
-                      </div>
-
-                      {/* 応募者リスト（展開時） */}
-                      {isExpanded && (
-                        <div className="p-4 bg-gray-50/30">
-                          {workDate.applications.length === 0 ? (
-                            <div className="text-center py-4 text-gray-500 text-sm">
-                              まだ応募はありません
-                            </div>
-                          ) : (
-                            <div className="space-y-3">
-                              {/* 一括操作バー */}
-                              {workDate.applications.some(a => a.status === 'APPLIED') && (
-                                <div className="flex justify-end mb-2">
-                                  <button
-                                    onClick={() => handleMatchAll(workDate.id, workDate.applications)}
-                                    className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
-                                  >
-                                    <CheckCircle className="w-3 h-3" />
-                                    未対応を一括マッチング
-                                  </button>
-                                </div>
-                              )}
-
-                              {workDate.applications.map(app => (
-                                <div key={app.id} className="bg-white p-3 rounded border border-gray-100 flex items-center justify-between">
-                                  <div className="flex items-center gap-3">
-                                    <Link href={`/admin/workers/${app.worker.id}?returnTab=jobs`} className="block relative w-10 h-10 rounded-full overflow-hidden flex-shrink-0 hover:opacity-80">
-                                      {app.worker.profileImage ? (
-                                        <Image src={app.worker.profileImage} alt={app.worker.name} fill className="object-cover" />
-                                      ) : (
-                                        <div className="w-full h-full bg-gray-100 flex items-center justify-center">
-                                          <UserCircle className="w-6 h-6 text-gray-400" />
-                                        </div>
-                                      )}
-                                    </Link>
-
-                                    <div>
-                                      <div className="flex items-center gap-2">
-                                        <Link href={`/admin/workers/${app.worker.id}?returnTab=jobs`} className="font-bold text-gray-900 hover:text-admin-primary hover:underline">
-                                          {app.worker.name}
-                                        </Link>
-                                        <div className="flex items-center text-xs text-yellow-500">
-                                          ★ {app.rating ? app.rating.toFixed(1) : '-'}
-                                          <span className="text-gray-400 ml-1">({app.reviewCount})</span>
-                                        </div>
-                                      </div>
-                                      <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
-                                        <span className={app.lastMinuteCancelRate > 0 ? 'text-red-500 font-medium' : ''}>
-                                          直前キャンセル: {app.lastMinuteCancelRate.toFixed(0)}%
-                                        </span>
-                                        <span>応募: {new Date(app.createdAt).toLocaleDateString()}</span>
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  <div className="flex items-center gap-2">
-                                    {app.status === 'APPLIED' && (
-                                      <>
-                                        <button
-                                          onClick={() => handleStatusUpdate(app.id, 'SCHEDULED')}
-                                          disabled={isUpdating === app.id}
-                                          className="px-3 py-1.5 bg-admin-primary text-white text-xs font-medium rounded-admin-button hover:bg-admin-primary-dark transition-colors disabled:opacity-50"
-                                        >
-                                          マッチング
-                                        </button>
-                                        <button
-                                          onClick={() => handleStatusUpdate(app.id, 'CANCELLED', selectedJob.requiresInterview ? 'この応募を不採用にしますか？' : 'この応募をキャンセルしますか？')}
-                                          disabled={isUpdating === app.id}
-                                          className="px-3 py-1.5 bg-gray-100 text-gray-600 text-xs font-medium rounded hover:bg-gray-200 transition-colors disabled:opacity-50"
-                                        >
-                                          {selectedJob.requiresInterview ? '不採用' : 'キャンセル'}
-                                        </button>
-                                      </>
-                                    )}
-                                    {app.status === 'SCHEDULED' && (
-                                      <>
-                                        <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded flex items-center gap-1">
-                                          <CheckCircle className="w-3 h-3" />
-                                          マッチング済
-                                        </span>
-                                        <button
-                                          onClick={() => handleStatusUpdate(app.id, 'CANCELLED', 'このマッチングをキャンセルしますか？')}
-                                          disabled={isUpdating === app.id}
-                                          className="text-xs text-gray-400 hover:text-red-500 underline"
-                                        >
-                                          キャンセル
-                                        </button>
-                                      </>
-                                    )}
-                                    {app.status === 'CANCELLED' && (
-                                      <span className={`px-2 py-1 text-xs font-medium rounded flex items-center gap-1 ${
-                                        app.cancelledBy === 'WORKER'
-                                          ? 'bg-red-50 text-red-600'
-                                          : app.cancelledBy === 'FACILITY'
-                                            ? 'bg-gray-100 text-gray-600'
-                                            : 'bg-yellow-50 text-yellow-700'
-                                      }`}>
-                                        <X className="w-3 h-3" />
-                                        {app.cancelledBy === 'WORKER'
-                                          ? 'ワーカー辞退'
-                                          : app.cancelledBy === 'FACILITY'
-                                            ? '施設キャンセル'
-                                            : '応募取消'}
-                                      </span>
-                                    )}
-                                    {['WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'].includes(app.status) && (
-                                      <span className="px-2 py-1 bg-blue-50 text-blue-600 text-xs font-medium rounded">
-                                        勤務中/完了
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
+        <JobApplicationModal
+          job={selectedJob}
+          onClose={() => setSelectedJob(null)}
+          onStatusUpdate={handleStatusUpdate}
+          onMatchAll={handleMatchAll}
+          isUpdating={isUpdating}
+        />
       )}
 
       {/* ワーカー詳細モーダル */}

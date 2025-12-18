@@ -549,3 +549,72 @@ export async function getDismissalReasonsFromLaborTemplate(): Promise<string> {
 
 ※詳細は雇用契約書をご確認ください。`;
 }
+
+// ========== 資格略称管理 ==========
+
+import { DEFAULT_QUALIFICATION_ABBREVIATIONS } from '@/constants/qualifications';
+
+const QUALIFICATION_ABBREVIATIONS_KEY = 'qualification_abbreviations';
+
+/**
+ * 資格略称マッピングを取得
+ * DBに保存されていればそれを、なければデフォルト値を返す
+ */
+export async function getQualificationAbbreviations(): Promise<Record<string, string>> {
+    const template = await prisma.systemTemplate.findUnique({
+        where: { key: QUALIFICATION_ABBREVIATIONS_KEY }
+    });
+
+    if (template?.value) {
+        try {
+            return JSON.parse(template.value);
+        } catch {
+            // パースエラーの場合はデフォルトを返す
+            return { ...DEFAULT_QUALIFICATION_ABBREVIATIONS };
+        }
+    }
+
+    return { ...DEFAULT_QUALIFICATION_ABBREVIATIONS };
+}
+
+/**
+ * 資格略称マッピングを更新
+ */
+export async function updateQualificationAbbreviations(
+    abbreviations: Record<string, string>
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        await prisma.systemTemplate.upsert({
+            where: { key: QUALIFICATION_ABBREVIATIONS_KEY },
+            update: { value: JSON.stringify(abbreviations) },
+            create: { key: QUALIFICATION_ABBREVIATIONS_KEY, value: JSON.stringify(abbreviations) }
+        });
+
+        revalidatePath('/system-admin/content/templates');
+        revalidatePath('/admin/applications');
+        return { success: true };
+    } catch (error) {
+        console.error('Failed to update qualification abbreviations:', error);
+        return { success: false, error: '資格略称の更新に失敗しました' };
+    }
+}
+
+/**
+ * 資格略称をデフォルトにリセット
+ */
+export async function resetQualificationAbbreviations(): Promise<{ success: boolean; error?: string }> {
+    try {
+        await prisma.systemTemplate.upsert({
+            where: { key: QUALIFICATION_ABBREVIATIONS_KEY },
+            update: { value: JSON.stringify(DEFAULT_QUALIFICATION_ABBREVIATIONS) },
+            create: { key: QUALIFICATION_ABBREVIATIONS_KEY, value: JSON.stringify(DEFAULT_QUALIFICATION_ABBREVIATIONS) }
+        });
+
+        revalidatePath('/system-admin/content/templates');
+        revalidatePath('/admin/applications');
+        return { success: true };
+    } catch (error) {
+        console.error('Failed to reset qualification abbreviations:', error);
+        return { success: false, error: '資格略称のリセットに失敗しました' };
+    }
+}

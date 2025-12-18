@@ -25,17 +25,24 @@ import {
   KeyRound,
   Shield,
   X,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 interface AdminLayoutProps {
   children: ReactNode;
 }
 
+const SIDEBAR_COLLAPSED_KEY = 'admin_sidebar_collapsed';
+
 export default function AdminLayout({ children }: AdminLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { admin, adminLogout } = useAuth();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  // サイドバー折りたたみ状態
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   // 仮登録状態をチェック（localStorage から取得）
   const [isPending, setIsPending] = useState(false);
@@ -49,6 +56,21 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     pendingApplications: 0,
     unreadAnnouncements: 0,
   });
+
+  // 折りたたみ状態をlocalStorageから復元
+  useEffect(() => {
+    const savedState = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
+    if (savedState !== null) {
+      setIsCollapsed(savedState === 'true');
+    }
+  }, []);
+
+  // 折りたたみ状態をlocalStorageに保存
+  const toggleCollapsed = () => {
+    const newState = !isCollapsed;
+    setIsCollapsed(newState);
+    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(newState));
+  };
 
   useEffect(() => {
     const checkSessionStatus = () => {
@@ -132,72 +154,72 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const menuItems = [
     {
       title: '求人管理',
-      icon: <Briefcase className="w-4 h-4" />,
+      icon: <Briefcase className="w-5 h-5" />,
       href: '/admin/jobs',
       active: pathname === '/admin/jobs' || (pathname?.startsWith('/admin/jobs') && !pathname?.startsWith('/admin/jobs/templates')),
     },
     {
       title: 'テンプレート管理',
-      icon: <FileText className="w-4 h-4" />,
+      icon: <FileText className="w-5 h-5" />,
       href: '/admin/jobs/templates',
       active: pathname?.startsWith('/admin/jobs/templates'),
       isSubItem: true,
     },
     {
       title: '応募管理',
-      icon: <UserCheck className="w-4 h-4" />,
+      icon: <UserCheck className="w-5 h-5" />,
       href: '/admin/applications',
       active: pathname?.startsWith('/admin/applications'),
       badge: badges.pendingApplications,
     },
     {
       title: 'シフト管理',
-      icon: <Calendar className="w-4 h-4" />,
+      icon: <Calendar className="w-5 h-5" />,
       href: '/admin/shifts',
       active: pathname?.startsWith('/admin/shifts'),
     },
     {
       title: 'ワーカー管理',
-      icon: <Users className="w-4 h-4" />,
+      icon: <Users className="w-5 h-5" />,
       href: '/admin/workers',
       active: pathname?.startsWith('/admin/workers') && !pathname?.startsWith('/admin/worker-reviews'),
     },
     {
       title: 'ワーカーレビュー',
-      icon: <Star className="w-4 h-4" />,
+      icon: <Star className="w-5 h-5" />,
       href: '/admin/worker-reviews',
       active: pathname?.startsWith('/admin/worker-reviews'),
       isSubItem: true,
     },
     {
       title: 'メッセージ',
-      icon: <MessageCircle className="w-4 h-4" />,
+      icon: <MessageCircle className="w-5 h-5" />,
       href: '/admin/messages',
       active: pathname === '/admin/messages',
       badge: badges.unreadMessages + badges.unreadAnnouncements,
     },
     {
       title: '施設管理',
-      icon: <Building2 className="w-4 h-4" />,
+      icon: <Building2 className="w-5 h-5" />,
       href: '/admin/facility',
       active: pathname === '/admin/facility',
     },
     {
       title: '施設レビュー',
-      icon: <Star className="w-4 h-4" />,
+      icon: <Star className="w-5 h-5" />,
       href: '/admin/reviews',
       active: pathname === '/admin/reviews',
     },
     {
       title: 'ご利用ガイド・FAQ',
-      icon: <HelpCircle className="w-4 h-4" />,
+      icon: <HelpCircle className="w-5 h-5" />,
       href: '/admin/faq',
       active: pathname === '/admin/faq',
       divider: true,
     },
     {
       title: '問い合わせ',
-      icon: <MessageSquare className="w-4 h-4" />,
+      icon: <MessageSquare className="w-5 h-5" />,
       href: '/admin/contact',
       active: pathname === '/admin/contact',
     },
@@ -206,28 +228,47 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   return (
     <div className="flex h-screen bg-gray-50">
       {/* サイドバー */}
-      <div className="w-64 bg-admin-sidebar border-r border-gray-800 flex flex-col">
+      <div
+        className={`bg-admin-sidebar border-r border-gray-800 flex flex-col transition-all duration-300 ease-in-out ${
+          isCollapsed ? 'w-16' : 'w-64'
+        }`}
+      >
         {/* ロゴ・施設名 */}
-        <div className="p-4 border-b border-gray-800">
-          <Link href="/admin/jobs" prefetch={true} className="flex items-center gap-3">
-            <Image
-              src="/images/logo.png"
-              alt="+TASTAS"
-              width={60}
-              height={60}
-              className="rounded-lg"
-            />
-            <div>
-              <h1 className="text-lg font-bold text-white">+TASTAS</h1>
-              <p className="text-xs text-gray-400">施設管理画面</p>
-            </div>
-          </Link>
+        <div className="p-3 border-b border-gray-800">
+          <div className="flex items-center justify-between">
+            <Link href="/admin/jobs" prefetch={true} className="flex items-center gap-3 flex-1 min-w-0">
+              <Image
+                src="/images/logo.png"
+                alt="+TASTAS"
+                width={isCollapsed ? 32 : 48}
+                height={isCollapsed ? 32 : 48}
+                className="rounded-lg flex-shrink-0 transition-all duration-300"
+              />
+              {!isCollapsed && (
+                <div className="overflow-hidden">
+                  <h1 className="text-lg font-bold text-white whitespace-nowrap">+TASTAS</h1>
+                  <p className="text-xs text-gray-400 whitespace-nowrap">施設管理画面</p>
+                </div>
+              )}
+            </Link>
+            <button
+              onClick={toggleCollapsed}
+              className="flex-shrink-0 p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+              title={isCollapsed ? 'メニューを展開' : 'メニューを折りたたむ'}
+            >
+              {isCollapsed ? (
+                <ChevronRight className="w-4 h-4" />
+              ) : (
+                <ChevronLeft className="w-4 h-4" />
+              )}
+            </button>
+          </div>
         </div>
 
         {/* メニュー */}
         <nav className="flex-1 overflow-y-auto py-4">
           {/* 仮登録状態の警告バナー */}
-          {isPending && (
+          {isPending && !isCollapsed && (
             <div className="mx-2 mb-4 p-3 bg-amber-500/20 border border-amber-500/30 rounded-lg">
               <div className="flex items-center gap-2 text-amber-400 text-xs font-medium">
                 <AlertTriangle className="w-4 h-4" />
@@ -236,6 +277,13 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               <p className="text-amber-300/80 text-xs mt-1">
                 施設情報を入力して保存してください
               </p>
+            </div>
+          )}
+          {isPending && isCollapsed && (
+            <div className="mx-2 mb-4 flex justify-center">
+              <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center" title="施設情報未登録">
+                <AlertTriangle className="w-4 h-4 text-amber-400" />
+              </div>
             </div>
           )}
           {menuItems.map((item, index) => {
@@ -247,33 +295,62 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                 {item.divider && <div className="my-2 border-t border-gray-800"></div>}
                 {isDisabled ? (
                   // 無効状態（クリック不可）
-                  <div
-                    className={`flex items-center gap-3 py-2.5 mx-2 rounded-admin-button text-sm ${item.isSubItem ? 'pl-8 pr-4' : 'px-4'
-                      } text-gray-600 cursor-not-allowed`}
-                  >
-                    {item.icon}
-                    <span>{item.title}</span>
-                    <Lock className="w-3 h-3 ml-auto" />
-                  </div>
+                  isCollapsed ? (
+                    <div
+                      className="flex items-center justify-center py-2.5 mx-2 rounded-admin-button text-gray-600 cursor-not-allowed"
+                      title={item.title}
+                    >
+                      {item.icon}
+                    </div>
+                  ) : (
+                    <div
+                      className={`flex items-center gap-3 py-2.5 mx-2 rounded-admin-button text-sm ${item.isSubItem ? 'pl-8 pr-4' : 'px-4'
+                        } text-gray-600 cursor-not-allowed`}
+                    >
+                      {item.icon}
+                      <span>{item.title}</span>
+                      <Lock className="w-3 h-3 ml-auto" />
+                    </div>
+                  )
                 ) : (
                   // 通常状態（クリック可能）
-                  <Link
-                    href={item.href}
-                    prefetch={true}
-                    className={`flex items-center gap-3 py-2.5 mx-2 rounded-admin-button text-sm transition-colors ${item.isSubItem ? 'pl-8 pr-4' : 'px-4'
-                      } ${item.active
-                        ? 'bg-blue-500/20 text-blue-400 font-medium'
-                        : 'text-gray-300 hover:text-white hover:bg-white/10'
+                  isCollapsed ? (
+                    <Link
+                      href={item.href}
+                      prefetch={true}
+                      className={`relative flex items-center justify-center py-2.5 mx-2 rounded-admin-button transition-colors group ${
+                        item.active
+                          ? 'bg-blue-500/20 text-blue-400'
+                          : 'text-gray-300 hover:text-white hover:bg-white/10'
                       }`}
-                  >
-                    {item.icon}
-                    <span className="flex-1">{item.title}</span>
-                    {typeof item.badge === 'number' && item.badge > 0 && (
-                      <span className="bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
-                        {item.badge > 99 ? '99+' : item.badge}
-                      </span>
-                    )}
-                  </Link>
+                      title={item.title}
+                    >
+                      {item.icon}
+                      {typeof item.badge === 'number' && item.badge > 0 && (
+                        <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                      )}
+                      {/* ツールチップ */}
+                      <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 pointer-events-none">
+                        {item.title}
+                      </div>
+                    </Link>
+                  ) : (
+                    <Link
+                      href={item.href}
+                      prefetch={true}
+                      className={`flex items-center gap-3 py-2.5 mx-2 rounded-admin-button text-sm transition-colors ${item.isSubItem ? 'pl-8 pr-4' : 'px-4'
+                        } ${item.active
+                          ? 'bg-blue-500/20 text-blue-400 font-medium'
+                          : 'text-gray-300 hover:text-white hover:bg-white/10'
+                        }`}
+                    >
+                      {item.icon}
+                      <span className="flex-1">{item.title}</span>
+                      {typeof item.badge === 'number' && item.badge > 0 && (
+                        <span className="w-2.5 h-2.5 bg-red-500 rounded-full"></span>
+                      )}
+                    </Link>
+                  )
                 )}
               </div>
             );
@@ -283,79 +360,125 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           {isMasquerade && (
             <>
               <div className="my-2 border-t border-gray-800"></div>
-              <div className="mx-2 mb-2 px-2">
-                <div className="flex items-center gap-1.5 text-[10px] text-purple-400 font-medium uppercase tracking-wide">
-                  <Shield className="w-3 h-3" />
-                  システム管理者メニュー
+              {!isCollapsed && (
+                <div className="mx-2 mb-2 px-2">
+                  <div className="flex items-center gap-1.5 text-[10px] text-purple-400 font-medium uppercase tracking-wide">
+                    <Shield className="w-3 h-3" />
+                    システム管理者メニュー
+                  </div>
                 </div>
-              </div>
-              <Link
-                href="/admin/masquerade-actions/delete-facility"
-                prefetch={true}
-                className={`flex items-center gap-3 py-2.5 mx-2 rounded-admin-button text-sm transition-colors px-4 ${pathname === '/admin/masquerade-actions/delete-facility'
-                  ? 'bg-red-500/20 text-red-400 font-medium'
-                  : 'text-gray-300 hover:text-white hover:bg-white/10'
-                  }`}
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>施設削除</span>
-              </Link>
-              <Link
-                href="/admin/masquerade-actions/password-reset"
-                prefetch={true}
-                className={`flex items-center gap-3 py-2.5 mx-2 rounded-admin-button text-sm transition-colors px-4 ${pathname === '/admin/masquerade-actions/password-reset'
-                  ? 'bg-blue-500/20 text-blue-400 font-medium'
-                  : 'text-gray-300 hover:text-white hover:bg-white/10'
-                  }`}
-              >
-                <KeyRound className="w-4 h-4" />
-                <span>パスワードリセット</span>
-              </Link>
+              )}
+              {isCollapsed ? (
+                <>
+                  <Link
+                    href="/admin/masquerade-actions/delete-facility"
+                    prefetch={true}
+                    className={`relative flex items-center justify-center py-2.5 mx-2 rounded-admin-button transition-colors group ${
+                      pathname === '/admin/masquerade-actions/delete-facility'
+                        ? 'bg-red-500/20 text-red-400'
+                        : 'text-gray-300 hover:text-white hover:bg-white/10'
+                    }`}
+                    title="施設削除"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                    <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 pointer-events-none">
+                      施設削除
+                    </div>
+                  </Link>
+                  <Link
+                    href="/admin/masquerade-actions/password-reset"
+                    prefetch={true}
+                    className={`relative flex items-center justify-center py-2.5 mx-2 rounded-admin-button transition-colors group ${
+                      pathname === '/admin/masquerade-actions/password-reset'
+                        ? 'bg-blue-500/20 text-blue-400'
+                        : 'text-gray-300 hover:text-white hover:bg-white/10'
+                    }`}
+                    title="パスワードリセット"
+                  >
+                    <KeyRound className="w-5 h-5" />
+                    <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 pointer-events-none">
+                      パスワードリセット
+                    </div>
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link
+                    href="/admin/masquerade-actions/delete-facility"
+                    prefetch={true}
+                    className={`flex items-center gap-3 py-2.5 mx-2 rounded-admin-button text-sm transition-colors px-4 ${pathname === '/admin/masquerade-actions/delete-facility'
+                      ? 'bg-red-500/20 text-red-400 font-medium'
+                      : 'text-gray-300 hover:text-white hover:bg-white/10'
+                      }`}
+                  >
+                    <Trash2 className="w-5 h-5" />
+                    <span>施設削除</span>
+                  </Link>
+                  <Link
+                    href="/admin/masquerade-actions/password-reset"
+                    prefetch={true}
+                    className={`flex items-center gap-3 py-2.5 mx-2 rounded-admin-button text-sm transition-colors px-4 ${pathname === '/admin/masquerade-actions/password-reset'
+                      ? 'bg-blue-500/20 text-blue-400 font-medium'
+                      : 'text-gray-300 hover:text-white hover:bg-white/10'
+                      }`}
+                  >
+                    <KeyRound className="w-5 h-5" />
+                    <span>パスワードリセット</span>
+                  </Link>
+                </>
+              )}
             </>
           )}
         </nav>
 
         {/* ユーザー情報・ログアウト */}
-        <div className="p-4 border-t border-gray-800">
-          <div className="mb-3">
-            {isMasquerade ? (
-              <>
-                <div className="flex items-center gap-1.5 text-xs text-purple-400 mb-1">
-                  <Shield className="w-3 h-3" />
-                  システム管理者としてログイン中
-                </div>
-                <p className="text-sm font-medium text-white">システム管理者</p>
-                {/* マスカレード終了ボタンを追加 */}
-                <button
-                  onClick={handleMasqueradeExit}
-                  className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-1.5 text-xs text-purple-300 border border-purple-500/50 rounded-lg hover:bg-purple-500/20 transition-colors"
-                >
-                  <X className="w-3 h-3" />
-                  マスカレード終了
-                </button>
-              </>
-            ) : (
-              <>
-                <p className="text-xs text-gray-500 mb-1">ログイン中</p>
-                <p className="text-sm font-medium text-white">{staffName || admin?.name || '担当者'}</p>
-              </>
-            )}
-          </div>
-          <div className="mb-3 flex items-center justify-center gap-3 text-xs text-gray-500">
-            <Link href="/admin/terms" prefetch={true} className="hover:text-blue-400 hover:underline">
-              利用規約
-            </Link>
-            <span>•</span>
-            <Link href="/admin/privacy" prefetch={true} className="hover:text-blue-400 hover:underline">
-              プライバシーポリシー
-            </Link>
-          </div>
+        <div className={`border-t border-gray-800 ${isCollapsed ? 'p-2' : 'p-4'}`}>
+          {!isCollapsed && (
+            <div className="mb-3">
+              {isMasquerade ? (
+                <>
+                  <div className="flex items-center gap-1.5 text-xs text-purple-400 mb-1">
+                    <Shield className="w-3 h-3" />
+                    システム管理者としてログイン中
+                  </div>
+                  <p className="text-sm font-medium text-white">システム管理者</p>
+                  {/* マスカレード終了ボタンを追加 */}
+                  <button
+                    onClick={handleMasqueradeExit}
+                    className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-1.5 text-xs text-purple-300 border border-purple-500/50 rounded-lg hover:bg-purple-500/20 transition-colors"
+                  >
+                    <X className="w-3 h-3" />
+                    マスカレード終了
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs text-gray-500 mb-1">ログイン中</p>
+                  <p className="text-sm font-medium text-white">{staffName || admin?.name || '担当者'}</p>
+                </>
+              )}
+            </div>
+          )}
+          {!isCollapsed && (
+            <div className="mb-3 flex items-center justify-center gap-3 text-xs text-gray-500">
+              <Link href="/admin/terms" prefetch={true} className="hover:text-blue-400 hover:underline">
+                利用規約
+              </Link>
+              <span>•</span>
+              <Link href="/admin/privacy" prefetch={true} className="hover:text-blue-400 hover:underline">
+                プライバシーポリシー
+              </Link>
+            </div>
+          )}
           <button
             onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm text-gray-400 border border-gray-700 rounded-admin-button hover:bg-white/5 hover:text-white transition-colors"
+            className={`w-full flex items-center justify-center gap-2 text-sm text-gray-400 border border-gray-700 rounded-admin-button hover:bg-white/5 hover:text-white transition-colors ${
+              isCollapsed ? 'p-2' : 'px-4 py-2'
+            }`}
+            title={isCollapsed ? 'ログアウト' : undefined}
           >
-            <LogOut className="w-4 h-4" />
-            ログアウト
+            <LogOut className="w-5 h-5" />
+            {!isCollapsed && <span>ログアウト</span>}
           </button>
         </div>
       </div>
