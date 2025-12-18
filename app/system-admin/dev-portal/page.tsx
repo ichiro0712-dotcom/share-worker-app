@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import Link from 'next/link';
 import { MemoPad } from './MemoPad';
-import { Smartphone, Layout, Hash, Shield, Book, Users, Building2, Settings, ExternalLink, Image as ImageIcon, BellRing } from 'lucide-react';
+import { Smartphone, Layout, Hash, Shield, Book, Users, Building2, Settings, ExternalLink, Image as ImageIcon, BellRing, ListChecks } from 'lucide-react';
 
 // サイトマップ定義（ツリー構造）
 interface SiteMapNode {
@@ -181,6 +181,9 @@ const SYSTEM_ADMIN_TREE: SiteMapNode[] = [
             { name: 'sample-images', title: 'サンプル画像', href: '/system-admin/dev-portal/sample-images' },
             { name: 'notification-logs', title: '通知ログ', href: '/system-admin/dev-portal/notification-logs' },
         ]
+    },
+    {
+        name: 'debug-checklist', title: 'デバッグチェックリスト', href: '/system-admin/dev-portal/debug-checklist'
     },
 ];
 
@@ -363,6 +366,13 @@ export default function DevPortalPage() {
                             </div>
                             <p className="text-xs text-gray-500">送信済み通知の確認</p>
                         </Link>
+                        <Link href="/system-admin/dev-portal/debug-checklist" target="_blank" rel="noopener noreferrer" className="block w-full text-left p-3 rounded-lg border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all group bg-white">
+                            <div className="flex items-center justify-between mb-1">
+                                <div className="font-bold text-gray-800 group-hover:text-blue-600">デバッグ項目</div>
+                                <ListChecks className="w-4 h-4 text-gray-400 group-hover:text-blue-500" />
+                            </div>
+                            <p className="text-xs text-gray-500">機能検証チェックリスト</p>
+                        </Link>
                     </div>
                 </div>
 
@@ -471,6 +481,6 @@ export default function DevPortalPage() {
                 <MemoPad />
 
             </div>
-        </div>
+        </div >
     );
 }

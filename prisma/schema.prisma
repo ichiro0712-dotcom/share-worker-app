@@ -905,3 +905,18 @@ model ErrorMessageSetting {
 
   @@map("error_message_settings")
 }
+
+// ========== デバッグチェックリスト ==========
+
+/// デバッグチェック進捗（A〜Jさんの10人固定）
+model DebugCheckProgress {
+  id        Int      @id @default(autoincrement())
+  user_name String   @map("user_name") // "A", "B", "C", ..., "J"
+  item_key  String   @map("item_key")  // チェック項目のキー
+  checked   Boolean  @default(true)
+  updated_at DateTime @updatedAt @map("updated_at")
+
+  @@unique([user_name, item_key])
+  @@index([user_name])
+  @@map("debug_check_progress")
+}
