@@ -17,6 +17,8 @@ export const metadata: Metadata = {
   },
 };
 
+import { ErrorToastProvider } from '@/components/ui/PersistentErrorToast';
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -25,13 +27,15 @@ export default function RootLayout({
   return (
     <html lang="ja">
       <body>
-        <AuthProvider>
-          <BadgeProvider>
-            <MasqueradeBanner />
-            {children}
-          </BadgeProvider>
-        </AuthProvider>
-        <Toaster position="bottom-center" />
+        <ErrorToastProvider>
+          <AuthProvider>
+            <BadgeProvider>
+              <MasqueradeBanner />
+              {children}
+            </BadgeProvider>
+          </AuthProvider>
+          <Toaster position="bottom-center" />
+        </ErrorToastProvider>
       </body>
     </html>
   );

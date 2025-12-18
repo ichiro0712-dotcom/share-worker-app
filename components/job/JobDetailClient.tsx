@@ -8,9 +8,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/tag';
 import { formatDateTime, getDeadlineText, isDeadlineUrgent } from '@/utils/date';
-import { applyForJob, addJobBookmark, removeJobBookmark, isJobBookmarked, toggleFacilityFavorite, isFacilityFavorited, getUserSelfPR, updateUserSelfPR } from '@/src/lib/actions';
+import { applyForJobMultipleDates, addJobBookmark, removeJobBookmark, isJobBookmarked, toggleFacilityFavorite, isFacilityFavorited, getUserSelfPR, updateUserSelfPR } from '@/src/lib/actions';
 import { useBadge } from '@/contexts/BadgeContext';
 import toast from 'react-hot-toast';
+import { useErrorToast } from '@/components/ui/PersistentErrorToast';
 
 // デフォルトのプレースホルダー画像（実在するサンプル画像を使用）
 const DEFAULT_JOB_IMAGE = '/images/samples/facility_top_1.png';
@@ -332,62 +333,72 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
     }
   };
 
-  // 確認モーダルから実際に応募を実行
+  const { showError } = useErrorToast();
+
   const handleApply = async () => {
+    // 1. 即座にモーダルを閉じる
     setShowApplyConfirmModal(false);
-    setIsApplying(true);
 
+    // 2. 現在の状態をスナップショット保存（ロールバック用）
+    const previousAppliedIds = [...appliedWorkDateIds];
+
+    // 3. 楽観的UI更新：即座に応募済み状態にする
+    setAppliedWorkDateIds(prev => [...prev, ...selectedWorkDateIds]);
+    setSelectedWorkDateIds([]); // 選択をクリア
+    toast.success('応募を受け付けました');
+
+    // 4. バックグラウンドでAPI実行
     try {
-      // 選択された勤務日すべてに応募
-      const results = await Promise.all(
-        selectedWorkDateIds.map((workDateId) => applyForJob(String(job.id), workDateId))
-      );
+      const result = await applyForJobMultipleDates(String(job.id), selectedWorkDateIds);
 
-      // すべて成功したかチェック
-      const allSuccess = results.every((result) => result.success);
-
-      if (allSuccess) {
-        // マッチング成立の場合はメッセージを表示
-        const matchedResults = results.filter((result) => result.isMatched);
-        if (matchedResults.length > 0) {
+      if (result.success) {
+        // マッチング成立の場合は追加メッセージを表示
+        if (result.isMatched) {
           toast.success('マッチングが成立しました！');
-        } else {
-          toast.success('応募しました！');
         }
 
-        // ローカルステートを即座に更新（応募済みIDに追加）
-        setAppliedWorkDateIds(prev => [...prev, ...selectedWorkDateIds]);
-        setSelectedWorkDateIds([]); // 選択をクリア
-
-        // メッセージバッジを即時更新（新着メッセージが届いている可能性があるため）
+        // メッセージバッジを更新
         refreshBadges();
 
         // サーバーサイドのキャッシュを更新してからリダイレクト
         router.refresh();
-        // 少し待ってからリダイレクト（refreshが完了するのを待つ）
         setTimeout(() => {
           router.push('/');
         }, 500);
       } else {
-        // 一部または全部失敗
-        const failedResult = results.find((result) => !result.success);
+        // 失敗時：ロールバック
+        setAppliedWorkDateIds(previousAppliedIds);
 
         // プロフィール未完了エラーの場合はモーダル表示
-        if (failedResult && 'missingFields' in failedResult && failedResult.missingFields) {
-          const missingFields = failedResult.missingFields as string[];
+        if ('missingFields' in result && result.missingFields) {
+          const missingFields = result.missingFields as string[];
           setProfileMissingFields(missingFields);
           setShowProfileModal(true);
         } else {
-          const errorMessages = results
-            .filter((result) => !result.success)
-            .map((result) => result.error)
-            .join('\n');
-          toast.error(`応募に失敗しました: ${errorMessages}`);
+          try {
+            // エラー通知をバックグラウンドで送信
+            fetch('/api/error-notification', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                errorKey: 'APPLY_ERROR',
+                userId: undefined, // クライアント側では特定できない場合もあるが、セッションから取れるなら入れる
+                variables: {
+                  error: String(result.error)
+                }
+              })
+            }).catch(console.error);
+          } catch (e) {
+            console.error('Failed to trigger error notification:', e);
+          }
+          showError('APPLY_ERROR', `応募に失敗しました: ${result.error}`);
         }
       }
     } catch (error) {
       console.error('Application error:', error);
-      toast.error('応募に失敗しました。もう一度お試しください。');
+      // 失敗時：ロールバック
+      setAppliedWorkDateIds(previousAppliedIds);
+      showError('APPLY_ERROR', '応募に失敗しました。もう一度お試しください。');
     } finally {
       setIsApplying(false);
     }

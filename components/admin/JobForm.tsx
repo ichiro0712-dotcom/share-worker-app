@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Calendar, MapPin, Upload, X, Loader2, ArrowLeft, ChevronLeft, ChevronRight, Clock, DollarSign, Briefcase, FileText, CheckCircle, AlertCircle, Info, AlertTriangle, Star } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useErrorToast } from '@/components/ui/PersistentErrorToast';
 import AddressSelector from '@/components/ui/AddressSelector';
 import { JobConfirmModal } from '@/components/admin/JobConfirmModal';
 import { JobPreviewModal } from '@/components/admin/JobPreviewModal';
@@ -657,6 +658,8 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
         setShowPreview(true);
     };
 
+    const { showError } = useErrorToast();
+
     const handleSave = async () => {
         if (isSaving) return;
 
@@ -667,113 +670,119 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
         }
 
         setIsSaving(true);
-        try {
-            // 画像等のアップロード
-            const uploadFiles = async (files: File[], apiConfig: string) => {
-                if (files.length === 0) return [];
-                const fd = new FormData();
-                files.forEach(f => fd.append('files', f));
-                const res = await fetch('/api/upload', { method: 'POST', body: fd });
-                if (!res.ok) throw new Error('Upload failed');
-                const json = await res.json();
-                return json.urls || [];
-            };
 
-            const newImageUrls = await uploadFiles(formData.images, '');
-            const newDressUrls = await uploadFiles(formData.dresscodeImages, '');
-            const newAttachUrls = await uploadFiles(formData.attachments, '');
+        // 1. 楽観的UI更新：保存中メッセージを出して即リダイレクト
+        toast.success('保存処理を開始しました');
+        router.push('/admin/jobs');
 
-            const finalImages = [...formData.existingImages, ...newImageUrls];
-            const finalDress = [...formData.existingDresscodeImages, ...newDressUrls];
-            const finalAttach = [...formData.existingAttachments, ...newAttachUrls];
+        // 2. バックグラウンド実行
+        (async () => {
+            try {
+                // 画像等のアップロード
+                const uploadFiles = async (files: File[], apiConfig: string) => {
+                    if (files.length === 0) return [];
+                    const fd = new FormData();
+                    files.forEach(f => fd.append('files', f));
+                    const res = await fetch('/api/upload', { method: 'POST', body: fd });
+                    if (!res.ok) throw new Error('Upload failed');
+                    const json = await res.json();
+                    return json.urls || [];
+                };
 
-            if (mode === 'create') {
-                // 新規作成
-                let workDates = selectedDates;
+                const newImageUrls = await uploadFiles(formData.images, '');
+                const newDressUrls = await uploadFiles(formData.dresscodeImages, '');
+                const newAttachUrls = await uploadFiles(formData.attachments, '');
 
-                const res = await createJobs({
-                    facilityId: formData.facilityId!,
-                    templateId: selectedTemplateId,
-                    title: formData.title,
-                    workDates: workDates,
-                    startTime: formData.startTime,
-                    endTime: formData.endTime,
-                    breakTime: formData.breakTime,
-                    hourlyWage: formData.hourlyWage,
-                    transportationFee: formData.transportationFee,
-                    recruitmentCount: formData.recruitmentCount,
-                    workContent: formData.workContent,
-                    jobDescription: formData.jobDescription,
-                    qualifications: formData.qualifications,
-                    skills: formData.skills,
-                    dresscode: formData.dresscode,
-                    belongings: formData.belongings,
-                    icons: formData.icons,
-                    images: finalImages,
-                    dresscodeImages: finalDress,
-                    attachments: finalAttach,
-                    recruitmentStartDay: formData.recruitmentStartDay,
-                    recruitmentStartTime: formData.recruitmentStartTime || undefined,
-                    recruitmentEndDay: formData.recruitmentEndDay,
-                    recruitmentEndTime: formData.recruitmentEndTime || undefined,
-                    weeklyFrequency: recruitmentOptions.weeklyFrequency,
-                    requiresInterview: formData.requiresInterview,
-                    prefecture: formData.prefecture,
-                    city: formData.city,
-                    addressLine: formData.addressLine,
-                    address: formData.address,
-                });
+                const finalImages = [...formData.existingImages, ...newImageUrls];
+                const finalDress = [...formData.existingDresscodeImages, ...newDressUrls];
+                const finalAttach = [...formData.existingAttachments, ...newAttachUrls];
 
-                if (res.success) {
-                    toast.success('求人を作成しました');
-                    router.push('/admin/jobs');
+                if (mode === 'create') {
+                    // 新規作成
+                    let workDates = selectedDates;
+
+                    const res = await createJobs({
+                        facilityId: formData.facilityId!,
+                        templateId: selectedTemplateId,
+                        title: formData.title,
+                        workDates: workDates,
+                        startTime: formData.startTime,
+                        endTime: formData.endTime,
+                        breakTime: formData.breakTime,
+                        hourlyWage: formData.hourlyWage,
+                        transportationFee: formData.transportationFee,
+                        recruitmentCount: formData.recruitmentCount,
+                        workContent: formData.workContent,
+                        jobDescription: formData.jobDescription,
+                        qualifications: formData.qualifications,
+                        skills: formData.skills,
+                        dresscode: formData.dresscode,
+                        belongings: formData.belongings,
+                        icons: formData.icons,
+                        images: finalImages,
+                        dresscodeImages: finalDress,
+                        attachments: finalAttach,
+                        recruitmentStartDay: formData.recruitmentStartDay,
+                        recruitmentStartTime: formData.recruitmentStartTime || undefined,
+                        recruitmentEndDay: formData.recruitmentEndDay,
+                        recruitmentEndTime: formData.recruitmentEndTime || undefined,
+                        weeklyFrequency: recruitmentOptions.weeklyFrequency,
+                        requiresInterview: formData.requiresInterview,
+                        prefecture: formData.prefecture,
+                        city: formData.city,
+                        addressLine: formData.addressLine,
+                        address: formData.address,
+                    });
+
+                    if (res.success) {
+                        toast.success('求人の保存が完了しました');
+                    } else {
+                        throw new Error(res.error || '作成失敗');
+                    }
+
                 } else {
-                    toast.error(res.error || '作成失敗');
-                }
+                    // 更新
+                    const res = await updateJob(parseInt(jobId!), formData.facilityId!, {
+                        title: formData.title,
+                        startTime: formData.startTime,
+                        endTime: formData.endTime,
+                        breakTime: formData.breakTime,
+                        hourlyWage: formData.hourlyWage,
+                        transportationFee: formData.transportationFee,
+                        recruitmentCount: formData.recruitmentCount,
+                        workContent: formData.workContent,
+                        jobDescription: formData.jobDescription,
+                        weeklyFrequency: recruitmentOptions.weeklyFrequency,
+                        qualifications: formData.qualifications,
+                        skills: formData.skills,
+                        dresscode: formData.dresscode,
+                        belongings: formData.belongings,
+                        icons: formData.icons,
+                        images: finalImages,
+                        dresscodeImages: finalDress,
+                        attachments: finalAttach,
+                        addWorkDates: addedWorkDates,
+                        removeWorkDateIds: removedWorkDateIds,
+                        requiresInterview: formData.requiresInterview,
+                        prefecture: formData.prefecture,
+                        city: formData.city,
+                        addressLine: formData.addressLine,
+                    });
 
-            } else {
-                // 更新
-                const res = await updateJob(parseInt(jobId!), formData.facilityId!, {
-                    title: formData.title,
-                    startTime: formData.startTime,
-                    endTime: formData.endTime,
-                    breakTime: formData.breakTime,
-                    hourlyWage: formData.hourlyWage,
-                    transportationFee: formData.transportationFee,
-                    recruitmentCount: formData.recruitmentCount,
-                    workContent: formData.workContent,
-                    jobDescription: formData.jobDescription,
-                    weeklyFrequency: recruitmentOptions.weeklyFrequency,
-                    qualifications: formData.qualifications,
-                    skills: formData.skills,
-                    dresscode: formData.dresscode,
-                    belongings: formData.belongings,
-                    icons: formData.icons,
-                    images: finalImages,
-                    dresscodeImages: finalDress,
-                    attachments: finalAttach,
-                    addWorkDates: addedWorkDates,
-                    removeWorkDateIds: removedWorkDateIds,
-                    requiresInterview: formData.requiresInterview,
-                    prefecture: formData.prefecture,
-                    city: formData.city,
-                    addressLine: formData.addressLine,
-                });
-
-                if (res.success) {
-                    toast.success('求人を更新しました');
-                    router.push('/admin/jobs');
-                } else {
-                    toast.error(res.error || '更新失敗');
+                    if (res.success) {
+                        toast.success('求人の保存が完了しました');
+                    } else {
+                        throw new Error(res.error || '更新失敗');
+                    }
                 }
+            } catch (e: any) {
+                console.error(e);
+                showError('SAVE_ERROR', `保存に失敗しました: ${e.message}`);
+                // 失敗時のリカバリーは難しいが、ユーザーに通知する
+            } finally {
+                setIsSaving(false);
             }
-
-        } catch (e) {
-            console.error(e);
-            toast.error('保存中にエラーが発生しました');
-        } finally {
-            setIsSaving(false);
-        }
+        })();
     };
 
     // === レンダリング用ヘルパー ===

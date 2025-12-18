@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
-import { getJobs } from '@/src/lib/actions';
+import { getJobsListWithPagination } from '@/src/lib/actions';
 import { JobListClient } from '@/components/job/JobListClient';
+import { generateDates } from '@/utils/date';
 
 // キャッシュを無効化して常に最新のデータを取得
 export const dynamic = 'force-dynamic';
@@ -16,6 +17,9 @@ interface PageProps {
     otherCondition?: string | string[];
     jobType?: string | string[];
     workTimeType?: string | string[];
+    page?: string;
+    dateIndex?: string;
+    sort?: 'distance' | 'wage' | 'deadline';
   }>;
 }
 
@@ -41,7 +45,23 @@ export default async function JobListPage({ searchParams }: PageProps) {
     workTimeTypes: normalizeArray(params.workTimeType),
   };
 
-  const jobsData = await getJobs(jobSearchParams);
+  const page = params.page ? parseInt(params.page, 10) : 1;
+  const dateIndex = params.dateIndex ? parseInt(params.dateIndex, 10) : 0;
+  const sort = params.sort;
+
+  // 日付フィルター用のDateオブジェクト生成
+  const dates = generateDates(90);
+  const targetDate = dates[dateIndex]; // dateIndexが範囲外の場合はundefined
+
+  const { jobs: jobsData, pagination } = await getJobsListWithPagination(
+    jobSearchParams,
+    {
+      page,
+      limit: 20,
+      targetDate,
+      sort
+    }
+  );
 
   // DBのデータをフロントエンドの型に変換（既に文字列化済み）
   const jobs = jobsData.map((job) => {
@@ -135,7 +155,11 @@ export default async function JobListPage({ searchParams }: PageProps) {
 
   return (
     <Suspense fallback={<div className="min-h-screen bg-white flex items-center justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>}>
-      <JobListClient jobs={jobs} facilities={facilities} />
+      <JobListClient
+        jobs={jobs}
+        facilities={facilities}
+        pagination={pagination}
+      />
     </Suspense>
   );
 }

@@ -2113,9 +2113,10 @@ ${Math.random() > 0.5 ? '制服は当施設でご用意いたします。' : '�
   console.log('   - editor@+tastas.com / password123 (editor)');
 
   // ========================================
-  // 6. 通知設定のシード
+  // 11. 通知設定のシード
   // ========================================
   await seedNotificationSettings();
+  await seedErrorMessageSettings();
 
   // ========================================
   // 完了
@@ -2142,6 +2143,66 @@ ${Math.random() > 0.5 ? '制服は当施設でご用意いたします。' : '�
   - editor@+tastas.com / password123 (editor)
   `);
 }
+
+const errorMessageSettings = [
+  {
+    key: 'APPLY_ERROR',
+    title: '応募エラー',
+    banner_message: '応募に失敗しました。再度お試しください。',
+    detail_message: 'システムエラーにより応募処理が完了しませんでした。ネットワーク環境をご確認の上、再度お試しください。',
+  },
+  {
+    key: 'MATCH_ERROR',
+    title: 'マッチングエラー',
+    banner_message: 'マッチングに失敗しました。再度お試しください。',
+    detail_message: 'マッチング処理中にエラーが発生しました。相手方の状況が変わった可能性があります。',
+  },
+  {
+    key: 'SAVE_ERROR',
+    title: '保存エラー',
+    banner_message: '保存に失敗しました。再度お試しください。',
+    detail_message: 'データの保存中にエラーが発生しました。入力内容をご確認ください。',
+  },
+  {
+    key: 'SYSTEM_ERROR',
+    title: 'システムエラー',
+    banner_message: 'システムエラーが発生しました。しばらく経ってから再度お試しください。',
+    detail_message: '予期せぬエラーが発生しました。管理者にお問い合わせください。',
+  },
+  {
+    key: 'DUPLICATE_ERROR',
+    title: '重複エラー',
+    banner_message: 'すでに登録されているデータです。',
+    detail_message: 'このデータは既にシステムに登録されています。重複登録はできません。',
+  },
+];
+
+async function seedErrorMessageSettings() {
+  console.log('\n⚠️ エラーメッセージ設定を作成中...');
+  for (const setting of errorMessageSettings) {
+    await prisma.errorMessageSetting.upsert({
+      where: { key: setting.key },
+      update: {
+        banner_enabled: true,
+        chat_enabled: false,
+        email_enabled: false,
+        push_enabled: false,
+      },
+      create: {
+        key: setting.key,
+        title: setting.title,
+        banner_message: setting.banner_message,
+        detail_message: setting.detail_message,
+        banner_enabled: true,
+        chat_enabled: false,
+        email_enabled: false,
+        push_enabled: false,
+      },
+    });
+  }
+  console.log(`✅ ${errorMessageSettings.length}件のエラーメッセージ設定を作成しました`);
+}
+
 
 main()
   .catch((e) => {

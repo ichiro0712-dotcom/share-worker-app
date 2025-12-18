@@ -887,3 +887,21 @@ model NearbyNotificationLog {
   @@index([user_id, notification_key, sent_at])
   @@map("nearby_notification_logs")
 }
+
+model ErrorMessageSetting {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique // APPLY_ERROR, MATCH_ERROR, SAVE_ERROR, SYSTEM_ERROR
+  title       String
+  banner_message String   @db.Text
+  detail_message String   @db.Text @default("")
+  is_active   Boolean  @default(true)
+  banner_enabled Boolean @default(true)
+  chat_enabled   Boolean @default(false)
+  email_enabled  Boolean @default(false)
+  push_enabled   Boolean @default(false)
+
+  created_at  DateTime @default(now()) @map("created_at")
+  updated_at  DateTime @updatedAt @map("updated_at")
+
+  @@map("error_message_settings")
+}

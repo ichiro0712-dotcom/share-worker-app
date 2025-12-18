@@ -36,6 +36,7 @@ export interface WorkDate {
     recruitmentCount: number;
     appliedCount: number;
     matchedCount: number;
+    unviewedCount: number;
     applications: Application[];
 }
 
@@ -447,10 +448,10 @@ export function MonthlyShiftView({ jobs, qualificationAbbreviations }: MonthlySh
                                                                 ¥{item.job.hourlyWage.toLocaleString()}
                                                             </span>
 
-                                                            {/* 4. Unread Badge */}
-                                                            {item.job.unviewedCount > 0 && !isInactive && (
+                                                            {/* 4. Unread Badge - workDateごとの未確認応募数 */}
+                                                            {item.workDate.unviewedCount > 0 && !isInactive && (
                                                                 <div className="flex-shrink-0 w-3 h-3 bg-red-500 rounded-full text-white text-[8px] font-bold flex items-center justify-center">
-                                                                    {item.job.unviewedCount}
+                                                                    {item.workDate.unviewedCount}
                                                                 </div>
                                                             )}
 

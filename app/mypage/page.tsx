@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import {
   ChevronRight,
   User as UserIcon,
@@ -126,7 +127,12 @@ export default function MyPage() {
           {/* プロフィール画像 */}
           <div className="relative w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
             {user.profileImage ? (
-              <img src={user.profileImage} alt="Profile" className="w-full h-full object-cover" />
+              <Image
+                src={user.profileImage}
+                alt="Profile"
+                fill
+                className="object-cover"
+              />
             ) : (
               <UserIcon className="w-8 h-8 text-gray-400" />
             )}

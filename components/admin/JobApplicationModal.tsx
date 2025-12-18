@@ -201,6 +201,9 @@ export default function JobApplicationModal({
                                     審査あり
                                 </span>
                             )}
+                            <span className="px-2 py-0.5 text-xs font-medium rounded bg-gray-200 text-gray-600">
+                                ID: {job.id}
+                            </span>
                             <h2 className="text-xl font-bold text-gray-900">{job.title}</h2>
                         </div>
 

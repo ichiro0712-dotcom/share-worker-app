@@ -42,7 +42,7 @@ const WORKER_TREE: SiteMapNode[] = [
         ]
     },
     {
-        name: 'my-jobs', title: '自分の求人', href: '/my-jobs', children: [
+        name: 'my-jobs', title: 'マイ求人', href: '/my-jobs', children: [
             {
                 name: '[id]', title: '求人詳細', isDynamic: true, children: [
                     { name: 'labor-document', title: '労働条件通知書', isDynamic: true },
@@ -52,14 +52,24 @@ const WORKER_TREE: SiteMapNode[] = [
     },
     { name: 'applications', title: '応募管理', href: '/applications' },
     { name: 'messages', title: 'メッセージ', href: '/messages' },
+    { name: 'notifications', title: '通知', href: '/notifications' },
     { name: 'favorites', title: 'お気に入り', href: '/favorites' },
     { name: 'bookmarks', title: 'ブックマーク', href: '/bookmarks' },
+    {
+        name: 'facilities', title: '施設', children: [
+            { name: '[id]', title: '施設詳細', isDynamic: true },
+        ]
+    },
     { name: 'application-complete', title: '応募完了', href: '/application-complete' },
     {
         name: 'password-reset', title: 'パスワードリセット', href: '/password-reset', children: [
             { name: '[token]', title: 'パスワード再設定', isDynamic: true },
         ]
     },
+    { name: 'contact', title: 'お問い合わせ', href: '/contact' },
+    { name: 'faq', title: 'FAQ', href: '/faq' },
+    { name: 'terms', title: '利用規約', href: '/terms' },
+    { name: 'privacy', title: 'プライバシーポリシー', href: '/privacy' },
 ];
 
 // 施設管理画面（ツリー構造）
@@ -87,11 +97,15 @@ const ADMIN_TREE: SiteMapNode[] = [
         ]
     },
     { name: 'applications', title: '応募管理', href: '/admin/applications' },
+    { name: 'shifts', title: 'シフト管理', href: '/admin/shifts' },
     {
         name: 'workers', title: 'ワーカー管理', href: '/admin/workers', children: [
             {
                 name: '[id]', title: 'ワーカー詳細', isDynamic: true, children: [
                     { name: 'review', title: 'レビュー投稿', isDynamic: true },
+                    { name: 'certificates', title: '資格証明書', isDynamic: true },
+                    { name: 'emergency-contacts', title: '緊急連絡先', isDynamic: true },
+                    { name: 'schedules', title: '勤務予定', isDynamic: true },
                     {
                         name: 'labor-documents', title: '労働条件通知書一覧', isDynamic: true, children: [
                             { name: '[applicationId]', title: '労働条件通知書詳細', isDynamic: true },
@@ -106,6 +120,14 @@ const ADMIN_TREE: SiteMapNode[] = [
     { name: 'facility', title: '施設情報', href: '/admin/facility' },
     { name: 'messages', title: 'メッセージ', href: '/admin/messages' },
     { name: 'notifications', title: 'お知らせ管理', href: '/admin/notifications' },
+    { name: 'masquerade', title: 'なりすまし', href: '/admin/masquerade' },
+    {
+        name: 'masquerade-actions', title: 'なりすまし操作', children: [
+            { name: 'password-reset', title: 'パスワードリセット', href: '/admin/masquerade-actions/password-reset' },
+            { name: 'delete-facility', title: '施設削除', href: '/admin/masquerade-actions/delete-facility' },
+        ]
+    },
+    { name: 'faq', title: 'FAQ', href: '/admin/faq' },
     { name: 'terms', title: '利用規約', href: '/admin/terms' },
     { name: 'privacy', title: 'プライバシーポリシー', href: '/admin/privacy' },
 ];
@@ -114,24 +136,50 @@ const ADMIN_TREE: SiteMapNode[] = [
 const SYSTEM_ADMIN_TREE: SiteMapNode[] = [
     { name: '/', title: 'システム管理ダッシュボード', href: '/system-admin' },
     { name: 'login', title: 'システム管理者ログイン', href: '/system-admin/login' },
-    { name: 'facilities', title: '施設管理', href: '/system-admin/facilities' },
+    {
+        name: 'facilities', title: '施設管理', href: '/system-admin/facilities', children: [
+            { name: 'new', title: '施設新規登録', href: '/system-admin/facilities/new' },
+        ]
+    },
     { name: 'jobs', title: '求人管理', href: '/system-admin/jobs' },
-    { name: 'applications', title: '応募管理', href: '/system-admin/applications' },
-    { name: 'workers', title: 'ワーカー管理', href: '/system-admin/workers' },
+    {
+        name: 'workers', title: 'ワーカー管理', href: '/system-admin/workers', children: [
+            { name: '[id]', title: 'ワーカー詳細', isDynamic: true },
+        ]
+    },
     {
         name: 'announcements', title: 'お知らせ管理', href: '/system-admin/announcements', children: [
             { name: 'create', title: '新規作成', href: '/system-admin/announcements/create' },
             { name: '[id]', title: '編集', isDynamic: true },
         ]
     },
+    { name: 'alerts', title: 'アラート', href: '/system-admin/alerts' },
     {
-        name: 'settings', title: 'システム設定', href: '/system-admin/settings', children: [
+        name: 'content', title: 'コンテンツ管理', href: '/system-admin/content', children: [
+            { name: 'notifications', title: '通知テンプレート', href: '/system-admin/content/notifications' },
+            { name: 'templates', title: 'エラーメッセージ設定', href: '/system-admin/content/templates' },
+            { name: 'faq', title: 'FAQ管理', href: '/system-admin/content/faq' },
+            { name: 'legal', title: '規約・ポリシー', href: '/system-admin/content/legal' },
+            { name: 'user-guide', title: '使い方ガイド', href: '/system-admin/content/user-guide' },
+            { name: 'labor-template', title: '労働条件通知書テンプレート', href: '/system-admin/content/labor-template' },
+        ]
+    },
+    {
+        name: 'analytics', title: 'アナリティクス', href: '/system-admin/analytics', children: [
+            { name: 'regions', title: '地域別分析', href: '/system-admin/analytics/regions' },
+            { name: 'ai', title: 'AIインサイト', href: '/system-admin/analytics/ai' },
+            { name: 'export', title: 'データエクスポート', href: '/system-admin/analytics/export' },
+        ]
+    },
+    {
+        name: 'settings', title: 'システム設定', children: [
             { name: 'admins', title: '管理者アカウント管理', href: '/system-admin/settings/admins' },
         ]
     },
     {
         name: 'dev-portal', title: '開発ポータル', href: '/system-admin/dev-portal', children: [
             { name: 'sample-images', title: 'サンプル画像', href: '/system-admin/dev-portal/sample-images' },
+            { name: 'notification-logs', title: '通知ログ', href: '/system-admin/dev-portal/notification-logs' },
         ]
     },
 ];
@@ -142,6 +190,12 @@ const STANDALONE_TREE: SiteMapNode[] = [
     {
         name: 'dev', title: 'モバイルテスト', href: '/dev', children: [
             { name: 'qr', title: 'QR生成', href: '/dev/qr' },
+        ]
+    },
+    { name: 'pwa-test', title: 'PWAテスト', href: '/pwa-test' },
+    {
+        name: 'masquerade', title: 'なりすまし', children: [
+            { name: 'worker', title: 'ワーカーなりすまし', href: '/masquerade/worker' },
         ]
     },
     { name: 'under-construction', title: '準備中ページ', href: '/under-construction' },

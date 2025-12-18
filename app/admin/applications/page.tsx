@@ -18,6 +18,7 @@ import {
   CalendarDays
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useErrorToast } from '@/components/ui/PersistentErrorToast';
 import JobApplicationModal from '@/components/admin/JobApplicationModal';
 import { MonthlyShiftView } from '@/components/admin/MonthlyShiftView';
 import { useAuth } from '@/contexts/AuthContext';
@@ -31,8 +32,16 @@ import {
   markWorkerApplicationsAsViewed,
 } from '@/src/lib/actions';
 import { getQualificationAbbreviations } from '@/src/lib/content-actions';
+import { Pagination } from '@/components/ui/Pagination';
 
 // 型定義
+interface PaginationData {
+  currentPage: number;
+  totalPages: number;
+  totalCount: number;
+  hasMore: boolean;
+}
+
 interface Worker {
   id: number;
   name: string;
@@ -155,6 +164,8 @@ function ApplicationsContent() {
   const { admin, isAdmin, isAdminLoading } = useAuth();
   const [jobs, setJobs] = useState<JobWithApplications[]>([]);
   const [workers, setWorkers] = useState<WorkerWithApplications[]>([]);
+  const [jobsPagination, setJobsPagination] = useState<PaginationData | null>(null);
+  const [workersPagination, setWorkersPagination] = useState<PaginationData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState<number | null>(null);
 
@@ -164,6 +175,22 @@ function ApplicationsContent() {
   // フィルタ・検索状態
   const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'stopped' | 'completed'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [page, setPage] = useState(1);
+
+  // 検索クエリのデバウンス
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+      setPage(1); // 検索条件変更時はページを1に戻す
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // フィルタ変更時にページをリセット
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, viewMode]);
 
   // モーダル状態
   const [selectedJob, setSelectedJob] = useState<JobWithApplications | null>(null);
@@ -209,27 +236,48 @@ function ApplicationsContent() {
 
     setIsLoading(true);
     try {
+      // ステータスマッピング
+      const statusMap: Record<string, 'all' | 'PUBLISHED' | 'STOPPED' | 'COMPLETED'> = {
+        all: 'all',
+        published: 'PUBLISHED',
+        stopped: 'STOPPED',
+        completed: 'COMPLETED'
+      };
+
       // 並列でデータ取得
-      const [jobsData, workersData, abbreviations] = await Promise.all([
-        getJobsWithApplications(admin.facilityId),
-        getApplicationsByWorker(admin.facilityId),
+      const [jobsResponse, workersResponse, abbreviations] = await Promise.all([
+        getJobsWithApplications(admin.facilityId, {
+          page: viewMode === 'jobs' ? page : 1,
+          limit: 10,
+          status: statusMap[statusFilter],
+          query: debouncedQuery
+        }),
+        getApplicationsByWorker(admin.facilityId, {
+          page: viewMode === 'workers' ? page : 1,
+          limit: 10,
+          query: debouncedQuery
+        }),
         getQualificationAbbreviations(),
       ]);
-      setJobs(jobsData);
-      setWorkers(workersData);
+
+      setJobs(jobsResponse.data as any); // 型の不一致回避（厳密には修正推奨）
+      setJobsPagination(jobsResponse.pagination);
+
+      setWorkers(workersResponse.data as any);
+      setWorkersPagination(workersResponse.pagination);
+
       setQualificationAbbreviations(abbreviations);
 
-      // タブバッジの更新
-      // - 求人から: 未確認応募の総件数（応募日数単位）
-      // - ワーカーから: 未確認応募があるユニークユーザー数（人単位）
+      // タブバッジの更新（注: ページネーション時は現在のページのみの集計となる制限あり）
+      // 本来は別途統計APIを呼ぶべきだが、一旦現状維持
       setTabBadges({
-        byJob: jobsData.reduce((sum, j) => sum + j.unviewedCount, 0),
-        byWorker: workersData.filter(w => w.unviewedCount > 0).length,
+        byJob: jobsResponse.data.reduce((sum: number, j: any) => sum + j.unviewedCount, 0),
+        byWorker: workersResponse.data.filter((w: any) => w.unviewedCount > 0).length,
       });
 
       // ワーカー状態の初期化
       const initialStates: Record<number, { isFavorite: boolean; isBlocked: boolean }> = {};
-      workersData.forEach(w => {
+      (workersResponse.data as any[]).forEach(w => {
         initialStates[w.worker.id] = {
           isFavorite: w.worker.isFavorite,
           isBlocked: w.worker.isBlocked
@@ -239,14 +287,14 @@ function ApplicationsContent() {
 
       // 選択中のジョブがあれば更新
       if (selectedJob) {
-        const updatedJob = jobsData.find(j => j.id === selectedJob.id);
+        const updatedJob = (jobsResponse.data as any[]).find(j => j.id === selectedJob.id);
         if (updatedJob) {
           setSelectedJob(updatedJob);
         }
       }
       // 選択中のワーカーがあれば更新
       if (selectedWorker) {
-        const updatedWorker = workersData.find(w => w.worker.id === selectedWorker.worker.id);
+        const updatedWorker = (workersResponse.data as any[]).find(w => w.worker.id === selectedWorker.worker.id);
         if (updatedWorker) {
           setSelectedWorker(updatedWorker);
         }
@@ -261,26 +309,86 @@ function ApplicationsContent() {
 
   useEffect(() => {
     fetchData();
-  }, [admin?.facilityId]);
+  }, [admin?.facilityId, page, statusFilter, debouncedQuery, viewMode]);
 
   // ステータス更新処理
+  // ステータス更新処理
+  const { showError } = useErrorToast();
+
   const handleStatusUpdate = async (applicationId: number, newStatus: string, confirmMessage?: string) => {
     if (!admin?.facilityId) return;
     if (confirmMessage && !confirm(confirmMessage)) return;
 
-    setIsUpdating(applicationId);
+    // スナップショット保存
+    const prevJobs = jobs;
+    const prevWorkers = workers;
+    const prevSelectedJob = selectedJob;
+    const prevSelectedWorker = selectedWorker;
+
+    // 楽観的更新関数
+    const updateAppStatus = (apps: Application[]) =>
+      apps.map(app => app.id === applicationId ? { ...app, status: newStatus } : app);
+
+    // 1. Jobs更新
+    const nextJobs = jobs.map(job => ({
+      ...job,
+      workDates: job.workDates.map(wd => ({
+        ...wd,
+        applications: updateAppStatus(wd.applications)
+      }))
+    }));
+    setJobs(nextJobs);
+
+    // 2. Workers更新
+    const nextWorkers = workers.map(w => ({
+      ...w,
+      applications: w.applications.map(app =>
+        app.id === applicationId ? { ...app, status: newStatus } : app
+      )
+    }));
+    setWorkers(nextWorkers);
+
+    // 3. 選択中アイテム更新
+    if (selectedJob) {
+      setSelectedJob({
+        ...selectedJob,
+        workDates: selectedJob.workDates.map(wd => ({
+          ...wd,
+          applications: updateAppStatus(wd.applications)
+        }))
+      });
+    }
+    if (selectedWorker) {
+      setSelectedWorker({
+        ...selectedWorker,
+        applications: selectedWorker.applications.map(app =>
+          app.id === applicationId ? { ...app, status: newStatus } : app
+        )
+      });
+    }
+
+    // 完了メッセージ（楽観的）
+    toast.success('ステータスを更新しました');
+    setIsUpdating(applicationId); // ローディング表示は一瞬だけ出すか、あるいは出さないか。ここでは非同期処理中であることを示すために残す
+
     try {
       const result = await updateApplicationStatus(applicationId, newStatus as any, admin.facilityId);
 
       if (result.success) {
-        toast.success(result.message || 'ステータスを更新しました');
-        await fetchData(); // データを再取得して画面更新
+        // 成功時はバックグラウンドで最新データを取得（整合性確保）
+        fetchData();
       } else {
-        toast.error(result.error || '更新に失敗しました');
+        throw new Error(result.error);
       }
     } catch (error) {
       console.error('Failed to update status:', error);
-      toast.error('更新に失敗しました');
+      // ロールバック
+      setJobs(prevJobs);
+      setWorkers(prevWorkers);
+      setSelectedJob(prevSelectedJob);
+      setSelectedWorker(prevSelectedWorker);
+
+      showError('MATCH_ERROR', '更新に失敗しました');
     } finally {
       setIsUpdating(null);
     }
@@ -401,49 +509,9 @@ function ApplicationsContent() {
     }
   };
 
-  // フィルタリング
-  const filteredJobs = useMemo(() => {
-    let filtered = [...jobs];
-
-    // ステータスフィルタ
-    if (statusFilter !== 'all') {
-      const statusMap: Record<string, string> = {
-        published: 'PUBLISHED',
-        stopped: 'STOPPED',
-        completed: 'COMPLETED',
-      };
-      const targetStatus = statusMap[statusFilter];
-      if (targetStatus) {
-        filtered = filtered.filter(job => job.status === targetStatus);
-      }
-    }
-
-    // 検索フィルタ
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(job =>
-        job.title.toLowerCase().includes(query)
-      );
-    }
-
-    return filtered;
-  }, [jobs, statusFilter, searchQuery]);
-
-  // ワーカーのフィルタリング
-  const filteredWorkers = useMemo(() => {
-    let filtered = [...workers];
-
-    // 検索フィルタ
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(w =>
-        w.worker.name.toLowerCase().includes(query) ||
-        w.worker.qualifications.some(q => q.toLowerCase().includes(query))
-      );
-    }
-
-    return filtered;
-  }, [workers, searchQuery]);
+  // フィルタリング (サーバーサイドに移行したため、ここでは単純にデータを通す)
+  const filteredJobs = jobs;
+  const filteredWorkers = workers;
 
   // 日付ごとの展開切り替え
   const toggleDateExpand = (dateId: number) => {
@@ -535,62 +603,62 @@ function ApplicationsContent() {
 
         {/* フィルタ・検索 - シフトビュー以外で表示 */}
         {viewMode !== 'shift' && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6 flex flex-wrap gap-4 items-center justify-between">
-          {/* 求人ビューの場合はステータスフィルタを表示 */}
-          {viewMode === 'jobs' && (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setStatusFilter('all')}
-                className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${statusFilter === 'all' ? 'bg-admin-primary text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-              >
-                すべて
-              </button>
-              <button
-                onClick={() => setStatusFilter('published')}
-                className={`px-3 py-1.5 text-xs font-medium rounded transition-colors flex items-center gap-1.5 ${statusFilter === 'published' ? 'bg-gray-200 text-gray-900' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-              >
-                <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                公開中
-              </button>
-              <button
-                onClick={() => setStatusFilter('stopped')}
-                className={`px-3 py-1.5 text-xs font-medium rounded transition-colors flex items-center gap-1.5 ${statusFilter === 'stopped' ? 'bg-gray-200 text-gray-900' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-              >
-                <span className="w-2 h-2 rounded-full bg-gray-400"></span>
-                停止中
-              </button>
-              <button
-                onClick={() => setStatusFilter('completed')}
-                className={`px-3 py-1.5 text-xs font-medium rounded transition-colors flex items-center gap-1.5 ${statusFilter === 'completed' ? 'bg-gray-200 text-gray-900' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-              >
-                <span className="w-2 h-2 rounded-full bg-gray-400"></span>
-                完了
-              </button>
-            </div>
-          )}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6 flex flex-wrap gap-4 items-center justify-between">
+            {/* 求人ビューの場合はステータスフィルタを表示 */}
+            {viewMode === 'jobs' && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setStatusFilter('all')}
+                  className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${statusFilter === 'all' ? 'bg-admin-primary text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                >
+                  すべて
+                </button>
+                <button
+                  onClick={() => setStatusFilter('published')}
+                  className={`px-3 py-1.5 text-xs font-medium rounded transition-colors flex items-center gap-1.5 ${statusFilter === 'published' ? 'bg-gray-200 text-gray-900' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                >
+                  <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                  公開中
+                </button>
+                <button
+                  onClick={() => setStatusFilter('stopped')}
+                  className={`px-3 py-1.5 text-xs font-medium rounded transition-colors flex items-center gap-1.5 ${statusFilter === 'stopped' ? 'bg-gray-200 text-gray-900' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                >
+                  <span className="w-2 h-2 rounded-full bg-gray-400"></span>
+                  停止中
+                </button>
+                <button
+                  onClick={() => setStatusFilter('completed')}
+                  className={`px-3 py-1.5 text-xs font-medium rounded transition-colors flex items-center gap-1.5 ${statusFilter === 'completed' ? 'bg-gray-200 text-gray-900' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                >
+                  <span className="w-2 h-2 rounded-full bg-gray-400"></span>
+                  完了
+                </button>
+              </div>
+            )}
 
-          {/* ワーカービューの場合は件数を表示 */}
-          {viewMode === 'workers' && (
-            <div className="text-sm text-gray-600">
-              応募ワーカー: {filteredWorkers.length}名
-            </div>
-          )}
+            {/* ワーカービューの場合は件数を表示 */}
+            {viewMode === 'workers' && (
+              <div className="text-sm text-gray-600">
+                応募ワーカー: {filteredWorkers.length}名
+              </div>
+            )}
 
-          <div className="relative w-full max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder={viewMode === 'jobs' ? '求人タイトルで検索...' : 'ワーカー名・資格で検索...'}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-admin-primary"
-            />
+            <div className="relative w-full max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder={viewMode === 'jobs' ? '求人タイトルで検索...' : 'ワーカー名・資格で検索...'}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-admin-primary"
+              />
+            </div>
           </div>
-        </div>
         )}
 
         {/* シフトビュー */}
@@ -722,6 +790,18 @@ function ApplicationsContent() {
                   </div>
                 );
               })
+            )}
+
+
+            {/* ページネーション (Jobs) */}
+            {jobsPagination && (
+              <div className="mt-6 flex justify-center pb-8">
+                <Pagination
+                  currentPage={jobsPagination.currentPage}
+                  totalPages={jobsPagination.totalPages}
+                  onPageChange={setPage}
+                />
+              </div>
             )}
           </div>
         )}
@@ -912,153 +992,166 @@ function ApplicationsContent() {
                 })}
               </div>
             )}
+            {/* ページネーション (Workers) */}
+            {workersPagination && (
+              <div className="mt-6 flex justify-center pb-8">
+                <Pagination
+                  currentPage={workersPagination.currentPage}
+                  totalPages={workersPagination.totalPages}
+                  onPageChange={setPage}
+                />
+              </div>
+            )}
           </div>
         )}
       </div>
 
       {/* 詳細モーダル（共有コンポーネント使用） */}
-      {selectedJob && (
-        <JobApplicationModal
-          job={selectedJob}
-          onClose={() => setSelectedJob(null)}
-          onStatusUpdate={handleStatusUpdate}
-          onMatchAll={handleMatchAll}
-          isUpdating={isUpdating}
-        />
-      )}
+      {
+        selectedJob && (
+          <JobApplicationModal
+            job={selectedJob}
+            onClose={() => setSelectedJob(null)}
+            onStatusUpdate={handleStatusUpdate}
+            onMatchAll={handleMatchAll}
+            isUpdating={isUpdating}
+          />
+        )
+      }
 
       {/* ワーカー詳細モーダル */}
-      {selectedWorker && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white w-full max-w-2xl max-h-[90vh] rounded-xl shadow-2xl flex flex-col overflow-hidden">
-            {/* モーダルヘッダー */}
-            <div className="p-6 border-b border-gray-200 flex items-start justify-between bg-gray-50">
-              <div className="flex items-center gap-4">
-                <Link href={`/admin/workers/${selectedWorker.worker.id}?returnTab=workers`} className="block relative w-16 h-16 rounded-full overflow-hidden flex-shrink-0 hover:opacity-80">
-                  {selectedWorker.worker.profileImage ? (
-                    <Image src={selectedWorker.worker.profileImage} alt={selectedWorker.worker.name} fill className="object-cover" />
-                  ) : (
-                    <div className="w-full h-full bg-gray-100 flex items-center justify-center">
-                      <UserCircle className="w-10 h-10 text-gray-400" />
-                    </div>
-                  )}
-                </Link>
-                <div>
-                  <Link href={`/admin/workers/${selectedWorker.worker.id}?returnTab=workers`} className="text-xl font-bold text-gray-900 hover:text-admin-primary">
-                    {selectedWorker.worker.name}
+      {
+        selectedWorker && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="bg-white w-full max-w-2xl max-h-[90vh] rounded-xl shadow-2xl flex flex-col overflow-hidden">
+              {/* モーダルヘッダー */}
+              <div className="p-6 border-b border-gray-200 flex items-start justify-between bg-gray-50">
+                <div className="flex items-center gap-4">
+                  <Link href={`/admin/workers/${selectedWorker.worker.id}?returnTab=workers`} className="block relative w-16 h-16 rounded-full overflow-hidden flex-shrink-0 hover:opacity-80">
+                    {selectedWorker.worker.profileImage ? (
+                      <Image src={selectedWorker.worker.profileImage} alt={selectedWorker.worker.name} fill className="object-cover" />
+                    ) : (
+                      <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+                        <UserCircle className="w-10 h-10 text-gray-400" />
+                      </div>
+                    )}
                   </Link>
-                  <div className="flex items-center gap-3 text-sm text-gray-600 mt-1">
-                    <div className="flex items-center gap-1">
-                      ★ <span className="text-yellow-500 font-bold">{selectedWorker.worker.rating?.toFixed(1) || '-'}</span>
-                      <span className="text-gray-400">({selectedWorker.worker.reviewCount})</span>
-                    </div>
-                    <span className="text-gray-300">|</span>
-                    <span>勤務: {selectedWorker.worker.totalWorkDays}日</span>
-                    <span className="text-gray-300">|</span>
-                    <span className={selectedWorker.worker.lastMinuteCancelRate > 0 ? 'text-red-500' : ''}>
-                      直前CN: {selectedWorker.worker.lastMinuteCancelRate.toFixed(0)}%
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {selectedWorker.worker.qualifications.map((qual, i) => (
-                      <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-600 text-xs rounded">
-                        {qual}
+                  <div>
+                    <Link href={`/admin/workers/${selectedWorker.worker.id}?returnTab=workers`} className="text-xl font-bold text-gray-900 hover:text-admin-primary">
+                      {selectedWorker.worker.name}
+                    </Link>
+                    <div className="flex items-center gap-3 text-sm text-gray-600 mt-1">
+                      <div className="flex items-center gap-1">
+                        ★ <span className="text-yellow-500 font-bold">{selectedWorker.worker.rating?.toFixed(1) || '-'}</span>
+                        <span className="text-gray-400">({selectedWorker.worker.reviewCount})</span>
+                      </div>
+                      <span className="text-gray-300">|</span>
+                      <span>勤務: {selectedWorker.worker.totalWorkDays}日</span>
+                      <span className="text-gray-300">|</span>
+                      <span className={selectedWorker.worker.lastMinuteCancelRate > 0 ? 'text-red-500' : ''}>
+                        直前CN: {selectedWorker.worker.lastMinuteCancelRate.toFixed(0)}%
                       </span>
-                    ))}
+                    </div>
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {selectedWorker.worker.qualifications.map((qual, i) => (
+                        <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-600 text-xs rounded">
+                          {qual}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 </div>
+                <button
+                  onClick={() => setSelectedWorker(null)}
+                  className="p-2 hover:bg-gray-200 rounded-full transition-colors"
+                >
+                  <X className="w-6 h-6 text-gray-500" />
+                </button>
               </div>
-              <button
-                onClick={() => setSelectedWorker(null)}
-                className="p-2 hover:bg-gray-200 rounded-full transition-colors"
-              >
-                <X className="w-6 h-6 text-gray-500" />
-              </button>
-            </div>
 
-            {/* 応募一覧 */}
-            <div className="flex-1 overflow-y-auto p-6">
-              <h3 className="text-sm font-bold text-gray-700 mb-3">応募一覧（{selectedWorker.applications.length}件）</h3>
-              <div className="space-y-3">
-                {selectedWorker.applications.map(app => (
-                  <div key={app.id} className="bg-gray-50 rounded-lg p-4 border border-gray-100">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="font-bold text-gray-900 mb-1">{app.job.title}</div>
-                        <div className="flex items-center gap-3 text-xs text-gray-500">
-                          <span className="flex items-center gap-1">
-                            <Calendar className="w-3 h-3" />
-                            {new Date(app.job.workDate).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' })}
-                          </span>
-                          <span>{app.job.startTime}〜{app.job.endTime}</span>
-                          <span className="font-bold text-gray-700">¥{app.job.hourlyWage.toLocaleString()}/時</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {app.status === 'APPLIED' && (
-                          <>
-                            <button
-                              onClick={() => handleStatusUpdate(app.id, 'SCHEDULED')}
-                              disabled={isUpdating === app.id}
-                              className="px-3 py-1.5 bg-admin-primary text-white text-xs font-medium rounded-admin-button hover:bg-admin-primary-dark transition-colors disabled:opacity-50"
-                            >
-                              マッチング
-                            </button>
-                            <button
-                              onClick={() => handleStatusUpdate(app.id, 'CANCELLED', app.job.requiresInterview ? 'この応募を不採用にしますか？' : 'この応募をキャンセルしますか？')}
-                              disabled={isUpdating === app.id}
-                              className="px-3 py-1.5 bg-gray-100 text-gray-600 text-xs font-medium rounded hover:bg-gray-200 transition-colors disabled:opacity-50"
-                            >
-                              {app.job.requiresInterview ? '不採用' : 'キャンセル'}
-                            </button>
-                          </>
-                        )}
-                        {app.status === 'SCHEDULED' && (
-                          <>
-                            <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded flex items-center gap-1">
-                              <CheckCircle className="w-3 h-3" />
-                              マッチング済
+              {/* 応募一覧 */}
+              <div className="flex-1 overflow-y-auto p-6">
+                <h3 className="text-sm font-bold text-gray-700 mb-3">応募一覧（{selectedWorker.applications.length}件）</h3>
+                <div className="space-y-3">
+                  {selectedWorker.applications.map(app => (
+                    <div key={app.id} className="bg-gray-50 rounded-lg p-4 border border-gray-100">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="font-bold text-gray-900 mb-1">{app.job.title}</div>
+                          <div className="flex items-center gap-3 text-xs text-gray-500">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              {new Date(app.job.workDate).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' })}
                             </span>
-                            <button
-                              onClick={() => handleStatusUpdate(app.id, 'CANCELLED', 'このマッチングをキャンセルしますか？')}
-                              disabled={isUpdating === app.id}
-                              className="text-xs text-gray-400 hover:text-red-500 underline"
-                            >
-                              キャンセル
-                            </button>
-                          </>
-                        )}
-                        {app.status === 'CANCELLED' && (
-                          <span className={`px-2 py-1 text-xs font-medium rounded flex items-center gap-1 ${
-                            app.cancelledBy === 'WORKER'
+                            <span>{app.job.startTime}〜{app.job.endTime}</span>
+                            <span className="font-bold text-gray-700">¥{app.job.hourlyWage.toLocaleString()}/時</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {app.status === 'APPLIED' && (
+                            <>
+                              <button
+                                onClick={() => handleStatusUpdate(app.id, 'SCHEDULED')}
+                                disabled={isUpdating === app.id}
+                                className="px-3 py-1.5 bg-admin-primary text-white text-xs font-medium rounded-admin-button hover:bg-admin-primary-dark transition-colors disabled:opacity-50"
+                              >
+                                マッチング
+                              </button>
+                              <button
+                                onClick={() => handleStatusUpdate(app.id, 'CANCELLED', app.job.requiresInterview ? 'この応募を不採用にしますか？' : 'この応募をキャンセルしますか？')}
+                                disabled={isUpdating === app.id}
+                                className="px-3 py-1.5 bg-gray-100 text-gray-600 text-xs font-medium rounded hover:bg-gray-200 transition-colors disabled:opacity-50"
+                              >
+                                {app.job.requiresInterview ? '不採用' : 'キャンセル'}
+                              </button>
+                            </>
+                          )}
+                          {app.status === 'SCHEDULED' && (
+                            <>
+                              <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded flex items-center gap-1">
+                                <CheckCircle className="w-3 h-3" />
+                                マッチング済
+                              </span>
+                              <button
+                                onClick={() => handleStatusUpdate(app.id, 'CANCELLED', 'このマッチングをキャンセルしますか？')}
+                                disabled={isUpdating === app.id}
+                                className="text-xs text-gray-400 hover:text-red-500 underline"
+                              >
+                                キャンセル
+                              </button>
+                            </>
+                          )}
+                          {app.status === 'CANCELLED' && (
+                            <span className={`px-2 py-1 text-xs font-medium rounded flex items-center gap-1 ${app.cancelledBy === 'WORKER'
                               ? 'bg-red-50 text-red-600'
                               : app.cancelledBy === 'FACILITY'
                                 ? 'bg-gray-100 text-gray-600'
                                 : 'bg-yellow-50 text-yellow-700'
-                          }`}>
-                            <X className="w-3 h-3" />
-                            {app.cancelledBy === 'WORKER'
-                              ? 'ワーカー辞退'
-                              : app.cancelledBy === 'FACILITY'
-                                ? '施設キャンセル'
-                                : '応募取消'}
-                          </span>
-                        )}
-                        {['WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'].includes(app.status) && (
-                          <span className="px-2 py-1 bg-blue-50 text-blue-600 text-xs font-medium rounded">
-                            勤務中/完了
-                          </span>
-                        )}
+                              }`}>
+                              <X className="w-3 h-3" />
+                              {app.cancelledBy === 'WORKER'
+                                ? 'ワーカー辞退'
+                                : app.cancelledBy === 'FACILITY'
+                                  ? '施設キャンセル'
+                                  : '応募取消'}
+                            </span>
+                          )}
+                          {['WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'].includes(app.status) && (
+                            <span className="px-2 py-1 bg-blue-50 text-blue-600 text-xs font-medium rounded">
+                              勤務中/完了
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 }
 

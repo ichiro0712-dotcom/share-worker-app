@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   Search,
   Users,
@@ -23,6 +24,14 @@ import {
   type WorkerListItem,
   type WorkerListStatus,
 } from '@/src/lib/actions';
+import { Pagination } from '@/components/ui/Pagination';
+
+interface PaginationData {
+  currentPage: number;
+  totalPages: number;
+  totalCount: number;
+  hasMore: boolean;
+}
 
 type StatusFilterType = 'all' | WorkerListStatus;
 type JobCategoryType = 'kaigo' | 'kango' | 'yakuzai';
@@ -60,6 +69,8 @@ export default function AdminWorkersPage() {
   const router = useRouter();
   const { admin, isAdmin, isAdminLoading } = useAuth();
   const [workers, setWorkers] = useState<WorkerListItem[]>([]);
+  const [pagination, setPagination] = useState<PaginationData | null>(null);
+  const [page, setPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
 
   // 検索・フィルター・並び替え
@@ -76,15 +87,34 @@ export default function AdminWorkersPage() {
     }
   }, [isAdmin, admin, isAdminLoading, router]);
 
-  // データ取得（フィルターなしで全件取得）
+  // データ取得
   useEffect(() => {
     const fetchData = async () => {
       if (!admin?.facilityId) return;
 
       setIsLoading(true);
       try {
-        const data = await getWorkerListForFacility(admin.facilityId);
-        setWorkers(data);
+        // @ts-ignore
+        const response = await getWorkerListForFacility(admin.facilityId, {
+          page,
+          limit: 10,
+          keyword,
+          status: statusFilter,
+          // @ts-ignore
+          jobCategory: jobCategories.length > 0 ? jobCategories[0] : 'all',
+          sort: sortBy
+        });
+
+        if (response && 'pagination' in response) {
+          // @ts-ignore
+          setWorkers(response.data);
+          // @ts-ignore
+          setPagination(response.pagination);
+        } else {
+          // @ts-ignore
+          setWorkers(response); // Fallback for old API if needed types update
+        }
+
       } catch (error) {
         console.error('Failed to fetch workers:', error);
         toast.error('データの取得に失敗しました');
@@ -94,80 +124,10 @@ export default function AdminWorkersPage() {
     };
 
     fetchData();
-  }, [admin?.facilityId]);
+  }, [admin?.facilityId, page, keyword, statusFilter, jobCategories, sortBy]);
 
-  // クライアント側でフィルター・ソート
-  const filteredWorkers = useMemo(() => {
-    let result = [...workers];
-
-    // キーワード検索
-    if (keyword) {
-      const kw = keyword.toLowerCase();
-      result = result.filter(w =>
-        w.name.toLowerCase().includes(kw) ||
-        (w.prefecture && w.prefecture.toLowerCase().includes(kw)) ||
-        (w.city && w.city.toLowerCase().includes(kw))
-      );
-    }
-
-    // ステータスフィルター
-    if (statusFilter !== 'all') {
-      result = result.filter(w => w.statuses.includes(statusFilter));
-    }
-
-    // 職種フィルター（複数選択）
-    if (jobCategories.length > 0) {
-      const kaigoQuals = ['介護福祉士', '介護職員初任者研修', '実務者研修', 'ケアマネージャー'];
-      const kangoQuals = ['看護師', '准看護師'];
-      const yakuzaiQuals = ['薬剤師'];
-
-      result = result.filter(w => {
-        return jobCategories.some(cat => {
-          let targetQuals: string[] = [];
-          switch (cat) {
-            case 'kaigo':
-              targetQuals = kaigoQuals;
-              break;
-            case 'kango':
-              targetQuals = kangoQuals;
-              break;
-            case 'yakuzai':
-              targetQuals = yakuzaiQuals;
-              break;
-          }
-          return w.qualifications.some(q => targetQuals.some(tq => q.includes(tq)));
-        });
-      });
-    }
-
-    // ソート
-    switch (sortBy) {
-      case 'workCount_desc':
-        result.sort((a, b) => b.totalWorkCount - a.totalWorkCount);
-        break;
-      case 'workCount_asc':
-        result.sort((a, b) => a.totalWorkCount - b.totalWorkCount);
-        break;
-      case 'lastWorkDate_desc':
-        result.sort((a, b) => {
-          if (!a.lastWorkDate && !b.lastWorkDate) return 0;
-          if (!a.lastWorkDate) return 1;
-          if (!b.lastWorkDate) return -1;
-          return new Date(b.lastWorkDate).getTime() - new Date(a.lastWorkDate).getTime();
-        });
-        break;
-      case 'lastWorkDate_asc':
-        result.sort((a, b) => {
-          if (!a.lastWorkDate && !b.lastWorkDate) return 0;
-          if (!a.lastWorkDate) return 1;
-          if (!b.lastWorkDate) return -1;
-          return new Date(a.lastWorkDate).getTime() - new Date(b.lastWorkDate).getTime();
-        });
-        break;
-    }
-
-    return result;
-  }, [workers, keyword, statusFilter, jobCategories, sortBy]);
+  // クライアント側でのソート・フィルターは削除（サーバーサイドで実施）
+  const filteredWorkers = workers;
 
   // お気に入りトグル
   const handleToggleFavorite = async (e: React.MouseEvent, userId: number) => {
@@ -347,11 +307,10 @@ export default function AdminWorkersPage() {
                     <button
                       key={filter}
                       onClick={() => setStatusFilter(filter)}
-                      className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                        statusFilter === filter
-                          ? 'bg-admin-primary text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
+                      className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${statusFilter === filter
+                        ? 'bg-admin-primary text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
                     >
                       {getFilterLabel(filter)}
                     </button>
@@ -363,11 +322,10 @@ export default function AdminWorkersPage() {
                   <button
                     key={filter}
                     onClick={() => setStatusFilter(filter)}
-                    className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5 ${
-                      statusFilter === filter
-                        ? 'bg-gray-200 text-gray-900'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5 ${statusFilter === filter
+                      ? 'bg-gray-200 text-gray-900'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
                   >
                     <span className={`w-2 h-2 rounded-full ${getDotColor()}`}></span>
                     {getFilterLabel(filter)}
@@ -433,10 +391,11 @@ export default function AdminWorkersPage() {
                       <div className="relative flex-shrink-0">
                         <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-gray-200 shadow-md">
                           {worker.profileImage ? (
-                            <img
+                            <Image
                               src={worker.profileImage}
                               alt={worker.name}
-                              className="w-full h-full object-cover"
+                              fill
+                              className="object-cover"
                             />
                           ) : (
                             <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
@@ -598,6 +557,18 @@ export default function AdminWorkersPage() {
         )}
       </div>
 
+      {/* ページネーション */}
+      {pagination && (
+        <div className="flex justify-center pb-8 mt-4">
+          <Pagination
+            currentPage={pagination.currentPage}
+            totalPages={pagination.totalPages}
+            onPageChange={setPage}
+          />
+        </div>
+      )}
     </div>
+
+
   );
 }

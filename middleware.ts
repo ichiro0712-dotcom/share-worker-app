@@ -22,6 +22,7 @@ const ignoredPaths = [
   '/favicon.ico',
   '/api/auth',
   '/api/debug', // デバッグ用API
+  '/api/error-messages', // エラーメッセージ設定（認証不要）
 ];
 
 export async function middleware(request: NextRequest) {
