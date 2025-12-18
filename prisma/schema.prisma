@@ -65,6 +65,7 @@ model User {
   reviews                Review[]
   pushSubscriptions      PushSubscription[]
   nearbyNotificationLogs NearbyNotificationLog[]
+  attendances            Attendance[]
 
   is_suspended           Boolean        @default(false) @map("is_suspended")
   suspended_at           DateTime?      @map("suspended_at")
@@ -168,6 +169,7 @@ model Facility {
   receivedMessages Message[]        @relation("FacilityReceivedMessages")
   reviewTemplates  ReviewTemplate[]
   reviews          Review[]
+  attendances      Attendance[]
   /// 退会日時（nullなら退会していない）
   deleted_at       DateTime?        @map("deleted_at")
   /// 退会理由
@@ -272,6 +274,7 @@ model Job {
   messages                Message[]
   reviews                 Review[]
   systemNotifications     SystemNotification[]
+  attendances             Attendance[]
 
   // パフォーマンス最適化用インデックス
   @@index([status, facility_id])
@@ -321,6 +324,7 @@ model Application {
   reviews                Review[]
   laborDocument          LaborDocument?
   systemNotifications    SystemNotification[]
+  attendances            Attendance[]
 
   @@unique([work_date_id, user_id])
   // パフォーマンス最適化用インデックス
@@ -886,6 +890,38 @@ model NearbyNotificationLog {
 
   @@index([user_id, notification_key, sent_at])
   @@map("nearby_notification_logs")
+}
+
+/// 出退勤記録
+model Attendance {
+  id              Int       @id @default(autoincrement())
+  user_id         Int       @map("user_id")
+  facility_id     Int       @map("facility_id")
+  application_id  Int?      @map("application_id")
+  job_id          Int?      @map("job_id")
+
+  check_in_time   DateTime  @map("check_in_time")
+  check_out_time  DateTime? @map("check_out_time")
+
+  check_in_lat    Float?    @map("check_in_lat")
+  check_in_lng    Float?    @map("check_in_lng")
+  check_out_lat   Float?    @map("check_out_lat")
+  check_out_lng   Float?    @map("check_out_lng")
+
+  status          String    @default("CHECKED_IN") // "CHECKED_IN" | "CHECKED_OUT"
+
+  created_at      DateTime  @default(now()) @map("created_at")
+  updated_at      DateTime  @updatedAt @map("updated_at")
+
+  user            User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  facility        Facility    @relation(fields: [facility_id], references: [id], onDelete: Cascade)
+  application     Application? @relation(fields: [application_id], references: [id], onDelete: SetNull)
+  job             Job?        @relation(fields: [job_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id, created_at])
+  @@index([facility_id, created_at])
+  @@index([application_id])
+  @@map("attendances")
 }
 
 model ErrorMessageSetting {

@@ -15,6 +15,7 @@ import {
   VolumeX,
   MessageCircle,
   Shield,
+  QrCode,
 } from 'lucide-react';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { useAuth } from '@/contexts/AuthContext';
@@ -53,6 +54,11 @@ export default function MyPage() {
       icon: <Calendar className="w-5 h-5" />,
       label: '仕事管理',
       href: '/my-jobs',
+    },
+    {
+      icon: <QrCode className="w-5 h-5" />,
+      label: '出退勤記録',
+      href: '/attendance',
     },
     {
       icon: <MessageSquare className="w-5 h-5" />,

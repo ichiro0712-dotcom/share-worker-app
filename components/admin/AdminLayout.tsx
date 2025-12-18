@@ -27,6 +27,7 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  QrCode,
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -209,6 +210,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       icon: <Star className="w-5 h-5" />,
       href: '/admin/reviews',
       active: pathname === '/admin/reviews',
+    },
+    {
+      title: '出退勤QRコード',
+      icon: <QrCode className="w-5 h-5" />,
+      href: '/admin/attendance',
+      active: pathname === '/admin/attendance',
     },
     {
       title: 'ご利用ガイド・FAQ',
