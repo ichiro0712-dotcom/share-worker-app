@@ -1,7 +1,8 @@
 import { getLegalDocument } from '@/src/lib/content-actions';
 import LegalDocumentClient from '@/components/legal/LegalDocumentClient';
 
-export const dynamic = 'force-dynamic';
+// プライバシーポリシーは頻繁に変わらないので1時間キャッシュ
+export const revalidate = 3600;
 
 // デフォルトコンテンツ（DBにデータがない場合に表示）
 const defaultPrivacyContent = `

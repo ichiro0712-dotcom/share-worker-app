@@ -3,8 +3,8 @@ import { getJobsListWithPagination } from '@/src/lib/actions';
 import { JobListClient } from '@/components/job/JobListClient';
 import { generateDates } from '@/utils/date';
 
-// キャッシュを無効化して常に最新のデータを取得
-export const dynamic = 'force-dynamic';
+// 求人一覧は60秒キャッシュ（ISR）- パフォーマンス向上のため
+export const revalidate = 60;
 
 interface PageProps {
   searchParams: Promise<{
