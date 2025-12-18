@@ -928,13 +928,13 @@ export async function applyForJob(jobId: string, workDateId?: number) {
 
     console.log('[applyForJob] Application created successfully:', application.id);
 
-    // 施設への通知を送信
-    await sendApplicationNotification(
+    // 施設への通知を送信（バックグラウンドで実行、awaitしない）
+    sendApplicationNotification(
       job.facility_id,
       user.name,
       job.title,
       application.id
-    );
+    ).catch(err => console.error('[applyForJob] Background notification error:', err));
 
     // 即時マッチングの場合、初回メッセージを送信（その施設への初めてのマッチングのみ）
     if (isImmediateMatch && job.facility.initial_message) {
@@ -1009,8 +1009,8 @@ ${laborDocumentUrl}
       ? 'マッチングが成立しました！勤務日をお待ちください。'
       : '応募が完了しました。施設からの連絡をお待ちください。';
 
-    // キャッシュを無効化して求人一覧・詳細ページを更新
-    revalidatePath('/');
+    // キャッシュを無効化（最小限のパスのみ）
+    // 求人詳細ページは募集人数表示更新のため必要
     revalidatePath(`/jobs/${jobIdNum}`);
     revalidatePath('/my-jobs');
 
