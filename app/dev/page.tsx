@@ -5,7 +5,7 @@ import QRCode from 'qrcode';
 
 export default function DevQRPage() {
     const [qrDataUrl, setQrDataUrl] = useState<string>('');
-    const [localIP, setLocalIP] = useState<string>('192.168.11.7');
+    const [localIP, setLocalIP] = useState<string>('10.118.154.240');
     const [port] = useState('3000');
     const [copied, setCopied] = useState(false);
 

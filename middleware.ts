@@ -23,6 +23,14 @@ const ignoredPaths = [
   '/api/auth',
   '/api/debug', // デバッグ用API
   '/api/error-messages', // エラーメッセージ設定（認証不要）
+  '/rogo', // ロゴ画像
+  '/images', // 画像ファイル
+  '/icons', // アイコン
+  '/fonts', // フォント
+  '/uploads', // アップロードファイル
+  '/sw.js', // Service Worker
+  '/workbox', // Workbox
+  '/manifest.json', // PWA manifest
 ];
 
 export async function middleware(request: NextRequest) {

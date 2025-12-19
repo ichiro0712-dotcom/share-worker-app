@@ -223,12 +223,18 @@ export default function WorkerRegisterPage() {
 
       toast.success('登録が完了しました');
 
-      // 自動ログイン
+      // 自動ログイン（少し待ってからログインを試行）
+      await new Promise(resolve => setTimeout(resolve, 500));
+
       const loginResult = await login(formData.email, formData.password);
+      console.log('[Registration] Auto-login result:', loginResult);
+
       if (loginResult.success) {
         router.push('/');
         router.refresh();
       } else {
+        console.error('[Registration] Auto-login failed:', loginResult.error);
+        toast.error('自動ログインに失敗しました。ログイン画面からログインしてください。');
         router.push('/login');
       }
     } catch (error) {
