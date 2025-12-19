@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import {
   getWorkerListForFacility,
   toggleWorkerFavorite,
@@ -67,6 +68,7 @@ const getExperienceColor = (field: string): string => {
 
 export default function AdminWorkersPage() {
   const router = useRouter();
+  const { showDebugError } = useDebugError();
   const { admin, isAdmin, isAdminLoading } = useAuth();
   const [workers, setWorkers] = useState<WorkerListItem[]>([]);
   const [pagination, setPagination] = useState<PaginationData | null>(null);
@@ -116,6 +118,15 @@ export default function AdminWorkersPage() {
         }
 
       } catch (error) {
+        const debugInfo = extractDebugInfo(error);
+        showDebugError({
+          type: 'fetch',
+          operation: 'ワーカー一覧取得',
+          message: debugInfo.message,
+          details: debugInfo.details,
+          stack: debugInfo.stack,
+          context: { facilityId: admin?.facilityId, page, keyword, statusFilter, jobCategories, sortBy }
+        });
         console.error('Failed to fetch workers:', error);
         toast.error('データの取得に失敗しました');
       } finally {
@@ -142,6 +153,15 @@ export default function AdminWorkersPage() {
         ));
       }
     } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'update',
+        operation: 'ワーカーお気に入りトグル',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { userId, facilityId: admin.facilityId }
+      });
       console.error('Failed to toggle favorite:', error);
       toast.error('お気に入りの更新に失敗しました');
     }
@@ -160,6 +180,15 @@ export default function AdminWorkersPage() {
         ));
       }
     } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'update',
+        operation: 'ワーカーブロックトグル',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { userId, facilityId: admin.facilityId }
+      });
       console.error('Failed to toggle block:', error);
       toast.error('ブロックの更新に失敗しました');
     }

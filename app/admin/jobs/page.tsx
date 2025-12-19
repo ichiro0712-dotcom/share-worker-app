@@ -24,6 +24,7 @@ import toast from 'react-hot-toast';
 import { Badge } from '@/components/ui/badge';
 import { Tag } from '@/components/ui/tag';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 type JobStatus = 'all' | 'recruiting' | 'paused' | 'working' | 'review' | 'completed' | 'failed';
 
@@ -92,6 +93,7 @@ interface TemplateData {
 
 export default function AdminJobsList() {
   const router = useRouter();
+  const { showDebugError } = useDebugError();
   const { admin, isAdmin, isAdminLoading } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [jobs, setJobs] = useState<JobData[]>([]);
@@ -138,6 +140,15 @@ export default function AdminJobsList() {
           setFacilityName(facilityData.facilityName);
         }
       } catch (error) {
+        const debugInfo = extractDebugInfo(error);
+        showDebugError({
+          type: 'fetch',
+          operation: '求人・テンプレート・施設情報一括取得',
+          message: debugInfo.message,
+          details: debugInfo.details,
+          stack: debugInfo.stack,
+          context: { facilityId: admin?.facilityId }
+        });
         console.error('Failed to fetch jobs:', error);
       } finally {
         setIsLoading(false);
@@ -315,6 +326,15 @@ export default function AdminJobsList() {
             toast.error(result.message);
           }
         } catch (error) {
+          const debugInfo = extractDebugInfo(error);
+          showDebugError({
+            type: 'delete',
+            operation: '求人一括削除',
+            message: debugInfo.message,
+            details: debugInfo.details,
+            stack: debugInfo.stack,
+            context: { jobIds: selectedJobIds, facilityId: admin?.facilityId }
+          });
           toast.error('削除に失敗しました');
         } finally {
           setIsDeleting(false);
@@ -324,8 +344,8 @@ export default function AdminJobsList() {
         if (!admin?.facilityId) return;
 
         setIsDeleting(true);
+        const newStatus = bulkActionConfirm === 'publish' ? 'PUBLISHED' : 'STOPPED';
         try {
-          const newStatus = bulkActionConfirm === 'publish' ? 'PUBLISHED' : 'STOPPED';
           const result = await updateJobsStatus(selectedJobIds, admin.facilityId, newStatus);
           if (result.success) {
             toast.success(result.message);
@@ -339,6 +359,15 @@ export default function AdminJobsList() {
             toast.error(result.message);
           }
         } catch (error) {
+          const debugInfo = extractDebugInfo(error);
+          showDebugError({
+            type: 'update',
+            operation: '求人ステータス一括更新',
+            message: debugInfo.message,
+            details: debugInfo.details,
+            stack: debugInfo.stack,
+            context: { jobIds: selectedJobIds, facilityId: admin?.facilityId, targetStatus: newStatus }
+          });
           toast.error('ステータス更新に失敗しました');
         } finally {
           setIsDeleting(false);

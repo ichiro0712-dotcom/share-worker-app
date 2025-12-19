@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ChevronLeft, Star } from 'lucide-react';
 import { submitReview } from '@/src/lib/actions';
 import toast from 'react-hot-toast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 interface ApplicationData {
   applicationId: number;
@@ -24,6 +25,7 @@ interface ReviewFormClientProps {
 
 export default function ReviewFormClient({ applicationData }: ReviewFormClientProps) {
   const router = useRouter();
+  const { showDebugError } = useDebugError();
   const [rating, setRating] = useState(0);
   const [hoveredRating, setHoveredRating] = useState(0);
   const [formData, setFormData] = useState({
@@ -65,9 +67,24 @@ export default function ReviewFormClient({ applicationData }: ReviewFormClientPr
         router.push('/mypage/reviews');
         router.refresh();
       } else {
+        showDebugError({
+          type: 'save',
+          operation: 'レビュー投稿',
+          message: result.error || 'レビューの投稿に失敗しました',
+          context: { applicationId: applicationData.applicationId, jobId: applicationData.jobId }
+        });
         toast.error(result.error || 'レビューの投稿に失敗しました');
       }
     } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'save',
+        operation: 'レビュー投稿（例外）',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { applicationId: applicationData.applicationId, jobId: applicationData.jobId }
+      });
       console.error('Failed to submit review:', error);
       toast.error('レビューの投稿に失敗しました');
     } finally {

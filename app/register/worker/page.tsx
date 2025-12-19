@@ -9,10 +9,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { compressImage, MAX_FILE_SIZE, formatFileSize } from '@/utils/fileValidation';
 import AddressSelector from '@/components/ui/AddressSelector';
 import { QUALIFICATION_GROUPS } from '@/constants/qualifications';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 export default function WorkerRegisterPage() {
   const router = useRouter();
   const { login } = useAuth();
+  const { showDebugError } = useDebugError();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     // 基本情報
@@ -238,6 +240,21 @@ export default function WorkerRegisterPage() {
         router.push('/login');
       }
     } catch (error) {
+      // デバッグ用エラー通知を表示
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'save',
+        operation: 'ワーカー新規登録',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: {
+          email: formData.email,
+          name: `${formData.lastName} ${formData.firstName}`,
+          qualificationsCount: formData.qualifications.length,
+          experienceFieldsCount: experienceFields.length,
+        }
+      });
       toast.error(error instanceof Error ? error.message : '登録中にエラーが発生しました');
     } finally {
       setIsSubmitting(false);

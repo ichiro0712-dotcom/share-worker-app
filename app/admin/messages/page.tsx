@@ -27,6 +27,7 @@ import {
   markAnnouncementAsRead,
 } from '@/src/lib/system-actions';
 import toast from 'react-hot-toast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 type FilterType = 'all' | 'unread' | 'scheduled' | 'completed' | 'office';
 
@@ -74,6 +75,7 @@ interface Announcement {
 
 export default function AdminMessagesPage() {
   const router = useRouter();
+  const { showDebugError } = useDebugError();
   const searchParams = useSearchParams();
   const initialWorkerId = searchParams.get('workerId'); // パラメータ名変更: id -> workerId
   const { admin, isAdmin, isAdminLoading } = useAuth();
@@ -139,6 +141,15 @@ export default function AdminMessagesPage() {
           setSelectedWorkerId(parseInt(initialWorkerId));
         }
       } catch (error) {
+        const debugInfo = extractDebugInfo(error);
+        showDebugError({
+          type: 'fetch',
+          operation: '会話一覧取得',
+          message: debugInfo.message,
+          details: debugInfo.details,
+          stack: debugInfo.stack,
+          context: { facilityId: admin?.facilityId }
+        });
         console.error('Failed to load conversations:', error);
         toast.error('会話一覧の読み込みに失敗しました');
       } finally {
@@ -235,6 +246,15 @@ export default function AdminMessagesPage() {
           ));
         }
       } catch (error) {
+        const debugInfo = extractDebugInfo(error);
+        showDebugError({
+          type: 'fetch',
+          operation: '詳細メッセージ取得',
+          message: debugInfo.message,
+          details: debugInfo.details,
+          stack: debugInfo.stack,
+          context: { facilityId: admin?.facilityId, selectedWorkerId }
+        });
         console.error('Failed to load messages:', error);
         toast.error('メッセージの読み込みに失敗しました');
       } finally {
@@ -287,6 +307,15 @@ export default function AdminMessagesPage() {
         });
       }
     } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'fetch',
+        operation: '過去メッセージ追加取得',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { facilityId: admin?.facilityId, selectedWorkerId, cursor }
+      });
       console.error('Failed to load more messages:', error);
       toast.error('過去メッセージの読み込みに失敗しました');
     } finally {
@@ -379,6 +408,15 @@ export default function AdminMessagesPage() {
         toast.error(result.error || 'メッセージの送信に失敗しました');
       }
     } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'save',
+        operation: 'メッセージ送信',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { facilityId: admin.facilityId, selectedWorkerId }
+      });
       console.error('Failed to send message:', error);
       toast.error('メッセージの送信に失敗しました');
     } finally {
@@ -420,6 +458,15 @@ export default function AdminMessagesPage() {
         toast.error(result.error || 'ファイルのアップロードに失敗しました');
       }
     } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'upload',
+        operation: 'メッセージ添付ファイルアップロード',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { facilityId: admin?.facilityId }
+      });
       console.error('Upload error:', error);
       toast.error('ファイルのアップロードに失敗しました');
     } finally {

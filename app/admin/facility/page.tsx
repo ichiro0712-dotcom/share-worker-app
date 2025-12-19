@@ -20,10 +20,12 @@ import { MapPin } from 'lucide-react';
 import { validateFile } from '@/utils/fileValidation';
 import AddressSelector from '@/components/ui/AddressSelector';
 import { SERVICE_TYPES } from '@/constants/serviceTypes';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 export default function FacilityPage() {
   const router = useRouter();
   const { admin, isAdmin, isAdminLoading } = useAuth();
+  const { showDebugError } = useDebugError();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isUpdatingMap, setIsUpdatingMap] = useState(false);
@@ -382,6 +384,15 @@ export default function FacilityPage() {
           }));
         }
       } catch (error) {
+        const debugInfo = extractDebugInfo(error);
+        showDebugError({
+          type: 'fetch',
+          operation: '施設情報取得',
+          message: debugInfo.message,
+          details: debugInfo.details,
+          stack: debugInfo.stack,
+          context: { facilityId: admin?.facilityId }
+        });
         console.error('Failed to load facility info:', error);
         toast.error('施設情報の読み込みに失敗しました');
       } finally {
@@ -404,6 +415,15 @@ export default function FacilityPage() {
           setAccounts(result.accounts);
         }
       } catch (error) {
+        const debugInfo = extractDebugInfo(error);
+        showDebugError({
+          type: 'fetch',
+          operation: '施設アカウント一覧取得',
+          message: debugInfo.message,
+          details: debugInfo.details,
+          stack: debugInfo.stack,
+          context: { facilityId: admin?.facilityId }
+        });
         console.error('Failed to load accounts:', error);
       } finally {
         setIsLoadingAccounts(false);
@@ -492,6 +512,15 @@ export default function FacilityPage() {
         toast.error(result.error || 'アカウントの追加に失敗しました');
       }
     } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'save',
+        operation: '施設アカウント追加',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { facilityId: admin?.facilityId, email: newAccount.email }
+      });
       console.error('Failed to add account:', error);
       toast.error('アカウントの追加に失敗しました');
     }
@@ -515,6 +544,15 @@ export default function FacilityPage() {
         toast.error(result.error || 'パスワードの変更に失敗しました');
       }
     } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'update',
+        operation: '施設アカウントパスワード変更',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { facilityId: admin?.facilityId, accountId }
+      });
       console.error('Failed to change password:', error);
       toast.error('パスワードの変更に失敗しました');
     }
@@ -534,6 +572,15 @@ export default function FacilityPage() {
         toast.error(result.error || 'アカウントの削除に失敗しました');
       }
     } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'delete',
+        operation: '施設アカウント削除',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { facilityId: admin?.facilityId, accountId }
+      });
       console.error('Failed to delete account:', error);
       toast.error('アカウントの削除に失敗しました');
     }
@@ -607,8 +654,16 @@ export default function FacilityPage() {
       const formData = new FormData();
       formData.append('files', file);
 
+      // 施設管理者セッションをヘッダーで送信（localStorageベースの認証対応）
+      // HTTPヘッダーはISO-8859-1のみ対応のため、Base64エンコードして送信
+      const adminSession = localStorage.getItem('admin_session') || '';
+      const encodedSession = btoa(unescape(encodeURIComponent(adminSession)));
+
       const response = await fetch('/api/upload', {
         method: 'POST',
+        headers: {
+          'X-Admin-Session': encodedSession,
+        },
         body: formData,
       });
 
@@ -623,6 +678,15 @@ export default function FacilityPage() {
       }
       return null;
     } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'upload',
+        operation: '施設担当者写真アップロード',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { facilityId: admin?.facilityId }
+      });
       console.error('Staff photo upload error:', error);
       throw error;
     }
@@ -857,10 +921,35 @@ export default function FacilityPage() {
           }
         }
       } else {
+        // デバッグ用エラー通知を表示
+        showDebugError({
+          type: 'save',
+          operation: '施設情報保存',
+          message: result.error || '保存に失敗しました',
+          context: {
+            facilityId: admin?.facilityId,
+            corporateName: corporateInfo.name,
+            facilityName: facilityInfo.name,
+          }
+        });
         toast.error(result.error || '保存に失敗しました');
       }
     } catch (error) {
       console.error('Failed to save:', error);
+      // デバッグ用エラー通知を表示
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'save',
+        operation: '施設情報保存',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: {
+          facilityId: admin?.facilityId,
+          corporateName: corporateInfo.name,
+          facilityName: facilityInfo.name,
+        }
+      });
       toast.error('保存に失敗しました');
     } finally {
       setIsSaving(false);
@@ -899,6 +988,15 @@ export default function FacilityPage() {
         toast.error(result.error || '地図画像の取得に失敗しました');
       }
     } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'update',
+        operation: '地図画像更新',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { facilityId: admin?.facilityId, address: fullAddress }
+      });
       console.error('Failed to update map:', error);
       toast.error('地図画像の更新に失敗しました');
     } finally {

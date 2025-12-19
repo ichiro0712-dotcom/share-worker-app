@@ -9,6 +9,7 @@ import { validateFile, getSafeImageUrl, isValidImageUrl } from '@/utils/fileVali
 import toast from 'react-hot-toast';
 import AddressSelector from '@/components/ui/AddressSelector';
 import { QUALIFICATION_GROUPS } from '@/constants/qualifications';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 interface UserProfile {
   id: number;
@@ -68,6 +69,7 @@ interface ProfileEditClientProps {
 export default function ProfileEditClient({ userProfile }: ProfileEditClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { showDebugError } = useDebugError();
 
   // 戻り先URL（求人ページから来た場合）
   const returnUrl = searchParams.get('returnUrl');
@@ -418,97 +420,128 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // FormDataを作成
-    const form = new FormData();
-    // 基本情報
-    form.append('name', `${formData.lastName} ${formData.firstName}`);
-    form.append('email', formData.email);
-    form.append('phoneNumber', formData.phone);
-    form.append('birthDate', formData.birthDate);
-    form.append('qualifications', formData.qualifications.join(','));
-    form.append('lastNameKana', formData.lastNameKana);
-    form.append('firstNameKana', formData.firstNameKana);
-    form.append('gender', formData.gender);
-    form.append('nationality', formData.nationality);
+    try {
+      // FormDataを作成
+      const form = new FormData();
+      // 基本情報
+      form.append('name', `${formData.lastName} ${formData.firstName}`);
+      form.append('email', formData.email);
+      form.append('phoneNumber', formData.phone);
+      form.append('birthDate', formData.birthDate);
+      form.append('qualifications', formData.qualifications.join(','));
+      form.append('lastNameKana', formData.lastNameKana);
+      form.append('firstNameKana', formData.firstNameKana);
+      form.append('gender', formData.gender);
+      form.append('nationality', formData.nationality);
 
-    // 住所
-    form.append('postalCode', formData.postalCode);
-    form.append('prefecture', formData.prefecture);
-    form.append('city', formData.city);
-    form.append('addressLine', formData.address);
-    form.append('building', formData.building);
+      // 住所
+      form.append('postalCode', formData.postalCode);
+      form.append('prefecture', formData.prefecture);
+      form.append('city', formData.city);
+      form.append('addressLine', formData.address);
+      form.append('building', formData.building);
 
-    // 緊急連絡先
-    form.append('emergencyName', formData.emergencyContactName);
-    form.append('emergencyRelation', formData.emergencyContactRelation);
-    form.append('emergencyPhone', formData.emergencyContactPhone);
-    form.append('emergencyAddress', formData.emergencyContactAddress);
+      // 緊急連絡先
+      form.append('emergencyName', formData.emergencyContactName);
+      form.append('emergencyRelation', formData.emergencyContactRelation);
+      form.append('emergencyPhone', formData.emergencyContactPhone);
+      form.append('emergencyAddress', formData.emergencyContactAddress);
 
-    // 働き方・希望
-    form.append('currentWorkStyle', formData.currentWorkStyle);
-    form.append('desiredWorkStyle', formData.desiredWorkStyle);
-    form.append('jobChangeDesire', formData.jobChangeDesire);
-    form.append('desiredWorkDaysPerWeek', formData.desiredWorkDaysPerWeek);
-    form.append('desiredWorkPeriod', formData.desiredWorkPeriod);
-    form.append('desiredWorkDays', formData.desiredWorkDays.join(','));
-    form.append('desiredStartTime', formData.desiredStartTime);
-    form.append('desiredEndTime', formData.desiredEndTime);
+      // 働き方・希望
+      form.append('currentWorkStyle', formData.currentWorkStyle);
+      form.append('desiredWorkStyle', formData.desiredWorkStyle);
+      form.append('jobChangeDesire', formData.jobChangeDesire);
+      form.append('desiredWorkDaysPerWeek', formData.desiredWorkDaysPerWeek);
+      form.append('desiredWorkPeriod', formData.desiredWorkPeriod);
+      form.append('desiredWorkDays', formData.desiredWorkDays.join(','));
+      form.append('desiredStartTime', formData.desiredStartTime);
+      form.append('desiredEndTime', formData.desiredEndTime);
 
-    // 経験
-    form.append('experienceFields', JSON.stringify(formData.experienceYears));
-    form.append('workHistories', workHistories.join('|||'));
+      // 経験
+      form.append('experienceFields', JSON.stringify(formData.experienceYears));
+      form.append('workHistories', workHistories.join('|||'));
 
-    // 自己PR
-    form.append('selfPR', formData.selfPR);
+      // 自己PR
+      form.append('selfPR', formData.selfPR);
 
-    // 銀行口座
-    form.append('bankName', formData.bankName);
-    form.append('branchName', formData.branchName);
-    form.append('accountName', formData.accountName);
-    form.append('accountNumber', formData.accountNumber);
+      // 銀行口座
+      form.append('bankName', formData.bankName);
+      form.append('branchName', formData.branchName);
+      form.append('accountName', formData.accountName);
+      form.append('accountNumber', formData.accountNumber);
 
-    // その他
-    form.append('pensionNumber', formData.pensionNumber);
+      // その他
+      form.append('pensionNumber', formData.pensionNumber);
 
-    // プロフィール画像がアップロードされている場合は追加
-    if (profileImageFile) {
-      form.append('profileImage', profileImageFile);
-    }
-
-    if (idDocumentFile) {
-      form.append('idDocument', idDocumentFile);
-    }
-
-    if (bankBookImageFile) {
-      form.append('bankBookImage', bankBookImageFile);
-    }
-
-    // 資格証明書ファイルを追加（日本語キー名をBase64エンコード）
-    console.log('[ProfileEditClient] qualificationCertificateFiles:', Object.keys(qualificationCertificateFiles));
-    Object.entries(qualificationCertificateFiles).forEach(([qualification, file]) => {
-      const encodedQualification = btoa(unescape(encodeURIComponent(qualification)));
-      console.log('[ProfileEditClient] Appending certificate:', qualification, '→', encodedQualification, 'file:', file.name, file.size);
-      form.append(`qualificationCertificate_${encodedQualification}`, file);
-    });
-
-    // サーバーアクションを呼び出し
-    const result = await updateUserProfile(form);
-
-    if (result.success) {
-      toast.success(result.message || 'プロフィールを更新しました');
-      // 画像アップロード後はファイル状態をリセット
-      setProfileImageFile(null);
-      setIdDocumentFile(null);
-      setBankBookImageFile(null);
-      setQualificationCertificateFiles({});
-      // リダイレクト: returnUrlがあれば戻り先へ、なければマイページへ
-      if (returnUrl) {
-        router.push(returnUrl);
-      } else {
-        router.push('/mypage');
+      // プロフィール画像がアップロードされている場合は追加
+      if (profileImageFile) {
+        form.append('profileImage', profileImageFile);
       }
-    } else {
-      toast.error(result.error || 'プロフィールの更新に失敗しました');
+
+      if (idDocumentFile) {
+        form.append('idDocument', idDocumentFile);
+      }
+
+      if (bankBookImageFile) {
+        form.append('bankBookImage', bankBookImageFile);
+      }
+
+      // 資格証明書ファイルを追加（日本語キー名をBase64エンコード）
+      console.log('[ProfileEditClient] qualificationCertificateFiles:', Object.keys(qualificationCertificateFiles));
+      Object.entries(qualificationCertificateFiles).forEach(([qualification, file]) => {
+        const encodedQualification = btoa(unescape(encodeURIComponent(qualification)));
+        console.log('[ProfileEditClient] Appending certificate:', qualification, '→', encodedQualification, 'file:', file.name, file.size);
+        form.append(`qualificationCertificate_${encodedQualification}`, file);
+      });
+
+      // サーバーアクションを呼び出し
+      const result = await updateUserProfile(form);
+
+      if (result.success) {
+        toast.success(result.message || 'プロフィールを更新しました');
+        // 画像アップロード後はファイル状態をリセット
+        setProfileImageFile(null);
+        setIdDocumentFile(null);
+        setBankBookImageFile(null);
+        setQualificationCertificateFiles({});
+        // リダイレクト: returnUrlがあれば戻り先へ、なければマイページへ
+        if (returnUrl) {
+          router.push(returnUrl);
+        } else {
+          router.push('/mypage');
+        }
+      } else {
+        // デバッグ用エラー通知を表示
+        showDebugError({
+          type: 'save',
+          operation: 'プロフィール更新',
+          message: result.error || 'プロフィールの更新に失敗しました',
+          context: {
+            formDataKeys: Array.from(form.keys()),
+            hasProfileImage: !!profileImageFile,
+            hasIdDocument: !!idDocumentFile,
+            hasBankBookImage: !!bankBookImageFile,
+            qualificationCertificateCount: Object.keys(qualificationCertificateFiles).length,
+          }
+        });
+        toast.error(result.error || 'プロフィールの更新に失敗しました');
+      }
+    } catch (error) {
+      // 予期しないエラーの場合
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'save',
+        operation: 'プロフィール更新（例外）',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: {
+          userId: userProfile.id,
+          formDataLastName: formData.lastName,
+          formDataFirstName: formData.firstName,
+        }
+      });
+      toast.error('予期しないエラーが発生しました');
     }
   };
 

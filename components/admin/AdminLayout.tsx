@@ -7,6 +7,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { getFacilityStaffName, getFacilitySidebarBadges } from '@/src/lib/actions';
 import toast from 'react-hot-toast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import {
   Briefcase,
   Users,
@@ -38,6 +39,7 @@ const SIDEBAR_COLLAPSED_KEY = 'admin_sidebar_collapsed';
 export default function AdminLayout({ children }: AdminLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const { showDebugError } = useDebugError();
   const { admin, adminLogout } = useAuth();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
@@ -92,8 +94,21 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   useEffect(() => {
     const fetchStaffName = async () => {
       if (admin?.facilityId) {
-        const name = await getFacilityStaffName(admin.facilityId);
-        setStaffName(name);
+        try {
+          const name = await getFacilityStaffName(admin.facilityId);
+          setStaffName(name);
+        } catch (error) {
+          const debugInfo = extractDebugInfo(error);
+          showDebugError({
+            type: 'fetch',
+            operation: '施設担当者名取得',
+            message: debugInfo.message,
+            details: debugInfo.details,
+            stack: debugInfo.stack,
+            context: { facilityId: admin?.facilityId }
+          });
+          console.error('Failed to fetch staff name:', error);
+        }
       }
     };
     fetchStaffName();
@@ -102,8 +117,21 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   // 通知バッジを取得
   const fetchBadges = useCallback(async () => {
     if (admin?.facilityId && !isPending) {
-      const data = await getFacilitySidebarBadges(admin.facilityId);
-      setBadges(data);
+      try {
+        const data = await getFacilitySidebarBadges(admin.facilityId);
+        setBadges(data);
+      } catch (error) {
+        const debugInfo = extractDebugInfo(error);
+        showDebugError({
+          type: 'fetch',
+          operation: 'サイドバー通知バッジ取得',
+          message: debugInfo.message,
+          details: debugInfo.details,
+          stack: debugInfo.stack,
+          context: { facilityId: admin?.facilityId }
+        });
+        console.error('Failed to fetch sidebar badges:', error);
+      }
     }
   }, [admin?.facilityId, isPending]);
 
@@ -229,9 +257,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     <div className="flex h-screen bg-gray-50">
       {/* サイドバー */}
       <div
-        className={`bg-admin-sidebar border-r border-gray-800 flex flex-col transition-all duration-300 ease-in-out ${
-          isCollapsed ? 'w-16' : 'w-64'
-        }`}
+        className={`bg-admin-sidebar border-r border-gray-800 flex flex-col transition-all duration-300 ease-in-out ${isCollapsed ? 'w-16' : 'w-64'
+          }`}
       >
         {/* ロゴ・施設名 */}
         <div className="p-3 border-b border-gray-800">
@@ -318,11 +345,10 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                     <Link
                       href={item.href}
                       prefetch={true}
-                      className={`relative flex items-center justify-center py-2.5 mx-2 rounded-admin-button transition-colors group ${
-                        item.active
+                      className={`relative flex items-center justify-center py-2.5 mx-2 rounded-admin-button transition-colors group ${item.active
                           ? 'bg-blue-500/20 text-blue-400'
                           : 'text-gray-300 hover:text-white hover:bg-white/10'
-                      }`}
+                        }`}
                       title={item.title}
                     >
                       {item.icon}
@@ -373,11 +399,10 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                   <Link
                     href="/admin/masquerade-actions/delete-facility"
                     prefetch={true}
-                    className={`relative flex items-center justify-center py-2.5 mx-2 rounded-admin-button transition-colors group ${
-                      pathname === '/admin/masquerade-actions/delete-facility'
+                    className={`relative flex items-center justify-center py-2.5 mx-2 rounded-admin-button transition-colors group ${pathname === '/admin/masquerade-actions/delete-facility'
                         ? 'bg-red-500/20 text-red-400'
                         : 'text-gray-300 hover:text-white hover:bg-white/10'
-                    }`}
+                      }`}
                     title="施設削除"
                   >
                     <Trash2 className="w-5 h-5" />
@@ -388,11 +413,10 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                   <Link
                     href="/admin/masquerade-actions/password-reset"
                     prefetch={true}
-                    className={`relative flex items-center justify-center py-2.5 mx-2 rounded-admin-button transition-colors group ${
-                      pathname === '/admin/masquerade-actions/password-reset'
+                    className={`relative flex items-center justify-center py-2.5 mx-2 rounded-admin-button transition-colors group ${pathname === '/admin/masquerade-actions/password-reset'
                         ? 'bg-blue-500/20 text-blue-400'
                         : 'text-gray-300 hover:text-white hover:bg-white/10'
-                    }`}
+                      }`}
                     title="パスワードリセット"
                   >
                     <KeyRound className="w-5 h-5" />
@@ -472,9 +496,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           )}
           <button
             onClick={handleLogout}
-            className={`w-full flex items-center justify-center gap-2 text-sm text-gray-400 border border-gray-700 rounded-admin-button hover:bg-white/5 hover:text-white transition-colors ${
-              isCollapsed ? 'p-2' : 'px-4 py-2'
-            }`}
+            className={`w-full flex items-center justify-center gap-2 text-sm text-gray-400 border border-gray-700 rounded-admin-button hover:bg-white/5 hover:text-white transition-colors ${isCollapsed ? 'p-2' : 'px-4 py-2'
+              }`}
             title={isCollapsed ? 'ログアウト' : undefined}
           >
             <LogOut className="w-5 h-5" />

@@ -12,6 +12,7 @@ import { applyForJobMultipleDates, addJobBookmark, removeJobBookmark, isJobBookm
 import { useBadge } from '@/contexts/BadgeContext';
 import toast from 'react-hot-toast';
 import { useErrorToast } from '@/components/ui/PersistentErrorToast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 // デフォルトのプレースホルダー画像（実在するサンプル画像を使用）
 const DEFAULT_JOB_IMAGE = '/images/samples/facility_top_1.png';
@@ -57,6 +58,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
   const router = useRouter();
   const searchParams = useSearchParams();
   const { refreshBadges } = useBadge();
+  const { showDebugError } = useDebugError();
 
   // URLパラメータからselectedを読み取る（プロフィール編集から戻った場合）
   const selectedFromUrl = searchParams.get('selected');
@@ -324,9 +326,24 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
         setIsEditingSelfPR(false);
         toast.success('自己PRを保存しました');
       } else {
+        showDebugError({
+          type: 'save',
+          operation: '自己PR保存',
+          message: result.error || '保存に失敗しました',
+          context: { jobId: job.id, selfPRLength: editSelfPRValue.length }
+        });
         toast.error(result.error || '保存に失敗しました');
       }
-    } catch {
+    } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'save',
+        operation: '自己PR保存',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { jobId: job.id, selfPRLength: editSelfPRValue.length }
+      });
       toast.error('保存に失敗しました');
     } finally {
       setSavingSelfPR(false);
@@ -375,6 +392,18 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
           setProfileMissingFields(missingFields);
           setShowProfileModal(true);
         } else {
+          // デバッグ用エラー通知
+          showDebugError({
+            type: 'save',
+            operation: '求人応募',
+            message: result.error || '応募に失敗しました',
+            context: {
+              jobId: job.id,
+              facilityId: facility.id,
+              selectedWorkDateIds: selectedWorkDateIds,
+              appliedWorkDateIds: appliedWorkDateIds,
+            }
+          });
           try {
             // エラー通知をバックグラウンドで送信
             fetch('/api/error-notification', {
@@ -398,6 +427,20 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
       console.error('Application error:', error);
       // 失敗時：ロールバック
       setAppliedWorkDateIds(previousAppliedIds);
+      // デバッグ用エラー通知
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'save',
+        operation: '求人応募（例外）',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: {
+          jobId: job.id,
+          facilityId: facility.id,
+          selectedWorkDateIds: selectedWorkDateIds,
+        }
+      });
       showError('APPLY_ERROR', '応募に失敗しました。もう一度お試しください。');
     } finally {
       setIsApplying(false);

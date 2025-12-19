@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { sendFacilityPasswordResetEmail, getFacilityAdmins } from '@/src/lib/system-actions';
 import { KeyRound, Mail, Check, User } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 interface FacilityAdmin {
     id: number;
@@ -17,6 +18,7 @@ interface FacilityAdmin {
 export default function PasswordResetPage() {
     const router = useRouter();
     const { admin } = useAuth();
+    const { showDebugError } = useDebugError();
     const [loading, setLoading] = useState(false);
     const [isMasquerade, setIsMasquerade] = useState(false);
     const [admins, setAdmins] = useState<FacilityAdmin[]>([]);
@@ -57,6 +59,15 @@ export default function PasswordResetPage() {
                         }
                     }
                 } catch (error) {
+                    const debugInfo = extractDebugInfo(error);
+                    showDebugError({
+                        type: 'fetch',
+                        operation: '施設管理者一覧取得（マスカレード）',
+                        message: debugInfo.message,
+                        details: debugInfo.details,
+                        stack: debugInfo.stack,
+                        context: { facilityId: admin?.facilityId }
+                    });
                     console.error('Failed to load admins:', error);
                 }
             }
@@ -80,6 +91,15 @@ export default function PasswordResetPage() {
                 toast.error(result.error || '送信に失敗しました');
             }
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'save',
+                operation: 'パスワードリセットメール送信（マスカレード）',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { adminId: selectedAdminId }
+            });
             console.error('Send reset email error:', error);
             toast.error('送信に失敗しました');
         } finally {
@@ -126,11 +146,10 @@ export default function PasswordResetPage() {
                             {admins.map((adminItem) => (
                                 <label
                                     key={adminItem.id}
-                                    className={`flex items-center gap-3 p-4 border rounded-lg cursor-pointer transition-colors ${
-                                        selectedAdminId === adminItem.id
+                                    className={`flex items-center gap-3 p-4 border rounded-lg cursor-pointer transition-colors ${selectedAdminId === adminItem.id
                                             ? 'border-blue-500 bg-blue-50'
                                             : 'border-slate-200 hover:border-slate-300'
-                                    }`}
+                                        }`}
                                 >
                                     <input
                                         type="radio"

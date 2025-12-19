@@ -6,6 +6,7 @@ import { MapPin, Calendar, Clock, Star, X, AlertTriangle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { getMyApplications, cancelApplicationByWorker, cancelAppliedApplication } from '@/src/lib/actions';
 import toast from 'react-hot-toast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 type ApplicationStatus = 'APPLIED' | 'SCHEDULED' | 'WORKING' | 'COMPLETED_PENDING' | 'COMPLETED_RATED' | 'CANCELLED';
 
@@ -37,6 +38,7 @@ type TabType = 'applied' | 'scheduled' | 'working' | 'completed_rated' | 'cancel
 
 export default function MyJobsPage() {
   const router = useRouter();
+  const { showDebugError } = useDebugError();
   const [activeTab, setActiveTab] = useState<TabType>('scheduled');
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
@@ -112,9 +114,24 @@ export default function MyJobsPage() {
           prev.map(a => a.id === cancelModalApp.id ? { ...a, status: 'CANCELLED' as ApplicationStatus } : a)
         );
       } else {
+        showDebugError({
+          type: 'delete',
+          operation: '応募取消（審査中）',
+          message: result.error || '取り消しに失敗しました',
+          context: { applicationId: cancelModalApp.id }
+        });
         toast.error(result.error || '取り消しに失敗しました');
       }
-    } catch {
+    } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'delete',
+        operation: '応募取消（審査中・例外）',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { applicationId: cancelModalApp.id }
+      });
       toast.error('取り消しに失敗しました');
     } finally {
       setCancelling(false);
@@ -134,9 +151,24 @@ export default function MyJobsPage() {
           prev.map(a => a.id === scheduledCancelModalApp.id ? { ...a, status: 'CANCELLED' as ApplicationStatus } : a)
         );
       } else {
+        showDebugError({
+          type: 'delete',
+          operation: '予定キャンセル',
+          message: result.error || 'キャンセルに失敗しました',
+          context: { applicationId: scheduledCancelModalApp.id }
+        });
         toast.error(result.error || 'キャンセルに失敗しました');
       }
-    } catch {
+    } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'delete',
+        operation: '予定キャンセル（例外）',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { applicationId: scheduledCancelModalApp.id }
+      });
       toast.error('キャンセルに失敗しました');
     } finally {
       setScheduledCancelling(false);

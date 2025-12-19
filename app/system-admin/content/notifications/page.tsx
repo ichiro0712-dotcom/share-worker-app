@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import { toast } from 'react-hot-toast';
 import { Bell, Mail, MessageCircle, Edit2, Save, X, Copy, Check, Settings, LayoutDashboard } from 'lucide-react';
 
@@ -87,6 +88,7 @@ const AVAILABLE_VARIABLES = [
 ];
 
 export default function NotificationManagementPage() {
+    const { showDebugError } = useDebugError();
     const [settings, setSettings] = useState<NotificationSetting[]>([]);
     const [errorMessages, setErrorMessages] = useState<ErrorMessageSetting[]>([]);
     const [loading, setLoading] = useState(true);
@@ -110,6 +112,14 @@ export default function NotificationManagementPage() {
             const data = await res.json();
             setSettings(data);
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'fetch',
+                operation: '通知設定一覧取得',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack
+            });
             toast.error('設定の取得に失敗しました');
         } finally {
             setLoading(false);
@@ -123,6 +133,14 @@ export default function NotificationManagementPage() {
             const data = await res.json();
             setErrorMessages(data);
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'fetch',
+                operation: 'エラーメッセージ一覧取得',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack
+            });
             toast.error('エラーメッセージの取得に失敗しました');
         } finally {
             setLoading(false);
@@ -149,6 +167,15 @@ export default function NotificationManagementPage() {
                 toast.success('設定を更新しました');
             }
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'update',
+                operation: '通知トグル更新',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { id, field, newValue }
+            });
             toast.error('更新に失敗しました');
         }
     };
@@ -178,6 +205,15 @@ export default function NotificationManagementPage() {
                 toast.success('テンプレートを保存しました');
             }
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'update',
+                operation: '通知テンプレート保存',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { id: editingSetting.id }
+            });
             toast.error('保存に失敗しました');
         }
     };
@@ -208,6 +244,15 @@ export default function NotificationManagementPage() {
                 toast.error('更新に失敗しました');
             }
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'update',
+                operation: 'エラーメッセージトグル更新',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { id, field, newValue }
+            });
             toast.error('更新に失敗しました');
         }
     };
@@ -241,6 +286,15 @@ export default function NotificationManagementPage() {
                 toast.error('保存に失敗しました');
             }
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'update',
+                operation: 'エラーメッセージ保存',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { id: editingErrorMessage.id }
+            });
             toast.error('保存に失敗しました');
         }
     };

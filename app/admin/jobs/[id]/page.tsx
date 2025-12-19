@@ -8,6 +8,7 @@ import { ArrowLeft, Edit, Clock, JapaneseYen, MapPin, Users, Calendar, FileText 
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { getJobById } from '@/src/lib/actions';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 interface JobData {
   id: number;
@@ -49,6 +50,7 @@ interface JobData {
 export default function AdminJobDetailPage() {
   const router = useRouter();
   const params = useParams();
+  const { showDebugError } = useDebugError();
   const jobId = params.id as string;
   const { admin, isAdmin, isAdminLoading } = useAuth();
 
@@ -85,6 +87,15 @@ export default function AdminJobDetailPage() {
 
         setJob(jobData);
       } catch (error) {
+        const debugInfo = extractDebugInfo(error);
+        showDebugError({
+          type: 'fetch',
+          operation: '求人詳細取得',
+          message: debugInfo.message,
+          details: debugInfo.details,
+          stack: debugInfo.stack,
+          context: { jobId, facilityId: admin?.facilityId }
+        });
         console.error('Failed to fetch data:', error);
         toast.error('データの取得に失敗しました');
       } finally {

@@ -11,6 +11,7 @@ import {
 import { getAnalyticsRegions, RegionData } from '@/src/lib/analytics-actions';
 import { ChevronLeft, Save, ChevronDown, ChevronUp, Users, Building2, AlertCircle, Clock, Send } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import Link from 'next/link';
 import { AGE_RANGES, GENDERS } from '@/src/lib/analytics-constants';
 import { SERVICE_CATEGORY_LIST } from '@/constants/serviceTypes';
@@ -32,6 +33,7 @@ interface AnnouncementFormProps {
 }
 
 export default function AnnouncementForm({ mode, announcementId }: AnnouncementFormProps) {
+    const { showDebugError } = useDebugError();
     const router = useRouter();
     const [loading, setLoading] = useState(mode === 'edit');
     const [submitting, setSubmitting] = useState(false);
@@ -115,6 +117,15 @@ export default function AnnouncementForm({ mode, announcementId }: AnnouncementF
                     setRegions(regionsData);
                 }
             } catch (e) {
+                const debugInfo = extractDebugInfo(e);
+                showDebugError({
+                    type: 'fetch',
+                    operation: 'お知らせ詳細・地域データ取得',
+                    message: debugInfo.message,
+                    details: debugInfo.details,
+                    stack: debugInfo.stack,
+                    context: { mode, announcementId }
+                });
                 console.error(e);
                 toast.error('読み込みに失敗しました');
             } finally {
@@ -220,9 +231,27 @@ export default function AnnouncementForm({ mode, announcementId }: AnnouncementF
                 toast.success(message);
                 router.push('/system-admin/announcements');
             } else {
+                const debugInfo = extractDebugInfo(result.error);
+                showDebugError({
+                    type: mode === 'create' ? 'save' : 'update',
+                    operation: mode === 'create' ? 'お知らせ作成' : 'お知らせ更新',
+                    message: debugInfo.message,
+                    details: debugInfo.details,
+                    stack: debugInfo.stack,
+                    context: { payload }
+                });
                 toast.error(result.error || `${mode === 'create' ? '作成' : '更新'}に失敗しました`);
             }
-        } catch {
+        } catch (e) {
+            const debugInfo = extractDebugInfo(e);
+            showDebugError({
+                type: mode === 'create' ? 'save' : 'update',
+                operation: mode === 'create' ? 'お知らせ作成' : 'お知らせ更新',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { formData, publishMode }
+            });
             toast.error('エラーが発生しました');
         } finally {
             setSubmitting(false);
@@ -603,12 +632,12 @@ export default function AnnouncementForm({ mode, announcementId }: AnnouncementF
                             type="submit"
                             disabled={submitting}
                             className={`px-6 py-2 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-70 ${mode === 'edit' && isAlreadyPublished
-                                    ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-                                    : publishMode === 'now'
-                                        ? 'bg-green-600 text-white hover:bg-green-700'
-                                        : publishMode === 'scheduled'
-                                            ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-                                            : 'bg-slate-600 text-white hover:bg-slate-700'
+                                ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                                : publishMode === 'now'
+                                    ? 'bg-green-600 text-white hover:bg-green-700'
+                                    : publishMode === 'scheduled'
+                                        ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                                        : 'bg-slate-600 text-white hover:bg-slate-700'
                                 }`}
                         >
                             {mode === 'edit' && isAlreadyPublished ? (

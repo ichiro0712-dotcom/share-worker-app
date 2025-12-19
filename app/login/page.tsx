@@ -7,6 +7,7 @@ import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
 import { getTestUsers } from '@/src/lib/actions';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 type TestUser = {
   id: number;
@@ -18,6 +19,7 @@ type TestUser = {
 export default function WorkerLogin() {
   const router = useRouter();
   const { login, isLoading: authLoading } = useAuth();
+  const { showDebugError } = useDebugError();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -49,9 +51,24 @@ export default function WorkerLogin() {
         router.push('/');
         router.refresh();
       } else {
+        showDebugError({
+          type: 'other',
+          operation: 'ログイン',
+          message: result.error || 'ログインに失敗しました',
+          context: { email }
+        });
         setError(result.error || 'ログインに失敗しました');
       }
     } catch (err) {
+      const debugInfo = extractDebugInfo(err);
+      showDebugError({
+        type: 'other',
+        operation: 'ログイン（例外）',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { email }
+      });
       setError('ログイン中にエラーが発生しました');
     } finally {
       setIsSubmitting(false);

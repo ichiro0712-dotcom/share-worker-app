@@ -5,8 +5,10 @@ import Link from 'next/link';
 import { ArrowLeft, Mail, CheckCircle, Copy, ExternalLink, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { requestPasswordReset } from '@/src/lib/actions';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 export default function PasswordResetRequestPage() {
+  const { showDebugError } = useDebugError();
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -34,9 +36,24 @@ export default function PasswordResetRequestPage() {
         }
         toast.success('パスワードリセットの手続きを開始しました');
       } else {
+        showDebugError({
+          type: 'other',
+          operation: 'パスワードリセット要求',
+          message: result.message || 'エラーが発生しました',
+          context: { email }
+        });
         toast.error(result.message || 'エラーが発生しました');
       }
-    } catch {
+    } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'other',
+        operation: 'パスワードリセット要求（例外）',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { email }
+      });
       toast.error('エラーが発生しました');
     } finally {
       setIsSubmitting(false);

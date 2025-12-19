@@ -12,12 +12,14 @@ import {
     subscribeToPushNotifications,
     unsubscribeFromPushNotifications,
 } from '@/lib/push-notification';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 interface Props {
     userType: 'worker' | 'facility_admin';
 }
 
 export function NotificationButton({ userType }: Props) {
+    const { showDebugError } = useDebugError();
     const [isSupported, setIsSupported] = useState(false);
     const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>('default');
     const [isLoading, setIsLoading] = useState(false);
@@ -48,10 +50,14 @@ export function NotificationButton({ userType }: Props) {
             setIsLoading(false);
 
             if (success) {
-                toast.success('通知をオフにしました');
                 // permissionは変わらないが、UIを更新するために再チェック
                 setPermission('default');
             } else {
+                showDebugError({
+                    type: 'other',
+                    operation: 'プッシュ通知解除',
+                    message: '通知の解除に失敗しました',
+                });
                 toast.error('通知の解除に失敗しました');
             }
         } else {
@@ -66,6 +72,12 @@ export function NotificationButton({ userType }: Props) {
                 if (subscription) {
                     toast.success('通知を有効にしました');
                 } else {
+                    showDebugError({
+                        type: 'save',
+                        operation: 'プッシュ通知登録',
+                        message: '通知の登録に失敗しました',
+                        context: { userType }
+                    });
                     toast.error('通知の登録に失敗しました');
                 }
             } else {

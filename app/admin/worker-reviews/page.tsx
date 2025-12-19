@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Star, AlertTriangle, FileText, Heart, Ban, X, Plus, Trash2, Edit3 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 import { getPendingWorkerReviews, getCompletedWorkerReviews, submitWorkerReviewByJob, getReviewTemplates, createReviewTemplate, updateReviewTemplate, deleteReviewTemplate } from '@/src/lib/actions';
 
@@ -38,6 +39,7 @@ interface ReviewTemplate {
 
 export default function WorkerReviewsPage() {
     const router = useRouter();
+    const { showDebugError } = useDebugError();
     const { admin, isAdmin, isAdminLoading } = useAuth();
     const [activeTab, setActiveTab] = useState<'pending' | 'completed'>('pending');
     const [pendingReviews, setPendingReviews] = useState<PendingReview[]>([]);
@@ -108,6 +110,15 @@ export default function WorkerReviewsPage() {
                 const templateData = await getReviewTemplates(admin.facilityId);
                 setTemplates(templateData as ReviewTemplate[]);
             } catch (error) {
+                const debugInfo = extractDebugInfo(error);
+                showDebugError({
+                    type: 'fetch',
+                    operation: 'ワーカーレビューデータ取得',
+                    message: debugInfo.message,
+                    details: debugInfo.details,
+                    stack: debugInfo.stack,
+                    context: { facilityId: admin.facilityId }
+                });
                 console.error('Failed to fetch data:', error);
                 toast.error('データの取得に失敗しました');
             } finally {
@@ -138,6 +149,15 @@ export default function WorkerReviewsPage() {
             setIsCreatingTemplate(false);
             await refreshTemplates();
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'save',
+                operation: 'レビューテンプレート作成',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { facilityId: admin.facilityId, name: newTemplateName.trim() }
+            });
             console.error('Failed to create template:', error);
             toast.error('テンプレートの作成に失敗しました');
         }
@@ -157,6 +177,15 @@ export default function WorkerReviewsPage() {
             setNewTemplateContent('');
             await refreshTemplates();
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'update',
+                operation: 'レビューテンプレート更新',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { templateId: editingTemplate.id, name: newTemplateName.trim() }
+            });
             console.error('Failed to update template:', error);
             toast.error('テンプレートの更新に失敗しました');
         }
@@ -170,6 +199,15 @@ export default function WorkerReviewsPage() {
             toast.success('テンプレートを削除しました');
             await refreshTemplates();
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'delete',
+                operation: 'レビューテンプレート削除',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { templateId }
+            });
             console.error('Failed to delete template:', error);
             toast.error('テンプレートの削除に失敗しました');
         }
@@ -210,6 +248,15 @@ export default function WorkerReviewsPage() {
                 toast.error(result.error || 'レビューの登録に失敗しました');
             }
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'save',
+                operation: 'ワーカーレビュー投稿(モーダル)',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { jobId: selectedApplication.jobId, userId: selectedApplication.userId, facilityId: admin.facilityId, action }
+            });
             console.error('Failed to submit review:', error);
             toast.error('レビューの登録に失敗しました');
         }

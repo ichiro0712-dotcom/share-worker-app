@@ -6,6 +6,7 @@ import { ChevronLeft, Star, User, Calendar, Clock } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
 import { getApplicationForFacilityReview, submitFacilityReviewForWorker } from '@/src/lib/actions';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 interface ApplicationData {
   applicationId: number;
@@ -22,6 +23,7 @@ interface ApplicationData {
 
 export default function FacilityWorkerReviewPage() {
   const router = useRouter();
+  const { showDebugError } = useDebugError();
   const searchParams = useSearchParams();
   const applicationId = searchParams.get('applicationId');
   const { admin, isAdmin } = useAuth();
@@ -57,6 +59,15 @@ export default function FacilityWorkerReviewPage() {
           router.push('/admin/workers');
         }
       } catch (error) {
+        const debugInfo = extractDebugInfo(error);
+        showDebugError({
+          type: 'fetch',
+          operation: '評価対象データ取得',
+          message: debugInfo.message,
+          details: debugInfo.details,
+          stack: debugInfo.stack,
+          context: { applicationId, facilityId: admin?.facilityId }
+        });
         console.error('Failed to fetch application:', error);
         toast.error('データの取得に失敗しました');
         router.push('/admin/workers');
@@ -95,6 +106,15 @@ export default function FacilityWorkerReviewPage() {
         toast.error(result.error || '評価の投稿に失敗しました');
       }
     } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'save',
+        operation: '施設評価投稿',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { applicationId: applicationData.applicationId, facilityId: admin.facilityId, rating }
+      });
       console.error('Failed to submit review:', error);
       toast.error('評価の投稿に失敗しました');
     } finally {

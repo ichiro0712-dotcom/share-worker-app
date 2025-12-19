@@ -33,8 +33,9 @@ const ALLOWED_EXTENSIONS = [
   'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'csv',
 ];
 
-// 最大ファイルサイズ（通常: 5MB）
-const MAX_FILE_SIZE = 5 * 1024 * 1024;
+// 最大ファイルサイズ（通常: 20MB）
+// クライアント側バリデーション（utils/fileValidation.ts）と同期
+const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
 // ご利用ガイド用最大ファイルサイズ（100MB）
 const MAX_USER_GUIDE_FILE_SIZE = 100 * 1024 * 1024;
@@ -115,8 +116,25 @@ export async function POST(request: NextRequest) {
     const adminCookie = request.cookies.get('admin_session');
     // システム管理者の認証チェック（Cookieベース）
     const systemAdminCookie = request.cookies.get('system_admin_session');
+    // 施設管理者の認証チェック（ヘッダーベース - localStorageからの送信用）
+    // Base64エンコードされているのでデコードして検証
+    const adminHeaderEncoded = request.headers.get('X-Admin-Session');
+    let adminHeader: string | null = null;
+    if (adminHeaderEncoded) {
+      try {
+        // Base64デコード
+        adminHeader = decodeURIComponent(escape(atob(adminHeaderEncoded)));
+        // JSONとして解析できるか検証
+        const parsed = JSON.parse(adminHeader);
+        if (!parsed.adminId || !parsed.facilityId) {
+          adminHeader = null;
+        }
+      } catch {
+        adminHeader = null;
+      }
+    }
 
-    if (!session?.user && !adminCookie && !systemAdminCookie) {
+    if (!session?.user && !adminCookie && !systemAdminCookie && !adminHeader) {
       return NextResponse.json(
         { error: '認証が必要です' },
         { status: 401 }

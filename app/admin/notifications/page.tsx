@@ -20,6 +20,7 @@ import {
 } from '@/src/lib/actions';
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 interface Notification {
   id: number;
@@ -33,6 +34,7 @@ interface Notification {
 
 export default function AdminNotificationsPage() {
   const router = useRouter();
+  const { showDebugError } = useDebugError();
   const { admin, isAdmin, isAdminLoading } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,9 +58,24 @@ export default function AdminNotificationsPage() {
   const loadNotifications = async () => {
     if (!facilityId) return;
     setLoading(true);
-    const data = await getFacilityNotifications(facilityId);
-    setNotifications(data);
-    setLoading(false);
+    try {
+      const data = await getFacilityNotifications(facilityId);
+      setNotifications(data);
+    } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'fetch',
+        operation: '施設通知一覧取得',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { facilityId }
+      });
+      console.error('Failed to load notifications:', error);
+      toast.error('通知の読み込みに失敗しました');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleNotificationClick = (notification: Notification) => {
@@ -69,12 +86,26 @@ export default function AdminNotificationsPage() {
 
   const handleMarkAllAsRead = async () => {
     if (!facilityId) return;
-    const result = await markAllFacilityNotificationsAsRead(facilityId);
-    if (result.success) {
-      setNotifications((prev) =>
-        prev.map((n) => ({ ...n, isRead: true }))
-      );
-      toast.success('すべて既読にしました');
+    try {
+      const result = await markAllFacilityNotificationsAsRead(facilityId);
+      if (result.success) {
+        setNotifications((prev) =>
+          prev.map((n) => ({ ...n, isRead: true }))
+        );
+        toast.success('すべて既読にしました');
+      }
+    } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'update',
+        operation: '施設通知一括既読',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { facilityId }
+      });
+      console.error('Failed to mark all as read:', error);
+      toast.error('既読処理に失敗しました');
     }
   };
 

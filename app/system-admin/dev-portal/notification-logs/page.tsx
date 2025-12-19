@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import {
     Search,
     Filter,
@@ -36,6 +37,7 @@ interface NotificationLog {
 }
 
 export default function NotificationLogsPage() {
+    const { showDebugError } = useDebugError();
     const [logs, setLogs] = useState<NotificationLog[]>([]);
     const [loading, setLoading] = useState(true);
     const [totalPages, setTotalPages] = useState(1);
@@ -71,6 +73,15 @@ export default function NotificationLogsPage() {
             setTotalPages(data.totalPages);
             setTotalLogs(data.total);
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'fetch',
+                operation: '通知ログ取得',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { page, targetType, channel, search }
+            });
             toast.error('ログの取得に失敗しました');
         } finally {
             setLoading(false);

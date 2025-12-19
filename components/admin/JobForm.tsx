@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Calendar, MapPin, Upload, X, Loader2, ArrowLeft, ChevronLeft, ChevronRight, Clock, DollarSign, Briefcase, FileText, CheckCircle, AlertCircle, Info, AlertTriangle, Star } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useErrorToast } from '@/components/ui/PersistentErrorToast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import AddressSelector from '@/components/ui/AddressSelector';
 import { JobConfirmModal } from '@/components/admin/JobConfirmModal';
 import { JobPreviewModal } from '@/components/admin/JobPreviewModal';
@@ -94,6 +95,7 @@ interface JobFormProps {
 
 export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
     const router = useRouter();
+    const { showDebugError } = useDebugError();
     const { admin, isAdmin, isAdminLoading } = useAuth();
 
     // === 共通 State ===
@@ -223,6 +225,15 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                     try {
                         await fetchEditData(jobId, initialData.facilityInfo, initialData.dismissalReasons || '');
                     } catch (error) {
+                        const debugInfo = extractDebugInfo(error);
+                        showDebugError({
+                            type: 'fetch',
+                            operation: '求人編集データ読込',
+                            message: debugInfo.message,
+                            details: debugInfo.details,
+                            stack: debugInfo.stack,
+                            context: { jobId }
+                        });
                         console.error('Failed to load edit data:', error);
                         toast.error('データの読み込みに失敗しました');
                         setIsLoading(false);
@@ -287,6 +298,15 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                 }
 
             } catch (error) {
+                const debugInfo = extractDebugInfo(error);
+                showDebugError({
+                    type: 'fetch',
+                    operation: '求人初期データ取得',
+                    message: debugInfo.message,
+                    details: debugInfo.details,
+                    stack: debugInfo.stack,
+                    context: { facilityId: admin.facilityId }
+                });
                 console.error('Failed to load initial data:', error);
                 toast.error('データの読み込みに失敗しました');
                 setIsLoading(false);
@@ -302,12 +322,24 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
             const jobData = await getJobById(id);
 
             if (!jobData) {
+                showDebugError({
+                    type: 'fetch',
+                    operation: '求人データ取得(存在せず)',
+                    message: '求人が見つかりません',
+                    context: { jobId: id }
+                });
                 toast.error('求人が見つかりません');
                 router.push('/admin/jobs');
                 return;
             }
 
             if (jobData.facility_id !== admin?.facilityId) {
+                showDebugError({
+                    type: 'fetch',
+                    operation: '求人権限エラー',
+                    message: '編集権限がありません',
+                    context: { jobId: id, facilityId: admin?.facilityId }
+                });
                 toast.error('編集権限がありません');
                 router.push('/admin/jobs');
                 return;
@@ -378,6 +410,15 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
             }));
 
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'fetch',
+                operation: '求人データ編集取得(例外)',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { jobId: id }
+            });
             console.error('Failed to fetch edit data:', error);
             toast.error('求人データの取得に失敗しました');
         } finally {
@@ -568,6 +609,14 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                 toast.error('テンプレートがありません');
             }
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'fetch',
+                operation: 'システムテンプレート取得',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack
+            });
             console.error('Failed to insert template:', error);
             toast.error('テンプレート取得失敗');
         }
@@ -776,6 +825,15 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                     }
                 }
             } catch (e: any) {
+                const debugInfo = extractDebugInfo(e);
+                showDebugError({
+                    type: mode === 'create' ? 'save' : 'update',
+                    operation: mode === 'create' ? '求人一括作成' : '求人更新',
+                    message: debugInfo.message,
+                    details: debugInfo.details,
+                    stack: debugInfo.stack,
+                    context: { facilityId: formData.facilityId, jobId }
+                });
                 console.error(e);
                 showError('SAVE_ERROR', `保存に失敗しました: ${e.message}`);
                 // 失敗時のリカバリーは難しいが、ユーザーに通知する
@@ -1255,643 +1313,643 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                         </div>
                     </div>
 
-                {/* 勤務時間 */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
-                    <h2 className="text-lg font-bold text-gray-900 mb-4">勤務時間</h2>
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-3 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    開始時刻 <span className="text-red-500">*</span>
-                                </label>
-                                <div className="flex gap-1">
-                                    <select
-                                        value={formData.startTime.split(':')[0]}
-                                        onChange={(e) => {
-                                            const minute = formData.startTime.split(':')[1] || '00';
-                                            handleInputChange('startTime', `${e.target.value}:${minute}`);
-                                        }}
-                                        className="flex-1 px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                                    >
-                                        {HOUR_OPTIONS.map(option => (
-                                            <option key={option.value} value={option.value}>{option.label}</option>
-                                        ))}
-                                    </select>
-                                    <select
-                                        value={formData.startTime.split(':')[1] || '00'}
-                                        onChange={(e) => {
-                                            const hour = formData.startTime.split(':')[0] || '06';
-                                            handleInputChange('startTime', `${hour}:${e.target.value}`);
-                                        }}
-                                        className="flex-1 px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                                    >
-                                        {MINUTE_OPTIONS.map(option => (
-                                            <option key={option.value} value={option.value}>{option.label}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    終了時刻 <span className="text-red-500">*</span>
-                                </label>
-                                <div className="flex gap-1">
-                                    <select
-                                        value={(() => {
-                                            const isNextDay = formData.endTime.startsWith('翌');
-                                            const timePart = isNextDay ? formData.endTime.slice(1) : formData.endTime;
-                                            const hour = timePart.split(':')[0] || '15';
-                                            return isNextDay ? `翌${hour}` : hour;
-                                        })()}
-                                        onChange={(e) => {
-                                            const isNextDay = formData.endTime.startsWith('翌');
-                                            const timePart = isNextDay ? formData.endTime.slice(1) : formData.endTime;
-                                            const minute = timePart.split(':')[1] || '00';
-                                            const newIsNextDay = e.target.value.startsWith('翌');
-                                            const newHour = newIsNextDay ? e.target.value.slice(1) : e.target.value;
-                                            handleInputChange('endTime', newIsNextDay ? `翌${newHour}:${minute}` : `${newHour}:${minute}`);
-                                        }}
-                                        className="flex-1 px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                                    >
-                                        {END_HOUR_OPTIONS.map(option => (
-                                            <option key={option.value} value={option.value}>{option.label}</option>
-                                        ))}
-                                    </select>
-                                    <select
-                                        value={(() => {
-                                            const isNextDay = formData.endTime.startsWith('翌');
-                                            const timePart = isNextDay ? formData.endTime.slice(1) : formData.endTime;
-                                            return timePart.split(':')[1] || '00';
-                                        })()}
-                                        onChange={(e) => {
-                                            const isNextDay = formData.endTime.startsWith('翌');
-                                            const timePart = isNextDay ? formData.endTime.slice(1) : formData.endTime;
-                                            const hour = timePart.split(':')[0] || '15';
-                                            handleInputChange('endTime', isNextDay ? `翌${hour}:${e.target.value}` : `${hour}:${e.target.value}`);
-                                        }}
-                                        className="flex-1 px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                                    >
-                                        {MINUTE_OPTIONS.map(option => (
-                                            <option key={option.value} value={option.value}>{option.label}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    休憩時間 <span className="text-red-500">*</span>
-                                </label>
-                                <select
-                                    value={formData.breakTime}
-                                    onChange={(e) => handleInputChange('breakTime', Number(e.target.value))}
-                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                                >
-                                    {BREAK_TIME_OPTIONS.map(option => (
-                                        <option key={option.value} value={option.value}>{option.label}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-4 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    募集開始日 <span className="text-red-500">*</span>
-                                </label>
-                                <select
-                                    value={formData.recruitmentStartDay}
-                                    onChange={(e) => handleInputChange('recruitmentStartDay', Number(e.target.value))}
-                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                                >
-                                    {RECRUITMENT_START_DAY_OPTIONS.map(option => (
-                                        <option key={option.value} value={option.value}>{option.label}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    募集開始時間 <span className="text-red-500">*</span>
-                                </label>
-                                {formData.recruitmentStartDay === 0 || formData.recruitmentStartDay === -1 ? (
-                                    <input
-                                        type="text"
-                                        value="--:--"
-                                        readOnly
-                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-gray-100 text-gray-500"
-                                    />
-                                ) : (
-                                    <input
-                                        type="time"
-                                        value={formData.recruitmentStartTime}
-                                        onChange={(e) => handleInputChange('recruitmentStartTime', e.target.value)}
-                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                                    />
-                                )}
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    募集終了日 <span className="text-red-500">*</span>
-                                </label>
-                                <select
-                                    value={formData.recruitmentEndDay}
-                                    onChange={(e) => handleInputChange('recruitmentEndDay', Number(e.target.value))}
-                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                                >
-                                    {RECRUITMENT_END_DAY_OPTIONS.map(option => (
-                                        <option key={option.value} value={option.value}>{option.label}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    募集終了時間 <span className="text-red-500">*</span>
-                                </label>
-                                {formData.recruitmentEndDay === 0 || formData.recruitmentEndDay === -1 ? (
-                                    <input
-                                        type="text"
-                                        value="--:--"
-                                        readOnly
-                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-gray-100 text-gray-500"
-                                    />
-                                ) : (
-                                    <input
-                                        type="time"
-                                        value={formData.recruitmentEndTime}
-                                        onChange={(e) => handleInputChange('recruitmentEndTime', e.target.value)}
-                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                                    />
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* 給与 */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
-                    <h2 className="text-lg font-bold text-gray-900 mb-4">給与</h2>
-                    <div className="grid grid-cols-3 gap-4 mb-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                時給（円） <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                                type="number"
-                                value={formData.hourlyWage}
-                                onChange={(e) => handleInputChange('hourlyWage', Number(e.target.value))}
-                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                交通費（円） <span className="text-red-500">*</span>
-                            </label>
-                            <select
-                                value={formData.transportationFee}
-                                onChange={(e) => handleInputChange('transportationFee', Number(e.target.value))}
-                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                            >
-                                {TRANSPORTATION_FEE_OPTIONS.map(option => (
-                                    <option key={option.value} value={option.value}>{option.label}</option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                日給（総支払）
-                            </label>
-                            <input
-                                type="text"
-                                value={dailyWage.toLocaleString()}
-                                readOnly
-                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-gray-100"
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* 業務設定 */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
-                    <h2 className="text-lg font-bold text-gray-900 mb-4">業務設定</h2>
-                    <div className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                仕事内容（複数選択可） <span className="text-red-500">*</span>
-                            </label>
-                            <div className="grid grid-cols-4 gap-2 p-3 border border-gray-200 rounded">
-                                {WORK_CONTENT_OPTIONS.map(option => (
-                                    <label key={option} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
-                                        <input
-                                            type="checkbox"
-                                            checked={formData.workContent.includes(option)}
-                                            onChange={() => toggleArrayItem('workContent', option)}
-                                            className="rounded text-blue-600"
-                                        />
-                                        <span className="text-sm">{option}</span>
+                    {/* 勤務時間 */}
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
+                        <h2 className="text-lg font-bold text-gray-900 mb-4">勤務時間</h2>
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-3 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        開始時刻 <span className="text-red-500">*</span>
                                     </label>
-                                ))}
-                            </div>
-                        </div>
-
-                        {requiresGenderSpecification && (
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    性別指定 <span className="text-red-500">*</span>
-                                </label>
-                                <p className="text-xs text-gray-500 mb-2">入浴介助または排泄介助を選択した場合のみ指定が必要です</p>
-                                <select
-                                    value={formData.genderRequirement}
-                                    onChange={(e) => handleInputChange('genderRequirement', e.target.value)}
-                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                                >
-                                    <option value="">指定なし</option>
-                                    <option value="male">男性</option>
-                                    <option value="female">女性</option>
-                                </select>
-                            </div>
-                        )}
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                仕事詳細 <span className="text-red-500">*</span>
-                            </label>
-                            <select
-                                onChange={(e) => {
-                                    if (e.target.value) {
-                                        const format = JOB_DESCRIPTION_FORMATS.find(f => f.value === e.target.value);
-                                        if (format) {
-                                            handleInputChange('jobDescription', format.text);
-                                        }
-                                    }
-                                }}
-                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600 mb-2"
-                            >
-                                <option value="">フォーマットを選択</option>
-                                {JOB_DESCRIPTION_FORMATS.map(format => (
-                                    <option key={format.value} value={format.value}>{format.value}</option>
-                                ))}
-                            </select>
-                            <textarea
-                                value={formData.jobDescription}
-                                onChange={(e) => handleInputChange('jobDescription', e.target.value)}
-                                rows={9}
-                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                                placeholder="業務の詳細を入力してください"
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* 条件設定 */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
-                    <h2 className="text-lg font-bold text-gray-900 mb-4">条件設定</h2>
-                    <div className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                資格条件（複数選択可） <span className="text-red-500">*</span>
-                            </label>
-                            <div className="border border-gray-200 rounded p-4">
-                                {QUALIFICATION_GROUPS.map((group) => (
-                                    <div key={group.name} className="mb-4">
-                                        <h4 className="text-sm font-semibold text-gray-700 mb-2">{group.name}</h4>
-                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                                            {group.qualifications.map((qual) => (
-                                                <label key={qual} className="flex items-center gap-2 text-sm cursor-pointer">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={formData.qualifications.includes(qual)}
-                                                        onChange={() => toggleArrayItem('qualifications', qual)}
-                                                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                                    />
-                                                    <span>{qual}</span>
-                                                </label>
+                                    <div className="flex gap-1">
+                                        <select
+                                            value={formData.startTime.split(':')[0]}
+                                            onChange={(e) => {
+                                                const minute = formData.startTime.split(':')[1] || '00';
+                                                handleInputChange('startTime', `${e.target.value}:${minute}`);
+                                            }}
+                                            className="flex-1 px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                        >
+                                            {HOUR_OPTIONS.map(option => (
+                                                <option key={option.value} value={option.value}>{option.label}</option>
                                             ))}
-                                        </div>
+                                        </select>
+                                        <select
+                                            value={formData.startTime.split(':')[1] || '00'}
+                                            onChange={(e) => {
+                                                const hour = formData.startTime.split(':')[0] || '06';
+                                                handleInputChange('startTime', `${hour}:${e.target.value}`);
+                                            }}
+                                            className="flex-1 px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                        >
+                                            {MINUTE_OPTIONS.map(option => (
+                                                <option key={option.value} value={option.value}>{option.label}</option>
+                                            ))}
+                                        </select>
                                     </div>
-                                ))}
-
-                                {/* 無資格可オプション */}
-                                <div className="mt-4 pt-4 border-t">
-                                    <label className="flex items-center gap-2 text-sm cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={formData.qualifications.includes('無資格可')}
-                                            onChange={() => toggleArrayItem('qualifications', '無資格可')}
-                                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                        />
-                                        <span className="font-medium">無資格可</span>
-                                    </label>
                                 </div>
-                            </div>
-                        </div>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                スキル・経験（5つまで入力可能）
-                            </label>
-                            <div className="flex gap-2 mb-2">
-                                <input
-                                    type="text"
-                                    value={skillInput}
-                                    onChange={(e) => setSkillInput(e.target.value)}
-                                    onKeyPress={(e) => e.key === 'Enter' && addToArray('skills', skillInput, setSkillInput)}
-                                    disabled={formData.skills.length >= 5}
-                                    className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-gray-100"
-                                    placeholder="スキルを追加"
-                                />
-                                <button
-                                    onClick={() => addToArray('skills', skillInput, setSkillInput)}
-                                    disabled={formData.skills.length >= 5}
-                                    className="px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 disabled:bg-gray-300"
-                                >
-                                    追加
-                                </button>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                                {formData.skills.map((skill, index) => (
-                                    <span key={index} className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded flex items-center gap-2">
-                                        {skill}
-                                        <button onClick={() => removeFromArray('skills', index)} className="text-gray-500 hover:text-red-600">×</button>
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        終了時刻 <span className="text-red-500">*</span>
+                                    </label>
+                                    <div className="flex gap-1">
+                                        <select
+                                            value={(() => {
+                                                const isNextDay = formData.endTime.startsWith('翌');
+                                                const timePart = isNextDay ? formData.endTime.slice(1) : formData.endTime;
+                                                const hour = timePart.split(':')[0] || '15';
+                                                return isNextDay ? `翌${hour}` : hour;
+                                            })()}
+                                            onChange={(e) => {
+                                                const isNextDay = formData.endTime.startsWith('翌');
+                                                const timePart = isNextDay ? formData.endTime.slice(1) : formData.endTime;
+                                                const minute = timePart.split(':')[1] || '00';
+                                                const newIsNextDay = e.target.value.startsWith('翌');
+                                                const newHour = newIsNextDay ? e.target.value.slice(1) : e.target.value;
+                                                handleInputChange('endTime', newIsNextDay ? `翌${newHour}:${minute}` : `${newHour}:${minute}`);
+                                            }}
+                                            className="flex-1 px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                        >
+                                            {END_HOUR_OPTIONS.map(option => (
+                                                <option key={option.value} value={option.value}>{option.label}</option>
+                                            ))}
+                                        </select>
+                                        <select
+                                            value={(() => {
+                                                const isNextDay = formData.endTime.startsWith('翌');
+                                                const timePart = isNextDay ? formData.endTime.slice(1) : formData.endTime;
+                                                return timePart.split(':')[1] || '00';
+                                            })()}
+                                            onChange={(e) => {
+                                                const isNextDay = formData.endTime.startsWith('翌');
+                                                const timePart = isNextDay ? formData.endTime.slice(1) : formData.endTime;
+                                                const hour = timePart.split(':')[0] || '15';
+                                                handleInputChange('endTime', isNextDay ? `翌${hour}:${e.target.value}` : `${hour}:${e.target.value}`);
+                                            }}
+                                            className="flex-1 px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                        >
+                                            {MINUTE_OPTIONS.map(option => (
+                                                <option key={option.value} value={option.value}>{option.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                服装・身だしなみ（5つまで入力可能）
-                            </label>
-                            <div className="flex gap-2 mb-2">
-                                <input
-                                    type="text"
-                                    value={dresscodeInput}
-                                    onChange={(e) => setDresscodeInput(e.target.value)}
-                                    onKeyPress={(e) => e.key === 'Enter' && addToArray('dresscode', dresscodeInput, setDresscodeInput)}
-                                    disabled={formData.dresscode.length >= 5}
-                                    className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-gray-100"
-                                    placeholder="服装・身だしなみを追加"
-                                />
-                                <button
-                                    onClick={() => addToArray('dresscode', dresscodeInput, setDresscodeInput)}
-                                    disabled={formData.dresscode.length >= 5}
-                                    className="px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 disabled:bg-gray-300"
-                                >
-                                    追加
-                                </button>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                                {formData.dresscode.map((item, index) => (
-                                    <span key={index} className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded flex items-center gap-2">
-                                        {item}
-                                        <button onClick={() => removeFromArray('dresscode', index)} className="text-gray-500 hover:text-red-600">×</button>
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                服装サンプル画像（3枚まで）
-                            </label>
-                            <div className="space-y-2">
-                                {(formData.existingDresscodeImages.length + formData.dresscodeImages.length) < 3 && (
-                                    <label
-                                        className="flex items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded cursor-pointer hover:border-blue-500 transition-colors"
-                                        onDragOver={(e) => {
-                                            e.preventDefault();
-                                            e.currentTarget.classList.add('border-blue-500', 'bg-blue-50');
-                                        }}
-                                        onDragLeave={(e) => {
-                                            e.preventDefault();
-                                            e.currentTarget.classList.remove('border-blue-500', 'bg-blue-50');
-                                        }}
-                                        onDrop={(e) => {
-                                            e.preventDefault();
-                                            e.currentTarget.classList.remove('border-blue-500', 'bg-blue-50');
-                                            const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
-                                            // 簡易アップロード
-                                            if (files.length > 0) {
-                                                const dummyEvent = { target: { files: files } } as any;
-                                                handleDresscodeImageUpload(dummyEvent);
-                                            }
-                                        }}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        休憩時間 <span className="text-red-500">*</span>
+                                    </label>
+                                    <select
+                                        value={formData.breakTime}
+                                        onChange={(e) => handleInputChange('breakTime', Number(e.target.value))}
+                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
                                     >
-                                        <div className="text-center">
-                                            <Upload className="w-8 h-8 mx-auto text-gray-400 mb-2" />
-                                            <span className="text-sm text-gray-500">画像を選択 または ドラッグ&ドロップ</span>
-                                        </div>
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            multiple
-                                            onChange={handleDresscodeImageUpload}
-                                            className="hidden"
-                                        />
-                                    </label>
-                                )}
-                                <div className="grid grid-cols-3 gap-2">
-                                    {/* 既存服装画像 */}
-                                    {formData.existingDresscodeImages.map((url, index) => (
-                                        <div key={`existing-dresscode-${index}`} className="relative">
-                                            <img
-                                                src={url}
-                                                alt={`既存服装サンプル ${index + 1}`}
-                                                className="w-full h-24 object-cover rounded border-2 border-blue-200"
-                                            />
-                                            <button
-                                                onClick={() => removeExistingDresscodeImage(index)}
-                                                className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
-                                            >
-                                                <X className="w-4 h-4" />
-                                            </button>
-                                            <span className="absolute bottom-1 left-1 px-1 py-0.5 text-[10px] bg-blue-500 text-white rounded">
-                                                テンプレート
-                                            </span>
-                                        </div>
-                                    ))}
-                                    {/* 新規服装画像 */}
-                                    {formData.dresscodeImages.map((file, index) => (
-                                        <div key={`new-dresscode-${index}`} className="relative">
-                                            <img
-                                                src={URL.createObjectURL(file)}
-                                                alt={`服装サンプル ${index + 1}`}
-                                                className="w-full h-24 object-cover rounded"
-                                            />
-                                            <button
-                                                onClick={() => removeDresscodeImage(index)}
-                                                className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
-                                            >
-                                                <X className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    ))}
+                                        {BREAK_TIME_OPTIONS.map(option => (
+                                            <option key={option.value} value={option.value}>{option.label}</option>
+                                        ))}
+                                    </select>
                                 </div>
                             </div>
-                        </div>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                持ち物・その他（5つまで入力可能）
-                            </label>
-                            <div className="flex gap-2 mb-2">
-                                <input
-                                    type="text"
-                                    value={belongingInput}
-                                    onChange={(e) => setBelongingInput(e.target.value)}
-                                    onKeyPress={(e) => e.key === 'Enter' && addToArray('belongings', belongingInput, setBelongingInput)}
-                                    disabled={formData.belongings.length >= 5}
-                                    className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-gray-100"
-                                    placeholder="持ち物・その他を追加"
-                                />
-                                <button
-                                    onClick={() => addToArray('belongings', belongingInput, setBelongingInput)}
-                                    disabled={formData.belongings.length >= 5}
-                                    className="px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 disabled:bg-gray-300"
-                                >
-                                    追加
-                                </button>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                                {formData.belongings.map((item, index) => (
-                                    <span key={index} className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded flex items-center gap-2">
-                                        {item}
-                                        <button onClick={() => removeFromArray('belongings', index)} className="text-gray-500 hover:text-red-600">×</button>
-                                    </span>
-                                ))}
+                            <div className="grid grid-cols-4 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        募集開始日 <span className="text-red-500">*</span>
+                                    </label>
+                                    <select
+                                        value={formData.recruitmentStartDay}
+                                        onChange={(e) => handleInputChange('recruitmentStartDay', Number(e.target.value))}
+                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                    >
+                                        {RECRUITMENT_START_DAY_OPTIONS.map(option => (
+                                            <option key={option.value} value={option.value}>{option.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        募集開始時間 <span className="text-red-500">*</span>
+                                    </label>
+                                    {formData.recruitmentStartDay === 0 || formData.recruitmentStartDay === -1 ? (
+                                        <input
+                                            type="text"
+                                            value="--:--"
+                                            readOnly
+                                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-gray-100 text-gray-500"
+                                        />
+                                    ) : (
+                                        <input
+                                            type="time"
+                                            value={formData.recruitmentStartTime}
+                                            onChange={(e) => handleInputChange('recruitmentStartTime', e.target.value)}
+                                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                        />
+                                    )}
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        募集終了日 <span className="text-red-500">*</span>
+                                    </label>
+                                    <select
+                                        value={formData.recruitmentEndDay}
+                                        onChange={(e) => handleInputChange('recruitmentEndDay', Number(e.target.value))}
+                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                    >
+                                        {RECRUITMENT_END_DAY_OPTIONS.map(option => (
+                                            <option key={option.value} value={option.value}>{option.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        募集終了時間 <span className="text-red-500">*</span>
+                                    </label>
+                                    {formData.recruitmentEndDay === 0 || formData.recruitmentEndDay === -1 ? (
+                                        <input
+                                            type="text"
+                                            value="--:--"
+                                            readOnly
+                                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-gray-100 text-gray-500"
+                                        />
+                                    ) : (
+                                        <input
+                                            type="time"
+                                            value={formData.recruitmentEndTime}
+                                            onChange={(e) => handleInputChange('recruitmentEndTime', e.target.value)}
+                                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                        />
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                {/* その他 */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
-                    <h2 className="text-lg font-bold text-gray-900 mb-4">その他</h2>
-                    <div className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                アイコン <span className="text-red-500">*</span>
-                            </label>
-                            <p className="text-xs text-blue-600 mb-2">チェックが多いほどより多くのワーカーから応募がきます!</p>
-                            <div className="grid grid-cols-3 gap-2">
-                                {ICON_OPTIONS.map(option => (
-                                    <label key={option} className="flex items-center space-x-2">
-                                        <input
-                                            type="checkbox"
-                                            checked={formData.icons.includes(option)}
-                                            onChange={() => toggleArrayItem('icons', option)}
-                                            className="rounded text-blue-600"
-                                        />
-                                        <span className="text-sm">{option}</span>
-                                    </label>
-                                ))}
+                    {/* 給与 */}
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
+                        <h2 className="text-lg font-bold text-gray-900 mb-4">給与</h2>
+                        <div className="grid grid-cols-3 gap-4 mb-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    時給（円） <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="number"
+                                    value={formData.hourlyWage}
+                                    onChange={(e) => handleInputChange('hourlyWage', Number(e.target.value))}
+                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    交通費（円） <span className="text-red-500">*</span>
+                                </label>
+                                <select
+                                    value={formData.transportationFee}
+                                    onChange={(e) => handleInputChange('transportationFee', Number(e.target.value))}
+                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                >
+                                    {TRANSPORTATION_FEE_OPTIONS.map(option => (
+                                        <option key={option.value} value={option.value}>{option.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    日給（総支払）
+                                </label>
+                                <input
+                                    type="text"
+                                    value={dailyWage.toLocaleString()}
+                                    readOnly
+                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-gray-100"
+                                />
                             </div>
                         </div>
+                    </div>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                その他添付文章（3つまで）
-                            </label>
-                            <div className="space-y-2">
-                                {(formData.existingAttachments.length + formData.attachments.length) < 3 && (
-                                    <label
-                                        className="flex items-center justify-center w-full h-24 border-2 border-dashed border-gray-300 rounded cursor-pointer hover:border-blue-500 transition-colors"
-                                        onDragOver={(e) => {
-                                            e.preventDefault();
-                                            e.currentTarget.classList.add('border-blue-500', 'bg-blue-50');
-                                        }}
-                                        onDragLeave={(e) => {
-                                            e.preventDefault();
-                                            e.currentTarget.classList.remove('border-blue-500', 'bg-blue-50');
-                                        }}
-                                        onDrop={(e) => {
-                                            e.preventDefault();
-                                            e.currentTarget.classList.remove('border-blue-500', 'bg-blue-50');
-                                            const files = Array.from(e.dataTransfer.files);
-                                            // 簡易アップロード
-                                            if (files.length > 0) {
-                                                const dummyEvent = { target: { files: files } } as any;
-                                                handleAttachmentUpload(dummyEvent);
-                                            }
-                                        }}
-                                    >
-                                        <div className="text-center">
-                                            <Upload className="w-6 h-6 mx-auto text-gray-400 mb-1" />
-                                            <span className="text-sm text-gray-500">ファイルを選択 または ドラッグ&ドロップ</span>
-                                        </div>
-                                        <input
-                                            type="file"
-                                            multiple
-                                            onChange={handleAttachmentUpload}
-                                            className="hidden"
-                                        />
+                    {/* 業務設定 */}
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
+                        <h2 className="text-lg font-bold text-gray-900 mb-4">業務設定</h2>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    仕事内容（複数選択可） <span className="text-red-500">*</span>
+                                </label>
+                                <div className="grid grid-cols-4 gap-2 p-3 border border-gray-200 rounded">
+                                    {WORK_CONTENT_OPTIONS.map(option => (
+                                        <label key={option} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                                            <input
+                                                type="checkbox"
+                                                checked={formData.workContent.includes(option)}
+                                                onChange={() => toggleArrayItem('workContent', option)}
+                                                className="rounded text-blue-600"
+                                            />
+                                            <span className="text-sm">{option}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {requiresGenderSpecification && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        性別指定 <span className="text-red-500">*</span>
                                     </label>
-                                )}
+                                    <p className="text-xs text-gray-500 mb-2">入浴介助または排泄介助を選択した場合のみ指定が必要です</p>
+                                    <select
+                                        value={formData.genderRequirement}
+                                        onChange={(e) => handleInputChange('genderRequirement', e.target.value)}
+                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                    >
+                                        <option value="">指定なし</option>
+                                        <option value="male">男性</option>
+                                        <option value="female">女性</option>
+                                    </select>
+                                </div>
+                            )}
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    仕事詳細 <span className="text-red-500">*</span>
+                                </label>
+                                <select
+                                    onChange={(e) => {
+                                        if (e.target.value) {
+                                            const format = JOB_DESCRIPTION_FORMATS.find(f => f.value === e.target.value);
+                                            if (format) {
+                                                handleInputChange('jobDescription', format.text);
+                                            }
+                                        }
+                                    }}
+                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600 mb-2"
+                                >
+                                    <option value="">フォーマットを選択</option>
+                                    {JOB_DESCRIPTION_FORMATS.map(format => (
+                                        <option key={format.value} value={format.value}>{format.value}</option>
+                                    ))}
+                                </select>
+                                <textarea
+                                    value={formData.jobDescription}
+                                    onChange={(e) => handleInputChange('jobDescription', e.target.value)}
+                                    rows={9}
+                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                    placeholder="業務の詳細を入力してください"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 条件設定 */}
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
+                        <h2 className="text-lg font-bold text-gray-900 mb-4">条件設定</h2>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    資格条件（複数選択可） <span className="text-red-500">*</span>
+                                </label>
+                                <div className="border border-gray-200 rounded p-4">
+                                    {QUALIFICATION_GROUPS.map((group) => (
+                                        <div key={group.name} className="mb-4">
+                                            <h4 className="text-sm font-semibold text-gray-700 mb-2">{group.name}</h4>
+                                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                                {group.qualifications.map((qual) => (
+                                                    <label key={qual} className="flex items-center gap-2 text-sm cursor-pointer">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={formData.qualifications.includes(qual)}
+                                                            onChange={() => toggleArrayItem('qualifications', qual)}
+                                                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                        />
+                                                        <span>{qual}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+
+                                    {/* 無資格可オプション */}
+                                    <div className="mt-4 pt-4 border-t">
+                                        <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={formData.qualifications.includes('無資格可')}
+                                                onChange={() => toggleArrayItem('qualifications', '無資格可')}
+                                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <span className="font-medium">無資格可</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    スキル・経験（5つまで入力可能）
+                                </label>
+                                <div className="flex gap-2 mb-2">
+                                    <input
+                                        type="text"
+                                        value={skillInput}
+                                        onChange={(e) => setSkillInput(e.target.value)}
+                                        onKeyPress={(e) => e.key === 'Enter' && addToArray('skills', skillInput, setSkillInput)}
+                                        disabled={formData.skills.length >= 5}
+                                        className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-gray-100"
+                                        placeholder="スキルを追加"
+                                    />
+                                    <button
+                                        onClick={() => addToArray('skills', skillInput, setSkillInput)}
+                                        disabled={formData.skills.length >= 5}
+                                        className="px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 disabled:bg-gray-300"
+                                    >
+                                        追加
+                                    </button>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    {formData.skills.map((skill, index) => (
+                                        <span key={index} className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded flex items-center gap-2">
+                                            {skill}
+                                            <button onClick={() => removeFromArray('skills', index)} className="text-gray-500 hover:text-red-600">×</button>
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    服装・身だしなみ（5つまで入力可能）
+                                </label>
+                                <div className="flex gap-2 mb-2">
+                                    <input
+                                        type="text"
+                                        value={dresscodeInput}
+                                        onChange={(e) => setDresscodeInput(e.target.value)}
+                                        onKeyPress={(e) => e.key === 'Enter' && addToArray('dresscode', dresscodeInput, setDresscodeInput)}
+                                        disabled={formData.dresscode.length >= 5}
+                                        className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-gray-100"
+                                        placeholder="服装・身だしなみを追加"
+                                    />
+                                    <button
+                                        onClick={() => addToArray('dresscode', dresscodeInput, setDresscodeInput)}
+                                        disabled={formData.dresscode.length >= 5}
+                                        className="px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 disabled:bg-gray-300"
+                                    >
+                                        追加
+                                    </button>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    {formData.dresscode.map((item, index) => (
+                                        <span key={index} className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded flex items-center gap-2">
+                                            {item}
+                                            <button onClick={() => removeFromArray('dresscode', index)} className="text-gray-500 hover:text-red-600">×</button>
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    服装サンプル画像（3枚まで）
+                                </label>
                                 <div className="space-y-2">
-                                    {/* 既存添付ファイル */}
-                                    {formData.existingAttachments.map((url, index) => {
-                                        const fileName = url.split('/').pop() || 'ファイル';
-                                        return (
-                                            <div key={`existing-attachment-${index}`} className="flex items-center justify-between p-2 border border-gray-200 rounded">
-                                                <a
-                                                    href={url}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
-                                                >
-                                                    {fileName}
-                                                </a>
+                                    {(formData.existingDresscodeImages.length + formData.dresscodeImages.length) < 3 && (
+                                        <label
+                                            className="flex items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded cursor-pointer hover:border-blue-500 transition-colors"
+                                            onDragOver={(e) => {
+                                                e.preventDefault();
+                                                e.currentTarget.classList.add('border-blue-500', 'bg-blue-50');
+                                            }}
+                                            onDragLeave={(e) => {
+                                                e.preventDefault();
+                                                e.currentTarget.classList.remove('border-blue-500', 'bg-blue-50');
+                                            }}
+                                            onDrop={(e) => {
+                                                e.preventDefault();
+                                                e.currentTarget.classList.remove('border-blue-500', 'bg-blue-50');
+                                                const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
+                                                // 簡易アップロード
+                                                if (files.length > 0) {
+                                                    const dummyEvent = { target: { files: files } } as any;
+                                                    handleDresscodeImageUpload(dummyEvent);
+                                                }
+                                            }}
+                                        >
+                                            <div className="text-center">
+                                                <Upload className="w-8 h-8 mx-auto text-gray-400 mb-2" />
+                                                <span className="text-sm text-gray-500">画像を選択 または ドラッグ&ドロップ</span>
+                                            </div>
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                multiple
+                                                onChange={handleDresscodeImageUpload}
+                                                className="hidden"
+                                            />
+                                        </label>
+                                    )}
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {/* 既存服装画像 */}
+                                        {formData.existingDresscodeImages.map((url, index) => (
+                                            <div key={`existing-dresscode-${index}`} className="relative">
+                                                <img
+                                                    src={url}
+                                                    alt={`既存服装サンプル ${index + 1}`}
+                                                    className="w-full h-24 object-cover rounded border-2 border-blue-200"
+                                                />
                                                 <button
-                                                    onClick={() => removeExistingAttachment(index)}
+                                                    onClick={() => removeExistingDresscodeImage(index)}
+                                                    className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                                <span className="absolute bottom-1 left-1 px-1 py-0.5 text-[10px] bg-blue-500 text-white rounded">
+                                                    テンプレート
+                                                </span>
+                                            </div>
+                                        ))}
+                                        {/* 新規服装画像 */}
+                                        {formData.dresscodeImages.map((file, index) => (
+                                            <div key={`new-dresscode-${index}`} className="relative">
+                                                <img
+                                                    src={URL.createObjectURL(file)}
+                                                    alt={`服装サンプル ${index + 1}`}
+                                                    className="w-full h-24 object-cover rounded"
+                                                />
+                                                <button
+                                                    onClick={() => removeDresscodeImage(index)}
+                                                    className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    持ち物・その他（5つまで入力可能）
+                                </label>
+                                <div className="flex gap-2 mb-2">
+                                    <input
+                                        type="text"
+                                        value={belongingInput}
+                                        onChange={(e) => setBelongingInput(e.target.value)}
+                                        onKeyPress={(e) => e.key === 'Enter' && addToArray('belongings', belongingInput, setBelongingInput)}
+                                        disabled={formData.belongings.length >= 5}
+                                        className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-gray-100"
+                                        placeholder="持ち物・その他を追加"
+                                    />
+                                    <button
+                                        onClick={() => addToArray('belongings', belongingInput, setBelongingInput)}
+                                        disabled={formData.belongings.length >= 5}
+                                        className="px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 disabled:bg-gray-300"
+                                    >
+                                        追加
+                                    </button>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    {formData.belongings.map((item, index) => (
+                                        <span key={index} className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded flex items-center gap-2">
+                                            {item}
+                                            <button onClick={() => removeFromArray('belongings', index)} className="text-gray-500 hover:text-red-600">×</button>
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* その他 */}
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
+                        <h2 className="text-lg font-bold text-gray-900 mb-4">その他</h2>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    アイコン <span className="text-red-500">*</span>
+                                </label>
+                                <p className="text-xs text-blue-600 mb-2">チェックが多いほどより多くのワーカーから応募がきます!</p>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {ICON_OPTIONS.map(option => (
+                                        <label key={option} className="flex items-center space-x-2">
+                                            <input
+                                                type="checkbox"
+                                                checked={formData.icons.includes(option)}
+                                                onChange={() => toggleArrayItem('icons', option)}
+                                                className="rounded text-blue-600"
+                                            />
+                                            <span className="text-sm">{option}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    その他添付文章（3つまで）
+                                </label>
+                                <div className="space-y-2">
+                                    {(formData.existingAttachments.length + formData.attachments.length) < 3 && (
+                                        <label
+                                            className="flex items-center justify-center w-full h-24 border-2 border-dashed border-gray-300 rounded cursor-pointer hover:border-blue-500 transition-colors"
+                                            onDragOver={(e) => {
+                                                e.preventDefault();
+                                                e.currentTarget.classList.add('border-blue-500', 'bg-blue-50');
+                                            }}
+                                            onDragLeave={(e) => {
+                                                e.preventDefault();
+                                                e.currentTarget.classList.remove('border-blue-500', 'bg-blue-50');
+                                            }}
+                                            onDrop={(e) => {
+                                                e.preventDefault();
+                                                e.currentTarget.classList.remove('border-blue-500', 'bg-blue-50');
+                                                const files = Array.from(e.dataTransfer.files);
+                                                // 簡易アップロード
+                                                if (files.length > 0) {
+                                                    const dummyEvent = { target: { files: files } } as any;
+                                                    handleAttachmentUpload(dummyEvent);
+                                                }
+                                            }}
+                                        >
+                                            <div className="text-center">
+                                                <Upload className="w-6 h-6 mx-auto text-gray-400 mb-1" />
+                                                <span className="text-sm text-gray-500">ファイルを選択 または ドラッグ&ドロップ</span>
+                                            </div>
+                                            <input
+                                                type="file"
+                                                multiple
+                                                onChange={handleAttachmentUpload}
+                                                className="hidden"
+                                            />
+                                        </label>
+                                    )}
+                                    <div className="space-y-2">
+                                        {/* 既存添付ファイル */}
+                                        {formData.existingAttachments.map((url, index) => {
+                                            const fileName = url.split('/').pop() || 'ファイル';
+                                            return (
+                                                <div key={`existing-attachment-${index}`} className="flex items-center justify-between p-2 border border-gray-200 rounded">
+                                                    <a
+                                                        href={url}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                                                    >
+                                                        {fileName}
+                                                    </a>
+                                                    <button
+                                                        onClick={() => removeExistingAttachment(index)}
+                                                        className="p-1 text-red-500 hover:text-red-600"
+                                                    >
+                                                        <X className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                        {/* 新規添付ファイル */}
+                                        {formData.attachments.map((file, index) => (
+                                            <div key={`new-attachment-${index}`} className="flex items-center justify-between p-2 border border-gray-200 rounded">
+                                                <span className="text-sm">{file.name}</span>
+                                                <button
+                                                    onClick={() => removeAttachment(index)}
                                                     className="p-1 text-red-500 hover:text-red-600"
                                                 >
                                                     <X className="w-4 h-4" />
                                                 </button>
                                             </div>
-                                        );
-                                    })}
-                                    {/* 新規添付ファイル */}
-                                    {formData.attachments.map((file, index) => (
-                                        <div key={`new-attachment-${index}`} className="flex items-center justify-between p-2 border border-gray-200 rounded">
-                                            <span className="text-sm">{file.name}</span>
-                                            <button
-                                                onClick={() => removeAttachment(index)}
-                                                className="p-1 text-red-500 hover:text-red-600"
-                                            >
-                                                <X className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    ))}
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                労働条件通知書 <span className="text-red-500">*</span>
-                            </label>
-                            <button
-                                type="button"
-                                onClick={() => toast('労働条件通知書の表示機能は開発中です', { icon: '🚧' })}
-                                className="px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors mb-3"
-                            >
-                                労働条件通知書
-                            </button>
-                            <textarea
-                                value={formData.dismissalReasons}
-                                onChange={(e) => handleInputChange('dismissalReasons', e.target.value)}
-                                rows={12}
-                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600 font-mono"
-                            />
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    労働条件通知書 <span className="text-red-500">*</span>
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => toast('労働条件通知書の表示機能は開発中です', { icon: '🚧' })}
+                                    className="px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors mb-3"
+                                >
+                                    労働条件通知書
+                                </button>
+                                <textarea
+                                    value={formData.dismissalReasons}
+                                    onChange={(e) => handleInputChange('dismissalReasons', e.target.value)}
+                                    rows={12}
+                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600 font-mono"
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
             </div>
 
             {/* 確認モーダル */}

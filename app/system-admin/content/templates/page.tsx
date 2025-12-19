@@ -4,11 +4,13 @@ import { useState, useEffect } from 'react';
 import { ArrowLeft, Save, Mail, MessageSquare, FileText, Loader2, Tag, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import { getSystemTemplates, updateSystemTemplates, getQualificationAbbreviations, updateQualificationAbbreviations, resetQualificationAbbreviations } from '@/src/lib/content-actions';
 import { JobDescriptionFormatManager } from '@/components/system-admin/JobDescriptionFormatManager';
 import { QUALIFICATION_GROUPS, DEFAULT_QUALIFICATION_ABBREVIATIONS } from '@/constants/qualifications';
 
 export default function TemplateManagementPage() {
+    const { showDebugError } = useDebugError();
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [activeTab, setActiveTab] = useState<'support' | 'welcome' | 'job' | 'qualification'>('support');
@@ -46,6 +48,14 @@ export default function TemplateManagementPage() {
                 });
                 setAbbreviations(abbrevData);
             } catch (error) {
+                const debugInfo = extractDebugInfo(error);
+                showDebugError({
+                    type: 'fetch',
+                    operation: 'システムテンプレート一括取得',
+                    message: debugInfo.message,
+                    details: debugInfo.details,
+                    stack: debugInfo.stack
+                });
                 console.error('Failed to fetch templates:', error);
                 toast.error('テンプレートの取得に失敗しました');
             } finally {
@@ -62,6 +72,15 @@ export default function TemplateManagementPage() {
             await updateSystemTemplates(formData);
             toast.success('テンプレートを保存しました');
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'save',
+                operation: 'システムテンプレート保存',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { formData }
+            });
             console.error('Failed to save templates:', error);
             toast.error('保存に失敗しました');
         } finally {
@@ -100,6 +119,15 @@ export default function TemplateManagementPage() {
                 toast.error(result.error || '保存に失敗しました');
             }
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'save',
+                operation: '資格略称保存',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { abbreviations }
+            });
             console.error('Failed to save abbreviations:', error);
             toast.error('保存に失敗しました');
         } finally {
@@ -122,6 +150,14 @@ export default function TemplateManagementPage() {
                 toast.error(result.error || 'リセットに失敗しました');
             }
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'update',
+                operation: '資格略称リセット',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack
+            });
             console.error('Failed to reset abbreviations:', error);
             toast.error('リセットに失敗しました');
         } finally {

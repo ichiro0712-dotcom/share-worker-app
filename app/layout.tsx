@@ -4,6 +4,8 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { BadgeProvider } from "@/contexts/BadgeContext";
 import { Toaster } from "react-hot-toast";
 import MasqueradeBanner from "@/components/MasqueradeBanner";
+import { ErrorToastProvider } from '@/components/ui/PersistentErrorToast';
+import { DebugErrorProvider } from '@/components/debug/DebugErrorBanner';
 
 export const metadata: Metadata = {
   title: "+TASTAS - 看護師・介護士のための求人マッチング",
@@ -17,8 +19,6 @@ export const metadata: Metadata = {
   },
 };
 
-import { ErrorToastProvider } from '@/components/ui/PersistentErrorToast';
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -27,15 +27,17 @@ export default function RootLayout({
   return (
     <html lang="ja">
       <body>
-        <ErrorToastProvider>
-          <AuthProvider>
-            <BadgeProvider>
-              <MasqueradeBanner />
-              {children}
-            </BadgeProvider>
-          </AuthProvider>
-          <Toaster position="bottom-center" />
-        </ErrorToastProvider>
+        <DebugErrorProvider>
+          <ErrorToastProvider>
+            <AuthProvider>
+              <BadgeProvider>
+                <MasqueradeBanner />
+                {children}
+              </BadgeProvider>
+            </AuthProvider>
+            <Toaster position="bottom-center" />
+          </ErrorToastProvider>
+        </DebugErrorProvider>
       </body>
     </html>
   );

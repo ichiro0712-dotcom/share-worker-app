@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getAdminJobTemplates } from '@/src/lib/actions';
 import { Plus, Edit, Trash2, Copy } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 interface TemplateData {
   id: number;
@@ -29,6 +30,7 @@ interface TemplateData {
 
 export default function TemplatesPage() {
   const router = useRouter();
+  const { showDebugError } = useDebugError();
   const { admin, isAdmin, isAdminLoading } = useAuth();
   const [templates, setTemplates] = useState<TemplateData[]>([]);
   const [isLoading, setIsLoading] = useState(true);

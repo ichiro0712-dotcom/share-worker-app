@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { ArrowUpDown, Sparkles, X, TrendingUp, TrendingDown, Lightbulb, Star } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import { getFacilityReviewsForAdmin, getFacilityReviewStats } from '@/src/lib/actions';
 
 type SortType = 'rating-high' | 'rating-low' | 'newest' | 'oldest';
@@ -29,6 +30,7 @@ interface ReviewStats {
 
 export default function AdminReviewsPage() {
   const router = useRouter();
+  const { showDebugError } = useDebugError();
   const { admin, isAdmin, isAdminLoading } = useAuth();
   const [showAll, setShowAll] = useState(false);
   const [sortType, setSortType] = useState<SortType>('newest');
@@ -59,6 +61,15 @@ export default function AdminReviewsPage() {
         setReviews(reviewsData);
         setStats(statsData);
       } catch (error) {
+        const debugInfo = extractDebugInfo(error);
+        showDebugError({
+          type: 'fetch',
+          operation: '自社レビューデータ取得',
+          message: debugInfo.message,
+          details: debugInfo.details,
+          stack: debugInfo.stack,
+          context: { facilityId: admin.facilityId }
+        });
         console.error('Failed to fetch reviews:', error);
         toast.error('レビューの取得に失敗しました');
       } finally {

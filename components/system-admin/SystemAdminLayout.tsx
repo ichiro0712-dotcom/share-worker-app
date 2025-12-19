@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useSystemAuth } from '@/contexts/SystemAuthContext';
 import toast from 'react-hot-toast';
+import { DebugErrorProvider } from '@/components/debug/DebugErrorBanner';
 import {
     LayoutDashboard,
     Users,
@@ -122,9 +123,8 @@ export default function SystemAdminLayout({ children }: SystemAdminLayoutProps) 
         <div className="flex h-screen bg-gray-50">
             {/* サイドバー */}
             <div
-                className={`bg-slate-900 border-r border-slate-800 flex flex-col text-slate-300 transition-all duration-300 ease-in-out ${
-                    isCollapsed ? 'w-16' : 'w-64'
-                }`}
+                className={`bg-slate-900 border-r border-slate-800 flex flex-col text-slate-300 transition-all duration-300 ease-in-out ${isCollapsed ? 'w-16' : 'w-64'
+                    }`}
             >
                 {/* ロゴ・管理者 */}
                 <div className="p-3 border-b border-slate-800">
@@ -160,11 +160,10 @@ export default function SystemAdminLayout({ children }: SystemAdminLayoutProps) 
                             {isCollapsed ? (
                                 <Link
                                     href={item.href}
-                                    className={`relative flex items-center justify-center py-2.5 mx-2 rounded-lg transition-colors group ${
-                                        item.active
-                                            ? 'bg-indigo-500/20 text-indigo-400'
-                                            : 'hover:text-white hover:bg-white/5'
-                                    }`}
+                                    className={`relative flex items-center justify-center py-2.5 mx-2 rounded-lg transition-colors group ${item.active
+                                        ? 'bg-indigo-500/20 text-indigo-400'
+                                        : 'hover:text-white hover:bg-white/5'
+                                        }`}
                                     title={item.title}
                                 >
                                     {item.icon}
@@ -199,9 +198,8 @@ export default function SystemAdminLayout({ children }: SystemAdminLayoutProps) 
                     )}
                     <button
                         onClick={handleLogout}
-                        className={`w-full flex items-center justify-center gap-2 text-sm text-slate-400 border border-slate-700 rounded-lg hover:bg-white/5 hover:text-white transition-colors ${
-                            isCollapsed ? 'p-2' : 'px-4 py-2'
-                        }`}
+                        className={`w-full flex items-center justify-center gap-2 text-sm text-slate-400 border border-slate-700 rounded-lg hover:bg-white/5 hover:text-white transition-colors ${isCollapsed ? 'p-2' : 'px-4 py-2'
+                            }`}
                         title={isCollapsed ? 'ログアウト' : undefined}
                     >
                         <LogOut className="w-5 h-5" />
@@ -212,7 +210,9 @@ export default function SystemAdminLayout({ children }: SystemAdminLayoutProps) 
 
             {/* メインコンテンツ */}
             <div className="flex-1 overflow-y-auto">
-                {children}
+                <DebugErrorProvider>
+                    {children}
+                </DebugErrorProvider>
             </div>
 
             {/* ログアウト確認モーダル */}

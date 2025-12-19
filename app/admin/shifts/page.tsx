@@ -16,6 +16,7 @@ import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { getShiftsForFacility, cancelShift } from '@/src/lib/actions';
 import toast from 'react-hot-toast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, addWeeks, subWeeks, getDay } from 'date-fns';
 import { ja } from 'date-fns/locale';
 
@@ -95,6 +96,7 @@ function groupOverlappingShifts(shifts: Shift[]): Shift[][] {
 
 export default function ShiftManagementPage() {
     const { admin } = useAuth();
+    const { showDebugError } = useDebugError();
     const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
     const [currentDate, setCurrentDate] = useState(new Date());
     const [shifts, setShifts] = useState<Shift[]>([]);
@@ -133,6 +135,15 @@ export default function ShiftManagementPage() {
 
             setShifts(parsedData);
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'fetch',
+                operation: 'シフトデータ取得',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { facilityId: admin?.facilityId, viewMode, currentDate: currentDate.toISOString() }
+            });
             console.error('Failed to fetch shifts:', error);
             toast.error('シフトの取得に失敗しました');
         } finally {
@@ -213,6 +224,15 @@ export default function ShiftManagementPage() {
                 toast.error(result.error || 'キャンセルに失敗しました');
             }
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'delete',
+                operation: 'シフトキャンセル',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { applicationId: selectedShift.applicationId, facilityId: admin?.facilityId }
+            });
             console.error('Cancel error:', error);
             toast.error('エラーが発生しました');
         }

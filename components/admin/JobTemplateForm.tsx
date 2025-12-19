@@ -10,6 +10,7 @@ import { validateImageFiles, validateAttachmentFiles } from '@/utils/fileValidat
 import toast from 'react-hot-toast';
 import { getFacilityById, createJobTemplate, updateJobTemplate } from '@/src/lib/actions';
 import { getJobDescriptionFormats, getDismissalReasonsFromLaborTemplate } from '@/src/lib/content-actions';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import {
     JOB_TYPES,
     WORK_CONTENT_OPTIONS,
@@ -64,6 +65,7 @@ interface JobTemplateFormProps {
 
 export default function JobTemplateForm({ mode, templateId, initialData }: JobTemplateFormProps) {
     const router = useRouter();
+    const { showDebugError } = useDebugError();
     const { admin, isAdmin } = useAuth();
     const [facilityName, setFacilityName] = useState<string>('');
     const [facilityData, setFacilityData] = useState<any>(null);
@@ -149,6 +151,14 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                     }));
                 }
             } catch (error) {
+                const debugInfo = extractDebugInfo(error);
+                showDebugError({
+                    type: 'fetch',
+                    operation: '求人テンプレート作成用データ取得',
+                    message: debugInfo.message,
+                    details: debugInfo.details,
+                    stack: debugInfo.stack
+                });
                 console.error('Failed to fetch data:', error);
             }
 
@@ -325,6 +335,12 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                     const uploadResult = await uploadResponse.json();
                     newImageUrls = uploadResult.urls || [];
                 } else {
+                    showDebugError({
+                        type: 'upload',
+                        operation: '求人テンプレート画像アップロード',
+                        message: 'TOP画像のアップロードに失敗しました',
+                        context: { facilityId: admin.facilityId }
+                    });
                     toast.error('TOP画像のアップロードに失敗しました');
                     setSaving(false);
                     return;
@@ -348,6 +364,12 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                     const uploadResult = await uploadResponse.json();
                     newDresscodeImageUrls = uploadResult.urls || [];
                 } else {
+                    showDebugError({
+                        type: 'upload',
+                        operation: '求人テンプレート服装画像アップロード',
+                        message: '服装サンプル画像のアップロードに失敗しました',
+                        context: { facilityId: admin.facilityId }
+                    });
                     toast.error('服装サンプル画像のアップロードに失敗しました');
                     setSaving(false);
                     return;
@@ -371,6 +393,12 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                     const uploadResult = await uploadResponse.json();
                     newAttachmentUrls = uploadResult.urls || [];
                 } else {
+                    showDebugError({
+                        type: 'upload',
+                        operation: '求人テンプレート添付ファイルアップロード',
+                        message: '添付ファイルのアップロードに失敗しました',
+                        context: { facilityId: admin.facilityId }
+                    });
                     toast.error('添付ファイルのアップロードに失敗しました');
                     setSaving(false);
                     return;
@@ -415,9 +443,24 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                 toast.success(mode === 'edit' ? 'テンプレートを更新しました' : 'テンプレートを保存しました');
                 router.push('/admin/jobs/templates');
             } else {
+                showDebugError({
+                    type: mode === 'edit' ? 'update' : 'save',
+                    operation: mode === 'edit' ? 'テンプレート更新' : 'テンプレート保存',
+                    message: result.error || '保存に失敗しました',
+                    context: { facilityId: admin.facilityId, templateId }
+                });
                 toast.error(result.error || 'テンプレートの保存に失敗しました');
             }
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: mode === 'edit' ? 'update' : 'save',
+                operation: mode === 'edit' ? 'テンプレート更新(例外)' : 'テンプレート保存(例外)',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { facilityId: admin.facilityId, templateId }
+            });
             toast.error('テンプレートの保存に失敗しました');
         } finally {
             setSaving(false);

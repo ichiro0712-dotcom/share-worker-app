@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Plus, GripVertical, Pencil, Trash2, ChevronDown, ChevronRight, X, Loader2, Eye, EyeOff, Download, Upload, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import {
     getFaqCategoriesForAdmin,
     createFaqCategory,
@@ -41,6 +42,7 @@ interface FaqCategoryWithState extends FaqCategoryData {
 const CSV_HEADERS = ['カテゴリ名', 'カテゴリ順', '質問', '回答', 'FAQ順', '公開'];
 
 export default function FaqEditPage() {
+    const { showDebugError } = useDebugError();
     const [activeTab, setActiveTab] = useState<TargetType>('WORKER');
     const [categories, setCategories] = useState<FaqCategoryWithState[]>([]);
     const [loading, setLoading] = useState(true);
@@ -80,7 +82,16 @@ export default function FaqEditPage() {
                 ...cat,
                 isExpanded: true,
             })));
-        } catch {
+        } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'fetch',
+                operation: 'FAQカテゴリ一覧取得',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { activeTab }
+            });
             toast.error('FAQの取得に失敗しました');
         } finally {
             setLoading(false);
@@ -132,7 +143,16 @@ export default function FaqEditPage() {
             }
             setShowCategoryModal(false);
             loadCategories();
-        } catch {
+        } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: editingCategory ? 'update' : 'save',
+                operation: editingCategory ? 'FAQカテゴリ更新' : 'FAQカテゴリ作成',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { categoryName, editingCategoryId: editingCategory?.id }
+            });
             toast.error('保存に失敗しました');
         } finally {
             setSaving(false);
@@ -171,7 +191,16 @@ export default function FaqEditPage() {
             }
             setShowFaqModal(false);
             loadCategories();
-        } catch {
+        } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: editingFaq ? 'update' : 'save',
+                operation: editingFaq ? 'FAQ更新' : 'FAQ作成',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { faqQuestion, editingFaqId: editingFaq?.id, selectedCategoryId }
+            });
             toast.error('保存に失敗しました');
         } finally {
             setSaving(false);
@@ -193,7 +222,16 @@ export default function FaqEditPage() {
             }
             setShowDeleteConfirm(null);
             loadCategories();
-        } catch {
+        } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'delete',
+                operation: showDeleteConfirm.type === 'category' ? 'FAQカテゴリ削除' : 'FAQ削除',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { type: showDeleteConfirm.type, id: showDeleteConfirm.id }
+            });
             toast.error('削除に失敗しました');
         } finally {
             setSaving(false);
@@ -206,7 +244,16 @@ export default function FaqEditPage() {
             await updateFaq(faq.id, { isPublished: !faq.is_published });
             toast.success(faq.is_published ? '非公開にしました' : '公開しました');
             loadCategories();
-        } catch {
+        } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'update',
+                operation: 'FAQ公開状態切り替え',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { faqId: faq.id, isPublished: !faq.is_published }
+            });
             toast.error('更新に失敗しました');
         }
     };
@@ -257,7 +304,15 @@ export default function FaqEditPage() {
             await updateFaqOrder(updates);
             toast.success('並び順を更新しました');
             loadCategories();
-        } catch {
+        } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'update',
+                operation: 'FAQ並び順更新',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack
+            });
             toast.error('並び順の更新に失敗しました');
         }
 
@@ -298,7 +353,15 @@ export default function FaqEditPage() {
             await updateFaqCategoryOrder(updates);
             toast.success('カテゴリの並び順を更新しました');
             loadCategories();
-        } catch {
+        } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'update',
+                operation: 'FAQカテゴリ並び順更新',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack
+            });
             toast.error('並び順の更新に失敗しました');
         }
 

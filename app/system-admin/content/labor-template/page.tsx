@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Save, RotateCcw, Copy, Check, FileText, HelpCircle, X, AlertTriangle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import {
     getLaborDocumentTemplate,
     updateLaborDocumentTemplate,
@@ -14,6 +15,7 @@ import {
 import { LABOR_TEMPLATE_VARIABLES } from '@/src/constants/labor-template';
 
 export default function LaborTemplateEditPage() {
+    const { showDebugError } = useDebugError();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [previewing, setPreviewing] = useState(false);
@@ -30,6 +32,14 @@ export default function LaborTemplateEditPage() {
             const data = await getLaborDocumentTemplate();
             setTemplate(data);
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'fetch',
+                operation: '労働条件通知書テンプレート取得',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack
+            });
             toast.error('テンプレートの読み込みに失敗しました');
         } finally {
             setLoading(false);
@@ -48,6 +58,14 @@ export default function LaborTemplateEditPage() {
                 toast.error(result.error || '保存に失敗しました');
             }
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'update',
+                operation: '労働条件通知書テンプレート更新',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack
+            });
             toast.error('保存に失敗しました');
         } finally {
             setSaving(false);
@@ -67,6 +85,14 @@ export default function LaborTemplateEditPage() {
                 toast.error(result.error || 'リセットに失敗しました');
             }
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'update',
+                operation: '労働条件通知書テンプレートリセット',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack
+            });
             toast.error('リセットに失敗しました');
         } finally {
             setSaving(false);
@@ -102,6 +128,14 @@ export default function LaborTemplateEditPage() {
                 toast.error(result.error || 'プレビュー生成に失敗しました');
             }
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'other',
+                operation: '労働条件通知書テンプレートプレビュー生成',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack
+            });
             toast.error('プレビュー生成に失敗しました');
         } finally {
             setPreviewing(false);

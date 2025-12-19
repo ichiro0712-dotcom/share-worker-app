@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useErrorToast } from '@/components/ui/PersistentErrorToast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import JobApplicationModal from '@/components/admin/JobApplicationModal';
 import { MonthlyShiftView } from '@/components/admin/MonthlyShiftView';
 import { useAuth } from '@/contexts/AuthContext';
@@ -161,6 +162,7 @@ const getExperienceColorByField = (field: string): string => {
 
 function ApplicationsContent() {
   const router = useRouter();
+  const { showDebugError } = useDebugError();
   const { admin, isAdmin, isAdminLoading } = useAuth();
   const [jobs, setJobs] = useState<JobWithApplications[]>([]);
   const [workers, setWorkers] = useState<WorkerWithApplications[]>([]);
@@ -300,6 +302,15 @@ function ApplicationsContent() {
         }
       }
     } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'fetch',
+        operation: '応募管理データ一括取得',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { facilityId: admin?.facilityId, page, statusFilter, debouncedQuery, viewMode }
+      });
       console.error('Failed to fetch data:', error);
       toast.error('データの取得に失敗しました');
     } finally {
@@ -381,6 +392,15 @@ function ApplicationsContent() {
         throw new Error(result.error);
       }
     } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'update',
+        operation: '応募ステータス更新',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { applicationId, newStatus, facilityId: admin.facilityId }
+      });
       console.error('Failed to update status:', error);
       // ロールバック
       setJobs(prevJobs);
@@ -412,6 +432,15 @@ function ApplicationsContent() {
         const result = await updateApplicationStatus(app.id, 'SCHEDULED', admin.facilityId);
         if (result.success) successCount++;
       } catch (error) {
+        const debugInfo = extractDebugInfo(error);
+        showDebugError({
+          type: 'update',
+          operation: '一括マッチング(個別失敗)',
+          message: debugInfo.message,
+          details: debugInfo.details,
+          stack: debugInfo.stack,
+          context: { applicationId: app.id, facilityId: admin.facilityId }
+        });
         console.error(`Failed to match app ${app.id}:`, error);
       }
     }
@@ -451,6 +480,15 @@ function ApplicationsContent() {
         toast.success(result.isFavorite ? 'お気に入りに追加しました' : 'お気に入りを解除しました');
       }
     } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'update',
+        operation: 'ワーカーお気に入りトグル',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { workerId, facilityId: admin?.facilityId }
+      });
       console.error('Failed to toggle favorite:', error);
       // エラー時も戻す
       setWorkerStates(prev => ({
@@ -497,6 +535,15 @@ function ApplicationsContent() {
         toast.success(result.isBlocked ? 'ブロックしました' : 'ブロックを解除しました');
       }
     } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'update',
+        operation: 'ワーカーブロックトグル',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { workerId, facilityId: admin?.facilityId }
+      });
       console.error('Failed to toggle block:', error);
       // エラー時も戻す
       setWorkerStates(prev => ({

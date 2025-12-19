@@ -13,6 +13,7 @@ import { JobCard } from '@/components/job/JobCard';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { toggleFacilityFavorite } from '@/src/lib/actions';
 import toast from 'react-hot-toast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 interface Review {
   id: number;
@@ -41,6 +42,7 @@ export function FacilityDetailClient({
   reviews,
 }: FacilityDetailClientProps) {
   const router = useRouter();
+  const { showDebugError } = useDebugError();
   const [isFavorite, setIsFavorite] = useState(initialIsFavorite);
   const [isProcessing, setIsProcessing] = useState(false);
   const [displayedReviewCount, setDisplayedReviewCount] = useState(5);
@@ -60,6 +62,15 @@ export function FacilityDetailClient({
         toast.success(result.isFavorite ? 'お気に入りに追加しました' : 'お気に入りから削除しました');
       }
     } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'update',
+        operation: 'お気に入り切り替え',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { facilityId: facility.id }
+      });
       console.error('Favorite toggle error:', error);
       toast.error('エラーが発生しました');
     } finally {
@@ -77,9 +88,8 @@ export function FacilityDetailClient({
           </button>
           <button onClick={handleFavorite} disabled={isProcessing}>
             <Heart
-              className={`w-5 h-5 ${
-                isFavorite ? 'fill-red-500 text-red-500' : 'text-gray-600'
-              }`}
+              className={`w-5 h-5 ${isFavorite ? 'fill-red-500 text-red-500' : 'text-gray-600'
+                }`}
             />
           </button>
         </div>
@@ -206,11 +216,10 @@ export function FacilityDetailClient({
                     {[1, 2, 3, 4, 5].map((value) => (
                       <Star
                         key={value}
-                        className={`w-3.5 h-3.5 ${
-                          value <= review.rating
+                        className={`w-3.5 h-3.5 ${value <= review.rating
                             ? 'text-yellow-400 fill-yellow-400'
                             : 'text-gray-300'
-                        }`}
+                          }`}
                       />
                     ))}
                     <span className="ml-1 text-sm font-semibold text-gray-700">

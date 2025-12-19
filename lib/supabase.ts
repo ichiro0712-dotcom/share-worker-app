@@ -30,6 +30,7 @@ export { s3Client };
 // Storage bucket名
 export const STORAGE_BUCKETS = {
   UPLOADS: 'uploads',
+  USER_ASSETS: 'user-assets',
 } as const;
 
 /**

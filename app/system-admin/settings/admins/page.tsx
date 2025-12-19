@@ -6,6 +6,7 @@ import { useSystemAuth } from '@/contexts/SystemAuthContext';
 import { Users, Plus, Trash2, Shield, User } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 interface SystemAdmin {
     id: number;
@@ -17,6 +18,7 @@ interface SystemAdmin {
 
 export default function SystemAdminsPage() {
     const { admin } = useSystemAuth();
+    const { showDebugError } = useDebugError();
     const [admins, setAdmins] = useState<SystemAdmin[]>([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
@@ -31,6 +33,14 @@ export default function SystemAdminsPage() {
             const data = await getSystemAdmins();
             setAdmins(data);
         } catch (e) {
+            const debugInfo = extractDebugInfo(e);
+            showDebugError({
+                type: 'fetch',
+                operation: 'システム管理者一覧取得',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack
+            });
             console.error(e);
         } finally {
             setLoading(false);
@@ -54,6 +64,15 @@ export default function SystemAdminsPage() {
                 toast.error(result.error || '作成に失敗しました');
             }
         } catch (e) {
+            const debugInfo = extractDebugInfo(e);
+            showDebugError({
+                type: 'save',
+                operation: 'システム管理者作成',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { newAdmin }
+            });
             toast.error('エラーが発生しました');
         }
     };
@@ -69,6 +88,15 @@ export default function SystemAdminsPage() {
                 toast.error('削除に失敗しました');
             }
         } catch (e) {
+            const debugInfo = extractDebugInfo(e);
+            showDebugError({
+                type: 'delete',
+                operation: 'システム管理者削除',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { id }
+            });
             toast.error('エラーが発生しました');
         }
     };

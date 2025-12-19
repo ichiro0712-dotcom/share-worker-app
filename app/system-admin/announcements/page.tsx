@@ -6,6 +6,7 @@ import { getSystemAnnouncements, deleteAnnouncement } from '@/src/lib/system-act
 import { Search, Filter, Plus, MoreVertical, Edit, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import { useRouter } from 'next/navigation';
 
 interface Announcement {
@@ -19,6 +20,7 @@ interface Announcement {
 }
 
 export default function SystemAdminAnnouncementsPage() {
+    const { showDebugError } = useDebugError();
     const router = useRouter();
     const [announcements, setAnnouncements] = useState<Announcement[]>([]);
     const [loading, setLoading] = useState(true);
@@ -37,6 +39,15 @@ export default function SystemAdminAnnouncementsPage() {
             setTotalPages(data.totalPages);
             setTotalCount(data.total);
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'fetch',
+                operation: 'システムお知らせ一覧取得',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { page, search, targetType, status }
+            });
             console.error(error);
         } finally {
             setLoading(false);
@@ -58,6 +69,15 @@ export default function SystemAdminAnnouncementsPage() {
                 toast.error('削除に失敗しました');
             }
         } catch (e) {
+            const debugInfo = extractDebugInfo(e);
+            showDebugError({
+                type: 'delete',
+                operation: 'システムお知らせ削除',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { id }
+            });
             toast.error('エラーが発生しました');
         }
     };

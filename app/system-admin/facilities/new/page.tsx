@@ -7,8 +7,10 @@ import { createFacilityWithAdmin } from '@/src/lib/system-actions';
 import { SERVICE_TYPES } from '@/constants/serviceTypes';
 import { ChevronLeft, Building2, User, Lock, Mail, Phone, MapPin } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 export default function SystemAdminNewFacilityPage() {
+    const { showDebugError } = useDebugError();
     const router = useRouter();
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
@@ -53,6 +55,15 @@ export default function SystemAdminNewFacilityPage() {
                 toast.error(result.error || '登録に失敗しました');
             }
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'save',
+                operation: 'システム管理者による施設・管理者一括登録',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { formData: { ...formData, adminPassword: '***' } }
+            });
             console.error(error);
             toast.error('エラーが発生しました');
         } finally {
