@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { PREFECTURES } from '@/src/lib/analytics-constants';
 import { CITIES_BY_PREFECTURE } from '@/constants/japan-cities';
-import { X } from 'lucide-react';
+import { X, Loader2 } from 'lucide-react';
 
 interface AddressSelectorProps {
     prefecture: string;
@@ -23,6 +23,13 @@ interface AddressSelectorProps {
     required?: boolean;
 }
 
+// 郵便番号APIレスポンス型
+interface ZipCodeResult {
+    address1: string; // 都道府県
+    address2: string; // 市区町村
+    address3: string; // 町域
+}
+
 export default function AddressSelector({
     prefecture,
     city,
@@ -35,6 +42,65 @@ export default function AddressSelector({
     required = false
 }: AddressSelectorProps) {
     const [citySearch, setCitySearch] = useState('');
+    const [isSearchingPostalCode, setIsSearchingPostalCode] = useState(false);
+    const [postalCodeError, setPostalCodeError] = useState('');
+
+    // 郵便番号から住所を検索
+    const searchAddressByPostalCode = useCallback(async (zipCode: string) => {
+        // ハイフンを除去して数字のみに
+        const cleanZipCode = zipCode.replace(/[-\s]/g, '');
+
+        // 7桁でない場合は検索しない
+        if (cleanZipCode.length !== 7 || !/^\d{7}$/.test(cleanZipCode)) {
+            setPostalCodeError('');
+            return;
+        }
+
+        setIsSearchingPostalCode(true);
+        setPostalCodeError('');
+
+        try {
+            // zipcloud API（無料・CORS対応）
+            const response = await fetch(`https://zipcloud.ibsnet.co.jp/api/search?zipcode=${cleanZipCode}`);
+            const data = await response.json();
+
+            if (data.status === 200 && data.results && data.results.length > 0) {
+                const result: ZipCodeResult = data.results[0];
+
+                // 住所情報を更新
+                onChange({
+                    prefecture: result.address1,
+                    city: result.address2,
+                    addressLine: result.address3 || addressLine,
+                    building,
+                    postalCode: zipCode
+                });
+                setCitySearch('');
+                setPostalCodeError('');
+            } else {
+                setPostalCodeError('該当する住所が見つかりませんでした');
+            }
+        } catch (error) {
+            console.error('郵便番号検索エラー:', error);
+            setPostalCodeError('住所の検索に失敗しました');
+        } finally {
+            setIsSearchingPostalCode(false);
+        }
+    }, [addressLine, building, onChange]);
+
+    // 郵便番号変更時のハンドラー
+    const handlePostalCodeChange = (value: string) => {
+        // 郵便番号を更新
+        onChange({ prefecture, city, addressLine, building, postalCode: value });
+
+        // 自動検索（7桁入力時）
+        const cleanValue = value.replace(/[-\s]/g, '');
+        if (cleanValue.length === 7) {
+            searchAddressByPostalCode(value);
+        } else {
+            setPostalCodeError('');
+        }
+    };
 
     // 選択された都道府県の市区町村リスト
     const availableCities = useMemo(() => {
@@ -78,14 +144,26 @@ export default function AddressSelector({
                 <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
                         郵便番号
+                        <span className="ml-2 text-xs text-slate-500 font-normal">
+                            ※入力すると住所が自動入力されます
+                        </span>
                     </label>
-                    <input
-                        type="text"
-                        value={postalCode}
-                        onChange={e => onChange({ prefecture, city, addressLine, building, postalCode: e.target.value })}
-                        className="w-full max-w-[200px] px-3 py-2 border border-slate-300 rounded-lg"
-                        placeholder="123-4567"
-                    />
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="text"
+                            value={postalCode}
+                            onChange={e => handlePostalCodeChange(e.target.value)}
+                            className="w-full max-w-[200px] px-2 py-1.5 text-sm border border-slate-300 rounded-lg"
+                            placeholder="123-4567"
+                            maxLength={8}
+                        />
+                        {isSearchingPostalCode && (
+                            <Loader2 className="w-5 h-5 text-primary animate-spin" />
+                        )}
+                    </div>
+                    {postalCodeError && (
+                        <p className="mt-1 text-xs text-red-500">{postalCodeError}</p>
+                    )}
                 </div>
             )}
 
@@ -97,7 +175,7 @@ export default function AddressSelector({
                 <select
                     value={prefecture}
                     onChange={e => handlePrefectureChange(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                    className="w-full px-2 py-1.5 text-sm border border-slate-300 rounded-lg"
                     required={required}
                 >
                     <option value="">選択してください</option>
@@ -140,7 +218,7 @@ export default function AddressSelector({
                                     type="text"
                                     value={citySearch}
                                     onChange={e => setCitySearch(e.target.value)}
-                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg mb-2"
+                                    className="w-full px-2 py-1.5 text-sm border border-slate-300 rounded-lg mb-2"
                                     placeholder="市区町村を検索..."
                                 />
                                 <div className="flex flex-wrap gap-2 p-3 border border-slate-300 rounded-lg max-h-40 overflow-y-auto">
@@ -173,7 +251,7 @@ export default function AddressSelector({
                     <input
                         type="text"
                         disabled
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 text-slate-400"
+                        className="w-full px-2 py-1.5 text-sm border border-slate-200 rounded-lg bg-slate-50 text-slate-400"
                         placeholder="都道府県を先に選択"
                     />
                 )}
@@ -188,7 +266,7 @@ export default function AddressSelector({
                     type="text"
                     value={addressLine}
                     onChange={e => onChange({ prefecture, city, addressLine: e.target.value, building, postalCode })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                    className="w-full px-2 py-1.5 text-sm border border-slate-300 rounded-lg"
                     placeholder="例: ●●町1-2-3"
                 />
             </div>
@@ -203,7 +281,7 @@ export default function AddressSelector({
                         type="text"
                         value={building}
                         onChange={e => onChange({ prefecture, city, addressLine, building: e.target.value, postalCode })}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                        className="w-full px-2 py-1.5 text-sm border border-slate-300 rounded-lg"
                         placeholder="例: ○○マンション 101号室"
                     />
                 </div>

@@ -59,12 +59,24 @@ export default function FacilityPage() {
     representativeLastName: '',
     representativeFirstName: '',
     phone: '',
-    prefecture: '',
-    city: '',
-    addressDetail: '',
     email: '',
     contactPersonLastName: '',
     contactPersonFirstName: '',
+    corporationNumber: '',
+    // 法人住所（登記上の住所、どこにも紐づかない）
+    corpPostalCode: '',
+    corpPrefecture: '',
+    corpCity: '',
+    corpAddressLine: '',
+  });
+
+  // 施設住所（求人・MAPに使用）
+  const [facilityAddress, setFacilityAddress] = useState({
+    postalCode: '',
+    prefecture: '',
+    city: '',
+    addressLine: '',
+    sameAsCorp: false, // 法人住所と同じフラグ
   });
 
   // 施設情報
@@ -236,9 +248,25 @@ export default function FacilityPage() {
         if (data) {
           console.log('[loadFacilityInfo] Loaded data:', data);
 
-          // 仮登録状態（is_pending）の場合は空のフォームを表示
+          // 仮登録状態（is_pending）の場合は空のフォームを表示（通知先メールは保持）
           if (data.isPending) {
             console.log('[loadFacilityInfo] Pending facility - showing empty form');
+            // 通知先メールアドレスはDBから取得（初期設定されている場合がある）
+            const pendingEmails: string[] = [];
+            if (data.staffEmail) {
+              pendingEmails.push(data.staffEmail);
+            }
+            if (data.staffEmails && data.staffEmails.length > 0) {
+              data.staffEmails.forEach((e: string) => {
+                if (e && !pendingEmails.includes(e)) {
+                  pendingEmails.push(e);
+                }
+              });
+            }
+            if (pendingEmails.length === 0) {
+              pendingEmails.push('');
+            }
+
             // デフォルトのstate値をそのまま使用（空のフォーム）
             // 責任者情報のデフォルト値を空にリセット
             setManagerInfo({
@@ -247,13 +275,13 @@ export default function FacilityPage() {
               phone: '',
               email: '',
             });
-            // 担当者情報のデフォルト値を空にリセット
+            // 担当者情報のデフォルト値を空にリセット（通知先メールは保持）
             setStaffInfo({
               sameAsManager: false,
               lastName: '',
               firstName: '',
               phone: '',
-              emails: [''],
+              emails: pendingEmails,
               photo: null,
               photoPreview: '',
               greeting: '',
@@ -285,12 +313,24 @@ export default function FacilityPage() {
             representativeLastName: data.representativeLastName || '',
             representativeFirstName: data.representativeFirstName || '',
             phone: data.phoneNumber || '',
-            prefecture: data.prefecture || '',
-            city: data.city || '',
-            addressDetail: data.addressDetail || '',
             email: data.email || '',
             contactPersonLastName: data.contactPersonLastName || '',
             contactPersonFirstName: data.contactPersonFirstName || '',
+            corporationNumber: data.corporationNumber || '',
+            // 法人住所
+            corpPostalCode: data.corpPostalCode || '',
+            corpPrefecture: data.corpPrefecture || '',
+            corpCity: data.corpCity || '',
+            corpAddressLine: data.corpAddressLine || '',
+          });
+
+          // 施設住所をセット（求人・MAPに使用）
+          setFacilityAddress({
+            postalCode: data.postalCode || '',
+            prefecture: data.prefecture || '',
+            city: data.city || '',
+            addressLine: data.addressDetail || '',
+            sameAsCorp: false,
           });
 
           // 施設情報をセット
@@ -707,6 +747,13 @@ export default function FacilityPage() {
     // Validation
     const errors: string[] = [];
 
+    // 法人番号（13桁必須）
+    if (!corporateInfo.corporationNumber) {
+      errors.push('法人番号は必須です');
+    } else if (corporateInfo.corporationNumber.length !== 13) {
+      errors.push('法人番号は13桁で入力してください');
+    }
+
     // 責任者情報
     if (!managerInfo.lastName || !managerInfo.firstName) errors.push('責任者の氏名は必須です');
     if (!managerInfo.phone) errors.push('責任者の電話番号は必須です');
@@ -742,27 +789,27 @@ export default function FacilityPage() {
     if (!smokingInfo.measure) errors.push('受動喫煙防止対策措置は必須です');
     if (!smokingInfo.workInSmokingArea) errors.push('喫煙可能エリアでの作業可否は必須です');
 
-    // 住所は必須
-    if (!corporateInfo.prefecture || !corporateInfo.city || !corporateInfo.addressDetail) {
-      errors.push('住所（都道府県・市区町村・番地）は必須です');
+    // 施設住所は必須（求人・MAPに使用）
+    if (!facilityAddress.prefecture || !facilityAddress.city || !facilityAddress.addressLine) {
+      errors.push('施設住所（都道府県・市区町村・番地）は必須です');
     }
 
-    // 町名・番地に都道府県や市区町村が含まれていないかチェック
-    if (corporateInfo.addressDetail) {
-      const addressDetail = corporateInfo.addressDetail;
+    // 施設住所の町名・番地に都道府県や市区町村が含まれていないかチェック
+    if (facilityAddress.addressLine) {
+      const addressDetail = facilityAddress.addressLine;
       // 選択された都道府県・市区町村が町名・番地に含まれていたらエラー
-      if (corporateInfo.prefecture && addressDetail.includes(corporateInfo.prefecture)) {
-        errors.push(`町名・番地に「${corporateInfo.prefecture}」が含まれています。町名・番地には「●●町1-2-3」のように入力してください`);
+      if (facilityAddress.prefecture && addressDetail.includes(facilityAddress.prefecture)) {
+        errors.push(`施設住所の町名・番地に「${facilityAddress.prefecture}」が含まれています。町名・番地には「●●町1-2-3」のように入力してください`);
       }
-      if (corporateInfo.city && addressDetail.includes(corporateInfo.city)) {
-        errors.push(`町名・番地に「${corporateInfo.city}」が含まれています。町名・番地には「●●町1-2-3」のように入力してください`);
+      if (facilityAddress.city && addressDetail.includes(facilityAddress.city)) {
+        errors.push(`施設住所の町名・番地に「${facilityAddress.city}」が含まれています。町名・番地には「●●町1-2-3」のように入力してください`);
       }
       // 一般的な都道府県名パターンをチェック
       const prefecturePatterns = ['都', '道', '府', '県'];
       for (const suffix of prefecturePatterns) {
         const pattern = new RegExp(`[\\u4E00-\\u9FFF]+${suffix}`);
         if (pattern.test(addressDetail) && (addressDetail.includes('東京都') || addressDetail.includes('北海道') || addressDetail.includes('京都府') || addressDetail.includes('大阪府') || addressDetail.match(/[\\u4E00-\\u9FFF]+県/))) {
-          errors.push('町名・番地に都道府県名が含まれています。町名・番地には「●●町1-2-3」のように入力してください');
+          errors.push('施設住所の町名・番地に都道府県名が含まれています。町名・番地には「●●町1-2-3」のように入力してください');
           break;
         }
       }
@@ -814,11 +861,11 @@ export default function FacilityPage() {
         return;
       }
 
-      // 地図画像を更新するかの判定
+      // 地図画像を更新するかの判定（施設住所を使用）
       const fullAddress = [
-        corporateInfo.prefecture,
-        corporateInfo.city,
-        corporateInfo.addressDetail,
+        facilityAddress.prefecture,
+        facilityAddress.city,
+        facilityAddress.addressLine,
       ].filter(Boolean).join('');
 
       const addressChanged = fullAddress !== originalAddress;
@@ -850,12 +897,21 @@ export default function FacilityPage() {
         representativeLastName: corporateInfo.representativeLastName,
         representativeFirstName: corporateInfo.representativeFirstName,
         phone: corporateInfo.phone,
-        prefecture: corporateInfo.prefecture,
-        city: corporateInfo.city,
-        addressLine: corporateInfo.addressDetail,
         email: corporateInfo.email,
         contactPersonLastName: corporateInfo.contactPersonLastName,
         contactPersonFirstName: corporateInfo.contactPersonFirstName,
+        corporationNumber: corporateInfo.corporationNumber,
+        // 法人住所
+        corpPostalCode: corporateInfo.corpPostalCode,
+        corpPrefecture: corporateInfo.corpPrefecture,
+        corpCity: corporateInfo.corpCity,
+        corpAddressLine: corporateInfo.corpAddressLine,
+
+        // 施設住所（求人・MAPに使用）
+        postalCode: facilityAddress.postalCode,
+        prefecture: facilityAddress.prefecture,
+        city: facilityAddress.city,
+        addressLine: facilityAddress.addressLine,
 
         // 責任者情報
         managerLastName: managerInfo.lastName,
@@ -965,15 +1021,15 @@ export default function FacilityPage() {
       return;
     }
 
-    // 住所を構築
+    // 施設住所を使用
     const fullAddress = [
-      corporateInfo.prefecture,
-      corporateInfo.city,
-      corporateInfo.addressDetail,
+      facilityAddress.prefecture,
+      facilityAddress.city,
+      facilityAddress.addressLine,
     ].filter(Boolean).join('');
 
     if (!fullAddress) {
-      toast.error('住所を入力してください');
+      toast.error('施設住所を入力してください');
       return;
     }
 
@@ -1038,7 +1094,7 @@ export default function FacilityPage() {
               <h2 className="text-base font-bold text-gray-900">法人情報</h2>
             </div>
             <div className="p-5 space-y-3">
-              {/* 法人名と代表者名を一列に */}
+              {/* 法人名と法人番号を一列に */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1052,6 +1108,27 @@ export default function FacilityPage() {
                   />
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    法人番号 <span className="text-red-500">*</span> <span className="text-xs text-gray-500 font-normal">（13桁）</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={corporateInfo.corporationNumber}
+                    onChange={(e) => {
+                      // 数字のみ、13桁まで
+                      const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 13);
+                      setCorporateInfo({ ...corporateInfo, corporationNumber: value });
+                    }}
+                    placeholder="1234567890123"
+                    maxLength={13}
+                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              {/* 1行目: 代表者名・代表電話番号・メールアドレス */}
+              <div className="grid grid-cols-6 gap-2">
+                <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     代表者名 <span className="text-red-500">*</span>
                   </label>
@@ -1067,56 +1144,6 @@ export default function FacilityPage() {
                       type="text"
                       value={corporateInfo.representativeFirstName}
                       onChange={(e) => setCorporateInfo({ ...corporateInfo, representativeFirstName: e.target.value })}
-                      placeholder="名"
-                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* 住所入力（AddressSelectorを使用） */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  住所 <span className="text-red-500">*</span>
-                </label>
-                <AddressSelector
-                  prefecture={corporateInfo.prefecture}
-                  city={corporateInfo.city}
-                  addressLine={corporateInfo.addressDetail}
-                  building=""
-                  postalCode=""
-                  onChange={(data) => {
-                    setCorporateInfo({
-                      ...corporateInfo,
-                      prefecture: data.prefecture,
-                      city: data.city,
-                      addressDetail: data.addressLine || ''
-                    });
-                  }}
-                  showPostalCode={false}
-                  showBuilding={false}
-                  required={true}
-                />
-              </div>
-
-              {/* 担当者名、電話番号、メールアドレスを一列に */}
-              <div className="grid grid-cols-6 gap-2">
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    担当者名
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <input
-                      type="text"
-                      value={corporateInfo.contactPersonLastName}
-                      onChange={(e) => setCorporateInfo({ ...corporateInfo, contactPersonLastName: e.target.value })}
-                      placeholder="姓"
-                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
-                    />
-                    <input
-                      type="text"
-                      value={corporateInfo.contactPersonFirstName}
-                      onChange={(e) => setCorporateInfo({ ...corporateInfo, contactPersonFirstName: e.target.value })}
                       placeholder="名"
                       className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
                     />
@@ -1144,6 +1171,57 @@ export default function FacilityPage() {
                     className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
                   />
                 </div>
+              </div>
+
+              {/* 2行目: 担当者名 */}
+              <div className="grid grid-cols-6 gap-2">
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    担当者名
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={corporateInfo.contactPersonLastName}
+                      onChange={(e) => setCorporateInfo({ ...corporateInfo, contactPersonLastName: e.target.value })}
+                      placeholder="姓"
+                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
+                    />
+                    <input
+                      type="text"
+                      value={corporateInfo.contactPersonFirstName}
+                      onChange={(e) => setCorporateInfo({ ...corporateInfo, contactPersonFirstName: e.target.value })}
+                      placeholder="名"
+                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 罫線と法人住所（登記上の住所） */}
+              <div className="border-t border-gray-200 pt-3 mt-3">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  法人住所 <span className="text-xs text-gray-500 font-normal">（登記上の住所）</span>
+                </label>
+                <AddressSelector
+                  prefecture={corporateInfo.corpPrefecture}
+                  city={corporateInfo.corpCity}
+                  addressLine={corporateInfo.corpAddressLine}
+                  building=""
+                  postalCode={corporateInfo.corpPostalCode}
+                  onChange={(data) => {
+                    setCorporateInfo({
+                      ...corporateInfo,
+                      corpPostalCode: data.postalCode || '',
+                      corpPrefecture: data.prefecture,
+                      corpCity: data.city,
+                      corpAddressLine: data.addressLine || ''
+                    });
+                  }}
+                  showPostalCode={true}
+                  showBuilding={false}
+                  required={false}
+                />
               </div>
             </div>
           </div>
@@ -1184,6 +1262,73 @@ export default function FacilityPage() {
                     ))}
                   </select>
                 </div>
+              </div>
+
+              {/* 施設住所（求人・MAPに使用） */}
+              <div className="border-t border-gray-200 pt-3 mt-3">
+                <h3 className="text-sm font-bold text-gray-900 mb-3">
+                  施設住所 <span className="text-red-500">*</span>
+                  <span className="text-xs text-gray-500 font-normal ml-2">※求人情報・地図表示に使用されます</span>
+                </h3>
+
+                {/* 法人住所と同じチェックボックス */}
+                <div className="mb-3">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={facilityAddress.sameAsCorp}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        if (checked) {
+                          // 法人住所をコピー
+                          setFacilityAddress({
+                            postalCode: corporateInfo.corpPostalCode,
+                            prefecture: corporateInfo.corpPrefecture,
+                            city: corporateInfo.corpCity,
+                            addressLine: corporateInfo.corpAddressLine,
+                            sameAsCorp: true,
+                          });
+                        } else {
+                          setFacilityAddress(prev => ({
+                            ...prev,
+                            sameAsCorp: false,
+                          }));
+                        }
+                      }}
+                      className="rounded border-gray-300 text-admin-primary focus:ring-admin-primary"
+                    />
+                    <span className="text-sm text-gray-700">法人住所と同じ</span>
+                  </label>
+                </div>
+
+                {!facilityAddress.sameAsCorp && (
+                  <AddressSelector
+                    prefecture={facilityAddress.prefecture}
+                    city={facilityAddress.city}
+                    addressLine={facilityAddress.addressLine}
+                    building=""
+                    postalCode={facilityAddress.postalCode}
+                    onChange={(data) => {
+                      setFacilityAddress({
+                        ...facilityAddress,
+                        postalCode: data.postalCode || '',
+                        prefecture: data.prefecture,
+                        city: data.city,
+                        addressLine: data.addressLine || '',
+                      });
+                    }}
+                    showPostalCode={true}
+                    showBuilding={false}
+                    required={true}
+                  />
+                )}
+
+                {facilityAddress.sameAsCorp && (
+                  <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
+                    <p>〒{corporateInfo.corpPostalCode}</p>
+                    <p>{corporateInfo.corpPrefecture}{corporateInfo.corpCity}{corporateInfo.corpAddressLine}</p>
+                  </div>
+                )}
               </div>
 
               {/* 責任者情報 */}
@@ -1337,11 +1482,20 @@ export default function FacilityPage() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       挨拶文 <span className="text-red-500">*</span>
+                      <span className="text-xs text-gray-500 font-normal ml-2">
+                        （{staffInfo.greeting?.length || 0}/180文字）
+                      </span>
                     </label>
                     <textarea
                       value={staffInfo.greeting}
-                      onChange={(e) => setStaffInfo({ ...staffInfo, greeting: e.target.value })}
+                      onChange={(e) => {
+                        if (e.target.value.length <= 180) {
+                          setStaffInfo({ ...staffInfo, greeting: e.target.value });
+                        }
+                      }}
                       rows={5}
+                      maxLength={180}
+                      placeholder="求人情報に掲載されます。施設のイメージや働き方、良いところ等を記載すると募集が増えます"
                       className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
                     />
                   </div>

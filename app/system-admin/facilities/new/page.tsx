@@ -279,9 +279,10 @@ export default function SystemAdminNewFacilityPage() {
                                     className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                     required
                                     minLength={8}
+                                    placeholder="8文字以上"
                                 />
                             </div>
-                            <p className="text-xs text-slate-500 mt-1">※8文字以上で設定してください</p>
+                            <p className="text-xs text-slate-500 mt-1">8文字以上で入力してください</p>
                         </div>
                     </div>
                 </div>

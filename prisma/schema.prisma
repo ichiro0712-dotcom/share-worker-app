@@ -99,6 +99,7 @@ model Facility {
   facility_name    String           @map("facility_name")
   facility_type    String           @map("facility_type")
   address          String?
+  postal_code      String?          @map("postal_code") // 施設住所の郵便番号
   prefecture       String?
   city             String?
   address_line     String?   @map("address_line")
@@ -125,6 +126,13 @@ model Facility {
   email                      String?
   contact_person_last_name   String?   @map("contact_person_last_name")
   contact_person_first_name  String?   @map("contact_person_first_name")
+  corporation_number         String?   @map("corporation_number") // 法人番号（13桁）
+
+  // 法人住所（どこにも紐づかない、登記上の住所）
+  corp_postal_code           String?   @map("corp_postal_code")
+  corp_prefecture            String?   @map("corp_prefecture")
+  corp_city                  String?   @map("corp_city")
+  corp_address_line          String?   @map("corp_address_line")
 
   // 責任者情報
   manager_last_name          String?   @map("manager_last_name")

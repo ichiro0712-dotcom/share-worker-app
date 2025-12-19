@@ -1282,6 +1282,9 @@ export async function createFacilityWithAdmin(data: {
                     description: data.description,
                     lat,
                     lng,
+                    // 通知先メールアドレスに管理者のメールアドレスを初期設定
+                    staff_email: data.adminEmail,
+                    staff_emails: [data.adminEmail],
                 }
             });
 
@@ -2637,6 +2640,9 @@ export async function createPendingFacilityWithMasquerade(
                     city: '（未設定）',
                     address: '',
                     is_pending: true, // 仮登録フラグ
+                    // 通知先メールアドレスに管理者のメールアドレスを初期設定
+                    staff_email: adminEmail,
+                    staff_emails: [adminEmail],
                 }
             });
 

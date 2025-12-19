@@ -5673,14 +5673,23 @@ export async function getFacilityInfo(facilityId: number) {
     // 法人情報
     representativeLastName: facility.representative_last_name,
     representativeFirstName: facility.representative_first_name,
+    email: facility.email,
+    contactPersonLastName: facility.contact_person_last_name,
+    contactPersonFirstName: facility.contact_person_first_name,
+    corporationNumber: facility.corporation_number,
+    // 法人住所（登記上の住所、どこにも紐づかない）
+    corpPostalCode: facility.corp_postal_code,
+    corpPrefecture: facility.corp_prefecture,
+    corpCity: facility.corp_city,
+    corpAddressLine: facility.corp_address_line,
+
+    // 施設住所（求人・MAPに使用）
+    postalCode: facility.postal_code,
     prefecture: facility.prefecture,
     city: facility.city,
     // address_lineを優先して使用（address_detailは古いフィールド）
     addressDetail: facility.address_line || facility.address_detail,
     addressLine: facility.address_line,
-    email: facility.email,
-    contactPersonLastName: facility.contact_person_last_name,
-    contactPersonFirstName: facility.contact_person_first_name,
 
     // 責任者情報
     managerLastName: facility.manager_last_name,
@@ -5784,12 +5793,21 @@ export async function updateFacilityBasicInfo(
     representativeLastName?: string;
     representativeFirstName?: string;
     phone?: string;
-    prefecture?: string;
-    city?: string;
-    addressLine?: string;
     email?: string;
     contactPersonLastName?: string;
     contactPersonFirstName?: string;
+    corporationNumber?: string;
+    // 法人住所（登記上の住所）
+    corpPostalCode?: string;
+    corpPrefecture?: string;
+    corpCity?: string;
+    corpAddressLine?: string;
+
+    // 施設住所（求人・MAPに使用）
+    postalCode?: string;
+    prefecture?: string;
+    city?: string;
+    addressLine?: string;
 
     // 責任者情報
     managerLastName?: string;
@@ -5839,15 +5857,24 @@ export async function updateFacilityBasicInfo(
         representative_last_name: data.representativeLastName,
         representative_first_name: data.representativeFirstName,
         phone_number: data.phone,
+        email: data.email,
+        contact_person_last_name: data.contactPersonLastName,
+        contact_person_first_name: data.contactPersonFirstName,
+        corporation_number: data.corporationNumber,
+        // 法人住所（登記上の住所）
+        corp_postal_code: data.corpPostalCode,
+        corp_prefecture: data.corpPrefecture,
+        corp_city: data.corpCity,
+        corp_address_line: data.corpAddressLine,
+
+        // 施設住所（求人・MAPに使用）
+        postal_code: data.postalCode,
         prefecture: data.prefecture,
         city: data.city,
         // @ts-ignore
         address_line: data.addressLine,
         // 後方互換性のためaddress_detailにも保存（もしDBに残っている場合）
         address_detail: data.addressLine,
-        email: data.email,
-        contact_person_last_name: data.contactPersonLastName,
-        contact_person_first_name: data.contactPersonFirstName,
 
         // 責任者情報
         manager_last_name: data.managerLastName,

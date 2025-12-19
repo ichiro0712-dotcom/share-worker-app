@@ -155,12 +155,36 @@ export default function WorkerRegisterPage() {
     }
   };
 
+  // メールアドレス形式チェック
+  const isValidEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  // 電話番号形式チェック（ハイフンありなし両対応、10桁または11桁）
+  const isValidPhoneNumber = (phone: string): boolean => {
+    const digitsOnly = phone.replace(/[-\s]/g, '');
+    return /^[0-9]{10,11}$/.test(digitsOnly);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // 画像圧縮中は送信しない
+    if (compressingQual) {
+      toast.error('画像を圧縮中です。完了までお待ちください。');
+      return;
+    }
 
     // パスワード確認
     if (formData.password !== formData.passwordConfirm) {
       toast.error('パスワードが一致しません');
+      return;
+    }
+
+    // メールアドレス形式チェック
+    if (!isValidEmail(formData.email)) {
+      toast.error('メールアドレスの形式が正しくありません');
       return;
     }
 
@@ -176,6 +200,12 @@ export default function WorkerRegisterPage() {
       return;
     }
 
+    // 電話番号形式チェック
+    if (!isValidPhoneNumber(formData.phoneNumber)) {
+      toast.error('電話番号は10桁または11桁の数字で入力してください（ハイフン可）');
+      return;
+    }
+
     // 経験分野確認
     if (experienceFields.length === 0) {
       toast.error('少なくとも1つの経験分野を選択してください');
@@ -184,14 +214,18 @@ export default function WorkerRegisterPage() {
 
     setIsSubmitting(true);
 
-    try {
-      // 経験分野と経験年数をexperience_fieldsの形式に変換
-      const experienceFieldsData: Record<string, string> = {};
-      experienceFields.forEach(field => {
-        experienceFieldsData[field] = experienceYearsMap[field] || '';
-      });
+    // 経験分野と経験年数をexperience_fieldsの形式に変換
+    const experienceFieldsData: Record<string, string> = {};
+    experienceFields.forEach(field => {
+      experienceFieldsData[field] = experienceYearsMap[field] || '';
+    });
 
-      // API送信処理
+    // 楽観的UI: バリデーション通過後、すぐにリダイレクト
+    toast.success('登録完了！求人を検索できます');
+    router.push('/');
+
+    // バックグラウンドで登録・ログイン処理
+    try {
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -223,16 +257,11 @@ export default function WorkerRegisterPage() {
         throw new Error(data.error || '登録に失敗しました');
       }
 
-      toast.success('登録が完了しました');
-
-      // 自動ログイン（少し待ってからログインを試行）
-      await new Promise(resolve => setTimeout(resolve, 500));
-
+      // 自動ログイン
       const loginResult = await login(formData.email, formData.password);
       console.log('[Registration] Auto-login result:', loginResult);
 
       if (loginResult.success) {
-        router.push('/');
         router.refresh();
       } else {
         console.error('[Registration] Auto-login failed:', loginResult.error);
@@ -240,7 +269,7 @@ export default function WorkerRegisterPage() {
         router.push('/login');
       }
     } catch (error) {
-      // デバッグ用エラー通知を表示
+      // エラー発生時はトーストで通知し、登録画面に戻す
       const debugInfo = extractDebugInfo(error);
       showDebugError({
         type: 'save',
@@ -256,6 +285,7 @@ export default function WorkerRegisterPage() {
         }
       });
       toast.error(error instanceof Error ? error.message : '登録中にエラーが発生しました');
+      router.push('/register/worker');
     } finally {
       setIsSubmitting(false);
     }
@@ -391,9 +421,11 @@ export default function WorkerRegisterPage() {
               </div>
             </div>
 
-            {/* 2. メールアドレスと郵便番号 */}
+            {/* 2. 連絡先情報 */}
             <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
               <h3 className="font-bold text-gray-900">連絡先情報 <span className="text-red-500">*</span></h3>
+
+              {/* メールアドレスと電話番号を横並び */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -410,27 +442,6 @@ export default function WorkerRegisterPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    住所 <span className="text-red-500">*</span>
-                  </label>
-                  <AddressSelector
-                    prefecture={formData.prefecture}
-                    city={formData.city}
-                    addressLine={formData.address}
-                    building={formData.building}
-                    postalCode={formData.postalCode}
-                    onChange={(data) => setFormData({
-                      ...formData,
-                      prefecture: data.prefecture,
-                      city: data.city,
-                      address: data.addressLine || '',
-                      building: data.building || '',
-                      postalCode: data.postalCode || ''
-                    })}
-                    required={true}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     電話番号 <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -442,6 +453,29 @@ export default function WorkerRegisterPage() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
+              </div>
+
+              {/* 住所は独立したセクション */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  住所 <span className="text-red-500">*</span>
+                </label>
+                <AddressSelector
+                  prefecture={formData.prefecture}
+                  city={formData.city}
+                  addressLine={formData.address}
+                  building={formData.building}
+                  postalCode={formData.postalCode}
+                  onChange={(data) => setFormData({
+                    ...formData,
+                    prefecture: data.prefecture,
+                    city: data.city,
+                    address: data.addressLine || '',
+                    building: data.building || '',
+                    postalCode: data.postalCode || ''
+                  })}
+                  required={true}
+                />
               </div>
             </div>
 
@@ -661,10 +695,10 @@ export default function WorkerRegisterPage() {
               </button>
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || !!compressingQual}
                 className="px-6 py-2 bg-primary hover:bg-primary-dark text-white rounded-md transition-colors font-bold disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isSubmitting ? '登録中...' : '登録'}
+                {compressingQual ? '画像圧縮中...' : isSubmitting ? '登録中...' : '登録'}
               </button>
             </div>
           </form>
