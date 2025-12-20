@@ -21,6 +21,7 @@ interface AddressSelectorProps {
     showPostalCode?: boolean;
     showBuilding?: boolean;
     required?: boolean;
+    showErrors?: boolean; // バリデーションエラー表示用
 }
 
 // 郵便番号APIレスポンス型
@@ -39,7 +40,8 @@ export default function AddressSelector({
     onChange,
     showPostalCode = true,
     showBuilding = true,
-    required = false
+    required = false,
+    showErrors = false
 }: AddressSelectorProps) {
     const [citySearch, setCitySearch] = useState('');
     const [isSearchingPostalCode, setIsSearchingPostalCode] = useState(false);
@@ -175,7 +177,7 @@ export default function AddressSelector({
                 <select
                     value={prefecture}
                     onChange={e => handlePrefectureChange(e.target.value)}
-                    className="w-full px-2 py-1.5 text-sm border border-slate-300 rounded-lg"
+                    className={`w-full px-2 py-1.5 text-sm border rounded-lg ${showErrors && required && !prefecture ? 'border-red-500 bg-red-50' : 'border-slate-300'}`}
                     required={required}
                 >
                     <option value="">選択してください</option>
@@ -183,6 +185,9 @@ export default function AddressSelector({
                         <option key={pref} value={pref}>{pref}</option>
                     ))}
                 </select>
+                {showErrors && required && !prefecture && (
+                    <p className="text-red-500 text-xs mt-1">都道府県を選択してください</p>
+                )}
             </div>
 
             {/* 市区町村 */}
@@ -218,10 +223,10 @@ export default function AddressSelector({
                                     type="text"
                                     value={citySearch}
                                     onChange={e => setCitySearch(e.target.value)}
-                                    className="w-full px-2 py-1.5 text-sm border border-slate-300 rounded-lg mb-2"
+                                    className={`w-full px-2 py-1.5 text-sm border rounded-lg mb-2 ${showErrors && required && !city ? 'border-red-500 bg-red-50' : 'border-slate-300'}`}
                                     placeholder="市区町村を検索..."
                                 />
-                                <div className="flex flex-wrap gap-2 p-3 border border-slate-300 rounded-lg max-h-40 overflow-y-auto">
+                                <div className={`flex flex-wrap gap-2 p-3 border rounded-lg max-h-40 overflow-y-auto ${showErrors && required && !city ? 'border-red-500' : 'border-slate-300'}`}>
                                     {filteredCities.length === 0 ? (
                                         <span className="text-sm text-slate-400">
                                             {citySearch ? '検索結果がありません' : '市区町村がありません'}
@@ -239,6 +244,9 @@ export default function AddressSelector({
                                         ))
                                     )}
                                 </div>
+                                {showErrors && required && !city && (
+                                    <p className="text-red-500 text-xs mt-1">市区町村を選択してください</p>
+                                )}
                                 {availableCities.length > 50 && !citySearch && (
                                     <p className="mt-1 text-xs text-slate-500">
                                         {availableCities.length}件中50件表示。検索で絞り込めます
@@ -251,7 +259,7 @@ export default function AddressSelector({
                     <input
                         type="text"
                         disabled
-                        className="w-full px-2 py-1.5 text-sm border border-slate-200 rounded-lg bg-slate-50 text-slate-400"
+                        className={`w-full px-2 py-1.5 text-sm border rounded-lg bg-slate-50 text-slate-400 ${showErrors && required && !city ? 'border-red-500' : 'border-slate-200'}`}
                         placeholder="都道府県を先に選択"
                     />
                 )}

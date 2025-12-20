@@ -102,6 +102,8 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
     // initialDataがある場合はcreateモードでもロード不要（データ事前取得済み）
     const [isLoading, setIsLoading] = useState(mode === 'edit' || !initialData);
     const [isSaving, setIsSaving] = useState(false);
+    // バリデーションエラー表示用
+    const [showErrors, setShowErrors] = useState(false);
     const [jobTemplates, setJobTemplates] = useState<TemplateData[]>(initialData?.templates || []);
     const [facilityInfo, setFacilityInfo] = useState<FacilityData | null>(initialData?.facilityInfo || null);
     const [jobDescriptionFormats, setJobDescriptionFormats] = useState<{ id: number; label: string; content: string }[]>(initialData?.formats || []);
@@ -712,6 +714,9 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
     const handleSave = async () => {
         if (isSaving) return;
 
+        // バリデーションエラー表示を有効化
+        setShowErrors(true);
+
         // バリデーション
         const errors: string[] = [];
 
@@ -968,7 +973,7 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                                     <select
                                         value={formData.recruitmentCount}
                                         onChange={(e) => handleInputChange('recruitmentCount', Number(e.target.value))}
-                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                        className={`w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-600 ${showErrors && (!formData.recruitmentCount || formData.recruitmentCount <= 0) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                                     >
                                         {Array.from({ length: 10 }, (_, i) => i + 1).map(num => (
                                             <option key={num} value={num}>{num}人</option>
@@ -1027,9 +1032,12 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                                     type="text"
                                     value={formData.title}
                                     onChange={(e) => handleInputChange('title', e.target.value)}
-                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                    className={`w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-600 ${showErrors && !formData.title?.trim() ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                                     placeholder="例:デイサービス・介護スタッフ募集（日勤）"
                                 />
+                                {showErrors && !formData.title?.trim() && (
+                                    <p className="text-red-500 text-xs mt-1">求人タイトルを入力してください</p>
+                                )}
                             </div>
 
                             <div>
@@ -1528,8 +1536,11 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                                     type="number"
                                     value={formData.hourlyWage}
                                     onChange={(e) => handleInputChange('hourlyWage', Number(e.target.value))}
-                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                    className={`w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-600 ${showErrors && (!formData.hourlyWage || formData.hourlyWage <= 0) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                                 />
+                                {showErrors && (!formData.hourlyWage || formData.hourlyWage <= 0) && (
+                                    <p className="text-red-500 text-xs mt-1">時給を入力してください</p>
+                                )}
                             </div>
 
                             <div>
@@ -1641,7 +1652,10 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
                                     資格条件（複数選択可） <span className="text-red-500">*</span>
                                 </label>
-                                <div className="border border-gray-200 rounded p-4">
+                                <div className={`border rounded p-4 ${showErrors && formData.qualifications.length === 0 ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}>
+                                    {showErrors && formData.qualifications.length === 0 && (
+                                        <p className="text-red-500 text-xs mb-3">少なくとも1つの資格を選択してください</p>
+                                    )}
                                     {QUALIFICATION_GROUPS.map((group) => (
                                         <div key={group.name} className="mb-4">
                                             <h4 className="text-sm font-semibold text-gray-700 mb-2">{group.name}</h4>

@@ -31,6 +31,8 @@ export default function FacilityPage() {
   const [isUpdatingMap, setIsUpdatingMap] = useState(false);
   // 住所変更検知用：ロード時の住所を保存
   const [originalAddress, setOriginalAddress] = useState('');
+  // バリデーションエラー表示用
+  const [showErrors, setShowErrors] = useState(false);
 
   // アカウント管理
   const [accounts, setAccounts] = useState<{
@@ -762,6 +764,9 @@ export default function FacilityPage() {
       return;
     }
 
+    // バリデーションエラー表示を有効化
+    setShowErrors(true);
+
     if (!admin?.facilityId) {
       toast.error('施設IDが取得できません');
       console.error('[handleSave] No facilityId. admin:', admin);
@@ -1145,8 +1150,14 @@ export default function FacilityPage() {
                     }}
                     placeholder="1234567890123"
                     maxLength={13}
-                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
+                    className={`w-full px-2 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent ${showErrors && (!corporateInfo.corporationNumber || corporateInfo.corporationNumber.length !== 13) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                   />
+                  {showErrors && !corporateInfo.corporationNumber && (
+                    <p className="text-red-500 text-xs mt-1">法人番号を入力してください</p>
+                  )}
+                  {showErrors && corporateInfo.corporationNumber && corporateInfo.corporationNumber.length !== 13 && (
+                    <p className="text-red-500 text-xs mt-1">法人番号は13桁で入力してください</p>
+                  )}
                 </div>
               </div>
 
@@ -1344,6 +1355,7 @@ export default function FacilityPage() {
                     showPostalCode={true}
                     showBuilding={false}
                     required={true}
+                    showErrors={showErrors}
                   />
                 )}
 
@@ -1370,16 +1382,19 @@ export default function FacilityPage() {
                         value={managerInfo.lastName}
                         onChange={(e) => setManagerInfo({ ...managerInfo, lastName: e.target.value })}
                         placeholder="姓"
-                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
+                        className={`w-full px-2 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent ${showErrors && !managerInfo.lastName ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                       />
                       <input
                         type="text"
                         value={managerInfo.firstName}
                         onChange={(e) => setManagerInfo({ ...managerInfo, firstName: e.target.value })}
                         placeholder="名"
-                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
+                        className={`w-full px-2 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent ${showErrors && !managerInfo.firstName ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                       />
                     </div>
+                    {showErrors && (!managerInfo.lastName || !managerInfo.firstName) && (
+                      <p className="text-red-500 text-xs mt-1">責任者の氏名を入力してください</p>
+                    )}
                   </div>
 
                   <div>
@@ -1390,8 +1405,11 @@ export default function FacilityPage() {
                       type="tel"
                       value={managerInfo.phone}
                       onChange={(e) => setManagerInfo({ ...managerInfo, phone: e.target.value })}
-                      className="w-full max-w-xs px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
+                      className={`w-full max-w-xs px-2 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent ${showErrors && !managerInfo.phone ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                     />
+                    {showErrors && !managerInfo.phone && (
+                      <p className="text-red-500 text-xs mt-1">責任者の電話番号を入力してください</p>
+                    )}
                   </div>
 
                   <div>
@@ -1402,8 +1420,11 @@ export default function FacilityPage() {
                       type="email"
                       value={managerInfo.email}
                       onChange={(e) => setManagerInfo({ ...managerInfo, email: e.target.value })}
-                      className="w-full max-w-md px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
+                      className={`w-full max-w-md px-2 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent ${showErrors && !managerInfo.email ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                     />
+                    {showErrors && !managerInfo.email && (
+                      <p className="text-red-500 text-xs mt-1">責任者のメールアドレスを入力してください</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1436,16 +1457,19 @@ export default function FacilityPage() {
                           value={staffInfo.lastName}
                           onChange={(e) => setStaffInfo({ ...staffInfo, lastName: e.target.value })}
                           placeholder="姓"
-                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
+                          className={`w-full px-2 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent ${showErrors && !staffInfo.lastName ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                         />
                         <input
                           type="text"
                           value={staffInfo.firstName}
                           onChange={(e) => setStaffInfo({ ...staffInfo, firstName: e.target.value })}
                           placeholder="名"
-                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
+                          className={`w-full px-2 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent ${showErrors && !staffInfo.firstName ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                         />
                       </div>
+                      {showErrors && (!staffInfo.lastName || !staffInfo.firstName) && (
+                        <p className="text-red-500 text-xs mt-1">担当者の氏名を入力してください</p>
+                      )}
                     </div>
                   )}
 
@@ -1456,7 +1480,7 @@ export default function FacilityPage() {
                     <div className="flex items-center gap-4">
                       {/* 円形の写真プレビュー */}
                       <div className="relative">
-                        <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-gray-200 bg-gray-100 flex items-center justify-center">
+                        <div className={`w-24 h-24 rounded-full overflow-hidden border-2 bg-gray-100 flex items-center justify-center ${showErrors && !staffInfo.photoPreview ? 'border-red-500' : 'border-gray-200'}`}>
                           {staffInfo.photoPreview ? (
                             <img
                               src={staffInfo.photoPreview}
@@ -1481,7 +1505,7 @@ export default function FacilityPage() {
                       <div
                         onDragOver={handleStaffPhotoDragOver}
                         onDrop={handleStaffPhotoDrop}
-                        className="flex-1 max-w-xs border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-primary transition-colors cursor-pointer"
+                        className={`flex-1 max-w-xs border-2 border-dashed rounded-lg p-4 text-center hover:border-primary transition-colors cursor-pointer ${showErrors && !staffInfo.photoPreview ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                       >
                         <Upload className="w-6 h-6 mx-auto mb-2 text-gray-400" />
                         <p className="text-xs text-gray-600 mb-1">
@@ -1501,6 +1525,9 @@ export default function FacilityPage() {
                         <p className="text-xs text-gray-500 mt-2">5MB以下 / JPG, PNG, HEIC形式</p>
                       </div>
                     </div>
+                    {showErrors && !staffInfo.photoPreview && (
+                      <p className="text-red-500 text-xs mt-1">担当者の顔写真をアップロードしてください</p>
+                    )}
                   </div>
 
                   <div>
@@ -1520,8 +1547,11 @@ export default function FacilityPage() {
                       rows={5}
                       maxLength={180}
                       placeholder="求人情報に掲載されます。施設のイメージや働き方、良いところ等を記載すると募集が増えます"
-                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
+                      className={`w-full px-2 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent ${showErrors && !staffInfo.greeting?.trim() ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                     />
+                    {showErrors && !staffInfo.greeting?.trim() && (
+                      <p className="text-red-500 text-xs mt-1">挨拶文を入力してください</p>
+                    )}
                   </div>
 
                   <div>
@@ -1532,8 +1562,11 @@ export default function FacilityPage() {
                       type="tel"
                       value={staffInfo.phone}
                       onChange={(e) => setStaffInfo({ ...staffInfo, phone: e.target.value })}
-                      className="w-full max-w-xs px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
+                      className={`w-full max-w-xs px-2 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent ${showErrors && !staffInfo.phone ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                     />
+                    {showErrors && !staffInfo.phone && (
+                      <p className="text-red-500 text-xs mt-1">連絡先電話番号を入力してください</p>
+                    )}
                   </div>
 
                   <div>
@@ -1549,7 +1582,7 @@ export default function FacilityPage() {
                             value={email}
                             onChange={(e) => updateEmail(index, e.target.value)}
                             placeholder={index === 0 ? 'メインの通知先（必須）' : `追加アドレス ${index}`}
-                            className="flex-1 max-w-md px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
+                            className={`flex-1 max-w-md px-2 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent ${index === 0 && showErrors && !email?.trim() ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                           />
                           {index > 0 && (
                             <button
@@ -1561,6 +1594,9 @@ export default function FacilityPage() {
                           )}
                         </div>
                       ))}
+                      {showErrors && !staffInfo.emails[0]?.trim() && (
+                        <p className="text-red-500 text-xs">通知先メールアドレスを入力してください</p>
+                      )}
                       {staffInfo.emails.length < 10 && (
                         <button
                           onClick={addEmail}
@@ -1680,7 +1716,7 @@ export default function FacilityPage() {
                         value={station.name}
                         onChange={(e) => updateStation(index, 'name', e.target.value)}
                         placeholder="駅名を入力"
-                        className="flex-1 max-w-xs px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
+                        className={`flex-1 max-w-xs px-2 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent ${showErrors && index === 0 && !station.name?.trim() ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                       />
                       <span className="text-sm text-gray-600">から</span>
                       <input
@@ -1689,7 +1725,7 @@ export default function FacilityPage() {
                         onChange={(e) => updateStation(index, 'minutes', parseInt(e.target.value) || 0)}
                         placeholder="0"
                         min="0"
-                        className="w-20 px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
+                        className={`w-20 px-2 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent ${showErrors && index === 0 && (!station.minutes && station.minutes !== 0) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                       />
                       <span className="text-sm text-gray-600">分</span>
                       {accessInfo.stations.length > 1 && (
@@ -1702,6 +1738,9 @@ export default function FacilityPage() {
                       )}
                     </div>
                   ))}
+                  {showErrors && !accessInfo.stations.some(s => s.name?.trim() && (s.minutes || s.minutes === 0)) && (
+                    <p className="text-red-500 text-xs">最寄駅を少なくとも1つ入力してください（駅名と所要時間）</p>
+                  )}
                   {accessInfo.stations.length < 3 && (
                     <button
                       onClick={addStation}
@@ -1724,8 +1763,11 @@ export default function FacilityPage() {
                   onChange={(e) => setAccessInfo({ ...accessInfo, accessDescription: e.target.value })}
                   maxLength={40}
                   placeholder="例：恵比寿駅東口より徒歩5分、明治通り沿い"
-                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
+                  className={`w-full px-2 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent ${showErrors && !accessInfo.accessDescription?.trim() ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                 />
+                {showErrors && !accessInfo.accessDescription?.trim() && (
+                  <p className="text-red-500 text-xs mt-1">アクセスの説明を入力してください</p>
+                )}
               </div>
 
               {/* 移動可能な通勤手段 */}
@@ -1733,7 +1775,7 @@ export default function FacilityPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   移動可能な通勤手段 <span className="text-red-500">*</span>
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className={`grid grid-cols-2 gap-2 ${showErrors && accessInfo.transportation.length === 0 ? 'p-2 border border-red-500 rounded-lg bg-red-50' : ''}`}>
                   {transportationOptions.map((option) => (
                     <label key={option} className="flex items-center gap-1.5 text-sm">
                       <input
@@ -1758,6 +1800,9 @@ export default function FacilityPage() {
                     </label>
                   ))}
                 </div>
+                {showErrors && accessInfo.transportation.length === 0 && (
+                  <p className="text-red-500 text-xs mt-1">移動可能な通勤手段を1つ以上選択してください</p>
+                )}
               </div>
 
               {/* 敷地内駐車場 */}
@@ -1768,7 +1813,7 @@ export default function FacilityPage() {
                 <select
                   value={accessInfo.parking}
                   onChange={(e) => setAccessInfo({ ...accessInfo, parking: e.target.value })}
-                  className="w-full max-w-md px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
+                  className={`w-full max-w-md px-2 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent ${showErrors && !accessInfo.parking ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                 >
                   {parkingOptions.map((option) => (
                     <option key={option} value={option}>
@@ -1776,6 +1821,9 @@ export default function FacilityPage() {
                     </option>
                   ))}
                 </select>
+                {showErrors && !accessInfo.parking && (
+                  <p className="text-red-500 text-xs mt-1">敷地内駐車場を選択してください</p>
+                )}
               </div>
 
               {/* 交通手段の備考 */}
@@ -1853,7 +1901,7 @@ export default function FacilityPage() {
                     <select
                       value={smokingInfo.measure}
                       onChange={(e) => setSmokingInfo({ ...smokingInfo, measure: e.target.value })}
-                      className="w-full max-w-md px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
+                      className={`w-full max-w-md px-2 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent ${showErrors && !smokingInfo.measure ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                     >
                       {smokingMeasures.map((measure) => (
                         <option key={measure} value={measure}>
@@ -1861,13 +1909,16 @@ export default function FacilityPage() {
                         </option>
                       ))}
                     </select>
+                    {showErrors && !smokingInfo.measure && (
+                      <p className="text-red-500 text-xs mt-1">受動喫煙防止対策措置を選択してください</p>
+                    )}
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       喫煙可能エリアでの作業 <span className="text-red-500">*</span>
                     </label>
-                    <div className="flex gap-4">
+                    <div className={`flex gap-4 ${showErrors && !smokingInfo.workInSmokingArea ? 'p-2 border border-red-500 rounded-lg bg-red-50' : ''}`}>
                       <label className="flex items-center gap-2">
                         <input
                           type="radio"
@@ -1891,6 +1942,9 @@ export default function FacilityPage() {
                         <span className="text-sm text-gray-700">無し</span>
                       </label>
                     </div>
+                    {showErrors && !smokingInfo.workInSmokingArea && (
+                      <p className="text-red-500 text-xs mt-1">喫煙可能エリアでの作業可否を選択してください</p>
+                    )}
                   </div>
                 </div>
               </div>

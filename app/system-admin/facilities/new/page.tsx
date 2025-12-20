@@ -13,6 +13,8 @@ export default function SystemAdminNewFacilityPage() {
     const { showDebugError } = useDebugError();
     const router = useRouter();
     const [loading, setLoading] = useState(false);
+    // バリデーションエラー表示用
+    const [showErrors, setShowErrors] = useState(false);
     const [formData, setFormData] = useState({
         corporationName: '',
         facilityName: '',
@@ -42,6 +44,7 @@ export default function SystemAdminNewFacilityPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setShowErrors(true);
         setLoading(true);
 
         try {
@@ -132,9 +135,12 @@ export default function SystemAdminNewFacilityPage() {
                                 value={formData.corporationName}
                                 onChange={handleChange}
                                 placeholder="例: 株式会社ケアサービス"
-                                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${showErrors && !formData.corporationName ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
                                 required
                             />
+                            {showErrors && !formData.corporationName && (
+                                <p className="text-red-500 text-xs mt-1">法人名を入力してください</p>
+                            )}
                         </div>
 
                         <div className="md:col-span-2">
@@ -145,9 +151,12 @@ export default function SystemAdminNewFacilityPage() {
                                 value={formData.facilityName}
                                 onChange={handleChange}
                                 placeholder="例: ケアホームひまわり"
-                                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${showErrors && !formData.facilityName ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
                                 required
                             />
+                            {showErrors && !formData.facilityName && (
+                                <p className="text-red-500 text-xs mt-1">施設名を入力してください</p>
+                            )}
                         </div>
 
                         <div>
@@ -156,7 +165,7 @@ export default function SystemAdminNewFacilityPage() {
                                 name="facilityType"
                                 value={formData.facilityType}
                                 onChange={handleChange}
-                                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${showErrors && !formData.facilityType ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
                                 required
                             >
                                 <option value="">選択してください</option>
@@ -164,6 +173,9 @@ export default function SystemAdminNewFacilityPage() {
                                     <option key={type} value={type}>{type}</option>
                                 ))}
                             </select>
+                            {showErrors && !formData.facilityType && (
+                                <p className="text-red-500 text-xs mt-1">サービス種別を選択してください</p>
+                            )}
                         </div>
 
                         <div>
@@ -200,7 +212,7 @@ export default function SystemAdminNewFacilityPage() {
                                         name="prefecture"
                                         value={formData.prefecture}
                                         onChange={handleChange}
-                                        className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${showErrors && !formData.prefecture ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
                                         required
                                     >
                                         <option value="">選択してください</option>
@@ -210,6 +222,9 @@ export default function SystemAdminNewFacilityPage() {
                                         <option value="千葉県">千葉県</option>
                                         {/* 他省略 - 追加可能 */}
                                     </select>
+                                    {showErrors && !formData.prefecture && (
+                                        <p className="text-red-500 text-xs mt-1">都道府県を選択してください</p>
+                                    )}
                                 </div>
                                 <div className="col-span-2">
                                     <label className="block text-xs font-medium text-slate-600 mb-1">市区町村 <span className="text-red-500">*</span></label>
@@ -219,9 +234,12 @@ export default function SystemAdminNewFacilityPage() {
                                         value={formData.city}
                                         onChange={handleChange}
                                         placeholder="例: 千代田区"
-                                        className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${showErrors && !formData.city ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
                                         required
                                     />
+                                    {showErrors && !formData.city && (
+                                        <p className="text-red-500 text-xs mt-1">市区町村を入力してください</p>
+                                    )}
                                 </div>
                                 <div className="col-span-2">
                                     <label className="block text-xs font-medium text-slate-600 mb-1">番地・建物名</label>
@@ -266,9 +284,12 @@ export default function SystemAdminNewFacilityPage() {
                                 value={formData.adminName}
                                 onChange={handleChange}
                                 placeholder="例: 山田 太郎"
-                                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${showErrors && !formData.adminName ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
                                 required
                             />
+                            {showErrors && !formData.adminName && (
+                                <p className="text-red-500 text-xs mt-1">管理者氏名を入力してください</p>
+                            )}
                         </div>
 
                         <div>
@@ -293,10 +314,13 @@ export default function SystemAdminNewFacilityPage() {
                                     value={formData.adminEmail}
                                     onChange={handleChange}
                                     placeholder="admin@example.com"
-                                    className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${showErrors && !formData.adminEmail ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
                                     required
                                 />
                             </div>
+                            {showErrors && !formData.adminEmail && (
+                                <p className="text-red-500 text-xs mt-1">メールアドレスを入力してください</p>
+                            )}
                         </div>
 
                         <div className="md:col-span-2">
@@ -308,13 +332,17 @@ export default function SystemAdminNewFacilityPage() {
                                     name="adminPassword"
                                     value={formData.adminPassword}
                                     onChange={handleChange}
-                                    className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${showErrors && !formData.adminPassword ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
                                     required
                                     minLength={8}
                                     placeholder="8文字以上"
                                 />
                             </div>
-                            <p className="text-xs text-slate-500 mt-1">8文字以上で入力してください</p>
+                            {showErrors && !formData.adminPassword ? (
+                                <p className="text-red-500 text-xs mt-1">パスワードを入力してください</p>
+                            ) : (
+                                <p className="text-xs text-slate-500 mt-1">8文字以上で入力してください</p>
+                            )}
                         </div>
                     </div>
                 </div>
