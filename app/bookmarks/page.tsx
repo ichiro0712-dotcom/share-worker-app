@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { ChevronLeft } from 'lucide-react';
-import { BottomNav } from '@/components/layout/BottomNav';
 import { BookmarkListClient } from '@/components/bookmark/BookmarkListClient';
 import { getBookmarkedJobs } from '@/src/lib/actions';
 
@@ -11,7 +10,7 @@ export default async function BookmarksPage() {
   const bookmarks = await getBookmarkedJobs('WATCH_LATER');
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen bg-gray-50">
       {/* ヘッダー */}
       <div className="sticky top-0 bg-white border-b border-gray-200 z-10">
         <div className="px-4 py-3 flex items-center">
@@ -27,9 +26,6 @@ export default async function BookmarksPage() {
       <div className="px-4 py-4">
         <BookmarkListClient initialBookmarks={bookmarks} />
       </div>
-
-      {/* 下部ナビゲーション */}
-      <BottomNav />
     </div>
   );
 }

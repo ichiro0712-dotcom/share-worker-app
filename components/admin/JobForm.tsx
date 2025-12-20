@@ -712,10 +712,37 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
     const handleSave = async () => {
         if (isSaving) return;
 
+        // バリデーション
+        const errors: string[] = [];
+
+        if (!formData.title?.trim()) errors.push('求人タイトルは必須です');
+        if (!formData.startTime) errors.push('開始時刻は必須です');
+        if (!formData.endTime) errors.push('終了時刻は必須です');
+        if (!formData.hourlyWage || formData.hourlyWage <= 0) errors.push('時給は必須です');
+        if (!formData.recruitmentCount || formData.recruitmentCount <= 0) errors.push('募集人数は必須です');
+        if (formData.qualifications.length === 0) errors.push('必要な資格を選択してください');
+
+        // 新規作成時は勤務日必須
+        if (mode === 'create') {
+            if (selectedDates.length === 0) errors.push('勤務日は少なくとも1つ選択してください');
+        }
+
         // 編集モードのバリデーション
         if (mode === 'edit') {
             const activeDatesCount = existingWorkDates.filter(d => !removedWorkDateIds.includes(d.id)).length + addedWorkDates.length;
-            if (activeDatesCount === 0) return toast.error('勤務日は少なくとも1つ必要です');
+            if (activeDatesCount === 0) errors.push('勤務日は少なくとも1つ必要です');
+        }
+
+        if (errors.length > 0) {
+            toast.error(
+                <div className="text-sm">
+                    <p className="font-bold mb-1">入力内容を確認してください</p>
+                    <ul className="list-disc pl-4 space-y-0.5">
+                        {errors.map((err, i) => <li key={i}>{err}</li>)}
+                    </ul>
+                </div>
+            );
+            return;
         }
 
         setIsSaving(true);

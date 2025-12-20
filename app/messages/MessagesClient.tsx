@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { BottomNav } from '@/components/layout/BottomNav';
 import { ChevronLeft, Send, Paperclip, Calendar, Search, Bell, Megaphone, X, FileText, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getMessagesByFacility, sendMessageToFacility } from '@/src/lib/actions';
@@ -501,7 +500,6 @@ export default function MessagesClient({ initialConversations, userId }: Message
             </div>
           </div>
         </div>
-        <BottomNav />
       </div>
     );
   }
@@ -509,7 +507,7 @@ export default function MessagesClient({ initialConversations, userId }: Message
   // チャットルーム一覧表示
   if (!selectedConversation) {
     return (
-      <div className="min-h-screen bg-gray-50 pb-20">
+      <div className="min-h-screen bg-gray-50">
         {/* ヘッダー */}
         <div className="bg-white border-b border-gray-200">
           <div className="px-4 py-4">
@@ -691,8 +689,6 @@ export default function MessagesClient({ initialConversations, userId }: Message
             )}
           </div>
         )}
-
-        <BottomNav />
       </div>
     );
   }

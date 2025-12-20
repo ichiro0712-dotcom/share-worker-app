@@ -2,7 +2,6 @@ import { getMyApplications } from '@/src/lib/actions';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight, FileText } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { BottomNav } from '@/components/layout/BottomNav';
 import { EmptyState } from '@/components/ui/EmptyState';
 
 // 動的レンダリングを強制（セッションを使用するため）
@@ -46,7 +45,7 @@ export default async function ApplicationsPage() {
   const applications = await getMyApplications();
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen bg-gray-50 pb-24">
       {/* ヘッダー */}
       <div className="bg-white sticky top-0 z-10 border-b border-gray-200">
         <div className="px-4 py-3 flex items-center">
@@ -128,9 +127,6 @@ export default async function ApplicationsPage() {
           </div>
         )}
       </div>
-
-      {/* 下部ナビゲーション */}
-      <BottomNav />
     </div>
   );
 }

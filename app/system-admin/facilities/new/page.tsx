@@ -34,14 +34,46 @@ export default function SystemAdminNewFacilityPage() {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
+    // メールアドレス形式チェック
+    const isValidEmail = (email: string): boolean => {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email);
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
 
         try {
-            // Basic validation
-            if (!formData.facilityName || !formData.corporationName || !formData.adminEmail || !formData.adminPassword) {
-                toast.error('必須項目を入力してください');
+            // バリデーション
+            const errors: string[] = [];
+
+            if (!formData.corporationName) errors.push('法人名は必須です');
+            if (!formData.facilityName) errors.push('施設名は必須です');
+            if (!formData.facilityType) errors.push('サービス種別は必須です');
+            if (!formData.prefecture) errors.push('都道府県は必須です');
+            if (!formData.city) errors.push('市区町村は必須です');
+            if (!formData.adminName) errors.push('管理者氏名は必須です');
+            if (!formData.adminEmail) {
+                errors.push('管理者メールアドレスは必須です');
+            } else if (!isValidEmail(formData.adminEmail)) {
+                errors.push('管理者メールアドレスの形式が正しくありません');
+            }
+            if (!formData.adminPassword) {
+                errors.push('初期パスワードは必須です');
+            } else if (formData.adminPassword.length < 8) {
+                errors.push('初期パスワードは8文字以上で入力してください');
+            }
+
+            if (errors.length > 0) {
+                toast.error(
+                    <div className="text-sm">
+                        <p className="font-bold mb-1">入力内容を確認してください</p>
+                        <ul className="list-disc pl-4 space-y-0.5">
+                            {errors.map((err, i) => <li key={i}>{err}</li>)}
+                        </ul>
+                    </div>
+                );
                 setLoading(false);
                 return;
             }

@@ -487,7 +487,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
   };
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="min-h-screen bg-background pb-36">
       {/* ヘッダー */}
       <div className="sticky top-0 bg-white border-b border-gray-200 z-20">
         {isPreviewMode && (
@@ -835,25 +835,6 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
         )}
       </div>
 
-      {/* 申し込みボタン（プレビューモードでは非表示） - 上部用 */}
-      {!isPreviewMode && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4">
-          <Button
-            onClick={handleApplyButtonClick}
-            size="lg"
-            className="w-full"
-            disabled={isApplying || selectedWorkDateIds.length === 0}
-          >
-            {isApplying
-              ? '応募中...'
-              : selectedWorkDateIds.length > 0
-                ? `${selectedWorkDateIds.length}件の日程に応募する`
-                : !hasAvailableDates
-                  ? '応募できる日程がありません'
-                  : '日程を選択してください'}
-          </Button>
-        </div>
-      )}
       {/* 責任者 */}
       <div className="border-t border-gray-200 pt-4 mb-4">
         <h3 className="mb-3 text-sm font-bold">責任者</h3>
@@ -1262,9 +1243,9 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
         </div>
       )}
 
-      {/* 申し込みボタン（プレビューモードでは非表示） - 下部用 */}
+      {/* 申し込みボタン（プレビューモードでは非表示） - フッターナビの上に配置 */}
       {!isPreviewMode && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4">
+        <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-200 p-4 z-10">
           <Button
             onClick={handleApplyButtonClick}
             size="lg"

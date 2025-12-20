@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Filter, ChevronDown, Search, X } from 'lucide-react';
 import { JobCard } from '@/components/job/JobCard';
 import { DateSlider } from '@/components/job/DateSlider';
-import { BottomNav } from '@/components/layout/BottomNav';
 import { FilterModal } from '@/components/job/FilterModal';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Pagination } from '@/components/ui/Pagination';
@@ -545,9 +544,6 @@ export function JobListClient({ jobs, facilities, pagination }: JobListClientPro
           )}
         </>
       )}
-
-      {/* 下部ナビゲーション */}
-      <BottomNav />
 
       {/* フィルターモーダル */}
       <FilterModal

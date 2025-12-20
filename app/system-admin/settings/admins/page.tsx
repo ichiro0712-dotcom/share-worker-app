@@ -51,8 +51,29 @@ export default function SystemAdminsPage() {
         fetchAdmins();
     }, []);
 
+    // メールアドレス形式チェック
+    const isValidEmail = (email: string): boolean => {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email);
+    };
+
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        // バリデーション
+        if (!newAdmin.name?.trim()) {
+            toast.error('名前を入力してください');
+            return;
+        }
+        if (!newAdmin.email?.trim()) {
+            toast.error('メールアドレスを入力してください');
+            return;
+        }
+        if (!isValidEmail(newAdmin.email)) {
+            toast.error('メールアドレスの形式が正しくありません');
+            return;
+        }
+
         try {
             const result = await createSystemAdmin(newAdmin);
             if (result.success && result.initialPassword) {

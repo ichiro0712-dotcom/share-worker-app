@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { BottomNav } from '@/components/layout/BottomNav';
 
 export default function UnderConstruction() {
   const searchParams = useSearchParams();
@@ -49,9 +48,6 @@ export default function UnderConstruction() {
           </Link>
         </div>
       </div>
-
-      {/* 下部ナビゲーション */}
-      <BottomNav />
     </div>
   );
 }

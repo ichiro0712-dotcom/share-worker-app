@@ -16,7 +16,6 @@ import {
   MessageCircle,
   Shield,
 } from 'lucide-react';
-import { BottomNav } from '@/components/layout/BottomNav';
 import { useAuth } from '@/contexts/AuthContext';
 import { getSafeImageUrl } from '@/utils/fileValidation';
 
@@ -110,7 +109,7 @@ export default function MyPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen bg-gray-50 pb-24">
       {/* ヘッダー */}
       <div className="bg-white border-b border-gray-200">
         <div className="px-4 py-3">
@@ -195,9 +194,6 @@ export default function MyPage() {
       <div className="text-center py-4 text-xs text-gray-500">
         +TASTAS v1.0.0 (Phase 1)
       </div>
-
-      {/* 下部ナビゲーション */}
-      <BottomNav />
     </div>
   );
 }

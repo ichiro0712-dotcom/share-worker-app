@@ -533,11 +533,35 @@ export default function FacilityPage() {
     }
   };
 
+  // メールアドレス形式チェック
+  const isValidEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
   // アカウント追加
   const handleAddAccount = async () => {
     if (!admin?.facilityId) return;
-    if (!newAccount.name || !newAccount.email || !newAccount.password) {
-      toast.error('すべての項目を入力してください');
+
+    // バリデーション
+    if (!newAccount.name?.trim()) {
+      toast.error('名前を入力してください');
+      return;
+    }
+    if (!newAccount.email?.trim()) {
+      toast.error('メールアドレスを入力してください');
+      return;
+    }
+    if (!isValidEmail(newAccount.email)) {
+      toast.error('メールアドレスの形式が正しくありません');
+      return;
+    }
+    if (!newAccount.password) {
+      toast.error('パスワードを入力してください');
+      return;
+    }
+    if (newAccount.password.length < 6) {
+      toast.error('パスワードは6文字以上で入力してください');
       return;
     }
 

@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { BottomNav } from '@/components/layout/BottomNav';
 import { MapPin, Calendar, Clock, Star, X, AlertTriangle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { getMyApplications, cancelApplicationByWorker, cancelAppliedApplication } from '@/src/lib/actions';
@@ -182,20 +181,19 @@ export default function MyJobsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 pb-20">
+      <div className="min-h-screen bg-gray-50">
         <div className="bg-white border-b border-gray-200 px-4 py-4">
           <h1 className="text-xl font-bold text-gray-900">仕事管理</h1>
         </div>
         <div className="flex justify-center items-center h-64">
           <div className="text-gray-500">読み込み中...</div>
         </div>
-        <BottomNav />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen bg-gray-50">
       {/* ヘッダー */}
       <div className="bg-white border-b border-gray-200 px-4 py-4">
         <h1 className="text-xl font-bold text-gray-900">仕事管理</h1>
@@ -397,8 +395,6 @@ export default function MyJobsPage() {
           ))
         )}
       </div>
-
-      <BottomNav />
 
       {/* 審査中キャンセル確認モーダル */}
       {cancelModalApp && (

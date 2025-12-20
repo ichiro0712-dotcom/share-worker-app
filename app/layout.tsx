@@ -6,6 +6,7 @@ import { Toaster } from "react-hot-toast";
 import MasqueradeBanner from "@/components/MasqueradeBanner";
 import { ErrorToastProvider } from '@/components/ui/PersistentErrorToast';
 import { DebugErrorProvider } from '@/components/debug/DebugErrorBanner';
+import { WorkerLayout } from '@/components/layout/WorkerLayout';
 
 export const metadata: Metadata = {
   title: "+TASTAS - 看護師・介護士のための求人マッチング",
@@ -32,7 +33,9 @@ export default function RootLayout({
             <AuthProvider>
               <BadgeProvider>
                 <MasqueradeBanner />
-                {children}
+                <WorkerLayout>
+                  {children}
+                </WorkerLayout>
               </BadgeProvider>
             </AuthProvider>
             <Toaster position="bottom-center" />

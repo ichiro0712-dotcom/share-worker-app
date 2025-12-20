@@ -212,6 +212,14 @@ export default function WorkerRegisterPage() {
       return;
     }
 
+    // 資格証明書の確認（「その他」以外の資格は証明書必須）
+    const qualificationsNeedingCertificates = formData.qualifications.filter(qual => qual !== 'その他');
+    const missingCertificates = qualificationsNeedingCertificates.filter(qual => !qualificationCertificates[qual]);
+    if (missingCertificates.length > 0) {
+      toast.error(`以下の資格の証明書をアップロードしてください: ${missingCertificates.join('、')}`);
+      return;
+    }
+
     setIsSubmitting(true);
 
     // 経験分野と経験年数をexperience_fieldsの形式に変換

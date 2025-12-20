@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, VolumeX, Volume2, Building2 } from 'lucide-react';
-import { BottomNav } from '@/components/layout/BottomNav';
 
 interface MutedFacility {
   facilityId: number;
@@ -54,7 +53,7 @@ export default function MutedFacilitiesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen bg-gray-50 pb-24">
       {/* ヘッダー */}
       <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="flex items-center px-4 py-3">
@@ -141,8 +140,6 @@ export default function MutedFacilitiesPage() {
           </div>
         </>
       )}
-
-      <BottomNav />
     </div>
   );
 }

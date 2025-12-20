@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { ChevronLeft } from 'lucide-react';
-import { BottomNav } from '@/components/layout/BottomNav';
 import { FavoriteListClient } from '@/components/favorite/FavoriteListClient';
 import { getFavoriteFacilities } from '@/src/lib/actions';
 
@@ -11,7 +10,7 @@ export default async function FavoritesPage() {
   const favorites = await getFavoriteFacilities();
 
   return (
-    <div className="min-h-screen bg-white pb-20">
+    <div className="min-h-screen bg-white">
       {/* ヘッダー */}
       <div className="sticky top-0 bg-white border-b border-gray-200 z-10">
         <div className="px-4 py-3 flex items-center">
@@ -26,9 +25,6 @@ export default async function FavoritesPage() {
       <div className="px-4 py-4">
         <FavoriteListClient initialFavorites={favorites} />
       </div>
-
-      {/* 下部ナビゲーション */}
-      <BottomNav />
     </div>
   );
 }
