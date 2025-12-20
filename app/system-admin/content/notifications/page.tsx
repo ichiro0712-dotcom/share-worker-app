@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import { toast } from 'react-hot-toast';
-import { Bell, Mail, MessageCircle, Edit2, Save, X, Copy, Check, Settings, LayoutDashboard } from 'lucide-react';
+import { Bell, Mail, MessageCircle, Edit2, Save, X, Copy, Check, Settings, LayoutDashboard, ChevronDown } from 'lucide-react';
 
 interface NotificationSetting {
     id: number;
@@ -68,6 +68,7 @@ const AVAILABLE_VARIABLES = [
     { key: '{{facility_name}}', description: '施設名' },
     { key: '{{job_title}}', description: '求人タイトル' },
     { key: '{{work_date}}', description: '勤務日' },
+    { key: '{{applied_dates}}', description: '応募日程一覧（複数日対応）' },
     { key: '{{start_time}}', description: '開始時間' },
     { key: '{{end_time}}', description: '終了時間' },
     { key: '{{wage}}', description: '日給' },
@@ -75,10 +76,9 @@ const AVAILABLE_VARIABLES = [
     { key: '{{deadline}}', description: '締切日時' },
     { key: '{{review_url}}', description: 'レビュー投稿URL' },
     { key: '{{job_url}}', description: '求人詳細URL' },
-    // Alet keys
+    // Alert keys
     { key: '{{user_name}}', description: 'ユーザー名' },
     { key: '{{user_id}}', description: 'ユーザーID' },
-    { key: '{{facility_name}}', description: '施設名' },
     { key: '{{facility_id}}', description: '施設ID' },
     { key: '{{average_rating}}', description: '平均評価' },
     { key: '{{low_rating_count}}', description: '低評価件数' },
@@ -96,6 +96,7 @@ export default function NotificationManagementPage() {
     const [editingSetting, setEditingSetting] = useState<NotificationSetting | null>(null);
     const [editingErrorMessage, setEditingErrorMessage] = useState<ErrorMessageSetting | null>(null);
     const [copiedVariable, setCopiedVariable] = useState<string | null>(null);
+    const [isVariablesExpanded, setIsVariablesExpanded] = useState(false);
 
     useEffect(() => {
         if (activeTab === 'ERROR_MESSAGE') {
@@ -305,7 +306,29 @@ export default function NotificationManagementPage() {
         setTimeout(() => setCopiedVariable(null), 2000);
     };
 
-    const filteredSettings = settings.filter(s => s.target_type === activeTab);
+    // 表示順序を定義（指定されたキーは優先表示）
+    const displayOrder: Record<string, string[]> = {
+        WORKER: ['WORKER_APPLICATION_CONFIRMED', 'WORKER_MATCHED'],
+        FACILITY: [],
+        SYSTEM_ADMIN: [],
+    };
+
+    const filteredSettings = settings
+        .filter(s => s.target_type === activeTab)
+        .sort((a, b) => {
+            const order = displayOrder[activeTab] || [];
+            const aIndex = order.indexOf(a.notification_key);
+            const bIndex = order.indexOf(b.notification_key);
+
+            // 両方が優先リストにある場合は、リストの順序通り
+            if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+            // aだけが優先リストにある場合はaを先に
+            if (aIndex !== -1) return -1;
+            // bだけが優先リストにある場合はbを先に
+            if (bIndex !== -1) return 1;
+            // どちらも優先リストにない場合はID順
+            return a.id - b.id;
+        });
 
     const tabs: { key: TabType; label: string }[] = [
         { key: 'WORKER', label: 'ワーカー向け' },
@@ -538,26 +561,35 @@ export default function NotificationManagementPage() {
                         </div>
 
                         <div className="p-6 space-y-6">
-                            {/* 変数リファレンス */}
-                            <div className="bg-slate-50 rounded-lg p-4">
-                                <h3 className="text-sm font-medium text-slate-700 mb-2">利用可能な変数（クリックでコピー）</h3>
-                                <div className="flex flex-wrap gap-2">
-                                    {AVAILABLE_VARIABLES.map(v => (
-                                        <button
-                                            key={v.key}
-                                            onClick={() => copyVariable(v.key)}
-                                            className="flex items-center gap-1 px-2 py-1 bg-white border border-slate-200 rounded text-sm font-mono hover:bg-indigo-50 hover:border-indigo-300 transition-colors"
-                                            title={v.description}
-                                        >
-                                            {copiedVariable === v.key ? (
-                                                <Check className="w-3 h-3 text-green-500" />
-                                            ) : (
-                                                <Copy className="w-3 h-3 text-slate-400" />
-                                            )}
-                                            {v.key}
-                                        </button>
-                                    ))}
-                                </div>
+                            {/* 変数リファレンス（折りたたみ可能） */}
+                            <div className="bg-slate-50 rounded-lg">
+                                <button
+                                    onClick={() => setIsVariablesExpanded(!isVariablesExpanded)}
+                                    className="w-full flex items-center justify-between p-4 text-left hover:bg-slate-100 rounded-lg transition-colors"
+                                >
+                                    <h3 className="text-sm font-medium text-slate-700">利用可能な変数（クリックでコピー）</h3>
+                                    <ChevronDown className={`w-5 h-5 text-slate-500 transition-transform ${isVariablesExpanded ? 'rotate-180' : ''}`} />
+                                </button>
+                                {isVariablesExpanded && (
+                                    <div className="px-4 pb-4">
+                                        <div className="flex flex-wrap gap-2">
+                                            {AVAILABLE_VARIABLES.map(v => (
+                                                <button
+                                                    key={v.key}
+                                                    onClick={() => copyVariable(v.key)}
+                                                    className="flex items-center gap-1 px-3 py-1.5 bg-white border border-slate-200 rounded-full text-sm hover:bg-indigo-50 hover:border-indigo-300 transition-colors"
+                                                >
+                                                    {copiedVariable === v.key ? (
+                                                        <Check className="w-3 h-3 text-green-500" />
+                                                    ) : (
+                                                        <Copy className="w-3 h-3 text-slate-400" />
+                                                    )}
+                                                    <span>{v.description}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             {/* チャット通知 */}

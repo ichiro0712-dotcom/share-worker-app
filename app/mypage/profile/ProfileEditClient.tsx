@@ -168,6 +168,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
   });
 
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [isSaving, setIsSaving] = useState(false);
 
   // バリデーション関数
   const validateKatakana = (value: string): boolean => {
@@ -420,6 +421,10 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // 既に保存中の場合は何もしない
+    if (isSaving) return;
+    setIsSaving(true);
+
     try {
       // FormDataを作成
       const form = new FormData();
@@ -542,6 +547,8 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
         }
       });
       toast.error('予期しないエラーが発生しました');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -757,7 +764,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                   onChange={(e) => setFormData({ ...formData, desiredWorkDaysPerWeek: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 >
-                  <option value="">選択してください</option>
+                  <option value="">特になし</option>
                   <option value="週1〜2日">週1〜2日</option>
                   <option value="週3〜4日">週3〜4日</option>
                   <option value="週5日以上">週5日以上</option>
@@ -770,7 +777,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                   onChange={(e) => setFormData({ ...formData, desiredWorkPeriod: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 >
-                  <option value="">選択してください</option>
+                  <option value="">特になし</option>
                   <option value="1週間以内">1週間以内</option>
                   <option value="3週間以内">3週間以内</option>
                   <option value="1〜2ヶ月">1〜2ヶ月</option>
@@ -806,7 +813,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                   onChange={(e) => setFormData({ ...formData, desiredStartTime: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 >
-                  <option value="">選択してください</option>
+                  <option value="">特になし</option>
                   {timeOptions.map((time) => (
                     <option key={time} value={time}>{time}</option>
                   ))}
@@ -819,7 +826,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                   onChange={(e) => setFormData({ ...formData, desiredEndTime: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 >
-                  <option value="">選択してください</option>
+                  <option value="">特になし</option>
                   {timeOptions.map((time) => (
                     <option key={time} value={time}>{time}</option>
                   ))}
@@ -1294,15 +1301,16 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
         <div className="flex gap-4">
           <Link
             href="/mypage"
-            className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-bold hover:bg-gray-50 transition-colors text-center"
+            className={`flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-bold transition-colors text-center ${isSaving ? 'opacity-50 pointer-events-none' : 'hover:bg-gray-50'}`}
           >
             キャンセル
           </Link>
           <button
             type="submit"
-            className="flex-1 px-6 py-3 bg-primary text-white rounded-lg font-bold hover:bg-primary-dark transition-colors"
+            disabled={isSaving}
+            className="flex-1 px-6 py-3 bg-primary text-white rounded-lg font-bold hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            保存する
+            {isSaving ? '保存中...' : '保存する'}
           </button>
         </div>
       </form>
