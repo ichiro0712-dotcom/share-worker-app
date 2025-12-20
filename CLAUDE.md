@@ -187,6 +187,48 @@ DIRECT_URL="postgresql://sworks:sworks123@localhost:5432/sworks_dev?schema=publi
 npx prisma db push
 ```
 
+### Supabase本番DBへの接続方法（重要）
+
+本番DBの確認・修正が必要な場合、以下の接続文字列を使用する。
+
+**接続URL（PgBouncer経由）**:
+```
+postgresql://postgres.ziaunavcbawzorrwwnos:Medamayaki16@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true
+```
+
+**Prisma経由でクエリを実行する方法**:
+```bash
+DATABASE_URL="postgresql://postgres.ziaunavcbawzorrwwnos:Medamayaki16@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true" npx tsx -e "
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+async function main() {
+  // ここにクエリを書く
+  const result = await prisma.user.findMany({ take: 5 });
+  console.log(result);
+}
+main().catch(console.error).finally(() => prisma.\$disconnect());
+"
+```
+
+**テーブル一覧を確認する例**:
+```bash
+DATABASE_URL="postgresql://postgres.ziaunavcbawzorrwwnos:Medamayaki16@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true" npx tsx -e "
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+async function main() {
+  const tables = await prisma.\$queryRaw\`SELECT tablename FROM pg_tables WHERE schemaname = 'public'\`;
+  console.log('Tables:', tables.map(t => t.tablename).join(', '));
+}
+main().catch(console.error).finally(() => prisma.\$disconnect());
+"
+```
+
+**注意事項**:
+- `psql`コマンドは使えない（未インストール）ので、`npx tsx -e`でPrismaを使う
+- PgBouncerのポートは`6543`（通常の5432ではない）
+- `?pgbouncer=true`パラメータが必要
+- テーブル名はスネークケース複数形（例: `notification_settings`）
+
 ## Claude Code自動メンテナンス
 
 ### 開発サーバー自動リフレッシュ

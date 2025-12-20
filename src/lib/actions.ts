@@ -1371,6 +1371,57 @@ export async function applyForJob(jobId: string, workDateId?: number) {
       application.id
     ).catch(err => console.error('[applyForJob] Background notification error:', err));
 
+    // 即時マッチングの場合、マッチング成立メッセージを送信
+    if (isImmediateMatch) {
+      const baseUrl = process.env.NEXTAUTH_URL || 'https://tastas.jp';
+      const jobDetailUrl = `${baseUrl}/my-jobs/${application.id}`;
+
+      // 通知設定テーブルからテンプレートを取得
+      const matchingSetting = await prisma.notificationSetting.findUnique({
+        where: { notification_key: 'WORKER_MATCHED' },
+      });
+
+      if (matchingSetting?.chat_enabled && matchingSetting?.chat_message) {
+        // 勤務日情報をフォーマット
+        const workDateStr = new Date(targetWorkDate.work_date).toLocaleDateString('ja-JP', {
+          month: 'numeric',
+          day: 'numeric',
+        });
+        // start_time, end_time, wageはJobテーブルにある（JobWorkDateにはない）
+        const startTimeStr = job.start_time.substring(0, 5);
+        const endTimeStr = job.end_time.substring(0, 5);
+        // 単一日程の場合のapplied_dates（applyForJobMultipleDatesと同じフォーマット）
+        const appliedDateStr = `${new Date(targetWorkDate.work_date).getMonth() + 1}/${new Date(targetWorkDate.work_date).getDate()} ${job.start_time}〜${job.end_time}`;
+
+        // worker_last_name: 姓のみ（スペース区切りの最初の部分）
+        const workerLastName = user.name?.split(' ')[0] || user.name || '';
+
+        const matchingMessage = matchingSetting.chat_message
+          .replace(/\{\{worker_name\}\}/g, user.name || '')
+          .replace(/\{\{worker_last_name\}\}/g, workerLastName)
+          .replace(/\{\{facility_name\}\}/g, job.facility.facility_name)
+          .replace(/\{\{work_date\}\}/g, workDateStr)
+          .replace(/\{\{start_time\}\}/g, startTimeStr)
+          .replace(/\{\{end_time\}\}/g, endTimeStr)
+          .replace(/\{\{wage\}\}/g, job.wage?.toString() || '')
+          .replace(/\{\{hourly_wage\}\}/g, job.hourly_wage?.toString() || '')
+          .replace(/\{\{job_url\}\}/g, jobDetailUrl)
+          .replace(/\{\{applied_dates\}\}/g, appliedDateStr)
+          .replace(/\{\{job_title\}\}/g, job.title);
+
+        await prisma.message.create({
+          data: {
+            application_id: application.id,
+            job_id: jobIdNum,
+            from_facility_id: job.facility_id,
+            to_user_id: user.id,
+            content: matchingMessage,
+          },
+        });
+        console.log('[applyForJob] Matching message sent');
+      }
+    }
+
     // 即時マッチングの場合、初回メッセージを送信（その施設への初めてのマッチングのみ）
     if (isImmediateMatch && job.facility.initial_message) {
       // その施設への過去のマッチング履歴をチェック（今回の応募は除く）
@@ -1411,32 +1462,6 @@ export async function applyForJob(jobId: string, workDateId?: number) {
       } else {
         console.log('[applyForJob] Not first-time matching, skipping initial message');
       }
-
-      // 労働条件通知書のリンクをチャットで自動送信（即時マッチングの場合）
-      const baseUrl = process.env.NEXTAUTH_URL || 'https://tastas.jp';
-      const laborDocumentUrl = `${baseUrl}/my-jobs/${application.id}`;
-      const laborDocumentMessage = `【労働条件通知書のお知らせ】
-
-マッチングが成立しました。労働条件通知書をご確認ください。
-
-▼ 仕事詳細ページはこちら
-${laborDocumentUrl}
-
-上記ページの「労働条件通知書」ボタンからご確認いただけます。
-
-※本書は労働基準法第15条に基づき、労働条件を明示するものです。
-※ご不明点がございましたら、お気軽にお問い合わせください。`;
-
-      await prisma.message.create({
-        data: {
-          application_id: application.id,
-          job_id: jobIdNum,
-          from_facility_id: job.facility_id,
-          to_user_id: user.id,
-          content: laborDocumentMessage,
-        },
-      });
-      console.log('[applyForJob] Labor document notification sent');
     }
 
     // メッセージを変更
@@ -1595,7 +1620,17 @@ export async function applyForJobMultipleDates(jobId: string, workDateIds: numbe
 
     console.log('[applyForJobMultipleDates] Created applications:', createdApplications.map(a => a.id));
 
-    // 応募した勤務日をフォーマット
+    // 応募した勤務日をフォーマット（日付 + 時間）
+    const appliedWorkDatesFormatted = targetWorkDates
+      .filter(wd => newWorkDateIds.includes(wd.id))
+      .sort((a, b) => new Date(a.work_date).getTime() - new Date(b.work_date).getTime())
+      .map(wd => {
+        const date = new Date(wd.work_date);
+        const dateStr = `${date.getMonth() + 1}/${date.getDate()}`;
+        return `${dateStr} ${job.start_time}〜${job.end_time}`;
+      });
+
+    // 施設への通知を1回だけ送信（複数勤務日を含む）
     const appliedWorkDates = targetWorkDates
       .filter(wd => newWorkDateIds.includes(wd.id))
       .map(wd => new Date(wd.work_date).toLocaleDateString('ja-JP', {
@@ -1603,8 +1638,6 @@ export async function applyForJobMultipleDates(jobId: string, workDateIds: numbe
         day: 'numeric',
         weekday: 'short',
       }));
-
-    // 施設への通知を1回だけ送信（複数勤務日を含む）
     sendApplicationNotificationMultiple(
       job.facility_id,
       user.name,
@@ -1613,60 +1646,150 @@ export async function applyForJobMultipleDates(jobId: string, workDateIds: numbe
       appliedWorkDates
     ).catch(err => console.error('[applyForJobMultipleDates] Background notification error:', err));
 
+    // 求人詳細ページURL
+    const baseUrl = process.env.NEXTAUTH_URL || 'https://tastas.jp';
+    const jobDetailUrl = `${baseUrl}/jobs/${jobIdNum}`;
+
+    // 応募確認メッセージを送信（面接あり/なし共通）
+    // 通知設定テーブルからテンプレートを取得
+    const appliedDatesListStr = appliedWorkDatesFormatted.join('\n');
+    const applicationConfirmSetting = await prisma.notificationSetting.findUnique({
+      where: { notification_key: 'WORKER_APPLICATION_CONFIRMED' },
+    });
+
+    // worker_last_name: 姓のみ（スペース区切りの最初の部分）
+    const workerLastName = user.name?.split(' ')[0] || user.name || '';
+
+    let applicationConfirmMessage: string;
+    if (applicationConfirmSetting?.chat_enabled && applicationConfirmSetting?.chat_message) {
+      // テンプレートから生成
+      const statusMessage = isImmediateMatch
+        ? 'マッチングが成立しました。勤務日をお待ちください。'
+        : '施設からの返答をお待ちください。';
+      applicationConfirmMessage = applicationConfirmSetting.chat_message
+        .replace(/\{\{applied_dates\}\}/g, appliedDatesListStr)
+        .replace(/\{\{job_title\}\}/g, job.title)
+        .replace(/\{\{job_url\}\}/g, jobDetailUrl)
+        .replace(/\{\{facility_name\}\}/g, job.facility.facility_name)
+        .replace(/\{\{worker_name\}\}/g, user.name || '')
+        .replace(/\{\{worker_last_name\}\}/g, workerLastName)
+        .replace(/\{\{wage\}\}/g, job.wage?.toString() || '')
+        .replace(/\{\{hourly_wage\}\}/g, job.hourly_wage?.toString() || '')
+        .replace(/\{\{start_time\}\}/g, job.start_time.substring(0, 5))
+        .replace(/\{\{end_time\}\}/g, job.end_time.substring(0, 5))
+        .replace(/\{\{status_message\}\}/g, statusMessage);
+    } else {
+      // フォールバック: ハードコードされたメッセージ
+      applicationConfirmMessage = `【応募を受け付けました】
+
+以下の日程に応募しました：
+${appliedDatesListStr}
+
+▼ 求人詳細
+${job.title}
+${jobDetailUrl}
+
+${isImmediateMatch ? 'マッチングが成立しました。勤務日をお待ちください。' : '施設からの返答をお待ちください。'}`;
+    }
+
+    await prisma.message.create({
+      data: {
+        application_id: createdApplications[0].id,
+        job_id: jobIdNum,
+        from_facility_id: job.facility_id,
+        to_user_id: user.id,
+        content: applicationConfirmMessage,
+      },
+    });
+    console.log('[applyForJobMultipleDates] Application confirmation message sent');
+
     // 即時マッチングの場合の処理
-    if (isImmediateMatch && job.facility.initial_message) {
-      // 初めてのマッチングかチェック
-      const previousMatchCount = await prisma.application.count({
-        where: {
-          id: { notIn: createdApplications.map(a => a.id) },
-          user_id: user.id,
-          status: { in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'] },
-          workDate: { job: { facility_id: job.facility_id } },
-        },
+    if (isImmediateMatch) {
+      const baseUrl = process.env.NEXTAUTH_URL || 'https://tastas.jp';
+      const jobDetailUrl = `${baseUrl}/my-jobs/${createdApplications[0].id}`;
+
+      // 通知設定テーブルからテンプレートを取得
+      const matchingSetting = await prisma.notificationSetting.findUnique({
+        where: { notification_key: 'WORKER_MATCHED' },
       });
 
-      if (previousMatchCount === 0) {
-        const workerLastName = user.name?.split(' ')[0] || user.name || '';
-        const facilityName = job.facility.facility_name || '';
-        const messageContent = job.facility.initial_message
-          .replace(/\[ワーカー名字\]/g, workerLastName)
-          .replace(/\[施設名\]/g, facilityName);
+      if (matchingSetting?.chat_enabled && matchingSetting?.chat_message) {
+        // 最初の勤務日情報をフォーマット（複数日程の場合は最初の日程を表示）
+        // createdApplicationsから直接workDateを取得する（より確実な方法）
+        const firstCreatedApp = createdApplications[0];
+        const firstWorkDate = targetWorkDates.find(wd => wd.id === firstCreatedApp.work_date_id)
+          || job.workDates.find(wd => wd.id === firstCreatedApp.work_date_id);
 
-        await prisma.message.create({
-          data: {
-            application_id: createdApplications[0].id,
-            job_id: jobIdNum,
-            from_facility_id: job.facility_id,
-            to_user_id: user.id,
-            content: messageContent,
-          },
-        });
+        // firstWorkDateが存在する場合のみメッセージ送信
+        if (firstWorkDate) {
+          const workDateStr = new Date(firstWorkDate.work_date).toLocaleDateString('ja-JP', {
+            month: 'numeric',
+            day: 'numeric',
+          });
+          // start_time, end_time, wageはJobテーブルにある
+          const startTimeStr = job.start_time.substring(0, 5);
+          const endTimeStr = job.end_time.substring(0, 5);
+
+          // worker_last_name: 姓のみ（スペース区切りの最初の部分）
+          const workerLastName = user.name?.split(' ')[0] || user.name || '';
+
+          const matchingMessage = matchingSetting.chat_message
+            .replace(/\{\{worker_name\}\}/g, user.name || '')
+            .replace(/\{\{worker_last_name\}\}/g, workerLastName)
+            .replace(/\{\{facility_name\}\}/g, job.facility.facility_name)
+            .replace(/\{\{work_date\}\}/g, workDateStr)
+            .replace(/\{\{start_time\}\}/g, startTimeStr)
+            .replace(/\{\{end_time\}\}/g, endTimeStr)
+            .replace(/\{\{wage\}\}/g, job.wage?.toString() || '')
+            .replace(/\{\{hourly_wage\}\}/g, job.hourly_wage?.toString() || '')
+            .replace(/\{\{job_url\}\}/g, jobDetailUrl)
+            .replace(/\{\{applied_dates\}\}/g, appliedDatesListStr)
+            .replace(/\{\{job_title\}\}/g, job.title);
+
+          await prisma.message.create({
+            data: {
+              application_id: createdApplications[0].id,
+              job_id: jobIdNum,
+              from_facility_id: job.facility_id,
+              to_user_id: user.id,
+              content: matchingMessage,
+            },
+          });
+          console.log('[applyForJobMultipleDates] Matching message sent');
+        } else {
+          console.log('[applyForJobMultipleDates] No matching work date found for message');
+        }
       }
 
-      // 労働条件通知書のリンクを送信（最初の応募IDで）
-      const baseUrl = process.env.NEXTAUTH_URL || 'https://tastas.jp';
-      const laborDocumentUrl = `${baseUrl}/my-jobs/${createdApplications[0].id}`;
-      const laborDocumentMessage = `【労働条件通知書のお知らせ】
+      // 初回メッセージ送信（その施設への初めてのマッチングのみ、かつ設定がある場合）
+      if (job.facility.initial_message) {
+        const previousMatchCount = await prisma.application.count({
+          where: {
+            id: { notIn: createdApplications.map(a => a.id) },
+            user_id: user.id,
+            status: { in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'] },
+            workDate: { job: { facility_id: job.facility_id } },
+          },
+        });
 
-マッチングが成立しました。労働条件通知書をご確認ください。
+        if (previousMatchCount === 0) {
+          const workerLastName = user.name?.split(' ')[0] || user.name || '';
+          const facilityName = job.facility.facility_name || '';
+          const messageContent = job.facility.initial_message
+            .replace(/\[ワーカー名字\]/g, workerLastName)
+            .replace(/\[施設名\]/g, facilityName);
 
-▼ 仕事詳細ページはこちら
-${laborDocumentUrl}
-
-上記ページの「労働条件通知書」ボタンからご確認いただけます。
-
-※本書は労働基準法第15条に基づき、労働条件を明示するものです。
-※ご不明点がございましたら、お気軽にお問い合わせください。`;
-
-      await prisma.message.create({
-        data: {
-          application_id: createdApplications[0].id,
-          job_id: jobIdNum,
-          from_facility_id: job.facility_id,
-          to_user_id: user.id,
-          content: laborDocumentMessage,
-        },
-      });
+          await prisma.message.create({
+            data: {
+              application_id: createdApplications[0].id,
+              job_id: jobIdNum,
+              from_facility_id: job.facility_id,
+              to_user_id: user.id,
+              content: messageContent,
+            },
+          });
+        }
+      }
     }
 
     const message = isImmediateMatch
@@ -4184,19 +4307,53 @@ export async function updateApplicationStatus(
         }
       );
 
-      // 労働条件通知書のリンクをチャットで自動送信
-      const laborDocumentUrl = `/my-jobs/${applicationId}`;
-      const laborDocumentMessage = `【労働条件通知書のお知らせ】
+      // マッチング成立メッセージをチャットで自動送信
+      const workDate = new Date(application.workDate.work_date);
+      const workDateStr = `${workDate.getMonth() + 1}/${workDate.getDate()}`;
+      const baseUrl = process.env.NEXTAUTH_URL || 'https://tastas.jp';
+      const jobDetailUrl = `${baseUrl}/jobs/${application.workDate.job_id}`;
+      // start_time, end_timeをHH:MM形式に変換
+      const startTimeStr = application.workDate.job.start_time.substring(0, 5);
+      const endTimeStr = application.workDate.job.end_time.substring(0, 5);
+      // applied_dates用のフォーマット（単一日程）
+      const appliedDateStr = `${workDateStr} ${startTimeStr}〜${endTimeStr}`;
 
-マッチングが成立しました。労働条件通知書をご確認ください。
+      // 通知設定テーブルからテンプレートを取得
+      const matchingSetting = await prisma.notificationSetting.findUnique({
+        where: { notification_key: 'WORKER_MATCHED' },
+      });
 
-▼ 仕事詳細ページはこちら
-${laborDocumentUrl}
+      // worker_last_name: 姓のみ（スペース区切りの最初の部分）
+      const workerLastName = application.user.name?.split(' ')[0] || application.user.name || '';
 
-上記ページの「労働条件通知書」ボタンからご確認いただけます。
+      let matchingConfirmMessage: string;
+      if (matchingSetting?.chat_enabled && matchingSetting?.chat_message) {
+        // テンプレートから生成
+        matchingConfirmMessage = matchingSetting.chat_message
+          .replace(/\{\{worker_name\}\}/g, application.user.name || '')
+          .replace(/\{\{worker_last_name\}\}/g, workerLastName)
+          .replace(/\{\{facility_name\}\}/g, application.workDate.job.facility.facility_name)
+          .replace(/\{\{work_date\}\}/g, workDateStr)
+          .replace(/\{\{start_time\}\}/g, startTimeStr)
+          .replace(/\{\{end_time\}\}/g, endTimeStr)
+          .replace(/\{\{wage\}\}/g, String(application.workDate.job.wage || application.workDate.job.hourly_wage))
+          .replace(/\{\{hourly_wage\}\}/g, String(application.workDate.job.hourly_wage || ''))
+          .replace(/\{\{job_title\}\}/g, application.workDate.job.title)
+          .replace(/\{\{job_url\}\}/g, jobDetailUrl)
+          .replace(/\{\{applied_dates\}\}/g, appliedDateStr);
+      } else {
+        // フォールバック: ハードコードされたメッセージ
+        matchingConfirmMessage = `【マッチングが成立しました】
 
-※本書は労働基準法第15条に基づき、労働条件を明示するものです。
-※ご不明点がございましたら、お気軽にお問い合わせください。`;
+以下の日程が確定しました：
+${appliedDateStr}
+
+▼ 求人詳細
+${application.workDate.job.title}
+${jobDetailUrl}
+
+勤務日をお待ちください。`;
+      }
 
       await prisma.message.create({
         data: {
@@ -4204,10 +4361,10 @@ ${laborDocumentUrl}
           job_id: application.workDate.job_id,
           from_facility_id: facilityId,
           to_user_id: application.user_id,
-          content: laborDocumentMessage,
+          content: matchingConfirmMessage,
         },
       });
-      console.log('[updateApplicationStatus] Labor document notification sent');
+      console.log('[updateApplicationStatus] Matching confirmation message sent');
     }
 
     // 勤務完了時（COMPLETED_PENDING）は評価依頼通知を送信
