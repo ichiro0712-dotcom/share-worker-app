@@ -7,6 +7,7 @@ import { createFacilityWithAdmin } from '@/src/lib/system-actions';
 import { SERVICE_TYPES } from '@/constants/serviceTypes';
 import { ChevronLeft, Building2, User, Lock, Mail, Phone, MapPin } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { formatPhoneNumber } from '@/utils/inputValidation';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 export default function SystemAdminNewFacilityPage() {
@@ -184,10 +185,11 @@ export default function SystemAdminNewFacilityPage() {
                                 type="tel"
                                 name="phoneNumber"
                                 value={formData.phoneNumber}
-                                onChange={handleChange}
+                                onChange={(e) => setFormData(prev => ({ ...prev, phoneNumber: formatPhoneNumber(e.target.value) }))}
                                 placeholder="例: 03-1234-5678"
                                 className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                             />
+                            <p className="text-xs text-gray-500 mt-1">※数字のみ入力（ハイフンは自動挿入）</p>
                         </div>
 
                         <div className="md:col-span-2 space-y-4 pt-2 border-t border-slate-50">
@@ -298,10 +300,11 @@ export default function SystemAdminNewFacilityPage() {
                                 type="tel"
                                 name="adminPhone"
                                 value={formData.adminPhone}
-                                onChange={handleChange}
+                                onChange={(e) => setFormData(prev => ({ ...prev, adminPhone: formatPhoneNumber(e.target.value) }))}
                                 placeholder="例: 090-1234-5678"
                                 className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                             />
+                            <p className="text-xs text-gray-500 mt-1">※数字のみ入力（ハイフンは自動挿入）</p>
                         </div>
 
                         <div className="md:col-span-2">

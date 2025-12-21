@@ -7,6 +7,7 @@ import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { compressImage, MAX_FILE_SIZE, formatFileSize } from '@/utils/fileValidation';
+import { formatKatakana, formatPhoneNumber, isValidEmail, isValidPhoneNumber, isKatakanaOnly } from '@/utils/inputValidation';
 import AddressSelector from '@/components/ui/AddressSelector';
 import { QUALIFICATION_GROUPS } from '@/constants/qualifications';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
@@ -157,17 +158,7 @@ export default function WorkerRegisterPage() {
     }
   };
 
-  // メールアドレス形式チェック
-  const isValidEmail = (email: string): boolean => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  };
-
-  // 電話番号形式チェック（ハイフンありなし両対応、10桁または11桁）
-  const isValidPhoneNumber = (phone: string): boolean => {
-    const digitsOnly = phone.replace(/[-\s]/g, '');
-    return /^[0-9]{10,11}$/.test(digitsOnly);
-  };
+  // バリデーション関数はutils/inputValidation.tsからインポート
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -389,13 +380,14 @@ export default function WorkerRegisterPage() {
                     type="text"
                     required
                     value={formData.lastNameKana}
-                    onChange={(e) => setFormData({ ...formData, lastNameKana: e.target.value })}
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.lastNameKana ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                    onChange={(e) => setFormData({ ...formData, lastNameKana: formatKatakana(e.target.value) })}
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.lastNameKana ? 'border-red-500 bg-red-50' : showErrors && formData.lastNameKana && !isKatakanaOnly(formData.lastNameKana) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                     placeholder="ヤマダ"
                   />
                   {showErrors && !formData.lastNameKana && (
                     <p className="text-red-500 text-xs mt-1">セイ（フリガナ）を入力してください</p>
                   )}
+                  <p className="text-xs text-gray-500 mt-1">※カタカナで入力（ひらがなは自動変換）</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -405,13 +397,14 @@ export default function WorkerRegisterPage() {
                     type="text"
                     required
                     value={formData.firstNameKana}
-                    onChange={(e) => setFormData({ ...formData, firstNameKana: e.target.value })}
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.firstNameKana ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                    onChange={(e) => setFormData({ ...formData, firstNameKana: formatKatakana(e.target.value) })}
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.firstNameKana ? 'border-red-500 bg-red-50' : showErrors && formData.firstNameKana && !isKatakanaOnly(formData.firstNameKana) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                     placeholder="タロウ"
                   />
                   {showErrors && !formData.firstNameKana && (
                     <p className="text-red-500 text-xs mt-1">メイ（フリガナ）を入力してください</p>
                   )}
+                  <p className="text-xs text-gray-500 mt-1">※カタカナで入力（ひらがなは自動変換）</p>
                 </div>
                 {/* 生年月日・性別 */}
                 <div>
@@ -428,7 +421,7 @@ export default function WorkerRegisterPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    性別 <span className="text-red-500">*</span>
+                    性別（出生時） <span className="text-red-500">*</span>
                   </label>
                   <select
                     required
@@ -439,7 +432,6 @@ export default function WorkerRegisterPage() {
                     <option value="">選択してください</option>
                     <option value="男性">男性</option>
                     <option value="女性">女性</option>
-                    <option value="その他">その他</option>
                   </select>
                   {showErrors && !formData.gender && (
                     <p className="text-red-500 text-xs mt-1">性別を選択してください</p>
@@ -497,13 +489,14 @@ export default function WorkerRegisterPage() {
                     type="tel"
                     required
                     value={formData.phoneNumber}
-                    onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, phoneNumber: formatPhoneNumber(e.target.value) })}
                     placeholder="090-1234-5678"
                     className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.phoneNumber ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                   />
                   {showErrors && !formData.phoneNumber && (
                     <p className="text-red-500 text-xs mt-1">電話番号を入力してください</p>
                   )}
+                  <p className="text-xs text-gray-500 mt-1">※数字のみ入力（ハイフンは自動挿入）</p>
                 </div>
               </div>
 

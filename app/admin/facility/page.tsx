@@ -18,6 +18,7 @@ import {
 import { getSystemTemplates } from '@/src/lib/content-actions';
 import { MapPin } from 'lucide-react';
 import { validateFile } from '@/utils/fileValidation';
+import { formatPhoneNumber } from '@/utils/inputValidation';
 import AddressSelector from '@/components/ui/AddressSelector';
 import { SERVICE_TYPES } from '@/constants/serviceTypes';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
@@ -1191,9 +1192,11 @@ export default function FacilityPage() {
                   <input
                     type="tel"
                     value={corporateInfo.phone}
-                    onChange={(e) => setCorporateInfo({ ...corporateInfo, phone: e.target.value })}
+                    onChange={(e) => setCorporateInfo({ ...corporateInfo, phone: formatPhoneNumber(e.target.value) })}
+                    placeholder="03-1234-5678"
                     className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
                   />
+                  <p className="text-xs text-gray-500 mt-1">※数字のみ入力（ハイフンは自動挿入）</p>
                 </div>
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1404,9 +1407,11 @@ export default function FacilityPage() {
                     <input
                       type="tel"
                       value={managerInfo.phone}
-                      onChange={(e) => setManagerInfo({ ...managerInfo, phone: e.target.value })}
+                      onChange={(e) => setManagerInfo({ ...managerInfo, phone: formatPhoneNumber(e.target.value) })}
+                      placeholder="090-1234-5678"
                       className={`w-full max-w-xs px-2 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent ${showErrors && !managerInfo.phone ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                     />
+                    <p className="text-xs text-gray-500 mt-1">※数字のみ入力（ハイフンは自動挿入）</p>
                     {showErrors && !managerInfo.phone && (
                       <p className="text-red-500 text-xs mt-1">責任者の電話番号を入力してください</p>
                     )}
@@ -1561,9 +1566,11 @@ export default function FacilityPage() {
                     <input
                       type="tel"
                       value={staffInfo.phone}
-                      onChange={(e) => setStaffInfo({ ...staffInfo, phone: e.target.value })}
+                      onChange={(e) => setStaffInfo({ ...staffInfo, phone: formatPhoneNumber(e.target.value) })}
+                      placeholder="090-1234-5678"
                       className={`w-full max-w-xs px-2 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent ${showErrors && !staffInfo.phone ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                     />
+                    <p className="text-xs text-gray-500 mt-1">※数字のみ入力（ハイフンは自動挿入）</p>
                     {showErrors && !staffInfo.phone && (
                       <p className="text-red-500 text-xs mt-1">連絡先電話番号を入力してください</p>
                     )}

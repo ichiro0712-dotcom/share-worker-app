@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { updateUserProfile } from '@/src/lib/actions';
 import { validateFile, getSafeImageUrl, isValidImageUrl } from '@/utils/fileValidation';
+import { formatKatakana, formatKatakanaWithSpace, formatPhoneNumber } from '@/utils/inputValidation';
 import toast from 'react-hot-toast';
 import AddressSelector from '@/components/ui/AddressSelector';
 import { QUALIFICATION_GROUPS } from '@/constants/qualifications';
@@ -637,17 +638,13 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 type="text"
                 value={formData.lastNameKana}
                 onChange={(e) => {
-                  const value = e.target.value;
+                  const value = formatKatakana(e.target.value);
                   setFormData({ ...formData, lastNameKana: value });
-                  const error = validateField('lastNameKana', value);
-                  setValidationErrors(prev => ({ ...prev, lastNameKana: error }));
                 }}
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${validationErrors.lastNameKana ? 'border-red-500' : 'border-gray-300'
-                  }`}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                placeholder="ヤマダ"
               />
-              {validationErrors.lastNameKana && (
-                <p className="text-red-500 text-xs mt-1">{validationErrors.lastNameKana}</p>
-              )}
+              <p className="text-xs text-gray-500 mt-1">※カタカナで入力（ひらがなは自動変換）</p>
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">名（カナ） <span className="text-red-500">*</span></label>
@@ -655,17 +652,13 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 type="text"
                 value={formData.firstNameKana}
                 onChange={(e) => {
-                  const value = e.target.value;
+                  const value = formatKatakana(e.target.value);
                   setFormData({ ...formData, firstNameKana: value });
-                  const error = validateField('firstNameKana', value);
-                  setValidationErrors(prev => ({ ...prev, firstNameKana: error }));
                 }}
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${validationErrors.firstNameKana ? 'border-red-500' : 'border-gray-300'
-                  }`}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                placeholder="タロウ"
               />
-              {validationErrors.firstNameKana && (
-                <p className="text-red-500 text-xs mt-1">{validationErrors.firstNameKana}</p>
-              )}
+              <p className="text-xs text-gray-500 mt-1">※カタカナで入力（ひらがなは自動変換）</p>
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">生年月日 <span className="text-red-500">*</span></label>
@@ -677,7 +670,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">性別 <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium mb-2">性別（出生時） <span className="text-red-500">*</span></label>
               <select
                 value={formData.gender}
                 onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
@@ -686,7 +679,6 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 <option value="">選択してください</option>
                 <option value="男性">男性</option>
                 <option value="女性">女性</option>
-                <option value="その他">その他</option>
               </select>
             </div>
             <div>
@@ -847,17 +839,13 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 type="tel"
                 value={formData.phone}
                 onChange={(e) => {
-                  const value = e.target.value;
+                  const value = formatPhoneNumber(e.target.value);
                   setFormData({ ...formData, phone: value });
-                  const error = validateField('phone', value);
-                  setValidationErrors(prev => ({ ...prev, phone: error }));
                 }}
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${validationErrors.phone ? 'border-red-500' : 'border-gray-300'
-                  }`}
+                placeholder="090-1234-5678"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               />
-              {validationErrors.phone && (
-                <p className="text-red-500 text-xs mt-1">{validationErrors.phone}</p>
-              )}
+              <p className="text-xs text-gray-500 mt-1">※数字のみ入力（ハイフンは自動挿入）</p>
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">メールアドレス <span className="text-red-500">*</span></label>
@@ -941,17 +929,13 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 type="tel"
                 value={formData.emergencyContactPhone}
                 onChange={(e) => {
-                  const value = e.target.value;
+                  const value = formatPhoneNumber(e.target.value);
                   setFormData({ ...formData, emergencyContactPhone: value });
-                  const error = validateField('emergencyContactPhone', value);
-                  setValidationErrors(prev => ({ ...prev, emergencyContactPhone: error }));
                 }}
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${validationErrors.emergencyContactPhone ? 'border-red-500' : 'border-gray-300'
-                  }`}
+                placeholder="090-1234-5678"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               />
-              {validationErrors.emergencyContactPhone && (
-                <p className="text-red-500 text-xs mt-1">{validationErrors.emergencyContactPhone}</p>
-              )}
+              <p className="text-xs text-gray-500 mt-1">※数字のみ入力（ハイフンは自動挿入）</p>
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">住所</label>
@@ -1181,9 +1165,11 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 <input
                   type="text"
                   value={formData.accountName}
-                  onChange={(e) => setFormData({ ...formData, accountName: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, accountName: formatKatakanaWithSpace(e.target.value) })}
+                  placeholder="ヤマダ タロウ"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 />
+                <p className="text-xs text-gray-500 mt-1">※カタカナで入力（ひらがなは自動変換）</p>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">口座番号 <span className="text-red-500">*</span></label>

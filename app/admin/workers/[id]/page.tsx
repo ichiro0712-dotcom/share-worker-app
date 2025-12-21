@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, Star, MapPin, Heart, Ban } from 'lucide-react';
+import { ChevronLeft, Star, MapPin, Heart, Ban, X, FileText, Download, ExternalLink, Phone, User, Users, MapPin as MapPinIcon } from 'lucide-react';
 import { getWorkerDetail, toggleWorkerFavorite, toggleWorkerBlock } from '@/src/lib/actions';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -106,6 +106,8 @@ interface WorkerDetailData {
     communication: number | null;
     attitude: number | null;
   } | null;
+  // 資格証明書画像
+  qualificationCertificates: Record<string, string | { certificate_image?: string }> | null;
 }
 
 // 経験分野の略称変換
@@ -179,6 +181,9 @@ export default function WorkerDetailPage({
   const [loading, setLoading] = useState(true);
   const [isFavorite, setIsFavorite] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
+  // モーダル表示用ステート
+  const [showCertificatesModal, setShowCertificatesModal] = useState(false);
+  const [showEmergencyContactModal, setShowEmergencyContactModal] = useState(false);
 
   useEffect(() => {
     console.log('[WorkerDetail] useEffect triggered', { isAdminLoading, isAdmin, admin, workerId });
@@ -608,20 +613,20 @@ export default function WorkerDetailPage({
               )}
             </div>
 
-            {/* その他リンク */}
+            {/* その他リンク（モーダル表示に変更） */}
             <div className="flex gap-3 text-xs">
-              <Link
-                href={`/admin/workers/${workerId}/certificates`}
+              <button
+                onClick={() => setShowCertificatesModal(true)}
                 className="text-blue-600 hover:text-blue-800 hover:underline"
               >
                 資格証明書写真
-              </Link>
-              <Link
-                href={`/admin/workers/${workerId}/emergency-contacts`}
+              </button>
+              <button
+                onClick={() => setShowEmergencyContactModal(true)}
                 className="text-blue-600 hover:text-blue-800 hover:underline"
               >
                 緊急連絡先
-              </Link>
+              </button>
               <Link
                 href={`/admin/workers/${workerId}/labor-documents`}
                 className="text-blue-600 hover:text-blue-800 hover:underline"
@@ -633,6 +638,226 @@ export default function WorkerDetailPage({
 
         </div>
       </main>
+
+      {/* 資格証明書モーダル */}
+      {showCertificatesModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+            {/* ヘッダー */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">資格証明書</h2>
+                <p className="text-sm text-gray-500">{worker.name}</p>
+              </div>
+              <button
+                onClick={() => setShowCertificatesModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-600" />
+              </button>
+            </div>
+            {/* コンテンツ */}
+            <div className="p-6 overflow-y-auto flex-1">
+              {/* 保有資格一覧 */}
+              <div className="mb-6">
+                <h3 className="text-sm font-bold text-gray-700 mb-3">保有資格</h3>
+                {worker.qualifications.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {worker.qualifications.map((qual, i) => (
+                      <span
+                        key={i}
+                        className="px-3 py-1.5 bg-blue-50 text-blue-700 text-sm font-medium rounded-lg"
+                      >
+                        {qual}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-400 text-sm">資格情報なし</p>
+                )}
+              </div>
+
+              {/* 資格証明書画像 */}
+              <div>
+                <h3 className="text-sm font-bold text-gray-700 mb-3">資格証明書画像</h3>
+                {(() => {
+                  const certs = worker.qualificationCertificates;
+                  if (!certs || Object.keys(certs).length === 0) {
+                    return (
+                      <div className="text-center py-8">
+                        <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                        <p className="text-gray-500 text-sm">
+                          資格証明書画像は登録されていません
+                        </p>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {Object.entries(certs).map(([qualification, value]) => {
+                        // URLを取得（新旧形式に対応）
+                        const imageUrl = typeof value === 'string'
+                          ? value
+                          : (value as { certificate_image?: string })?.certificate_image;
+
+                        return (
+                          <div key={qualification} className="border border-gray-200 rounded-lg overflow-hidden">
+                            <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
+                              <h4 className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                                <FileText className="w-4 h-4 text-gray-500" />
+                                {qualification}
+                              </h4>
+                            </div>
+                            <div className="p-4">
+                              {imageUrl ? (
+                                <div className="space-y-3">
+                                  <a
+                                    href={imageUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="block"
+                                  >
+                                    <img
+                                      src={imageUrl}
+                                      alt={`${qualification}の証明書`}
+                                      className="w-full h-40 object-contain bg-gray-100 rounded-lg hover:opacity-90 transition-opacity cursor-pointer"
+                                      onError={(e) => {
+                                        const target = e.target as HTMLImageElement;
+                                        target.style.display = 'none';
+                                        (target.nextElementSibling as HTMLElement)?.classList.remove('hidden');
+                                      }}
+                                    />
+                                    <div className="hidden text-center py-6 text-gray-400 text-sm">
+                                      画像を読み込めませんでした
+                                    </div>
+                                  </a>
+                                  <div className="flex gap-2">
+                                    <a
+                                      href={imageUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                                    >
+                                      <ExternalLink className="w-3 h-3" />
+                                      開く
+                                    </a>
+                                    <a
+                                      href={imageUrl}
+                                      download
+                                      className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                                    >
+                                      <Download className="w-3 h-3" />
+                                      ダウンロード
+                                    </a>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="text-center py-6 text-gray-400 text-sm">
+                                  証明書画像が登録されていません
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 緊急連絡先モーダル */}
+      {showEmergencyContactModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full overflow-hidden">
+            {/* ヘッダー */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">緊急連絡先</h2>
+                <p className="text-sm text-gray-500">{worker.name}</p>
+              </div>
+              <button
+                onClick={() => setShowEmergencyContactModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-600" />
+              </button>
+            </div>
+            {/* コンテンツ */}
+            <div className="p-6">
+              {worker.emergencyName || worker.emergencyPhone || worker.emergencyRelation || worker.emergencyAddress ? (
+                <div className="space-y-4">
+                  {/* 氏名 */}
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
+                      <User className="w-5 h-5 text-blue-500" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-xs text-gray-500 mb-1">氏名</div>
+                      <div className="text-sm font-medium text-gray-900">
+                        {worker.emergencyName || <span className="text-gray-400">未登録</span>}
+                      </div>
+                    </div>
+                  </div>
+                  {/* 続柄 */}
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center flex-shrink-0">
+                      <Users className="w-5 h-5 text-purple-500" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-xs text-gray-500 mb-1">続柄</div>
+                      <div className="text-sm font-medium text-gray-900">
+                        {worker.emergencyRelation || <span className="text-gray-400">未登録</span>}
+                      </div>
+                    </div>
+                  </div>
+                  {/* 電話番号 */}
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center flex-shrink-0">
+                      <Phone className="w-5 h-5 text-green-500" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-xs text-gray-500 mb-1">電話番号</div>
+                      {worker.emergencyPhone ? (
+                        <a
+                          href={`tel:${worker.emergencyPhone}`}
+                          className="text-sm font-medium text-blue-600 hover:underline"
+                        >
+                          {worker.emergencyPhone}
+                        </a>
+                      ) : (
+                        <span className="text-sm text-gray-400">未登録</span>
+                      )}
+                    </div>
+                  </div>
+                  {/* 住所 */}
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center flex-shrink-0">
+                      <MapPinIcon className="w-5 h-5 text-orange-500" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-xs text-gray-500 mb-1">住所</div>
+                      <div className="text-sm font-medium text-gray-900">
+                        {worker.emergencyAddress || <span className="text-gray-400">未登録</span>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500 text-sm">
+                    緊急連絡先が登録されていません
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

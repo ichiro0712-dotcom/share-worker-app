@@ -836,7 +836,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
       </div>
 
       {/* 責任者 */}
-      <div className="border-t border-gray-200 pt-4 mb-4">
+      <div className="border-t border-gray-200 pt-4 mb-4 px-4">
         <h3 className="mb-3 text-sm font-bold">責任者</h3>
         <div className="flex gap-3">
           {/* 画像パスの場合はimgタグで表示、それ以外は絵文字として表示 */}
@@ -859,8 +859,8 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
       </div>
 
       {/* 仕事概要 */}
-      <div className="mb-4">
-        <h3 className="mb-3 text-base font-bold text-primary px-4 py-3 -mx-4 border-b-2 border-primary">仕事概要</h3>
+      <div className="mb-4 px-4">
+        <h3 className="mb-3 text-base font-bold text-primary py-3 -mx-4 px-4 border-b-2 border-primary">仕事概要</h3>
         <div className="mt-3">
           <h4 className="mb-2 text-sm font-bold">仕事詳細</h4>
           {/* 仕事内容アイコン */}
@@ -887,7 +887,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
       </div>
 
       {/* 申込条件 */}
-      <div className="mb-4">
+      <div className="mb-4 px-4">
         <div className="mt-3 space-y-4">
           <div>
             <h4 className="text-sm mb-2 font-bold">必要な資格・条件</h4>
@@ -916,8 +916,8 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
       </div>
 
       {/* 事前情報 */}
-      <div id="pre-info" className="mb-4 scroll-mt-16">
-        <h3 className="mb-3 text-base font-bold text-primary px-4 py-3 -mx-4 border-b-2 border-primary">事前情報</h3>
+      <div id="pre-info" className="mb-4 scroll-mt-16 px-4">
+        <h3 className="mb-3 text-base font-bold text-primary py-3 -mx-4 px-4 border-b-2 border-primary">事前情報</h3>
         <div className="mt-3 space-y-4">
           {/* 服装など */}
           <div>
@@ -1126,8 +1126,8 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
 
       {/* レビュー */}
       {facilityReviews.length > 0 && (
-        <div className="mb-4">
-          <h3 className="mb-3 text-base font-bold text-primary px-4 py-3 -mx-4 border-b-2 border-primary">レビュー ({facilityReviews.length}件)</h3>
+        <div className="mb-4 px-4">
+          <h3 className="mb-3 text-base font-bold text-primary py-3 -mx-4 px-4 border-b-2 border-primary">レビュー ({facilityReviews.length}件)</h3>
           <div className="mt-3 space-y-4">
             {/* 評価分布バー */}
             {(() => {

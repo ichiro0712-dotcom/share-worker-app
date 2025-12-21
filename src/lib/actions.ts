@@ -7077,6 +7077,8 @@ export async function getWorkerDetail(workerId: number, facilityId: number) {
       }).then(b => !!b),
       // 項目別平均評価
       ratingsByCategory: finalRatingsByCategory,
+      // 資格証明書画像（2024-12-21追加）
+      qualificationCertificates: user.qualification_certificates as Record<string, string | { certificate_image?: string }> | null,
     };
   } catch (error) {
     console.error('[getWorkerDetail] Error:', error);
