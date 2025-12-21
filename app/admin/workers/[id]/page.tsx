@@ -658,28 +658,8 @@ export default function WorkerDetailPage({
             </div>
             {/* コンテンツ */}
             <div className="p-6 overflow-y-auto flex-1">
-              {/* 保有資格一覧 */}
-              <div className="mb-6">
-                <h3 className="text-sm font-bold text-gray-700 mb-3">保有資格</h3>
-                {worker.qualifications.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {worker.qualifications.map((qual, i) => (
-                      <span
-                        key={i}
-                        className="px-3 py-1.5 bg-blue-50 text-blue-700 text-sm font-medium rounded-lg"
-                      >
-                        {qual}
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-gray-400 text-sm">資格情報なし</p>
-                )}
-              </div>
-
               {/* 資格証明書画像 */}
               <div>
-                <h3 className="text-sm font-bold text-gray-700 mb-3">資格証明書画像</h3>
                 {(() => {
                   const certs = worker.qualificationCertificates;
                   if (!certs || Object.keys(certs).length === 0) {

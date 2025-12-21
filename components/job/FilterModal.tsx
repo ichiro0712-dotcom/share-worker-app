@@ -1,8 +1,10 @@
 'use client';
 
-import { useState } from 'react';
-import { X, ChevronDown, ChevronUp, ChevronRight } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, ChevronDown, ChevronUp, ChevronRight, MapPin, Loader2 } from 'lucide-react';
 import { SERVICE_TYPES } from '@/constants/serviceTypes';
+import { PREFECTURES, PREFECTURE_CITIES, type Prefecture } from '@/constants/prefectureCities';
+import { geocodeAddress } from '@/src/lib/geocoding';
 
 interface FilterState {
   prefecture: string;
@@ -15,31 +17,22 @@ interface FilterState {
   serviceTypes: string[];
   transportations: string[];
   otherConditions: string[];
+  // 距離検索用
+  distanceEnabled: boolean;
+  distanceAddress: string;
+  distanceKm: number;
+  distanceLat: number | null;
+  distanceLng: number | null;
 }
 
 interface FilterModalProps {
   isOpen: boolean;
   onClose: () => void;
   onApply: (filters: FilterState) => void;
+  initialFilters?: Partial<FilterState>;
 }
 
-const prefectures = [
-  '北海道', '青森県', '岩手県', '宮城県', '秋田県', '山形県', '福島県',
-  '茨城県', '栃木県', '群馬県', '埼玉県', '千葉県', '東京都', '神奈川県',
-  '新潟県', '富山県', '石川県', '福井県', '山梨県', '長野県',
-  '岐阜県', '静岡県', '愛知県', '三重県',
-  '滋賀県', '京都府', '大阪府', '兵庫県', '奈良県', '和歌山県',
-  '鳥取県', '島根県', '岡山県', '広島県', '山口県',
-  '徳島県', '香川県', '愛媛県', '高知県',
-  '福岡県', '佐賀県', '長崎県', '熊本県', '大分県', '宮崎県', '鹿児島県',
-  '沖縄県'
-];
-
-const cities: Record<string, string[]> = {
-  '東京都': ['千代田区', '中央区', '港区', '新宿区', '文京区', '台東区', '墨田区', '江東区', '品川区', '目黒区', '大田区', '世田谷区', '渋谷区', '中野区', '杉並区', '豊島区', '北区', '荒川区', '板橋区', '練馬区', '足立区', '葛飾区', '江戸川区'],
-  '神奈川県': ['横浜市', '川崎市', '相模原市', '横須賀市', '平塚市', '鎌倉市', '藤沢市', '小田原市', '茅ヶ崎市', '逗子市', '三浦市', '秦野市', '厚木市', '大和市', '伊勢原市', '海老名市', '座間市', '南足柄市', '綾瀬市'],
-  '大阪府': ['大阪市', '堺市', '岸和田市', '豊中市', '池田市', '吹田市', '泉大津市', '高槻市', '貝塚市', '守口市', '枚方市', '茨木市', '八尾市', '泉佐野市', '富田林市', '寝屋川市', '河内長野市', '松原市', '大東市', '和泉市', '箕面市', '柏原市', '羽曳野市', '門真市', '摂津市', '高石市', '藤井寺市', '東大阪市', '泉南市', '四條畷市', '交野市', '大阪狭山市', '阪南市'],
-};
+// 都道府県と市区町村のデータはprefectureCities.tsからインポート
 
 // serviceTypes imported from constants
 
@@ -79,21 +72,44 @@ const wageOptions = [
   '3000円以上',
 ];
 
-export function FilterModal({ isOpen, onClose, onApply }: FilterModalProps) {
+const defaultFilters: FilterState = {
+  prefecture: '',
+  city: '',
+  jobTypes: [],
+  workTimeTypes: [],
+  timeRangeFrom: '',
+  timeRangeTo: '',
+  minWage: '',
+  serviceTypes: [],
+  transportations: [],
+  otherConditions: [],
+  distanceEnabled: false,
+  distanceAddress: '',
+  distanceKm: 10,
+  distanceLat: null,
+  distanceLng: null,
+};
+
+export function FilterModal({ isOpen, onClose, onApply, initialFilters }: FilterModalProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showServiceTypeModal, setShowServiceTypeModal] = useState(false);
-  const [filters, setFilters] = useState<FilterState>({
-    prefecture: '',
-    city: '',
-    jobTypes: [],
-    workTimeTypes: [],
-    timeRangeFrom: '',
-    timeRangeTo: '',
-    minWage: '',
-    serviceTypes: [],
-    transportations: [],
-    otherConditions: [],
-  });
+  const [isGeocoding, setIsGeocoding] = useState(false);
+  const [filters, setFilters] = useState<FilterState>({ ...defaultFilters, ...initialFilters });
+
+  // initialFiltersが変更されたらfiltersを更新
+  useEffect(() => {
+    if (isOpen && initialFilters) {
+      setFilters({ ...defaultFilters, ...initialFilters });
+      // さらに絞り込むセクションを開く（serviceTypes, transportations, otherConditionsのいずれかがある場合）
+      if (
+        (initialFilters.serviceTypes && initialFilters.serviceTypes.length > 0) ||
+        (initialFilters.transportations && initialFilters.transportations.length > 0) ||
+        (initialFilters.otherConditions && initialFilters.otherConditions.length > 0)
+      ) {
+        setShowAdvanced(true);
+      }
+    }
+  }, [isOpen, initialFilters]);
 
   // 時間の選択肢を生成 (00:00 から 23:30まで30分刻み)
   const timeOptions: string[] = [];
@@ -130,11 +146,57 @@ export function FilterModal({ isOpen, onClose, onApply }: FilterModalProps) {
       serviceTypes: [],
       transportations: [],
       otherConditions: [],
+      distanceEnabled: false,
+      distanceAddress: '',
+      distanceKm: 10,
+      distanceLat: null,
+      distanceLng: null,
     });
   };
 
+  // 住所から座標を取得
+  const handleGeocodeAddress = async () => {
+    if (!filters.distanceAddress.trim()) return;
+
+    setIsGeocoding(true);
+    try {
+      const result = await geocodeAddress(filters.distanceAddress);
+      if (result) {
+        setFilters(prev => ({
+          ...prev,
+          distanceLat: result.lat,
+          distanceLng: result.lng,
+        }));
+      } else {
+        alert('住所が見つかりませんでした');
+      }
+    } catch (error) {
+      console.error('Geocoding error:', error);
+      alert('住所の検索に失敗しました');
+    } finally {
+      setIsGeocoding(false);
+    }
+  };
+
+  // 距離検索のバリデーション
+  const [validationError, setValidationError] = useState('');
+
   const handleApply = () => {
+    // 距離検索ONで座標未取得の場合はエラー
+    if (filters.distanceEnabled && (!filters.distanceLat || !filters.distanceLng)) {
+      setValidationError('住所を入力して「検索」ボタンで座標を取得してください');
+      return;
+    }
+    setValidationError('');
     onApply(filters);
+    onClose();
+  };
+
+  // キャンセル（変更を破棄してモーダルを閉じる）
+  const handleCancel = () => {
+    // フィルターを初期値に戻す
+    setFilters({ ...defaultFilters, ...initialFilters });
+    setValidationError('');
     onClose();
   };
 
@@ -170,17 +232,20 @@ export function FilterModal({ isOpen, onClose, onApply }: FilterModalProps) {
                   onChange={(e) => {
                     setFilters({ ...filters, prefecture: e.target.value, city: '' });
                   }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                  disabled={filters.distanceEnabled}
+                  className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
+                    filters.distanceEnabled ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''
+                  }`}
                 >
                   <option value="">都道府県を選択</option>
-                  {prefectures.map((pref) => (
+                  {PREFECTURES.map((pref) => (
                     <option key={pref} value={pref}>
                       {pref}
                     </option>
                   ))}
                 </select>
 
-                {filters.prefecture && cities[filters.prefecture] && (
+                {filters.prefecture && PREFECTURE_CITIES[filters.prefecture as Prefecture] && !filters.distanceEnabled && (
                   <select
                     value={filters.city}
                     onChange={(e) =>
@@ -189,13 +254,103 @@ export function FilterModal({ isOpen, onClose, onApply }: FilterModalProps) {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                   >
                     <option value="">市区町村を選択</option>
-                    {cities[filters.prefecture].map((city) => (
+                    {PREFECTURE_CITIES[filters.prefecture as Prefecture].map((city) => (
                       <option key={city} value={city}>
                         {city}
                       </option>
                     ))}
                   </select>
                 )}
+
+                {filters.distanceEnabled && (
+                  <p className="text-xs text-amber-600">
+                    ※ 距離検索ON時は都道府県/市区町村選択は無効です
+                  </p>
+                )}
+
+                {/* 距離検索 */}
+                <div className="mt-3 pt-3 border-t border-gray-200">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={filters.distanceEnabled}
+                      onChange={(e) => {
+                        const enabled = e.target.checked;
+                        setFilters({
+                          ...filters,
+                          distanceEnabled: enabled,
+                          // 距離検索ON時は都道府県・市区町村をクリア
+                          prefecture: enabled ? '' : filters.prefecture,
+                          city: enabled ? '' : filters.city,
+                          // 距離検索OFF時は座標をクリア
+                          distanceLat: enabled ? filters.distanceLat : null,
+                          distanceLng: enabled ? filters.distanceLng : null,
+                        });
+                      }}
+                      className="w-4 h-4 text-primary rounded border-gray-300"
+                    />
+                    <MapPin className="w-4 h-4 text-primary" />
+                    <span className="text-sm font-medium">距離で検索</span>
+                  </label>
+
+                  {filters.distanceEnabled && (
+                    <div className="mt-3 space-y-3 pl-6">
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">基準住所</label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={filters.distanceAddress}
+                            onChange={(e) =>
+                              setFilters({
+                                ...filters,
+                                distanceAddress: e.target.value,
+                                distanceLat: null,
+                                distanceLng: null,
+                              })
+                            }
+                            placeholder="例: 東京都渋谷区渋谷1-1-1"
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleGeocodeAddress}
+                            disabled={isGeocoding || !filters.distanceAddress.trim()}
+                            className="px-3 py-2 bg-primary text-white text-sm rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                          >
+                            {isGeocoding ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              '検索'
+                            )}
+                          </button>
+                        </div>
+                        {filters.distanceLat && filters.distanceLng && (
+                          <p className="mt-1 text-xs text-green-600">
+                            ✓ 座標取得済み
+                          </p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">距離</label>
+                        <select
+                          value={filters.distanceKm}
+                          onChange={(e) =>
+                            setFilters({ ...filters, distanceKm: Number(e.target.value) })
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        >
+                          {[1, 3, 5, 10, 15, 20, 30].map((km) => (
+                            <option key={km} value={km}>
+                              {km}km以内
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -468,19 +623,31 @@ export function FilterModal({ isOpen, onClose, onApply }: FilterModalProps) {
           </div>
 
           {/* フッター */}
-          <div className="sticky bottom-0 bg-white border-t border-gray-200 p-4 flex gap-3">
-            <button
-              onClick={handleReset}
-              className="flex-1 py-3 border border-gray-300 rounded-lg font-medium hover:bg-gray-50 transition-colors"
-            >
-              リセット
-            </button>
-            <button
-              onClick={handleApply}
-              className="flex-1 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors"
-            >
-              絞り込む
-            </button>
+          <div className="sticky bottom-0 bg-white border-t border-gray-200 p-4 space-y-2">
+            {/* バリデーションエラー */}
+            {validationError && (
+              <p className="text-sm text-red-500 text-center">{validationError}</p>
+            )}
+            <div className="flex gap-3">
+              <button
+                onClick={handleCancel}
+                className="flex-1 py-3 border border-gray-300 rounded-lg font-medium hover:bg-gray-50 transition-colors text-gray-600"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={handleReset}
+                className="py-3 px-4 text-sm text-gray-500 hover:text-gray-700 transition-colors underline"
+              >
+                クリア
+              </button>
+              <button
+                onClick={handleApply}
+                className="flex-1 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors"
+              >
+                絞り込む
+              </button>
+            </div>
           </div>
         </div>
       </div>

@@ -298,11 +298,15 @@ model JobWorkDate {
   created_at        DateTime      @default(now()) @map("created_at")
   updated_at        DateTime      @updatedAt @map("updated_at")
   matched_count     Int           @default(0) @map("matched_count")
+  /// 表示期限（この時刻を過ぎると求人一覧に表示されない）
+  /// 計算式: work_date + start_time - 2時間
+  visible_until     DateTime?     @map("visible_until")
   applications      Application[]
   job               Job           @relation(fields: [job_id], references: [id], onDelete: Cascade)
   reviews           Review[]
 
   @@unique([job_id, work_date])
+  @@index([visible_until])
   @@map("job_work_dates")
 }
 

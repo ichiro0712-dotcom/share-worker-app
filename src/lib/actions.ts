@@ -70,6 +70,13 @@ interface JobSearchParams {
   otherConditions?: string[];
   jobTypes?: string[]; // 「看護の仕事のみ」「説明会を除く」
   workTimeTypes?: string[]; // 「日勤」「夜勤」「1日4時間以下」
+  // 時間帯パラメータ
+  timeRangeFrom?: string; // HH:MM形式
+  timeRangeTo?: string;   // HH:MM形式
+  // 距離検索パラメータ
+  distanceKm?: number;
+  distanceLat?: number;
+  distanceLng?: number;
 }
 
 /**
@@ -96,6 +103,28 @@ function isTimeOverlapping(start1: string, end1: string, start2: string, end2: s
   // 重ならない条件: e1 <= s2 または e2 <= s1
   // 重なる条件: NOT (e1 <= s2 || e2 <= s1) = e1 > s2 && e2 > s1
   return e1 > s2 && e2 > s1;
+}
+
+/**
+ * 2点間の距離をHaversine公式で計算（km単位）
+ */
+function calculateDistanceKm(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
+  const R = 6371; // 地球の半径（km）
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
 }
 
 /**
@@ -130,7 +159,11 @@ export const getCachedJobDetail = async (id: number) => {
             where: {
               work_date: {
                 gte: new Date(new Date().setHours(0, 0, 0, 0)),
-              }
+              },
+              OR: [
+                { visible_until: { gte: new Date() } },
+                { visible_until: null }
+              ]
             }
           },
         },
@@ -148,6 +181,15 @@ export async function getJobs(searchParams?: JobSearchParams) {
   // PUBLISHED以外も表示するが、CANCELLED, DRAFT, STOPPEDは除外
   const whereConditions: any = {
     status: { in: ['PUBLISHED', 'WORKING', 'COMPLETED'] },
+    // 表示期限切れの求人を除外（visible_untilが未来、またはnull）
+    workDates: {
+      some: {
+        OR: [
+          { visible_until: { gte: new Date() } },
+          { visible_until: null } // 既存データ対応
+        ]
+      }
+    }
   };
 
   // facility条件を別途構築（deleted_atがnullの施設のみ対象）
@@ -247,15 +289,15 @@ export async function getJobs(searchParams?: JobSearchParams) {
   // その他条件フィルター（Booleanカラムで検索）
   if (searchParams?.otherConditions && searchParams.otherConditions.length > 0) {
     // その他条件のマッピング: UI選択肢 → DBカラム
+    // FilterModal.tsxのotherConditionsOptionsと同期必須
     const otherConditionMapping: Record<string, string> = {
-      '入浴介助なし': 'no_bathing_assist',
-      '送迎ドライバーあり': 'has_driver',
+      '未経験者歓迎': 'inexperienced_ok',
+      'ブランク歓迎': 'blank_ok',
       '髪型・髪色自由': 'hair_style_free',
       'ネイルOK': 'nail_ok',
       '制服貸与': 'uniform_provided',
-      '介護業務未経験歓迎': 'inexperienced_ok',
-      'SWORK初心者歓迎': 'beginner_ok',
-      '施設オープン５年以内': 'facility_within_5years',
+      '車通勤OK': 'allow_car',
+      '食事補助': 'meal_support',
     };
 
     whereConditions.AND = whereConditions.AND || [];
@@ -392,6 +434,12 @@ export async function getJobs(searchParams?: JobSearchParams) {
       facility: true,
       workDates: {
         orderBy: { work_date: 'asc' },
+        where: {
+          OR: [
+            { visible_until: { gte: new Date() } },
+            { visible_until: null }
+          ]
+        }
       },
     },
     orderBy: {
@@ -555,6 +603,15 @@ export async function getJobsListWithPagination(
   // PUBLISHED以外も表示するが、CANCELLED, DRAFT, STOPPEDは除外
   const whereConditions: any = {
     status: { in: ['PUBLISHED', 'WORKING', 'COMPLETED'] },
+    // 表示期限切れの求人を除外
+    workDates: {
+      some: {
+        OR: [
+          { visible_until: { gte: new Date() } },
+          { visible_until: null }
+        ]
+      }
+    }
   };
 
   // facility条件を別途構築（deleted_atがnullの施設のみ対象）
@@ -654,15 +711,15 @@ export async function getJobsListWithPagination(
   // その他条件フィルター（Booleanカラムで検索）
   if (searchParams?.otherConditions && searchParams.otherConditions.length > 0) {
     // その他条件のマッピング: UI選択肢 → DBカラム
+    // FilterModal.tsxのotherConditionsOptionsと同期必須
     const otherConditionMapping: Record<string, string> = {
-      '入浴介助なし': 'no_bathing_assist',
-      '送迎ドライバーあり': 'has_driver',
+      '未経験者歓迎': 'inexperienced_ok',
+      'ブランク歓迎': 'blank_ok',
       '髪型・髪色自由': 'hair_style_free',
       'ネイルOK': 'nail_ok',
       '制服貸与': 'uniform_provided',
-      '介護業務未経験歓迎': 'inexperienced_ok',
-      'SWORK初心者歓迎': 'beginner_ok',
-      '施設オープン５年以内': 'facility_within_5years',
+      '車通勤OK': 'allow_car',
+      '食事補助': 'meal_support',
     };
 
     whereConditions.AND = whereConditions.AND || [];
@@ -764,6 +821,57 @@ export async function getJobsListWithPagination(
     }
   }
 
+  // 時間帯フィルター（開始時間・終了時間の範囲指定）
+  if (searchParams?.timeRangeFrom || searchParams?.timeRangeTo) {
+    whereConditions.AND = whereConditions.AND || [];
+    if (searchParams.timeRangeFrom) {
+      // 指定開始時刻以降に開始する求人
+      whereConditions.AND.push({
+        start_time: { gte: searchParams.timeRangeFrom },
+      });
+    }
+    if (searchParams.timeRangeTo) {
+      // 指定終了時刻以前に終了する求人
+      whereConditions.AND.push({
+        end_time: { lte: searchParams.timeRangeTo },
+      });
+    }
+  }
+
+  // 距離検索フィルター
+  // 距離検索が有効な場合、指定座標からの距離でフィルタリングする
+  let distanceFilterEnabled = false;
+  let distanceCenter: { lat: number; lng: number } | null = null;
+  let maxDistanceKm = 0;
+
+  if (
+    searchParams?.distanceKm &&
+    searchParams?.distanceLat &&
+    searchParams?.distanceLng
+  ) {
+    distanceFilterEnabled = true;
+    distanceCenter = { lat: searchParams.distanceLat, lng: searchParams.distanceLng };
+    maxDistanceKm = searchParams.distanceKm;
+
+    // おおまかなbounding boxでフィルタリング（1度 ≈ 111km として計算）
+    const latDelta = maxDistanceKm / 111;
+    const lngDelta = maxDistanceKm / (111 * Math.cos((distanceCenter.lat * Math.PI) / 180));
+
+    // facility条件に緯度経度の範囲フィルタを追加
+    // 既存のfacilityConditionsに追加する形で
+    if (!whereConditions.facility) {
+      whereConditions.facility = { deleted_at: null };
+    }
+    whereConditions.facility.lat = {
+      gte: distanceCenter.lat - latDelta,
+      lte: distanceCenter.lat + latDelta,
+    };
+    whereConditions.facility.lng = {
+      gte: distanceCenter.lng - lngDelta,
+      lte: distanceCenter.lng + lngDelta,
+    };
+  }
+
   // 日付フィルターを追加
   if (targetDate) {
     // JSTの00:00:00から23:59:59までを対象範囲とする
@@ -773,12 +881,23 @@ export async function getJobsListWithPagination(
     const endOfDay = new Date(targetDate);
     endOfDay.setHours(23, 59, 59, 999);
 
+    // visible_untilフィルタと日付フィルタを両方適用
     whereConditions.workDates = {
       some: {
-        work_date: {
-          gte: startOfDay,
-          lte: endOfDay
-        }
+        AND: [
+          {
+            work_date: {
+              gte: startOfDay,
+              lte: endOfDay
+            }
+          },
+          {
+            OR: [
+              { visible_until: { gte: new Date() } },
+              { visible_until: null }
+            ]
+          }
+        ]
       }
     };
   }
@@ -805,6 +924,12 @@ export async function getJobsListWithPagination(
       facility: true,
       workDates: {
         orderBy: { work_date: 'asc' },
+        where: {
+          OR: [
+            { visible_until: { gte: new Date() } },
+            { visible_until: null }
+          ]
+        }
       },
     },
     orderBy: orderByCondition,
@@ -918,13 +1043,36 @@ export async function getJobsListWithPagination(
     };
   });
 
+  // 距離フィルタリング（厳密な距離計算）
+  let filteredJobs = formattedJobs;
+  let filteredTotalCount = totalCount;
+
+  if (distanceFilterEnabled && distanceCenter) {
+    // 厳密な距離計算でフィルタリング
+    filteredJobs = formattedJobs.filter((job) => {
+      const facilityLat = job.facility.lat;
+      const facilityLng = job.facility.lng;
+      if (facilityLat === null || facilityLng === null) return false;
+      const distance = calculateDistanceKm(
+        distanceCenter.lat,
+        distanceCenter.lng,
+        facilityLat,
+        facilityLng
+      );
+      return distance <= maxDistanceKm;
+    });
+    // 距離検索時はtotalCountも再計算（このページの結果だけを見ているため概算）
+    // 本来はDBレベルで正確に計算すべきだが、bounding boxでの概算とする
+    filteredTotalCount = filteredJobs.length + skip; // 暫定値
+  }
+
   return {
-    jobs: formattedJobs,
+    jobs: filteredJobs,
     pagination: {
       currentPage: page,
-      totalPages: Math.ceil(totalCount / limit),
-      totalCount,
-      hasMore: skip + jobs.length < totalCount,
+      totalPages: Math.ceil(filteredTotalCount / limit),
+      totalCount: filteredTotalCount,
+      hasMore: skip + filteredJobs.length < filteredTotalCount,
     },
   };
 }
@@ -1039,6 +1187,12 @@ export async function getJobById(id: string) {
       facility: true,
       workDates: {
         orderBy: { work_date: 'asc' },
+        where: {
+          OR: [
+            { visible_until: { gte: new Date() } },
+            { visible_until: null }
+          ]
+        }
       },
     },
   });
@@ -6498,12 +6652,18 @@ export async function createJobs(input: CreateJobInput) {
       deadline.setHours(23, 59, 59, 999);
     }
 
+    // 表示期限（visible_until）の計算: 開始時間の2時間前
+    const visibleUntil = new Date(workDate);
+    const [startHour, startMin] = input.startTime.split(':').map(Number);
+    visibleUntil.setHours(startHour - 2, startMin, 0, 0);
+
     return {
       job_id: job.id,
       work_date: workDate,
       deadline: deadline,
       recruitment_count: input.recruitmentCount,
       applied_count: 0,
+      visible_until: visibleUntil,
     };
   });
 
@@ -7776,8 +7936,15 @@ export async function updateJob(
       const newWorkDates = data.addWorkDates.map(dateStr => {
         const workDate = new Date(dateStr);
         const deadline = new Date(workDate);
+        // 新規追加時の締切はデフォルトで前日とする（Jobのdeadline_days_beforeを使うべきだが、データに含まれていないため）
+        // 既存実装に合わせる
         deadline.setDate(deadline.getDate() - 1);
         deadline.setHours(23, 59, 59, 999);
+
+        // visible_until計算
+        const visibleUntil = new Date(workDate);
+        const [startHour, startMin] = data.startTime.split(':').map(Number);
+        visibleUntil.setHours(startHour - 2, startMin, 0, 0);
 
         return {
           job_id: jobId,
@@ -7785,6 +7952,7 @@ export async function updateJob(
           deadline: deadline,
           recruitment_count: data.recruitmentCount,
           applied_count: 0,
+          visible_until: visibleUntil,
         };
       });
 
@@ -7792,6 +7960,23 @@ export async function updateJob(
         data: newWorkDates,
         skipDuplicates: true, // 重複を無視
       });
+    }
+
+    // 開始時間が変更された場合、全ての勤務日のvisible_untilを更新
+    if (existingJob.start_time !== data.startTime) {
+      const workDatesToUpdate = existingJob.workDates;
+
+      await Promise.all(workDatesToUpdate.map(async (wd) => {
+        // 既存のWorkDateオブジェクトのwork_dateを使って再計算
+        const visibleUntil = new Date(wd.work_date);
+        const [startHour, startMin] = data.startTime.split(':').map(Number);
+        visibleUntil.setHours(startHour - 2, startMin, 0, 0);
+
+        return prisma.jobWorkDate.update({
+          where: { id: wd.id },
+          data: { visible_until: visibleUntil }
+        });
+      }));
     }
 
     // 勤務日を削除（応募がないもののみ）

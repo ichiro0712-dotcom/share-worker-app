@@ -74,19 +74,64 @@ export function JobListClient({ jobs, facilities, pagination }: JobListClientPro
     }
   }, []);
 
+  // 表示用ラベルの短縮マッピング
+  const shortLabelMapping: Record<string, string> = {
+    '登録した資格で応募できる仕事のみ': '登録した資格',
+    '看護の仕事のみ': '看護',
+    '説明会を除く': '説明会除外',
+    '公共交通機関（電車・バス・徒歩）': '公共交通機関',
+    '敷地内駐車場あり': '駐車場',
+    '1日4時間以下': '4h以下',
+    '日勤': '日勤',
+    '夜勤': '夜勤',
+  };
+
+  const getShortLabel = (value: string) => shortLabelMapping[value] || value;
+
+  // FilterModal用の初期値を生成
+  const initialFiltersForModal = useMemo(() => {
+    // URLパラメータからFilterStateを構築
+    const jobTypeMapping: Record<string, string> = {
+      '登録した資格で応募できる仕事のみ': 'qualified',
+      '看護の仕事のみ': 'nursing',
+      '説明会を除く': 'excludeOrientation',
+    };
+    const workTimeMapping: Record<string, string> = {
+      '日勤': 'day',
+      '夜勤': 'night',
+      '1日4時間以下': 'short',
+    };
+
+    const jobTypes = searchParams.getAll('jobType').map(t => jobTypeMapping[t]).filter(Boolean);
+    const workTimeTypes = searchParams.getAll('workTimeType').map(t => workTimeMapping[t]).filter(Boolean);
+    const minWageParam = searchParams.get('minWage');
+    const distanceKm = searchParams.get('distanceKm');
+    const distanceLat = searchParams.get('distanceLat');
+    const distanceLng = searchParams.get('distanceLng');
+    const distanceAddress = searchParams.get('distanceAddress');
+
+    return {
+      prefecture: searchParams.get('prefecture') || '',
+      city: searchParams.get('city') || '',
+      jobTypes,
+      workTimeTypes,
+      timeRangeFrom: searchParams.get('timeRangeFrom') || '',
+      timeRangeTo: searchParams.get('timeRangeTo') || '',
+      minWage: minWageParam ? `${minWageParam}円以上` : '',
+      serviceTypes: searchParams.getAll('serviceType'),
+      transportations: searchParams.getAll('transportation'),
+      otherConditions: searchParams.getAll('otherCondition'),
+      distanceEnabled: !!(distanceKm && distanceLat && distanceLng),
+      distanceAddress: distanceAddress || '',
+      distanceKm: distanceKm ? parseFloat(distanceKm) : 10,
+      distanceLat: distanceLat ? parseFloat(distanceLat) : null,
+      distanceLng: distanceLng ? parseFloat(distanceLng) : null,
+    };
+  }, [searchParams]);
+
   // URLパラメータから現在の絞り込み条件を取得
   const activeFilters = useMemo(() => {
     const filters: { key: string; label: string; paramName: string; rawValue: string }[] = [];
-
-    // 表示用ラベルの短縮マッピング
-    const shortLabelMapping: Record<string, string> = {
-      '登録した資格で応募できる仕事のみ': '登録した資格',
-      '看護の仕事のみ': '看護',
-      '公共交通機関（電車・バス・徒歩）': '公共交通機関',
-      '敷地内駐車場あり': '駐車場',
-    };
-
-    const getShortLabel = (value: string) => shortLabelMapping[value] || value;
 
     // 都道府県
     const prefecture = searchParams.get('prefecture');
@@ -136,6 +181,36 @@ export function JobListClient({ jobs, facilities, pagination }: JobListClientPro
       filters.push({ key: `workTimeType-${type}`, label: getShortLabel(type), paramName: 'workTimeType', rawValue: type });
     });
 
+    // 時間帯フィルター
+    const timeRangeFrom = searchParams.get('timeRangeFrom');
+    const timeRangeTo = searchParams.get('timeRangeTo');
+    if (timeRangeFrom || timeRangeTo) {
+      const label = timeRangeFrom && timeRangeTo
+        ? `${timeRangeFrom}〜${timeRangeTo}`
+        : timeRangeFrom
+        ? `${timeRangeFrom}〜`
+        : `〜${timeRangeTo}`;
+      filters.push({
+        key: `timeRange-${timeRangeFrom}-${timeRangeTo}`,
+        label,
+        paramName: 'timeRange',
+        rawValue: `${timeRangeFrom || ''}-${timeRangeTo || ''}`
+      });
+    }
+
+    // 距離検索
+    const distanceKm = searchParams.get('distanceKm');
+    const distanceLat = searchParams.get('distanceLat');
+    const distanceLng = searchParams.get('distanceLng');
+    if (distanceKm && distanceLat && distanceLng) {
+      filters.push({
+        key: `distance-${distanceKm}km`,
+        label: `${distanceKm}km以内`,
+        paramName: 'distanceKm',
+        rawValue: distanceKm
+      });
+    }
+
     return filters;
   }, [searchParams]);
 
@@ -156,6 +231,19 @@ export function JobListClient({ jobs, facilities, pagination }: JobListClientPro
     // 市区町村を削除する場合、都道府県も一緒に削除するか確認
     if (paramName === 'prefecture') {
       params.delete('city');
+    }
+
+    // 距離検索を削除する場合、関連パラメータもすべて削除
+    if (paramName === 'distanceKm') {
+      params.delete('distanceLat');
+      params.delete('distanceLng');
+      params.delete('distanceAddress');
+    }
+
+    // 時間帯フィルターを削除する場合、両方のパラメータを削除
+    if (paramName === 'timeRange') {
+      params.delete('timeRangeFrom');
+      params.delete('timeRangeTo');
     }
 
     // dateIndex, page, sortは維持される
@@ -183,35 +271,55 @@ export function JobListClient({ jobs, facilities, pagination }: JobListClientPro
     // ページを1に戻す（新しいフィルタ条件では件数が変わるため）
     params.delete('page');
 
-    if (filters.prefecture) params.set('prefecture', filters.prefecture);
-    if (filters.city) params.set('city', filters.city);
+    // 都道府県
+    if (filters.prefecture) {
+      params.set('prefecture', filters.prefecture);
+    } else {
+      params.delete('prefecture');
+    }
+
+    // 市区町村（都道府県を変更したら必ずリセット）
+    if (filters.city) {
+      params.set('city', filters.city);
+    } else {
+      params.delete('city');
+    }
+
+    // 時給
     if (filters.minWage) {
       const wageNumber = filters.minWage.replace('円以上', '');
       params.set('minWage', wageNumber);
+    } else {
+      params.delete('minWage');
     }
+
+    // サービス種別
+    params.delete('serviceType');
     if (filters.serviceTypes && filters.serviceTypes.length > 0) {
-      // 既存パラメータをクリアしてから追加
-      params.delete('serviceType');
       filters.serviceTypes.forEach((type: string) => {
         params.append('serviceType', type);
       });
     }
+
+    // 移動手段
+    params.delete('transportation');
     if (filters.transportations && filters.transportations.length > 0) {
-      params.delete('transportation');
       filters.transportations.forEach((t: string) => {
         params.append('transportation', t);
       });
     }
+
+    // その他条件
+    params.delete('otherCondition');
     if (filters.otherConditions && filters.otherConditions.length > 0) {
-      params.delete('otherCondition');
       filters.otherConditions.forEach((c: string) => {
         params.append('otherCondition', c);
       });
     }
 
     // jobTypes (タイプフィルター)
+    params.delete('jobType');
     if (filters.jobTypes && filters.jobTypes.length > 0) {
-      params.delete('jobType');
       const jobTypeMapping: Record<string, string> = {
         'qualified': '登録した資格で応募できる仕事のみ',
         'nursing': '看護の仕事のみ',
@@ -226,8 +334,8 @@ export function JobListClient({ jobs, facilities, pagination }: JobListClientPro
     }
 
     // workTimeTypes (勤務時間フィルター)
+    params.delete('workTimeType');
     if (filters.workTimeTypes && filters.workTimeTypes.length > 0) {
-      params.delete('workTimeType');
       const workTimeMapping: Record<string, string> = {
         'day': '日勤',
         'night': '夜勤',
@@ -239,6 +347,30 @@ export function JobListClient({ jobs, facilities, pagination }: JobListClientPro
           params.append('workTimeType', label);
         }
       });
+    }
+
+    // 時間帯フィルター
+    params.delete('timeRangeFrom');
+    params.delete('timeRangeTo');
+    if (filters.timeRangeFrom) {
+      params.set('timeRangeFrom', filters.timeRangeFrom);
+    }
+    if (filters.timeRangeTo) {
+      params.set('timeRangeTo', filters.timeRangeTo);
+    }
+
+    // 距離検索パラメータ
+    params.delete('distanceKm');
+    params.delete('distanceLat');
+    params.delete('distanceLng');
+    params.delete('distanceAddress');
+    if (filters.distanceEnabled && filters.distanceLat && filters.distanceLng) {
+      params.set('distanceKm', String(filters.distanceKm));
+      params.set('distanceLat', String(filters.distanceLat));
+      params.set('distanceLng', String(filters.distanceLng));
+      if (filters.distanceAddress) {
+        params.set('distanceAddress', filters.distanceAddress);
+      }
     }
 
     // ページをリロード（Server Componentで再フェッチ）
@@ -396,10 +528,15 @@ export function JobListClient({ jobs, facilities, pagination }: JobListClientPro
             <div className="flex items-center gap-4">
               <button
                 onClick={handleFilterClick}
-                className="flex items-center gap-1 text-sm"
+                className={`flex items-center gap-1 text-sm ${activeFilters.length > 0 ? 'text-primary font-medium' : ''}`}
               >
                 <Filter className="w-4 h-4" />
                 <span>絞り込み</span>
+                {activeFilters.length > 0 && (
+                  <span className="ml-0.5 px-1.5 py-0.5 bg-primary text-white text-xs rounded-full">
+                    {activeFilters.length}
+                  </span>
+                )}
               </button>
               <div className="relative">
                 <button
@@ -550,6 +687,7 @@ export function JobListClient({ jobs, facilities, pagination }: JobListClientPro
         isOpen={showFilterModal}
         onClose={() => setShowFilterModal(false)}
         onApply={handleApplyFilters}
+        initialFilters={initialFiltersForModal}
       />
 
     </div>

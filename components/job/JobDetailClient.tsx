@@ -194,7 +194,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
     const selected = job.workDates.filter((wd: any) => wd.workDate === selectedDate);
     const other = job.workDates.filter((wd: any) => wd.workDate !== selectedDate);
 
-    // 一致するものがない場合は最初の日付を選択
+    // 一致するものがない場合は最初の日付を選択として扱う
     if (selected.length === 0) {
       return {
         selectedWorkDates: job.workDates.slice(0, 1),

@@ -20,6 +20,13 @@ interface PageProps {
     page?: string;
     dateIndex?: string;
     sort?: 'distance' | 'wage' | 'deadline';
+    // 時間帯パラメータ
+    timeRangeFrom?: string;
+    timeRangeTo?: string;
+    // 距離検索パラメータ
+    distanceKm?: string;
+    distanceLat?: string;
+    distanceLng?: string;
   }>;
 }
 
@@ -43,6 +50,13 @@ export default async function JobListPage({ searchParams }: PageProps) {
     otherConditions: normalizeArray(params.otherCondition),
     jobTypes: normalizeArray(params.jobType),
     workTimeTypes: normalizeArray(params.workTimeType),
+    // 時間帯パラメータ
+    timeRangeFrom: params.timeRangeFrom,
+    timeRangeTo: params.timeRangeTo,
+    // 距離検索パラメータ
+    distanceKm: params.distanceKm ? parseFloat(params.distanceKm) : undefined,
+    distanceLat: params.distanceLat ? parseFloat(params.distanceLat) : undefined,
+    distanceLng: params.distanceLng ? parseFloat(params.distanceLng) : undefined,
   };
 
   const page = params.page ? parseInt(params.page, 10) : 1;
