@@ -28,6 +28,7 @@ import {
 } from '@/src/lib/system-actions';
 import toast from 'react-hot-toast';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
+import { directUpload } from '@/utils/directUpload';
 
 type FilterType = 'all' | 'unread' | 'scheduled' | 'completed' | 'office';
 
@@ -440,22 +441,25 @@ export default function AdminMessagesPage() {
 
     setIsUploading(true);
     try {
-      const formData = new FormData();
-      for (let i = 0; i < files.length; i++) {
-        formData.append('files', files[i]);
+      const adminSession = localStorage.getItem('admin_session') || '';
+      const results = await Promise.all(
+        Array.from(files).map(file => directUpload(file, {
+          uploadType: 'message',
+          adminSession,
+        }))
+      );
+
+      const failedUploads = results.filter(r => !r.success);
+      if (failedUploads.length > 0) {
+        toast.error(failedUploads[0].error || 'ファイルのアップロードに失敗しました');
       }
-      formData.append('type', 'message');
 
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
+      const uploadedUrls = results
+        .filter(r => r.success && r.url)
+        .map(r => r.url!);
 
-      const result = await response.json();
-      if (result.success && result.urls) {
-        setPendingAttachments(prev => [...prev, ...result.urls]);
-      } else {
-        toast.error(result.error || 'ファイルのアップロードに失敗しました');
+      if (uploadedUrls.length > 0) {
+        setPendingAttachments(prev => [...prev, ...uploadedUrls]);
       }
     } catch (error) {
       const debugInfo = extractDebugInfo(error);

@@ -41,6 +41,7 @@ export default function AnnouncementForm({ mode, announcementId }: AnnouncementF
     const [isWorkerFilterOpen, setIsWorkerFilterOpen] = useState(false);
     const [isFacilityFilterOpen, setIsFacilityFilterOpen] = useState(false);
     const [isAlreadyPublished, setIsAlreadyPublished] = useState(false);
+    const [showErrors, setShowErrors] = useState(false);
 
     const [formData, setFormData] = useState({
         title: '',
@@ -161,22 +162,32 @@ export default function AnnouncementForm({ mode, announcementId }: AnnouncementF
     // === 送信処理 ===
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formData.title || !formData.content) {
-            toast.error('タイトルと本文は必須です');
-            return;
-        }
+        setShowErrors(true);
+
+        const errors: string[] = [];
+        if (!formData.title) errors.push('タイトル');
+        if (!formData.content) errors.push('本文');
 
         // 予約公開の場合、日時チェック
         if (publishMode === 'scheduled') {
             if (!scheduledDate) {
-                toast.error('公開日を選択してください');
-                return;
+                errors.push('公開日');
+            } else {
+                const scheduledDateTime = new Date(`${scheduledDate}T${scheduledTime}`);
+                if (scheduledDateTime <= new Date()) {
+                    toast.error('公開日時は現在より後の日時を設定してください');
+                    return;
+                }
             }
-            const scheduledDateTime = new Date(`${scheduledDate}T${scheduledTime}`);
-            if (scheduledDateTime <= new Date()) {
-                toast.error('公開日時は現在より後の日時を設定してください');
-                return;
+        }
+
+        if (errors.length > 0) {
+            toast.error(`以下の項目を入力してください: ${errors.join('、')}`);
+            const firstErrorElement = document.querySelector('.border-red-500');
+            if (firstErrorElement) {
+                firstErrorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
+            return;
         }
 
         const isWorkerTarget = formData.target_type === 'WORKER' || formData.target_type === 'BOTH';
@@ -308,9 +319,12 @@ export default function AnnouncementForm({ mode, announcementId }: AnnouncementF
                             required
                             value={formData.title}
                             onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                            className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${showErrors && !formData.title ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
                             placeholder="お知らせのタイトル"
                         />
+                        {showErrors && !formData.title && (
+                            <p className="text-red-500 text-xs mt-1">タイトルを入力してください</p>
+                        )}
                     </div>
 
                     {/* カテゴリー・配信先タイプ */}
@@ -535,9 +549,12 @@ export default function AnnouncementForm({ mode, announcementId }: AnnouncementF
                             rows={10}
                             value={formData.content}
                             onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                            className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${showErrors && !formData.content ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
                             placeholder="お知らせの内容を入力してください"
                         />
+                        {showErrors && !formData.content && (
+                            <p className="text-red-500 text-xs mt-1">本文を入力してください</p>
+                        )}
                     </div>
 
                     {/* 公開設定（公開済みでない場合のみ） */}
@@ -595,14 +612,17 @@ export default function AnnouncementForm({ mode, announcementId }: AnnouncementF
                                     {publishMode === 'scheduled' && (
                                         <div className="mt-4 ml-7 flex items-center gap-4">
                                             <div>
-                                                <label className="block text-xs text-slate-500 mb-1">公開日</label>
+                                                <label className="block text-xs text-slate-500 mb-1">公開日 <span className="text-red-500">*</span></label>
                                                 <input
                                                     type="date"
                                                     value={scheduledDate}
                                                     onChange={(e) => setScheduledDate(e.target.value)}
                                                     min={today}
-                                                    className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                                                    className={`px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm ${showErrors && publishMode === 'scheduled' && !scheduledDate ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
                                                 />
+                                                {showErrors && publishMode === 'scheduled' && !scheduledDate && (
+                                                    <p className="text-red-500 text-xs mt-1">公開日を選択してください</p>
+                                                )}
                                             </div>
                                             <div>
                                                 <label className="block text-xs text-slate-500 mb-1">公開時刻</label>

@@ -33,22 +33,23 @@ export default function ReviewFormClient({ applicationData }: ReviewFormClientPr
     improvements: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showErrors, setShowErrors] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setShowErrors(true);
 
-    if (rating === 0) {
-      toast.error('総合評価を選択してください');
-      return;
-    }
+    const errors: string[] = [];
+    if (rating === 0) errors.push('総合評価');
+    if (!formData.goodPoints.trim()) errors.push('良かった点');
+    if (!formData.improvements.trim()) errors.push('改善点');
 
-    if (!formData.goodPoints.trim()) {
-      toast.error('良かった点を入力してください');
-      return;
-    }
-
-    if (!formData.improvements.trim()) {
-      toast.error('改善点を入力してください');
+    if (errors.length > 0) {
+      toast.error(`以下の項目を入力してください: ${errors.join('、')}`);
+      const firstErrorElement = document.querySelector('.border-red-500');
+      if (firstErrorElement) {
+        firstErrorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
       return;
     }
 
@@ -123,7 +124,7 @@ export default function ReviewFormClient({ applicationData }: ReviewFormClientPr
           <label className="block text-sm font-medium mb-3">
             総合評価 <span className="text-red-500">*</span>
           </label>
-          <div className="flex items-center gap-2">
+          <div className={`flex items-center gap-2 p-2 rounded-lg ${showErrors && rating === 0 ? 'border-2 border-red-500 bg-red-50' : ''}`}>
             {[1, 2, 3, 4, 5].map((value) => (
               <button
                 key={value}
@@ -145,6 +146,9 @@ export default function ReviewFormClient({ applicationData }: ReviewFormClientPr
               <span className="ml-2 text-lg font-semibold text-primary">{rating}.0</span>
             )}
           </div>
+          {showErrors && rating === 0 && (
+            <p className="text-red-500 text-xs mt-1">総合評価を選択してください</p>
+          )}
         </div>
 
         {/* 良かった点 */}
@@ -155,11 +159,14 @@ export default function ReviewFormClient({ applicationData }: ReviewFormClientPr
           <textarea
             value={formData.goodPoints}
             onChange={(e) => setFormData({ ...formData, goodPoints: e.target.value })}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.goodPoints.trim() ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
             rows={5}
             placeholder="この施設で働いて良かった点を具体的に教えてください"
             disabled={isSubmitting}
           />
+          {showErrors && !formData.goodPoints.trim() && (
+            <p className="text-red-500 text-xs mt-1">良かった点を入力してください</p>
+          )}
         </div>
 
         {/* 改善点 */}
@@ -170,11 +177,14 @@ export default function ReviewFormClient({ applicationData }: ReviewFormClientPr
           <textarea
             value={formData.improvements}
             onChange={(e) => setFormData({ ...formData, improvements: e.target.value })}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.improvements.trim() ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
             rows={5}
             placeholder="改善が必要だと感じた点を具体的に教えてください"
             disabled={isSubmitting}
           />
+          {showErrors && !formData.improvements.trim() && (
+            <p className="text-red-500 text-xs mt-1">改善点を入力してください</p>
+          )}
         </div>
 
         {/* 送信ボタン */}

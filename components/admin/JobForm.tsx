@@ -12,6 +12,7 @@ import { JobConfirmModal } from '@/components/admin/JobConfirmModal';
 import { JobPreviewModal } from '@/components/admin/JobPreviewModal';
 import { calculateDailyWage } from '@/utils/salary';
 import { validateImageFiles, validateAttachmentFiles } from '@/utils/fileValidation';
+import { directUploadMultiple } from '@/utils/directUpload';
 import { createJobs, updateJob, getAdminJobTemplates, getFacilityInfo, getJobById } from '@/src/lib/actions';
 import { getSystemTemplates, getJobDescriptionFormats, getDismissalReasonsFromLaborTemplate } from '@/src/lib/content-actions';
 import {
@@ -759,20 +760,24 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
         // 2. バックグラウンド実行
         (async () => {
             try {
-                // 画像等のアップロード
-                const uploadFiles = async (files: File[], apiConfig: string) => {
+                // 画像等のアップロード（署名付きURL方式）
+                const adminSession = localStorage.getItem('admin_session') || '';
+                const uploadWithSignedUrl = async (files: File[], type: 'job' | 'message') => {
                     if (files.length === 0) return [];
-                    const fd = new FormData();
-                    files.forEach(f => fd.append('files', f));
-                    const res = await fetch('/api/upload', { method: 'POST', body: fd });
-                    if (!res.ok) throw new Error('Upload failed');
-                    const json = await res.json();
-                    return json.urls || [];
+                    const results = await directUploadMultiple(files, {
+                        uploadType: type,
+                        adminSession,
+                    });
+                    const failed = results.filter(r => !r.success);
+                    if (failed.length > 0) {
+                        throw new Error(failed[0].error || 'アップロードに失敗しました');
+                    }
+                    return results.filter(r => r.success && r.url).map(r => r.url!);
                 };
 
-                const newImageUrls = await uploadFiles(formData.images, '');
-                const newDressUrls = await uploadFiles(formData.dresscodeImages, '');
-                const newAttachUrls = await uploadFiles(formData.attachments, '');
+                const newImageUrls = await uploadWithSignedUrl(formData.images, 'job');
+                const newDressUrls = await uploadWithSignedUrl(formData.dresscodeImages, 'job');
+                const newAttachUrls = await uploadWithSignedUrl(formData.attachments, 'job');
 
                 const finalImages = [...formData.existingImages, ...newImageUrls];
                 const finalDress = [...formData.existingDresscodeImages, ...newDressUrls];
@@ -1045,7 +1050,7 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                                     TOP画像登録（3枚まで） <span className="text-red-500">*</span>
                                 </label>
                                 <p className="text-xs text-gray-500 mb-2">推奨画像サイズ: 1200×800px（比率 3:2）</p>
-                                <p className="text-xs text-gray-500 mb-3">登録できるファイルサイズは5MBまでです</p>
+                                <p className="text-xs text-gray-500 mb-3">登録できるファイルサイズは20MBまでです</p>
                                 <div className="space-y-2">
                                     {(formData.existingImages.length + formData.images.length) < 3 && (
                                         <label

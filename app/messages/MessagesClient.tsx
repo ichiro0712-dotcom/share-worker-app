@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { getMessagesByFacility, sendMessageToFacility } from '@/src/lib/actions';
 import { getWorkerAnnouncements, markAnnouncementAsRead } from '@/src/lib/system-actions';
 import { useBadge } from '@/contexts/BadgeContext';
+import { directUpload } from '@/utils/directUpload';
 
 interface Message {
   id: number;
@@ -341,22 +342,23 @@ export default function MessagesClient({ initialConversations, userId }: Message
 
     setIsUploading(true);
     try {
-      const formData = new FormData();
-      for (let i = 0; i < files.length; i++) {
-        formData.append('files', files[i]);
+      const results = await Promise.all(
+        Array.from(files).map(file => directUpload(file, {
+          uploadType: 'message',
+        }))
+      );
+
+      const failedUploads = results.filter(r => !r.success);
+      if (failedUploads.length > 0) {
+        alert(failedUploads[0].error || 'ファイルのアップロードに失敗しました');
       }
-      formData.append('type', 'message');
 
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
+      const uploadedUrls = results
+        .filter(r => r.success && r.url)
+        .map(r => r.url!);
 
-      const result = await response.json();
-      if (result.success && result.urls) {
-        setPendingAttachments(prev => [...prev, ...result.urls]);
-      } else {
-        alert(result.error || 'ファイルのアップロードに失敗しました');
+      if (uploadedUrls.length > 0) {
+        setPendingAttachments(prev => [...prev, ...uploadedUrls]);
       }
     } catch (error) {
       console.error('Upload error:', error);
@@ -749,101 +751,101 @@ export default function MessagesClient({ initialConversations, userId }: Message
           </div>
         )}
         <div className="space-y-4">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-          </div>
-        ) : chatData?.messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8 text-gray-500">
-            <Send className="w-12 h-12 mb-2 text-gray-300" />
-            <p>まだメッセージはありません</p>
-            <p className="text-sm">施設からの連絡をお待ちください</p>
-          </div>
-        ) : (
-          chatData?.messages.map((message, index) => {
-            const isWorker = message.senderType === 'worker';
-            const showDate = index === 0 ||
-              new Date(message.timestamp).getDate() !== new Date(chatData!.messages[index - 1].timestamp).getDate();
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+          ) : chatData?.messages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-gray-500">
+              <Send className="w-12 h-12 mb-2 text-gray-300" />
+              <p>まだメッセージはありません</p>
+              <p className="text-sm">施設からの連絡をお待ちください</p>
+            </div>
+          ) : (
+            chatData?.messages.map((message, index) => {
+              const isWorker = message.senderType === 'worker';
+              const showDate = index === 0 ||
+                new Date(message.timestamp).getDate() !== new Date(chatData!.messages[index - 1].timestamp).getDate();
 
-            return (
-              <div key={message.id}>
-                {showDate && (
-                  <div className="flex justify-center my-4">
-                    <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded-full">
-                      {formatDate(new Date(message.timestamp))}
-                    </span>
-                  </div>
-                )}
-                {message.jobTitle && !isWorker && (
-                  <div className="text-xs text-gray-500 ml-2 mb-1">
-                    {message.jobTitle} ({formatDate(message.jobDate ? new Date(message.jobDate) : null)})
-                  </div>
-                )}
-                <div className={`flex ${isWorker ? 'justify-end' : 'justify-start'} items-end gap-2`}>
-                  {/* 施設側のアバター表示 */}
-                  {!isWorker && (
-                    <div className="flex-shrink-0 mb-1">
-                      {message.senderAvatar ? (
-                        <img
-                          src={message.senderAvatar}
-                          alt={message.senderName}
-                          className="w-8 h-8 rounded-full object-cover border border-gray-200"
-                        />
-                      ) : (
-                        <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold">
-                          {message.senderName.charAt(0)}
-                        </div>
-                      )}
+              return (
+                <div key={message.id}>
+                  {showDate && (
+                    <div className="flex justify-center my-4">
+                      <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded-full">
+                        {formatDate(new Date(message.timestamp))}
+                      </span>
                     </div>
                   )}
-                  <div
-                    className={`max-w-[70%] ${isWorker ? 'bg-red-100 text-gray-900' : 'bg-white border border-gray-200'
-                      } rounded-2xl px-4 py-2`}
-                  >
-                    {/* 添付ファイル表示 */}
-                    {message.attachments && message.attachments.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mb-2">
-                        {message.attachments.map((url, i) => (
-                          isImageFile(url) ? (
-                            <img
-                              key={i}
-                              src={url}
-                              alt={`添付${i + 1}`}
-                              className="w-32 h-32 object-cover rounded-lg cursor-pointer"
-                              onClick={() => setPreviewImage(url)}
-                            />
-                          ) : (
-                            <a
-                              key={i}
-                              href={url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className={`flex items-center gap-2 px-3 py-2 rounded-lg ${isWorker ? 'bg-red-200' : 'bg-gray-100'
-                                }`}
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <FileText className="w-5 h-5" />
-                              <span className="text-sm underline">ファイルを開く</span>
-                            </a>
-                          )
-                        ))}
+                  {message.jobTitle && !isWorker && (
+                    <div className="text-xs text-gray-500 ml-2 mb-1">
+                      {message.jobTitle} ({formatDate(message.jobDate ? new Date(message.jobDate) : null)})
+                    </div>
+                  )}
+                  <div className={`flex ${isWorker ? 'justify-end' : 'justify-start'} items-end gap-2`}>
+                    {/* 施設側のアバター表示 */}
+                    {!isWorker && (
+                      <div className="flex-shrink-0 mb-1">
+                        {message.senderAvatar ? (
+                          <img
+                            src={message.senderAvatar}
+                            alt={message.senderName}
+                            className="w-8 h-8 rounded-full object-cover border border-gray-200"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold">
+                            {message.senderName.charAt(0)}
+                          </div>
+                        )}
                       </div>
                     )}
-                    {message.content && (
-                      <p className="text-sm whitespace-pre-wrap break-words">
-                        {renderContentWithLinks(message.content, isWorker ? 'default' : 'default')}
+                    <div
+                      className={`max-w-[70%] ${isWorker ? 'bg-red-100 text-gray-900' : 'bg-white border border-gray-200'
+                        } rounded-2xl px-4 py-2`}
+                    >
+                      {/* 添付ファイル表示 */}
+                      {message.attachments && message.attachments.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-2">
+                          {message.attachments.map((url, i) => (
+                            isImageFile(url) ? (
+                              <img
+                                key={i}
+                                src={url}
+                                alt={`添付${i + 1}`}
+                                className="w-32 h-32 object-cover rounded-lg cursor-pointer"
+                                onClick={() => setPreviewImage(url)}
+                              />
+                            ) : (
+                              <a
+                                key={i}
+                                href={url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={`flex items-center gap-2 px-3 py-2 rounded-lg ${isWorker ? 'bg-red-200' : 'bg-gray-100'
+                                  }`}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <FileText className="w-5 h-5" />
+                                <span className="text-sm underline">ファイルを開く</span>
+                              </a>
+                            )
+                          ))}
+                        </div>
+                      )}
+                      {message.content && (
+                        <p className="text-sm whitespace-pre-wrap break-words">
+                          {renderContentWithLinks(message.content, isWorker ? 'default' : 'default')}
+                        </p>
+                      )}
+                      <p className={`text-xs mt-1 ${isWorker ? 'text-gray-500' : 'text-gray-500'}`}>
+                        {formatTime(message.timestamp)}
                       </p>
-                    )}
-                    <p className={`text-xs mt-1 ${isWorker ? 'text-gray-500' : 'text-gray-500'}`}>
-                      {formatTime(message.timestamp)}
-                    </p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })
-        )}
-        <div ref={messagesEndRef} />
+              );
+            })
+          )}
+          <div ref={messagesEndRef} />
         </div>
       </div>
 

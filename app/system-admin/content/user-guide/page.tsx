@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Upload, FileText, Download, Trash2, Eye, Loader2, X, CheckCircle } from 'lucide-react';
 import { getCurrentUserGuide, getUserGuideHistory, createUserGuide, deleteUserGuide } from '@/src/lib/content-actions';
+import { directUpload } from '@/utils/directUpload';
 
 interface UserGuide {
     id: number;
@@ -104,23 +105,15 @@ export default function UserGuideEditPage() {
 
         setUploading(true);
         try {
-            // FormDataを使ってファイルをアップロード
-            const formData = new FormData();
-            formData.append('files', file);
-            formData.append('type', 'user-guide');
-
-            const response = await fetch('/api/upload', {
-                method: 'POST',
-                body: formData,
+            const result = await directUpload(file, {
+                uploadType: 'user-guide',
             });
 
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error || 'アップロードに失敗しました');
+            if (!result.success) {
+                throw new Error(result.error || 'アップロードに失敗しました');
             }
 
-            const data = await response.json();
-            const filePath = data.urls[0];
+            const filePath = result.url!;
 
             // DBに保存
             await createUserGuide({
@@ -238,8 +231,8 @@ export default function UserGuideEditPage() {
                             onDragOver={handleDrag}
                             onDrop={handleDrop}
                             className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${dragActive
-                                    ? 'border-indigo-500 bg-indigo-50'
-                                    : 'border-slate-300 hover:border-indigo-400'
+                                ? 'border-indigo-500 bg-indigo-50'
+                                : 'border-slate-300 hover:border-indigo-400'
                                 }`}
                             onClick={() => fileInputRef.current?.click()}
                         >

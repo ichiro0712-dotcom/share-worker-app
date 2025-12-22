@@ -8,6 +8,7 @@ import { TemplatePreviewModal } from '@/components/admin/TemplatePreviewModal';
 import { calculateDailyWage } from '@/utils/salary';
 import { validateImageFiles, validateAttachmentFiles } from '@/utils/fileValidation';
 import toast from 'react-hot-toast';
+import { directUploadMultiple } from '@/utils/directUpload';
 import { getFacilityById, createJobTemplate, updateJobTemplate } from '@/src/lib/actions';
 import { getJobDescriptionFormats, getDismissalReasonsFromLaborTemplate } from '@/src/lib/content-actions';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
@@ -73,6 +74,7 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
     const [showPreview, setShowPreview] = useState(false);
     const [previewImages, setPreviewImages] = useState<string[]>([]);
     const [jobDescriptionFormats, setJobDescriptionFormats] = useState<{ id: number; label: string; content: string }[]>([]);
+    const [showErrors, setShowErrors] = useState(false);
 
     // デフォルト値
     const defaultFormData = {
@@ -285,124 +287,107 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
 
     const handleSave = async () => {
         if (saving) return;
+        setShowErrors(true);
 
         // バリデーション
-        if (!formData.name || !formData.title) {
-            toast.error('基本情報の必須項目を入力してください');
-            return;
-        }
+        const errors: string[] = [];
+        if (!formData.name) errors.push('テンプレート名');
+        if (!formData.title) errors.push('求人タイトル');
+        if (!formData.startTime || !formData.endTime) errors.push('勤務時間');
+        if (formData.hourlyWage <= 0) errors.push('時給');
+        if (formData.workContent.length === 0) errors.push('仕事内容');
+        if (formData.qualifications.length === 0) errors.push('資格条件');
+        if (formData.icons.length === 0) errors.push('アイコン');
+
         if (!admin?.facilityId) {
             toast.error('施設情報が取得できません');
             return;
         }
-        if (!formData.startTime || !formData.endTime) {
-            toast.error('勤務時間の必須項目を入力してください');
-            return;
-        }
-        if (formData.hourlyWage <= 0) {
-            toast.error('時給を入力してください');
-            return;
-        }
-        if (formData.workContent.length === 0) {
-            toast.error('仕事内容を選択してください');
-            return;
-        }
-        if (formData.qualifications.length === 0) {
-            toast.error('資格条件を選択してください');
-            return;
-        }
-        if (formData.icons.length === 0) {
-            toast.error('アイコンを選択してください');
+
+        if (errors.length > 0) {
+            toast.error(`以下の項目を入力してください: ${errors.join('、')}`);
+            const firstErrorElement = document.querySelector('.border-red-500');
+            if (firstErrorElement) {
+                firstErrorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
             return;
         }
 
         setSaving(true);
         try {
-            // TOP画像をアップロード
+            // TOP画像をアップロード（署名付きURL方式）
             let newImageUrls: string[] = [];
             if (formData.images.length > 0) {
-                const uploadFormData = new FormData();
-                formData.images.forEach((file) => {
-                    uploadFormData.append('files', file);
+                const adminSession = localStorage.getItem('admin_session') || '';
+                const results = await directUploadMultiple(formData.images, {
+                    uploadType: 'job',
+                    adminSession,
                 });
 
-                const uploadResponse = await fetch('/api/upload', {
-                    method: 'POST',
-                    body: uploadFormData,
-                });
-
-                if (uploadResponse.ok) {
-                    const uploadResult = await uploadResponse.json();
-                    newImageUrls = uploadResult.urls || [];
-                } else {
+                const failedUploads = results.filter(r => !r.success);
+                if (failedUploads.length > 0) {
                     showDebugError({
                         type: 'upload',
                         operation: '求人テンプレート画像アップロード',
-                        message: 'TOP画像のアップロードに失敗しました',
+                        message: failedUploads[0].error || 'TOP画像のアップロードに失敗しました',
                         context: { facilityId: admin.facilityId }
                     });
-                    toast.error('TOP画像のアップロードに失敗しました');
-                    setSaving(false);
-                    return;
+                    throw new Error(failedUploads[0].error || 'TOP画像のアップロードに失敗しました');
                 }
+
+                newImageUrls = results
+                    .filter(r => r.success && r.url)
+                    .map(r => r.url!);
             }
 
-            // 服装サンプル画像をアップロード
+            // 服装サンプル画像をアップロード（署名付きURL方式）
             let newDresscodeImageUrls: string[] = [];
             if (formData.dresscodeImages.length > 0) {
-                const uploadFormData = new FormData();
-                formData.dresscodeImages.forEach((file) => {
-                    uploadFormData.append('files', file);
+                const adminSession = localStorage.getItem('admin_session') || '';
+                const results = await directUploadMultiple(formData.dresscodeImages, {
+                    uploadType: 'job',
+                    adminSession,
                 });
 
-                const uploadResponse = await fetch('/api/upload', {
-                    method: 'POST',
-                    body: uploadFormData,
-                });
-
-                if (uploadResponse.ok) {
-                    const uploadResult = await uploadResponse.json();
-                    newDresscodeImageUrls = uploadResult.urls || [];
-                } else {
+                const failedUploads = results.filter(r => !r.success);
+                if (failedUploads.length > 0) {
                     showDebugError({
                         type: 'upload',
                         operation: '求人テンプレート服装画像アップロード',
-                        message: '服装サンプル画像のアップロードに失敗しました',
+                        message: failedUploads[0].error || '服装サンプル画像のアップロードに失敗しました',
                         context: { facilityId: admin.facilityId }
                     });
-                    toast.error('服装サンプル画像のアップロードに失敗しました');
-                    setSaving(false);
-                    return;
+                    throw new Error(failedUploads[0].error || '服装サンプル画像のアップロードに失敗しました');
                 }
+
+                newDresscodeImageUrls = results
+                    .filter(r => r.success && r.url)
+                    .map(r => r.url!);
             }
 
-            // 添付ファイルをアップロード
+            // 添付ファイルをアップロード（署名付きURL方式）
             let newAttachmentUrls: string[] = [];
             if (formData.attachments.length > 0) {
-                const uploadFormData = new FormData();
-                formData.attachments.forEach((file) => {
-                    uploadFormData.append('files', file);
+                const adminSession = localStorage.getItem('admin_session') || '';
+                const results = await directUploadMultiple(formData.attachments, {
+                    uploadType: 'job',
+                    adminSession,
                 });
 
-                const uploadResponse = await fetch('/api/upload', {
-                    method: 'POST',
-                    body: uploadFormData,
-                });
-
-                if (uploadResponse.ok) {
-                    const uploadResult = await uploadResponse.json();
-                    newAttachmentUrls = uploadResult.urls || [];
-                } else {
+                const failedUploads = results.filter(r => !r.success);
+                if (failedUploads.length > 0) {
                     showDebugError({
                         type: 'upload',
                         operation: '求人テンプレート添付ファイルアップロード',
-                        message: '添付ファイルのアップロードに失敗しました',
+                        message: failedUploads[0].error || '添付ファイルのアップロードに失敗しました',
                         context: { facilityId: admin.facilityId }
                     });
-                    toast.error('添付ファイルのアップロードに失敗しました');
-                    setSaving(false);
-                    return;
+                    throw new Error(failedUploads[0].error || '添付ファイルのアップロードに失敗しました');
                 }
+
+                newAttachmentUrls = results
+                    .filter(r => r.success && r.url)
+                    .map(r => r.url!);
             }
 
             // 既存URL + 新規URLを結合
@@ -514,9 +499,12 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                                     type="text"
                                     value={formData.name}
                                     onChange={(e) => handleInputChange('name', e.target.value)}
-                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                    className={`w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-600 ${showErrors && !formData.name ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                                     placeholder="例:デイサービス日勤・介護職員"
                                 />
+                                {showErrors && !formData.name && (
+                                    <p className="text-red-500 text-xs mt-1">テンプレート名を入力してください</p>
+                                )}
                             </div>
 
                             {/* 求人タイトル */}
@@ -528,9 +516,12 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                                     type="text"
                                     value={formData.title}
                                     onChange={(e) => handleInputChange('title', e.target.value)}
-                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                    className={`w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-600 ${showErrors && !formData.title ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                                     placeholder="例:デイサービス・介護スタッフ募集（日勤）"
                                 />
+                                {showErrors && !formData.title && (
+                                    <p className="text-red-500 text-xs mt-1">求人タイトルを入力してください</p>
+                                )}
                             </div>
 
                             {/* 施設・求人タイプ・募集人数 */}
@@ -578,7 +569,7 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                                     TOP画像登録（3枚まで） <span className="text-red-500">*</span>
                                 </label>
                                 <p className="text-xs text-gray-500 mb-2">推奨画像サイズ: 1200×800px（比率 3:2）</p>
-                                <p className="text-xs text-gray-500 mb-3">登録できるファイルサイズは5MBまでです</p>
+                                <p className="text-xs text-gray-500 mb-3">登録できるファイルサイズは20MBまでです</p>
                                 <div className="space-y-2">
                                     {/* アップロードエリア */}
                                     {(formData.existingImages.length + formData.images.length) < 3 && (
@@ -598,7 +589,7 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                                                 const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
                                                 const validFiles = files.filter(file => file.size <= 5 * 1024 * 1024);
                                                 if (files.length !== validFiles.length) {
-                                                    toast.error('5MBを超えるファイルは登録できません');
+                                                    toast.error('20MBを超えるファイルは登録できません');
                                                     return;
                                                 }
                                                 const totalImages = formData.existingImages.length + formData.images.length + validFiles.length;
@@ -849,8 +840,11 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                                     type="number"
                                     value={formData.hourlyWage}
                                     onChange={(e) => handleInputChange('hourlyWage', Number(e.target.value))}
-                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                    className={`w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-600 ${showErrors && formData.hourlyWage <= 0 ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                                 />
+                                {showErrors && formData.hourlyWage <= 0 && (
+                                    <p className="text-red-500 text-xs mt-1">時給を入力してください</p>
+                                )}
                             </div>
 
                             <div>
@@ -890,7 +884,7 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
                                     仕事内容（複数選択可） <span className="text-red-500">*</span>
                                 </label>
-                                <div className="grid grid-cols-4 gap-2 p-2 border border-gray-200 rounded">
+                                <div className={`grid grid-cols-4 gap-2 p-2 border rounded ${showErrors && formData.workContent.length === 0 ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}>
                                     {WORK_CONTENT_OPTIONS.map(option => (
                                         <label key={option} className="flex items-center space-x-2">
                                             <input
@@ -903,6 +897,9 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                                         </label>
                                     ))}
                                 </div>
+                                {showErrors && formData.workContent.length === 0 && (
+                                    <p className="text-red-500 text-xs mt-1">仕事内容を選択してください</p>
+                                )}
                             </div>
 
                             <div>
@@ -961,7 +958,7 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
                                     資格条件（複数選択可） <span className="text-red-500">*</span>
                                 </label>
-                                <div className="border border-gray-200 rounded p-4">
+                                <div className={`border rounded p-4 ${showErrors && formData.qualifications.length === 0 ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}>
                                     {QUALIFICATION_GROUPS.map((group) => (
                                         <div key={group.name} className="mb-4">
                                             <h4 className="text-sm font-semibold text-gray-700 mb-2">{group.name}</h4>
@@ -993,6 +990,9 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                                         </label>
                                     </div>
                                 </div>
+                                {showErrors && formData.qualifications.length === 0 && (
+                                    <p className="text-red-500 text-xs mt-1">資格条件を選択してください</p>
+                                )}
                             </div>
 
                             <div>
@@ -1195,7 +1195,7 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                                     アイコン <span className="text-red-500">*</span>
                                 </label>
                                 <p className="text-xs text-blue-600 mb-2">チェックが多いほどより多くのワーカーから応募がきます!</p>
-                                <div className="grid grid-cols-3 gap-2">
+                                <div className={`grid grid-cols-3 gap-2 p-2 border rounded ${showErrors && formData.icons.length === 0 ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}>
                                     {ICON_OPTIONS.map(option => (
                                         <label key={option} className="flex items-center space-x-2">
                                             <input
@@ -1208,6 +1208,9 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                                         </label>
                                     ))}
                                 </div>
+                                {showErrors && formData.icons.length === 0 && (
+                                    <p className="text-red-500 text-xs mt-1">アイコンを選択してください</p>
+                                )}
                             </div>
 
                             <div>
@@ -1215,7 +1218,7 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                                     その他添付文章（3つまで）
                                 </label>
                                 <p className="text-xs text-red-500 mb-2">登録された文章は公開されます</p>
-                                <p className="text-xs text-gray-500 mb-3">5MB以下 / 画像(JPG, PNG, HEIC等)・PDF・Word・Excel・テキスト形式</p>
+                                <p className="text-xs text-gray-500 mb-3">20MB以下 / 画像(JPG, PNG, HEIC等)・PDF・Word・Excel・テキスト形式</p>
                                 <div className="space-y-2">
                                     {(formData.existingAttachments.length + formData.attachments.length) < 3 && (
                                         <label

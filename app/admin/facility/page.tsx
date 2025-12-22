@@ -19,6 +19,7 @@ import { getSystemTemplates } from '@/src/lib/content-actions';
 import { MapPin } from 'lucide-react';
 import { validateFile } from '@/utils/fileValidation';
 import { formatPhoneNumber } from '@/utils/inputValidation';
+import { directUpload, MAX_FILE_SIZE, formatFileSize } from '@/utils/directUpload';
 import AddressSelector from '@/components/ui/AddressSelector';
 import { SERVICE_TYPES } from '@/constants/serviceTypes';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
@@ -499,6 +500,11 @@ export default function FacilityPage() {
   const handleStaffPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // 20MB制限チェック
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error(`ファイルサイズが大きすぎます（${formatFileSize(file.size)}）。20MB以下の画像をお使いください。`);
+        return;
+      }
       const result = validateFile(file, 'image');
       if (!result.isValid) {
         toast.error(result.error!);
@@ -523,6 +529,11 @@ export default function FacilityPage() {
     const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
     if (files.length > 0) {
       const file = files[0];
+      // 20MB制限チェック
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error(`ファイルサイズが大きすぎます（${formatFileSize(file.size)}）。20MB以下の画像をお使いください。`);
+        return;
+      }
       const result = validateFile(file, 'image');
       if (!result.isValid) {
         toast.error(result.error!);
@@ -715,35 +726,20 @@ export default function FacilityPage() {
       .replace(/\[施設名\]/g, facilityInfo.name);
   };
 
-  // 担当者画像のアップロード処理
+  // 担当者画像のアップロード処理（署名付きURL方式で直接Supabaseにアップロード）
   const uploadStaffPhoto = async (file: File): Promise<string | null> => {
     try {
-      const formData = new FormData();
-      formData.append('files', file);
-
-      // 施設管理者セッションをヘッダーで送信（localStorageベースの認証対応）
-      // HTTPヘッダーはISO-8859-1のみ対応のため、Base64エンコードして送信
       const adminSession = localStorage.getItem('admin_session') || '';
-      const encodedSession = btoa(unescape(encodeURIComponent(adminSession)));
-
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        headers: {
-          'X-Admin-Session': encodedSession,
-        },
-        body: formData,
+      const result = await directUpload(file, {
+        uploadType: 'facility',
+        adminSession,
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'アップロードに失敗しました');
+      if (!result.success) {
+        throw new Error(result.error || 'アップロードに失敗しました');
       }
 
-      const result = await response.json();
-      if (result.success && result.urls && result.urls.length > 0) {
-        return result.urls[0];
-      }
-      return null;
+      return result.url || null;
     } catch (error) {
       const debugInfo = extractDebugInfo(error);
       showDebugError({
@@ -877,9 +873,9 @@ export default function FacilityPage() {
               photoPreview: uploadedUrl,
             }));
           }
-        } catch (uploadError) {
+        } catch (uploadError: any) {
           console.error('Staff photo upload failed:', uploadError);
-          toast.error('担当者の顔写真のアップロードに失敗しました');
+          toast.error(uploadError.message || '担当者の顔写真のアップロードに失敗しました');
           setIsSaving(false);
           return;
         }
