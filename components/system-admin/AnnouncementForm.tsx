@@ -274,7 +274,9 @@ export default function AnnouncementForm({ mode, announcementId }: AnnouncementF
     const facilityFilterCount = filters.facilityTypes.length;
     const isWorkerTarget = formData.target_type === 'WORKER' || formData.target_type === 'BOTH';
     const isFacilityTarget = formData.target_type === 'FACILITY' || formData.target_type === 'BOTH';
-    const today = new Date().toISOString().split('T')[0];
+    // JST（日本時間）で今日の日付を取得（toISOStringはUTCなので使わない）
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
     // === ローディング表示 ===
     if (loading) {

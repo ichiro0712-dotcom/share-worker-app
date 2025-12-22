@@ -601,14 +601,25 @@ export async function getJobsListWithPagination(
 
   // 検索条件を動的に構築
   // PUBLISHED以外も表示するが、CANCELLED, DRAFT, STOPPEDは除外
+  // 今日の日付の開始時刻（過去の求人を除外するため）
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
   const whereConditions: any = {
     status: { in: ['PUBLISHED', 'WORKING', 'COMPLETED'] },
-    // 表示期限切れの求人を除外
+    // 表示期限切れ AND 過去の日付の求人を除外
     workDates: {
       some: {
-        OR: [
-          { visible_until: { gte: new Date() } },
-          { visible_until: null }
+        AND: [
+          // 今日以降の勤務日のみ
+          { work_date: { gte: todayStart } },
+          // visible_untilがまだ有効 または null
+          {
+            OR: [
+              { visible_until: { gte: new Date() } },
+              { visible_until: null }
+            ]
+          }
         ]
       }
     }
@@ -918,11 +929,18 @@ export async function getJobsListWithPagination(
   // 総件数を取得
   const totalCount = await prisma.job.count({ where: whereConditions });
 
-  // workDatesのフィルタ条件を構築（targetDateがある場合はその日付のみ）
+  // workDatesのフィルタ条件を構築（targetDateがある場合はその日付のみ、ない場合は今日以降）
   const workDatesWhereCondition: any = {
-    OR: [
-      { visible_until: { gte: new Date() } },
-      { visible_until: null }
+    AND: [
+      // 今日以降の勤務日のみ（デフォルト）
+      { work_date: { gte: todayStart } },
+      // visible_untilがまだ有効 または null
+      {
+        OR: [
+          { visible_until: { gte: new Date() } },
+          { visible_until: null }
+        ]
+      }
     ]
   };
 
@@ -933,9 +951,12 @@ export async function getJobsListWithPagination(
     const endOfDayForInclude = new Date(targetDate);
     endOfDayForInclude.setHours(23, 59, 59, 999);
 
-    workDatesWhereCondition.work_date = {
-      gte: startOfDayForInclude,
-      lte: endOfDayForInclude
+    // AND条件の最初の要素（work_date条件）を指定日付に上書き
+    workDatesWhereCondition.AND[0] = {
+      work_date: {
+        gte: startOfDayForInclude,
+        lte: endOfDayForInclude
+      }
     };
   }
 

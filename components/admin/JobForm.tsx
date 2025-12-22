@@ -740,13 +740,14 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
         }
 
         // 当日の求人は現在時刻+4時間以降の開始時刻が必要
-        const todayStr = new Date().toISOString().split('T')[0];
+        // JST（日本時間）で今日の日付を取得（toISOStringはUTCなので使わない）
+        const now = new Date();
+        const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
         const workDatesToCheck = mode === 'create'
             ? selectedDates
             : [...existingWorkDates.filter(d => !removedWorkDateIds.includes(d.id)).map(d => d.date), ...addedWorkDates];
 
         if (workDatesToCheck.includes(todayStr) && formData.startTime) {
-            const now = new Date();
             const minStartTime = new Date(now.getTime() + 4 * 60 * 60 * 1000); // 4時間後
             const [startHour, startMinute] = formData.startTime.split(':').map(Number);
             const startDateTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), startHour, startMinute);
