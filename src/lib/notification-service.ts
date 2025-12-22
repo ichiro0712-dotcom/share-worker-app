@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import webPush from 'web-push';
+import { getTodayStart } from '@/utils/debugTime';
 
 // VAPID設定
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!;
@@ -367,8 +368,7 @@ async function canSendNearbyNotification(
     notificationKey: string,
     maxPerDay: number
 ): Promise<boolean> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = getTodayStart();
 
     const count = await prisma.nearbyNotificationLog.count({
         where: {

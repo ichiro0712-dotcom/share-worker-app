@@ -15,6 +15,7 @@ import {
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { getShiftsForFacility, cancelShift } from '@/src/lib/actions';
+import { getCurrentTime } from '@/utils/debugTime';
 import toast from 'react-hot-toast';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, addWeeks, subWeeks, getDay } from 'date-fns';
@@ -297,7 +298,7 @@ export default function ShiftManagementPage() {
                                 {weekDays.map((day, i) => {
                                     const dayOfWeek = ['月', '火', '水', '木', '金', '土', '日'][i];
                                     const isWeekend = i >= 5;
-                                    const isToday = isSameDay(day, new Date());
+                                    const isToday = isSameDay(day, getCurrentTime());
                                     return (
                                         <div
                                             key={day.toISOString()}
@@ -400,7 +401,7 @@ export default function ShiftManagementPage() {
                                 <div key={weekIdx} className="grid grid-cols-7">
                                     {week.map((day) => {
                                         const dayShifts = getShiftsForDay(day);
-                                        const isToday = isSameDay(day, new Date());
+                                        const isToday = isSameDay(day, getCurrentTime());
                                         const isCurrentMonth = isSameMonth(day, currentDate);
                                         const isWeekend = getDay(day) === 0 || getDay(day) === 6;
 

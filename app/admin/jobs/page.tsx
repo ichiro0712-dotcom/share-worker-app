@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { getAdminJobsList, getAdminJobTemplates, getFacilityInfo, deleteJobs, updateJobsStatus } from '@/src/lib/actions';
+import { getCurrentTime } from '@/utils/debugTime';
 import {
   Plus,
   FileText,
@@ -224,7 +225,7 @@ export default function AdminJobsList() {
       });
     } else {
       // デフォルトで過去1ヶ月から未来のすべてのデータを表示
-      const today = new Date();
+      const today = getCurrentTime();
       const oneMonthAgo = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
 
       filtered = filtered.filter((job) => {

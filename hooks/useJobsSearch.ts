@@ -79,10 +79,11 @@ export function useJobsSearch(params: JobSearchParams, initialData?: JobsRespons
     fetcher,
     {
       fallbackData: initialData,
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-      dedupingInterval: 5000, // 5秒間は同じリクエストを重複排除
+      revalidateOnFocus: true, // タブフォーカス時に再検証（古いデータ問題対策）
+      revalidateOnReconnect: true, // ネットワーク復帰時に再検証
+      dedupingInterval: 2000, // 2秒間は同じリクエストを重複排除（短縮）
       keepPreviousData: false, // 日付変更時に古いデータを表示しない
+      refreshInterval: 60000, // 60秒ごとに自動再取得（応募状況の更新対応）
     }
   );
 

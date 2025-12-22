@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { WorkerStatus } from '@prisma/client';
+import { getTodayStart } from '@/utils/debugTime';
 
 export async function GET(
   request: NextRequest,
@@ -44,8 +45,7 @@ export async function GET(
       );
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = getTodayStart();
 
     // 今後の勤務予定を取得（SCHEDULED, WORKING状態）
     const upcomingApplications = await prisma.application.findMany({

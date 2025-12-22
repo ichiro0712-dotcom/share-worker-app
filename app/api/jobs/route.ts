@@ -154,7 +154,9 @@ export async function GET(request: NextRequest) {
       { jobs, facilities, pagination },
       {
         headers: {
-          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+          // キャッシュを無効化 - 求人データはリアルタイム性が重要
+          // 応募状況、締切、visible_untilなどが頻繁に変わるため
+          'Cache-Control': 'no-store, max-age=0',
         },
       }
     );
