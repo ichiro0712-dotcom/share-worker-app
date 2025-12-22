@@ -11,6 +11,7 @@ import AddressSelector from '@/components/ui/AddressSelector';
 import { JobConfirmModal } from '@/components/admin/JobConfirmModal';
 import { JobPreviewModal } from '@/components/admin/JobPreviewModal';
 import { calculateDailyWage } from '@/utils/salary';
+import { getCurrentTime } from '@/utils/debugTime';
 import { validateImageFiles, validateAttachmentFiles } from '@/utils/fileValidation';
 import { directUploadMultiple } from '@/utils/directUpload';
 import { createJobs, updateJob, getAdminJobTemplates, getFacilityInfo, getJobById } from '@/src/lib/actions';
@@ -741,7 +742,7 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
 
         // 当日の求人は現在時刻+4時間以降の開始時刻が必要
         // JST（日本時間）で今日の日付を取得（toISOStringはUTCなので使わない）
-        const now = new Date();
+        const now = getCurrentTime();
         const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
         const workDatesToCheck = mode === 'create'
             ? selectedDates
@@ -1209,7 +1210,7 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                                         };
 
                                         const { daysInMonth, startingDayOfWeek, year, month } = getDaysInMonth(currentMonth);
-                                        const today = new Date();
+                                        const today = getCurrentTime();
                                         today.setHours(0, 0, 0, 0);
                                         const days = [];
 
@@ -1274,7 +1275,7 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                                                     return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                                                 };
                                                 const { daysInMonth, year, month } = getDaysInMonth(currentMonth);
-                                                const today = new Date();
+                                                const today = getCurrentTime();
                                                 today.setHours(0, 0, 0, 0);
                                                 let selectableDates: string[] = [];
                                                 for (let day = 1; day <= daysInMonth; day++) {
