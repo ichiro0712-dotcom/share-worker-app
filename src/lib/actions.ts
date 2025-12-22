@@ -918,18 +918,34 @@ export async function getJobsListWithPagination(
   // 総件数を取得
   const totalCount = await prisma.job.count({ where: whereConditions });
 
+  // workDatesのフィルタ条件を構築（targetDateがある場合はその日付のみ）
+  const workDatesWhereCondition: any = {
+    OR: [
+      { visible_until: { gte: new Date() } },
+      { visible_until: null }
+    ]
+  };
+
+  // targetDateが指定されている場合、その日付のworkDatesのみを取得
+  if (targetDate) {
+    const startOfDayForInclude = new Date(targetDate);
+    startOfDayForInclude.setHours(0, 0, 0, 0);
+    const endOfDayForInclude = new Date(targetDate);
+    endOfDayForInclude.setHours(23, 59, 59, 999);
+
+    workDatesWhereCondition.work_date = {
+      gte: startOfDayForInclude,
+      lte: endOfDayForInclude
+    };
+  }
+
   const jobs = await prisma.job.findMany({
     where: whereConditions,
     include: {
       facility: true,
       workDates: {
         orderBy: { work_date: 'asc' },
-        where: {
-          OR: [
-            { visible_until: { gte: new Date() } },
-            { visible_until: null }
-          ]
-        }
+        where: workDatesWhereCondition
       },
     },
     orderBy: orderByCondition,

@@ -588,7 +588,10 @@ function ApplicationsContent() {
   if (isLoading && jobs.length === 0) {
     return (
       <div className="h-full bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-admin-primary"></div>
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-admin-primary"></div>
+          <p className="text-sm text-gray-500">データ読み込み中...</p>
+        </div>
       </div>
     );
   }

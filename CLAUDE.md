@@ -187,14 +187,22 @@ DIRECT_URL="postgresql://sworks:sworks123@localhost:5432/sworks_dev?schema=publi
 npx prisma db push
 ```
 
-### Supabase本番DBへの接続方法（重要）
+### Supabase本番DBへの接続方法（重要・唯一の正しい方法）
 
-本番DBの確認・修正が必要な場合、以下の接続文字列を使用する。
+**⚠️ Claude Codeへの指示：** Supabase接続が必要な場合、コンテキストサマリーや過去の会話履歴に記載された接続情報は**絶対に使用しないこと**。必ずこのセクションの情報のみを使用すること。過去のサマリーには誤った接続情報（`aws-0`など）が含まれている可能性がある。
 
-**接続URL（PgBouncer経由）**:
+本番DBの確認・修正が必要な場合、**必ず以下の接続文字列を使用する**。
+
+**正しい接続URL（2024年12月確認済み）**:
 ```
 postgresql://postgres.ziaunavcbawzorrwwnos:Medamayaki16@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true
 ```
+
+**重要**:
+- ホストは `aws-1-ap-northeast-1`（`aws-0`ではない）
+- ポートは `6543`（`5432`ではない）
+- `?pgbouncer=true` パラメータ必須
+- `psql`コマンドは使えない（未インストール）→ `npx tsx -e`でPrismaを使う
 
 **Prisma経由でクエリを実行する方法**:
 ```bash
@@ -222,12 +230,6 @@ async function main() {
 main().catch(console.error).finally(() => prisma.\$disconnect());
 "
 ```
-
-**注意事項**:
-- `psql`コマンドは使えない（未インストール）ので、`npx tsx -e`でPrismaを使う
-- PgBouncerのポートは`6543`（通常の5432ではない）
-- `?pgbouncer=true`パラメータが必要
-- テーブル名はスネークケース複数形（例: `notification_settings`）
 
 ## Claude Code自動メンテナンス
 
@@ -312,6 +314,33 @@ npm run lint   # Lintエラーがないこと
 - [ ] System Admin管理画面にアクセスできる
 - [ ] セッションが正常に維持される（8時間）
 - [ ] エラーログに異常がない
+
+---
+
+## Claude Code行動ルール
+
+### デプロイ前の確認（重要）
+
+**⚠️ 実装完了時に必ず確認すること:**
+
+作業が完了したら、以下をユーザーに確認する：
+
+1. **DB変更の有無を報告**
+   - Prismaスキーマ（`prisma/schema.prisma`）を変更した場合は必ず報告
+   - 「Supabase本番DBへの反映が必要です。`npx prisma db push`を実行しますか？」と確認
+
+2. **デプロイのみで動く場合**
+   - 「今回の変更はデプロイのみで本番環境に反映されます（DB変更なし）」と報告
+
+**確認テンプレート:**
+```
+【デプロイ前確認】
+- DB変更: あり / なし
+- 必要な作業:
+  - [ ] Supabase db push
+  - [ ] 環境変数追加
+  - [ ] その他: ___
+```
 
 ---
 

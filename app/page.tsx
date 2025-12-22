@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import { getJobsListWithPagination } from '@/src/lib/actions';
 import { JobListClient } from '@/components/job/JobListClient';
+import { JobListSkeleton } from '@/components/job/JobCardSkeleton';
 import { generateDates } from '@/utils/date';
 
 // 求人一覧は60秒キャッシュ（ISR）- パフォーマンス向上のため
@@ -168,7 +169,26 @@ export default async function JobListPage({ searchParams }: PageProps) {
   }));
 
   return (
-    <Suspense fallback={<div className="min-h-screen bg-white flex items-center justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>}>
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50">
+        {/* ヘッダー部分のスケルトン */}
+        <div className="bg-white border-b px-4 py-3">
+          <div className="h-8 bg-gray-200 rounded w-32 animate-pulse" />
+        </div>
+        {/* 日付スライダー部分のスケルトン */}
+        <div className="bg-white border-b px-4 py-2">
+          <div className="flex gap-2 overflow-hidden">
+            {Array.from({ length: 7 }).map((_, i) => (
+              <div key={i} className="h-16 w-14 bg-gray-200 rounded animate-pulse flex-shrink-0" />
+            ))}
+          </div>
+        </div>
+        {/* 求人カードリストのスケルトン */}
+        <div className="p-4">
+          <JobListSkeleton count={6} />
+        </div>
+      </div>
+    }>
       <JobListClient
         jobs={jobs}
         facilities={facilities}
