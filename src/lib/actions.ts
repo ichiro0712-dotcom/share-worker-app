@@ -9,6 +9,7 @@ import { authOptions } from '@/lib/auth';
 import { sendNotification, sendNearbyJobNotifications } from './notification-service';
 import { geocodeAddress } from '@/src/lib/geocoding';
 import { uploadFile, STORAGE_BUCKETS } from '@/lib/supabase';
+import { getCurrentTime, getTodayStart } from '@/utils/debugTime';
 
 // FormDataから受け取るファイルはBlob互換（name, typeプロパティを持つ）
 // サーバーサイド（Node.js）ではFile型が存在しないため、この型を使用
@@ -158,10 +159,10 @@ export const getCachedJobDetail = async (id: number) => {
             orderBy: { work_date: 'asc' },
             where: {
               work_date: {
-                gte: new Date(new Date().setHours(0, 0, 0, 0)),
+                gte: getTodayStart(),
               },
               OR: [
-                { visible_until: { gte: new Date() } },
+                { visible_until: { gte: getCurrentTime() } },
                 { visible_until: null }
               ]
             }
@@ -185,7 +186,7 @@ export async function getJobs(searchParams?: JobSearchParams) {
     workDates: {
       some: {
         OR: [
-          { visible_until: { gte: new Date() } },
+          { visible_until: { gte: getCurrentTime() } },
           { visible_until: null } // 既存データ対応
         ]
       }
@@ -436,7 +437,7 @@ export async function getJobs(searchParams?: JobSearchParams) {
         orderBy: { work_date: 'asc' },
         where: {
           OR: [
-            { visible_until: { gte: new Date() } },
+            { visible_until: { gte: getCurrentTime() } },
             { visible_until: null }
           ]
         }
@@ -602,8 +603,9 @@ export async function getJobsListWithPagination(
   // 検索条件を動的に構築
   // PUBLISHED以外も表示するが、CANCELLED, DRAFT, STOPPEDは除外
   // 今日の日付の開始時刻（過去の求人を除外するため）
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
+  // デバッグ時刻対応
+  const todayStart = getTodayStart();
+  const now = getCurrentTime();
 
   const whereConditions: any = {
     status: { in: ['PUBLISHED', 'WORKING', 'COMPLETED'] },
@@ -616,7 +618,7 @@ export async function getJobsListWithPagination(
           // visible_untilがまだ有効 または null
           {
             OR: [
-              { visible_until: { gte: new Date() } },
+              { visible_until: { gte: now } },
               { visible_until: null }
             ]
           }
@@ -904,7 +906,7 @@ export async function getJobsListWithPagination(
           },
           {
             OR: [
-              { visible_until: { gte: new Date() } },
+              { visible_until: { gte: getCurrentTime() } },
               { visible_until: null }
             ]
           }
@@ -937,7 +939,7 @@ export async function getJobsListWithPagination(
       // visible_untilがまだ有効 または null
       {
         OR: [
-          { visible_until: { gte: new Date() } },
+          { visible_until: { gte: getCurrentTime() } },
           { visible_until: null }
         ]
       }
@@ -1134,7 +1136,7 @@ export async function getAdminJobsList(facilityId: number) {
     const totalRecruitment = job.workDates.reduce((sum, wd) => sum + wd.recruitment_count, 0);
 
     // 最も近い勤務日
-    const today = new Date();
+    const today = getCurrentTime();
     const upcomingDates = job.workDates.filter(wd => new Date(wd.work_date) >= today);
     const nearestDate = upcomingDates[0] || job.workDates[0];
 
@@ -1226,7 +1228,7 @@ export async function getJobById(id: string) {
         orderBy: { work_date: 'asc' },
         where: {
           OR: [
-            { visible_until: { gte: new Date() } },
+            { visible_until: { gte: getCurrentTime() } },
             { visible_until: null }
           ]
         }
@@ -1245,8 +1247,7 @@ export async function getJobById(id: string) {
   const totalMatchedCount = job.workDates.reduce((sum: number, wd) => sum + wd.matched_count, 0);
 
   // 今日以降の勤務日をカウント（応募可能日数の目安）
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = getTodayStart();
   const futureWorkDateCount = job.workDates.filter(wd => {
     const workDate = new Date(wd.work_date);
     workDate.setHours(0, 0, 0, 0);
@@ -3820,7 +3821,7 @@ export async function getUnreadMessageCount() {
  * メッセージ時間をフォーマット
  */
 function formatMessageTime(date: Date): string {
-  const now = new Date();
+  const now = getCurrentTime();
   const diff = now.getTime() - date.getTime();
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
 
@@ -4119,7 +4120,7 @@ export async function getMyReviews() {
 function calculateAgeGroup(birthDate: Date | null): string {
   if (!birthDate) return '年齢非公開';
 
-  const today = new Date();
+  const today = getCurrentTime();
   const birth = new Date(birthDate);
   let age = today.getFullYear() - birth.getFullYear();
   const monthDiff = today.getMonth() - birth.getMonth();
@@ -4373,7 +4374,7 @@ export async function updateApplicationStatus(
       const workStartDateTime = new Date(workDate);
       workStartDateTime.setHours(hours, minutes, 0, 0);
 
-      const now = new Date();
+      const now = getCurrentTime();
       if (now >= workStartDateTime) {
         return {
           success: false,
@@ -4667,7 +4668,7 @@ export async function cancelApplicationByWorker(applicationId: number) {
     const workStartDateTime = new Date(workDate);
     workStartDateTime.setHours(hours, minutes, 0, 0);
 
-    const now = new Date();
+    const now = getCurrentTime();
     if (now >= workStartDateTime) {
       return { success: false, error: '勤務開始時刻を過ぎているためキャンセルできません' };
     }
@@ -7129,8 +7130,7 @@ export async function getWorkerDetail(workerId: number, facilityId: number) {
       : 0;
 
     // 直近の勤務予定を取得（SCHEDULED状態で未来の日付）
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = getTodayStart();
     const upcomingSchedules = await prisma.application.findMany({
       where: {
         user_id: workerId,
@@ -7290,7 +7290,7 @@ export async function getWorkerDetail(workerId: number, facilityId: number) {
 export async function getPendingWorkerReviews(facilityId: number) {
   unstable_noStore(); // キャッシュを無効化
   try {
-    const today = new Date();
+    const today = getCurrentTime();
     console.log('[getPendingWorkerReviews] facilityId:', facilityId, 'today:', today.toISOString());
 
     // 1. この施設の求人で、勤務開始日を過ぎているものを取得

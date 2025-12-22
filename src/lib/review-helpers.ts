@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { getCurrentTime } from '@/utils/debugTime';
 
 /**
  * 求人の勤務期間を取得する（最初の勤務日と最後の勤務日）
@@ -46,7 +47,7 @@ export async function canReview(jobId: number, userId: number): Promise<boolean>
     const period = await getWorkerJobPeriod(jobId, userId);
     if (!period) return false;
 
-    const today = new Date();
+    const today = getCurrentTime();
     // 勤務初日の0:00以降ならレビュー可能
     const startDate = new Date(period.start);
     startDate.setHours(0, 0, 0, 0);
@@ -72,7 +73,7 @@ export async function isReviewPending(jobId: number, userId: number, reviewerTyp
     const period = await getWorkerJobPeriod(jobId, userId);
     if (!period) return false;
 
-    const today = new Date();
+    const today = getCurrentTime();
     const endDate = new Date(period.end);
     // 最終勤務日の翌日以降なら督促対象
     endDate.setDate(endDate.getDate() + 1);

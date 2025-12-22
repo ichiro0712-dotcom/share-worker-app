@@ -1,3 +1,5 @@
+import { getCurrentTime } from './debugTime';
+
 export const formatDate = (dateString: string): string => {
   const date = new Date(dateString);
   const month = date.getMonth() + 1;
@@ -17,7 +19,7 @@ export const formatDateTime = (dateString: string, startTime: string, endTime: s
 };
 
 export const getDeadlineText = (deadline: string): string => {
-  const now = new Date();
+  const now = getCurrentTime();
   const deadlineDate = new Date(deadline);
   const diff = deadlineDate.getTime() - now.getTime();
 
@@ -45,7 +47,7 @@ export const getDeadlineText = (deadline: string): string => {
 
 // 締切が24時間以内かどうかを判定
 export const isDeadlineUrgent = (deadline: string): boolean => {
-  const now = new Date();
+  const now = getCurrentTime();
   const deadlineDate = new Date(deadline);
   const diff = deadlineDate.getTime() - now.getTime();
   const hours = Math.floor(diff / (1000 * 60 * 60));
@@ -54,7 +56,7 @@ export const isDeadlineUrgent = (deadline: string): boolean => {
 
 export const generateDates = (count: number = 90): Date[] => {
   const dates: Date[] = [];
-  const today = new Date();
+  const today = getCurrentTime();
 
   for (let i = 0; i < count; i++) {
     const date = new Date(today);

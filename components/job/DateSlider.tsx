@@ -4,19 +4,17 @@ import { useRef } from 'react';
 import { generateDates, formatDateForSlider } from '@/utils/date';
 
 interface DateSliderProps {
-  selectedDateIndex: number;
-  onDateSelect: (index: number) => void;
+  dates: Date[];
+  selectedIndex: number;
+  onSelect: (index: number) => void;
+  onHover?: (index: number) => void;
 }
 
-export const DateSlider: React.FC<DateSliderProps> = ({
-  selectedDateIndex,
-  onDateSelect
-}) => {
+export function DateSlider({ dates, selectedIndex, onSelect, onHover }: DateSliderProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const dates = generateDates(90);
 
   const handleTodayClick = () => {
-    onDateSelect(0);
+    onSelect(0);
     if (scrollRef.current) {
       scrollRef.current.scrollTo({ left: 0, behavior: 'smooth' });
     }
@@ -27,11 +25,11 @@ export const DateSlider: React.FC<DateSliderProps> = ({
       {/* 今日ボタン */}
       <button
         onClick={handleTodayClick}
-        className={`flex-shrink-0 w-14 py-2 rounded-lg text-center transition-colors ${
-          selectedDateIndex === 0
+        onMouseEnter={() => onHover?.(0)}
+        className={`flex-shrink-0 w-14 py-2 rounded-lg text-center transition-colors ${selectedIndex === 0
             ? 'bg-primary text-white'
             : 'bg-gray-100 text-gray-700'
-        }`}
+          }`}
       >
         <div className="text-sm">今日</div>
       </button>
@@ -44,17 +42,17 @@ export const DateSlider: React.FC<DateSliderProps> = ({
         {dates.slice(1).map((date, index) => {
           const actualIndex = index + 1;
           const formatted = formatDateForSlider(date, actualIndex);
-          const isSelected = actualIndex === selectedDateIndex;
+          const isSelected = actualIndex === selectedIndex;
 
           return (
             <button
               key={actualIndex}
-              onClick={() => onDateSelect(actualIndex)}
-              className={`flex-shrink-0 w-16 py-2 rounded-lg text-center transition-colors ${
-                isSelected
+              onClick={() => onSelect(actualIndex)}
+              onMouseEnter={() => onHover?.(actualIndex)}
+              className={`flex-shrink-0 w-16 py-2 rounded-lg text-center transition-colors ${isSelected
                   ? 'bg-primary-light border-2 border-primary'
                   : 'bg-gray-100'
-              }`}
+                }`}
             >
               <div className="text-xs">
                 {formatted.main}
@@ -68,4 +66,4 @@ export const DateSlider: React.FC<DateSliderProps> = ({
       </div>
     </div>
   );
-};
+}

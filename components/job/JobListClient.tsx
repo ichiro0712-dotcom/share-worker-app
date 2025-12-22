@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Filter, ChevronDown, Search, X } from 'lucide-react';
 import { JobCard } from '@/components/job/JobCard';
@@ -8,66 +8,107 @@ import { DateSlider } from '@/components/job/DateSlider';
 import { FilterModal } from '@/components/job/FilterModal';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Pagination } from '@/components/ui/Pagination';
-import { generateDates } from '@/utils/date';
+import { JobListSkeleton } from '@/components/job/JobCardSkeleton';
+import { useJobsSearch, prefetchJobsForDate } from '@/hooks/useJobsSearch';
 
 type TabType = 'all' | 'limited' | 'nominated';
 type SortOrder = 'distance' | 'wage' | 'deadline';
 
 interface JobListClientProps {
-  jobs: any[];
-  facilities: any[];
-  pagination?: {
+  // 初期データ（サーバーサイドレンダリング用、オプション）
+  initialJobs?: any[];
+  initialFacilities?: any[];
+  initialPagination?: {
     currentPage: number;
     totalPages: number;
     totalCount: number;
     hasMore: boolean;
   };
+  // 互換性のため
+  jobs?: any[];
+  facilities?: any[];
+  pagination?: any;
 }
 
-export function JobListClient({ jobs, facilities, pagination }: JobListClientProps) {
+export function JobListClient({
+  initialJobs,
+  initialFacilities,
+  initialPagination,
+  jobs,
+  facilities: propsFacilities,
+  pagination: propsPagination
+}: JobListClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<TabType>('all');
 
-  // URLパラメータから日付インデックスを取得
+  // URLパラメータから初期値を取得
   const dateIndexFromUrl = searchParams.get('dateIndex');
   const urlDateIndex = dateIndexFromUrl ? parseInt(dateIndexFromUrl, 10) : 0;
   const safeUrlDateIndex = isNaN(urlDateIndex) ? 0 : urlDateIndex;
 
+  // ローカルステートで日付インデックスを管理（URL遷移なし）
   const [selectedDateIndex, setSelectedDateIndex] = useState(safeUrlDateIndex);
 
   // URLパラメータからソート順を取得
   const sortFromUrl = searchParams.get('sort') as SortOrder | null;
   const [sortOrder, setSortOrder] = useState<SortOrder>(sortFromUrl || 'distance');
 
-  // URLパラメータの変更を監視して同期
-  useEffect(() => {
-    setSelectedDateIndex(safeUrlDateIndex);
-    if (sortFromUrl) {
-      setSortOrder(sortFromUrl);
-    }
-  }, [safeUrlDateIndex, sortFromUrl]);
-
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
-  // クライアントサイドページネーション用のstate（互換性のため残すが、paginationがある場合はそちらを優先）
-  const [clientCurrentPage, setClientCurrentPage] = useState(1);
-  const [appliedFilters, setAppliedFilters] = useState<any>(null);
   const [mutedFacilities, setMutedFacilities] = useState<number[]>([]);
 
-  const itemsPerPage = 20;
+  // URLパラメータから検索条件を構築
+  const searchParamsObj = useMemo(() => ({
+    query: searchParams.get('query') || undefined,
+    prefecture: searchParams.get('prefecture') || undefined,
+    city: searchParams.get('city') || undefined,
+    minWage: searchParams.get('minWage') || undefined,
+    serviceTypes: searchParams.getAll('serviceType'),
+    transportations: searchParams.getAll('transportation'),
+    otherConditions: searchParams.getAll('otherCondition'),
+    jobTypes: searchParams.getAll('jobType'),
+    workTimeTypes: searchParams.getAll('workTimeType'),
+    page: searchParams.get('page') ? parseInt(searchParams.get('page')!, 10) : 1,
+    dateIndex: selectedDateIndex,
+    sort: sortOrder,
+    timeRangeFrom: searchParams.get('timeRangeFrom') || undefined,
+    timeRangeTo: searchParams.get('timeRangeTo') || undefined,
+    distanceKm: searchParams.get('distanceKm') || undefined,
+    distanceLat: searchParams.get('distanceLat') || undefined,
+    distanceLng: searchParams.get('distanceLng') || undefined,
+  }), [searchParams, selectedDateIndex, sortOrder]);
 
-  const currentPage = pagination ? pagination.currentPage : clientCurrentPage;
-  const totalPages = pagination ? pagination.totalPages : Math.ceil(jobs.length / itemsPerPage);
+  // SWRでデータ取得
+  const {
+    jobs: swrJobs,
+    facilities: swrFacilities,
+    pagination: swrPagination,
+    isLoading,
+    dates,
+    prefetchNearbyDates
+  } = useJobsSearch(
+    searchParamsObj,
+    (initialJobs || jobs) && (initialFacilities || propsFacilities) && (initialPagination || propsPagination)
+      ? {
+        jobs: initialJobs || jobs || [],
+        facilities: initialFacilities || propsFacilities || [],
+        pagination: initialPagination || propsPagination
+      }
+      : undefined
+  );
+
+  // 日付変更時にプリフェッチ
+  useEffect(() => {
+    prefetchNearbyDates(selectedDateIndex);
+  }, [selectedDateIndex, prefetchNearbyDates]);
 
   // ミュートされた施設IDを取得
   useEffect(() => {
-    // 新形式のIDのみリストを優先的に使用
     const mutedIds = localStorage.getItem('mutedFacilityIds');
     if (mutedIds) {
       setMutedFacilities(JSON.parse(mutedIds));
     } else {
-      // 旧形式からIDを抽出
       const muted = JSON.parse(localStorage.getItem('mutedFacilities') || '[]');
       const ids = muted.map((f: any) => typeof f === 'number' ? f : f.facilityId).filter(Boolean);
       setMutedFacilities(ids);
@@ -90,7 +131,6 @@ export function JobListClient({ jobs, facilities, pagination }: JobListClientPro
 
   // FilterModal用の初期値を生成
   const initialFiltersForModal = useMemo(() => {
-    // URLパラメータからFilterStateを構築
     const jobTypeMapping: Record<string, string> = {
       '登録した資格で応募できる仕事のみ': 'qualified',
       '看護の仕事のみ': 'nursing',
@@ -133,63 +173,54 @@ export function JobListClient({ jobs, facilities, pagination }: JobListClientPro
   const activeFilters = useMemo(() => {
     const filters: { key: string; label: string; paramName: string; rawValue: string }[] = [];
 
-    // 都道府県
     const prefecture = searchParams.get('prefecture');
     if (prefecture) {
       filters.push({ key: `prefecture-${prefecture}`, label: prefecture, paramName: 'prefecture', rawValue: prefecture });
     }
 
-    // 市区町村
     const city = searchParams.get('city');
     if (city) {
       filters.push({ key: `city-${city}`, label: city, paramName: 'city', rawValue: city });
     }
 
-    // 最低時給
     const minWage = searchParams.get('minWage');
     if (minWage) {
       filters.push({ key: `minWage-${minWage}`, label: `${minWage}円以上`, paramName: 'minWage', rawValue: minWage });
     }
 
-    // サービス種別（複数）
     const serviceTypes = searchParams.getAll('serviceType');
     serviceTypes.forEach((type) => {
       filters.push({ key: `serviceType-${type}`, label: getShortLabel(type), paramName: 'serviceType', rawValue: type });
     });
 
-    // 移動手段（複数）
     const transportations = searchParams.getAll('transportation');
     transportations.forEach((t) => {
       filters.push({ key: `transportation-${t}`, label: getShortLabel(t), paramName: 'transportation', rawValue: t });
     });
 
-    // その他条件（複数）
     const otherConditions = searchParams.getAll('otherCondition');
     otherConditions.forEach((c) => {
       filters.push({ key: `otherCondition-${c}`, label: getShortLabel(c), paramName: 'otherCondition', rawValue: c });
     });
 
-    // タイプ（複数）
     const jobTypes = searchParams.getAll('jobType');
     jobTypes.forEach((type) => {
       filters.push({ key: `jobType-${type}`, label: getShortLabel(type), paramName: 'jobType', rawValue: type });
     });
 
-    // 勤務時間（複数）
     const workTimeTypes = searchParams.getAll('workTimeType');
     workTimeTypes.forEach((type) => {
       filters.push({ key: `workTimeType-${type}`, label: getShortLabel(type), paramName: 'workTimeType', rawValue: type });
     });
 
-    // 時間帯フィルター
     const timeRangeFrom = searchParams.get('timeRangeFrom');
     const timeRangeTo = searchParams.get('timeRangeTo');
     if (timeRangeFrom || timeRangeTo) {
       const label = timeRangeFrom && timeRangeTo
         ? `${timeRangeFrom}〜${timeRangeTo}`
         : timeRangeFrom
-        ? `${timeRangeFrom}〜`
-        : `〜${timeRangeTo}`;
+          ? `${timeRangeFrom}〜`
+          : `〜${timeRangeTo}`;
       filters.push({
         key: `timeRange-${timeRangeFrom}-${timeRangeTo}`,
         label,
@@ -198,7 +229,6 @@ export function JobListClient({ jobs, facilities, pagination }: JobListClientPro
       });
     }
 
-    // 距離検索
     const distanceKm = searchParams.get('distanceKm');
     const distanceLat = searchParams.get('distanceLat');
     const distanceLng = searchParams.get('distanceLng');
@@ -214,39 +244,60 @@ export function JobListClient({ jobs, facilities, pagination }: JobListClientPro
     return filters;
   }, [searchParams]);
 
+  // 日付変更ハンドラ（URL遷移なし、ローカルステートのみ更新）
+  const handleDateChange = useCallback((index: number) => {
+    setSelectedDateIndex(index);
+  }, []);
+
+  // 日付ホバー時のプリフェッチ
+  const handleDateHover = useCallback((index: number) => {
+    const baseParams = {
+      query: searchParams.get('query') || undefined,
+      prefecture: searchParams.get('prefecture') || undefined,
+      city: searchParams.get('city') || undefined,
+      minWage: searchParams.get('minWage') || undefined,
+      serviceTypes: searchParams.getAll('serviceType'),
+      transportations: searchParams.getAll('transportation'),
+      otherConditions: searchParams.getAll('otherCondition'),
+      jobTypes: searchParams.getAll('jobType'),
+      workTimeTypes: searchParams.getAll('workTimeType'),
+      sort: sortOrder,
+      timeRangeFrom: searchParams.get('timeRangeFrom') || undefined,
+      timeRangeTo: searchParams.get('timeRangeTo') || undefined,
+      distanceKm: searchParams.get('distanceKm') || undefined,
+      distanceLat: searchParams.get('distanceLat') || undefined,
+      distanceLng: searchParams.get('distanceLng') || undefined,
+    };
+    prefetchJobsForDate(baseParams, index);
+  }, [searchParams, sortOrder]);
+
   // 個別のフィルターを削除する
   const handleRemoveFilter = (paramName: string, value: string) => {
     const params = new URLSearchParams(searchParams.toString());
 
     if (['serviceType', 'transportation', 'otherCondition', 'jobType', 'workTimeType'].includes(paramName)) {
-      // 複数値を持つパラメータの場合
       const values = params.getAll(paramName);
       params.delete(paramName);
       values.filter((v) => v !== value).forEach((v) => params.append(paramName, v));
     } else {
-      // 単一値のパラメータの場合
       params.delete(paramName);
     }
 
-    // 市区町村を削除する場合、都道府県も一緒に削除するか確認
     if (paramName === 'prefecture') {
       params.delete('city');
     }
 
-    // 距離検索を削除する場合、関連パラメータもすべて削除
     if (paramName === 'distanceKm') {
       params.delete('distanceLat');
       params.delete('distanceLng');
       params.delete('distanceAddress');
     }
 
-    // 時間帯フィルターを削除する場合、両方のパラメータを削除
     if (paramName === 'timeRange') {
       params.delete('timeRangeFrom');
       params.delete('timeRangeTo');
     }
 
-    // dateIndex, page, sortは維持される
     const queryString = params.toString();
     router.push(queryString ? `/?${queryString}` : '/');
   };
@@ -263,29 +314,22 @@ export function JobListClient({ jobs, facilities, pagination }: JobListClientPro
   };
 
   const handleApplyFilters = (filters: any) => {
-    setAppliedFilters(filters);
-
-    // URLパラメータにフィルターを反映
     const params = new URLSearchParams(searchParams.toString());
 
-    // ページを1に戻す（新しいフィルタ条件では件数が変わるため）
     params.delete('page');
 
-    // 都道府県
     if (filters.prefecture) {
       params.set('prefecture', filters.prefecture);
     } else {
       params.delete('prefecture');
     }
 
-    // 市区町村（都道府県を変更したら必ずリセット）
     if (filters.city) {
       params.set('city', filters.city);
     } else {
       params.delete('city');
     }
 
-    // 時給
     if (filters.minWage) {
       const wageNumber = filters.minWage.replace('円以上', '');
       params.set('minWage', wageNumber);
@@ -293,7 +337,6 @@ export function JobListClient({ jobs, facilities, pagination }: JobListClientPro
       params.delete('minWage');
     }
 
-    // サービス種別
     params.delete('serviceType');
     if (filters.serviceTypes && filters.serviceTypes.length > 0) {
       filters.serviceTypes.forEach((type: string) => {
@@ -301,7 +344,6 @@ export function JobListClient({ jobs, facilities, pagination }: JobListClientPro
       });
     }
 
-    // 移動手段
     params.delete('transportation');
     if (filters.transportations && filters.transportations.length > 0) {
       filters.transportations.forEach((t: string) => {
@@ -309,7 +351,6 @@ export function JobListClient({ jobs, facilities, pagination }: JobListClientPro
       });
     }
 
-    // その他条件
     params.delete('otherCondition');
     if (filters.otherConditions && filters.otherConditions.length > 0) {
       filters.otherConditions.forEach((c: string) => {
@@ -317,7 +358,6 @@ export function JobListClient({ jobs, facilities, pagination }: JobListClientPro
       });
     }
 
-    // jobTypes (タイプフィルター)
     params.delete('jobType');
     if (filters.jobTypes && filters.jobTypes.length > 0) {
       const jobTypeMapping: Record<string, string> = {
@@ -333,7 +373,6 @@ export function JobListClient({ jobs, facilities, pagination }: JobListClientPro
       });
     }
 
-    // workTimeTypes (勤務時間フィルター)
     params.delete('workTimeType');
     if (filters.workTimeTypes && filters.workTimeTypes.length > 0) {
       const workTimeMapping: Record<string, string> = {
@@ -349,7 +388,6 @@ export function JobListClient({ jobs, facilities, pagination }: JobListClientPro
       });
     }
 
-    // 時間帯フィルター
     params.delete('timeRangeFrom');
     params.delete('timeRangeTo');
     if (filters.timeRangeFrom) {
@@ -359,12 +397,11 @@ export function JobListClient({ jobs, facilities, pagination }: JobListClientPro
       params.set('timeRangeTo', filters.timeRangeTo);
     }
 
-    // 距離検索パラメータ
     params.delete('distanceKm');
     params.delete('distanceLat');
     params.delete('distanceLng');
     params.delete('distanceAddress');
-    if (filters.distanceEnabled && filters.distanceLat && filters.distanceLng) {
+    if (filters.distanceEnabled && filters.distanceKm && filters.distanceLat && filters.distanceLng) {
       params.set('distanceKm', String(filters.distanceKm));
       params.set('distanceLat', String(filters.distanceLat));
       params.set('distanceLng', String(filters.distanceLng));
@@ -373,68 +410,36 @@ export function JobListClient({ jobs, facilities, pagination }: JobListClientPro
       }
     }
 
-    // ページをリロード（Server Componentで再フェッチ）
-    router.push(`/?${params.toString()}`);
-  };
-
-  const handleClearFilters = () => {
-    setAppliedFilters(null);
-    // 確実にURLパラメータをクリアして再読み込み
-    window.location.href = '/';
-  };
-
-  // 日付選択時にURLパラメータを更新（ページは1に戻る）
-  const handleDateSelect = (index: number) => {
-    setSelectedDateIndex(index);
-    if (!pagination) setClientCurrentPage(1);
-
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete('page'); // ページをリセット
-
-    if (index === 0) {
-      params.delete('dateIndex');
-    } else {
-      params.set('dateIndex', String(index));
-    }
     const queryString = params.toString();
-    router.replace(queryString ? `/?${queryString}` : '/', { scroll: false });
+    router.push(queryString ? `/?${queryString}` : '/');
+    setShowFilterModal(false);
   };
 
   // ページ変更処理
   const handlePageChange = (page: number) => {
-    if (pagination) {
-      const params = new URLSearchParams(searchParams.toString());
-      if (page === 1) {
-        params.delete('page');
-      } else {
-        params.set('page', String(page));
-      }
-      router.push(`/?${params.toString()}`);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+    const params = new URLSearchParams(searchParams.toString());
+    if (page === 1) {
+      params.delete('page');
     } else {
-      setClientCurrentPage(page);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      params.set('page', String(page));
     }
+    router.push(`/?${params.toString()}`);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   // ソート順変更処理
   const handleSortChange = (order: SortOrder) => {
     setSortOrder(order);
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('sort', order);
-    router.push(`/?${params.toString()}`);
     setShowSortMenu(false);
   };
 
   // ミュートフィルター：ミュートされた施設の求人を除外
-  const filteredByMute = useMemo(() => {
-    if (mutedFacilities.length === 0) return jobs;
-    return jobs.filter((job) => !mutedFacilities.includes(job.facilityId));
-  }, [jobs, mutedFacilities]);
+  const displayedJobs = useMemo(() => {
+    if (mutedFacilities.length === 0) return swrJobs;
+    return swrJobs.filter((job) => !mutedFacilities.includes(job.facilityId));
+  }, [swrJobs, mutedFacilities]);
 
-  // サーバーサイドページネーション使用時は、Dateフィルタリングはサーバー側で行われている前提
-  // ただし、DateSliderの表示用日付文字列は必要
-  const dates = useMemo(() => generateDates(90), []);
+  // 選択中の日付文字列
   const selectedDateStr = useMemo(() => {
     const date = dates[selectedDateIndex];
     if (!date) return '';
@@ -444,45 +449,8 @@ export function JobListClient({ jobs, facilities, pagination }: JobListClientPro
     return `${year}-${month}-${day}`;
   }, [dates, selectedDateIndex]);
 
-  // 表示するジョブ（クライアントサイドページネーションの場合のみスライス）
-  const displayedJobs = useMemo(() => {
-    // サーバーサイドページネーションの場合、jobsは既にそのページのデータ
-    if (pagination) {
-      return filteredByMute;
-    }
-
-    // クライアントサイド互換（旧動作）
-    // 日付フィルタリング
-    let filtered = filteredByMute;
-    if (selectedDateIndex !== -1) { // 常に日付選択されている前提ならこのチェックは簡易化可
-      const selectedDate = dates[selectedDateIndex];
-      if (selectedDate) {
-        const targetDate = new Date(selectedDate);
-        targetDate.setHours(0, 0, 0, 0);
-        const targetDateStr = targetDate.toDateString();
-
-        filtered = filteredByMute.filter((job) => {
-          if (job.workDates && job.workDates.length > 0) {
-            return job.workDates.some((wd: any) => {
-              const workDate = new Date(wd.workDate);
-              workDate.setHours(0, 0, 0, 0);
-              return workDate.toDateString() === targetDateStr;
-            });
-          }
-          const jobDate = new Date(job.workDate);
-          jobDate.setHours(0, 0, 0, 0);
-          return jobDate.toDateString() === targetDateStr;
-        });
-      }
-    }
-
-    // ソート（クライアントサイド）
-    // ...（省略：サーバーサイドに移行したため、ここでのソートは本来不要だが互換性のため残すなら実装が必要。
-    // 今回はpaginationがある前提で進めるため、このブロックはシンプルにする）
-
-    return filtered.slice((clientCurrentPage - 1) * itemsPerPage, clientCurrentPage * itemsPerPage);
-  }, [filteredByMute, pagination, selectedDateIndex, dates, clientCurrentPage]);
-
+  const currentPage = swrPagination?.currentPage ?? 1;
+  const totalPages = swrPagination?.totalPages ?? 1;
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -492,8 +460,7 @@ export function JobListClient({ jobs, facilities, pagination }: JobListClientPro
         <div className="flex border-b border-gray-200">
           <button
             onClick={() => handleTabClick('all')}
-            className={`flex-1 py-3 text-sm relative flex items-center justify-center ${activeTab === 'all' ? 'text-primary' : 'text-gray-500'
-              }`}
+            className={`flex-1 py-3 text-sm relative flex items-center justify-center ${activeTab === 'all' ? 'text-primary' : 'text-gray-500'}`}
           >
             全体
             {activeTab === 'all' && (
@@ -502,8 +469,7 @@ export function JobListClient({ jobs, facilities, pagination }: JobListClientPro
           </button>
           <button
             onClick={() => handleTabClick('limited')}
-            className={`flex-1 py-3 text-sm relative flex items-center justify-center ${activeTab === 'limited' ? 'text-primary' : 'text-gray-500'
-              }`}
+            className={`flex-1 py-3 text-sm relative flex items-center justify-center ${activeTab === 'limited' ? 'text-primary' : 'text-gray-500'}`}
           >
             限定
             {activeTab === 'limited' && (
@@ -512,8 +478,7 @@ export function JobListClient({ jobs, facilities, pagination }: JobListClientPro
           </button>
           <button
             onClick={() => handleTabClick('nominated')}
-            className={`flex-1 py-3 text-sm relative flex items-center justify-center ${activeTab === 'nominated' ? 'text-primary' : 'text-gray-500'
-              }`}
+            className={`flex-1 py-3 text-sm relative flex items-center justify-center ${activeTab === 'nominated' ? 'text-primary' : 'text-gray-500'}`}
           >
             指名
             {activeTab === 'nominated' && (
@@ -549,27 +514,23 @@ export function JobListClient({ jobs, facilities, pagination }: JobListClientPro
                   </span>
                   <ChevronDown className="w-4 h-4" />
                 </button>
-
                 {showSortMenu && (
-                  <div className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-[120px]">
+                  <div className="absolute right-0 mt-2 w-32 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
                     <button
                       onClick={() => handleSortChange('distance')}
-                      className={`block w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${sortOrder === 'distance' ? 'text-primary' : ''
-                        }`}
+                      className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${sortOrder === 'distance' ? 'text-primary font-medium' : ''}`}
                     >
                       近い順
                     </button>
                     <button
                       onClick={() => handleSortChange('wage')}
-                      className={`block w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${sortOrder === 'wage' ? 'text-primary' : ''
-                        }`}
+                      className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${sortOrder === 'wage' ? 'text-primary font-medium' : ''}`}
                     >
                       時給順
                     </button>
                     <button
                       onClick={() => handleSortChange('deadline')}
-                      className={`block w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${sortOrder === 'deadline' ? 'text-primary' : ''
-                        }`}
+                      className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${sortOrder === 'deadline' ? 'text-primary font-medium' : ''}`}
                     >
                       締切順
                     </button>
@@ -579,108 +540,74 @@ export function JobListClient({ jobs, facilities, pagination }: JobListClientPro
             </div>
           </div>
 
-          {/* 日付スライダー */}
-          <DateSlider
-            selectedDateIndex={selectedDateIndex}
-            onDateSelect={handleDateSelect}
-          />
-
-          {/* 絞り込み条件タグ */}
+          {/* アクティブなフィルタータグ */}
           {activeFilters.length > 0 && (
-            <div className="flex flex-wrap gap-2 pt-2">
+            <div className="flex flex-wrap gap-2">
               {activeFilters.map((filter) => (
-                <span
+                <button
                   key={filter.key}
-                  className="inline-flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary text-xs rounded-full"
+                  onClick={() => handleRemoveFilter(filter.paramName, filter.rawValue)}
+                  className="inline-flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary text-xs rounded-full hover:bg-primary/20 transition-colors"
                 >
-                  {filter.label}
-                  <button
-                    onClick={() => handleRemoveFilter(filter.paramName, filter.rawValue)}
-                    className="hover:bg-primary/20 rounded-full p-0.5"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
+                  <span>{filter.label}</span>
+                  <X className="w-3 h-3" />
+                </button>
               ))}
-              <button
-                onClick={handleClearFilters}
-                className="text-xs text-gray-500 hover:text-gray-700 underline"
-              >
-                すべてクリア
-              </button>
             </div>
           )}
         </div>
+
+        {/* 日付スライダー */}
+        <DateSlider
+          dates={dates}
+          selectedIndex={selectedDateIndex}
+          onSelect={handleDateChange}
+          onHover={handleDateHover}
+        />
       </div>
 
-      {/* 求人リスト */}
-      {displayedJobs.length === 0 ? (
-        <div className="px-4 py-8">
+      {/* コンテンツエリア */}
+      <div className="p-4">
+        {isLoading ? (
+          // ローディング中はスケルトン表示
+          <JobListSkeleton count={6} />
+        ) : displayedJobs.length === 0 ? (
+          // 求人がない場合
           <EmptyState
             icon={Search}
             title="条件に一致する求人が見つかりませんでした"
-            description="検索条件を変更してお試しください"
-            actionLabel="条件をクリア"
-            onAction={handleClearFilters}
+            description="検索条件を変更して再度お試しください"
           />
-        </div>
-      ) : (
-        <>
-          <div className="px-4 py-4 grid grid-cols-2 gap-3 md:grid-cols-1 md:gap-4 items-stretch">
-            {displayedJobs.map((job, index) => {
-              const facility = facilities.find((f) => f.id === job.facilityId);
-              if (!facility) return null;
-
-              return (
-                <div key={job.id} className="h-full">
-                  <JobCard job={job} facility={facility} selectedDate={selectedDateStr} priority={index < 4} />
-                </div>
-              );
-            })}
-          </div>
-
-          {/* ページネーション: サーバーサイドの場合はPaginationコンポーネントを使用 */}
-          {pagination ? (
-            <div className="py-4">
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={handlePageChange}
-              />
+        ) : (
+          // 求人リスト
+          <>
+            <div className="space-y-4">
+              {displayedJobs.map((job) => {
+                const facility = swrFacilities.find((f: any) => f.id === job.facilityId);
+                return (
+                  <JobCard
+                    key={job.id}
+                    job={job}
+                    facility={facility}
+                    selectedDate={selectedDateStr}
+                  />
+                );
+              })}
             </div>
-          ) : (
-            <div className="px-4 py-4 flex items-center justify-center gap-4">
-              <button
-                onClick={() => setClientCurrentPage((prev) => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-                className={`px-4 py-2 rounded-lg ${currentPage === 1
-                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  : 'bg-primary text-white hover:bg-primary/90'
-                  }`}
-              >
-                ← 前へ
-              </button>
-              <span className="text-sm text-gray-600">
-                {currentPage} / {totalPages}
-              </span>
-              <button
-                onClick={() =>
-                  setClientCurrentPage((prev) =>
-                    Math.min(totalPages, prev + 1)
-                  )
-                }
-                disabled={currentPage === totalPages}
-                className={`px-4 py-2 rounded-lg ${currentPage === totalPages
-                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  : 'bg-primary text-white hover:bg-primary/90'
-                  }`}
-              >
-                次へ →
-              </button>
-            </div>
-          )}
-        </>
-      )}
+
+            {/* ページネーション */}
+            {totalPages > 1 && (
+              <div className="mt-6">
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={handlePageChange}
+                />
+              </div>
+            )}
+          </>
+        )}
+      </div>
 
       {/* フィルターモーダル */}
       <FilterModal
@@ -689,7 +616,6 @@ export function JobListClient({ jobs, facilities, pagination }: JobListClientPro
         onApply={handleApplyFilters}
         initialFilters={initialFiltersForModal}
       />
-
     </div>
   );
 }

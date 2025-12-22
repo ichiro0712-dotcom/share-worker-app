@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { getCurrentTime } from '@/utils/debugTime';
 
 /**
  * 認証済みユーザーを取得する共通ヘルパー関数
@@ -74,7 +75,7 @@ export function formatDateWithDay(date: Date): string {
  * メッセージ時間をフォーマット
  */
 export function formatMessageTime(date: Date): string {
-  const now = new Date();
+  const now = getCurrentTime();
   const diff = now.getTime() - date.getTime();
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
 
@@ -96,7 +97,7 @@ export function formatMessageTime(date: Date): string {
 export function calculateAgeGroup(birthDate: Date | null): string {
   if (!birthDate) return '不明';
 
-  const today = new Date();
+  const today = getCurrentTime();
   const birth = new Date(birthDate);
   let age = today.getFullYear() - birth.getFullYear();
   const monthDiff = today.getMonth() - birth.getMonth();
