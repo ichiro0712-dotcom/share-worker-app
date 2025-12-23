@@ -121,9 +121,9 @@ function calculateDistanceKm(
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLng / 2) *
-      Math.sin(dLng / 2);
+    Math.cos((lat2 * Math.PI) / 180) *
+    Math.sin(dLng / 2) *
+    Math.sin(dLng / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
@@ -1121,6 +1121,140 @@ export async function getJobsListWithPagination(
       totalPages: Math.ceil(filteredTotalCount / limit),
       totalCount: filteredTotalCount,
       hasMore: skip + filteredJobs.length < filteredTotalCount,
+    },
+  };
+}
+
+/**
+ * 施設の求人一覧を取得する（ページネーション・フィルタリング対応）
+ */
+export async function getFacilityJobs(
+  facilityId: number,
+  options: {
+    page?: number;
+    limit?: number;
+    status?: string;
+    query?: string;
+  } = {}
+) {
+  const { page = 1, limit = 20, status, query } = options;
+  const skip = (page - 1) * limit;
+
+  const whereConditions: any = {
+    facility_id: facilityId,
+  };
+
+  // ステータスフィルタ
+  if (status && status !== 'all') {
+    // UI側のステータス名からDB側のステータス名へのマッピングがあればここで調整
+    // Jobs/page.tsx の getJobStatus 関数と同期させる
+    if (status === 'recruiting') {
+      whereConditions.status = 'PUBLISHED';
+    } else if (status === 'paused') {
+      whereConditions.status = 'STOPPED';
+    } else {
+      whereConditions.status = status;
+    }
+  }
+
+  // 検索クエリ
+  if (query) {
+    whereConditions.title = {
+      contains: query,
+      mode: 'insensitive',
+    };
+  }
+
+  const [totalCount, jobs] = await Promise.all([
+    prisma.job.count({ where: whereConditions }),
+    prisma.job.findMany({
+      where: whereConditions,
+      include: {
+        workDates: {
+          orderBy: { work_date: 'asc' },
+        },
+        facility: true,
+        template: true,
+      },
+      orderBy: { created_at: 'desc' },
+      skip,
+      take: limit,
+    }),
+  ]);
+
+  const formattedJobs = jobs.map(job => {
+    const totalApplied = job.workDates.reduce((sum, wd) => sum + wd.applied_count, 0);
+    const totalMatched = job.workDates.reduce((sum, wd) => sum + wd.matched_count, 0);
+    const totalRecruitment = job.workDates.reduce((sum, wd) => sum + wd.recruitment_count, 0);
+
+    const today = getCurrentTime();
+    const upcomingDates = job.workDates.filter(wd => new Date(wd.work_date) >= today);
+    const nearestDate = upcomingDates[0] || job.workDates[0];
+
+    return {
+      id: job.id,
+      title: job.title,
+      status: job.status,
+      startTime: job.start_time,
+      endTime: job.end_time,
+      hourlyWage: job.hourly_wage,
+      workContent: job.work_content,
+      requiredQualifications: job.required_qualifications,
+      workDates: job.workDates.map(wd => ({
+        id: wd.id,
+        date: wd.work_date.toISOString().split('T')[0],
+        formattedDate: formatDate(wd.work_date),
+        recruitmentCount: wd.recruitment_count,
+        appliedCount: wd.applied_count,
+        matchedCount: wd.matched_count,
+        deadline: wd.deadline.toISOString(),
+      })),
+      totalWorkDates: job.workDates.length,
+      totalApplied,
+      totalMatched,
+      totalRecruitment,
+      nearestWorkDate: nearestDate ? formatDate(nearestDate.work_date) : null,
+      dateRange: job.workDates.length > 1
+        ? `${formatDate(job.workDates[0].work_date)} 〜 ${formatDate(job.workDates[job.workDates.length - 1].work_date)}`
+        : nearestDate ? formatDate(nearestDate.work_date) : '',
+      overview: job.overview,
+      images: job.images,
+      address: job.address,
+      access: job.access,
+      tags: job.tags,
+      managerName: job.manager_name,
+      managerMessage: job.manager_message,
+      managerAvatar: job.manager_avatar,
+      facilityName: job.facility.facility_name,
+      dresscode: job.dresscode,
+      dresscodeImages: job.dresscode_images,
+      belongings: job.belongings,
+      attachments: job.attachments,
+      requiredExperience: job.required_experience,
+      inexperiencedOk: job.inexperienced_ok,
+      blankOk: job.blank_ok,
+      hairStyleFree: job.hair_style_free,
+      nailOk: job.nail_ok,
+      uniformProvided: job.uniform_provided,
+      allowCar: job.allow_car,
+      mealSupport: job.meal_support,
+      weeklyFrequency: job.weekly_frequency,
+      wage: job.wage,
+      transportationFee: job.transportation_fee,
+      breakTime: job.break_time,
+      templateId: job.template_id,
+      templateName: job.template?.name || null,
+      requiresInterview: job.requires_interview,
+    };
+  });
+
+  return {
+    data: formattedJobs,
+    pagination: {
+      currentPage: page,
+      totalPages: Math.ceil(totalCount / limit),
+      totalCount,
+      hasMore: skip + formattedJobs.length < totalCount,
     },
   };
 }

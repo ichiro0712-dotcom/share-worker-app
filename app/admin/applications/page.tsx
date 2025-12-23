@@ -34,6 +34,8 @@ import {
 } from '@/src/lib/actions';
 import { getQualificationAbbreviations } from '@/src/lib/content-actions';
 import { Pagination } from '@/components/ui/Pagination';
+import { useApplicationsByJob, useApplicationsByWorker } from '@/hooks/useApplications';
+import { ApplicationsSkeleton } from '@/components/admin/ApplicationsSkeleton';
 
 // 型定義
 interface PaginationData {
@@ -164,11 +166,6 @@ function ApplicationsContent() {
   const router = useRouter();
   const { showDebugError } = useDebugError();
   const { admin, isAdmin, isAdminLoading } = useAuth();
-  const [jobs, setJobs] = useState<JobWithApplications[]>([]);
-  const [workers, setWorkers] = useState<WorkerWithApplications[]>([]);
-  const [jobsPagination, setJobsPagination] = useState<PaginationData | null>(null);
-  const [workersPagination, setWorkersPagination] = useState<PaginationData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState<number | null>(null);
 
   // タブ切り替え状態
@@ -202,14 +199,20 @@ function ApplicationsContent() {
   // ワーカーの状態管理（お気に入り・ブロック）
   const [workerStates, setWorkerStates] = useState<Record<number, { isFavorite: boolean; isBlocked: boolean }>>({});
 
-  // タブ別の未対応件数
-  const [tabBadges, setTabBadges] = useState<{
-    byJob: number;
-    byWorker: number;
-  }>({ byJob: 0, byWorker: 0 });
 
   // 資格略称マッピング
   const [qualificationAbbreviations, setQualificationAbbreviations] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const fetchAbbreviations = async () => {
+      try {
+        const abbreviations = await getQualificationAbbreviations();
+        setQualificationAbbreviations(abbreviations);
+      } catch (error) {
+        console.error('Failed to fetch abbreviations:', error);
+      }
+    };
+    fetchAbbreviations();
+  }, []);
 
   // URLパラメータからタブを復元
   const searchParams = useSearchParams();
@@ -232,95 +235,64 @@ function ApplicationsContent() {
     }
   }, [isAdmin, admin, isAdminLoading, router]);
 
-  // データ取得
-  const fetchData = async () => {
-    if (!admin?.facilityId) return;
+  // SWRでデータ取得
+  const {
+    jobs = [],
+    pagination: jobsPagination,
+    isLoading: isJobsLoading,
+    mutate: mutateJobs,
+  } = useApplicationsByJob({
+    page: viewMode === 'jobs' ? page : 1,
+    status: statusFilter,
+    query: debouncedQuery,
+  });
 
-    setIsLoading(true);
-    try {
-      // ステータスマッピング
-      const statusMap: Record<string, 'all' | 'PUBLISHED' | 'STOPPED' | 'COMPLETED'> = {
-        all: 'all',
-        published: 'PUBLISHED',
-        stopped: 'STOPPED',
-        completed: 'COMPLETED'
-      };
+  const {
+    workers = [],
+    pagination: workersPagination,
+    isLoading: isWorkersLoading,
+    mutate: mutateWorkers,
+  } = useApplicationsByWorker({
+    page: viewMode === 'workers' ? page : 1,
+    query: debouncedQuery,
+  });
 
-      // 並列でデータ取得
-      const [jobsResponse, workersResponse, abbreviations] = await Promise.all([
-        getJobsWithApplications(admin.facilityId, {
-          page: viewMode === 'jobs' ? page : 1,
-          limit: 10,
-          status: statusMap[statusFilter],
-          query: debouncedQuery
-        }),
-        getApplicationsByWorker(admin.facilityId, {
-          page: viewMode === 'workers' ? page : 1,
-          limit: 10,
-          query: debouncedQuery
-        }),
-        getQualificationAbbreviations(),
-      ]);
+  const isLoading = isJobsLoading || isWorkersLoading;
 
-      setJobs(jobsResponse.data as any); // 型の不一致回避（厳密には修正推奨）
-      setJobsPagination(jobsResponse.pagination);
+  // タブバッジの計算
+  const tabBadges = useMemo(() => ({
+    byJob: jobs.reduce((sum, j) => sum + (j.unviewedCount || 0), 0),
+    byWorker: workers.filter(w => (w.unviewedCount || 0) > 0).length,
+  }), [jobs, workers]);
 
-      setWorkers(workersResponse.data as any);
-      setWorkersPagination(workersResponse.pagination);
-
-      setQualificationAbbreviations(abbreviations);
-
-      // タブバッジの更新（注: ページネーション時は現在のページのみの集計となる制限あり）
-      // 本来は別途統計APIを呼ぶべきだが、一旦現状維持
-      setTabBadges({
-        byJob: jobsResponse.data.reduce((sum: number, j: any) => sum + j.unviewedCount, 0),
-        byWorker: workersResponse.data.filter((w: any) => w.unviewedCount > 0).length,
-      });
-
-      // ワーカー状態の初期化
+  // ワーカー状態の同期 (SWRの結果が更新された時に反映)
+  useEffect(() => {
+    if (workers.length > 0) {
       const initialStates: Record<number, { isFavorite: boolean; isBlocked: boolean }> = {};
-      (workersResponse.data as any[]).forEach(w => {
+      workers.forEach(w => {
         initialStates[w.worker.id] = {
           isFavorite: w.worker.isFavorite,
           isBlocked: w.worker.isBlocked
         };
       });
       setWorkerStates(initialStates);
-
-      // 選択中のジョブがあれば更新
-      if (selectedJob) {
-        const updatedJob = (jobsResponse.data as any[]).find(j => j.id === selectedJob.id);
-        if (updatedJob) {
-          setSelectedJob(updatedJob);
-        }
-      }
-      // 選択中のワーカーがあれば更新
-      if (selectedWorker) {
-        const updatedWorker = (workersResponse.data as any[]).find(w => w.worker.id === selectedWorker.worker.id);
-        if (updatedWorker) {
-          setSelectedWorker(updatedWorker);
-        }
-      }
-    } catch (error) {
-      const debugInfo = extractDebugInfo(error);
-      showDebugError({
-        type: 'fetch',
-        operation: '応募管理データ一括取得',
-        message: debugInfo.message,
-        details: debugInfo.details,
-        stack: debugInfo.stack,
-        context: { facilityId: admin?.facilityId, page, statusFilter, debouncedQuery, viewMode }
-      });
-      console.error('Failed to fetch data:', error);
-      toast.error('データの取得に失敗しました');
-    } finally {
-      setIsLoading(false);
     }
-  };
+  }, [workers]);
+
+  // 選択中のアイテム更新 (SWRの結果が更新された時に反映)
+  useEffect(() => {
+    if (selectedJob) {
+      const updatedJob = jobs.find((j: any) => j.id === selectedJob.id);
+      if (updatedJob) setSelectedJob(updatedJob);
+    }
+  }, [jobs]);
 
   useEffect(() => {
-    fetchData();
-  }, [admin?.facilityId, page, statusFilter, debouncedQuery, viewMode]);
+    if (selectedWorker) {
+      const updatedWorker = workers.find((w: any) => w.worker.id === selectedWorker.worker.id);
+      if (updatedWorker) setSelectedWorker(updatedWorker);
+    }
+  }, [workers]);
 
   // ステータス更新処理
   // ステータス更新処理
@@ -348,16 +320,19 @@ function ApplicationsContent() {
         applications: updateAppStatus(wd.applications)
       }))
     }));
-    setJobs(nextJobs);
-
-    // 2. Workers更新
+    // 楽観的更新
+    if (jobsPagination) {
+      mutateJobs({ data: nextJobs, pagination: jobsPagination }, false);
+    }
     const nextWorkers = workers.map(w => ({
       ...w,
       applications: w.applications.map(app =>
         app.id === applicationId ? { ...app, status: newStatus } : app
       )
     }));
-    setWorkers(nextWorkers);
+    if (workersPagination) {
+      mutateWorkers({ data: nextWorkers, pagination: workersPagination }, false);
+    }
 
     // 3. 選択中アイテム更新
     if (selectedJob) {
@@ -387,7 +362,8 @@ function ApplicationsContent() {
 
       if (result.success) {
         // 成功時はバックグラウンドで最新データを取得（整合性確保）
-        fetchData();
+        mutateJobs();
+        mutateWorkers();
       } else {
         throw new Error(result.error);
       }
@@ -403,8 +379,13 @@ function ApplicationsContent() {
       });
       console.error('Failed to update status:', error);
       // ロールバック
-      setJobs(prevJobs);
-      setWorkers(prevWorkers);
+      // ロールバック
+      if (jobsPagination) {
+        mutateJobs({ data: prevJobs, pagination: jobsPagination }, false);
+      }
+      if (workersPagination) {
+        mutateWorkers({ data: prevWorkers, pagination: workersPagination }, false);
+      }
       setSelectedJob(prevSelectedJob);
       setSelectedWorker(prevSelectedWorker);
 
@@ -447,7 +428,8 @@ function ApplicationsContent() {
 
     setIsUpdating(null);
     toast.success(`${successCount}件のマッチングが完了しました`);
-    await fetchData();
+    mutateJobs();
+    mutateWorkers();
   };
 
   // お気に入り切り替え
@@ -468,16 +450,11 @@ function ApplicationsContent() {
       const result = await toggleWorkerFavorite(workerId, admin.facilityId);
       if (!result.success) {
         // 失敗したら戻す
-        setWorkerStates(prev => ({
-          ...prev,
-          [workerId]: {
-            ...prev[workerId],
-            isFavorite: !prev[workerId]?.isFavorite
-          }
-        }));
+        mutateWorkers();
         toast.error('お気に入りの更新に失敗しました');
       } else {
         toast.success(result.isFavorite ? 'お気に入りに追加しました' : 'お気に入りを解除しました');
+        mutateWorkers();
       }
     } catch (error) {
       const debugInfo = extractDebugInfo(error);
@@ -523,16 +500,11 @@ function ApplicationsContent() {
       const result = await toggleWorkerBlock(workerId, admin.facilityId);
       if (!result.success) {
         // 失敗したら戻す
-        setWorkerStates(prev => ({
-          ...prev,
-          [workerId]: {
-            ...prev[workerId],
-            isBlocked: !prev[workerId]?.isBlocked
-          }
-        }));
+        mutateWorkers();
         toast.error('ブロックの更新に失敗しました');
       } else {
         toast.success(result.isBlocked ? 'ブロックしました' : 'ブロックを解除しました');
+        mutateWorkers();
       }
     } catch (error) {
       const debugInfo = extractDebugInfo(error);
@@ -587,11 +559,12 @@ function ApplicationsContent() {
 
   if (isLoading && jobs.length === 0) {
     return (
-      <div className="h-full bg-gray-50 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-admin-primary"></div>
-          <p className="text-sm text-gray-500">データ読み込み中...</p>
+      <div className="h-full bg-gray-50 flex flex-col p-6">
+        <div className="mb-6">
+          <div className="h-8 bg-gray-200 rounded w-1/4 animate-pulse mb-2" />
+          <div className="h-4 bg-gray-200 rounded w-1/2 animate-pulse" />
         </div>
+        <ApplicationsSkeleton />
       </div>
     );
   }
@@ -744,16 +717,8 @@ function ApplicationsContent() {
 
                       // この求人の未確認応募を既読にする
                       if (admin?.facilityId && job.unviewedCount > 0) {
-                        const unviewedToRemove = job.unviewedCount;
                         await markJobApplicationsAsViewed(admin.facilityId, job.id);
-                        // ローカルの状態を更新（バッジを消す）
-                        setJobs(prev => prev.map(j =>
-                          j.id === job.id ? { ...j, unviewedCount: 0 } : j
-                        ));
-                        setTabBadges(prev => ({
-                          ...prev,
-                          byJob: Math.max(0, prev.byJob - unviewedToRemove)
-                        }));
+                        mutateJobs();
                       }
                     }}
                     className="bg-white rounded-admin-card border border-gray-200 p-5 hover:shadow-md hover:border-admin-primary transition-all cursor-pointer group"
@@ -1014,20 +979,7 @@ function ApplicationsContent() {
                               // このワーカーの未確認応募を既読にする
                               if (admin?.facilityId && unviewedCount > 0) {
                                 await markWorkerApplicationsAsViewed(admin.facilityId, worker.id);
-                                // ローカルの状態を更新（バッジを消す）
-                                setWorkers(prev => prev.map(w =>
-                                  w.worker.id === worker.id
-                                    ? {
-                                      ...w,
-                                      unviewedCount: 0,
-                                      applications: w.applications.map(app => ({ ...app, isUnviewed: false }))
-                                    }
-                                    : w
-                                ));
-                                setTabBadges(prev => ({
-                                  ...prev,
-                                  byWorker: Math.max(0, prev.byWorker - 1)
-                                }));
+                                mutateWorkers();
                               }
                             }}
                             className="px-4 py-2 bg-admin-primary text-white rounded-lg text-sm font-medium hover:bg-admin-primary/90 transition-colors flex items-center gap-2"

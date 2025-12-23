@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { getAdminJobsList, getAdminJobTemplates, getFacilityInfo, deleteJobs, updateJobsStatus } from '@/src/lib/actions';
+import { getAdminJobTemplates, getFacilityInfo, deleteJobs, updateJobsStatus } from '@/src/lib/actions';
+import { useAdminJobs } from '@/hooks/useAdminJobs';
+import { JobsListSkeleton } from '@/components/admin/JobsListSkeleton';
 import { getCurrentTime } from '@/utils/debugTime';
 import {
   Plus,
@@ -96,8 +98,6 @@ export default function AdminJobsList() {
   const router = useRouter();
   const { showDebugError } = useDebugError();
   const { admin, isAdmin, isAdminLoading } = useAuth();
-  const [isLoading, setIsLoading] = useState(true);
-  const [jobs, setJobs] = useState<JobData[]>([]);
   const [jobTemplates, setJobTemplates] = useState<TemplateData[]>([]);
   const [facilityName, setFacilityName] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -123,43 +123,41 @@ export default function AdminJobsList() {
     }
   }, [isAdmin, admin, isAdminLoading, router]);
 
-  // データ取得
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!admin?.facilityId) return;
+  // SWRでデータ取得
+  const {
+    jobs = [],
+    pagination,
+    isLoading: isJobsLoading,
+    mutate: mutateJobs,
+  } = useAdminJobs({
+    page: currentPage,
+    status: statusFilter,
+    query: searchQuery,
+  });
 
-      setIsLoading(true);
+  // テンプレートと施設情報の取得
+  useEffect(() => {
+    const fetchTemplatesAndFacility = async () => {
+      if (!admin?.facilityId) return;
       try {
-        const [jobsData, templatesData, facilityData] = await Promise.all([
-          getAdminJobsList(admin.facilityId),
+        const [templatesData, facilityData] = await Promise.all([
           getAdminJobTemplates(admin.facilityId),
           getFacilityInfo(admin.facilityId),
         ]);
-        setJobs(jobsData);
         setJobTemplates(templatesData);
         if (facilityData) {
           setFacilityName(facilityData.facilityName);
         }
       } catch (error) {
-        const debugInfo = extractDebugInfo(error);
-        showDebugError({
-          type: 'fetch',
-          operation: '求人・テンプレート・施設情報一括取得',
-          message: debugInfo.message,
-          details: debugInfo.details,
-          stack: debugInfo.stack,
-          context: { facilityId: admin?.facilityId }
-        });
-        console.error('Failed to fetch jobs:', error);
-      } finally {
-        setIsLoading(false);
+        console.error('Failed to fetch templates/facility:', error);
       }
     };
-
     if (isAdmin && admin) {
-      fetchData();
+      fetchTemplatesAndFacility();
     }
   }, [admin?.facilityId, isAdmin, admin]);
+
+  const isLoading = isJobsLoading;
 
   // ステータス判定関数
   const getJobStatus = (job: JobData): Exclude<JobStatus, 'all'> => {
@@ -177,86 +175,10 @@ export default function AdminJobsList() {
     return 'recruiting';
   };
 
-  // フィルタリング
-  const filteredJobs = useMemo(() => {
-    // データ読み込み中は空配列を返す（クラッシュ防止）
-    if (isAdminLoading) return [];
-
-    let filtered = [...jobs];
-
-    // 検索フィルタ（求人タイトルorワーカー名）
-    if (searchQuery) {
-      filtered = filtered.filter((job) =>
-        job.title.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-
-    // ステータスフィルタ
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter((job) => getJobStatus(job) === statusFilter);
-    }
-
-    // 時期フィルタ（年月範囲指定）
-    if (periodStartFilter || periodEndFilter) {
-      filtered = filtered.filter((job) => {
-        // 勤務日がない場合は除外（通常ありえないが）
-        if (job.workDates.length === 0) return false;
-
-        // 範囲内の勤務日が1つでもあるかチェック
-        return job.workDates.some(wd => {
-          const workDate = new Date(wd.date);
-          const workYearMonth = workDate.getFullYear() * 100 + (workDate.getMonth() + 1);
-          let inRange = true;
-
-          if (periodStartFilter) {
-            const [startYear, startMonth] = periodStartFilter.split('-').map(Number);
-            const startYearMonth = startYear * 100 + startMonth;
-            inRange = inRange && workYearMonth >= startYearMonth;
-          }
-
-          if (periodEndFilter) {
-            const [endYear, endMonth] = periodEndFilter.split('-').map(Number);
-            const endYearMonth = endYear * 100 + endMonth;
-            inRange = inRange && workYearMonth <= endYearMonth;
-          }
-
-          return inRange;
-        });
-      });
-    } else {
-      // デフォルトで過去1ヶ月から未来のすべてのデータを表示
-      const today = getCurrentTime();
-      const oneMonthAgo = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
-
-      filtered = filtered.filter((job) => {
-        // 勤務日がない、または過去1ヶ月以降の勤務日を含む求人を表示
-        if (job.workDates.length === 0) return true;
-        return job.workDates.some(wd => new Date(wd.date) >= oneMonthAgo);
-      });
-    }
-
-    // テンプレートフィルタ
-    if (templateFilter !== 'all') {
-      filtered = filtered.filter(job => job.templateId?.toString() === templateFilter);
-    }
-
-    // 最新順にソート（最も近い勤務日、または作成日順）
-    filtered.sort((a, b) => {
-      // 勤務日でのソート（直近の勤務日が新しい順）
-      const dateA = a.workDates.length > 0 ? new Date(a.workDates[0].date).getTime() : 0;
-      const dateB = b.workDates.length > 0 ? new Date(b.workDates[0].date).getTime() : 0;
-      return dateB - dateA;
-    });
-
-    return filtered;
-  }, [jobs, searchQuery, statusFilter, periodStartFilter, periodEndFilter, templateFilter, isAdminLoading]);
-
-  // ページネーション
-  const totalPages = Math.ceil(filteredJobs.length / itemsPerPage);
-  const paginatedJobs = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    return filteredJobs.slice(startIndex, startIndex + itemsPerPage);
-  }, [filteredJobs, currentPage]);
+  // フィルタリング (サーバーサイドに移行)
+  const filteredJobs = jobs;
+  const totalPages = pagination?.totalPages || 1;
+  const paginatedJobs = jobs;
 
   // ページ変更時に先頭にスクロール
   useEffect(() => {
@@ -321,8 +243,7 @@ export default function AdminJobsList() {
           const result = await deleteJobs(selectedJobIds, admin.facilityId);
           if (result.success) {
             toast.success(result.message);
-            // 求人リストを更新
-            setJobs((prev) => prev.filter((job) => !selectedJobIds.includes(job.id)));
+            mutateJobs();
           } else {
             toast.error(result.message);
           }
@@ -350,12 +271,7 @@ export default function AdminJobsList() {
           const result = await updateJobsStatus(selectedJobIds, admin.facilityId, newStatus);
           if (result.success) {
             toast.success(result.message);
-            // 求人リストのステータスを更新
-            setJobs((prev) => prev.map((job) =>
-              selectedJobIds.includes(job.id)
-                ? { ...job, status: newStatus }
-                : job
-            ));
+            mutateJobs();
           } else {
             toast.error(result.message);
           }
@@ -393,11 +309,12 @@ export default function AdminJobsList() {
 
   if (isLoading || isAdminLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-admin-primary"></div>
-          <p className="text-sm text-gray-500">データ読み込み中...</p>
+      <div className="h-full bg-gray-50 flex flex-col p-6">
+        <div className="mb-6">
+          <div className="h-8 bg-gray-200 rounded w-1/4 animate-pulse mb-2" />
+          <div className="h-4 bg-gray-200 rounded w-1/2 animate-pulse" />
         </div>
+        <JobsListSkeleton />
       </div>
     );
   }
@@ -709,7 +626,7 @@ export default function AdminJobsList() {
                       <div className="flex items-start gap-1 text-xs text-gray-700 mb-1">
                         <Briefcase className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" />
                         <div className="flex flex-wrap gap-1">
-                          {job.workContent.map((content, idx) => (
+                          {job.workContent.map((content: string, idx: number) => (
                             <span key={idx} className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">
                               {content}
                             </span>
@@ -723,7 +640,7 @@ export default function AdminJobsList() {
                       <Award className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" />
                       <div className="flex flex-wrap gap-1">
                         {job.requiredQualifications && job.requiredQualifications.length > 0 ? (
-                          job.requiredQualifications.map((qual, idx) => (
+                          job.requiredQualifications.map((qual: string, idx: number) => (
                             <span key={idx} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded">
                               {qual}
                             </span>
