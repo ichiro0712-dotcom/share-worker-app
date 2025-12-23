@@ -239,11 +239,6 @@ export default function WorkerRegisterPage() {
       experienceFieldsData[field] = experienceYearsMap[field] || '';
     });
 
-    // 楽観的UI: バリデーション通過後、すぐにリダイレクト
-    toast.success('登録完了！求人を検索できます');
-    router.push('/');
-
-    // バックグラウンドで登録・ログイン処理
     try {
       const response = await fetch('/api/auth/register', {
         method: 'POST',
@@ -281,14 +276,15 @@ export default function WorkerRegisterPage() {
       console.log('[Registration] Auto-login result:', loginResult);
 
       if (loginResult.success) {
+        toast.success('登録完了！求人を検索できます');
+        router.push('/');
         router.refresh();
       } else {
         console.error('[Registration] Auto-login failed:', loginResult.error);
-        toast.error('自動ログインに失敗しました。ログイン画面からログインしてください。');
+        toast.error('登録は完了しましたが、自動ログインに失敗しました。ログイン画面からログインしてください。');
         router.push('/login');
       }
     } catch (error) {
-      // エラー発生時はトーストで通知し、登録画面に戻す
       const debugInfo = extractDebugInfo(error);
       showDebugError({
         type: 'save',
@@ -304,7 +300,6 @@ export default function WorkerRegisterPage() {
         }
       });
       toast.error(error instanceof Error ? error.message : '登録中にエラーが発生しました');
-      router.push('/register/worker');
     } finally {
       setIsSubmitting(false);
     }

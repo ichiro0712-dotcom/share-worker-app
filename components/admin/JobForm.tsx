@@ -776,135 +776,129 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
 
         setIsSaving(true);
 
-        // 1. 楽観的UI更新：保存中メッセージを出して即リダイレクト
-        toast.success('保存処理を開始しました');
-        router.push('/admin/jobs');
-
-        // 2. バックグラウンド実行
-        (async () => {
-            try {
-                // 画像等のアップロード（署名付きURL方式）
-                const adminSession = localStorage.getItem('admin_session') || '';
-                const uploadWithSignedUrl = async (files: File[], type: 'job' | 'message') => {
-                    if (files.length === 0) return [];
-                    const results = await directUploadMultiple(files, {
-                        uploadType: type,
-                        adminSession,
-                    });
-                    const failed = results.filter(r => !r.success);
-                    if (failed.length > 0) {
-                        throw new Error(failed[0].error || 'アップロードに失敗しました');
-                    }
-                    return results.filter(r => r.success && r.url).map(r => r.url!);
-                };
-
-                const newImageUrls = await uploadWithSignedUrl(formData.images, 'job');
-                const newDressUrls = await uploadWithSignedUrl(formData.dresscodeImages, 'job');
-                const newAttachUrls = await uploadWithSignedUrl(formData.attachments, 'job');
-
-                const finalImages = [...formData.existingImages, ...newImageUrls];
-                const finalDress = [...formData.existingDresscodeImages, ...newDressUrls];
-                const finalAttach = [...formData.existingAttachments, ...newAttachUrls];
-
-                if (mode === 'create') {
-                    // 新規作成
-                    let workDates = selectedDates;
-
-                    const res = await createJobs({
-                        facilityId: formData.facilityId!,
-                        templateId: selectedTemplateId,
-                        title: formData.title,
-                        workDates: workDates,
-                        startTime: formData.startTime,
-                        endTime: formData.endTime,
-                        breakTime: formData.breakTime,
-                        hourlyWage: formData.hourlyWage,
-                        transportationFee: formData.transportationFee,
-                        recruitmentCount: formData.recruitmentCount,
-                        workContent: formData.workContent,
-                        jobDescription: formData.jobDescription,
-                        qualifications: formData.qualifications,
-                        skills: formData.skills,
-                        dresscode: formData.dresscode,
-                        belongings: formData.belongings,
-                        icons: formData.icons,
-                        images: finalImages,
-                        dresscodeImages: finalDress,
-                        attachments: finalAttach,
-                        recruitmentStartDay: formData.recruitmentStartDay,
-                        recruitmentStartTime: formData.recruitmentStartTime || undefined,
-                        recruitmentEndDay: formData.recruitmentEndDay,
-                        recruitmentEndTime: formData.recruitmentEndTime || undefined,
-                        weeklyFrequency: recruitmentOptions.weeklyFrequency,
-                        requiresInterview: formData.requiresInterview,
-                        prefecture: formData.prefecture,
-                        city: formData.city,
-                        addressLine: formData.addressLine,
-                        address: formData.address,
-                    });
-
-                    if (res.success) {
-                        toast.success('求人の保存が完了しました');
-                        // SWRキャッシュをクリアして一覧を更新
-                        globalMutate((key) => typeof key === 'string' && key.includes('/api/admin/jobs'));
-                    } else {
-                        throw new Error(res.error || '作成失敗');
-                    }
-
-                } else {
-                    // 更新
-                    const res = await updateJob(parseInt(jobId!), formData.facilityId!, {
-                        title: formData.title,
-                        startTime: formData.startTime,
-                        endTime: formData.endTime,
-                        breakTime: formData.breakTime,
-                        hourlyWage: formData.hourlyWage,
-                        transportationFee: formData.transportationFee,
-                        recruitmentCount: formData.recruitmentCount,
-                        workContent: formData.workContent,
-                        jobDescription: formData.jobDescription,
-                        weeklyFrequency: recruitmentOptions.weeklyFrequency,
-                        qualifications: formData.qualifications,
-                        skills: formData.skills,
-                        dresscode: formData.dresscode,
-                        belongings: formData.belongings,
-                        icons: formData.icons,
-                        images: finalImages,
-                        dresscodeImages: finalDress,
-                        attachments: finalAttach,
-                        addWorkDates: addedWorkDates,
-                        removeWorkDateIds: removedWorkDateIds,
-                        requiresInterview: formData.requiresInterview,
-                        prefecture: formData.prefecture,
-                        city: formData.city,
-                        addressLine: formData.addressLine,
-                    });
-
-                    if (res.success) {
-                        toast.success('求人の保存が完了しました');
-                        // SWRキャッシュをクリアして一覧を更新
-                        globalMutate((key) => typeof key === 'string' && key.includes('/api/admin/jobs'));
-                    } else {
-                        throw new Error(res.error || '更新失敗');
-                    }
-                }
-            } catch (e: any) {
-                const debugInfo = extractDebugInfo(e);
-                showDebugError({
-                    type: mode === 'create' ? 'save' : 'update',
-                    operation: mode === 'create' ? '求人一括作成' : '求人更新',
-                    message: debugInfo.message,
-                    details: debugInfo.details,
-                    stack: debugInfo.stack,
-                    context: { facilityId: formData.facilityId, jobId }
+        try {
+            // 画像等のアップロード（署名付きURL方式）
+            const adminSession = localStorage.getItem('admin_session') || '';
+            const uploadWithSignedUrl = async (files: File[], type: 'job' | 'message') => {
+                if (files.length === 0) return [];
+                const results = await directUploadMultiple(files, {
+                    uploadType: type,
+                    adminSession,
                 });
-                console.error(e);
-                showError('SAVE_ERROR', `保存に失敗しました: ${e.message}`);
-                // 失敗時のリカバリーは難しいが、ユーザーに通知する
-            } finally {
-                setIsSaving(false);
+                const failed = results.filter(r => !r.success);
+                if (failed.length > 0) {
+                    throw new Error(failed[0].error || 'アップロードに失敗しました');
+                }
+                return results.filter(r => r.success && r.url).map(r => r.url!);
+            };
+
+            const newImageUrls = await uploadWithSignedUrl(formData.images, 'job');
+            const newDressUrls = await uploadWithSignedUrl(formData.dresscodeImages, 'job');
+            const newAttachUrls = await uploadWithSignedUrl(formData.attachments, 'job');
+
+            const finalImages = [...formData.existingImages, ...newImageUrls];
+            const finalDress = [...formData.existingDresscodeImages, ...newDressUrls];
+            const finalAttach = [...formData.existingAttachments, ...newAttachUrls];
+
+            if (mode === 'create') {
+                // 新規作成
+                let workDates = selectedDates;
+
+                const res = await createJobs({
+                    facilityId: formData.facilityId!,
+                    templateId: selectedTemplateId,
+                    title: formData.title,
+                    workDates: workDates,
+                    startTime: formData.startTime,
+                    endTime: formData.endTime,
+                    breakTime: formData.breakTime,
+                    hourlyWage: formData.hourlyWage,
+                    transportationFee: formData.transportationFee,
+                    recruitmentCount: formData.recruitmentCount,
+                    workContent: formData.workContent,
+                    jobDescription: formData.jobDescription,
+                    qualifications: formData.qualifications,
+                    skills: formData.skills,
+                    dresscode: formData.dresscode,
+                    belongings: formData.belongings,
+                    icons: formData.icons,
+                    images: finalImages,
+                    dresscodeImages: finalDress,
+                    attachments: finalAttach,
+                    recruitmentStartDay: formData.recruitmentStartDay,
+                    recruitmentStartTime: formData.recruitmentStartTime || undefined,
+                    recruitmentEndDay: formData.recruitmentEndDay,
+                    recruitmentEndTime: formData.recruitmentEndTime || undefined,
+                    weeklyFrequency: recruitmentOptions.weeklyFrequency,
+                    requiresInterview: formData.requiresInterview,
+                    prefecture: formData.prefecture,
+                    city: formData.city,
+                    addressLine: formData.addressLine,
+                    address: formData.address,
+                });
+
+                if (res.success) {
+                    toast.success('求人を作成しました');
+                    // SWRキャッシュをクリアして一覧を更新
+                    globalMutate((key) => typeof key === 'string' && key.includes('/api/admin/jobs'));
+                    router.push('/admin/jobs');
+                } else {
+                    throw new Error(res.error || '作成失敗');
+                }
+
+            } else {
+                // 更新
+                const res = await updateJob(parseInt(jobId!), formData.facilityId!, {
+                    title: formData.title,
+                    startTime: formData.startTime,
+                    endTime: formData.endTime,
+                    breakTime: formData.breakTime,
+                    hourlyWage: formData.hourlyWage,
+                    transportationFee: formData.transportationFee,
+                    recruitmentCount: formData.recruitmentCount,
+                    workContent: formData.workContent,
+                    jobDescription: formData.jobDescription,
+                    weeklyFrequency: recruitmentOptions.weeklyFrequency,
+                    qualifications: formData.qualifications,
+                    skills: formData.skills,
+                    dresscode: formData.dresscode,
+                    belongings: formData.belongings,
+                    icons: formData.icons,
+                    images: finalImages,
+                    dresscodeImages: finalDress,
+                    attachments: finalAttach,
+                    addWorkDates: addedWorkDates,
+                    removeWorkDateIds: removedWorkDateIds,
+                    requiresInterview: formData.requiresInterview,
+                    prefecture: formData.prefecture,
+                    city: formData.city,
+                    addressLine: formData.addressLine,
+                });
+
+                if (res.success) {
+                    toast.success('求人を更新しました');
+                    // SWRキャッシュをクリアして一覧を更新
+                    globalMutate((key) => typeof key === 'string' && key.includes('/api/admin/jobs'));
+                    router.push('/admin/jobs');
+                } else {
+                    throw new Error(res.error || '更新失敗');
+                }
             }
-        })();
+        } catch (e: any) {
+            const debugInfo = extractDebugInfo(e);
+            showDebugError({
+                type: mode === 'create' ? 'save' : 'update',
+                operation: mode === 'create' ? '求人一括作成' : '求人更新',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { facilityId: formData.facilityId, jobId }
+            });
+            console.error(e);
+            showError('SAVE_ERROR', `保存に失敗しました: ${e.message}`);
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     // === レンダリング用ヘルパー ===
