@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSWRConfig } from 'swr';
 import { useAuth } from '@/contexts/AuthContext';
 import { Calendar, MapPin, Upload, X, Loader2, ArrowLeft, ChevronLeft, ChevronRight, Clock, DollarSign, Briefcase, FileText, CheckCircle, AlertCircle, Info, AlertTriangle, Star } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -97,6 +98,7 @@ interface JobFormProps {
 
 export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
     const router = useRouter();
+    const { mutate: globalMutate } = useSWRConfig();
     const { showDebugError } = useDebugError();
     const { admin, isAdmin, isAdminLoading } = useAuth();
 
@@ -843,6 +845,8 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
 
                     if (res.success) {
                         toast.success('求人の保存が完了しました');
+                        // SWRキャッシュをクリアして一覧を更新
+                        globalMutate((key) => typeof key === 'string' && key.includes('/api/admin/jobs'));
                     } else {
                         throw new Error(res.error || '作成失敗');
                     }
@@ -878,6 +882,8 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
 
                     if (res.success) {
                         toast.success('求人の保存が完了しました');
+                        // SWRキャッシュをクリアして一覧を更新
+                        globalMutate((key) => typeof key === 'string' && key.includes('/api/admin/jobs'));
                     } else {
                         throw new Error(res.error || '更新失敗');
                     }
