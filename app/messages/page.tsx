@@ -15,8 +15,7 @@ export default async function MessagesPage() {
     redirect('/login?callbackUrl=/messages');
   }
 
-  const conversations = await getGroupedConversations();
   const userId = session.user?.id ? parseInt(session.user.id) : 0;
 
-  return <MessagesClient initialConversations={conversations} userId={userId} />;
+  return <MessagesClient userId={userId} />;
 }

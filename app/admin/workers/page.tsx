@@ -19,13 +19,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import {
-  getWorkerListForFacility,
   toggleWorkerFavorite,
   toggleWorkerBlock,
-  type WorkerListItem,
   type WorkerListStatus,
 } from '@/src/lib/actions';
 import { Pagination } from '@/components/ui/Pagination';
+import { useAdminWorkers, type WorkerListItem } from '@/hooks/useAdminWorkers';
+import { WorkersListSkeleton } from '@/components/admin/WorkersListSkeleton';
+import { useDebounce } from '@/hooks/useDebounce';
 
 interface PaginationData {
   currentPage: number;
@@ -70,10 +71,7 @@ export default function AdminWorkersPage() {
   const router = useRouter();
   const { showDebugError } = useDebugError();
   const { admin, isAdmin, isAdminLoading } = useAuth();
-  const [workers, setWorkers] = useState<WorkerListItem[]>([]);
-  const [pagination, setPagination] = useState<PaginationData | null>(null);
   const [page, setPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(true);
 
   // 検索・フィルター・並び替え
   const [keyword, setKeyword] = useState('');
@@ -89,55 +87,27 @@ export default function AdminWorkersPage() {
     }
   }, [isAdmin, admin, isAdminLoading, router]);
 
-  // データ取得
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!admin?.facilityId) return;
+  // デバウンス処理
+  const debouncedKeyword = useDebounce(keyword, 500);
 
-      setIsLoading(true);
-      try {
-        // @ts-ignore
-        const response = await getWorkerListForFacility(admin.facilityId, {
-          page,
-          limit: 10,
-          keyword,
-          status: statusFilter,
-          // @ts-ignore
-          jobCategory: jobCategories.length > 0 ? jobCategories[0] : 'all',
-          sort: sortBy
-        });
+  // SWRでデータ取得
+  const {
+    workers = [],
+    pagination,
+    isLoading: isWorkersLoading,
+    mutate
+  } = useAdminWorkers({
+    page,
+    limit: 10,
+    status: statusFilter,
+    keyword: debouncedKeyword,
+    sort: sortBy,
+    jobCategory: jobCategories.length > 0 ? jobCategories[0] : 'all',
+  });
 
-        if (response && 'pagination' in response) {
-          // @ts-ignore
-          setWorkers(response.data);
-          // @ts-ignore
-          setPagination(response.pagination);
-        } else {
-          // @ts-ignore
-          setWorkers(response); // Fallback for old API if needed types update
-        }
+  const isLoading = isWorkersLoading;
 
-      } catch (error) {
-        const debugInfo = extractDebugInfo(error);
-        showDebugError({
-          type: 'fetch',
-          operation: 'ワーカー一覧取得',
-          message: debugInfo.message,
-          details: debugInfo.details,
-          stack: debugInfo.stack,
-          context: { facilityId: admin?.facilityId, page, keyword, statusFilter, jobCategories, sortBy }
-        });
-        console.error('Failed to fetch workers:', error);
-        toast.error('データの取得に失敗しました');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [admin?.facilityId, page, keyword, statusFilter, jobCategories, sortBy]);
-
-  // クライアント側でのソート・フィルターは削除（サーバーサイドで実施）
+  // フィルタリング済みワーカー（サーバーサイドで実施済み）
   const filteredWorkers = workers;
 
   // お気に入りトグル
@@ -148,9 +118,7 @@ export default function AdminWorkersPage() {
     try {
       const result = await toggleWorkerFavorite(userId, admin.facilityId);
       if (result.success) {
-        setWorkers(prev => prev.map(w =>
-          w.userId === userId ? { ...w, isFavorite: result.isFavorite || false } : w
-        ));
+        mutate();
       }
     } catch (error) {
       const debugInfo = extractDebugInfo(error);
@@ -175,9 +143,7 @@ export default function AdminWorkersPage() {
     try {
       const result = await toggleWorkerBlock(userId, admin.facilityId);
       if (result.success) {
-        setWorkers(prev => prev.map(w =>
-          w.userId === userId ? { ...w, isBlocked: result.isBlocked || false } : w
-        ));
+        mutate();
       }
     } catch (error) {
       const debugInfo = extractDebugInfo(error);
@@ -247,11 +213,12 @@ export default function AdminWorkersPage() {
 
   if (isLoading || isAdminLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-admin-primary"></div>
-          <p className="text-sm text-gray-500">データ読み込み中...</p>
+      <div className="min-h-screen bg-gray-50 flex flex-col p-6">
+        <div className="mb-6">
+          <div className="h-8 bg-gray-200 rounded w-1/4 animate-pulse mb-2" />
+          <div className="h-4 bg-gray-200 rounded w-1/2 animate-pulse" />
         </div>
+        <WorkersListSkeleton />
       </div>
     );
   }

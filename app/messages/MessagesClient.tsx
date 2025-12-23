@@ -1,45 +1,15 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { ChevronLeft, Send, Paperclip, Calendar, Search, Bell, Megaphone, X, FileText, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { getMessagesByFacility, sendMessageToFacility } from '@/src/lib/actions';
+import { sendMessageToFacility } from '@/src/lib/actions';
 import { getWorkerAnnouncements, markAnnouncementAsRead } from '@/src/lib/system-actions';
 import { useBadge } from '@/contexts/BadgeContext';
 import { directUpload } from '@/utils/directUpload';
+import { useConversations, useMessagesByFacility, useAnnouncements, type Message, type Conversation, type MessagesResponse } from '@/hooks/useMessages';
+import { MessagesSkeleton, ConversationsSkeleton } from '@/components/MessagesSkeleton';
 
-interface Message {
-  id: number;
-  senderType: 'worker' | 'facility';
-  senderName: string;
-  senderAvatar?: string | null;
-  content: string;
-  attachments?: string[];
-  timestamp: string;
-  isRead: boolean;
-  jobTitle: string;
-  jobDate: string | null;
-}
-
-interface Conversation {
-  facilityId: number;
-  facilityName: string;
-  facilityDisplayName?: string;  // 担当者名付きの表示名
-  staffAvatar?: string | null;    // 担当者アバター
-  applicationIds: number[];
-  lastMessage: string;
-  lastMessageTime: Date; // Server action returns Date object here usually, or string if serialized? Next.js server actions return Date as Date.
-  unreadCount: number;
-}
-
-interface ChatData {
-  facilityId: number;
-  facilityName: string;
-  facilityDisplayName?: string;  // 担当者名付きの表示名
-  staffAvatar?: string | null;    // 担当者アバター
-  applicationIds: number[];
-  messages: Message[];
-}
 
 interface Announcement {
   id: number;
@@ -54,7 +24,7 @@ type TabType = 'messages' | 'notifications';
 type SortType = 'newest' | 'workDate';
 
 interface MessagesClientProps {
-  initialConversations: Conversation[];
+  initialConversations?: Conversation[]; // Optional for SWR fallback if wanted
   userId: number;
 }
 
@@ -62,20 +32,39 @@ export default function MessagesClient({ initialConversations, userId }: Message
   const router = useRouter();
   const searchParams = useSearchParams();
   const { decrementMessages, decrementAnnouncements } = useBadge();
-  // Server Actionsからの戻り値のDate型ハンドリングのため、必要に応じて変換
-  const [conversations, setConversations] = useState<Conversation[]>(
-    initialConversations.map(c => ({
-      ...c,
-      lastMessageTime: new Date(c.lastMessageTime)
-    }))
-  );
+
+  // SWRでデータ取得
+  const {
+    conversations,
+    isLoading: isConversationsLoading,
+    mutate: mutateConversations
+  } = useConversations();
+
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
-  const [chatData, setChatData] = useState<ChatData | null>(null);
+
+  const {
+    chatData: swrChatData,
+    isLoading: isChatLoading,
+    mutate: mutateMessages
+  } = useMessagesByFacility(selectedConversation?.facilityId || null);
+
+  // ローカルでのメッセージ追加用（即時反映のため）
+  const [localMessages, setLocalMessages] = useState<Message[]>([]);
+  const chatData = useMemo(() => {
+    if (!swrChatData) return null;
+    // 重複を避けつつマージ
+    const messageIds = new Set(swrChatData.messages.map(m => m.id));
+    const filteredLocal = localMessages.filter(m => !messageIds.has(m.id));
+    return {
+      ...swrChatData,
+      messages: [...swrChatData.messages, ...filteredLocal]
+    };
+  }, [swrChatData, localMessages]);
+
   const [messageInput, setMessageInput] = useState('');
   const [activeTab, setActiveTab] = useState<TabType>('messages');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortType, setSortType] = useState<SortType>('newest');
-  const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [pendingAttachments, setPendingAttachments] = useState<string[]>([]);
@@ -84,43 +73,29 @@ export default function MessagesClient({ initialConversations, userId }: Message
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ページネーション用state
+  // ページネーション用state (SWRとは別に管理)
   const [cursor, setCursor] = useState<number | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
+  // 過去メッセージ読み込み用の追記用
+  const [extraPastMessages, setExtraPastMessages] = useState<Message[]>([]);
+
   // お知らせ
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [announcementsLoading, setAnnouncementsLoading] = useState(false);
+  const {
+    announcements,
+    isLoading: announcementsLoading,
+    mutate: mutateAnnouncements
+  } = useAnnouncements();
+
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
 
-  // お知らせを初期ロード時に取得（新着バッジ表示のため）
-  useEffect(() => {
-    if (userId) {
-      loadAnnouncements();
-    }
-  }, [userId]);
-
-  const loadAnnouncements = async () => {
-    setAnnouncementsLoading(true);
-    try {
-      const data = await getWorkerAnnouncements(userId);
-      setAnnouncements(data);
-    } catch (error) {
-      console.error('Failed to load announcements:', error);
-    } finally {
-      setAnnouncementsLoading(false);
-    }
-  };
-
   // お知らせを開く（既読にして詳細表示）
-  const handleOpenAnnouncement = async (announcement: Announcement) => {
+  const handleOpenAnnouncement = async (announcement: any) => {
     if (!announcement.isRead) {
       await markAnnouncementAsRead(announcement.id, 'WORKER', userId);
-      setAnnouncements(prev =>
-        prev.map(a => a.id === announcement.id ? { ...a, isRead: true } : a)
-      );
+      mutateAnnouncements();
       // バッジを減らす
       decrementAnnouncements(1);
     }
@@ -154,52 +129,30 @@ export default function MessagesClient({ initialConversations, userId }: Message
     }
   }, [isInitialLoad, selectedConversation]);
 
-  // 会話を選択してメッセージを取得
+  // 会話を選択
   const handleSelectConversation = async (conversation: Conversation) => {
     setSelectedConversation(conversation);
-    setIsLoading(true);
+    setLocalMessages([]);
+    setExtraPastMessages([]);
     setIsInitialLoad(true);
     setCursor(null);
     setHasMore(false);
 
-    try {
-      const data = await getMessagesByFacility(conversation.facilityId, { markAsRead: true });
-      if (data) {
-        setChatData({
-          facilityId: data.facilityId,
-          facilityName: data.facilityName,
-          applicationIds: data.applicationIds,
-          messages: data.messages.map(m => ({
-            ...m,
-            attachments: m.attachments || [],
-            senderType: m.senderType as 'worker' | 'facility',
-            timestamp: new Date(m.createdAt).toISOString(),
-            jobDate: m.jobDate ? new Date(m.jobDate).toISOString() : null,
-          }))
-        });
-        setCursor(data.nextCursor);
-        setHasMore(data.hasMore);
-
-        // 未読があった場合、バッジを減らす
-        if (conversation.unreadCount > 0) {
-          decrementMessages(conversation.unreadCount);
-          // ローカル状態も更新
-          setConversations(prev =>
-            prev.map(c =>
-              c.facilityId === conversation.facilityId
-                ? { ...c, unreadCount: 0 }
-                : c
-            )
-          );
-        }
-      }
-    } catch (error) {
-      console.error('Failed to load messages:', error);
-    } finally {
-      setIsLoading(false);
-      setIsInitialLoad(false);
+    // バッジを減らす
+    if (conversation.unreadCount > 0) {
+      decrementMessages(conversation.unreadCount);
+      mutateConversations(); // リストを更新
     }
   };
+
+  // SWRでデータが来た時の初期処理
+  useEffect(() => {
+    if (swrChatData && isInitialLoad) {
+      setCursor(swrChatData.nextCursor);
+      setHasMore(swrChatData.hasMore);
+      setIsInitialLoad(false);
+    }
+  }, [swrChatData, isInitialLoad]);
 
   // 過去メッセージを読み込む
   const loadMoreMessages = async () => {
@@ -210,14 +163,12 @@ export default function MessagesClient({ initialConversations, userId }: Message
 
     const prevScrollHeight = container.scrollHeight;
 
-    setIsLoadingMore(true);
     try {
-      const data = await getMessagesByFacility(selectedConversation.facilityId, {
-        cursor,
-        markAsRead: false,
-      });
+      const res = await fetch(`/api/messages/detail?facilityId=${selectedConversation.facilityId}&cursor=${cursor}&markAsRead=false`);
+      if (!res.ok) throw new Error('Failed to load more');
+      const data: MessagesResponse = await res.json();
       if (data) {
-        const newMessages = data.messages.map(m => ({
+        const newMessages: Message[] = data.messages.map(m => ({
           ...m,
           attachments: m.attachments || [],
           senderType: m.senderType as 'worker' | 'facility',
@@ -225,13 +176,7 @@ export default function MessagesClient({ initialConversations, userId }: Message
           jobDate: m.jobDate ? new Date(m.jobDate).toISOString() : null,
         }));
         // 過去メッセージを先頭に追加
-        setChatData(prev => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            messages: [...newMessages, ...prev.messages],
-          };
-        });
+        setExtraPastMessages(prev => [...newMessages, ...prev]);
         setCursor(data.nextCursor);
         setHasMore(data.hasMore);
 
@@ -277,34 +222,22 @@ export default function MessagesClient({ initialConversations, userId }: Message
 
       if (result.success && result.message) {
         const newMessage: Message = {
-          ...result.message!,
+          id: result.message!.id,
+          applicationId: swrChatData?.applicationIds[0] || 0,
+          createdAt: result.message!.timestamp,
           timestamp: result.message!.timestamp,
           attachments: result.message!.attachments || [],
           jobTitle: '',
           jobDate: null,
           senderType: 'worker',
           senderName: result.message!.senderName || '自分',
+          isRead: false,
+          content: result.message!.content,
         };
 
-        setChatData((prev) => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            messages: [...prev.messages, newMessage],
-          };
-        });
-
-        // 会話リストの更新
-        const displayMessage = content || (attachmentsToSend.length > 0 ? `📎 ファイル(${attachmentsToSend.length})` : '');
-        setConversations(prev => prev.map(c =>
-          c.facilityId === selectedConversation.facilityId
-            ? {
-              ...c,
-              lastMessage: displayMessage,
-              lastMessageTime: new Date()
-            }
-            : c
-        ).sort((a, b) => b.lastMessageTime.getTime() - a.lastMessageTime.getTime()));
+        setLocalMessages(prev => [...prev, newMessage]);
+        mutateConversations();
+        mutateMessages();
 
       } else {
         // 送信失敗：入力を復元
@@ -324,8 +257,8 @@ export default function MessagesClient({ initialConversations, userId }: Message
 
   const handleBackToList = () => {
     setSelectedConversation(null);
-    setChatData(null);
-    setPendingAttachments([]);
+    setLocalMessages([]);
+    setExtraPastMessages([]);
     router.push('/messages');
   };
 
@@ -387,7 +320,9 @@ export default function MessagesClient({ initialConversations, userId }: Message
     .filter((conv) => conv.facilityName.toLowerCase().includes(searchQuery.toLowerCase()))
     .sort((a, b) => {
       // 常に新着順（LINEライク）
-      return b.lastMessageTime.getTime() - a.lastMessageTime.getTime();
+      const timeA = new Date(a.lastMessageTime).getTime();
+      const timeB = new Date(b.lastMessageTime).getTime();
+      return timeB - timeA;
     });
 
   // メッセージ時間をフォーマット
@@ -404,7 +339,7 @@ export default function MessagesClient({ initialConversations, userId }: Message
   };
 
   // お知らせ日時をフォーマット
-  const formatAnnouncementDate = (date: Date | null) => {
+  const formatAnnouncementDate = (date: Date | string | null) => {
     if (!date) return '';
     const d = new Date(date);
     return `${d.getMonth() + 1}/${d.getDate()}`;
@@ -561,50 +496,54 @@ export default function MessagesClient({ initialConversations, userId }: Message
             </div>
 
             <div className="divide-y divide-gray-200">
-              {filteredAndSortedConversations.map((conv) => (
-                <button
-                  key={conv.facilityId}
-                  onClick={() => handleSelectConversation(conv)}
-                  className="w-full bg-white hover:bg-gray-50 px-4 py-4 text-left transition-colors"
-                >
-                  <div className="flex items-start gap-3">
-                    {/* 担当者アバター表示 */}
-                    {conv.staffAvatar ? (
-                      <img
-                        src={conv.staffAvatar}
-                        alt={conv.facilityDisplayName || conv.facilityName}
-                        className="w-12 h-12 rounded-full object-cover border border-gray-200 flex-shrink-0"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
-                        <span className="text-primary font-bold text-lg">
-                          {(conv.facilityDisplayName || conv.facilityName).charAt(0)}
-                        </span>
-                      </div>
-                    )}
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <h3 className="font-bold text-gray-900 truncate">{conv.facilityDisplayName || conv.facilityName}</h3>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <span className="text-xs text-gray-500">
-                            {formatTime(conv.lastMessageTime.toISOString())}
+              {isConversationsLoading ? (
+                <ConversationsSkeleton />
+              ) : (
+                filteredAndSortedConversations.map((conv) => (
+                  <button
+                    key={conv.facilityId}
+                    onClick={() => handleSelectConversation(conv)}
+                    className="w-full bg-white hover:bg-gray-50 px-4 py-4 text-left transition-colors"
+                  >
+                    <div className="flex items-start gap-3">
+                      {/* 担当者アバター表示 */}
+                      {conv.staffAvatar ? (
+                        <img
+                          src={conv.staffAvatar}
+                          alt={conv.facilityDisplayName || conv.facilityName}
+                          className="w-12 h-12 rounded-full object-cover border border-gray-200 flex-shrink-0"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                          <span className="text-primary font-bold text-lg">
+                            {(conv.facilityDisplayName || conv.facilityName).charAt(0)}
                           </span>
-                          {conv.unreadCount > 0 && (
-                            <span className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                              {conv.unreadCount}
-                            </span>
-                          )}
                         </div>
+                      )}
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <h3 className="font-bold text-gray-900 truncate">{conv.facilityDisplayName || conv.facilityName}</h3>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className="text-xs text-gray-500">
+                              {formatTime(new Date(conv.lastMessageTime).toISOString())}
+                            </span>
+                            {conv.unreadCount > 0 && (
+                              <span className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                                {conv.unreadCount}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <p className="text-sm text-gray-600 truncate">{conv.lastMessage}</p>
                       </div>
-
-                      <p className="text-sm text-gray-600 truncate">{conv.lastMessage}</p>
                     </div>
-                  </div>
-                </button>
-              ))}
+                  </button>
+                ))
+              )}
 
-              {filteredAndSortedConversations.length === 0 && (
+              {!isConversationsLoading && filteredAndSortedConversations.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-16 px-4">
                   <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
                     <Send className="w-8 h-8 text-gray-400" />
@@ -623,8 +562,16 @@ export default function MessagesClient({ initialConversations, userId }: Message
         ) : (
           <div className="divide-y divide-gray-200">
             {announcementsLoading ? (
-              <div className="flex items-center justify-center py-16">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              <div className="p-4 space-y-4">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="flex gap-3 animate-pulse">
+                    <div className="w-10 h-10 bg-gray-200 rounded-full flex-shrink-0"></div>
+                    <div className="flex-1 py-1">
+                      <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                      <div className="h-3 bg-gray-100 rounded w-1/2"></div>
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : announcements.length > 0 ? (
               announcements.map((announcement) => {
@@ -740,7 +687,7 @@ export default function MessagesClient({ initialConversations, userId }: Message
           </div>
         )}
         {/* 過去メッセージあり表示 */}
-        {hasMore && !isLoadingMore && !isLoading && (
+        {hasMore && !isLoadingMore && !isChatLoading && (
           <div className="flex justify-center py-2 mb-4">
             <button
               onClick={loadMoreMessages}
@@ -751,11 +698,11 @@ export default function MessagesClient({ initialConversations, userId }: Message
           </div>
         )}
         <div className="space-y-4">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          {(isChatLoading && isInitialLoad) ? (
+            <div className="absolute inset-0 z-0 h-full">
+              <MessagesSkeleton />
             </div>
-          ) : chatData?.messages.length === 0 ? (
+          ) : (chatData?.messages.length === 0 && !isChatLoading) ? (
             <div className="flex flex-col items-center justify-center py-8 text-gray-500">
               <Send className="w-12 h-12 mb-2 text-gray-300" />
               <p>まだメッセージはありません</p>
