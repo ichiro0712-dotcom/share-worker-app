@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+
 import Link from 'next/link';
 import Image from 'next/image';
 import {
@@ -71,13 +72,60 @@ export default function AdminWorkersPage() {
   const router = useRouter();
   const { showDebugError } = useDebugError();
   const { admin, isAdmin, isAdminLoading } = useAuth();
-  const [page, setPage] = useState(1);
+  const searchParams = useSearchParams();
+  const initialStatusFilter = searchParams.get('status') as StatusFilterType | null;
+  const initialSortBy = searchParams.get('sort') as SortByType | null;
+  const initialPage = searchParams.get('page');
+  const initialCategories = searchParams.get('categories');
+
+  const [page, setPage] = useState(initialPage ? parseInt(initialPage) : 1);
 
   // 検索・フィルター・並び替え
   const [keyword, setKeyword] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilterType>('all');
-  const [jobCategories, setJobCategories] = useState<JobCategoryType[]>([]); // 複数選択
-  const [sortBy, setSortBy] = useState<SortByType>('lastWorkDate_desc');
+  const [statusFilter, setStatusFilter] = useState<StatusFilterType>(
+    initialStatusFilter && ['all', 'NOT_STARTED', 'WORKING', 'COMPLETED', 'CANCELLED'].includes(initialStatusFilter)
+      ? initialStatusFilter
+      : 'all'
+  );
+  const [jobCategories, setJobCategories] = useState<JobCategoryType[]>(
+    initialCategories ? initialCategories.split(',') as JobCategoryType[] : []
+  ); // 複数選択
+  const [sortBy, setSortBy] = useState<SortByType>(
+    initialSortBy && ['workCount_desc', 'workCount_asc', 'lastWorkDate_desc', 'lastWorkDate_asc'].includes(initialSortBy)
+      ? initialSortBy
+      : 'lastWorkDate_desc'
+  );
+
+  const updateUrlParams = (updates: {
+    status?: string;
+    sort?: string;
+    page?: number;
+    categories?: string[];
+  }) => {
+    const params = new URLSearchParams(window.location.search);
+
+    if (updates.status !== undefined) {
+      if (updates.status === 'all') params.delete('status');
+      else params.set('status', updates.status);
+    }
+
+    if (updates.sort !== undefined) {
+      if (updates.sort === 'lastWorkDate_desc') params.delete('sort');
+      else params.set('sort', updates.sort);
+    }
+
+    if (updates.page !== undefined) {
+      if (updates.page === 1) params.delete('page');
+      else params.set('page', updates.page.toString());
+    }
+
+    if (updates.categories !== undefined) {
+      if (updates.categories.length === 0) params.delete('categories');
+      else params.set('categories', updates.categories.join(','));
+    }
+
+    router.replace(`/admin/workers?${params.toString()}`, { scroll: false });
+  };
 
 
   useEffect(() => {
@@ -201,11 +249,14 @@ export default function AdminWorkersPage() {
   };
 
   const toggleJobCategory = (category: JobCategoryType) => {
-    setJobCategories(prev =>
-      prev.includes(category)
+    setJobCategories(prev => {
+      const newCategories = prev.includes(category)
         ? prev.filter(c => c !== category)
-        : [...prev, category]
-    );
+        : [...prev, category];
+      updateUrlParams({ categories: newCategories, page: 1 });
+      return newCategories;
+    });
+    setPage(1);
   };
 
   if (!isAdmin || !admin) {
@@ -306,7 +357,11 @@ export default function AdminWorkersPage() {
                   return (
                     <button
                       key={filter}
-                      onClick={() => setStatusFilter(filter)}
+                      onClick={() => {
+                        setStatusFilter(filter);
+                        setPage(1);
+                        updateUrlParams({ status: filter, page: 1 });
+                      }}
                       className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${statusFilter === filter
                         ? 'bg-admin-primary text-white'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -321,7 +376,11 @@ export default function AdminWorkersPage() {
                 return (
                   <button
                     key={filter}
-                    onClick={() => setStatusFilter(filter)}
+                    onClick={() => {
+                      setStatusFilter(filter);
+                      setPage(1);
+                      updateUrlParams({ status: filter, page: 1 });
+                    }}
                     className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5 ${statusFilter === filter
                       ? 'bg-gray-200 text-gray-900'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -341,7 +400,12 @@ export default function AdminWorkersPage() {
             <div className="relative">
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as SortByType)}
+                onChange={(e) => {
+                  const newSort = e.target.value as SortByType;
+                  setSortBy(newSort);
+                  setPage(1);
+                  updateUrlParams({ sort: newSort, page: 1 });
+                }}
                 className="appearance-none bg-white border border-gray-300 rounded-lg pl-3 pr-8 py-1.5 text-sm focus:ring-2 focus:ring-admin-primary focus:border-transparent cursor-pointer"
               >
                 <option value="workCount_desc">勤務回数（多い順）</option>
@@ -563,7 +627,10 @@ export default function AdminWorkersPage() {
           <Pagination
             currentPage={pagination.currentPage}
             totalPages={pagination.totalPages}
-            onPageChange={setPage}
+            onPageChange={(newPage) => {
+              setPage(newPage);
+              updateUrlParams({ page: newPage });
+            }}
           />
         </div>
       )}

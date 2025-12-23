@@ -244,11 +244,109 @@ export default function WorkerDetailPage({
 
   if (loading || isAdminLoading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
-          <p className="text-gray-500">読み込み中... (Loading: {loading ? 'Yes' : 'No'}, AdminLoading: {isAdminLoading ? 'Yes' : 'No'})</p>
-        </div>
+      <div className="bg-gray-50 text-gray-800 h-screen flex flex-col overflow-hidden">
+        {/* Header Skeleton */}
+        <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-4 flex-shrink-0">
+          <div className="w-8 h-8 bg-gray-200 rounded-full animate-pulse" />
+          <div className="h-6 bg-gray-200 rounded w-32 animate-pulse" />
+        </header>
+
+        {/* Main Content Skeleton */}
+        <main className="flex-1 p-4 overflow-y-auto">
+          <div className="grid grid-cols-12 gap-4 max-w-7xl mx-auto">
+            {/* Column 1: Profile Skeleton */}
+            <div className="col-span-12 sm:col-span-3 flex flex-col gap-4">
+              <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm flex flex-col items-center">
+                <div className="w-24 h-24 rounded-full bg-gray-200 mb-4 animate-pulse" />
+                <div className="h-6 bg-gray-200 rounded w-32 mb-2 animate-pulse" />
+                <div className="h-4 bg-gray-200 rounded w-24 mb-4 animate-pulse" />
+                <div className="flex gap-2 mb-4">
+                  <div className="h-6 bg-gray-200 rounded w-16 animate-pulse" />
+                  <div className="h-6 bg-gray-200 rounded w-16 animate-pulse" />
+                </div>
+                <div className="flex flex-wrap gap-1.5 justify-center">
+                  <div className="h-6 bg-gray-200 rounded w-20 animate-pulse" />
+                  <div className="h-6 bg-gray-200 rounded w-24 animate-pulse" />
+                </div>
+              </div>
+              <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm flex-1">
+                <div className="h-4 bg-gray-200 rounded w-24 mb-4 animate-pulse" />
+                <div className="space-y-3">
+                  {[...Array(7)].map((_, i) => (
+                    <div key={i} className="flex justify-between">
+                      <div className="h-4 bg-gray-200 rounded w-20 animate-pulse" />
+                      <div className="h-4 bg-gray-200 rounded w-16 animate-pulse" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Column 2: Performance Skeleton */}
+            <div className="col-span-12 sm:col-span-6 flex flex-col gap-4">
+              <div className="grid grid-cols-2 gap-4">
+                {[...Array(2)].map((_, i) => (
+                  <div key={i} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                    <div className="h-4 bg-gray-200 rounded w-20 mb-2 animate-pulse" />
+                    <div className="h-8 bg-gray-200 rounded w-16 animate-pulse" />
+                  </div>
+                ))}
+              </div>
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm flex-1">
+                <div className="p-4 border-b border-gray-100">
+                  <div className="h-5 bg-gray-200 rounded w-32 animate-pulse" />
+                </div>
+                <div className="p-4 space-y-3">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="flex items-center p-3 bg-gray-50 rounded-lg">
+                      <div className="w-12 h-12 bg-gray-200 rounded animate-pulse" />
+                      <div className="ml-3 flex-1">
+                        <div className="h-4 bg-gray-200 rounded w-32 mb-2 animate-pulse" />
+                        <div className="h-3 bg-gray-200 rounded w-24 animate-pulse" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                <div className="h-4 bg-gray-200 rounded w-16 mb-3 animate-pulse" />
+                <div className="h-20 bg-gray-100 rounded-lg animate-pulse" />
+              </div>
+            </div>
+
+            {/* Column 3: Ratings Skeleton */}
+            <div className="col-span-12 sm:col-span-3 flex flex-col gap-4">
+              <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                <div className="h-4 bg-gray-200 rounded w-20 mb-4 animate-pulse" />
+                <div className="p-4 bg-blue-50 rounded-xl mb-6">
+                  <div className="h-8 bg-gray-200 rounded w-16 mx-auto animate-pulse" />
+                </div>
+                <div className="space-y-4">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i}>
+                      <div className="flex justify-between mb-1">
+                        <div className="h-3 bg-gray-200 rounded w-16 animate-pulse" />
+                        <div className="h-3 bg-gray-200 rounded w-8 animate-pulse" />
+                      </div>
+                      <div className="h-1.5 bg-gray-100 rounded-full" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                <div className="h-4 bg-gray-200 rounded w-32 mb-3 animate-pulse" />
+                <div className="space-y-3">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="p-2 bg-gray-50 rounded-lg">
+                      <div className="h-4 bg-gray-200 rounded w-24 mb-1 animate-pulse" />
+                      <div className="h-3 bg-gray-200 rounded w-16 animate-pulse" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
       </div>
     );
   }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { ChevronLeft, Send, Paperclip, Calendar, Search, Bell, Megaphone, X, FileText, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { ChevronLeft, Send, Paperclip, Calendar, Search, Bell, Megaphone, X, FileText, Image as ImageIcon, Loader2, Check, AlertCircle, RotateCcw, Trash2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { sendMessageToFacility } from '@/src/lib/actions';
 import { getWorkerAnnouncements, markAnnouncementAsRead } from '@/src/lib/system-actions';
@@ -62,7 +62,22 @@ export default function MessagesClient({ initialConversations, userId }: Message
   }, [swrChatData, localMessages]);
 
   const [messageInput, setMessageInput] = useState('');
-  const [activeTab, setActiveTab] = useState<TabType>('messages');
+  const initialTab = searchParams.get('tab') as TabType | null;
+  const [activeTab, setActiveTab] = useState<TabType>(
+    initialTab && ['messages', 'notifications'].includes(initialTab)
+      ? initialTab
+      : 'messages'
+  );
+
+  const updateUrlParams = (tab: TabType) => {
+    const params = new URLSearchParams(window.location.search);
+    if (tab === 'messages') {
+      params.delete('tab');
+    } else {
+      params.set('tab', tab);
+    }
+    router.replace(`/messages?${params.toString()}`, { scroll: false });
+  };
   const [searchQuery, setSearchQuery] = useState('');
   const [sortType, setSortType] = useState<SortType>('newest');
   const [isSending, setIsSending] = useState(false);
@@ -206,7 +221,7 @@ export default function MessagesClient({ initialConversations, userId }: Message
     }
   };
 
-  // メッセージを送信
+  // メッセージを送信（LINEライク楽観的更新）
   const handleSendMessage = async () => {
     // テキストか添付ファイルのどちらかが必要
     if ((!messageInput.trim() && pendingAttachments.length === 0) || !selectedConversation || isSending) return;
@@ -214,45 +229,119 @@ export default function MessagesClient({ initialConversations, userId }: Message
     setIsSending(true);
     const content = messageInput.trim();
     const attachmentsToSend = [...pendingAttachments];
+    const tempId = -Date.now(); // 一時ID（負の値で本物と区別）
+    const facilityId = selectedConversation.facilityId;
+
+    // 楽観的更新：即座にUIに表示（送信中状態）
+    const tempMessage: Message = {
+      id: tempId,
+      applicationId: swrChatData?.applicationIds[0] || 0,
+      createdAt: new Date().toISOString(),
+      timestamp: new Date().toISOString(),
+      attachments: attachmentsToSend,
+      jobTitle: '',
+      jobDate: null,
+      senderType: 'worker',
+      senderName: '自分',
+      isRead: false,
+      content: content,
+      sendStatus: 'sending',
+      _retryData: { facilityId, content, attachments: attachmentsToSend },
+    };
+
+    setLocalMessages(prev => [...prev, tempMessage]);
     setMessageInput('');
     setPendingAttachments([]);
 
     try {
-      const result = await sendMessageToFacility(selectedConversation.facilityId, content, attachmentsToSend);
+      const result = await sendMessageToFacility(facilityId, content, attachmentsToSend);
 
       if (result.success && result.message) {
-        const newMessage: Message = {
-          id: result.message!.id,
-          applicationId: swrChatData?.applicationIds[0] || 0,
-          createdAt: result.message!.timestamp,
-          timestamp: result.message!.timestamp,
-          attachments: result.message!.attachments || [],
-          jobTitle: '',
-          jobDate: null,
-          senderType: 'worker',
-          senderName: result.message!.senderName || '自分',
-          isRead: false,
-          content: result.message!.content,
-        };
-
-        setLocalMessages(prev => [...prev, newMessage]);
+        // 成功：一時メッセージを本物に置き換え
+        setLocalMessages(prev => prev.map(m =>
+          m.id === tempId
+            ? {
+              ...m,
+              id: result.message!.id,
+              timestamp: result.message!.timestamp,
+              createdAt: result.message!.timestamp,
+              sendStatus: 'sent' as const,
+              _retryData: undefined,
+            }
+            : m
+        ));
         mutateConversations();
         mutateMessages();
-
       } else {
-        // 送信失敗：入力を復元
-        setMessageInput(content);
-        setPendingAttachments(attachmentsToSend);
-        alert(result.error || 'メッセージの送信に失敗しました');
+        // 失敗：失敗状態に更新（UIに残して再送可能に）
+        console.error('[Message] Send failed:', result.error);
+        setLocalMessages(prev => prev.map(m =>
+          m.id === tempId
+            ? { ...m, sendStatus: 'failed' as const }
+            : m
+        ));
       }
     } catch (error) {
-      console.error('Failed to send message:', error);
-      setMessageInput(content);
-      setPendingAttachments(attachmentsToSend);
-      alert('メッセージの送信に失敗しました');
+      console.error('[Message] Send error:', error);
+      // エラー：失敗状態に更新
+      setLocalMessages(prev => prev.map(m =>
+        m.id === tempId
+          ? { ...m, sendStatus: 'failed' as const }
+          : m
+      ));
     } finally {
       setIsSending(false);
     }
+  };
+
+  // 失敗したメッセージを再送信
+  const handleRetryMessage = async (message: Message) => {
+    if (!message._retryData || message.sendStatus !== 'failed') return;
+
+    const { facilityId, content, attachments } = message._retryData;
+    const tempId = message.id;
+
+    // 送信中状態に更新
+    setLocalMessages(prev => prev.map(m =>
+      m.id === tempId ? { ...m, sendStatus: 'sending' as const } : m
+    ));
+
+    try {
+      const result = await sendMessageToFacility(facilityId, content, attachments);
+
+      if (result.success && result.message) {
+        // 成功
+        setLocalMessages(prev => prev.map(m =>
+          m.id === tempId
+            ? {
+              ...m,
+              id: result.message!.id,
+              timestamp: result.message!.timestamp,
+              createdAt: result.message!.timestamp,
+              sendStatus: 'sent' as const,
+              _retryData: undefined,
+            }
+            : m
+        ));
+        mutateConversations();
+        mutateMessages();
+      } else {
+        // 失敗
+        setLocalMessages(prev => prev.map(m =>
+          m.id === tempId ? { ...m, sendStatus: 'failed' as const } : m
+        ));
+      }
+    } catch (error) {
+      console.error('[Message] Retry failed:', error);
+      setLocalMessages(prev => prev.map(m =>
+        m.id === tempId ? { ...m, sendStatus: 'failed' as const } : m
+      ));
+    }
+  };
+
+  // 失敗したメッセージを削除
+  const handleDeleteFailedMessage = (messageId: number) => {
+    setLocalMessages(prev => prev.filter(m => m.id !== messageId));
   };
 
   const handleBackToList = () => {
@@ -453,7 +542,10 @@ export default function MessagesClient({ initialConversations, userId }: Message
 
           <div className="flex border-t border-gray-200">
             <button
-              onClick={() => setActiveTab('messages')}
+              onClick={() => {
+                setActiveTab('messages');
+                updateUrlParams('messages');
+              }}
               className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'messages'
                 ? 'border-primary text-primary'
                 : 'border-transparent text-gray-500'
@@ -462,7 +554,10 @@ export default function MessagesClient({ initialConversations, userId }: Message
               メッセージ
             </button>
             <button
-              onClick={() => setActiveTab('notifications')}
+              onClick={() => {
+                setActiveTab('notifications');
+                updateUrlParams('notifications');
+              }}
               className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'notifications'
                 ? 'border-primary text-primary'
                 : 'border-transparent text-gray-500'
@@ -745,8 +840,35 @@ export default function MessagesClient({ initialConversations, userId }: Message
                         )}
                       </div>
                     )}
+
+                    {/* ワーカー側：送信状態表示（メッセージの左側） */}
+                    {isWorker && message.sendStatus === 'failed' && (
+                      <div className="flex items-center gap-1 mb-1">
+                        <button
+                          onClick={() => handleRetryMessage(message)}
+                          className="p-1.5 bg-red-100 hover:bg-red-200 rounded-full transition-colors"
+                          title="再送信"
+                        >
+                          <RotateCcw className="w-4 h-4 text-red-600" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteFailedMessage(message.id)}
+                          className="p-1.5 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"
+                          title="削除"
+                        >
+                          <Trash2 className="w-4 h-4 text-gray-500" />
+                        </button>
+                      </div>
+                    )}
+
                     <div
-                      className={`max-w-[70%] ${isWorker ? 'bg-red-100 text-gray-900' : 'bg-white border border-gray-200'
+                      className={`max-w-[70%] ${isWorker
+                          ? message.sendStatus === 'failed'
+                            ? 'bg-red-200 border-2 border-red-400 text-gray-900'
+                            : message.sendStatus === 'sending'
+                              ? 'bg-red-50 text-gray-600'
+                              : 'bg-red-100 text-gray-900'
+                          : 'bg-white border border-gray-200'
                         } rounded-2xl px-4 py-2`}
                     >
                       {/* 添付ファイル表示 */}
@@ -758,7 +880,8 @@ export default function MessagesClient({ initialConversations, userId }: Message
                                 key={i}
                                 src={url}
                                 alt={`添付${i + 1}`}
-                                className="w-32 h-32 object-cover rounded-lg cursor-pointer"
+                                className={`w-32 h-32 object-cover rounded-lg cursor-pointer ${message.sendStatus === 'sending' ? 'opacity-50' : ''
+                                  }`}
                                 onClick={() => setPreviewImage(url)}
                               />
                             ) : (
@@ -779,13 +902,37 @@ export default function MessagesClient({ initialConversations, userId }: Message
                         </div>
                       )}
                       {message.content && (
-                        <p className="text-sm whitespace-pre-wrap break-words">
+                        <p className={`text-sm whitespace-pre-wrap break-words ${message.sendStatus === 'sending' ? 'opacity-70' : ''
+                          }`}>
                           {renderContentWithLinks(message.content, isWorker ? 'default' : 'default')}
                         </p>
                       )}
-                      <p className={`text-xs mt-1 ${isWorker ? 'text-gray-500' : 'text-gray-500'}`}>
-                        {formatTime(message.timestamp)}
-                      </p>
+
+                      {/* 時刻と送信状態 */}
+                      <div className={`flex items-center gap-1.5 mt-1 ${isWorker ? 'justify-end' : ''}`}>
+                        <span className="text-xs text-gray-500">
+                          {formatTime(message.timestamp)}
+                        </span>
+
+                        {/* 送信状態インジケーター（ワーカーのメッセージのみ） */}
+                        {isWorker && (
+                          <>
+                            {message.sendStatus === 'sending' && (
+                              <Loader2 className="w-3 h-3 animate-spin text-gray-400" />
+                            )}
+                            {message.sendStatus === 'sent' && (
+                              <Check className="w-3 h-3 text-green-500" />
+                            )}
+                            {message.sendStatus === 'failed' && (
+                              <AlertCircle className="w-3.5 h-3.5 text-red-500" />
+                            )}
+                            {/* sendStatusがundefined（SWRから取得した既存メッセージ）は送信済みとして扱う */}
+                            {!message.sendStatus && (
+                              <Check className="w-3 h-3 text-green-500" />
+                            )}
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

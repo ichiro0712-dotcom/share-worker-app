@@ -36,6 +36,15 @@ export interface AdminMessage {
     jobTitle: string;
     jobDate: string | null;
     workerName?: string;
+    // 送信状態（LINEライクUI用）
+    sendStatus?: 'sending' | 'sent' | 'failed';
+    // 失敗時の再送用データ
+    _retryData?: {
+        applicationId: number;
+        facilityId: number;
+        content: string;
+        attachments: string[];
+    };
 }
 
 export interface AdminMessagesResponse {
@@ -43,6 +52,7 @@ export interface AdminMessagesResponse {
     userName: string;
     userProfileImage: string | null;
     isOffice?: boolean;
+    applicationIds: number[]; // 追加: メッセージ送信時に使用
     messages: AdminMessage[];
     nextCursor: number | null;
     hasMore: boolean;

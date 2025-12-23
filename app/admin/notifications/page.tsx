@@ -187,8 +187,17 @@ export default function AdminNotificationsPage() {
       {/* 通知リスト */}
       <div className="divide-y divide-gray-100">
         {loading || isAdminLoading ? (
-          <div className="p-8 text-center text-gray-500">
-            読み込み中...
+          <div className="divide-y divide-gray-100">
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="p-4 flex gap-3 bg-white">
+                <div className="w-10 h-10 bg-gray-200 rounded-full animate-pulse flex-shrink-0" />
+                <div className="flex-1">
+                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2 animate-pulse" />
+                  <div className="h-3 bg-gray-200 rounded w-full mb-2 animate-pulse" />
+                  <div className="h-3 bg-gray-200 rounded w-20 animate-pulse" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : notifications.length === 0 ? (
           <div className="p-8 text-center">

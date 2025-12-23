@@ -10200,11 +10200,16 @@ export async function getMessagesByFacility(
   });
 
   // メッセージをページネーションで取得（最新から）
-  // ワーカー向け: to_facility_id が設定されているメッセージは施設専用なので除外
+  // ワーカー向け:
+  // - to_facility_id が null のメッセージ（施設からワーカーへ）
+  // - 自分が送信したメッセージ（from_user_id が自分のID）
   const messages = await prisma.message.findMany({
     where: {
       application_id: { in: applicationIds },
-      to_facility_id: null, // 施設専用メッセージは除外
+      OR: [
+        { to_facility_id: null }, // 施設からワーカーへのメッセージ
+        { from_user_id: user.id }, // 自分が送ったメッセージ
+      ],
       ...(cursor ? { id: { lt: cursor } } : {}),
     },
     orderBy: { created_at: 'desc' },
@@ -10479,6 +10484,7 @@ export async function getMessagesByWorker(
       userName: '運営',
       userProfileImage: null,
       isOffice: true,
+      applicationIds: [] as number[], // 運営の場合は空配列
       messages: formattedMessages,
       nextCursor,
       hasMore,
@@ -10513,6 +10519,7 @@ export async function getMessagesByWorker(
       userId: workerId,
       userName: '',
       userProfileImage: null,
+      applicationIds: [],
       messages: [],
       nextCursor: null,
       hasMore: false,
@@ -10579,6 +10586,7 @@ export async function getMessagesByWorker(
     userId: workerId,
     userName: userName,
     userProfileImage: worker?.profile_image,
+    applicationIds, // 追加: メッセージ送信時に使用
     messages: formattedMessages,
     nextCursor,
     hasMore,

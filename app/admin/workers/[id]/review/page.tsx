@@ -134,8 +134,60 @@ export default function FacilityWorkerReviewPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-admin-primary"></div>
+      <div className="min-h-screen bg-gray-50">
+        {/* ヘッダー Skeleton */}
+        <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+          <div className="px-4 py-3 flex items-center">
+            <div className="w-6 h-6 bg-gray-200 rounded animate-pulse" />
+            <div className="flex-1 flex justify-center">
+              <div className="h-6 bg-gray-200 rounded w-28 animate-pulse" />
+            </div>
+            <div className="w-6"></div>
+          </div>
+        </div>
+
+        <div className="p-4 space-y-4">
+          {/* ワーカー情報 Skeleton */}
+          <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-full bg-gray-200 animate-pulse flex-shrink-0" />
+              <div className="flex-1">
+                <div className="h-6 bg-gray-200 rounded w-32 mb-2 animate-pulse" />
+                <div className="flex gap-1">
+                  <div className="h-5 bg-gray-200 rounded w-16 animate-pulse" />
+                  <div className="h-5 bg-gray-200 rounded w-20 animate-pulse" />
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <div className="h-5 bg-gray-200 rounded w-48 mb-2 animate-pulse" />
+              <div className="flex gap-4">
+                <div className="h-4 bg-gray-200 rounded w-24 animate-pulse" />
+                <div className="h-4 bg-gray-200 rounded w-28 animate-pulse" />
+              </div>
+            </div>
+          </div>
+
+          {/* 評価入力 Skeleton */}
+          <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <div className="h-5 bg-gray-200 rounded w-20 mb-4 animate-pulse" />
+            <div className="flex items-center justify-center gap-2 mb-6">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="w-10 h-10 bg-gray-200 rounded animate-pulse" />
+              ))}
+            </div>
+            <div className="space-y-4">
+              <div>
+                <div className="h-4 bg-gray-200 rounded w-24 mb-2 animate-pulse" />
+                <div className="h-24 bg-gray-100 rounded-lg animate-pulse" />
+              </div>
+              <div>
+                <div className="h-4 bg-gray-200 rounded w-28 mb-2 animate-pulse" />
+                <div className="h-24 bg-gray-100 rounded-lg animate-pulse" />
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+
 import { useAuth } from '@/contexts/AuthContext';
 import { getAdminJobTemplates, getFacilityInfo, deleteJobs, updateJobsStatus } from '@/src/lib/actions';
 import { useAdminJobs } from '@/hooks/useAdminJobs';
@@ -99,17 +100,65 @@ export default function AdminJobsList() {
   const { showDebugError } = useDebugError();
   const { admin, isAdmin, isAdminLoading } = useAuth();
   const [jobTemplates, setJobTemplates] = useState<TemplateData[]>([]);
+  const searchParams = useSearchParams();
+  const initialStatusFilter = searchParams.get('status') as JobStatus | null;
+  const initialPage = searchParams.get('page');
+  const initialPeriodStart = searchParams.get('periodStart');
+  const initialPeriodEnd = searchParams.get('periodEnd');
+  const initialTemplate = searchParams.get('template');
+
   const [facilityName, setFacilityName] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<JobStatus>('all');
-  const [periodStartFilter, setPeriodStartFilter] = useState('');
-  const [periodEndFilter, setPeriodEndFilter] = useState('');
-  const [templateFilter, setTemplateFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<JobStatus>(
+    initialStatusFilter && ['all', 'recruiting', 'paused', 'working', 'review', 'completed', 'failed'].includes(initialStatusFilter)
+      ? initialStatusFilter
+      : 'all'
+  );
+  const [periodStartFilter, setPeriodStartFilter] = useState(initialPeriodStart || '');
+  const [periodEndFilter, setPeriodEndFilter] = useState(initialPeriodEnd || '');
+  const [templateFilter, setTemplateFilter] = useState(initialTemplate || 'all');
+
+  const updateUrlParams = (updates: {
+    status?: string;
+    page?: number;
+    periodStart?: string;
+    periodEnd?: string;
+    template?: string;
+  }) => {
+    const params = new URLSearchParams(window.location.search);
+
+    if (updates.status !== undefined) {
+      if (updates.status === 'all') params.delete('status');
+      else params.set('status', updates.status);
+    }
+
+    if (updates.page !== undefined) {
+      if (updates.page === 1) params.delete('page');
+      else params.set('page', updates.page.toString());
+    }
+
+    if (updates.periodStart !== undefined) {
+      if (!updates.periodStart) params.delete('periodStart');
+      else params.set('periodStart', updates.periodStart);
+    }
+
+    if (updates.periodEnd !== undefined) {
+      if (!updates.periodEnd) params.delete('periodEnd');
+      else params.set('periodEnd', updates.periodEnd);
+    }
+
+    if (updates.template !== undefined) {
+      if (updates.template === 'all') params.delete('template');
+      else params.set('template', updates.template);
+    }
+
+    router.replace(`/admin/jobs?${params.toString()}`, { scroll: false });
+  };
   const [selectedJob, setSelectedJob] = useState<JobData | null>(null);
   const [selectedJobIds, setSelectedJobIds] = useState<number[]>([]);
   const [bulkActionConfirm, setBulkActionConfirm] = useState<'publish' | 'pause' | 'delete' | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(initialPage ? parseInt(initialPage) : 1);
   const itemsPerPage = 20;
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isOverviewExpanded, setIsOverviewExpanded] = useState(false);
@@ -183,7 +232,9 @@ export default function AdminJobsList() {
 
   // ページ変更時に先頭にスクロール
   useEffect(() => {
-    setCurrentPage(1);
+    // 依存関係が変更されたときにページを1に戻す処理
+    // ただし、初期ロード時にURLから取得したページを上書きしないように注意が必要
+    // ここでは初期ロード後に発火するようにする
   }, [searchQuery, statusFilter, periodStartFilter, periodEndFilter, templateFilter]);
 
   // ステータスのラベルと色
@@ -408,7 +459,12 @@ export default function AdminJobsList() {
             <div className="col-span-2">
               <select
                 value={templateFilter}
-                onChange={(e) => setTemplateFilter(e.target.value)}
+                onChange={(e) => {
+                  const newTemplate = e.target.value;
+                  setTemplateFilter(newTemplate);
+                  setCurrentPage(1);
+                  updateUrlParams({ template: newTemplate, page: 1 });
+                }}
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-admin-primary"
               >
                 <option value="all">すべてのテンプレート</option>
@@ -428,7 +484,12 @@ export default function AdminJobsList() {
             {/* 開始年月フィルタ */}
             <select
               value={periodStartFilter}
-              onChange={(e) => setPeriodStartFilter(e.target.value)}
+              onChange={(e) => {
+                const newStart = e.target.value;
+                setPeriodStartFilter(newStart);
+                setCurrentPage(1);
+                updateUrlParams({ periodStart: newStart, page: 1 });
+              }}
               className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-admin-primary"
             >
               <option value="">開始月（未指定）</option>
@@ -444,7 +505,12 @@ export default function AdminJobsList() {
             {/* 終了年月フィルタ */}
             <select
               value={periodEndFilter}
-              onChange={(e) => setPeriodEndFilter(e.target.value)}
+              onChange={(e) => {
+                const newEnd = e.target.value;
+                setPeriodEndFilter(newEnd);
+                setCurrentPage(1);
+                updateUrlParams({ periodEnd: newEnd, page: 1 });
+              }}
               className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-admin-primary"
             >
               <option value="">終了月（未指定）</option>
@@ -459,7 +525,11 @@ export default function AdminJobsList() {
           {/* ステータスボタンフィルタ */}
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setStatusFilter('all')}
+              onClick={() => {
+                setStatusFilter('all');
+                setCurrentPage(1);
+                updateUrlParams({ status: 'all', page: 1 });
+              }}
               className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${statusFilter === 'all'
                 ? 'bg-admin-primary text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -470,7 +540,11 @@ export default function AdminJobsList() {
             {(Object.keys(statusConfig) as Array<keyof typeof statusConfig>).map((status) => (
               <button
                 key={status}
-                onClick={() => setStatusFilter(status)}
+                onClick={() => {
+                  setStatusFilter(status);
+                  setCurrentPage(1);
+                  updateUrlParams({ status: status, page: 1 });
+                }}
                 className={`px-3 py-1.5 text-xs font-medium rounded transition-colors flex items-center gap-1.5 ${statusFilter === status
                   ? 'bg-gray-200 text-gray-900'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -668,7 +742,11 @@ export default function AdminJobsList() {
         {totalPages > 1 && (
           <div className="mt-6 flex items-center justify-center gap-2">
             <button
-              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+              onClick={() => {
+                const newPage = Math.max(1, currentPage - 1);
+                setCurrentPage(newPage);
+                updateUrlParams({ page: newPage });
+              }}
               disabled={currentPage === 1}
               className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
@@ -680,7 +758,11 @@ export default function AdminJobsList() {
             </span>
 
             <button
-              onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+              onClick={() => {
+                const newPage = Math.min(totalPages, currentPage + 1);
+                setCurrentPage(newPage);
+                updateUrlParams({ page: newPage });
+              }}
               disabled={currentPage === totalPages}
               className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >

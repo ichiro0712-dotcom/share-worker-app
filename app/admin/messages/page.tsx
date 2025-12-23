@@ -16,6 +16,10 @@ import {
   Paperclip,
   X,
   FileText,
+  Check,
+  AlertCircle,
+  RotateCcw,
+  Trash2,
 } from 'lucide-react';
 import {
   sendFacilityMessage,
@@ -49,6 +53,7 @@ export default function AdminMessagesPage() {
   const showDebugError = showDebug || ((x: any) => console.log(x));
   const searchParams = useSearchParams();
   const initialWorkerId = searchParams.get('workerId');
+  const initialFilter = searchParams.get('filter') as FilterType | null;
   const { admin, isAdmin, isAdminLoading } = useAuth();
 
   // SWRでデータ取得
@@ -84,7 +89,11 @@ export default function AdminMessagesPage() {
   } = useAdminAnnouncements(admin?.facilityId);
 
   const [messageText, setMessageText] = useState('');
-  const [filterType, setFilterType] = useState<FilterType>('all');
+  const [filterType, setFilterType] = useState<FilterType>(
+    initialFilter && ['all', 'unread', 'scheduled', 'completed', 'office'].includes(initialFilter)
+      ? initialFilter
+      : 'all'
+  );
   const [showVariables, setShowVariables] = useState(false);
   const [showUserInfo, setShowUserInfo] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -117,6 +126,15 @@ export default function AdminMessagesPage() {
       setSelectedWorkerId(parseInt(initialWorkerId));
     }
   }, [initialWorkerId]);
+
+  // selectedWorkerId が変更されたらローカル状態をリセット
+  useEffect(() => {
+    setLocalMessages([]);
+    setExtraPastMessages([]);
+    setCursor(null);
+    setHasMore(false);
+    setIsInitialLoad(true);
+  }, [selectedWorkerId]);
 
   // SWRの初期設定
   useEffect(() => {
@@ -249,63 +267,93 @@ export default function AdminMessagesPage() {
     return true;
   });
 
+  // メッセージを送信（LINEライク楽観的更新）
   const handleSendMessage = async () => {
     if ((!messageText.trim() && pendingAttachments.length === 0) || !selectedWorkerId || !admin?.facilityId) return;
 
-    // 最新の応募IDを取得
+    // 最新の応募IDを取得（conversationsから取得、なければchatDataから取得）
     const conversation = conversations.find(c => c.userId === selectedWorkerId);
-    if (!conversation || conversation.applicationIds.length === 0) {
+
+    // applicationIdsを取得（conversationsから、またはchatDataから取得）
+    let applicationIds: number[] = [];
+    let jobTitle = '';
+
+    if (conversation && conversation.applicationIds.length > 0) {
+      applicationIds = conversation.applicationIds;
+      jobTitle = conversation.jobTitle;
+    } else if (swrChatData && swrChatData.applicationIds && swrChatData.applicationIds.length > 0) {
+      // リロード後などでconversationsがまだロードされていない場合はchatDataから取得
+      applicationIds = swrChatData.applicationIds;
+      jobTitle = swrChatData.messages[0]?.jobTitle || '';
+    }
+
+    if (applicationIds.length === 0) {
       toast.error('有効な応募が見つかりません');
       return;
     }
-    // applicationIdsの最後（最新）を使用
-    // getGroupedWorkerConversations の実装で push しているので、配列の最後が最新とは限らないが、
-    // 実装的に findMany からの for loop なので、prisma の order 次第。
-    // getGroupedWorkerConversations では findMany order by created_at desc ではない（指定なし）。
-    // findMany where ... include details.
-    // しかし、通常はID昇順か作成順。
-    // 安全のため、配列の最後のIDを使うか、本来なら最新IDをConversationsに含めるべき。
-    // ここでは便宜上、配列の最後のIDを使用する（もしくは配列内の最大値）。
-    const latestApplicationId = Math.max(...conversation.applicationIds);
+    const latestApplicationId = Math.max(...applicationIds);
 
     setIsSending(true);
+    const content = messageText.trim();
+    const attachmentsToSend = [...pendingAttachments];
+    const tempId = -Date.now(); // 一時ID（負の値で本物と区別）
+
+    // 楽観的更新：即座にUIに表示（送信中状態）
+    const tempMessage: AdminMessage = {
+      id: tempId,
+      applicationId: latestApplicationId,
+      senderType: 'facility',
+      senderName: '施設',
+      content: content,
+      attachments: attachmentsToSend,
+      timestamp: new Date().toISOString(),
+      isRead: false,
+      jobTitle: jobTitle,
+      jobDate: null,
+      sendStatus: 'sending',
+      _retryData: {
+        applicationId: latestApplicationId,
+        facilityId: admin.facilityId,
+        content,
+        attachments: attachmentsToSend,
+      },
+    };
+
+    setLocalMessages((prev) => [...prev, tempMessage]);
+    setMessageText('');
+    setPendingAttachments([]);
+
     try {
-      const attachmentsToSend = [...pendingAttachments];
       const result = await sendFacilityMessage(
         latestApplicationId,
         admin.facilityId,
-        messageText,
+        content,
         attachmentsToSend
       );
 
       if (result.success && result.message) {
-        // メッセージリストに追加
-        const newMessage: AdminMessage = {
-          id: result.message.id, // result.message型が server logic と異なる場合があるため注意
-          // sendFacilityMessageの戻り値は { ...message, senderName: '施設' ... } と推測
-          // 実際は actions.ts の sendFacilityMessage を確認すると、
-          // return { success: true, message: { ... } };
-          // message: { id, senderType: 'facility', senderName, content, timestamp, isRead }
-          senderType: 'facility',
-          senderName: '施設', // result.messageにあるはず
-          content: result.message.content,
-          attachments: result.message.attachments || [],
-          timestamp: result.message.timestamp,
-          isRead: false,
-          jobTitle: conversation.jobTitle,
-          jobDate: null,
-          applicationId: latestApplicationId,
-        };
-
-        // jobTitle等はサーバーレスポンスに含まれない場合があるので、補完
-        setLocalMessages((prev) => [...prev, newMessage]);
-        setMessageText('');
-        setPendingAttachments([]);
-
-        // 会話一覧も更新
+        // 成功：一時メッセージを本物に置き換え
+        setLocalMessages((prev) => prev.map(m =>
+          m.id === tempId
+            ? {
+                ...m,
+                id: result.message!.id,
+                timestamp: result.message!.timestamp,
+                sendStatus: 'sent' as const,
+                _retryData: undefined,
+              }
+            : m
+        ));
         mutateConversations();
         mutateMessages();
       } else {
+        // 失敗：失敗状態に更新（UIに残して再送可能に）
+        console.error('[Message] Send failed:', result.error);
+        setLocalMessages((prev) => prev.map(m =>
+          m.id === tempId
+            ? { ...m, sendStatus: 'failed' as const }
+            : m
+        ));
         toast.error(result.error || 'メッセージの送信に失敗しました');
       }
     } catch (error) {
@@ -318,11 +366,66 @@ export default function AdminMessagesPage() {
         stack: debugInfo.stack,
         context: { facilityId: admin.facilityId, selectedWorkerId }
       });
-      console.error('Failed to send message:', error);
-      toast.error('メッセージの送信に失敗しました');
+      console.error('[Message] Send error:', error);
+      // エラー：失敗状態に更新
+      setLocalMessages((prev) => prev.map(m =>
+        m.id === tempId
+          ? { ...m, sendStatus: 'failed' as const }
+          : m
+      ));
     } finally {
       setIsSending(false);
     }
+  };
+
+  // 失敗したメッセージを再送信
+  const handleRetryMessage = async (message: AdminMessage) => {
+    if (!message._retryData || message.sendStatus !== 'failed') return;
+
+    const { applicationId, facilityId, content, attachments } = message._retryData;
+    const tempId = message.id;
+
+    // 送信中状態に更新
+    setLocalMessages((prev) => prev.map(m =>
+      m.id === tempId ? { ...m, sendStatus: 'sending' as const } : m
+    ));
+
+    try {
+      const result = await sendFacilityMessage(applicationId, facilityId, content, attachments);
+
+      if (result.success && result.message) {
+        // 成功
+        setLocalMessages((prev) => prev.map(m =>
+          m.id === tempId
+            ? {
+                ...m,
+                id: result.message!.id,
+                timestamp: result.message!.timestamp,
+                sendStatus: 'sent' as const,
+                _retryData: undefined,
+              }
+            : m
+        ));
+        mutateConversations();
+        mutateMessages();
+      } else {
+        // 失敗
+        setLocalMessages((prev) => prev.map(m =>
+          m.id === tempId ? { ...m, sendStatus: 'failed' as const } : m
+        ));
+        toast.error(result.error || '再送信に失敗しました');
+      }
+    } catch (error) {
+      console.error('[Message] Retry failed:', error);
+      setLocalMessages((prev) => prev.map(m =>
+        m.id === tempId ? { ...m, sendStatus: 'failed' as const } : m
+      ));
+    }
+  };
+
+  // 失敗したメッセージを削除
+  const handleDeleteFailedMessage = (messageId: number) => {
+    setLocalMessages((prev) => prev.filter(m => m.id !== messageId));
   };
 
   const insertVariable = (variable: string) => {
@@ -407,6 +510,18 @@ export default function AdminMessagesPage() {
     } else {
       setSelectedAnnouncement(null);
     }
+    // URLパラメータを更新
+    const params = new URLSearchParams(window.location.search);
+    if (newFilter === 'all') {
+      params.delete('filter');
+    } else {
+      params.set('filter', newFilter);
+    }
+    // officeの場合はworkerIdもクリア
+    if (newFilter === 'office') {
+      params.delete('workerId');
+    }
+    router.replace(`/admin/messages?${params.toString()}`, { scroll: false });
   };
 
   // お知らせ日時をフォーマット
@@ -551,6 +666,10 @@ export default function AdminMessagesPage() {
                     onClick={() => {
                       setSelectedAnnouncement(null);
                       setSelectedWorkerId(conv.userId);
+                      // URLパラメータを更新してリロード時にも選択状態を維持
+                      const params = new URLSearchParams(window.location.search);
+                      params.set('workerId', conv.userId.toString());
+                      router.replace(`/admin/messages?${params.toString()}`, { scroll: false });
                     }}
                     className={`p-4 border-b border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors ${selectedWorkerId === conv.userId ? 'bg-admin-primary-light' : ''
                       }`}
@@ -754,11 +873,36 @@ export default function AdminMessagesPage() {
                             {message.jobTitle} ({formatDate(message.jobDate)})
                           </div>
                         )}
-                        <div className={`flex ${isFacility ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`flex ${isFacility ? 'justify-end' : 'justify-start'} items-end gap-2`}>
+                          {/* 施設側：送信失敗時の再送・削除ボタン（メッセージの左側） */}
+                          {isFacility && message.sendStatus === 'failed' && (
+                            <div className="flex items-center gap-1 mb-1">
+                              <button
+                                onClick={() => handleRetryMessage(message)}
+                                className="p-1.5 bg-red-100 hover:bg-red-200 rounded-full transition-colors"
+                                title="再送信"
+                              >
+                                <RotateCcw className="w-4 h-4 text-red-600" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteFailedMessage(message.id)}
+                                className="p-1.5 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"
+                                title="削除"
+                              >
+                                <Trash2 className="w-4 h-4 text-gray-500" />
+                              </button>
+                            </div>
+                          )}
+
                           <div
-                            className={`max-w-md px-4 py-2 rounded-lg ${isFacility
-                              ? 'bg-blue-100 text-gray-900'
-                              : 'bg-white border border-gray-200 text-gray-900'
+                            className={`max-w-md px-4 py-2 rounded-lg ${
+                              isFacility
+                                ? message.sendStatus === 'failed'
+                                  ? 'bg-red-200 border-2 border-red-400 text-gray-900'
+                                  : message.sendStatus === 'sending'
+                                    ? 'bg-blue-50 text-gray-600'
+                                    : 'bg-blue-100 text-gray-900'
+                                : 'bg-white border border-gray-200 text-gray-900'
                               }`}
                           >
                             {/* 添付ファイル表示 */}
@@ -770,7 +914,9 @@ export default function AdminMessagesPage() {
                                       key={i}
                                       src={url}
                                       alt={`添付${i + 1}`}
-                                      className="w-32 h-32 object-cover rounded-lg cursor-pointer"
+                                      className={`w-32 h-32 object-cover rounded-lg cursor-pointer ${
+                                        message.sendStatus === 'sending' ? 'opacity-50' : ''
+                                      }`}
                                       onClick={() => setPreviewImage(url)}
                                     />
                                   ) : (
@@ -789,21 +935,41 @@ export default function AdminMessagesPage() {
                               </div>
                             )}
                             {message.content && (
-                              <p className="text-sm whitespace-pre-wrap">
+                              <p className={`text-sm whitespace-pre-wrap ${
+                                message.sendStatus === 'sending' ? 'opacity-70' : ''
+                              }`}>
                                 {renderContentWithLinks(message.content, 'default')}
                               </p>
                             )}
-                            <p
-                              className={`text-xs mt-1 ${isFacility
-                                ? 'text-gray-500'
-                                : 'text-gray-400'
-                                }`}
-                            >
-                              {new Date(message.timestamp).toLocaleTimeString('ja-JP', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
-                            </p>
+
+                            {/* 時刻と送信状態 */}
+                            <div className={`flex items-center gap-1.5 mt-1 ${isFacility ? 'justify-end' : ''}`}>
+                              <span className={`text-xs ${isFacility ? 'text-gray-500' : 'text-gray-400'}`}>
+                                {new Date(message.timestamp).toLocaleTimeString('ja-JP', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </span>
+
+                              {/* 送信状態インジケーター（施設のメッセージのみ） */}
+                              {isFacility && (
+                                <>
+                                  {message.sendStatus === 'sending' && (
+                                    <Loader2 className="w-3 h-3 animate-spin text-gray-400" />
+                                  )}
+                                  {message.sendStatus === 'sent' && (
+                                    <Check className="w-3 h-3 text-green-500" />
+                                  )}
+                                  {message.sendStatus === 'failed' && (
+                                    <AlertCircle className="w-3.5 h-3.5 text-red-500" />
+                                  )}
+                                  {/* sendStatusがundefined（SWRから取得した既存メッセージ）は送信済みとして扱う */}
+                                  {!message.sendStatus && (
+                                    <Check className="w-3 h-3 text-green-500" />
+                                  )}
+                                </>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -897,12 +1063,13 @@ export default function AdminMessagesPage() {
                     value={messageText}
                     onChange={(e) => setMessageText(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
+                      // Ctrl+Enter または Cmd+Enter で送信（Enterのみは改行）
+                      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                         e.preventDefault();
                         handleSendMessage();
                       }
                     }}
-                    placeholder="メッセージを入力..."
+                    placeholder="メッセージを入力...（Ctrl+Enterで送信）"
                     className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-admin-primary focus:border-transparent resize-none"
                     rows={3}
                   />

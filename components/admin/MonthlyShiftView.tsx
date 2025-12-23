@@ -123,10 +123,13 @@ function getQualificationBarColor(qualification: string, isInactive: boolean): {
 interface MonthlyShiftViewProps {
     jobs: JobWithApplications[];
     qualificationAbbreviations?: Record<string, string>;
+    onStatusUpdate?: (applicationId: number, status: string, confirmMessage?: string) => Promise<void>;
+    onMatchAll?: (workDateId: number, applications: Application[]) => Promise<void>;
+    isUpdating?: number | null;
 }
 
 // 月間シフトビュー
-export function MonthlyShiftView({ jobs, qualificationAbbreviations }: MonthlyShiftViewProps) {
+export function MonthlyShiftView({ jobs, qualificationAbbreviations, onStatusUpdate, onMatchAll, isUpdating }: MonthlyShiftViewProps) {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedItem, setSelectedItem] = useState<VisualItem | null>(null);
 
@@ -280,6 +283,9 @@ export function MonthlyShiftView({ jobs, qualificationAbbreviations }: MonthlySh
                     onClose={() => setSelectedItem(null)}
                     singleDateMode={true}
                     selectedWorkDate={selectedItem.workDate}
+                    onStatusUpdate={onStatusUpdate}
+                    onMatchAll={onMatchAll}
+                    isUpdating={isUpdating}
                 />
             )}
 

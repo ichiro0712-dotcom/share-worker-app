@@ -172,10 +172,41 @@ function ApplicationsContent() {
   const [viewMode, setViewMode] = useState<'jobs' | 'workers' | 'shift'>('jobs');
 
   // フィルタ・検索状態
-  const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'stopped' | 'completed'>('all');
+  const searchParams = useSearchParams();
+  const initialStatusFilter = searchParams.get('status') as 'all' | 'published' | 'stopped' | 'completed' | null;
+  const initialPage = searchParams.get('page');
+
+  const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'stopped' | 'completed'>(
+    initialStatusFilter && ['all', 'published', 'stopped', 'completed'].includes(initialStatusFilter)
+      ? initialStatusFilter
+      : 'all'
+  );
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(initialPage ? parseInt(initialPage) : 1);
+
+  // statusFilter変更時のURL更新用関数を追加
+  const updateUrlParams = (newStatus?: string, newPage?: number) => {
+    const params = new URLSearchParams(window.location.search);
+
+    if (newStatus !== undefined) {
+      if (newStatus === 'all') {
+        params.delete('status');
+      } else {
+        params.set('status', newStatus);
+      }
+    }
+
+    if (newPage !== undefined) {
+      if (newPage === 1) {
+        params.delete('page');
+      } else {
+        params.set('page', newPage.toString());
+      }
+    }
+
+    router.replace(`/admin/applications?${params.toString()}`, { scroll: false });
+  };
 
   // 検索クエリのデバウンス
   useEffect(() => {
@@ -215,7 +246,6 @@ function ApplicationsContent() {
   }, []);
 
   // URLパラメータからタブを復元
-  const searchParams = useSearchParams();
   useEffect(() => {
     const tab = searchParams.get('tab');
     if (tab === 'workers') {
@@ -633,14 +663,22 @@ function ApplicationsContent() {
             {viewMode === 'jobs' && (
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setStatusFilter('all')}
+                  onClick={() => {
+                    setStatusFilter('all');
+                    setPage(1);
+                    updateUrlParams('all', 1);
+                  }}
                   className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${statusFilter === 'all' ? 'bg-admin-primary text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                 >
                   すべて
                 </button>
                 <button
-                  onClick={() => setStatusFilter('published')}
+                  onClick={() => {
+                    setStatusFilter('published');
+                    setPage(1);
+                    updateUrlParams('published', 1);
+                  }}
                   className={`px-3 py-1.5 text-xs font-medium rounded transition-colors flex items-center gap-1.5 ${statusFilter === 'published' ? 'bg-gray-200 text-gray-900' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                 >
@@ -648,7 +686,11 @@ function ApplicationsContent() {
                   公開中
                 </button>
                 <button
-                  onClick={() => setStatusFilter('stopped')}
+                  onClick={() => {
+                    setStatusFilter('stopped');
+                    setPage(1);
+                    updateUrlParams('stopped', 1);
+                  }}
                   className={`px-3 py-1.5 text-xs font-medium rounded transition-colors flex items-center gap-1.5 ${statusFilter === 'stopped' ? 'bg-gray-200 text-gray-900' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                 >
@@ -656,7 +698,11 @@ function ApplicationsContent() {
                   停止中
                 </button>
                 <button
-                  onClick={() => setStatusFilter('completed')}
+                  onClick={() => {
+                    setStatusFilter('completed');
+                    setPage(1);
+                    updateUrlParams('completed', 1);
+                  }}
                   className={`px-3 py-1.5 text-xs font-medium rounded transition-colors flex items-center gap-1.5 ${statusFilter === 'completed' ? 'bg-gray-200 text-gray-900' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                 >
@@ -689,7 +735,13 @@ function ApplicationsContent() {
         {/* シフトビュー */}
         {viewMode === 'shift' && (
           <div className="h-[calc(100vh-220px)]">
-            <MonthlyShiftView jobs={jobs as any} qualificationAbbreviations={qualificationAbbreviations} />
+            <MonthlyShiftView
+              jobs={jobs as any}
+              qualificationAbbreviations={qualificationAbbreviations}
+              onStatusUpdate={handleStatusUpdate}
+              onMatchAll={handleMatchAll}
+              isUpdating={isUpdating}
+            />
           </div>
         )}
 
@@ -816,7 +868,10 @@ function ApplicationsContent() {
                 <Pagination
                   currentPage={jobsPagination.currentPage}
                   totalPages={jobsPagination.totalPages}
-                  onPageChange={setPage}
+                  onPageChange={(newPage) => {
+                    setPage(newPage);
+                    updateUrlParams(undefined, newPage);
+                  }}
                 />
               </div>
             )}
@@ -1002,7 +1057,10 @@ function ApplicationsContent() {
                 <Pagination
                   currentPage={workersPagination.currentPage}
                   totalPages={workersPagination.totalPages}
-                  onPageChange={setPage}
+                  onPageChange={(newPage) => {
+                    setPage(newPage);
+                    updateUrlParams(undefined, newPage);
+                  }}
                 />
               </div>
             )}

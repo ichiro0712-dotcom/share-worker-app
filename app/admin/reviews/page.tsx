@@ -152,8 +152,53 @@ export default function AdminReviewsPage() {
 
   if (isLoading || isAdminLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-admin-primary"></div>
+      <div className="p-6">
+        {/* ヘッダー Skeleton */}
+        <div className="mb-6">
+          <div className="h-8 bg-gray-200 rounded w-40 mb-2 animate-pulse" />
+          <div className="h-4 bg-gray-200 rounded w-64 animate-pulse" />
+        </div>
+
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          {/* 評価サマリー Skeleton */}
+          <div className="mb-6 pb-6 border-b border-gray-200">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-gray-200 rounded animate-pulse" />
+                <div className="h-10 bg-gray-200 rounded w-16 animate-pulse" />
+              </div>
+              <div>
+                <div className="h-4 bg-gray-200 rounded w-24 mb-1 animate-pulse" />
+                <div className="h-3 bg-gray-200 rounded w-20 animate-pulse" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <div className="h-4 bg-gray-200 rounded w-4 animate-pulse" />
+                  <div className="h-2 bg-gray-100 rounded-full flex-1" />
+                  <div className="h-4 bg-gray-200 rounded w-8 animate-pulse" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* レビューリスト Skeleton */}
+          <div className="space-y-4">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="border-b border-gray-100 pb-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 bg-gray-200 rounded-full animate-pulse" />
+                  <div className="flex-1">
+                    <div className="h-4 bg-gray-200 rounded w-32 mb-2 animate-pulse" />
+                    <div className="h-3 bg-gray-200 rounded w-48 mb-2 animate-pulse" />
+                    <div className="h-16 bg-gray-100 rounded animate-pulse" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }

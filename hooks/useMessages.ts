@@ -27,6 +27,14 @@ export interface Message {
     isRead: boolean;
     jobTitle: string;
     jobDate: string | null;
+    // 送信状態（LINEライクUI用）
+    sendStatus?: 'sending' | 'sent' | 'failed';
+    // 失敗時の再送用データ
+    _retryData?: {
+        facilityId: number;
+        content: string;
+        attachments: string[];
+    };
 }
 
 export interface Announcement {

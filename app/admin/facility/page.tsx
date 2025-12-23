@@ -1091,12 +1091,58 @@ export default function FacilityPage() {
     return (
       <div className="h-full flex flex-col">
         <div className="bg-white border-b border-gray-200 px-6 py-4">
-          <h1 className="text-2xl font-bold text-gray-900">施設管理</h1>
+          <div className="h-8 bg-gray-200 rounded w-32 animate-pulse" />
         </div>
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
-            <p className="mt-2 text-gray-600">読み込み中...</p>
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="max-w-4xl mx-auto space-y-5">
+            {/* 法人情報 Skeleton */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+              <div className="bg-gray-50 px-5 py-3 border-b border-gray-200">
+                <div className="h-5 bg-gray-200 rounded w-24 animate-pulse" />
+              </div>
+              <div className="p-5 space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i}>
+                      <div className="h-4 bg-gray-200 rounded w-20 mb-2 animate-pulse" />
+                      <div className="h-10 bg-gray-100 rounded animate-pulse" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* 施設情報 Skeleton */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+              <div className="bg-gray-50 px-5 py-3 border-b border-gray-200">
+                <div className="h-5 bg-gray-200 rounded w-24 animate-pulse" />
+              </div>
+              <div className="p-5 space-y-4">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i}>
+                    <div className="h-4 bg-gray-200 rounded w-24 mb-2 animate-pulse" />
+                    <div className="h-10 bg-gray-100 rounded animate-pulse" />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 連絡先 Skeleton */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+              <div className="bg-gray-50 px-5 py-3 border-b border-gray-200">
+                <div className="h-5 bg-gray-200 rounded w-20 animate-pulse" />
+              </div>
+              <div className="p-5 space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  {[...Array(2)].map((_, i) => (
+                    <div key={i}>
+                      <div className="h-4 bg-gray-200 rounded w-20 mb-2 animate-pulse" />
+                      <div className="h-10 bg-gray-100 rounded animate-pulse" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

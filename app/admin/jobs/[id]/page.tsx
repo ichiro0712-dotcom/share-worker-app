@@ -107,8 +107,59 @@ export default function AdminJobDetailPage() {
 
   if (isLoading || isAdminLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-admin-primary"></div>
+      <div className="min-h-screen bg-gray-50">
+        {/* ヘッダー Skeleton */}
+        <div className="bg-white border-b border-gray-200 px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-gray-200 rounded animate-pulse" />
+              <div className="h-6 bg-gray-200 rounded w-24 animate-pulse" />
+              <div className="h-5 bg-gray-200 rounded w-16 animate-pulse" />
+            </div>
+            <div className="h-9 bg-gray-200 rounded w-20 animate-pulse" />
+          </div>
+        </div>
+
+        {/* コンテンツ Skeleton */}
+        <div className="p-6">
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* 基本情報 */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="h-6 bg-gray-200 rounded w-24 mb-4 animate-pulse" />
+              <div className="h-7 bg-gray-200 rounded w-64 mb-2 animate-pulse" />
+              <div className="h-4 bg-gray-200 rounded w-32 mb-4 animate-pulse" />
+              <div className="grid grid-cols-3 gap-2 mb-4">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="aspect-video bg-gray-200 rounded animate-pulse" />
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="h-5 bg-gray-200 rounded w-48 animate-pulse" />
+                ))}
+              </div>
+            </div>
+
+            {/* 勤務日一覧 */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="h-6 bg-gray-200 rounded w-40 mb-4 animate-pulse" />
+              <div className="space-y-2">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="h-5 bg-gray-200 rounded w-32 animate-pulse" />
+                    <div className="h-5 bg-gray-200 rounded w-24 animate-pulse" />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 仕事内容 */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="h-6 bg-gray-200 rounded w-24 mb-4 animate-pulse" />
+              <div className="h-24 bg-gray-100 rounded-lg animate-pulse" />
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
