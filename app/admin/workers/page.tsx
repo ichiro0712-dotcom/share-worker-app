@@ -97,6 +97,7 @@ export default function AdminWorkersPage() {
     isLoading: isWorkersLoading,
     mutate
   } = useAdminWorkers({
+    facilityId: admin?.facilityId,
     page,
     limit: 10,
     status: statusFilter,

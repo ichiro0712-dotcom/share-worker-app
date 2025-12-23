@@ -56,7 +56,7 @@ export default function AdminMessagesPage() {
     conversations,
     isLoading: isConversationsLoading,
     mutate: mutateConversations
-  } = useAdminConversations();
+  } = useAdminConversations(admin?.facilityId);
 
   const [selectedWorkerId, setSelectedWorkerId] = useState<number | null>(
     initialWorkerId ? parseInt(initialWorkerId) : null
@@ -66,7 +66,7 @@ export default function AdminMessagesPage() {
     chatData: swrChatData,
     isLoading: isChatLoading,
     mutate: mutateMessages
-  } = useAdminMessagesByWorker(selectedWorkerId);
+  } = useAdminMessagesByWorker(admin?.facilityId, selectedWorkerId);
 
   // ローカルでのメッセージ追加用
   const [localMessages, setLocalMessages] = useState<AdminMessage[]>([]);
@@ -81,7 +81,7 @@ export default function AdminMessagesPage() {
     announcements,
     isLoading: announcementsLoading,
     mutate: mutateAnnouncements
-  } = useAdminAnnouncements();
+  } = useAdminAnnouncements(admin?.facilityId);
 
   const [messageText, setMessageText] = useState('');
   const [filterType, setFilterType] = useState<FilterType>('all');

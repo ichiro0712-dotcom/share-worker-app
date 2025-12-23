@@ -103,12 +103,14 @@ interface WorkersApplicationsResponse {
 }
 
 interface ApplicationsByJobParams {
+  facilityId?: number;
   page?: number;
   status?: 'all' | 'published' | 'stopped' | 'completed';
   query?: string;
 }
 
 interface ApplicationsByWorkerParams {
+  facilityId?: number;
   page?: number;
   query?: string;
 }
@@ -123,8 +125,10 @@ const fetcher = async <T>(url: string): Promise<T> => {
 };
 
 // URL生成関数
-const buildJobsUrl = (params: ApplicationsByJobParams): string => {
+const buildJobsUrl = (params: ApplicationsByJobParams): string | null => {
+  if (!params.facilityId) return null;
   const searchParams = new URLSearchParams();
+  searchParams.set('facilityId', String(params.facilityId));
   if (params.page) searchParams.set('page', String(params.page));
   if (params.status && params.status !== 'all') {
     searchParams.set('status', params.status.toUpperCase());
@@ -133,8 +137,10 @@ const buildJobsUrl = (params: ApplicationsByJobParams): string => {
   return `/api/admin/applications?${searchParams.toString()}`;
 };
 
-const buildWorkersUrl = (params: ApplicationsByWorkerParams): string => {
+const buildWorkersUrl = (params: ApplicationsByWorkerParams): string | null => {
+  if (!params.facilityId) return null;
   const searchParams = new URLSearchParams();
+  searchParams.set('facilityId', String(params.facilityId));
   if (params.page) searchParams.set('page', String(params.page));
   if (params.query) searchParams.set('query', params.query);
   return `/api/admin/applications/by-worker?${searchParams.toString()}`;
@@ -142,7 +148,7 @@ const buildWorkersUrl = (params: ApplicationsByWorkerParams): string => {
 
 // 求人別応募一覧フック
 export function useApplicationsByJob(params: ApplicationsByJobParams) {
-  const url = useMemo(() => buildJobsUrl(params), [params.page, params.status, params.query]);
+  const url = useMemo(() => buildJobsUrl(params), [params.facilityId, params.page, params.status, params.query]);
 
   const { data, error, isLoading, isValidating, mutate } = useSWR<JobsApplicationsResponse>(
     url,
@@ -167,7 +173,7 @@ export function useApplicationsByJob(params: ApplicationsByJobParams) {
 
 // ワーカー別応募一覧フック
 export function useApplicationsByWorker(params: ApplicationsByWorkerParams) {
-  const url = useMemo(() => buildWorkersUrl(params), [params.page, params.query]);
+  const url = useMemo(() => buildWorkersUrl(params), [params.facilityId, params.page, params.query]);
 
   const { data, error, isLoading, isValidating, mutate } = useSWR<WorkersApplicationsResponse>(
     url,

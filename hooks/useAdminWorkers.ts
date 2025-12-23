@@ -32,6 +32,7 @@ export interface WorkerListItem {
 }
 
 interface AdminWorkersParams {
+    facilityId?: number;
     page?: number;
     limit?: number;
     status?: string;
@@ -56,8 +57,10 @@ const fetcher = async (url: string): Promise<AdminWorkersResponse> => {
     return res.json();
 };
 
-const buildUrl = (params: AdminWorkersParams): string => {
+const buildUrl = (params: AdminWorkersParams): string | null => {
+    if (!params.facilityId) return null;
     const searchParams = new URLSearchParams();
+    searchParams.set('facilityId', String(params.facilityId));
     if (params.page) searchParams.set('page', String(params.page));
     if (params.limit) searchParams.set('limit', String(params.limit));
     if (params.status && params.status !== 'all') searchParams.set('status', params.status);
@@ -69,6 +72,7 @@ const buildUrl = (params: AdminWorkersParams): string => {
 
 export function useAdminWorkers(params: AdminWorkersParams) {
     const url = useMemo(() => buildUrl(params), [
+        params.facilityId,
         params.page,
         params.limit,
         params.status,

@@ -54,9 +54,11 @@ const fetcher = async (url: string) => {
     return res.json();
 };
 
-export function useAdminConversations() {
+export function useAdminConversations(facilityId?: number) {
+    const url = facilityId ? `/api/admin/messages/conversations?facilityId=${facilityId}` : null;
+
     const { data, error, isLoading, mutate } = useSWR<AdminConversation[]>(
-        '/api/admin/messages/conversations',
+        url,
         fetcher,
         {
             revalidateOnFocus: true,
@@ -72,9 +74,13 @@ export function useAdminConversations() {
     };
 }
 
-export function useAdminMessagesByWorker(workerId: number | null) {
+export function useAdminMessagesByWorker(facilityId: number | undefined, workerId: number | null) {
+    const url = facilityId && workerId !== null
+        ? `/api/admin/messages/detail?facilityId=${facilityId}&workerId=${workerId}&markAsRead=true`
+        : null;
+
     const { data, error, isLoading, mutate } = useSWR<AdminMessagesResponse>(
-        workerId !== null ? `/api/admin/messages/detail?workerId=${workerId}&markAsRead=true` : null,
+        url,
         fetcher,
         {
             revalidateOnFocus: true,
@@ -90,9 +96,11 @@ export function useAdminMessagesByWorker(workerId: number | null) {
     };
 }
 
-export function useAdminAnnouncements() {
+export function useAdminAnnouncements(facilityId?: number) {
+    const url = facilityId ? `/api/admin/messages/announcements?facilityId=${facilityId}` : null;
+
     const { data, error, isLoading, mutate } = useSWR<AdminAnnouncement[]>(
-        '/api/admin/messages/announcements',
+        url,
         fetcher,
         {
             revalidateOnFocus: true,

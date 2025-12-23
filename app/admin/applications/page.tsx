@@ -242,6 +242,7 @@ function ApplicationsContent() {
     isLoading: isJobsLoading,
     mutate: mutateJobs,
   } = useApplicationsByJob({
+    facilityId: admin?.facilityId,
     page: viewMode === 'jobs' ? page : 1,
     status: statusFilter,
     query: debouncedQuery,
@@ -253,6 +254,7 @@ function ApplicationsContent() {
     isLoading: isWorkersLoading,
     mutate: mutateWorkers,
   } = useApplicationsByWorker({
+    facilityId: admin?.facilityId,
     page: viewMode === 'workers' ? page : 1,
     query: debouncedQuery,
   });

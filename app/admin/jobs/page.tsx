@@ -130,6 +130,7 @@ export default function AdminJobsList() {
     isLoading: isJobsLoading,
     mutate: mutateJobs,
   } = useAdminJobs({
+    facilityId: admin?.facilityId,
     page: currentPage,
     status: statusFilter,
     query: searchQuery,

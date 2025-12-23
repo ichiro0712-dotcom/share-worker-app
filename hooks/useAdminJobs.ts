@@ -60,6 +60,7 @@ interface JobData {
 }
 
 interface AdminJobsParams {
+    facilityId?: number;
     page?: number;
     status?: string;
     query?: string;
@@ -81,8 +82,10 @@ const fetcher = async (url: string): Promise<AdminJobsResponse> => {
     return res.json();
 };
 
-const buildUrl = (params: AdminJobsParams): string => {
+const buildUrl = (params: AdminJobsParams): string | null => {
+    if (!params.facilityId) return null; // facilityIdがない場合はフェッチしない
     const searchParams = new URLSearchParams();
+    searchParams.set('facilityId', String(params.facilityId));
     if (params.page) searchParams.set('page', String(params.page));
     if (params.status && params.status !== 'all') searchParams.set('status', params.status);
     if (params.query) searchParams.set('query', params.query);
@@ -90,7 +93,7 @@ const buildUrl = (params: AdminJobsParams): string => {
 };
 
 export function useAdminJobs(params: AdminJobsParams) {
-    const url = useMemo(() => buildUrl(params), [params.page, params.status, params.query]);
+    const url = useMemo(() => buildUrl(params), [params.facilityId, params.page, params.status, params.query]);
 
     const { data, error, isLoading, mutate } = useSWR<AdminJobsResponse>(
         url,

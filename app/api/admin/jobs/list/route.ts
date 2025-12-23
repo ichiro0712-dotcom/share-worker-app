@@ -1,27 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { getFacilityJobs } from '@/src/lib/actions';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
     try {
-        // 認証チェック
-        const cookieStore = cookies();
-        const adminSession = cookieStore.get('admin_session');
-        if (!adminSession) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const sessionData = JSON.parse(adminSession.value);
-        const facilityId = sessionData.facilityId;
-
-        if (!facilityId) {
-            return NextResponse.json({ error: 'Facility not found' }, { status: 400 });
-        }
-
         // クエリパラメータ解析
         const { searchParams } = new URL(request.url);
+        const facilityIdParam = searchParams.get('facilityId');
+
+        if (!facilityIdParam) {
+            return NextResponse.json({ error: 'Facility ID is required' }, { status: 400 });
+        }
+
+        const facilityId = parseInt(facilityIdParam);
+        if (isNaN(facilityId)) {
+            return NextResponse.json({ error: 'Invalid facility ID' }, { status: 400 });
+        }
+
         const page = parseInt(searchParams.get('page') || '1');
         const limit = parseInt(searchParams.get('limit') || '20');
         const status = searchParams.get('status') || undefined;
