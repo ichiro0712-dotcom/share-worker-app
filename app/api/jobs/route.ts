@@ -40,6 +40,9 @@ export async function GET(request: NextRequest) {
     const distanceLat = searchParams.get('distanceLat') ? parseFloat(searchParams.get('distanceLat')!) : undefined;
     const distanceLng = searchParams.get('distanceLng') ? parseFloat(searchParams.get('distanceLng')!) : undefined;
 
+    // 求人リストタイプ（限定求人・オファー対応）
+    const listType = (searchParams.get('listType') as 'all' | 'limited' | 'offer') || 'all';
+
     // 日付フィルター用のDateオブジェクト生成（デバッグ時刻対応）
     const dates = generateDatesFromBase(currentTime, 90);
     const targetDate = dates[dateIndex];
@@ -59,6 +62,7 @@ export async function GET(request: NextRequest) {
       distanceKm,
       distanceLat,
       distanceLng,
+      listType,
     };
 
     const { jobs: jobsData, pagination } = await getJobsListWithPagination(

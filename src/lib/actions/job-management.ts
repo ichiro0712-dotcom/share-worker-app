@@ -82,6 +82,7 @@ export async function getFacilityJobs(
             id: job.id,
             title: job.title,
             status: job.status,
+            jobType: job.job_type,
             startTime: job.start_time,
             endTime: job.end_time,
             hourlyWage: job.hourly_wage,
@@ -175,6 +176,7 @@ export async function getAdminJobsList(facilityId: number) {
             id: job.id,
             title: job.title,
             status: job.status,
+            jobType: job.job_type,
             startTime: job.start_time,
             endTime: job.end_time,
             hourlyWage: job.hourly_wage,
@@ -285,11 +287,27 @@ export async function createJobs(input: CreateJobInput) {
         meal_support: input.icons.includes('食事補助'),
     };
 
+    // 求人種別のマッピング（UIの値→DB enum）
+    const jobTypeMap: Record<string, 'NORMAL' | 'ORIENTATION' | 'LIMITED_WORKED' | 'LIMITED_FAVORITE' | 'OFFER'> = {
+        'NORMAL': 'NORMAL',
+        'ORIENTATION': 'ORIENTATION',
+        'LIMITED_WORKED': 'LIMITED_WORKED',
+        'LIMITED_FAVORITE': 'LIMITED_FAVORITE',
+        'OFFER': 'OFFER',
+    };
+    const dbJobType = jobTypeMap[input.jobType || 'NORMAL'] || 'NORMAL';
+
+    // 限定求人の場合は審査なしに固定
+    const requiresInterview = (dbJobType === 'LIMITED_WORKED' || dbJobType === 'LIMITED_FAVORITE' || dbJobType === 'OFFER')
+        ? false
+        : (input.requiresInterview || false);
+
     const job = await prisma.job.create({
         data: {
-            facility: { connect: { id: input.facilityId } },
-            ...(input.templateId ? { template: { connect: { id: input.templateId } } } : {}),
+            facility_id: input.facilityId,
+            template_id: input.templateId ?? null,
             status: 'PUBLISHED',
+            job_type: dbJobType,
             title: input.title,
             start_time: input.startTime,
             end_time: input.endTime,
@@ -298,6 +316,8 @@ export async function createJobs(input: CreateJobInput) {
             hourly_wage: input.hourlyWage,
             transportation_fee: input.transportationFee,
             deadline_days_before: input.recruitmentEndDay || 1,
+            recruitment_start_day: input.recruitmentStartDay,
+            recruitment_start_time: input.recruitmentStartTime || null,
             tags: input.icons,
             address: (input.prefecture && input.city && input.addressLine)
                 ? `${input.prefecture}${input.city}${input.addressLine}`
@@ -324,7 +344,12 @@ export async function createJobs(input: CreateJobInput) {
             attachments: input.attachments || [],
             ...conditionFlags,
             weekly_frequency: input.weeklyFrequency || null,
-            requires_interview: input.requiresInterview || false,
+            requires_interview: requiresInterview,
+            // 限定求人用
+            switch_to_normal_days_before: input.switchToNormalDaysBefore ?? null,
+            // オファー用
+            target_worker_id: input.targetWorkerId ?? null,
+            offer_message: input.offerMessage ?? null,
         },
     });
 
@@ -348,12 +373,34 @@ export async function createJobs(input: CreateJobInput) {
         const [startHour, startMin] = input.startTime.split(':').map(Number);
         visibleUntil.setHours(startHour - 2, startMin, 0, 0);
 
+        // 募集開始日時を計算
+        let visibleFrom: Date | null = null;
+        if (input.recruitmentStartDay === 0) {
+            // 「公開時」= 即公開（visible_from = null または 現在時刻）
+            visibleFrom = null;
+        } else if (input.recruitmentStartDay === -1) {
+            // 「勤務当日」= 勤務日の0時
+            visibleFrom = new Date(workDate);
+            visibleFrom.setHours(0, 0, 0, 0);
+        } else {
+            // 「勤務N日前」= 勤務日 - N日 + 指定時刻
+            visibleFrom = new Date(workDate);
+            visibleFrom.setDate(visibleFrom.getDate() + input.recruitmentStartDay); // recruitmentStartDayは負の値
+            if (input.recruitmentStartTime) {
+                const [h, m] = input.recruitmentStartTime.split(':').map(Number);
+                visibleFrom.setHours(h, m, 0, 0);
+            } else {
+                visibleFrom.setHours(0, 0, 0, 0);
+            }
+        }
+
         return {
             job_id: job.id,
             work_date: workDate,
             deadline: deadline,
             recruitment_count: input.recruitmentCount,
             applied_count: 0,
+            visible_from: visibleFrom,
             visible_until: visibleUntil,
         };
     });
@@ -362,8 +409,66 @@ export async function createJobs(input: CreateJobInput) {
         data: workDates,
     });
 
-    sendNearbyJobNotifications(job.id, 'WORKER_NEARBY_NEW_JOB')
-        .catch(e => console.error('[createJobs] Nearby notification error:', e));
+    // オファータイプの場合は対象ワーカーへメッセージを送信
+    if (dbJobType === 'OFFER' && input.targetWorkerId) {
+        try {
+            // メッセージスレッドを取得または作成
+            let thread = await prisma.messageThread.findUnique({
+                where: {
+                    worker_id_facility_id: {
+                        worker_id: input.targetWorkerId,
+                        facility_id: input.facilityId,
+                    },
+                },
+            });
+
+            if (!thread) {
+                thread = await prisma.messageThread.create({
+                    data: {
+                        worker_id: input.targetWorkerId,
+                        facility_id: input.facilityId,
+                        last_message_at: new Date(),
+                    },
+                });
+            }
+
+            // 勤務日情報を取得してメッセージを作成
+            const workDateStr = input.workDates.map(d => {
+                const date = new Date(d);
+                return `${date.getMonth() + 1}/${date.getDate()}`;
+            }).join(', ');
+
+            // オファーメッセージを作成
+            const offerMessageContent = input.offerMessage
+                ? `【オファーのお知らせ】\n\n${input.offerMessage}\n\n【求人情報】\n・タイトル: ${input.title}\n・勤務日: ${workDateStr}\n・勤務時間: ${input.startTime}〜${input.endTime}\n・日給: ${wage.toLocaleString()}円\n\n※この求人はあなただけに送られた特別なオファーです。`
+                : `【オファーのお知らせ】\n\nお仕事のオファーをお送りします。\n\n【求人情報】\n・タイトル: ${input.title}\n・勤務日: ${workDateStr}\n・勤務時間: ${input.startTime}〜${input.endTime}\n・日給: ${wage.toLocaleString()}円\n\n※この求人はあなただけに送られた特別なオファーです。`;
+
+            await prisma.message.create({
+                data: {
+                    thread_id: thread.id,
+                    from_facility_id: input.facilityId,
+                    to_user_id: input.targetWorkerId,
+                    job_id: job.id,
+                    content: offerMessageContent,
+                },
+            });
+
+            // スレッドの最終メッセージ日時を更新
+            await prisma.messageThread.update({
+                where: { id: thread.id },
+                data: { last_message_at: new Date() },
+            });
+
+            console.log('[createJobs] Offer message sent to worker:', input.targetWorkerId);
+        } catch (e) {
+            console.error('[createJobs] Failed to send offer message:', e);
+            // オファーメッセージの送信失敗は求人作成自体を失敗させない
+        }
+    } else {
+        // 通常の求人の場合は近くのワーカーに通知
+        sendNearbyJobNotifications(job.id, 'WORKER_NEARBY_NEW_JOB')
+            .catch(e => console.error('[createJobs] Nearby notification error:', e));
+    }
 
     return { success: true, jobId: job.id };
 }
@@ -485,6 +590,10 @@ export async function updateJob(
         addressLine?: string;
         address?: string;
         weeklyFrequency?: number | null;
+        recruitmentStartDay?: number;
+        recruitmentStartTime?: string;
+        recruitmentEndDay?: number;
+        recruitmentEndTime?: string;
     }
 ): Promise<{ success: boolean; error?: string }> {
     try {
@@ -549,6 +658,8 @@ export async function updateJob(
                 ...(data.addressLine !== undefined && { address_line: data.addressLine }),
                 ...(data.address !== undefined && { address: data.address }),
                 ...(data.weeklyFrequency !== undefined && { weekly_frequency: data.weeklyFrequency }),
+                ...(data.recruitmentStartDay !== undefined && { recruitment_start_day: data.recruitmentStartDay }),
+                ...(data.recruitmentStartTime !== undefined && { recruitment_start_time: data.recruitmentStartTime || null }),
                 ...((data.prefecture && data.city && data.addressLine) && {
                     address: `${data.prefecture}${data.city}${data.addressLine}`
                 }),
@@ -572,6 +683,28 @@ export async function updateJob(
                 const [startHour, startMin] = data.startTime.split(':').map(Number);
                 visibleUntil.setHours(startHour - 2, startMin, 0, 0);
 
+                // 募集開始日時を計算
+                let visibleFrom: Date | null = null;
+                const recruitmentStartDay = data.recruitmentStartDay ?? 0;
+                if (recruitmentStartDay === 0) {
+                    // 「公開時」= 即公開
+                    visibleFrom = null;
+                } else if (recruitmentStartDay === -1) {
+                    // 「勤務当日」= 勤務日の0時
+                    visibleFrom = new Date(workDate);
+                    visibleFrom.setHours(0, 0, 0, 0);
+                } else {
+                    // 「勤務N日前」= 勤務日 - N日 + 指定時刻
+                    visibleFrom = new Date(workDate);
+                    visibleFrom.setDate(visibleFrom.getDate() + recruitmentStartDay);
+                    if (data.recruitmentStartTime) {
+                        const [h, m] = data.recruitmentStartTime.split(':').map(Number);
+                        visibleFrom.setHours(h, m, 0, 0);
+                    } else {
+                        visibleFrom.setHours(0, 0, 0, 0);
+                    }
+                }
+
                 return {
                     job_id: jobId,
                     work_date: workDate,
@@ -579,6 +712,7 @@ export async function updateJob(
                     recruitment_count: data.recruitmentCount,
                     applied_count: 0,
                     visible_until: visibleUntil,
+                    visible_from: visibleFrom,
                 };
             });
 
@@ -588,18 +722,56 @@ export async function updateJob(
             });
         }
 
-        if (existingJob.start_time !== data.startTime) {
+        // 開始時刻または募集開始日時が変更された場合、既存の勤務日を更新
+        const shouldUpdateVisibility =
+            existingJob.start_time !== data.startTime ||
+            data.recruitmentStartDay !== undefined;
+
+        if (shouldUpdateVisibility) {
             const workDatesToUpdate = existingJob.workDates;
 
             await Promise.all(workDatesToUpdate.map(async (wd) => {
-                const visibleUntil = new Date(wd.work_date);
-                const [startHour, startMin] = data.startTime.split(':').map(Number);
-                visibleUntil.setHours(startHour - 2, startMin, 0, 0);
+                const updateData: { visible_until?: Date; visible_from?: Date | null } = {};
 
-                return prisma.jobWorkDate.update({
-                    where: { id: wd.id },
-                    data: { visible_until: visibleUntil }
-                });
+                // 開始時刻変更時はvisible_untilを再計算
+                if (existingJob.start_time !== data.startTime) {
+                    const visibleUntil = new Date(wd.work_date);
+                    const [startHour, startMin] = data.startTime.split(':').map(Number);
+                    visibleUntil.setHours(startHour - 2, startMin, 0, 0);
+                    updateData.visible_until = visibleUntil;
+                }
+
+                // 募集開始日時が指定されている場合はvisible_fromを再計算
+                if (data.recruitmentStartDay !== undefined) {
+                    const recruitmentStartDay = data.recruitmentStartDay;
+                    if (recruitmentStartDay === 0) {
+                        // 「公開時」= 即公開
+                        updateData.visible_from = null;
+                    } else if (recruitmentStartDay === -1) {
+                        // 「勤務当日」= 勤務日の0時
+                        const visibleFrom = new Date(wd.work_date);
+                        visibleFrom.setHours(0, 0, 0, 0);
+                        updateData.visible_from = visibleFrom;
+                    } else {
+                        // 「勤務N日前」= 勤務日 - N日 + 指定時刻
+                        const visibleFrom = new Date(wd.work_date);
+                        visibleFrom.setDate(visibleFrom.getDate() + recruitmentStartDay);
+                        if (data.recruitmentStartTime) {
+                            const [h, m] = data.recruitmentStartTime.split(':').map(Number);
+                            visibleFrom.setHours(h, m, 0, 0);
+                        } else {
+                            visibleFrom.setHours(0, 0, 0, 0);
+                        }
+                        updateData.visible_from = visibleFrom;
+                    }
+                }
+
+                if (Object.keys(updateData).length > 0) {
+                    return prisma.jobWorkDate.update({
+                        where: { id: wd.id },
+                        data: updateData
+                    });
+                }
             }));
         }
 

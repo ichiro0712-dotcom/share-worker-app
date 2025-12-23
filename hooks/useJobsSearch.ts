@@ -22,6 +22,8 @@ interface JobSearchParams {
   distanceKm?: string;
   distanceLat?: string;
   distanceLng?: string;
+  // 求人リストタイプ（限定求人・オファー対応）
+  listType?: 'all' | 'limited' | 'offer';
 }
 
 interface JobsResponse {
@@ -60,6 +62,7 @@ const buildJobsUrl = (params: JobSearchParams): string => {
   if (params.distanceKm) searchParams.set('distanceKm', params.distanceKm);
   if (params.distanceLat) searchParams.set('distanceLat', params.distanceLat);
   if (params.distanceLng) searchParams.set('distanceLng', params.distanceLng);
+  if (params.listType) searchParams.set('listType', params.listType);
 
   // 配列パラメータ
   params.serviceTypes?.forEach(v => searchParams.append('serviceType', v));

@@ -13,10 +13,13 @@ interface WorkDateData {
     deadline: string;
 }
 
+type JobType = 'NORMAL' | 'LIMITED_WORKED' | 'LIMITED_FAVORITE' | 'ORIENTATION' | 'OFFER';
+
 interface JobData {
     id: number;
     title: string;
     status: string;
+    jobType: JobType;
     startTime: string;
     endTime: string;
     hourlyWage: number;

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, Star, MapPin, Heart, Ban, X, FileText, Download, ExternalLink, Phone, User, Users, MapPin as MapPinIcon } from 'lucide-react';
+import { ChevronLeft, Star, MapPin, Heart, Ban, X, FileText, Download, ExternalLink, Phone, User, Users, MapPin as MapPinIcon, Send } from 'lucide-react';
 import { getWorkerDetail, toggleWorkerFavorite, toggleWorkerBlock } from '@/src/lib/actions';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -108,6 +108,8 @@ interface WorkerDetailData {
   } | null;
   // 資格証明書画像
   qualificationCertificates: Record<string, string | { certificate_image?: string }> | null;
+  // オファー対象（レビュー完了済み）
+  hasCompletedRated: boolean;
 }
 
 // 経験分野の略称変換
@@ -406,6 +408,16 @@ export default function WorkerDetailPage({
             募集中
           </span>
         </div>
+        {/* オファーボタン（レビュー完了済みワーカーのみ表示） */}
+        {worker.hasCompletedRated && (
+          <Link
+            href={`/admin/jobs/new?mode=offer&workerId=${worker.id}`}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium"
+          >
+            <Send className="w-4 h-4" />
+            オファーを送る
+          </Link>
+        )}
       </header>
 
       {/* Main Content (Bento Grid) */}

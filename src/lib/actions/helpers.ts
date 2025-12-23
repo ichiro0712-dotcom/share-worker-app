@@ -158,6 +158,14 @@ export function calculateDistanceKm(
 }
 
 /**
+ * 求人リストタイプ
+ * - all: 通常求人・説明会（限定求人・オファーは表示されない）
+ * - limited: 自分が対象の限定求人のみ
+ * - offer: 自分宛のオファーのみ
+ */
+export type JobListType = 'all' | 'limited' | 'offer';
+
+/**
  * 求人検索パラメータの型定義
  */
 export interface JobSearchParams {
@@ -177,11 +185,16 @@ export interface JobSearchParams {
   distanceKm?: number;
   distanceLat?: number;
   distanceLng?: number;
+  // 求人リストタイプ（限定求人・オファー対応）
+  listType?: JobListType;
 }
 
 /**
  * 管理者用: 求人を作成（複数の勤務日に対応）
  */
+// 求人種別の型（Prismaのenumと同期）
+export type JobTypeValue = 'NORMAL' | 'LIMITED_WORKED' | 'LIMITED_FAVORITE' | 'ORIENTATION' | 'OFFER';
+
 export interface CreateJobInput {
   facilityId: number;
   templateId?: number | null;
@@ -212,6 +225,12 @@ export interface CreateJobInput {
   weeklyFrequency?: number | null; // 週N回以上
   // マッチング方法
   requiresInterview?: boolean; // 面接してからマッチング
+  // 求人種別（限定求人対応）
+  jobType?: JobTypeValue; // デフォルトはNORMAL
+  switchToNormalDaysBefore?: number | null; // 限定求人→通常求人への自動切り替え日数
+  // オファー用
+  targetWorkerId?: number | null; // オファー対象ワーカーID
+  offerMessage?: string | null; // オファーメッセージ
   // 住所情報
   prefecture?: string;
   city?: string;
@@ -231,6 +250,7 @@ export interface WorkerListItem {
   // ステータス
   statuses: WorkerListStatus[];
   hasCompleted: boolean;
+  hasCompletedRated: boolean; // レビュー完了済み（オファー対象）
   hasCancelled: boolean;
   // 統計（自社）
   ourWorkCount: number;          // この施設での勤務回数

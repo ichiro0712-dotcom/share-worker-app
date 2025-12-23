@@ -9,7 +9,8 @@ import {
     getAuthenticatedUser,
     isTimeOverlapping,
     calculateDistanceKm,
-    JobSearchParams
+    JobSearchParams,
+    JobListType
 } from './helpers';
 
 /**
@@ -28,9 +29,21 @@ export const getCachedJobDetail = async (id: number) => {
                             work_date: {
                                 gte: getTodayStart(),
                             },
-                            OR: [
-                                { visible_until: { gte: getCurrentTime() } },
-                                { visible_until: null }
+                            AND: [
+                                // 募集開始日時を過ぎている（visible_fromが過去、またはnull=即公開）
+                                {
+                                    OR: [
+                                        { visible_from: { lte: getCurrentTime() } },
+                                        { visible_from: null }
+                                    ]
+                                },
+                                // 表示期限内（visible_untilが未来、またはnull）
+                                {
+                                    OR: [
+                                        { visible_until: { gte: getCurrentTime() } },
+                                        { visible_until: null }
+                                    ]
+                                }
                             ]
                         }
                     },
@@ -58,12 +71,24 @@ export async function getJobs(
     // PUBLISHED以外も表示するが、CANCELLED, DRAFT, STOPPEDは除外
     const whereConditions: any = {
         status: { in: ['PUBLISHED', 'WORKING', 'COMPLETED'] },
-        // 表示期限切れの求人を除外（visible_untilが未来、またはnull）
+        // 募集開始日時〜表示期限内の求人のみ表示
         workDates: {
             some: {
-                OR: [
-                    { visible_until: { gte: now } },
-                    { visible_until: null } // 既存データ対応
+                AND: [
+                    // 募集開始日時を過ぎている（visible_fromが過去、またはnull=即公開）
+                    {
+                        OR: [
+                            { visible_from: { lte: now } },
+                            { visible_from: null }
+                        ]
+                    },
+                    // 表示期限内（visible_untilが未来、またはnull）
+                    {
+                        OR: [
+                            { visible_until: { gte: now } },
+                            { visible_until: null }
+                        ]
+                    }
                 ]
             }
         }
@@ -245,10 +270,10 @@ export async function getJobs(
                         { required_qualifications: { hasSome: ['正看護師', '准看護師'] } },
                     ],
                 });
-            } else if (jobType === '説明会を除く') {
-                // タイトルに「説明会」を含まない
+            } else if (jobType === '説明会を除く' || jobType === 'excludeOrientation') {
+                // job_typeがORIENTATIONでない求人のみ
                 whereConditions.AND.push({
-                    NOT: { title: { contains: '説明会', mode: 'insensitive' } },
+                    NOT: { job_type: 'ORIENTATION' },
                 });
             }
         }
@@ -307,9 +332,19 @@ export async function getJobs(
             workDates: {
                 orderBy: { work_date: 'asc' },
                 where: {
-                    OR: [
-                        { visible_until: { gte: now } },
-                        { visible_until: null }
+                    AND: [
+                        {
+                            OR: [
+                                { visible_from: { lte: now } },
+                                { visible_from: null }
+                            ]
+                        },
+                        {
+                            OR: [
+                                { visible_until: { gte: now } },
+                                { visible_until: null }
+                            ]
+                        }
                     ]
                 }
             },
@@ -478,15 +513,82 @@ export async function getJobsListWithPagination(
     const todayStart = new Date(now);
     todayStart.setHours(0, 0, 0, 0);
 
+    // listTypeに基づいて求人種別フィルタを決定
+    const listType: JobListType = searchParams?.listType || 'all';
+
+    // 限定求人・オファーの場合はユーザー情報が必要
+    let workedFacilityIds: number[] = [];
+    let favoritedByFacilityIds: number[] = [];
+    let currentUserId: number | null = null;
+
+    if (listType === 'limited' || listType === 'offer') {
+        try {
+            const session = await getServerSession(authOptions);
+            if (session?.user?.id) {
+                currentUserId = parseInt(session.user.id, 10);
+
+                if (listType === 'limited') {
+                    // 限定求人（勤務済み）の対象施設: 過去にcompleted_ratedになったワーカー
+                    const workedApplications = await prisma.application.findMany({
+                        where: {
+                            user_id: currentUserId,
+                            status: 'COMPLETED_RATED',
+                        },
+                        select: {
+                            workDate: {
+                                select: {
+                                    job: {
+                                        select: {
+                                            facility_id: true,
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    });
+                    workedFacilityIds = Array.from(new Set(
+                        workedApplications
+                            .map(app => app.workDate?.job?.facility_id)
+                            .filter((id): id is number => id !== null && id !== undefined)
+                    ));
+
+                    // 限定求人（お気に入り）の対象施設: 施設がこのワーカーをお気に入り登録している
+                    const favoriteBookmarks = await prisma.bookmark.findMany({
+                        where: {
+                            target_user_id: currentUserId,
+                            type: 'FAVORITE',
+                            facility_id: { not: null },
+                        },
+                        select: {
+                            facility_id: true,
+                        },
+                    });
+                    favoritedByFacilityIds = favoriteBookmarks
+                        .map(b => b.facility_id)
+                        .filter((id): id is number => id !== null);
+                }
+            }
+        } catch (error) {
+            console.log('[getJobsListWithPagination] Error getting user data for limited/offer:', error);
+        }
+    }
+
     const whereConditions: any = {
         status: { in: ['PUBLISHED', 'WORKING', 'COMPLETED'] },
-        // 表示期限切れ AND 過去の日付の求人を除外
+        // 募集開始日時〜表示期限内の求人のみ表示
         workDates: {
             some: {
                 AND: [
                     // 今日以降の勤務日のみ
                     { work_date: { gte: todayStart } },
-                    // visible_untilがまだ有効 または null
+                    // 募集開始日時を過ぎている（visible_fromが過去、またはnull=即公開）
+                    {
+                        OR: [
+                            { visible_from: { lte: now } },
+                            { visible_from: null }
+                        ]
+                    },
+                    // 表示期限内（visible_untilが未来、またはnull）
                     {
                         OR: [
                             { visible_until: { gte: now } },
@@ -497,6 +599,47 @@ export async function getJobsListWithPagination(
             }
         }
     };
+
+    // listTypeに基づいてjob_typeフィルタを追加
+    if (listType === 'all') {
+        // 「すべて」: 通常求人・説明会のみ（限定求人・オファーは表示されない）
+        whereConditions.job_type = { in: ['NORMAL', 'ORIENTATION'] };
+    } else if (listType === 'limited') {
+        // 「限定求人」: 自分が対象の限定求人のみ
+        // - LIMITED_WORKED: 勤務済み施設の求人
+        // - LIMITED_FAVORITE: お気に入り登録されている施設の求人
+        const limitedConditions: any[] = [];
+
+        if (workedFacilityIds.length > 0) {
+            limitedConditions.push({
+                job_type: 'LIMITED_WORKED',
+                facility_id: { in: workedFacilityIds },
+            });
+        }
+
+        if (favoritedByFacilityIds.length > 0) {
+            limitedConditions.push({
+                job_type: 'LIMITED_FAVORITE',
+                facility_id: { in: favoritedByFacilityIds },
+            });
+        }
+
+        if (limitedConditions.length > 0) {
+            whereConditions.OR = limitedConditions;
+        } else {
+            // 対象施設がない場合は何も表示しない
+            whereConditions.id = -1; // 絶対にマッチしない条件
+        }
+    } else if (listType === 'offer') {
+        // 「オファー」: 自分宛のオファーのみ
+        if (currentUserId) {
+            whereConditions.job_type = 'OFFER';
+            whereConditions.target_worker_id = currentUserId;
+        } else {
+            // ログインしていない場合は何も表示しない
+            whereConditions.id = -1;
+        }
+    }
 
     // facility条件を別途構築（deleted_atがnullの施設のみ対象）
     const facilityConditions: any = {
@@ -657,8 +800,9 @@ export async function getJobsListWithPagination(
                     ],
                 });
             } else if (jobType === '説明会を除く') {
+                // job_typeがORIENTATIONでない求人のみ
                 whereConditions.AND.push({
-                    NOT: { title: { contains: '説明会', mode: 'insensitive' } },
+                    NOT: { job_type: 'ORIENTATION' },
                 });
             }
         }
@@ -762,6 +906,12 @@ export async function getJobsListWithPagination(
                     },
                     {
                         OR: [
+                            { visible_from: { lte: now } },
+                            { visible_from: null }
+                        ]
+                    },
+                    {
+                        OR: [
                             { visible_until: { gte: now } },
                             { visible_until: null }
                         ]
@@ -784,6 +934,12 @@ export async function getJobsListWithPagination(
     const workDatesWhereCondition: any = {
         AND: [
             { work_date: { gte: todayStart } },
+            {
+                OR: [
+                    { visible_from: { lte: now } },
+                    { visible_from: null }
+                ]
+            },
             {
                 OR: [
                     { visible_until: { gte: now } },
@@ -1009,9 +1165,21 @@ export async function getJobById(id: string, options?: { currentTime?: Date }) {
             workDates: {
                 orderBy: { work_date: 'asc' },
                 where: {
-                    OR: [
-                        { visible_until: { gte: now } },
-                        { visible_until: null }
+                    AND: [
+                        // 募集開始日時を過ぎている（visible_fromが過去、またはnull=即公開）
+                        {
+                            OR: [
+                                { visible_from: { lte: now } },
+                                { visible_from: null }
+                            ]
+                        },
+                        // 表示期限内（visible_untilが未来、またはnull）
+                        {
+                            OR: [
+                                { visible_until: { gte: now } },
+                                { visible_until: null }
+                            ]
+                        }
                     ]
                 }
             },
@@ -1064,6 +1232,9 @@ export async function getJobById(id: string, options?: { currentTime?: Date }) {
         requires_interview: job.requires_interview,
         effectiveWeeklyFrequency,
         availableWorkDateCount: futureWorkDateCount,
+        // オファー・限定求人対応
+        job_type: job.job_type,
+        target_worker_id: job.target_worker_id,
     };
 }
 
@@ -1256,4 +1427,145 @@ export async function getBookmarkedJobs(type: 'FAVORITE' | 'WATCH_LATER') {
         console.error('[getBookmarkedJobs] Error:', error);
         return [];
     }
+}
+
+/**
+ * 限定求人・オファーの件数を取得（ワーカー向けドロップダウン用）
+ */
+export async function getJobListTypeCounts(): Promise<{
+    all: number;
+    limited: number;
+    offer: number;
+}> {
+    const now = getCurrentTime();
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+
+    // 基本条件（表示可能な求人）
+    const baseConditions: any = {
+        status: { in: ['PUBLISHED', 'WORKING', 'COMPLETED'] },
+        workDates: {
+            some: {
+                AND: [
+                    { work_date: { gte: todayStart } },
+                    {
+                        OR: [
+                            { visible_from: { lte: now } },
+                            { visible_from: null }
+                        ]
+                    },
+                    {
+                        OR: [
+                            { visible_until: { gte: now } },
+                            { visible_until: null }
+                        ]
+                    }
+                ]
+            }
+        },
+        facility: {
+            deleted_at: null,
+        }
+    };
+
+    // 「すべて」の件数（通常求人・説明会）
+    const allCount = await prisma.job.count({
+        where: {
+            ...baseConditions,
+            job_type: { in: ['NORMAL', 'ORIENTATION'] },
+        },
+    });
+
+    // 限定求人・オファーはログインユーザーの情報が必要
+    let limitedCount = 0;
+    let offerCount = 0;
+
+    try {
+        const session = await getServerSession(authOptions);
+        if (session?.user?.id) {
+            const userId = parseInt(session.user.id, 10);
+
+            // 限定求人（勤務済み）の対象施設を取得
+            const workedApplications = await prisma.application.findMany({
+                where: {
+                    user_id: userId,
+                    status: 'COMPLETED_RATED',
+                },
+                select: {
+                    workDate: {
+                        select: {
+                            job: {
+                                select: {
+                                    facility_id: true,
+                                },
+                            },
+                        },
+                    },
+                },
+            });
+            const workedFacilityIds = Array.from(new Set(
+                workedApplications
+                    .map(app => app.workDate?.job?.facility_id)
+                    .filter((id): id is number => id !== null && id !== undefined)
+            ));
+
+            // 限定求人（お気に入り）の対象施設を取得
+            const favoriteBookmarks = await prisma.bookmark.findMany({
+                where: {
+                    target_user_id: userId,
+                    type: 'FAVORITE',
+                    facility_id: { not: null },
+                },
+                select: {
+                    facility_id: true,
+                },
+            });
+            const favoritedByFacilityIds = favoriteBookmarks
+                .map(b => b.facility_id)
+                .filter((id): id is number => id !== null);
+
+            // 限定求人の件数を取得
+            if (workedFacilityIds.length > 0 || favoritedByFacilityIds.length > 0) {
+                const limitedConditions: any[] = [];
+
+                if (workedFacilityIds.length > 0) {
+                    limitedConditions.push({
+                        job_type: 'LIMITED_WORKED',
+                        facility_id: { in: workedFacilityIds },
+                    });
+                }
+
+                if (favoritedByFacilityIds.length > 0) {
+                    limitedConditions.push({
+                        job_type: 'LIMITED_FAVORITE',
+                        facility_id: { in: favoritedByFacilityIds },
+                    });
+                }
+
+                limitedCount = await prisma.job.count({
+                    where: {
+                        ...baseConditions,
+                        OR: limitedConditions,
+                    },
+                });
+            }
+
+            // オファーの件数を取得
+            offerCount = await prisma.job.count({
+                where: {
+                    ...baseConditions,
+                    job_type: 'OFFER',
+                    target_worker_id: userId,
+                },
+            });
+        }
+    } catch (error) {
+        console.error('[getJobListTypeCounts] Error:', error);
+    }
+
+    return {
+        all: allCount,
+        limited: limitedCount,
+        offer: offerCount,
+    };
 }

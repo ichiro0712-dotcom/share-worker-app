@@ -19,6 +19,9 @@ import { createJobs, updateJob, getAdminJobTemplates, getFacilityInfo, getJobByI
 import { getSystemTemplates, getJobDescriptionFormats, getDismissalReasonsFromLaborTemplate } from '@/src/lib/content-actions';
 import {
     JOB_TYPES,
+    JOB_TYPE_OPTIONS,
+    JOB_TYPE_LABELS,
+    SWITCH_TO_NORMAL_OPTIONS,
     WORK_CONTENT_OPTIONS,
     ICON_OPTIONS,
     BREAK_TIME_OPTIONS,
@@ -31,6 +34,7 @@ import {
     WORK_FREQUENCY_ICONS,
     JOB_DESCRIPTION_FORMATS,
 } from '@/constants';
+import type { JobTypeValue } from '@/constants/job';
 import { QUALIFICATION_GROUPS } from '@/constants/qualifications';
 import { DEFAULT_DISMISSAL_REASONS } from '@/constants/employment';
 
@@ -90,13 +94,21 @@ interface InitialData {
     dismissalReasons?: string;
 }
 
-interface JobFormProps {
+interface OfferTargetWorker {
+    id: number;
+    name: string;
+    profileImage: string | null;
+}
+
+export interface JobFormProps {
     mode: 'create' | 'edit';
     jobId?: string;
     initialData?: InitialData;
+    isOfferMode?: boolean;
+    offerTargetWorker?: OfferTargetWorker | null;
 }
 
-export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
+export default function JobForm({ mode, jobId, initialData, isOfferMode = false, offerTargetWorker }: JobFormProps) {
     const router = useRouter();
     const { mutate: globalMutate } = useSWRConfig();
     const { showDebugError } = useDebugError();
@@ -141,7 +153,7 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
     // フォームデータ
     const [formData, setFormData] = useState({
         facilityId: null as number | null,
-        jobType: '単発',
+        jobType: 'NORMAL' as JobTypeValue,
         recruitmentCount: 1,
         title: '',
         name: '', // テンプレート名（保存時は使われないが互換性のため）
@@ -174,6 +186,11 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
         genderRequirement: '不問',
         dismissalReasons: '',
         requiresInterview: false,
+        // 限定求人用
+        switchToNormalDaysBefore: null as number | null,
+        // オファー用
+        targetWorkerId: null as number | null,
+        offerMessage: '',
         // 住所情報
         postalCode: '',
         prefecture: '',
@@ -221,6 +238,13 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                         addressLine: facilityData.addressLine || '',
                         building: facilityData.building || '',
                         address: facilityData.address || '',
+                        // オファーモードの場合
+                        ...(isOfferMode && offerTargetWorker ? {
+                            jobType: 'OFFER' as JobTypeValue,
+                            targetWorkerId: offerTargetWorker.id,
+                            recruitmentCount: 1, // オファーは1名固定
+                            requiresInterview: false, // オファーは審査なし
+                        } : {}),
                     }));
                 }
                 setIsLoading(false);
@@ -388,7 +412,7 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                 ...prev,
                 facilityId: jobData.facility_id,
                 title: jobData.title || '',
-                jobType: '単発', // 現状固定
+                jobType: ((jobData as any).job_type as JobTypeValue) || 'NORMAL',
                 recruitmentCount: jobData.workDates?.[0]?.recruitment_count || 1,
                 startTime: jobData.start_time || '09:00',
                 endTime: jobData.end_time || '18:00',
@@ -407,6 +431,11 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                 existingAttachments: jobData.attachments || [],
                 dismissalReasons: (jobData as any).dismissalReasons || (jobData as any).dismissal_reasons || defaultDismissalReasons,
                 requiresInterview: jobData.requires_interview || false,
+                switchToNormalDaysBefore: (jobData as any).switch_to_normal_days_before ?? null,
+                // 募集開始日時
+                recruitmentStartDay: (jobData as any).recruitment_start_day ?? 0,
+                recruitmentStartTime: (jobData as any).recruitment_start_time || '',
+                recruitmentEndDay: jobData.deadline_days_before ?? 1,
                 // 住所
                 prefecture: jobData.prefecture || facility?.prefecture || '',
                 city: jobData.city || facility?.city || '',
@@ -804,6 +833,11 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                 // 新規作成
                 let workDates = selectedDates;
 
+                // 限定求人の場合は審査なしに固定
+                const requiresInterview = (formData.jobType === 'LIMITED_WORKED' || formData.jobType === 'LIMITED_FAVORITE')
+                    ? false
+                    : formData.requiresInterview;
+
                 const res = await createJobs({
                     facilityId: formData.facilityId!,
                     templateId: selectedTemplateId,
@@ -830,7 +864,14 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                     recruitmentEndDay: formData.recruitmentEndDay,
                     recruitmentEndTime: formData.recruitmentEndTime || undefined,
                     weeklyFrequency: recruitmentOptions.weeklyFrequency,
-                    requiresInterview: formData.requiresInterview,
+                    requiresInterview: requiresInterview,
+                    // 新規フィールド
+                    jobType: formData.jobType,
+                    switchToNormalDaysBefore: formData.switchToNormalDaysBefore,
+                    // オファー用
+                    targetWorkerId: formData.targetWorkerId,
+                    offerMessage: formData.offerMessage || undefined,
+                    // 住所情報
                     prefecture: formData.prefecture,
                     city: formData.city,
                     addressLine: formData.addressLine,
@@ -838,7 +879,7 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                 });
 
                 if (res.success) {
-                    toast.success('求人を作成しました');
+                    toast.success(isOfferMode ? 'オファーを送信しました' : '求人を作成しました');
                     // SWRキャッシュをクリアして一覧を更新
                     globalMutate((key) => typeof key === 'string' && key.includes('/api/admin/jobs'));
                     router.push('/admin/jobs');
@@ -873,6 +914,10 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                     prefecture: formData.prefecture,
                     city: formData.city,
                     addressLine: formData.addressLine,
+                    recruitmentStartDay: formData.recruitmentStartDay,
+                    recruitmentStartTime: formData.recruitmentStartTime || undefined,
+                    recruitmentEndDay: formData.recruitmentEndDay,
+                    recruitmentEndTime: formData.recruitmentEndTime || undefined,
                 });
 
                 if (res.success) {
@@ -961,8 +1006,31 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                         <h2 className="text-lg font-bold text-gray-900 mb-4">基本</h2>
                         <div className="space-y-4">
-                            {/* 1行目：施設、求人種別、募集人数 */}
-                            <div className="grid grid-cols-3 gap-4">
+                            {/* オファーモード：対象ワーカー表示 */}
+                            {isOfferMode && offerTargetWorker && (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                                    <div className="flex items-center gap-4">
+                                        {offerTargetWorker.profileImage ? (
+                                            <img
+                                                src={offerTargetWorker.profileImage}
+                                                alt={offerTargetWorker.name}
+                                                className="w-14 h-14 rounded-full object-cover border-2 border-blue-300"
+                                            />
+                                        ) : (
+                                            <div className="w-14 h-14 rounded-full bg-blue-200 flex items-center justify-center text-blue-600 text-xl font-bold">
+                                                {offerTargetWorker.name.charAt(0)}
+                                            </div>
+                                        )}
+                                        <div>
+                                            <p className="text-lg font-bold text-gray-900">{offerTargetWorker.name}さんへのオファー</p>
+                                            <p className="text-sm text-gray-600">このワーカー専用の求人を作成します</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* 1行目：施設、募集人数（オファーは1名固定） */}
+                            <div className={`grid ${isOfferMode ? 'grid-cols-2' : 'grid-cols-3'} gap-4`}>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
                                         施設 <span className="text-red-500">*</span>
@@ -977,55 +1045,117 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
 
                                 {/* 勤務地住所AddressSelectorは除外 */}
 
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                {/* オファーモードでは募集人数は1名固定で非表示 */}
+                                {!isOfferMode && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            募集人数 <span className="text-red-500">*</span>
+                                        </label>
+                                        <select
+                                            value={formData.recruitmentCount}
+                                            onChange={(e) => handleInputChange('recruitmentCount', Number(e.target.value))}
+                                            className={`w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-600 ${showErrors && (!formData.recruitmentCount || formData.recruitmentCount <= 0) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                                        >
+                                            {Array.from({ length: 10 }, (_, i) => i + 1).map(num => (
+                                                <option key={num} value={num}>{num}人</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* 求人種別選択 - ラジオボタン形式（オファーモード時は非表示） */}
+                            {!isOfferMode && (
+                                <div className="space-y-3">
+                                    <label className="block text-sm font-medium text-gray-700">
                                         求人種別 <span className="text-red-500">*</span>
                                     </label>
-                                    <select
-                                        value={formData.jobType}
-                                        onChange={(e) => handleInputChange('jobType', e.target.value)}
-                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                                    >
-                                        {JOB_TYPES.map(type => (
-                                            <option key={type} value={type}>{type}</option>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        {JOB_TYPE_OPTIONS.map((option) => (
+                                            <label
+                                                key={option.value}
+                                                className={`
+                                                    flex items-start p-4 border rounded-lg cursor-pointer transition-all
+                                                    ${formData.jobType === option.value
+                                                        ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500'
+                                                        : 'border-gray-200 hover:border-gray-300 bg-white'}
+                                                `}
+                                            >
+                                                <input
+                                                    type="radio"
+                                                    name="jobType"
+                                                    value={option.value}
+                                                    checked={formData.jobType === option.value}
+                                                    onChange={(e) => {
+                                                        const newJobType = e.target.value as JobTypeValue;
+                                                        handleInputChange('jobType', newJobType);
+                                                        // 限定求人の場合は審査なしに固定
+                                                        if (newJobType === 'LIMITED_WORKED' || newJobType === 'LIMITED_FAVORITE') {
+                                                            handleInputChange('requiresInterview', false);
+                                                        }
+                                                    }}
+                                                    className="mt-0.5 h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                                                />
+                                                <div className="ml-3">
+                                                    <span className="block text-sm font-medium text-gray-900">{option.label}</span>
+                                                    <span className="block text-xs text-gray-500 mt-1">{option.description}</span>
+                                                </div>
+                                            </label>
                                         ))}
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        募集人数 <span className="text-red-500">*</span>
-                                    </label>
-                                    <select
-                                        value={formData.recruitmentCount}
-                                        onChange={(e) => handleInputChange('recruitmentCount', Number(e.target.value))}
-                                        className={`w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-600 ${showErrors && (!formData.recruitmentCount || formData.recruitmentCount <= 0) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
-                                    >
-                                        {Array.from({ length: 10 }, (_, i) => i + 1).map(num => (
-                                            <option key={num} value={num}>{num}人</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-
-                            {/* マッチング方法 */}
-                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                                <label className="flex items-start gap-3 cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        checked={formData.requiresInterview}
-                                        onChange={(e) => handleInputChange('requiresInterview', e.target.checked)}
-                                        className="mt-0.5 w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                    />
-                                    <div>
-                                        <span className="text-sm font-medium text-gray-900">審査してからマッチング</span>
-                                        <p className="text-xs text-gray-600 mt-1">
-                                            ワーカーからの応募後に審査・選考を行ってからマッチングを決定できます。<br />
-                                            <span className="text-red-500 font-bold">※チェックを入れない方がマッチング率は高くなります</span>
-                                        </p>
                                     </div>
-                                </label>
-                            </div>
+                                </div>
+                            )}
+
+                            {/* 限定求人：通常求人への自動切り替え設定 */}
+                            {(formData.jobType === 'LIMITED_WORKED' || formData.jobType === 'LIMITED_FAVORITE') && (
+                                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                                    <div className="flex items-start gap-3">
+                                        <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                                        <div className="flex-1">
+                                            <p className="text-sm font-medium text-amber-900 mb-3">
+                                                通常求人への自動切り替え
+                                            </p>
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <span className="text-sm text-gray-700">勤務開始日の</span>
+                                                <select
+                                                    value={formData.switchToNormalDaysBefore ?? 7}
+                                                    onChange={(e) => handleInputChange('switchToNormalDaysBefore', parseInt(e.target.value))}
+                                                    className="border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                >
+                                                    {SWITCH_TO_NORMAL_OPTIONS.map((opt) => (
+                                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                                    ))}
+                                                </select>
+                                                <span className="text-sm text-gray-700">に通常求人に切り替え</span>
+                                            </div>
+                                            <p className="text-xs text-gray-600 mt-2">
+                                                ※切り替え後はすべてのワーカーが閲覧・応募できるようになります
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* マッチング方法 - 通常求人/説明会のみ表示 */}
+                            {(formData.jobType === 'NORMAL' || formData.jobType === 'ORIENTATION') && (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                    <label className="flex items-start gap-3 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={formData.requiresInterview}
+                                            onChange={(e) => handleInputChange('requiresInterview', e.target.checked)}
+                                            className="mt-0.5 w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                        />
+                                        <div>
+                                            <span className="text-sm font-medium text-gray-900">審査してからマッチング</span>
+                                            <p className="text-xs text-gray-600 mt-1">
+                                                ワーカーからの応募後に審査・選考を行ってからマッチングを決定できます。<br />
+                                                <span className="text-red-500 font-bold">※チェックを入れない方がマッチング率は高くなります</span>
+                                            </p>
+                                        </div>
+                                    </label>
+                                </div>
+                            )}
 
                             {/* 2行目：テンプレート選択 */}
                             <div>
@@ -2016,6 +2146,31 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                             </div>
                         </div>
                     </div>
+
+                    {/* オファーメッセージ（オファーモード時のみ表示） */}
+                    {isOfferMode && (
+                        <div className="bg-white rounded-lg shadow-sm border border-blue-200 p-6 mt-6">
+                            <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                <span className="text-blue-500">✉️</span>
+                                オファーメッセージ
+                            </h2>
+                            <div className="space-y-3">
+                                <p className="text-sm text-gray-600">
+                                    {offerTargetWorker?.name}さんへのメッセージを入力してください（任意）
+                                </p>
+                                <textarea
+                                    value={formData.offerMessage || ''}
+                                    onChange={(e) => handleInputChange('offerMessage', e.target.value)}
+                                    rows={4}
+                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    placeholder="例：いつもご勤務ありがとうございます。ぜひまたお願いしたいと思いオファーを送らせていただきました。ご検討よろしくお願いいたします。"
+                                />
+                                <p className="text-xs text-gray-500">
+                                    ※このメッセージは求人情報と一緒にワーカーへ送信されます
+                                </p>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 

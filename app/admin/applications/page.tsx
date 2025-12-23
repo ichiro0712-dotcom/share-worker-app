@@ -73,10 +73,13 @@ interface WorkDate {
   applications: Application[];
 }
 
+type JobType = 'NORMAL' | 'LIMITED_WORKED' | 'LIMITED_FAVORITE' | 'ORIENTATION' | 'OFFER';
+
 interface JobWithApplications {
   id: number;
   title: string;
   status: string;
+  jobType: JobType;
   startTime: string;
   endTime: string;
   hourlyWage: number;
@@ -790,6 +793,21 @@ function ApplicationsContent() {
                                 job.status === 'COMPLETED' ? '完了' :
                                   job.status === 'STOPPED' ? '停止中' : job.status}
                           </span>
+                          {/* 求人種別バッジ */}
+                          {job.jobType && job.jobType !== 'NORMAL' && (
+                            <span className={`px-2 py-0.5 text-xs font-medium rounded ${
+                              job.jobType === 'OFFER' ? 'bg-blue-100 text-blue-700' :
+                              job.jobType === 'LIMITED_WORKED' ? 'bg-purple-100 text-purple-700' :
+                              job.jobType === 'LIMITED_FAVORITE' ? 'bg-pink-100 text-pink-700' :
+                              job.jobType === 'ORIENTATION' ? 'bg-teal-100 text-teal-700' :
+                              'bg-gray-100 text-gray-700'
+                            }`}>
+                              {job.jobType === 'OFFER' ? 'オファー' :
+                               job.jobType === 'LIMITED_WORKED' ? '限定（勤務実績）' :
+                               job.jobType === 'LIMITED_FAVORITE' ? '限定（お気に入り）' :
+                               job.jobType === 'ORIENTATION' ? '説明会' : ''}
+                            </span>
+                          )}
                           {job.requiresInterview && (
                             <span className="px-2 py-0.5 text-xs font-medium rounded bg-orange-100 text-orange-700">
                               審査あり

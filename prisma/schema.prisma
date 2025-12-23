@@ -65,6 +65,10 @@ model User {
   reviews                Review[]
   pushSubscriptions      PushSubscription[]
   nearbyNotificationLogs NearbyNotificationLog[]
+  /// オファー対象として設定された求人
+  offeredJobs            Job[]          @relation("OfferTargetWorker")
+  /// メッセージスレッド
+  messageThreads         MessageThread[]
 
   is_suspended           Boolean        @default(false) @map("is_suspended")
   suspended_at           DateTime?      @map("suspended_at")
@@ -176,6 +180,10 @@ model Facility {
   receivedMessages Message[]        @relation("FacilityReceivedMessages")
   reviewTemplates  ReviewTemplate[]
   reviews          Review[]
+  /// メッセージスレッド
+  messageThreads   MessageThread[]
+  /// オファーテンプレート
+  offerTemplates   OfferTemplate[]
   /// 退会日時（nullなら退会していない）
   deleted_at       DateTime?        @map("deleted_at")
   /// 退会理由
@@ -226,6 +234,8 @@ model Job {
   facility_id             Int           @map("facility_id")
   template_id             Int?          @map("template_id")
   status                  JobStatus     @default(DRAFT)
+  /// 求人種別（NORMAL, ORIENTATION, LIMITED_WORKED, LIMITED_FAVORITE, OFFER）
+  job_type                JobType       @default(NORMAL) @map("job_type")
   title                   String
   start_time              String        @map("start_time")
   end_time                String        @map("end_time")
@@ -234,6 +244,10 @@ model Job {
   hourly_wage             Int           @map("hourly_wage")
   transportation_fee      Int           @map("transportation_fee")
   deadline_days_before    Int           @default(1) @map("deadline_days_before")
+  /// 募集開始日（0=公開時、-1=勤務当日、-2=勤務1日前、-3=勤務2日前...）
+  recruitment_start_day   Int           @default(0) @map("recruitment_start_day")
+  /// 募集開始時刻（HH:MM形式、nullの場合は0時）
+  recruitment_start_time  String?       @map("recruitment_start_time")
   tags                    String[]
   address                 String?
   prefecture              String?
@@ -271,12 +285,26 @@ model Job {
   weekly_frequency        Int?          @map("weekly_frequency")
   /// 面接してからマッチング（true: 応募後に施設が手動でマッチング決定、false: 即時マッチング）
   requires_interview      Boolean       @default(false) @map("requires_interview")
+  /// 限定求人の自動切り替え日数（勤務開始日の何日前に通常求人に切り替えるか）
+  switch_to_normal_days_before Int?     @map("switch_to_normal_days_before")
+  /// オファー対象ワーカーID（オファー求人のみ使用）
+  target_worker_id        Int?          @map("target_worker_id")
+  /// オファーメッセージ（オファー求人のみ使用）
+  offer_message           String?       @db.Text @map("offer_message")
+  /// 親求人ID（限定求人から切り出された子求人の場合に設定）
+  parent_job_id           Int?          @map("parent_job_id")
   created_at              DateTime      @default(now()) @map("created_at")
   updated_at              DateTime      @updatedAt @map("updated_at")
   bookmarks               Bookmark[]
   workDates               JobWorkDate[]
   facility                Facility      @relation(fields: [facility_id], references: [id], onDelete: Cascade)
   template                JobTemplate?  @relation(fields: [template_id], references: [id])
+  /// オファー対象ワーカー
+  targetWorker            User?         @relation("OfferTargetWorker", fields: [target_worker_id], references: [id])
+  /// 親求人（切り出し元）
+  parentJob               Job?          @relation("ChildJobs", fields: [parent_job_id], references: [id])
+  /// 子求人（切り出し先）
+  childJobs               Job[]         @relation("ChildJobs")
   messages                Message[]
   reviews                 Review[]
   systemNotifications     SystemNotification[]
@@ -285,6 +313,8 @@ model Job {
   @@index([status, facility_id])
   @@index([created_at])
   @@index([status, created_at])
+  @@index([job_type])
+  @@index([target_worker_id])
   @@map("jobs")
 }
 
@@ -298,6 +328,9 @@ model JobWorkDate {
   created_at        DateTime      @default(now()) @map("created_at")
   updated_at        DateTime      @updatedAt @map("updated_at")
   matched_count     Int           @default(0) @map("matched_count")
+  /// 募集開始日時（この時刻以降に求人一覧に表示される）
+  /// 計算式: work_date - recruitmentStartDay + recruitmentStartTime
+  visible_from      DateTime?     @map("visible_from")
   /// 表示期限（この時刻を過ぎると求人一覧に表示されない）
   /// 計算式: work_date + start_time - 2時間
   visible_until     DateTime?     @map("visible_until")
@@ -306,6 +339,7 @@ model JobWorkDate {
   reviews           Review[]
 
   @@unique([job_id, work_date])
+  @@index([visible_from])
   @@index([visible_until])
   @@map("job_work_dates")
 }
@@ -465,24 +499,28 @@ model Message {
   to_user_id       Int?        @map("to_user_id")
   from_facility_id Int?        @map("from_facility_id")
   to_facility_id   Int?        @map("to_facility_id")
-  application_id   Int         @map("application_id")
-  job_id           Int         @map("job_id")
+  application_id   Int?        @map("application_id") /// nullable化（スレッドベースメッセージ対応）
+  job_id           Int?        @map("job_id") /// nullable化（スレッドベースメッセージ対応）
+  /// メッセージスレッドID（段階的移行: 新規オファーチャットで使用）
+  thread_id        Int?        @map("thread_id")
   content          String
   /// 添付ファイルのURL配列（画像、PDF等）
   attachments      String[]    @default([])
   read_at          DateTime?   @map("read_at")
   created_at       DateTime    @default(now()) @map("created_at")
-  application      Application @relation(fields: [application_id], references: [id], onDelete: Cascade)
+  application      Application? @relation(fields: [application_id], references: [id], onDelete: Cascade)
   fromFacility     Facility?   @relation("FacilitySentMessages", fields: [from_facility_id], references: [id], onDelete: Cascade)
   fromUser         User?       @relation("UserSentMessages", fields: [from_user_id], references: [id], onDelete: Cascade)
-  job              Job         @relation(fields: [job_id], references: [id], onDelete: Cascade)
+  job              Job?        @relation(fields: [job_id], references: [id], onDelete: Cascade)
   toFacility       Facility?   @relation("FacilityReceivedMessages", fields: [to_facility_id], references: [id], onDelete: Cascade)
   toUser           User?       @relation("UserReceivedMessages", fields: [to_user_id], references: [id], onDelete: Cascade)
+  thread           MessageThread? @relation(fields: [thread_id], references: [id], onDelete: Cascade)
 
   // パフォーマンス最適化用インデックス
   @@index([application_id, created_at])
   @@index([from_user_id, created_at])
   @@index([to_user_id, read_at])
+  @@index([thread_id, created_at])
   @@map("messages")
 }
 
@@ -531,6 +569,17 @@ enum JobStatus {
   CANCELLED
 
   @@map("job_status")
+}
+
+/// 求人種別
+enum JobType {
+  NORMAL           // 通常求人
+  ORIENTATION      // 説明会
+  LIMITED_WORKED   // 限定求人（勤務済みの方）
+  LIMITED_FAVORITE // 限定求人（お気に入りのみ）
+  OFFER            // オファー
+
+  @@map("job_type")
 }
 
 enum WorkerStatus {
@@ -931,4 +980,44 @@ model DebugCheckProgress {
   @@unique([user_name, item_key])
   @@index([user_name])
   @@map("debug_check_progress")
+}
+
+// ========== 限定求人・オファー機能 ==========
+
+/// メッセージスレッド（ワーカー×施設の1対1チャット）
+/// 段階的移行: Phase 1では新規オファー時のみ使用、将来的に既存Messageを移行
+model MessageThread {
+  id           Int       @id @default(autoincrement())
+  worker_id    Int       @map("worker_id")
+  facility_id  Int       @map("facility_id")
+  /// 最終メッセージ日時（ソート用）
+  last_message_at DateTime? @map("last_message_at")
+  created_at   DateTime  @default(now()) @map("created_at")
+  updated_at   DateTime  @updatedAt @map("updated_at")
+
+  worker       User      @relation(fields: [worker_id], references: [id], onDelete: Cascade)
+  facility     Facility  @relation(fields: [facility_id], references: [id], onDelete: Cascade)
+  messages     Message[]
+
+  @@unique([worker_id, facility_id])
+  @@index([worker_id])
+  @@index([facility_id])
+  @@index([last_message_at])
+  @@map("message_threads")
+}
+
+/// オファーテンプレート（施設のオファー定型文）
+model OfferTemplate {
+  id          Int      @id @default(autoincrement())
+  facility_id Int      @map("facility_id")
+  name        String   /// テンプレート名（例: "通常オファー"、"緊急募集用"）
+  message     String   @db.Text /// オファーメッセージ本文
+  sort_order  Int      @default(0) @map("sort_order")
+  created_at  DateTime @default(now()) @map("created_at")
+  updated_at  DateTime @updatedAt @map("updated_at")
+
+  facility    Facility @relation(fields: [facility_id], references: [id], onDelete: Cascade)
+
+  @@index([facility_id])
+  @@map("offer_templates")
 }

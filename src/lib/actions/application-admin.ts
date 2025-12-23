@@ -411,6 +411,7 @@ export async function getJobsWithApplications(
                 id: job.id,
                 title: job.title,
                 status: job.status,
+                jobType: job.job_type,
                 startTime: job.start_time,
                 endTime: job.end_time,
                 hourlyWage: job.hourly_wage,

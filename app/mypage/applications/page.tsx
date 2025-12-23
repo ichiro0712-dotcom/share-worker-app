@@ -27,6 +27,17 @@ const statusColors: Record<string, 'default' | 'yellow' | 'red' | 'green'> = {
   CANCELLED: 'red',
 };
 
+// 求人種別
+type JobType = 'NORMAL' | 'LIMITED_WORKED' | 'LIMITED_FAVORITE' | 'ORIENTATION' | 'OFFER';
+
+// 求人種別バッジ（NORMAL以外の場合のみ表示）
+const jobTypeBadges: Record<Exclude<JobType, 'NORMAL'>, { text: string; color: string }> = {
+  OFFER: { text: 'オファ', color: 'bg-blue-500 text-white' },
+  LIMITED_WORKED: { text: '限定', color: 'bg-purple-500 text-white' },
+  LIMITED_FAVORITE: { text: '限定★', color: 'bg-yellow-500 text-white' },
+  ORIENTATION: { text: '説明会', color: 'bg-teal-500 text-white' },
+};
+
 // 日付フォーマット関数
 function formatDate(dateString: string): string {
   const date = new Date(dateString);
@@ -93,9 +104,19 @@ export default async function ApplicationsPage() {
                     </h3>
 
                     <div className="space-y-1 mb-3">
-                      <p className="text-sm text-gray-600">
-                        {application.job.facility.facility_name}
-                      </p>
+                      <div className="flex items-center gap-1.5">
+                        {/* 求人種別バッジ（NORMAL以外の場合のみ） */}
+                        {application.job.job_type && application.job.job_type !== 'NORMAL' && (
+                          <span
+                            className={`flex-shrink-0 px-1.5 py-0.5 text-[10px] font-bold rounded ${jobTypeBadges[application.job.job_type as Exclude<JobType, 'NORMAL'>]?.color || ''}`}
+                          >
+                            {jobTypeBadges[application.job.job_type as Exclude<JobType, 'NORMAL'>]?.text || ''}
+                          </span>
+                        )}
+                        <p className="text-sm text-gray-600">
+                          {application.job.facility.facility_name}
+                        </p>
+                      </div>
                       <p className="text-sm text-gray-600">
                         勤務日: {formatDate(application.job.work_date)}
                       </p>

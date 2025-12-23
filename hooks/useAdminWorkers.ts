@@ -14,6 +14,7 @@ export interface WorkerListItem {
     city: string | null;
     statuses: WorkerListStatus[];
     hasCompleted: boolean;
+    hasCompletedRated: boolean; // レビュー完了済み（オファー対象）
     hasCancelled: boolean;
     ourWorkCount: number;
     lastOurWorkDate: string | null;

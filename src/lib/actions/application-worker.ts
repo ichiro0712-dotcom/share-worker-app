@@ -68,6 +68,7 @@ export async function getMyApplications() {
                     facility_id: job.facility_id,
                     template_id: job.template_id,
                     status: job.status,
+                    job_type: job.job_type,
                     requires_interview: job.requires_interview,
                     title: job.title,
                     work_date: workDate.work_date.toISOString(),
@@ -781,6 +782,205 @@ export async function cancelApplicationByWorker(applicationId: number) {
     } catch (error) {
         console.error('[cancelApplicationByWorker] Error:', error);
         return { success: false, error: 'キャンセルに失敗しました' };
+    }
+}
+
+/**
+ * オファー求人を受諾（即マッチング）
+ */
+export async function acceptOffer(jobId: string, workDateId: number) {
+    try {
+        const jobIdNum = parseInt(jobId, 10);
+        if (isNaN(jobIdNum)) {
+            console.error('[acceptOffer] Invalid job ID:', jobId);
+            return { success: false, error: '無効な求人IDです' };
+        }
+
+        console.log('[acceptOffer] Accepting offer for job:', jobIdNum, 'workDate:', workDateId);
+
+        const job = await prisma.job.findUnique({
+            where: { id: jobIdNum },
+            include: {
+                workDates: { orderBy: { work_date: 'asc' } },
+                facility: true,
+            },
+        });
+
+        if (!job) {
+            console.error('[acceptOffer] Job not found:', jobIdNum);
+            return { success: false, error: '求人が見つかりません' };
+        }
+
+        // オファー求人かどうか確認
+        if (job.job_type !== 'OFFER') {
+            console.error('[acceptOffer] Job is not an offer:', job.job_type);
+            return { success: false, error: 'この求人はオファーではありません' };
+        }
+
+        const user = await getAuthenticatedUser();
+        console.log('[acceptOffer] Using user:', user.id);
+
+        // ターゲットユーザー確認
+        if (job.target_worker_id !== user.id) {
+            console.error('[acceptOffer] User is not target worker:', user.id, 'target:', job.target_worker_id);
+            return { success: false, error: 'このオファーはあなた宛てではありません' };
+        }
+
+        if (user.is_suspended) {
+            console.log('[acceptOffer] User is suspended:', user.id);
+            return { success: false, error: 'アカウントが停止されているため、オファーを受けられません' };
+        }
+
+        const profileCheck = await checkProfileComplete(user.id);
+        if (!profileCheck.isComplete) {
+            console.log('[acceptOffer] Profile incomplete:', profileCheck.missingFields);
+            return {
+                success: false,
+                error: `プロフィールを完成させてください。未入力項目: ${profileCheck.missingFields.join('、')}`,
+                missingFields: profileCheck.missingFields,
+            };
+        }
+
+        const targetWorkDate = job.workDates.find(wd => wd.id === workDateId);
+        if (!targetWorkDate) {
+            console.error('[acceptOffer] Target work date not found:', workDateId);
+            return { success: false, error: '勤務日が見つかりません' };
+        }
+
+        // 既に募集人数に達していないか確認
+        if (targetWorkDate.matched_count >= targetWorkDate.recruitment_count) {
+            return { success: false, error: 'このオファーは既に受諾済みです' };
+        }
+
+        // 既存の応募がないか確認
+        const existingApplication = await prisma.application.findFirst({
+            where: {
+                work_date_id: workDateId,
+                user_id: user.id,
+                status: { not: 'CANCELLED' },
+            },
+        });
+
+        if (existingApplication) {
+            console.log('[acceptOffer] Already accepted:', { workDateId, userId: user.id });
+            return { success: false, error: 'このオファーは既に受諾済みです' };
+        }
+
+        // オファーは即マッチング（SCHEDULED）
+        const application = await prisma.$transaction(async (tx) => {
+            const app = await tx.application.create({
+                data: {
+                    work_date_id: workDateId,
+                    user_id: user.id,
+                    status: 'SCHEDULED',
+                },
+            });
+
+            await tx.jobWorkDate.update({
+                where: { id: workDateId },
+                data: {
+                    applied_count: { increment: 1 },
+                    matched_count: { increment: 1 },
+                },
+            });
+
+            return app;
+        });
+
+        console.log('[acceptOffer] Application created successfully:', application.id);
+
+        // 施設への通知
+        sendApplicationNotification(
+            job.facility_id,
+            user.name,
+            job.title,
+            application.id,
+            'FACILITY_OFFER_ACCEPTED'
+        ).catch(err => console.error('[acceptOffer] Background notification error:', err));
+
+        // マッチングメッセージの送信
+        const baseUrl = process.env.NEXTAUTH_URL || 'https://tastas.jp';
+        const jobDetailUrl = `${baseUrl}/my-jobs/${application.id}`;
+
+        const matchingSetting = await prisma.notificationSetting.findUnique({
+            where: { notification_key: 'WORKER_MATCHED' },
+        });
+
+        if (matchingSetting?.chat_enabled && matchingSetting?.chat_message) {
+            const workDateStr = new Date(targetWorkDate.work_date).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' });
+            const startTimeStr = job.start_time.substring(0, 5);
+            const endTimeStr = job.end_time.substring(0, 5);
+            const appliedDateStr = `${new Date(targetWorkDate.work_date).getMonth() + 1}/${new Date(targetWorkDate.work_date).getDate()} ${job.start_time}〜${job.end_time}`;
+            const workerLastName = user.name?.split(' ')[0] || user.name || '';
+
+            const matchingMessage = matchingSetting.chat_message
+                .replace(/\{\{worker_name\}\}/g, user.name || '')
+                .replace(/\{\{worker_last_name\}\}/g, workerLastName)
+                .replace(/\{\{facility_name\}\}/g, job.facility.facility_name)
+                .replace(/\{\{work_date\}\}/g, workDateStr)
+                .replace(/\{\{start_time\}\}/g, startTimeStr)
+                .replace(/\{\{end_time\}\}/g, endTimeStr)
+                .replace(/\{\{wage\}\}/g, job.wage?.toString() || '')
+                .replace(/\{\{hourly_wage\}\}/g, job.hourly_wage?.toString() || '')
+                .replace(/\{\{job_url\}\}/g, jobDetailUrl)
+                .replace(/\{\{applied_dates\}\}/g, appliedDateStr)
+                .replace(/\{\{job_title\}\}/g, job.title);
+
+            await prisma.message.create({
+                data: {
+                    application_id: application.id,
+                    job_id: jobIdNum,
+                    from_facility_id: job.facility_id,
+                    to_user_id: user.id,
+                    content: matchingMessage,
+                },
+            });
+            console.log('[acceptOffer] Matching message sent');
+        }
+
+        // 初回マッチング時のイニシャルメッセージ
+        if (job.facility.initial_message) {
+            const previousMatchCount = await prisma.application.count({
+                where: {
+                    id: { not: application.id },
+                    user_id: user.id,
+                    status: { in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'] },
+                    workDate: { job: { facility_id: job.facility_id } },
+                },
+            });
+
+            if (previousMatchCount === 0) {
+                const workerLastName = user.name?.split(' ')[0] || user.name || '';
+                const facilityName = job.facility.facility_name || '';
+                const messageContent = job.facility.initial_message
+                    .replace(/\[ワーカー名字\]/g, workerLastName)
+                    .replace(/\[施設名\]/g, facilityName);
+
+                await prisma.message.create({
+                    data: {
+                        application_id: application.id,
+                        job_id: jobIdNum,
+                        from_facility_id: job.facility_id,
+                        to_user_id: user.id,
+                        content: messageContent,
+                    },
+                });
+                console.log('[acceptOffer] Initial message sent for first-time matching');
+            }
+        }
+
+        revalidatePath(`/jobs/${jobIdNum}`);
+        revalidatePath('/my-jobs');
+
+        return {
+            success: true,
+            message: 'オファーを受諾しました！勤務日をお待ちください。',
+            isMatched: true,
+            applicationId: application.id,
+        };
+    } catch (error) {
+        console.error('[acceptOffer] Error details:', error);
+        return { success: false, error: 'オファーの受諾に失敗しました。もう一度お試しください。' };
     }
 }
 

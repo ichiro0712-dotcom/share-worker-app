@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/tag';
 import { formatDateTime, getDeadlineText, isDeadlineUrgent } from '@/utils/date';
-import { applyForJobMultipleDates, addJobBookmark, removeJobBookmark, isJobBookmarked, toggleFacilityFavorite, isFacilityFavorited, getUserSelfPR, updateUserSelfPR } from '@/src/lib/actions';
+import { applyForJobMultipleDates, acceptOffer, addJobBookmark, removeJobBookmark, isJobBookmarked, toggleFacilityFavorite, isFacilityFavorited, getUserSelfPR, updateUserSelfPR } from '@/src/lib/actions';
 import { useBadge } from '@/contexts/BadgeContext';
 import toast from 'react-hot-toast';
 import { useErrorToast } from '@/components/ui/PersistentErrorToast';
@@ -362,11 +362,16 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
     // 3. 楽観的UI更新：即座に応募済み状態にする
     setAppliedWorkDateIds(prev => [...prev, ...selectedWorkDateIds]);
     setSelectedWorkDateIds([]); // 選択をクリア
-    toast.success('応募を受け付けました');
+
+    const isOffer = job.jobType === 'OFFER';
+    toast.success(isOffer ? 'オファーを受け付けました' : '応募を受け付けました');
 
     // 4. バックグラウンドでAPI実行
     try {
-      const result = await applyForJobMultipleDates(String(job.id), selectedWorkDateIds);
+      // オファー求人の場合は acceptOffer を使用
+      const result = isOffer
+        ? await acceptOffer(String(job.id), selectedWorkDateIds[0])
+        : await applyForJobMultipleDates(String(job.id), selectedWorkDateIds);
 
       if (result.success) {
         // マッチング成立の場合は追加メッセージを表示
@@ -1252,7 +1257,13 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
             className="w-full"
             disabled={isApplying || selectedWorkDateIds.length === 0}
           >
-            {isApplying ? '応募中...' : selectedWorkDateIds.length > 0 ? `${selectedWorkDateIds.length}件の日程に応募する` : !hasAvailableDates ? '応募できる日程がありません' : '日程を選択してください'}
+            {isApplying
+              ? (job.jobType === 'OFFER' ? '受諾中...' : '応募中...')
+              : selectedWorkDateIds.length > 0
+                ? (job.jobType === 'OFFER' ? 'オファーを受ける' : `${selectedWorkDateIds.length}件の日程に応募する`)
+                : !hasAvailableDates
+                  ? '応募できる日程がありません'
+                  : '日程を選択してください'}
           </Button>
         </div>
       )}
@@ -1460,7 +1471,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
                 disabled={isEditingSelfPR}
                 className="flex-1 px-4 py-2.5 bg-primary text-white font-medium rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {job.requiresInterview ? '応募する（審査あり）' : '応募する'}
+                {job.jobType === 'OFFER' ? 'オファーを受ける' : (job.requiresInterview ? '応募する（審査あり）' : '応募する')}
               </button>
             </div>
           </div>

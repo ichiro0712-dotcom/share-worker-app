@@ -42,10 +42,13 @@ interface WorkDateData {
   deadline: string;
 }
 
+type JobType = 'NORMAL' | 'LIMITED_WORKED' | 'LIMITED_FAVORITE' | 'ORIENTATION' | 'OFFER';
+
 interface JobData {
   id: number;
   title: string;
   status: string;
+  jobType: JobType;
   startTime: string;
   endTime: string;
   breakTime: string;
@@ -106,6 +109,7 @@ export default function AdminJobsList() {
   const initialPeriodStart = searchParams.get('periodStart');
   const initialPeriodEnd = searchParams.get('periodEnd');
   const initialTemplate = searchParams.get('template');
+  const initialJobType = searchParams.get('jobType');
 
   const [facilityName, setFacilityName] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -117,6 +121,7 @@ export default function AdminJobsList() {
   const [periodStartFilter, setPeriodStartFilter] = useState(initialPeriodStart || '');
   const [periodEndFilter, setPeriodEndFilter] = useState(initialPeriodEnd || '');
   const [templateFilter, setTemplateFilter] = useState(initialTemplate || 'all');
+  const [jobTypeFilter, setJobTypeFilter] = useState(initialJobType || 'all');
 
   const updateUrlParams = (updates: {
     status?: string;
@@ -124,6 +129,7 @@ export default function AdminJobsList() {
     periodStart?: string;
     periodEnd?: string;
     template?: string;
+    jobType?: string;
   }) => {
     const params = new URLSearchParams(window.location.search);
 
@@ -150,6 +156,11 @@ export default function AdminJobsList() {
     if (updates.template !== undefined) {
       if (updates.template === 'all') params.delete('template');
       else params.set('template', updates.template);
+    }
+
+    if (updates.jobType !== undefined) {
+      if (updates.jobType === 'all') params.delete('jobType');
+      else params.set('jobType', updates.jobType);
     }
 
     router.replace(`/admin/jobs?${params.toString()}`, { scroll: false });
@@ -225,10 +236,13 @@ export default function AdminJobsList() {
     return 'recruiting';
   };
 
-  // フィルタリング (サーバーサイドに移行)
-  const filteredJobs = jobs;
+  // フィルタリング (サーバーサイドに移行、求人種別のみクライアントサイド)
+  const filteredJobs = useMemo(() => {
+    if (jobTypeFilter === 'all') return jobs;
+    return jobs.filter(job => job.jobType === jobTypeFilter);
+  }, [jobs, jobTypeFilter]);
   const totalPages = pagination?.totalPages || 1;
-  const paginatedJobs = jobs;
+  const paginatedJobs = filteredJobs;
 
   // ページ変更時に先頭にスクロール
   useEffect(() => {
@@ -555,6 +569,35 @@ export default function AdminJobsList() {
               </button>
             ))}
           </div>
+
+          {/* 求人種別フィルタ */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500">種別:</span>
+            {[
+              { value: 'all', label: 'すべて', color: 'bg-gray-100 text-gray-700 hover:bg-gray-200' },
+              { value: 'NORMAL', label: '通常', color: 'bg-gray-100 text-gray-700 hover:bg-gray-200' },
+              { value: 'LIMITED_WORKED', label: '限定（勤務実績）', color: 'bg-purple-50 text-purple-700 hover:bg-purple-100' },
+              { value: 'LIMITED_FAVORITE', label: '限定（お気に入り）', color: 'bg-pink-50 text-pink-700 hover:bg-pink-100' },
+              { value: 'OFFER', label: 'オファー', color: 'bg-blue-50 text-blue-700 hover:bg-blue-100' },
+              { value: 'ORIENTATION', label: '説明会', color: 'bg-teal-50 text-teal-700 hover:bg-teal-100' },
+            ].map((type) => (
+              <button
+                key={type.value}
+                onClick={() => {
+                  setJobTypeFilter(type.value);
+                  setCurrentPage(1);
+                  updateUrlParams({ jobType: type.value, page: 1 });
+                }}
+                className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                  jobTypeFilter === type.value
+                    ? type.value === 'all' ? 'bg-admin-primary text-white' : 'ring-2 ring-offset-1 ring-gray-400 ' + type.color
+                    : type.color
+                }`}
+              >
+                {type.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -619,6 +662,24 @@ export default function AdminJobsList() {
                           {statusInfo.label}
                         </span>
                       </div>
+
+                      {/* 求人種別バッジ */}
+                      {job.jobType && job.jobType !== 'NORMAL' && (
+                        <div className="flex-shrink-0">
+                          <span className={`px-2 py-0.5 text-xs font-medium rounded ${
+                            job.jobType === 'OFFER' ? 'bg-blue-100 text-blue-700' :
+                            job.jobType === 'LIMITED_WORKED' ? 'bg-purple-100 text-purple-700' :
+                            job.jobType === 'LIMITED_FAVORITE' ? 'bg-pink-100 text-pink-700' :
+                            job.jobType === 'ORIENTATION' ? 'bg-teal-100 text-teal-700' :
+                            'bg-gray-100 text-gray-700'
+                          }`}>
+                            {job.jobType === 'OFFER' ? 'オファー' :
+                             job.jobType === 'LIMITED_WORKED' ? '限定（勤務実績）' :
+                             job.jobType === 'LIMITED_FAVORITE' ? '限定（お気に入り）' :
+                             job.jobType === 'ORIENTATION' ? '説明会' : ''}
+                          </span>
+                        </div>
+                      )}
 
                       {/* 審査ありバッジ */}
                       {job.requiresInterview && (

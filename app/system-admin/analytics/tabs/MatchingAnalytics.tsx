@@ -20,7 +20,12 @@ const ALL_METRIC_LABELS: Record<string, { label: string; category: 'common' | 'w
     parentJobsPerFacility: { label: '施設あたり親求人数', category: 'facility' },
     childJobsPerFacility: { label: '施設あたり子求人数', category: 'facility' },
     matchingsPerFacility: { label: '施設あたりマッチング数', category: 'facility' },
-    reviewsPerFacility: { label: '施設あたりレビュー数', category: 'facility' }
+    reviewsPerFacility: { label: '施設あたりレビュー数', category: 'facility' },
+    // 限定求人・オファー指標
+    limitedJobCount: { label: '限定求人数', category: 'facility' },
+    offerJobCount: { label: 'オファー数', category: 'facility' },
+    offerAcceptanceRate: { label: 'オファー承諾率(%)', category: 'facility' },
+    limitedJobApplicationRate: { label: '限定求人応募率(%)', category: 'facility' }
 };
 
 export default function MatchingAnalytics() {

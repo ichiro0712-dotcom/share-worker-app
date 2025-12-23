@@ -1068,11 +1068,11 @@ export async function getMessagesByWorker(
     content: msg.content,
     attachments: msg.attachments,
     senderType: msg.from_user_id ? 'worker' : 'facility',
-    senderName: msg.from_user_id ? msg.application.user.name : '施設',
+    senderName: msg.from_user_id ? (msg.application?.user?.name ?? '') : '施設',
     timestamp: msg.created_at.toISOString(),
     isRead: !!msg.read_at,
-    jobTitle: msg.application.workDate?.job?.title || '',
-    jobDate: msg.application.workDate?.work_date || null,
+    jobTitle: msg.application?.workDate?.job?.title || '',
+    jobDate: msg.application?.workDate?.work_date || null,
   }));
 
   // 未読を既読に（初回読み込み時のみ）

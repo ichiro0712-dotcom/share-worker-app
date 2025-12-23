@@ -31,6 +31,9 @@ export async function getWorkerDetail(workerId: number, facilityId: number) {
       orderBy: { created_at: 'desc' },
     });
 
+    // レビュー完了済み（COMPLETED_RATED）があるか確認（オファー対象判定用）
+    const hasCompletedRated = ourFacilityCompletedApps.some(app => app.status === 'COMPLETED_RATED');
+
     const ourFacilityReviews = await prisma.review.findMany({
       where: {
         user_id: workerId,
@@ -224,6 +227,7 @@ export async function getWorkerDetail(workerId: number, facilityId: number) {
       }).then(b => !!b),
       ratingsByCategory: finalRatingsByCategory,
       qualificationCertificates: user.qualification_certificates as Record<string, string | { certificate_image?: string }> | null,
+      hasCompletedRated, // レビュー完了済み（オファー対象）
     };
   } catch (error) {
     console.error('[getWorkerDetail] Error:', error);
@@ -1202,6 +1206,7 @@ export async function getWorkerListForFacility(
       // ステータスを判定
       const statuses: WorkerListStatus[] = [];
       const hasCompleted = statusSet.has('COMPLETED_PENDING') || statusSet.has('COMPLETED_RATED');
+      const hasCompletedRated = statusSet.has('COMPLETED_RATED'); // レビュー完了（オファー対象）
       const hasCancelled = statusSet.has('CANCELLED');
       const hasScheduled = statusSet.has('SCHEDULED');
       const hasWorking = statusSet.has('WORKING');
@@ -1276,6 +1281,7 @@ export async function getWorkerListForFacility(
         city: data.user.city,
         statuses,
         hasCompleted,
+        hasCompletedRated,
         hasCancelled,
         ourWorkCount,
         lastOurWorkDate,

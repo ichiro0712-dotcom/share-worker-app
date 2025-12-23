@@ -219,12 +219,14 @@ export async function sendMatchingNotification(
 
 /**
  * 新規応募通知を送信（施設宛）
+ * @param notificationKey - 通知キー（デフォルト: 'FACILITY_NEW_APPLICATION'、オファー受諾: 'FACILITY_OFFER_ACCEPTED'）
  */
 export async function sendApplicationNotification(
     facilityId: number,
     workerName: string,
     jobTitle: string,
-    applicationId: number
+    applicationId: number,
+    notificationKey: string = 'FACILITY_NEW_APPLICATION'
 ) {
     try {
         // 応募情報を取得（勤務日を取得するため）
@@ -273,7 +275,7 @@ export async function sendApplicationNotification(
         // 全管理者に通知送信
         for (const admin of admins) {
             await sendNotification({
-                notificationKey: 'FACILITY_NEW_APPLICATION',
+                notificationKey: notificationKey,
                 targetType: 'FACILITY',
                 recipientId: admin.id,
                 recipientName: admin.name,
@@ -290,7 +292,7 @@ export async function sendApplicationNotification(
             });
         }
 
-        console.log('[sendApplicationNotification] Notification sent to admins count:', admins.length);
+        console.log('[sendApplicationNotification] Notification sent to admins count:', admins.length, 'key:', notificationKey);
 
     } catch (error) {
         console.error('[sendApplicationNotification] Error:', error);

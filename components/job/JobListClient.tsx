@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Filter, ChevronDown, Search, X } from 'lucide-react';
+import useSWR from 'swr';
 import { JobCard } from '@/components/job/JobCard';
 import { DateSlider } from '@/components/job/DateSlider';
 import { FilterModal } from '@/components/job/FilterModal';
@@ -11,8 +12,15 @@ import { Pagination } from '@/components/ui/Pagination';
 import { JobListSkeleton } from '@/components/job/JobCardSkeleton';
 import { useJobsSearch, prefetchJobsForDate } from '@/hooks/useJobsSearch';
 
-type TabType = 'all' | 'limited' | 'nominated';
+type ListType = 'all' | 'limited' | 'offer';
 type SortOrder = 'distance' | 'wage' | 'deadline';
+
+// 求人リストタイプのラベル
+const LIST_TYPE_LABELS: Record<ListType, string> = {
+  all: 'すべて',
+  limited: '限定求人',
+  offer: 'オファー',
+};
 
 interface JobListClientProps {
   // 初期データ（サーバーサイドレンダリング用、オプション）
@@ -30,6 +38,13 @@ interface JobListClientProps {
   pagination?: any;
 }
 
+// 件数取得用fetcher
+const countsFetcher = async (url: string) => {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Failed to fetch counts');
+  return res.json();
+};
+
 export function JobListClient({
   initialJobs,
   initialFacilities,
@@ -40,7 +55,8 @@ export function JobListClient({
 }: JobListClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState<TabType>('all');
+  const [listType, setListType] = useState<ListType>('all');
+  const [showListTypeMenu, setShowListTypeMenu] = useState(false);
 
   // URLパラメータから初期値を取得
   const dateIndexFromUrl = searchParams.get('dateIndex');
@@ -120,8 +136,9 @@ export function JobListClient({
       distanceKm: searchParams.get('distanceKm') || undefined,
       distanceLat: effectiveDistanceLat,
       distanceLng: effectiveDistanceLng,
+      listType: listType,
     };
-  }, [searchParams, selectedDateIndex, sortOrder, userLocation]);
+  }, [searchParams, selectedDateIndex, sortOrder, userLocation, listType]);
 
   // SWRでデータ取得
   const {
@@ -346,11 +363,9 @@ export function JobListClient({
     router.push(queryString ? `/?${queryString}` : '/');
   };
 
-  const handleTabClick = (tab: TabType) => {
-    setActiveTab(tab);
-    if (tab === 'limited' || tab === 'nominated') {
-      window.location.href = `/under-construction?page=${tab}`;
-    }
+  const handleListTypeChange = (type: ListType) => {
+    setListType(type);
+    setShowListTypeMenu(false);
   };
 
   const handleFilterClick = () => {
@@ -500,40 +515,43 @@ export function JobListClient({
     <div className="min-h-screen bg-background pb-20">
       {/* ヘッダー */}
       <div className="bg-white sticky top-0 z-10 border-b border-gray-200">
-        {/* タブ */}
-        <div className="flex border-b border-gray-200">
-          <button
-            onClick={() => handleTabClick('all')}
-            className={`flex-1 py-3 text-sm relative flex items-center justify-center ${activeTab === 'all' ? 'text-primary' : 'text-gray-500'}`}
-          >
-            全体
-            {activeTab === 'all' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
-            )}
-          </button>
-          <button
-            onClick={() => handleTabClick('limited')}
-            className={`flex-1 py-3 text-sm relative flex items-center justify-center ${activeTab === 'limited' ? 'text-primary' : 'text-gray-500'}`}
-          >
-            限定
-            {activeTab === 'limited' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
-            )}
-          </button>
-          <button
-            onClick={() => handleTabClick('nominated')}
-            className={`flex-1 py-3 text-sm relative flex items-center justify-center ${activeTab === 'nominated' ? 'text-primary' : 'text-gray-500'}`}
-          >
-            指名
-            {activeTab === 'nominated' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
-            )}
-          </button>
-        </div>
-
         {/* フィルターエリア */}
         <div className="px-4 py-3 space-y-3">
-          <div className="flex items-center justify-end">
+          <div className="flex items-center justify-between">
+            {/* 左側: 求人リストタイプ選択 */}
+            <div className="relative">
+              <button
+                onClick={() => setShowListTypeMenu(!showListTypeMenu)}
+                className="flex items-center gap-1 text-sm font-medium"
+              >
+                <span>{LIST_TYPE_LABELS[listType]}</span>
+                <ChevronDown className="w-4 h-4" />
+              </button>
+              {showListTypeMenu && (
+                <div className="absolute left-0 mt-2 w-36 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
+                  <button
+                    onClick={() => handleListTypeChange('all')}
+                    className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${listType === 'all' ? 'text-primary font-medium' : ''}`}
+                  >
+                    すべて
+                  </button>
+                  <button
+                    onClick={() => handleListTypeChange('limited')}
+                    className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${listType === 'limited' ? 'text-primary font-medium' : ''}`}
+                  >
+                    限定求人
+                  </button>
+                  <button
+                    onClick={() => handleListTypeChange('offer')}
+                    className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${listType === 'offer' ? 'text-primary font-medium' : ''}`}
+                  >
+                    オファー
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* 右側: 絞り込み・ソート */}
             <div className="flex items-center gap-4">
               <button
                 onClick={handleFilterClick}
@@ -552,7 +570,6 @@ export function JobListClient({
                   onClick={() => setShowSortMenu(!showSortMenu)}
                   className="flex items-center gap-1 text-sm"
                 >
-                  <Filter className="w-4 h-4" />
                   <span>
                     {sortOrder === 'distance' ? '近い順' : sortOrder === 'wage' ? '時給順' : '締切順'}
                   </span>

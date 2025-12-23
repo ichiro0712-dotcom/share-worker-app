@@ -39,10 +39,13 @@ interface WorkDate {
   applications: Application[];
 }
 
+type JobType = 'NORMAL' | 'LIMITED_WORKED' | 'LIMITED_FAVORITE' | 'ORIENTATION' | 'OFFER';
+
 interface JobWithApplications {
   id: number;
   title: string;
   status: string;
+  jobType: JobType;
   startTime: string;
   endTime: string;
   hourlyWage: number;

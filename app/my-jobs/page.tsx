@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 type ApplicationStatus = 'APPLIED' | 'SCHEDULED' | 'WORKING' | 'COMPLETED_PENDING' | 'COMPLETED_RATED' | 'CANCELLED';
+type JobType = 'NORMAL' | 'LIMITED_WORKED' | 'LIMITED_FAVORITE' | 'ORIENTATION' | 'OFFER';
 
 interface Application {
   id: number;
@@ -19,6 +20,7 @@ interface Application {
   job: {
     id: number;
     title: string;
+    job_type?: JobType;
     work_date: string;
     start_time: string;
     end_time: string;
@@ -100,6 +102,18 @@ export default function MyJobsPage() {
       CANCELLED: { text: 'キャンセル', color: 'bg-gray-100 text-gray-500' },
     };
     return badges[status] || { text: status, color: 'bg-gray-100 text-gray-700' };
+  };
+
+  // 求人種別バッジを取得（NORMAL以外の場合のみ表示）
+  const getJobTypeBadge = (jobType?: JobType) => {
+    if (!jobType || jobType === 'NORMAL') return null;
+    const badges: Record<Exclude<JobType, 'NORMAL'>, { text: string; color: string }> = {
+      OFFER: { text: 'オファ', color: 'bg-blue-500 text-white' },
+      LIMITED_WORKED: { text: '限定', color: 'bg-purple-500 text-white' },
+      LIMITED_FAVORITE: { text: '限定★', color: 'bg-yellow-500 text-white' },
+      ORIENTATION: { text: '説明会', color: 'bg-teal-500 text-white' },
+    };
+    return badges[jobType as Exclude<JobType, 'NORMAL'>] || null;
   };
 
   const handleCancelApplied = async () => {
@@ -247,9 +261,19 @@ export default function MyJobsPage() {
                 {/* 上部: ステータスと施設名・職種 */}
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-gray-900 text-sm truncate mb-0.5">
-                      {app.job.facility.facility_name}
-                    </h3>
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      {/* 求人種別バッジ（NORMAL以外の場合のみ） */}
+                      {getJobTypeBadge(app.job.job_type) && (
+                        <span
+                          className={`flex-shrink-0 px-1.5 py-0.5 text-[10px] font-bold rounded ${getJobTypeBadge(app.job.job_type)!.color}`}
+                        >
+                          {getJobTypeBadge(app.job.job_type)!.text}
+                        </span>
+                      )}
+                      <h3 className="font-bold text-gray-900 text-sm truncate">
+                        {app.job.facility.facility_name}
+                      </h3>
+                    </div>
                     <p className="text-xs text-gray-600 truncate">{app.job.title}</p>
                   </div>
                   {activeTab !== 'cancelled' && (

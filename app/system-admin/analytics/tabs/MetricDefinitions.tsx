@@ -147,6 +147,34 @@ export const METRIC_DEFINITIONS = {
                 definition: '1施設あたりの平均子求人数',
                 calculation: '子求人数 ÷ アクティブ施設数',
                 usedIn: ['応募・マッチング分析']
+            },
+            {
+                key: 'limitedJobCount',
+                label: '限定求人数',
+                definition: '勤務済みワーカー限定またはお気に入りワーカー限定の求人数',
+                calculation: 'jobs テーブルで job_type IN (LIMITED_WORKED, LIMITED_FAVORITE) のレコード数',
+                usedIn: ['応募・マッチング分析']
+            },
+            {
+                key: 'offerJobCount',
+                label: 'オファー数',
+                definition: '施設から特定ワーカーへ送られた個別オファーの数',
+                calculation: 'jobs テーブルで job_type = OFFER のレコード数',
+                usedIn: ['応募・マッチング分析']
+            },
+            {
+                key: 'offerAcceptanceRate',
+                label: 'オファー承諾率',
+                definition: 'オファー求人のうち、ワーカーが承諾した割合',
+                calculation: 'オファー承諾数 ÷ オファー求人数 × 100',
+                usedIn: ['応募・マッチング分析']
+            },
+            {
+                key: 'limitedJobApplicationRate',
+                label: '限定求人応募率',
+                definition: '限定求人に対して応募があった割合',
+                calculation: '限定求人への応募数 ÷ 限定求人数 × 100',
+                usedIn: ['応募・マッチング分析']
             }
         ]
     },

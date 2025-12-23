@@ -15,6 +15,7 @@ import {
   Ban,
   Building2,
   AlertTriangle,
+  Send,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
@@ -569,8 +570,19 @@ export default function AdminWorkersPage() {
 
                       {/* 右側: アクションエリア */}
                       <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                        {/* お気に入り・ブロックボタン */}
+                        {/* オファー・お気に入り・ブロックボタン */}
                         <div className="flex gap-1.5">
+                          {/* オファーボタン（レビュー完了済みワーカーのみ表示） */}
+                          {worker.hasCompletedRated && (
+                            <Link
+                              href={`/admin/jobs/new?mode=offer&workerId=${worker.userId}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="p-2 rounded-full transition-all bg-blue-500 text-white hover:bg-blue-600"
+                              title="オファーを送る"
+                            >
+                              <Send className="w-4 h-4" />
+                            </Link>
+                          )}
                           <button
                             onClick={(e) => handleToggleFavorite(e, worker.userId)}
                             className={`p-2 rounded-full transition-all ${worker.isFavorite
