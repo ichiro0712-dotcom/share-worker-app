@@ -1048,7 +1048,10 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
 
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-medium mb-3">保有資格 <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium mb-1">保有資格 <span className="text-red-500">*</span></label>
+              <p className="text-sm text-gray-600 mb-3">
+                ※保有している資格にチェックを入れ、<span className="font-bold text-red-500">必ず</span>資格証明書の写真を添付してください。
+              </p>
               {QUALIFICATION_GROUPS.map((group) => (
                 <div key={group.name} className="mb-4">
                   <h4 className="text-sm font-semibold text-gray-700 mb-2">{group.name}</h4>

@@ -93,6 +93,8 @@ export default function MessagesClient({ initialConversations, userId }: Message
   const [hasMore, setHasMore] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  // 会話選択時のスクロール制御用（同じ会話を再選択した時はスクロールしない）
+  const lastSelectedFacilityIdRef = useRef<number | null>(null);
 
   // 過去メッセージ読み込み用の追記用
   const [extraPastMessages, setExtraPastMessages] = useState<Message[]>([]);
@@ -137,12 +139,17 @@ export default function MessagesClient({ initialConversations, userId }: Message
     }
   }, [searchParams, conversations, selectedConversation]);
 
-  // 初期ロード完了時に最下部にスクロール
+  // 初期ロード完了時に最下部にスクロール（新しい会話を選んだ時のみ）
   useEffect(() => {
     if (!isInitialLoad && chatData && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
+      // 同じ会話を再選択した場合（フッターメニュー再クリックなど）はスクロールしない
+      const currentFacilityId = selectedConversation?.facilityId || null;
+      if (lastSelectedFacilityIdRef.current !== currentFacilityId) {
+        messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
+        lastSelectedFacilityIdRef.current = currentFacilityId;
+      }
     }
-  }, [isInitialLoad, selectedConversation]);
+  }, [isInitialLoad, selectedConversation, chatData]);
 
   // 会話を選択
   const handleSelectConversation = async (conversation: Conversation) => {

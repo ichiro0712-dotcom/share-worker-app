@@ -58,26 +58,70 @@ export function JobListClient({
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [mutedFacilities, setMutedFacilities] = useState<number[]>([]);
 
+  // ユーザーの現在地（距離ソート用）
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationRequested, setLocationRequested] = useState(false);
+
+  // 距離ソートが選択されている場合、現在地を取得
+  useEffect(() => {
+    if (sortOrder === 'distance' && !locationRequested && !userLocation) {
+      // URLパラメータに位置情報がない場合のみ位置取得を試みる
+      const hasLocationInUrl = searchParams.get('distanceLat') && searchParams.get('distanceLng');
+      if (!hasLocationInUrl && navigator.geolocation) {
+        setLocationRequested(true);
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            setUserLocation({
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+            });
+          },
+          (error) => {
+            console.log('位置情報の取得に失敗しました:', error.message);
+            // 位置情報が取得できない場合は東京駅をデフォルトとする
+            setUserLocation({ lat: 35.6812, lng: 139.7671 });
+          },
+          { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 }
+        );
+      }
+    }
+  }, [sortOrder, locationRequested, userLocation, searchParams]);
+
   // URLパラメータから検索条件を構築
-  const searchParamsObj = useMemo(() => ({
-    query: searchParams.get('query') || undefined,
-    prefecture: searchParams.get('prefecture') || undefined,
-    city: searchParams.get('city') || undefined,
-    minWage: searchParams.get('minWage') || undefined,
-    serviceTypes: searchParams.getAll('serviceType'),
-    transportations: searchParams.getAll('transportation'),
-    otherConditions: searchParams.getAll('otherCondition'),
-    jobTypes: searchParams.getAll('jobType'),
-    workTimeTypes: searchParams.getAll('workTimeType'),
-    page: searchParams.get('page') ? parseInt(searchParams.get('page')!, 10) : 1,
-    dateIndex: selectedDateIndex,
-    sort: sortOrder,
-    timeRangeFrom: searchParams.get('timeRangeFrom') || undefined,
-    timeRangeTo: searchParams.get('timeRangeTo') || undefined,
-    distanceKm: searchParams.get('distanceKm') || undefined,
-    distanceLat: searchParams.get('distanceLat') || undefined,
-    distanceLng: searchParams.get('distanceLng') || undefined,
-  }), [searchParams, selectedDateIndex, sortOrder]);
+  // 距離ソート用: URLパラメータに位置情報がなくても、userLocationがあれば使用
+  const searchParamsObj = useMemo(() => {
+    const urlDistanceLat = searchParams.get('distanceLat');
+    const urlDistanceLng = searchParams.get('distanceLng');
+
+    // 距離ソート時: URLに位置情報がなければuserLocationを使用
+    let effectiveDistanceLat = urlDistanceLat || undefined;
+    let effectiveDistanceLng = urlDistanceLng || undefined;
+
+    if (sortOrder === 'distance' && !urlDistanceLat && !urlDistanceLng && userLocation) {
+      effectiveDistanceLat = String(userLocation.lat);
+      effectiveDistanceLng = String(userLocation.lng);
+    }
+
+    return {
+      query: searchParams.get('query') || undefined,
+      prefecture: searchParams.get('prefecture') || undefined,
+      city: searchParams.get('city') || undefined,
+      minWage: searchParams.get('minWage') || undefined,
+      serviceTypes: searchParams.getAll('serviceType'),
+      transportations: searchParams.getAll('transportation'),
+      otherConditions: searchParams.getAll('otherCondition'),
+      jobTypes: searchParams.getAll('jobType'),
+      workTimeTypes: searchParams.getAll('workTimeType'),
+      page: searchParams.get('page') ? parseInt(searchParams.get('page')!, 10) : 1,
+      dateIndex: selectedDateIndex,
+      sort: sortOrder,
+      timeRangeFrom: searchParams.get('timeRangeFrom') || undefined,
+      timeRangeTo: searchParams.get('timeRangeTo') || undefined,
+      distanceKm: searchParams.get('distanceKm') || undefined,
+      distanceLat: effectiveDistanceLat,
+      distanceLng: effectiveDistanceLng,
+    };
+  }, [searchParams, selectedDateIndex, sortOrder, userLocation]);
 
   // SWRでデータ取得
   const {
