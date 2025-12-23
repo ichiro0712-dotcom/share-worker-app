@@ -1,15 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { setServerDebugTime, getServerDebugTime } from '@/utils/debugTime.server';
 
 // 開発環境のみで動作
 export const dynamic = 'force-dynamic';
 
+const DEBUG_TIME_COOKIE_NAME = 'debugTimeSettings';
+
+interface DebugTimeSettings {
+  enabled: boolean;
+  time: string | null;
+}
+
 /**
  * デバッグ時刻設定を取得
  */
-export async function GET() {
-  const settings = getServerDebugTime();
-  return NextResponse.json(settings);
+export async function GET(request: NextRequest) {
+  try {
+    const cookie = request.cookies.get(DEBUG_TIME_COOKIE_NAME);
+
+    if (cookie?.value) {
+      const decoded = decodeURIComponent(cookie.value);
+      const settings = JSON.parse(decoded) as DebugTimeSettings;
+      return NextResponse.json(settings);
+    }
+  } catch (error) {
+    console.error('[GET /api/debug/time] Error:', error);
+  }
+
+  return NextResponse.json({ enabled: false, time: null });
 }
 
 /**
@@ -20,21 +37,33 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { enabled, time } = body;
 
-    const settings = {
+    const settings: DebugTimeSettings = {
       enabled: Boolean(enabled),
       time: time || null
     };
 
-    setServerDebugTime(settings);
+    const cookieValue = encodeURIComponent(JSON.stringify(settings));
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       settings
     });
+
+    // Cookieに設定を保存
+    response.cookies.set(DEBUG_TIME_COOKIE_NAME, cookieValue, {
+      httpOnly: false, // クライアントからも読み取れるようにする
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24, // 24時間
+    });
+
+    return response;
   } catch (error) {
+    console.error('[POST /api/debug/time] Error:', error);
     return NextResponse.json(
       { error: 'Invalid request body' },
-      { status: 400 }
+      { status: 500 }
     );
   }
 }

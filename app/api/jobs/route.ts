@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getJobsListWithPagination } from '@/src/lib/actions';
-import { generateDates } from '@/utils/date';
+import { generateDatesFromBase } from '@/utils/date';
+import { DEBUG_TIME_COOKIE_NAME, parseDebugTimeCookie, getCurrentTimeFromSettings } from '@/utils/debugTime.server';
 
 // キャッシュ設定
 export const dynamic = 'force-dynamic';
@@ -8,6 +9,11 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
+
+    // デバッグ時刻をCookieから取得
+    const debugTimeCookie = request.cookies.get(DEBUG_TIME_COOKIE_NAME);
+    const debugTimeSettings = parseDebugTimeCookie(debugTimeCookie?.value);
+    const currentTime = getCurrentTimeFromSettings(debugTimeSettings);
 
     // クエリパラメータを解析
     const query = searchParams.get('query') || undefined;
@@ -34,8 +40,8 @@ export async function GET(request: NextRequest) {
     const distanceLat = searchParams.get('distanceLat') ? parseFloat(searchParams.get('distanceLat')!) : undefined;
     const distanceLng = searchParams.get('distanceLng') ? parseFloat(searchParams.get('distanceLng')!) : undefined;
 
-    // 日付フィルター用のDateオブジェクト生成
-    const dates = generateDates(90);
+    // 日付フィルター用のDateオブジェクト生成（デバッグ時刻対応）
+    const dates = generateDatesFromBase(currentTime, 90);
     const targetDate = dates[dateIndex];
 
     const jobSearchParams = {
@@ -61,7 +67,8 @@ export async function GET(request: NextRequest) {
         page,
         limit: 20,
         targetDate,
-        sort
+        sort,
+        currentTime, // デバッグ時刻対応
       }
     );
 

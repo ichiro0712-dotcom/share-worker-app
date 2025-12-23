@@ -2,35 +2,51 @@
  * デバッグ用時刻管理ユーティリティ
  *
  * System Admin の開発者ポータルから設定可能。
- * クライアントサイドではlocalStorageを使用。
- * サーバーサイドでは環境変数またはグローバル変数を使用。
+ * クライアントサイドではlocalStorageとCookieを使用。
+ *
+ * 注意: サーバーサイドでは、このファイルからインポートした関数は
+ * Cookieから読み取れません。サーバーサイド（API Route、Server Actions）では
+ * 直接CookieからデバッグタイムをNextRequest経由で取得してください。
  */
 
-// サーバーサイド用のグローバル変数（Next.jsのホットリロードでも保持される）
-declare global {
-  // eslint-disable-next-line no-var
-  var debugTimeSettings: { enabled: boolean; time: string | null } | undefined;
-}
+const DEBUG_TIME_COOKIE_NAME = 'debugTimeSettings';
 
 /**
- * デバッグ時刻設定を取得
+ * デバッグ時刻設定を取得（クライアントサイド用）
  */
 export function getDebugTimeSettings(): { enabled: boolean; time: string | null } {
   // クライアントサイドの場合
   if (typeof window !== 'undefined') {
+    // クライアントではまずlocalStorageを確認
     const stored = localStorage.getItem('debugTimeSettings');
     if (stored) {
       try {
         return JSON.parse(stored);
       } catch {
+        // fall through to cookie check
+      }
+    }
+
+    // Cookieからも確認（APIで設定された場合）
+    const cookieValue = document.cookie
+      .split('; ')
+      .find(row => row.startsWith(`${DEBUG_TIME_COOKIE_NAME}=`))
+      ?.split('=')[1];
+
+    if (cookieValue) {
+      try {
+        return JSON.parse(decodeURIComponent(cookieValue));
+      } catch {
         return { enabled: false, time: null };
       }
     }
+
     return { enabled: false, time: null };
   }
 
-  // サーバーサイドの場合 - グローバル変数から読み込み
-  return global.debugTimeSettings || { enabled: false, time: null };
+  // サーバーサイドの場合 - このファイルからはCookieにアクセスできない
+  // Server Actions や API Route では別途Cookieから読み取る必要がある
+  return { enabled: false, time: null };
 }
 
 /**
@@ -48,6 +64,9 @@ export function setDebugTimeSettings(settings: { enabled: boolean; time: string 
  *
  * new Date() の代わりにこの関数を使用することで、
  * デバッグ時刻による動作検証が可能になる。
+ *
+ * 注意: クライアントサイドでのみ正しく動作します。
+ * サーバーサイドではCookieからデバッグ時刻を取得してください。
  *
  * @returns 現在時刻（またはデバッグ時刻）
  */

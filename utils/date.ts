@@ -67,6 +67,22 @@ export const generateDates = (count: number = 90): Date[] => {
   return dates;
 };
 
+/**
+ * 指定した基準日から日付リストを生成（サーバーサイド用）
+ * API Routeなど、Cookieから直接デバッグ時刻を読み取る場合に使用
+ */
+export const generateDatesFromBase = (baseDate: Date, count: number = 90): Date[] => {
+  const dates: Date[] = [];
+
+  for (let i = 0; i < count; i++) {
+    const date = new Date(baseDate);
+    date.setDate(baseDate.getDate() + i);
+    dates.push(date);
+  }
+
+  return dates;
+};
+
 export const formatDateForSlider = (date: Date, index: number): { main: string; sub: string } => {
   if (index === 0) {
     return { main: '今日', sub: '' };

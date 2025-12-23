@@ -1,26 +1,42 @@
 /**
  * デバッグ用時刻管理ユーティリティ（サーバーサイド専用）
  *
- * APIルートからのみ使用される。
- * グローバル変数に設定を保存して永続化。
+ * サーバーレス環境（Netlify等）ではグローバル変数が保持されないため、
+ * Cookieベースで設定を読み取る。
+ *
+ * NextRequestからCookieを読み取る場合に使用。
  */
 
-// サーバーサイド用のグローバル変数（Next.jsのホットリロードでも保持される）
-declare global {
-  // eslint-disable-next-line no-var
-  var debugTimeSettings: { enabled: boolean; time: string | null } | undefined;
+export const DEBUG_TIME_COOKIE_NAME = 'debugTimeSettings';
+
+export interface DebugTimeSettings {
+  enabled: boolean;
+  time: string | null;
 }
 
 /**
- * サーバーサイドでデバッグ時刻を設定（API経由で呼ばれる）
+ * Cookieの値からデバッグ時刻設定をパース
  */
-export function setServerDebugTime(settings: { enabled: boolean; time: string | null }): void {
-  global.debugTimeSettings = settings;
+export function parseDebugTimeCookie(cookieValue: string | undefined): DebugTimeSettings {
+  if (!cookieValue) {
+    return { enabled: false, time: null };
+  }
+
+  try {
+    const decoded = decodeURIComponent(cookieValue);
+    return JSON.parse(decoded);
+  } catch (error) {
+    console.error('[parseDebugTimeCookie] Error:', error);
+    return { enabled: false, time: null };
+  }
 }
 
 /**
- * サーバーサイドのデバッグ時刻設定を取得
+ * デバッグ時刻設定から現在時刻を取得
  */
-export function getServerDebugTime(): { enabled: boolean; time: string | null } {
-  return global.debugTimeSettings || { enabled: false, time: null };
+export function getCurrentTimeFromSettings(settings: DebugTimeSettings): Date {
+  if (settings.enabled && settings.time) {
+    return new Date(settings.time);
+  }
+  return new Date();
 }

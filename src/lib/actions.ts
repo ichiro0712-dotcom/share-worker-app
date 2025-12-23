@@ -177,7 +177,13 @@ export const getCachedJobDetail = async (id: number) => {
   return cachedFn();
 };
 
-export async function getJobs(searchParams?: JobSearchParams) {
+export async function getJobs(
+  searchParams?: JobSearchParams,
+  options?: { currentTime?: Date }
+) {
+  // デバッグ時刻対応: 渡された時刻を優先
+  const now = options?.currentTime || getCurrentTime();
+
   // 検索条件を動的に構築
   // PUBLISHED以外も表示するが、CANCELLED, DRAFT, STOPPEDは除外
   const whereConditions: any = {
@@ -186,7 +192,7 @@ export async function getJobs(searchParams?: JobSearchParams) {
     workDates: {
       some: {
         OR: [
-          { visible_until: { gte: getCurrentTime() } },
+          { visible_until: { gte: now } },
           { visible_until: null } // 既存データ対応
         ]
       }
@@ -437,7 +443,7 @@ export async function getJobs(searchParams?: JobSearchParams) {
         orderBy: { work_date: 'asc' },
         where: {
           OR: [
-            { visible_until: { gte: getCurrentTime() } },
+            { visible_until: { gte: now } },
             { visible_until: null }
           ]
         }
@@ -595,17 +601,20 @@ export async function getJobsListWithPagination(
     limit?: number;
     targetDate?: Date;
     sort?: 'distance' | 'wage' | 'deadline';
+    /** サーバーサイドから渡される現在時刻（デバッグ時刻対応） */
+    currentTime?: Date;
   } = {}
 ) {
-  const { page = 1, limit = 20, targetDate, sort = 'distance' } = paginationOptions;
+  const { page = 1, limit = 20, targetDate, sort = 'distance', currentTime: providedTime } = paginationOptions;
   const skip = (page - 1) * limit;
 
   // 検索条件を動的に構築
   // PUBLISHED以外も表示するが、CANCELLED, DRAFT, STOPPEDは除外
   // 今日の日付の開始時刻（過去の求人を除外するため）
-  // デバッグ時刻対応
-  const todayStart = getTodayStart();
-  const now = getCurrentTime();
+  // デバッグ時刻対応: API Routeから渡された時刻を優先
+  const now = providedTime || getCurrentTime();
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
 
   const whereConditions: any = {
     status: { in: ['PUBLISHED', 'WORKING', 'COMPLETED'] },
@@ -906,7 +915,7 @@ export async function getJobsListWithPagination(
           },
           {
             OR: [
-              { visible_until: { gte: getCurrentTime() } },
+              { visible_until: { gte: now } },
               { visible_until: null }
             ]
           }
@@ -939,7 +948,7 @@ export async function getJobsListWithPagination(
       // visible_untilがまだ有効 または null
       {
         OR: [
-          { visible_until: { gte: getCurrentTime() } },
+          { visible_until: { gte: now } },
           { visible_until: null }
         ]
       }
@@ -1211,12 +1220,17 @@ function formatDate(date: Date): string {
   return `${d.getMonth() + 1}/${d.getDate()}`;
 }
 
-export async function getJobById(id: string) {
+export async function getJobById(id: string, options?: { currentTime?: Date }) {
   const jobId = parseInt(id, 10);
 
   if (isNaN(jobId)) {
     return null;
   }
+
+  // デバッグ時刻対応: 渡された時刻を優先
+  const now = options?.currentTime || getCurrentTime();
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
 
   const job = await prisma.job.findUnique({
     where: {
@@ -1228,7 +1242,7 @@ export async function getJobById(id: string) {
         orderBy: { work_date: 'asc' },
         where: {
           OR: [
-            { visible_until: { gte: getCurrentTime() } },
+            { visible_until: { gte: now } },
             { visible_until: null }
           ]
         }
@@ -1247,7 +1261,7 @@ export async function getJobById(id: string) {
   const totalMatchedCount = job.workDates.reduce((sum: number, wd) => sum + wd.matched_count, 0);
 
   // 今日以降の勤務日をカウント（応募可能日数の目安）
-  const today = getTodayStart();
+  const today = todayStart;
   const futureWorkDateCount = job.workDates.filter(wd => {
     const workDate = new Date(wd.work_date);
     workDate.setHours(0, 0, 0, 0);
