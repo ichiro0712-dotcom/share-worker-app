@@ -97,8 +97,9 @@ export function useAdminJobs(params: AdminJobsParams) {
         fetcher,
         {
             revalidateOnFocus: true,
+            revalidateOnMount: true, // ページに戻った時に必ず再取得
             dedupingInterval: 2000,
-            refreshInterval: 0, // 30秒ごとに再取得する場合は 30000 に設定
+            refreshInterval: 5000, // 5秒ごとに再取得（バックグラウンド保存対応）
         }
     );
 
