@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSWRConfig } from 'swr';
+
 import { useAuth } from '@/contexts/AuthContext';
 import { Upload, X } from 'lucide-react';
 import { TemplatePreviewModal } from '@/components/admin/TemplatePreviewModal';
@@ -66,6 +68,8 @@ interface JobTemplateFormProps {
 
 export default function JobTemplateForm({ mode, templateId, initialData }: JobTemplateFormProps) {
     const router = useRouter();
+    const { mutate: globalMutate } = useSWRConfig();
+
     const { showDebugError } = useDebugError();
     const { admin, isAdmin } = useAuth();
     const [facilityName, setFacilityName] = useState<string>('');
@@ -426,6 +430,8 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
 
             if (result.success) {
                 toast.success(mode === 'edit' ? 'テンプレートを更新しました' : 'テンプレートを保存しました');
+                // SWRキャッシュをクリアして一覧を更新
+                globalMutate((key) => typeof key === 'string' && key.includes('/api/admin/jobs'));
                 router.push('/admin/jobs/templates');
             } else {
                 showDebugError({

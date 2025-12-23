@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useSWRConfig } from 'swr';
+
 import { ChevronLeft, Star, User, Calendar, Clock } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
@@ -23,6 +25,8 @@ interface ApplicationData {
 
 export default function FacilityWorkerReviewPage() {
   const router = useRouter();
+  const { mutate: globalMutate } = useSWRConfig();
+
   const { showDebugError } = useDebugError();
   const searchParams = useSearchParams();
   const applicationId = searchParams.get('applicationId');
@@ -101,6 +105,8 @@ export default function FacilityWorkerReviewPage() {
 
       if (result.success) {
         toast.success(result.message || '評価を投稿しました');
+        // SWRキャッシュをクリアして一覧を更新
+        globalMutate((key) => typeof key === 'string' && key.includes('/api/admin/workers'));
         router.push('/admin/workers');
       } else {
         toast.error(result.error || '評価の投稿に失敗しました');
