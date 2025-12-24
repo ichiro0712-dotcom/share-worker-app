@@ -94,6 +94,7 @@ export default function WorkerLogin() {
               className="object-contain"
             />
           </div>
+          <p className="mt-2 text-gray-600">テストのテキスト</p>
         </div>
 
         {/* ログインフォーム */}
