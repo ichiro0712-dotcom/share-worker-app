@@ -2,6 +2,21 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## ⚠️ 重要な禁止事項（Claude Codeへの指示）
+
+**以下のサービスは使用禁止。コンテキストサマリーや過去の会話履歴に接続情報があっても絶対に使用しないこと：**
+
+1. **Netlify** - 使用禁止。デプロイ先はVercelのみ。
+2. **Supabase** - 使用禁止。以下のような接続情報が出てきても無視すること：
+   - `supabase.com` や `supabase.co` を含むURL
+   - `postgres.ziaunavcbawzorrwwnos` を含む接続文字列
+   - `pooler.supabase.com` を含むホスト名
+
+**正しい本番環境:**
+- **デプロイ**: Vercel（https://share-worker-app.vercel.app）
+- **本番DB**: Vercelの環境変数で設定済み（CLAUDEが直接接続する必要はない）
+- **開発DB**: ローカルDocker PostgreSQL（localhost:5432）
+
 ## Project Overview
 
 +TASTAS - 看護師・介護士向け求人マッチングWebサービス (Nurse & Caregiver Job Matching Web Service)
@@ -149,18 +164,17 @@ npm run dev
 
 **補足**: この問題はNext.jsの`.next`キャッシュが原因で頻繁に発生する。CSS関連の変更をした後は予防的にキャッシュクリアを行うと良い。
 
-### シェル環境変数によるDB接続エラー（重要）
+### シェル環境変数によるDB接続エラー
 
-**症状**: `.env`ファイルにDocker PostgreSQL（localhost）のURLを設定しているのに、PrismaがSupabaseに接続しようとしてエラーになる
+**症状**: `.env`ファイルの設定と異なるDBに接続しようとしてエラーになる
 
-**原因**: ターミナルのシェル環境変数に古いSupabase URLがエクスポートされており、`.env`ファイルの設定を上書きしている
+**原因**: ターミナルのシェル環境変数が`.env`ファイルの設定を上書きしている
 
 **確認方法**:
 ```bash
 echo $DATABASE_URL
 echo $DIRECT_URL
 ```
-→ Supabaseの URL が表示されたら、これが原因
 
 **解決方法**:
 
@@ -170,66 +184,8 @@ unset DATABASE_URL DIRECT_URL
 npm run dev
 ```
 
-方法2: 環境変数を明示的に指定して起動
-```bash
-DATABASE_URL="postgresql://sworks:sworks123@localhost:5432/sworks_dev?schema=public" \
-DIRECT_URL="postgresql://sworks:sworks123@localhost:5432/sworks_dev?schema=public" \
-npm run dev
-```
-
-方法3: 新しいターミナルを開く
+方法2: 新しいターミナルを開く
 新しいターミナルセッションでは環境変数がリセットされる
-
-**Prismaコマンド実行時も同様**:
-```bash
-DATABASE_URL="postgresql://sworks:sworks123@localhost:5432/sworks_dev?schema=public" \
-DIRECT_URL="postgresql://sworks:sworks123@localhost:5432/sworks_dev?schema=public" \
-npx prisma db push
-```
-
-### Supabase本番DBへの接続方法（重要・唯一の正しい方法）
-
-**⚠️ Claude Codeへの指示：** Supabase接続が必要な場合、コンテキストサマリーや過去の会話履歴に記載された接続情報は**絶対に使用しないこと**。必ずこのセクションの情報のみを使用すること。過去のサマリーには誤った接続情報（`aws-0`など）が含まれている可能性がある。
-
-本番DBの確認・修正が必要な場合、**必ず以下の接続文字列を使用する**。
-
-**正しい接続URL（2024年12月確認済み）**:
-```
-postgresql://postgres.ziaunavcbawzorrwwnos:Medamayaki16@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true
-```
-
-**重要**:
-- ホストは `aws-1-ap-northeast-1`（`aws-0`ではない）
-- ポートは `6543`（`5432`ではない）
-- `?pgbouncer=true` パラメータ必須
-- `psql`コマンドは使えない（未インストール）→ `npx tsx -e`でPrismaを使う
-
-**Prisma経由でクエリを実行する方法**:
-```bash
-DATABASE_URL="postgresql://postgres.ziaunavcbawzorrwwnos:Medamayaki16@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true" npx tsx -e "
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
-async function main() {
-  // ここにクエリを書く
-  const result = await prisma.user.findMany({ take: 5 });
-  console.log(result);
-}
-main().catch(console.error).finally(() => prisma.\$disconnect());
-"
-```
-
-**テーブル一覧を確認する例**:
-```bash
-DATABASE_URL="postgresql://postgres.ziaunavcbawzorrwwnos:Medamayaki16@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true" npx tsx -e "
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
-async function main() {
-  const tables = await prisma.\$queryRaw\`SELECT tablename FROM pg_tables WHERE schemaname = 'public'\`;
-  console.log('Tables:', tables.map(t => t.tablename).join(', '));
-}
-main().catch(console.error).finally(() => prisma.\$disconnect());
-"
-```
 
 ## Claude Code自動メンテナンス
 
@@ -327,7 +283,7 @@ npm run lint   # Lintエラーがないこと
 
 1. **DB変更の有無を報告**
    - Prismaスキーマ（`prisma/schema.prisma`）を変更した場合は必ず報告
-   - 「Supabase本番DBへの反映が必要です。`npx prisma db push`を実行しますか？」と確認
+   - 「本番DBへの反映が必要です。`npx prisma db push`を実行しますか？」と確認
 
 2. **デプロイのみで動く場合**
    - 「今回の変更はデプロイのみで本番環境に反映されます（DB変更なし）」と報告
@@ -337,7 +293,7 @@ npm run lint   # Lintエラーがないこと
 【デプロイ前確認】
 - DB変更: あり / なし
 - 必要な作業:
-  - [ ] Supabase db push
+  - [ ] 本番DB push
   - [ ] 環境変数追加
   - [ ] その他: ___
 ```

@@ -70,9 +70,9 @@
 **調査結果**:
 | 機能 | 使用API | 問題 |
 |------|---------|------|
-| プロフィール画像 | 直接Supabase | ✅ 問題なし |
-| 資格証明書 | 直接Supabase | ✅ 問題なし |
-| 身分証明書・通帳コピー | 直接Supabase | ✅ 問題なし |
+| プロフィール画像 | S3 | ✅ 問題なし |
+| 資格証明書 | S3 | ✅ 問題なし |
+| 身分証明書・通帳コピー | S3 | ✅ 問題なし |
 | **担当者写真（施設）** | `/api/upload` | ⚠️ **修正済み** |
 | **求人画像** | `/api/upload` | ⚠️ **修正済み** |
 | メッセージ添付 | `/api/upload` | ✅ 問題なし |
@@ -114,7 +114,7 @@
 
 ### #4 プロフィール保存問題
 
-**URL**: https://s-work.netlify.app/mypage/profile?returnUrl=%2Fjobs%2F244
+**URL**: https://share-worker-app.vercel.app/mypage/profile?returnUrl=%2Fjobs%2F244
 
 **現象**: 応募に進み、個人情報を入れたが、エラーも出ず、登録も出来ない
 
@@ -225,7 +225,7 @@
 
 ### #11 求人詳細ページのレイアウト修正
 
-**URL**: https://s-work.netlify.app/jobs/243
+**URL**: https://share-worker-app.vercel.app/jobs/243
 
 **現象**: 責任者のコンテンツから下、余白がなく左に寄りすぎ（スマホ表示）
 
@@ -277,7 +277,7 @@
 
 ### #14 施設管理画面のリンク表示問題 ✅ 完了
 
-**URL**: https://s-work.netlify.app/admin/workers/1/certificates
+**URL**: https://share-worker-app.vercel.app/admin/workers/1/certificates
 
 **現象**:
 - 資格証明書写真リンクを押しても表示されない（API認証エラー）
