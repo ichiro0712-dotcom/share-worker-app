@@ -62,6 +62,12 @@ export async function getFacilityJobs(
                 },
                 facility: true,
                 template: true,
+                targetWorker: {
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                },
             },
             orderBy: { created_at: 'desc' },
             skip,
@@ -133,6 +139,8 @@ export async function getFacilityJobs(
             templateId: job.template_id,
             templateName: job.template?.name || null,
             requiresInterview: job.requires_interview,
+            targetWorkerId: job.target_worker_id,
+            targetWorkerName: job.targetWorker?.name || null,
         };
     });
 
@@ -297,8 +305,55 @@ export async function createJobs(input: CreateJobInput) {
     };
     const dbJobType = jobTypeMap[input.jobType || 'NORMAL'] || 'NORMAL';
 
-    // 限定求人の場合は審査なしに固定
-    const requiresInterview = (dbJobType === 'LIMITED_WORKED' || dbJobType === 'LIMITED_FAVORITE' || dbJobType === 'OFFER')
+    // オファー重複チェック（同一ワーカー × 同一勤務日 × 同一施設 × アクティブなオファー）
+    if (dbJobType === 'OFFER' && input.targetWorkerId && input.workDates.length > 0) {
+        // 指定された勤務日でアクティブなオファーが既にあるかチェック
+        const existingOffers = await prisma.job.findMany({
+            where: {
+                facility_id: input.facilityId,
+                target_worker_id: input.targetWorkerId,
+                job_type: 'OFFER',
+                status: { in: ['DRAFT', 'PUBLISHED'] }, // アクティブなオファーのみ
+            },
+            include: {
+                workDates: {
+                    select: { work_date: true },
+                },
+            },
+        });
+
+        // 既存オファーの勤務日を収集
+        const existingWorkDates = new Set<string>();
+        for (const offer of existingOffers) {
+            for (const wd of offer.workDates) {
+                // 日付を YYYY-MM-DD 形式で保存
+                existingWorkDates.add(wd.work_date.toISOString().split('T')[0]);
+            }
+        }
+
+        // 新規オファーの勤務日と重複チェック
+        const duplicateDates: string[] = [];
+        for (const dateStr of input.workDates) {
+            const normalizedDate = new Date(dateStr).toISOString().split('T')[0];
+            if (existingWorkDates.has(normalizedDate)) {
+                duplicateDates.push(dateStr);
+            }
+        }
+
+        if (duplicateDates.length > 0) {
+            const formattedDates = duplicateDates.map(d => {
+                const date = new Date(d);
+                return `${date.getMonth() + 1}/${date.getDate()}`;
+            }).join(', ');
+            return {
+                success: false,
+                error: `このワーカーには既に ${formattedDates} のオファーが送信済みです。同じ日程のオファーを重複して送ることはできません。`,
+            };
+        }
+    }
+
+    // オファー・説明会の場合は審査なしに固定
+    const requiresInterview = (dbJobType === 'OFFER' || dbJobType === 'ORIENTATION')
         ? false
         : (input.requiresInterview || false);
 
@@ -439,9 +494,10 @@ export async function createJobs(input: CreateJobInput) {
             }).join(', ');
 
             // オファーメッセージを作成
+            const jobDetailUrl = `/jobs/${job.id}`;
             const offerMessageContent = input.offerMessage
-                ? `【オファーのお知らせ】\n\n${input.offerMessage}\n\n【求人情報】\n・タイトル: ${input.title}\n・勤務日: ${workDateStr}\n・勤務時間: ${input.startTime}〜${input.endTime}\n・日給: ${wage.toLocaleString()}円\n\n※この求人はあなただけに送られた特別なオファーです。`
-                : `【オファーのお知らせ】\n\nお仕事のオファーをお送りします。\n\n【求人情報】\n・タイトル: ${input.title}\n・勤務日: ${workDateStr}\n・勤務時間: ${input.startTime}〜${input.endTime}\n・日給: ${wage.toLocaleString()}円\n\n※この求人はあなただけに送られた特別なオファーです。`;
+                ? `【オファーのお知らせ】\n\n${input.offerMessage}\n\n【求人情報】\n・タイトル: ${input.title}\n・勤務日: ${workDateStr}\n・勤務時間: ${input.startTime}〜${input.endTime}\n・日給: ${wage.toLocaleString()}円\n\n▼ 求人詳細を見る\n${jobDetailUrl}\n\n※この求人はあなただけに送られた特別なオファーです。`
+                : `【オファーのお知らせ】\n\nお仕事のオファーをお送りします。\n\n【求人情報】\n・タイトル: ${input.title}\n・勤務日: ${workDateStr}\n・勤務時間: ${input.startTime}〜${input.endTime}\n・日給: ${wage.toLocaleString()}円\n\n▼ 求人詳細を見る\n${jobDetailUrl}\n\n※この求人はあなただけに送られた特別なオファーです。`;
 
             await prisma.message.create({
                 data: {
@@ -478,16 +534,60 @@ export async function createJobs(input: CreateJobInput) {
  */
 export async function deleteJobs(jobIds: number[], facilityId: number): Promise<{ success: boolean; message: string; deletedCount?: number }> {
     try {
+        // オファー求人の場合はワーカーへ通知が必要なので、詳細情報も取得
         const jobsToDelete = await prisma.job.findMany({
             where: {
                 id: { in: jobIds },
                 facility_id: facilityId,
             },
-            select: { id: true },
+            select: {
+                id: true,
+                job_type: true,
+                target_worker_id: true,
+                title: true,
+            },
         });
 
         if (jobsToDelete.length === 0) {
             return { success: false, message: '削除対象の求人が見つかりません' };
+        }
+
+        // オファー求人の場合、削除前にワーカーへ通知メッセージを送信
+        for (const job of jobsToDelete) {
+            if (job.job_type === 'OFFER' && job.target_worker_id) {
+                try {
+                    // メッセージスレッドを取得
+                    const thread = await prisma.messageThread.findUnique({
+                        where: {
+                            worker_id_facility_id: {
+                                worker_id: job.target_worker_id,
+                                facility_id: facilityId,
+                            },
+                        },
+                    });
+
+                    if (thread) {
+                        // オファー取り消しメッセージを送信
+                        await prisma.message.create({
+                            data: {
+                                thread_id: thread.id,
+                                from_facility_id: facilityId,
+                                to_user_id: job.target_worker_id,
+                                content: `【オファー取り消しのお知らせ】\n\n「${job.title}」のオファーは施設側の都合により取り消されました。\n\nご不明な点がございましたら、お気軽にメッセージでお問い合わせください。`,
+                            },
+                        });
+
+                        // スレッドの最終メッセージ日時を更新
+                        await prisma.messageThread.update({
+                            where: { id: thread.id },
+                            data: { last_message_at: new Date() },
+                        });
+                    }
+                } catch (e) {
+                    console.error('[deleteJobs] Failed to send offer cancellation message:', e);
+                    // メッセージ送信失敗は削除処理自体を失敗させない
+                }
+            }
         }
 
         const validJobIds = jobsToDelete.map(j => j.id);
@@ -518,12 +618,18 @@ export async function updateJobsStatus(
     status: 'PUBLISHED' | 'STOPPED'
 ): Promise<{ success: boolean; message: string; updatedCount?: number }> {
     try {
+        // オファー求人の場合は詳細情報も取得（停止時に通知が必要）
         const jobsToUpdate = await prisma.job.findMany({
             where: {
                 id: { in: jobIds },
                 facility_id: facilityId,
             },
-            select: { id: true },
+            select: {
+                id: true,
+                job_type: true,
+                target_worker_id: true,
+                title: true,
+            },
         });
 
         if (jobsToUpdate.length === 0) {
@@ -544,6 +650,40 @@ export async function updateJobsStatus(
                 sendNearbyJobNotifications(jobId, 'WORKER_NEARBY_NEW_JOB')
                     .catch(e => console.error(`[updateJobsStatus] Nearby notification error (Job: ${jobId}):`, e));
             });
+        } else if (status === 'STOPPED') {
+            // オファー求人を停止した場合、ワーカーへ通知メッセージを送信
+            for (const job of jobsToUpdate) {
+                if (job.job_type === 'OFFER' && job.target_worker_id) {
+                    try {
+                        const thread = await prisma.messageThread.findUnique({
+                            where: {
+                                worker_id_facility_id: {
+                                    worker_id: job.target_worker_id,
+                                    facility_id: facilityId,
+                                },
+                            },
+                        });
+
+                        if (thread) {
+                            await prisma.message.create({
+                                data: {
+                                    thread_id: thread.id,
+                                    from_facility_id: facilityId,
+                                    to_user_id: job.target_worker_id,
+                                    content: `【オファー取り消しのお知らせ】\n\n「${job.title}」のオファーは施設側の都合により取り消されました。\n\nご不明な点がございましたら、お気軽にメッセージでお問い合わせください。`,
+                                },
+                            });
+
+                            await prisma.messageThread.update({
+                                where: { id: thread.id },
+                                data: { last_message_at: new Date() },
+                            });
+                        }
+                    } catch (e) {
+                        console.error('[updateJobsStatus] Failed to send offer cancellation message:', e);
+                    }
+                }
+            }
         }
 
         const statusLabel = status === 'PUBLISHED' ? '公開' : '停止';
@@ -791,5 +931,53 @@ export async function updateJob(
     } catch (error) {
         console.error('[updateJob] Error:', error);
         return { success: false, error: '求人の更新に失敗しました' };
+    }
+}
+
+/**
+ * 限定求人の対象者数を取得
+ * - 勤務済みワーカー数: この施設でCOMPLETED_RATEDステータスの応募があるワーカーのユニーク数
+ * - お気に入りワーカー数: この施設がFAVORITEとしてブックマークしているワーカーのユニーク数
+ */
+export async function getLimitedJobTargetCounts(facilityId: number): Promise<{
+    workedCount: number;
+    favoriteCount: number;
+}> {
+    try {
+        // 勤務済みワーカー数: COMPLETED_RATED のアプリケーションを持つユニークなワーカー数
+        const workedWorkers = await prisma.application.findMany({
+            where: {
+                status: 'COMPLETED_RATED',
+                workDate: {
+                    job: {
+                        facility_id: facilityId,
+                    },
+                },
+            },
+            select: {
+                user_id: true,
+            },
+            distinct: ['user_id'],
+        });
+
+        // お気に入りワーカー数: この施設がFAVORITEとしてブックマークしているワーカー数
+        const favoriteWorkers = await prisma.bookmark.count({
+            where: {
+                facility_id: facilityId,
+                target_user_id: { not: null },
+                type: 'FAVORITE',
+            },
+        });
+
+        return {
+            workedCount: workedWorkers.length,
+            favoriteCount: favoriteWorkers,
+        };
+    } catch (error) {
+        console.error('[getLimitedJobTargetCounts] Error:', error);
+        return {
+            workedCount: 0,
+            favoriteCount: 0,
+        };
     }
 }

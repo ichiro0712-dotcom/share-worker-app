@@ -514,7 +514,7 @@ export async function getApplicationsByWorker(
                 created_at: true,
                 facility_viewed_at: true,
                 user: { select: { id: true, name: true, profile_image: true, qualifications: true, prefecture: true, city: true, experience_fields: true } },
-                workDate: { include: { job: { select: { id: true, title: true, start_time: true, end_time: true, hourly_wage: true, requires_interview: true } } } },
+                workDate: { include: { job: { select: { id: true, title: true, start_time: true, end_time: true, hourly_wage: true, requires_interview: true, job_type: true } } } },
             },
             orderBy: { created_at: 'desc' },
         });
@@ -623,6 +623,7 @@ export async function getApplicationsByWorker(
                     endTime: app.workDate.job.end_time,
                     hourlyWage: app.workDate.job.hourly_wage,
                     requiresInterview: app.workDate.job.requires_interview,
+                    jobType: app.workDate.job.job_type,
                 },
             });
         });

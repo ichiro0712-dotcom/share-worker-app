@@ -47,6 +47,7 @@ interface JobWithApplications {
     id: number;
     title: string;
     status: string;
+    jobType?: 'NORMAL' | 'OFFER' | 'LIMITED_WORKED' | 'LIMITED_FAVORITE' | 'ORIENTATION';
     startTime: string;
     endTime: string;
     hourlyWage: number;
@@ -196,6 +197,23 @@ export default function JobApplicationModal({
                                         job.status === 'COMPLETED' ? '完了' :
                                             job.status === 'STOPPED' ? '停止中' : job.status}
                             </span>
+                            {/* 求人種別バッジ */}
+                            {job.jobType && job.jobType !== 'NORMAL' && (
+                                <span className={`px-2 py-0.5 text-xs font-bold rounded shadow-sm ${
+                                    job.jobType === 'OFFER' ? 'bg-blue-600 text-white' :
+                                    job.jobType === 'LIMITED_WORKED' ? 'bg-purple-600 text-white' :
+                                    job.jobType === 'LIMITED_FAVORITE' ? 'bg-pink-500 text-white' :
+                                    job.jobType === 'ORIENTATION' ? 'bg-teal-500 text-white' :
+                                    'bg-gray-100 text-gray-700'
+                                }`}>
+                                    {job.jobType === 'OFFER' ? 'オファ' :
+                                     job.jobType === 'LIMITED_WORKED' ? '限定' :
+                                     job.jobType === 'LIMITED_FAVORITE' ? (
+                                       <>限定<span className="text-yellow-300">★</span></>
+                                     ) :
+                                     job.jobType === 'ORIENTATION' ? '説明会' : ''}
+                                </span>
+                            )}
                             {job.requiresInterview && (
                                 <span className="px-2 py-0.5 text-xs font-medium rounded bg-orange-100 text-orange-700">
                                     審査あり

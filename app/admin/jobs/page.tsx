@@ -90,6 +90,8 @@ interface JobData {
   mealSupport: boolean;
   weeklyFrequency: number | null;
   requiresInterview: boolean;
+  targetWorkerId: number | null;
+  targetWorkerName: string | null;
 }
 
 interface TemplateData {
@@ -578,7 +580,7 @@ export default function AdminJobsList() {
               { value: 'NORMAL', label: '通常', color: 'bg-gray-100 text-gray-700 hover:bg-gray-200' },
               { value: 'LIMITED_WORKED', label: '限定（勤務実績）', color: 'bg-purple-50 text-purple-700 hover:bg-purple-100' },
               { value: 'LIMITED_FAVORITE', label: '限定（お気に入り）', color: 'bg-pink-50 text-pink-700 hover:bg-pink-100' },
-              { value: 'OFFER', label: 'オファー', color: 'bg-blue-50 text-blue-700 hover:bg-blue-100' },
+              { value: 'OFFER', label: 'オファ', color: 'bg-blue-50 text-blue-700 hover:bg-blue-100' },
               { value: 'ORIENTATION', label: '説明会', color: 'bg-teal-50 text-teal-700 hover:bg-teal-100' },
             ].map((type) => (
               <button
@@ -635,6 +637,118 @@ export default function AdminJobsList() {
                 ? Math.round((job.totalMatched / job.totalRecruitment) * 100)
                 : 0;
 
+              // オファー求人は専用のカードデザイン
+              if (job.jobType === 'OFFER') {
+                return (
+                  <div
+                    key={job.id}
+                    onClick={() => handleCheckboxChange(job.id)}
+                    className="bg-blue-50 rounded-admin-card border-2 border-blue-200 hover:border-blue-400 hover:shadow-md transition-all p-3 flex items-center gap-3 cursor-pointer"
+                  >
+                    {/* チェックボックス */}
+                    <div className="flex-shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={selectedJobIds.includes(job.id)}
+                        onChange={() => handleCheckboxChange(job.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                    </div>
+
+                    {/* カード内容 */}
+                    <div className="flex-1 min-w-0">
+                      {/* 1行目: オファーバッジ + 対象者名 + 求人名 + 取消ボタン */}
+                      <div className="flex items-center gap-3 mb-2">
+                        {/* オファーバッジ */}
+                        <span className="px-2 py-0.5 text-xs font-bold rounded bg-blue-600 text-white">
+                          オファ
+                        </span>
+
+                        {/* オファー対象者名 */}
+                        <span className="text-sm font-medium text-blue-700">
+                          → {job.targetWorkerName || '（対象者不明）'}
+                        </span>
+
+                        {/* 求人名 */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-gray-600 truncate">{job.title}</p>
+                        </div>
+
+                        {/* プレビューボタン */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(`/jobs/${job.id}?preview=true`, '_blank');
+                          }}
+                          className="px-3 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
+                        >
+                          プレビュー
+                        </button>
+
+                        {/* 通知書ボタン */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(`/admin/jobs/${job.id}/notification`, '_blank');
+                          }}
+                          className="px-3 py-1 text-xs font-medium bg-orange-100 text-orange-700 rounded hover:bg-orange-200 transition-colors"
+                        >
+                          通知書
+                        </button>
+
+                        {/* 取消ボタン */}
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            if (!confirm(`${job.targetWorkerName || 'このワーカー'}へのオファーを取り消しますか？`)) return;
+                            if (!admin?.facilityId) return;
+                            setIsDeleting(true);
+                            try {
+                              const result = await deleteJobs([job.id], admin.facilityId);
+                              if (result.success) {
+                                toast.success('オファーを取り消しました');
+                                mutateJobs();
+                              } else {
+                                toast.error(result.message);
+                              }
+                            } catch (error) {
+                              toast.error('オファーの取り消しに失敗しました');
+                            } finally {
+                              setIsDeleting(false);
+                            }
+                          }}
+                          disabled={isDeleting}
+                          className="flex items-center gap-1 px-3 py-1 text-xs font-medium bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors disabled:opacity-50"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          取消
+                        </button>
+                      </div>
+
+                      {/* 2行目: 時給・日時のみ（応募状況はオファーなので不要） */}
+                      <div className="flex items-center gap-3">
+                        {/* 時給 */}
+                        <div className="flex-shrink-0 flex items-center gap-1 text-xs font-medium text-blue-700">
+                          <span>¥{job.hourlyWage.toLocaleString()}/時</span>
+                        </div>
+
+                        {/* 日時（勤務日と時間） */}
+                        <div className="flex-shrink-0">
+                          <div className="flex items-center gap-1 text-xs text-gray-700">
+                            <Calendar className="w-3 h-3 text-gray-400" />
+                            <span>{job.dateRange}</span>
+                            <span className="text-gray-400">•</span>
+                            <span>{job.startTime}〜{job.endTime}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
+              // 通常の求人カード
               return (
                 <div
                   key={job.id}
@@ -666,16 +780,16 @@ export default function AdminJobsList() {
                       {/* 求人種別バッジ */}
                       {job.jobType && job.jobType !== 'NORMAL' && (
                         <div className="flex-shrink-0">
-                          <span className={`px-2 py-0.5 text-xs font-medium rounded ${
-                            job.jobType === 'OFFER' ? 'bg-blue-100 text-blue-700' :
-                            job.jobType === 'LIMITED_WORKED' ? 'bg-purple-100 text-purple-700' :
-                            job.jobType === 'LIMITED_FAVORITE' ? 'bg-pink-100 text-pink-700' :
-                            job.jobType === 'ORIENTATION' ? 'bg-teal-100 text-teal-700' :
+                          <span className={`px-2 py-0.5 text-xs font-bold rounded shadow-sm ${
+                            job.jobType === 'LIMITED_WORKED' ? 'bg-purple-600 text-white' :
+                            job.jobType === 'LIMITED_FAVORITE' ? 'bg-pink-500 text-white' :
+                            job.jobType === 'ORIENTATION' ? 'bg-teal-500 text-white' :
                             'bg-gray-100 text-gray-700'
                           }`}>
-                            {job.jobType === 'OFFER' ? 'オファー' :
-                             job.jobType === 'LIMITED_WORKED' ? '限定（勤務実績）' :
-                             job.jobType === 'LIMITED_FAVORITE' ? '限定（お気に入り）' :
+                            {job.jobType === 'LIMITED_WORKED' ? '限定' :
+                             job.jobType === 'LIMITED_FAVORITE' ? (
+                               <>限定<span className="text-yellow-300">★</span></>
+                             ) :
                              job.jobType === 'ORIENTATION' ? '説明会' : ''}
                           </span>
                         </div>

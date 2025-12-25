@@ -459,7 +459,8 @@ export default function MessagesClient({ initialConversations, userId }: Message
 
   // テキスト内のURLをリンクに変換する関数
   const renderContentWithLinks = (content: string, linkColorStyle: 'default' | 'light' = 'default') => {
-    const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g;
+    // 外部URL、www、アプリ内パス（/jobs/123など）を検出
+    const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|\/jobs\/\d+)/g;
     const parts = content.split(urlRegex);
 
     const linkClassName = linkColorStyle === 'light'
@@ -468,7 +469,25 @@ export default function MessagesClient({ initialConversations, userId }: Message
 
     return parts.map((part, index) => {
       if (part.match(urlRegex)) {
+        // 相対パス（/jobs/123）の場合は内部リンク
+        const isInternalPath = part.startsWith('/');
         const href = part.startsWith('www.') ? `https://${part}` : part;
+
+        if (isInternalPath) {
+          // アプリ内リンク（新しいタブで開かない）
+          return (
+            <a
+              key={index}
+              href={href}
+              className={linkClassName}
+              onClick={(e) => e.stopPropagation()}
+            >
+              求人詳細を見る
+            </a>
+          );
+        }
+
+        // 外部リンク
         return (
           <a
             key={index}

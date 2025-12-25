@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSWRConfig } from 'swr';
 import { useAuth } from '@/contexts/AuthContext';
-import { Calendar, MapPin, Upload, X, Loader2, ArrowLeft, ChevronLeft, ChevronRight, Clock, DollarSign, Briefcase, FileText, CheckCircle, AlertCircle, Info, AlertTriangle, Star } from 'lucide-react';
+import { Calendar, MapPin, Upload, X, Loader2, ArrowLeft, ChevronLeft, ChevronRight, Clock, DollarSign, Briefcase, FileText, CheckCircle, AlertCircle, Info, AlertTriangle, Star, Plus, Trash2, Edit3 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useErrorToast } from '@/components/ui/PersistentErrorToast';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
@@ -15,7 +15,7 @@ import { calculateDailyWage } from '@/utils/salary';
 import { getCurrentTime } from '@/utils/debugTime';
 import { validateImageFiles, validateAttachmentFiles } from '@/utils/fileValidation';
 import { directUploadMultiple } from '@/utils/directUpload';
-import { createJobs, updateJob, getAdminJobTemplates, getFacilityInfo, getJobById } from '@/src/lib/actions';
+import { createJobs, updateJob, getAdminJobTemplates, getFacilityInfo, getJobById, getLimitedJobTargetCounts, getOfferTemplates, createOfferTemplate, updateOfferTemplate, deleteOfferTemplate } from '@/src/lib/actions';
 import { getSystemTemplates, getJobDescriptionFormats, getDismissalReasonsFromLaborTemplate } from '@/src/lib/content-actions';
 import {
     JOB_TYPES,
@@ -100,6 +100,12 @@ interface OfferTargetWorker {
     profileImage: string | null;
 }
 
+interface OfferTemplate {
+    id: number;
+    name: string;
+    message: string;
+}
+
 export interface JobFormProps {
     mode: 'create' | 'edit';
     jobId?: string;
@@ -135,6 +141,9 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
     const [selectedDates, setSelectedDates] = useState<string[]>([]);
     const [showConfirm, setShowConfirm] = useState(false);
 
+    // 切り替え設定へのRef（バリデーションエラー時にスクロールするため）
+    const switchSettingRef = useRef<HTMLDivElement>(null);
+
     // 条件設定用 State
     const [skillInput, setSkillInput] = useState('');
     const [dresscodeInput, setDresscodeInput] = useState('');
@@ -149,6 +158,21 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
     const [recruitmentOptions, setRecruitmentOptions] = useState({
         weeklyFrequency: null as 2 | 3 | 4 | 5 | null,
     });
+
+    // 限定求人の対象者数
+    const [limitedJobTargetCounts, setLimitedJobTargetCounts] = useState<{
+        workedCount: number;
+        favoriteCount: number;
+    }>({ workedCount: 0, favoriteCount: 0 });
+
+    // オファーテンプレート関連
+    const [offerTemplates, setOfferTemplates] = useState<OfferTemplate[]>([]);
+    const [selectedOfferTemplateId, setSelectedOfferTemplateId] = useState<number | null>(null);
+    const [showOfferTemplateModal, setShowOfferTemplateModal] = useState(false);
+    const [editingOfferTemplate, setEditingOfferTemplate] = useState<OfferTemplate | null>(null);
+    const [isCreatingOfferTemplate, setIsCreatingOfferTemplate] = useState(false);
+    const [newOfferTemplateName, setNewOfferTemplateName] = useState('');
+    const [newOfferTemplateMessage, setNewOfferTemplateMessage] = useState('');
 
     // フォームデータ
     const [formData, setFormData] = useState({
@@ -461,7 +485,132 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
         }
     };
 
+    // === 限定求人対象者数を取得 ===
+    useEffect(() => {
+        if (!admin?.facilityId) return;
+
+        const fetchTargetCounts = async () => {
+            try {
+                const counts = await getLimitedJobTargetCounts(admin.facilityId);
+                console.log('[JobForm] Limited job target counts:', counts);
+                setLimitedJobTargetCounts(counts);
+            } catch (error) {
+                console.error('[JobForm] Failed to fetch limited job target counts:', error);
+            }
+        };
+
+        fetchTargetCounts();
+    }, [admin?.facilityId]);
+
+    // === オファーテンプレートを取得（オファーモード時のみ） ===
+    useEffect(() => {
+        if (!isOfferMode || !admin?.facilityId) return;
+
+        const fetchOfferTemplates = async () => {
+            try {
+                const templates = await getOfferTemplates(admin.facilityId);
+                setOfferTemplates(templates as OfferTemplate[]);
+            } catch (error) {
+                console.error('[JobForm] Failed to fetch offer templates:', error);
+            }
+        };
+
+        fetchOfferTemplates();
+    }, [isOfferMode, admin?.facilityId]);
+
+    // オファーテンプレートの再取得
+    const refreshOfferTemplates = async () => {
+        if (!admin?.facilityId) return;
+        const templates = await getOfferTemplates(admin.facilityId);
+        setOfferTemplates(templates as OfferTemplate[]);
+    };
+
+    // オファーテンプレート作成
+    const handleCreateOfferTemplate = async () => {
+        if (!admin?.facilityId || !newOfferTemplateName.trim() || !newOfferTemplateMessage.trim()) {
+            toast.error('タイトルと内容を入力してください');
+            return;
+        }
+        try {
+            const result = await createOfferTemplate(admin.facilityId, newOfferTemplateName.trim(), newOfferTemplateMessage.trim());
+            if (result.success) {
+                toast.success('テンプレートを作成しました');
+                setNewOfferTemplateName('');
+                setNewOfferTemplateMessage('');
+                setIsCreatingOfferTemplate(false);
+                await refreshOfferTemplates();
+            } else {
+                toast.error(result.error || 'テンプレートの作成に失敗しました');
+            }
+        } catch (error) {
+            console.error('Failed to create offer template:', error);
+            toast.error('テンプレートの作成に失敗しました');
+        }
+    };
+
+    // オファーテンプレート更新
+    const handleUpdateOfferTemplate = async () => {
+        if (!admin?.facilityId || !editingOfferTemplate || !newOfferTemplateName.trim() || !newOfferTemplateMessage.trim()) {
+            toast.error('タイトルと内容を入力してください');
+            return;
+        }
+        try {
+            const result = await updateOfferTemplate(editingOfferTemplate.id, newOfferTemplateName.trim(), newOfferTemplateMessage.trim(), admin.facilityId);
+            if (result.success) {
+                toast.success('テンプレートを更新しました');
+                setEditingOfferTemplate(null);
+                setNewOfferTemplateName('');
+                setNewOfferTemplateMessage('');
+                await refreshOfferTemplates();
+            } else {
+                toast.error(result.error || 'テンプレートの更新に失敗しました');
+            }
+        } catch (error) {
+            console.error('Failed to update offer template:', error);
+            toast.error('テンプレートの更新に失敗しました');
+        }
+    };
+
+    // オファーテンプレート削除
+    const handleDeleteOfferTemplate = async (templateId: number) => {
+        if (!admin?.facilityId) return;
+        if (!confirm('このテンプレートを削除しますか？')) return;
+        try {
+            const result = await deleteOfferTemplate(templateId, admin.facilityId);
+            if (result.success) {
+                toast.success('テンプレートを削除しました');
+                await refreshOfferTemplates();
+            } else {
+                toast.error(result.error || 'テンプレートの削除に失敗しました');
+            }
+        } catch (error) {
+            console.error('Failed to delete offer template:', error);
+            toast.error('テンプレートの削除に失敗しました');
+        }
+    };
+
     // === ハンドラー ===
+
+    // 勤務日までの日数に応じて切り替え日数のデフォルト値を計算
+    const calculateDefaultSwitchDays = (workDates: string[]): number | null => {
+        if (workDates.length === 0) return null;
+
+        const now = getCurrentTime();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+        // 最も近い勤務日を取得
+        const earliestDate = workDates
+            .map(d => new Date(d))
+            .sort((a, b) => a.getTime() - b.getTime())[0];
+
+        const daysUntilWork = Math.ceil((earliestDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+        // 仕様に基づくデフォルト値
+        if (daysUntilWork >= 7) return 7;
+        if (daysUntilWork >= 3) return 3;
+        if (daysUntilWork >= 1) return 1;
+        return null; // 1日未満は切り替えなし
+    };
 
     const handleInputChange = (field: string, value: any) => {
         setFormData({ ...formData, [field]: value });
@@ -596,14 +745,62 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
         handleInputChange('existingAttachments', formData.existingAttachments.filter((_, i) => i !== index));
     };
 
+    // 切り替え日数バリデーション関数
+    // 「X日前に切り替え」とは勤務日のX日前に通常求人になるということ
+    // 例: 勤務日が3日後で「1日前に切り替え」→ 2日後に切り替わる → OK
+    // 例: 勤務日が1日後（明日）で「1日前に切り替え」→ 今日切り替わる必要がある → NG（すでに今日）
+    // したがって、switchDays < daysUntilWork である必要がある（等号なし）
+    const validateSwitchDays = (workDates: string[], switchDays: number | null): { valid: boolean; daysUntilWork: number } => {
+        if (switchDays === null || workDates.length === 0) return { valid: true, daysUntilWork: 0 };
+
+        const now = getCurrentTime();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+        // 最も近い勤務日を取得
+        const earliestDate = workDates
+            .map(d => new Date(d))
+            .sort((a, b) => a.getTime() - b.getTime())[0];
+
+        const daysUntilWork = Math.ceil((earliestDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+        // switchDays < daysUntilWork でなければならない
+        // 例: 勤務日が2日後(daysUntilWork=2)なら、1日前切り替え(switchDays=1)はOK（明日切り替わる）
+        // 例: 勤務日が1日後(daysUntilWork=1)なら、1日前切り替え(switchDays=1)はNG（今日切り替える必要がある）
+        return {
+            valid: switchDays < daysUntilWork,
+            daysUntilWork
+        };
+    };
+
     // カレンダー操作
     const handleDateClick = (dateString: string) => {
         if (mode === 'create') {
+            let newDates: string[];
             if (selectedDates.includes(dateString)) {
-                setSelectedDates(selectedDates.filter(d => d !== dateString));
+                newDates = selectedDates.filter(d => d !== dateString);
             } else {
-                setSelectedDates([...selectedDates, dateString].sort());
+                newDates = [...selectedDates, dateString].sort();
             }
+
+            // 限定求人の場合、バリデーションを行う
+            if (formData.jobType === 'LIMITED_WORKED' || formData.jobType === 'LIMITED_FAVORITE') {
+                // nullの場合はデフォルト値7を使用
+                const switchDays = formData.switchToNormalDaysBefore ?? 7;
+                const { valid, daysUntilWork } = validateSwitchDays(newDates, switchDays);
+                if (!valid && newDates.length > 0) {
+                    // より分かりやすいエラーメッセージ
+                    const requiredDays = switchDays + 1; // X日前に切り替えるには少なくともX+1日先の勤務日が必要
+                    toast.error(
+                        `「${switchDays}日前に切り替え」を選択中ですが、最短の勤務日まで${daysUntilWork}日しかありません。少なくとも${requiredDays}日以上先の日付を選択するか、切り替え設定を変更してください。`,
+                        { duration: 5000 }
+                    );
+                    // 設定箇所にスクロール
+                    switchSettingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    return; // 日付選択をキャンセル
+                }
+            }
+
+            setSelectedDates(newDates);
         } else {
             // 編集モード
             const existing = existingWorkDates.find(wd => wd.date === dateString);
@@ -760,6 +957,34 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
         if (!formData.recruitmentCount || formData.recruitmentCount <= 0) errors.push('募集人数は必須です');
         if (formData.qualifications.length === 0) errors.push('必要な資格を選択してください');
 
+        // 限定求人の対象者チェック
+        if (formData.jobType === 'LIMITED_WORKED' && limitedJobTargetCounts.workedCount === 0) {
+            errors.push('限定求人（勤務済みの方）を作成するには、過去に勤務完了したワーカーが必要です');
+        }
+        if (formData.jobType === 'LIMITED_FAVORITE' && limitedJobTargetCounts.favoriteCount === 0) {
+            errors.push('限定求人（お気に入りのみ）を作成するには、お気に入り登録しているワーカーが必要です');
+        }
+
+        // 限定求人の切り替え日数バリデーション
+        if ((formData.jobType === 'LIMITED_WORKED' || formData.jobType === 'LIMITED_FAVORITE') && formData.switchToNormalDaysBefore !== null) {
+            const now = getCurrentTime();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const workDatesToValidate = mode === 'create' ? selectedDates : existingWorkDates.map(wd => wd.date);
+
+            if (workDatesToValidate.length > 0) {
+                // 最も近い勤務日を取得
+                const earliestDate = workDatesToValidate
+                    .map(d => new Date(d))
+                    .sort((a, b) => a.getTime() - b.getTime())[0];
+
+                const daysUntilWork = Math.ceil((earliestDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+                if (formData.switchToNormalDaysBefore > daysUntilWork) {
+                    errors.push(`最短の勤務日まで${daysUntilWork}日しかないため、${formData.switchToNormalDaysBefore}日前に通常求人へ切り替えることはできません。${daysUntilWork}日以下の値を選択してください。`);
+                }
+            }
+        }
+
         // 新規作成時は勤務日必須
         if (mode === 'create') {
             if (selectedDates.length === 0) errors.push('勤務日は少なくとも1つ選択してください');
@@ -833,8 +1058,8 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
                 // 新規作成
                 let workDates = selectedDates;
 
-                // 限定求人の場合は審査なしに固定
-                const requiresInterview = (formData.jobType === 'LIMITED_WORKED' || formData.jobType === 'LIMITED_FAVORITE')
+                // オファーのみ審査なし固定（限定求人は審査あり/なし選択可能）
+                const requiresInterview = formData.jobType === 'OFFER'
                     ? false
                     : formData.requiresInterview;
 
@@ -884,7 +1109,10 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
                     globalMutate((key) => typeof key === 'string' && key.includes('/api/admin/jobs'));
                     router.push('/admin/jobs');
                 } else {
-                    throw new Error(res.error || '作成失敗');
+                    // オファー重複エラーなど、ユーザー向けのエラーはトーストで表示
+                    toast.error(res.error || '作成に失敗しました');
+                    setIsSaving(false);
+                    return;
                 }
 
             } else {
@@ -993,7 +1221,7 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
                             disabled={isSaving}
                             className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:bg-blue-400 disabled:cursor-not-allowed"
                         >
-                            {isSaving ? '保存中...' : (mode === 'create' ? '公開する' : '更新する')}
+                            {isSaving ? '保存中...' : (mode === 'create' ? (isOfferMode ? 'オファーする' : '公開する') : '更新する')}
                         </button>
                     </div>
                 </div>
@@ -1029,25 +1257,32 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
                                 </div>
                             )}
 
-                            {/* 1行目：施設、募集人数（オファーは1名固定） */}
-                            <div className={`grid ${isOfferMode ? 'grid-cols-2' : 'grid-cols-3'} gap-4`}>
-                                <div>
+                            {/* 1行目：テンプレート + 募集人数（オファーは1名固定で非表示） */}
+                            <div className="flex gap-4">
+                                <div className="flex-1">
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        施設 <span className="text-red-500">*</span>
+                                        テンプレート（任意）
                                     </label>
-                                    <input
-                                        type="text"
-                                        value={facilityInfo?.facilityName || '読み込み中...'}
-                                        readOnly
-                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-gray-100"
-                                    />
+                                    <select
+                                        value={selectedTemplateId || ''}
+                                        onChange={(e) => e.target.value && handleTemplateSelect(Number(e.target.value))}
+                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                    >
+                                        <option value="">テンプレートを選択（任意）</option>
+                                        {jobTemplates.map((template) => (
+                                            <option key={template.id} value={template.id}>
+                                                {template.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        テンプレートを選択すると、フォームに自動入力されます
+                                    </p>
                                 </div>
-
-                                {/* 勤務地住所AddressSelectorは除外 */}
 
                                 {/* オファーモードでは募集人数は1名固定で非表示 */}
                                 {!isOfferMode && (
-                                    <div>
+                                    <div className="w-32">
                                         <label className="block text-sm font-medium text-gray-700 mb-2">
                                             募集人数 <span className="text-red-500">*</span>
                                         </label>
@@ -1056,7 +1291,7 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
                                             onChange={(e) => handleInputChange('recruitmentCount', Number(e.target.value))}
                                             className={`w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-600 ${showErrors && (!formData.recruitmentCount || formData.recruitmentCount <= 0) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                                         >
-                                            {Array.from({ length: 10 }, (_, i) => i + 1).map(num => (
+                                            {Array.from({ length: 30 }, (_, i) => i + 1).map(num => (
                                                 <option key={num} value={num}>{num}人</option>
                                             ))}
                                         </select>
@@ -1064,120 +1299,106 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
                                 )}
                             </div>
 
-                            {/* 求人種別選択 - ラジオボタン形式（オファーモード時は非表示） */}
+                            {/* 求人種別選択 + マッチング方法（オファーモード時は非表示） - 左右2カラム */}
                             {!isOfferMode && (
-                                <div className="space-y-3">
-                                    <label className="block text-sm font-medium text-gray-700">
-                                        求人種別 <span className="text-red-500">*</span>
-                                    </label>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                        {JOB_TYPE_OPTIONS.map((option) => (
-                                            <label
-                                                key={option.value}
-                                                className={`
-                                                    flex items-start p-4 border rounded-lg cursor-pointer transition-all
-                                                    ${formData.jobType === option.value
-                                                        ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500'
-                                                        : 'border-gray-200 hover:border-gray-300 bg-white'}
-                                                `}
-                                            >
-                                                <input
-                                                    type="radio"
-                                                    name="jobType"
-                                                    value={option.value}
-                                                    checked={formData.jobType === option.value}
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {/* 左側：求人種別選択 */}
+                                        <div className="space-y-3">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                    求人種別 <span className="text-red-500">*</span>
+                                                </label>
+                                                <select
+                                                    value={formData.jobType}
                                                     onChange={(e) => {
                                                         const newJobType = e.target.value as JobTypeValue;
                                                         handleInputChange('jobType', newJobType);
-                                                        // 限定求人の場合は審査なしに固定
+
+                                                        // 限定求人に変更した場合、切り替え日数を7日に初期化
                                                         if (newJobType === 'LIMITED_WORKED' || newJobType === 'LIMITED_FAVORITE') {
-                                                            handleInputChange('requiresInterview', false);
+                                                            setFormData(prev => ({ ...prev, jobType: newJobType, switchToNormalDaysBefore: 7 }));
                                                         }
                                                     }}
-                                                    className="mt-0.5 h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
-                                                />
-                                                <div className="ml-3">
-                                                    <span className="block text-sm font-medium text-gray-900">{option.label}</span>
-                                                    <span className="block text-xs text-gray-500 mt-1">{option.description}</span>
-                                                </div>
-                                            </label>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* 限定求人：通常求人への自動切り替え設定 */}
-                            {(formData.jobType === 'LIMITED_WORKED' || formData.jobType === 'LIMITED_FAVORITE') && (
-                                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                                    <div className="flex items-start gap-3">
-                                        <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                                        <div className="flex-1">
-                                            <p className="text-sm font-medium text-amber-900 mb-3">
-                                                通常求人への自動切り替え
-                                            </p>
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <span className="text-sm text-gray-700">勤務開始日の</span>
-                                                <select
-                                                    value={formData.switchToNormalDaysBefore ?? 7}
-                                                    onChange={(e) => handleInputChange('switchToNormalDaysBefore', parseInt(e.target.value))}
-                                                    className="border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                                                 >
-                                                    {SWITCH_TO_NORMAL_OPTIONS.map((opt) => (
-                                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                                    {JOB_TYPE_OPTIONS.map((option) => (
+                                                        <option key={option.value} value={option.value}>
+                                                            {option.label}
+                                                        </option>
                                                     ))}
                                                 </select>
-                                                <span className="text-sm text-gray-700">に通常求人に切り替え</span>
+                                                <p className="text-xs text-gray-600 mt-1">
+                                                    {JOB_TYPE_OPTIONS.find(opt => opt.value === formData.jobType)?.description || ''}
+                                                </p>
                                             </div>
-                                            <p className="text-xs text-gray-600 mt-2">
-                                                ※切り替え後はすべてのワーカーが閲覧・応募できるようになります
-                                            </p>
+
+                                            {/* 限定求人で対象者0人の場合の警告メッセージ */}
+                                            {formData.jobType === 'LIMITED_WORKED' && limitedJobTargetCounts.workedCount === 0 && (
+                                                <div className="bg-amber-50 border border-amber-200 rounded-lg p-2 flex items-start gap-2">
+                                                    <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                                                    <p className="text-xs text-amber-700">
+                                                        対象ワーカーがいないため選択できません
+                                                    </p>
+                                                </div>
+                                            )}
+                                            {formData.jobType === 'LIMITED_FAVORITE' && limitedJobTargetCounts.favoriteCount === 0 && (
+                                                <div className="bg-amber-50 border border-amber-200 rounded-lg p-2 flex items-start gap-2">
+                                                    <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                                                    <p className="text-xs text-amber-700">
+                                                        お気に入りワーカーがいないため選択できません
+                                                    </p>
+                                                </div>
+                                            )}
+
+                                            {/* 限定求人：通常求人への自動切り替え設定 */}
+                                            {(formData.jobType === 'LIMITED_WORKED' || formData.jobType === 'LIMITED_FAVORITE') && (
+                                                <div ref={switchSettingRef} className="bg-white border border-gray-200 rounded-lg p-2">
+                                                    <div className="flex items-center gap-1.5 flex-wrap text-xs">
+                                                        <span className="text-gray-700">勤務開始日の</span>
+                                                        <select
+                                                            value={formData.switchToNormalDaysBefore ?? 7}
+                                                            onChange={(e) => handleInputChange('switchToNormalDaysBefore', parseInt(e.target.value))}
+                                                            className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                                                        >
+                                                            {SWITCH_TO_NORMAL_OPTIONS.map((opt) => (
+                                                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                                            ))}
+                                                        </select>
+                                                        <span className="text-gray-700">に通常求人に切り替え</span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* 右側：審査してマッチング（説明会の場合はグレーアウト） */}
+                                        <div className={`flex items-start md:border-l md:border-blue-200 md:pl-4 ${formData.jobType === 'ORIENTATION' ? 'opacity-50' : ''}`}>
+                                            <label className={`flex items-start gap-3 ${formData.jobType === 'ORIENTATION' ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={formData.jobType === 'ORIENTATION' ? false : formData.requiresInterview}
+                                                    onChange={(e) => handleInputChange('requiresInterview', e.target.checked)}
+                                                    disabled={formData.jobType === 'ORIENTATION'}
+                                                    className={`mt-0.5 w-5 h-5 border-gray-300 rounded focus:ring-blue-500 ${formData.jobType === 'ORIENTATION' ? 'bg-gray-200 text-gray-400' : 'text-blue-600'}`}
+                                                />
+                                                <div>
+                                                    <span className={`text-sm font-medium ${formData.jobType === 'ORIENTATION' ? 'text-gray-400' : 'text-gray-900'}`}>審査してからマッチング</span>
+                                                    <p className={`text-xs mt-1 ${formData.jobType === 'ORIENTATION' ? 'text-gray-400' : 'text-gray-600'}`}>
+                                                        {formData.jobType === 'ORIENTATION' ? (
+                                                            '説明会では審査は行いません'
+                                                        ) : (
+                                                            <>
+                                                                応募後に審査・選考を行います<br />
+                                                                <span className="text-red-500 font-bold">※OFFの方がマッチング率UP</span>
+                                                            </>
+                                                        )}
+                                                    </p>
+                                                </div>
+                                            </label>
                                         </div>
                                     </div>
                                 </div>
                             )}
-
-                            {/* マッチング方法 - 通常求人/説明会のみ表示 */}
-                            {(formData.jobType === 'NORMAL' || formData.jobType === 'ORIENTATION') && (
-                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                                    <label className="flex items-start gap-3 cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={formData.requiresInterview}
-                                            onChange={(e) => handleInputChange('requiresInterview', e.target.checked)}
-                                            className="mt-0.5 w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                        />
-                                        <div>
-                                            <span className="text-sm font-medium text-gray-900">審査してからマッチング</span>
-                                            <p className="text-xs text-gray-600 mt-1">
-                                                ワーカーからの応募後に審査・選考を行ってからマッチングを決定できます。<br />
-                                                <span className="text-red-500 font-bold">※チェックを入れない方がマッチング率は高くなります</span>
-                                            </p>
-                                        </div>
-                                    </label>
-                                </div>
-                            )}
-
-                            {/* 2行目：テンプレート選択 */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    テンプレート（任意）
-                                </label>
-                                <select
-                                    value={selectedTemplateId || ''}
-                                    onChange={(e) => e.target.value && handleTemplateSelect(Number(e.target.value))}
-                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                                >
-                                    <option value="">テンプレートを選択（任意）</option>
-                                    {jobTemplates.map((template) => (
-                                        <option key={template.id} value={template.id}>
-                                            {template.name}
-                                        </option>
-                                    ))}
-                                </select>
-                                <p className="text-xs text-gray-500 mt-1">
-                                    テンプレートを選択すると、フォームに自動入力されます
-                                </p>
-                            </div>
 
                             {/* 3行目：求人タイトル */}
                             <div>
@@ -2158,6 +2379,40 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
                                 <p className="text-sm text-gray-600">
                                     {offerTargetWorker?.name}さんへのメッセージを入力してください（任意）
                                 </p>
+
+                                {/* テンプレート選択UI */}
+                                <div className="flex items-center gap-2">
+                                    <select
+                                        value={selectedOfferTemplateId || ''}
+                                        onChange={(e) => {
+                                            const templateId = e.target.value ? Number(e.target.value) : null;
+                                            setSelectedOfferTemplateId(templateId);
+                                            if (templateId) {
+                                                const template = offerTemplates.find(t => t.id === templateId);
+                                                if (template) {
+                                                    handleInputChange('offerMessage', template.message);
+                                                }
+                                            }
+                                        }}
+                                        className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    >
+                                        <option value="">テンプレートから選択</option>
+                                        {offerTemplates.map(template => (
+                                            <option key={template.id} value={template.id}>
+                                                {template.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowOfferTemplateModal(true)}
+                                        className="flex items-center gap-1 px-3 py-2 text-sm text-blue-600 border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors"
+                                    >
+                                        <FileText className="w-4 h-4" />
+                                        編集
+                                    </button>
+                                </div>
+
                                 <textarea
                                     value={formData.offerMessage || ''}
                                     onChange={(e) => handleInputChange('offerMessage', e.target.value)}
@@ -2168,6 +2423,164 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
                                 <p className="text-xs text-gray-500">
                                     ※このメッセージは求人情報と一緒にワーカーへ送信されます
                                 </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* オファーテンプレート管理モーダル */}
+                    {showOfferTemplateModal && (
+                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
+                                <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+                                    <h3 className="text-lg font-bold">オファーメッセージテンプレート管理</h3>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowOfferTemplateModal(false);
+                                            setEditingOfferTemplate(null);
+                                            setIsCreatingOfferTemplate(false);
+                                            setNewOfferTemplateName('');
+                                            setNewOfferTemplateMessage('');
+                                        }}
+                                        className="p-1 hover:bg-gray-100 rounded"
+                                    >
+                                        <X className="w-5 h-5" />
+                                    </button>
+                                </div>
+                                <div className="p-4 overflow-y-auto max-h-[60vh]">
+                                    {/* 新規作成 / 編集フォーム */}
+                                    {(isCreatingOfferTemplate || editingOfferTemplate) && (
+                                        <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                                            <h4 className="font-medium mb-3">
+                                                {editingOfferTemplate ? 'テンプレートを編集' : '新規テンプレート作成'}
+                                            </h4>
+                                            <div className="space-y-3">
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                        テンプレート名
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={newOfferTemplateName}
+                                                        onChange={(e) => setNewOfferTemplateName(e.target.value)}
+                                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                        placeholder="例：リピーター向けオファー"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                        メッセージ内容
+                                                    </label>
+                                                    <textarea
+                                                        value={newOfferTemplateMessage}
+                                                        onChange={(e) => setNewOfferTemplateMessage(e.target.value)}
+                                                        rows={4}
+                                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                        placeholder="オファーメッセージの内容を入力..."
+                                                    />
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={editingOfferTemplate ? handleUpdateOfferTemplate : handleCreateOfferTemplate}
+                                                        className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                                                    >
+                                                        {editingOfferTemplate ? '更新する' : '作成する'}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setEditingOfferTemplate(null);
+                                                            setIsCreatingOfferTemplate(false);
+                                                            setNewOfferTemplateName('');
+                                                            setNewOfferTemplateMessage('');
+                                                        }}
+                                                        className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                                                    >
+                                                        キャンセル
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* テンプレート一覧 */}
+                                    {!isCreatingOfferTemplate && !editingOfferTemplate && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setIsCreatingOfferTemplate(true);
+                                                // 現在入力中のメッセージがあればテンプレート作成フォームにデフォルトセット
+                                                if (formData.offerMessage?.trim()) {
+                                                    setNewOfferTemplateMessage(formData.offerMessage.trim());
+                                                }
+                                            }}
+                                            className="mb-4 flex items-center gap-2 px-4 py-2 text-sm text-blue-600 border border-blue-300 rounded-lg hover:bg-blue-50"
+                                        >
+                                            <Plus className="w-4 h-4" />
+                                            新規テンプレート作成
+                                        </button>
+                                    )}
+
+                                    {offerTemplates.length === 0 && !isCreatingOfferTemplate && (
+                                        <p className="text-sm text-gray-500 text-center py-8">
+                                            テンプレートがありません。新規作成してください。
+                                        </p>
+                                    )}
+
+                                    <div className="space-y-3">
+                                        {offerTemplates.map(template => (
+                                            <div
+                                                key={template.id}
+                                                className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 transition-colors"
+                                            >
+                                                <div className="flex items-start justify-between gap-4">
+                                                    <div className="flex-1">
+                                                        <h5 className="font-medium text-gray-900">{template.name}</h5>
+                                                        <p className="mt-1 text-sm text-gray-600 line-clamp-2">
+                                                            {template.message}
+                                                        </p>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 flex-shrink-0">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setEditingOfferTemplate(template);
+                                                                setNewOfferTemplateName(template.name);
+                                                                setNewOfferTemplateMessage(template.message);
+                                                            }}
+                                                            className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded"
+                                                        >
+                                                            <Edit3 className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleDeleteOfferTemplate(template.id)}
+                                                            className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="p-4 border-t border-gray-200">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowOfferTemplateModal(false);
+                                            setEditingOfferTemplate(null);
+                                            setIsCreatingOfferTemplate(false);
+                                            setNewOfferTemplateName('');
+                                            setNewOfferTemplateMessage('');
+                                        }}
+                                        className="w-full py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                                    >
+                                        閉じる
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     )}

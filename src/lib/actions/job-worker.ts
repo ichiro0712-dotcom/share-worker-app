@@ -487,6 +487,8 @@ export async function getJobs(
             availableWorkDateCount,
             // 有効なN回以上勤務条件（応募可能日数がN未満なら単発扱いでnull）
             effectiveWeeklyFrequency,
+            // 求人種別
+            jobType: job.job_type,
         };
     });
 }
@@ -1080,6 +1082,7 @@ export async function getJobsListWithPagination(
             hasAvailableWorkDate,
             availableWorkDateCount,
             effectiveWeeklyFrequency,
+            jobType: job.job_type,
         };
     });
 

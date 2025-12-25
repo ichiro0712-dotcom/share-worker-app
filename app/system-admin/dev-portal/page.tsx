@@ -128,8 +128,7 @@ const ADMIN_TREE: SiteMapNode[] = [
         ]
     },
     { name: 'faq', title: 'FAQ', href: '/admin/faq' },
-    { name: 'terms', title: '利用規約', href: '/admin/terms' },
-    { name: 'privacy', title: 'プライバシーポリシー', href: '/admin/privacy' },
+    { name: 'terms-privacy', title: '利用規約・プライバシーポリシー', href: '/admin/terms-privacy' },
 ];
 
 // システム管理画面（ツリー構造）

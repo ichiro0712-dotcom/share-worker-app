@@ -614,6 +614,35 @@ export async function getGroupedConversations() {
     },
   });
 
+  // MessageThreadベースのオファーメッセージも取得
+  const threads = await prisma.messageThread.findMany({
+    where: {
+      worker_id: user.id,
+    },
+    include: {
+      facility: true,
+      messages: {
+        orderBy: { created_at: 'desc' },
+        take: 1,
+      },
+    },
+  });
+
+  // スレッドの未読メッセージ数を取得
+  const threadUnreadCounts = await Promise.all(
+    threads.map(async (thread) => ({
+      threadId: thread.id,
+      facilityId: thread.facility_id,
+      count: await prisma.message.count({
+        where: {
+          thread_id: thread.id,
+          to_user_id: user.id,
+          read_at: null,
+        },
+      }),
+    }))
+  );
+
   // 施設ごとにグループ化
   const facilityMap = new Map<number, {
     facilityId: number;
@@ -621,11 +650,13 @@ export async function getGroupedConversations() {
     facilityDisplayName: string;  // 担当者名付きの表示名
     staffAvatar: string | null;    // 担当者アバター
     applicationIds: number[];
+    threadIds: number[];           // オファー用スレッドID
     lastMessage: string;
     lastMessageTime: Date;
     unreadCount: number;
   }>();
 
+  // 応募ベースのメッセージを処理
   for (const app of applications) {
     const facility = app.workDate?.job?.facility;
     if (!facility) continue;
@@ -657,8 +688,50 @@ export async function getGroupedConversations() {
         facilityDisplayName,
         staffAvatar,
         applicationIds: [app.id],
+        threadIds: [],
         lastMessage: lastMsg?.content || '',
         lastMessageTime: lastMsg?.created_at || app.created_at,
+        unreadCount: unread,
+      });
+    }
+  }
+
+  // スレッドベースのオファーメッセージを処理
+  for (const thread of threads) {
+    const facility = thread.facility;
+    if (!facility) continue;
+
+    // 担当者名と表示名の生成
+    const staffName = facility.staff_last_name && facility.staff_first_name
+      ? `${facility.staff_last_name} ${facility.staff_first_name}`
+      : '';
+    const facilityDisplayName = staffName
+      ? `${facility.facility_name}（${staffName}）`
+      : facility.facility_name;
+    const staffAvatar = facility.staff_photo || null;
+
+    const existing = facilityMap.get(facility.id);
+    const lastMsg = thread.messages[0];
+    const unreadInfo = threadUnreadCounts.find(u => u.threadId === thread.id);
+    const unread = unreadInfo?.count || 0;
+
+    if (existing) {
+      existing.threadIds.push(thread.id);
+      existing.unreadCount += unread;
+      if (lastMsg && lastMsg.created_at > existing.lastMessageTime) {
+        existing.lastMessage = lastMsg.content;
+        existing.lastMessageTime = lastMsg.created_at;
+      }
+    } else {
+      facilityMap.set(facility.id, {
+        facilityId: facility.id,
+        facilityName: facility.facility_name,
+        facilityDisplayName,
+        staffAvatar,
+        applicationIds: [],
+        threadIds: [thread.id],
+        lastMessage: lastMsg?.content || '',
+        lastMessageTime: lastMsg?.created_at || thread.created_at,
         unreadCount: unread,
       });
     }
@@ -696,6 +769,16 @@ export async function getMessagesByFacility(
 
   const applicationIds = applications.map(a => a.id);
 
+  // この施設とのMessageThreadを取得（オファー用）
+  const thread = await prisma.messageThread.findUnique({
+    where: {
+      worker_id_facility_id: {
+        worker_id: user.id,
+        facility_id: facilityId,
+      },
+    },
+  });
+
   // 施設情報を別途取得（担当者情報含む）
   const facility = await prisma.facility.findUnique({
     where: { id: facilityId },
@@ -710,15 +793,45 @@ export async function getMessagesByFacility(
 
   // メッセージをページネーションで取得（最新から）
   // ワーカー向け:
-  // - to_facility_id が null のメッセージ（施設からワーカーへ）
-  // - 自分が送信したメッセージ（from_user_id が自分のID）
-  const messages = await prisma.message.findMany({
-    where: {
+  // - application_idベース: 応募に関連するメッセージ
+  // - thread_idベース: オファーに関連するメッセージ
+  const whereConditions: any[] = [];
+
+  // 応募ベースのメッセージ
+  if (applicationIds.length > 0) {
+    whereConditions.push({
       application_id: { in: applicationIds },
       OR: [
         { to_facility_id: null }, // 施設からワーカーへのメッセージ
         { from_user_id: user.id }, // 自分が送ったメッセージ
       ],
+    });
+  }
+
+  // スレッドベースのメッセージ（オファー）
+  if (thread) {
+    whereConditions.push({
+      thread_id: thread.id,
+    });
+  }
+
+  // どちらもない場合は空のメッセージを返す
+  if (whereConditions.length === 0) {
+    return {
+      facilityId,
+      facilityName: facility?.facility_name || '',
+      facilityDisplayName: facility?.facility_name || '施設',
+      staffAvatar: facility?.staff_photo || null,
+      applicationIds,
+      messages: [],
+      nextCursor: null,
+      hasMore: false,
+    };
+  }
+
+  const messages = await prisma.message.findMany({
+    where: {
+      OR: whereConditions,
       ...(cursor ? { id: { lt: cursor } } : {}),
     },
     orderBy: { created_at: 'desc' },
@@ -731,6 +844,11 @@ export async function getMessagesByFacility(
               job: true,
             },
           },
+        },
+      },
+      job: {
+        select: {
+          title: true,
         },
       },
     },
@@ -753,6 +871,7 @@ export async function getMessagesByFacility(
   const formattedMessages = data.reverse().map(msg => ({
     id: msg.id,
     applicationId: msg.application_id,
+    threadId: msg.thread_id,
     content: msg.content,
     attachments: msg.attachments,
     senderType: msg.from_user_id ? 'worker' : 'facility',
@@ -761,8 +880,10 @@ export async function getMessagesByFacility(
     createdAt: msg.created_at,
     timestamp: msg.created_at.toISOString(),
     isRead: !!msg.read_at,
-    jobTitle: msg.application?.workDate?.job?.title || '',
+    // オファーメッセージの場合はjob直接参照、応募の場合はapplication経由
+    jobTitle: msg.job?.title || msg.application?.workDate?.job?.title || '',
     jobDate: msg.application?.workDate?.work_date || null,
+    isOfferMessage: !!msg.thread_id && !msg.application_id,
   }));
 
   // 初回読み込み時のみ未読を既読に（markAsRead=trueの場合）
@@ -831,12 +952,27 @@ export async function getGroupedWorkerConversations(facilityId: number) {
     },
   });
 
+  // この施設とのMessageThreadを取得（オファー用）
+  const threads = await prisma.messageThread.findMany({
+    where: {
+      facility_id: facilityId,
+    },
+    include: {
+      worker: true,
+      messages: {
+        orderBy: { created_at: 'desc' },
+        take: 1,
+      },
+    },
+  });
+
   // ワーカーごとにグループ化
   const workerMap = new Map<number, {
     userId: number;
     userName: string;
     userProfileImage: string | null;
     applicationIds: number[];
+    threadIds: number[];          // オファー用スレッドID
     lastMessage: string;
     lastMessageTime: Date;
     unreadCount: number;
@@ -846,6 +982,7 @@ export async function getGroupedWorkerConversations(facilityId: number) {
     isOffice?: boolean; // 運営フラグ
   }>();
 
+  // 応募ベースのメッセージを処理
   for (const app of applications) {
     const user = app.user;
     if (!user) continue;
@@ -872,11 +1009,48 @@ export async function getGroupedWorkerConversations(facilityId: number) {
         userName: userName,
         userProfileImage: user.profile_image || null,
         applicationIds: [app.id],
+        threadIds: [],
         lastMessage: lastMsg?.content || '',
         lastMessageTime: lastMsg?.created_at || app.created_at,
         unreadCount: unread,
         jobTitle: app.workDate?.job?.title || '',
         status: app.status,
+      });
+    }
+  }
+
+  // スレッドベースのオファーメッセージを処理
+  for (const thread of threads) {
+    const user = thread.worker;
+    if (!user) continue;
+
+    const existing = workerMap.get(user.id);
+    const lastMsg = thread.messages[0];
+    const userName = user.name || '不明なユーザー';
+
+    // スレッドの未読メッセージ数を計算（施設宛のメッセージ）
+    const threadUnreadCount = thread.messages.filter(m => !m.read_at && m.to_facility_id).length;
+
+    if (existing) {
+      existing.threadIds.push(thread.id);
+      // スレッドに新しいメッセージがあれば更新
+      if (lastMsg && lastMsg.created_at > existing.lastMessageTime) {
+        existing.lastMessage = lastMsg.content;
+        existing.lastMessageTime = lastMsg.created_at;
+      }
+    } else {
+      // 応募がなくスレッドのみある場合（オファーのみの場合）
+      workerMap.set(user.id, {
+        userId: user.id,
+        userName: userName,
+        userProfileImage: user.profile_image || null,
+        applicationIds: [],
+        threadIds: [thread.id],
+        lastMessage: lastMsg?.content || '',
+        lastMessageTime: lastMsg?.created_at || thread.created_at,
+        unreadCount: threadUnreadCount,
+        jobTitle: '',
+        status: '',
       });
     }
   }
@@ -907,6 +1081,7 @@ export async function getGroupedWorkerConversations(facilityId: number) {
       userName: '運営',
       userProfileImage: null,
       applicationIds: [],
+      threadIds: [],
       lastMessage: officeLastNotification?.content || '',
       lastMessageTime: officeLastNotification?.created_at || new Date(0),
       unreadCount: officeUnreadCount,
@@ -1023,7 +1198,31 @@ export async function getMessagesByWorker(
   });
 
   const applicationIds = applications.map(app => app.id);
-  if (applicationIds.length === 0) {
+
+  // このワーカーとのMessageThreadを取得（オファー用）
+  const thread = await prisma.messageThread.findUnique({
+    where: {
+      worker_id_facility_id: {
+        worker_id: workerId,
+        facility_id: facilityId,
+      },
+    },
+  });
+
+  // ワーカー情報を取得（応募がない場合でもスレッドから取得できる）
+  let workerInfo: { name: string; profile_image: string | null } | null = null;
+  if (applications.length > 0) {
+    workerInfo = applications[0].user;
+  } else if (thread) {
+    const workerData = await prisma.user.findUnique({
+      where: { id: workerId },
+      select: { name: true, profile_image: true },
+    });
+    workerInfo = workerData;
+  }
+
+  // どちらもない場合は空のメッセージを返す
+  if (applicationIds.length === 0 && !thread) {
     return {
       userId: workerId,
       userName: '',
@@ -1035,10 +1234,25 @@ export async function getMessagesByWorker(
     };
   }
 
-  // メッセージを取得（最新から指定件数）
+  // メッセージをページネーションで取得（最新から）
+  // application_idベースとthread_idベースの両方を取得
+  const whereConditions: any[] = [];
+
+  if (applicationIds.length > 0) {
+    whereConditions.push({
+      application_id: { in: applicationIds },
+    });
+  }
+
+  if (thread) {
+    whereConditions.push({
+      thread_id: thread.id,
+    });
+  }
+
   const messages = await prisma.message.findMany({
     where: {
-      application_id: { in: applicationIds },
+      OR: whereConditions,
       ...(cursor ? { id: { lt: cursor } } : {}),
     },
     orderBy: { created_at: 'desc' },
@@ -1054,6 +1268,9 @@ export async function getMessagesByWorker(
           user: { select: { name: true, profile_image: true } },
         },
       },
+      job: {
+        select: { title: true },
+      },
     },
   });
 
@@ -1065,14 +1282,17 @@ export async function getMessagesByWorker(
   const formattedMessages = data.reverse().map(msg => ({
     id: msg.id,
     applicationId: msg.application_id,
+    threadId: msg.thread_id,
     content: msg.content,
     attachments: msg.attachments,
     senderType: msg.from_user_id ? 'worker' : 'facility',
-    senderName: msg.from_user_id ? (msg.application?.user?.name ?? '') : '施設',
+    senderName: msg.from_user_id ? (msg.application?.user?.name ?? workerInfo?.name ?? '') : '施設',
     timestamp: msg.created_at.toISOString(),
     isRead: !!msg.read_at,
-    jobTitle: msg.application?.workDate?.job?.title || '',
+    // オファーメッセージの場合はjob直接参照、応募の場合はapplication経由
+    jobTitle: msg.job?.title || msg.application?.workDate?.job?.title || '',
     jobDate: msg.application?.workDate?.work_date || null,
+    isOfferMessage: !!msg.thread_id && !msg.application_id,
   }));
 
   // 未読を既読に（初回読み込み時のみ）
@@ -1088,13 +1308,12 @@ export async function getMessagesByWorker(
     }
   }
 
-  const worker = applications[0]?.user;
-  const userName = worker ? worker.name : '';
+  const userName = workerInfo?.name || '';
 
   return {
     userId: workerId,
     userName: userName,
-    userProfileImage: worker?.profile_image,
+    userProfileImage: workerInfo?.profile_image || null,
     applicationIds, // 追加: メッセージ送信時に使用
     messages: formattedMessages,
     nextCursor,

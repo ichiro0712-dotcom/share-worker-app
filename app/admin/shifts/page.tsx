@@ -36,6 +36,7 @@ interface Shift {
     status: string;
     jobId: number;
     weeklyFrequency: number | null;
+    jobType: string;
 }
 
 // Helper functions for timeline view
@@ -363,7 +364,15 @@ export default function ShiftManagementPage() {
                                                             <div
                                                                 key={shift.applicationId}
                                                                 onClick={() => openDetailModal(shift)}
-                                                                className="absolute cursor-pointer rounded-sm p-1 text-xs bg-blue-100 border border-blue-300 hover:bg-blue-200 overflow-hidden shadow-sm"
+                                                                className={`absolute cursor-pointer rounded-sm p-1 text-xs overflow-hidden shadow-sm ${
+                                                                    shift.jobType === 'OFFER'
+                                                                        ? 'bg-blue-200 border-2 border-blue-500 hover:bg-blue-300'
+                                                                        : shift.jobType === 'LIMITED_WORKED'
+                                                                        ? 'bg-purple-100 border-2 border-purple-400 hover:bg-purple-200'
+                                                                        : shift.jobType === 'LIMITED_FAVORITE'
+                                                                        ? 'bg-pink-100 border-2 border-pink-400 hover:bg-pink-200'
+                                                                        : 'bg-blue-100 border border-blue-300 hover:bg-blue-200'
+                                                                }`}
                                                                 style={{
                                                                     top: `${top}px`,
                                                                     height: `${Math.max(height, 20)}px`,
@@ -372,7 +381,18 @@ export default function ShiftManagementPage() {
                                                                     zIndex: shiftIdx + 1,
                                                                 }}
                                                             >
-                                                                <div className="font-semibold truncate">{shift.workerName}</div>
+                                                                <div className="font-semibold truncate flex items-center gap-1">
+                                                                    {shift.jobType === 'OFFER' && (
+                                                                        <span className="px-1 py-0 text-[8px] font-bold bg-blue-600 text-white rounded">オファ</span>
+                                                                    )}
+                                                                    {shift.jobType === 'LIMITED_WORKED' && (
+                                                                        <span className="px-1 py-0 text-[8px] font-bold bg-purple-600 text-white rounded">限定</span>
+                                                                    )}
+                                                                    {shift.jobType === 'LIMITED_FAVORITE' && (
+                                                                        <span className="px-1 py-0 text-[8px] font-bold bg-pink-500 text-white rounded">限定★</span>
+                                                                    )}
+                                                                    <span className="truncate">{shift.workerName}</span>
+                                                                </div>
                                                                 <div className="text-[10px] text-gray-600 truncate">
                                                                     {shift.startTime}-{shift.endTime}
                                                                 </div>
@@ -440,10 +460,29 @@ export default function ShiftManagementPage() {
                                                         <div
                                                             key={shift.applicationId}
                                                             onClick={() => openDetailModal(shift)}
-                                                            className="group p-2 rounded-lg border text-xs cursor-pointer hover:shadow-md transition-all bg-blue-100 text-blue-700 border-blue-200"
+                                                            className={`group p-2 rounded-lg border text-xs cursor-pointer hover:shadow-md transition-all ${
+                                                                shift.jobType === 'OFFER'
+                                                                    ? 'bg-blue-200 text-blue-800 border-2 border-blue-400'
+                                                                    : shift.jobType === 'LIMITED_WORKED'
+                                                                    ? 'bg-purple-100 text-purple-800 border-2 border-purple-300'
+                                                                    : shift.jobType === 'LIMITED_FAVORITE'
+                                                                    ? 'bg-pink-100 text-pink-800 border-2 border-pink-300'
+                                                                    : 'bg-blue-100 text-blue-700 border-blue-200'
+                                                            }`}
                                                         >
                                                             <div className="flex justify-between items-start">
-                                                                <span className="font-bold truncate">{shift.startTime}-{shift.endTime}</span>
+                                                                <div className="flex items-center gap-1 truncate">
+                                                                    {shift.jobType === 'OFFER' && (
+                                                                        <span className="px-1 py-0 text-[8px] font-bold bg-blue-600 text-white rounded flex-shrink-0">オファ</span>
+                                                                    )}
+                                                                    {shift.jobType === 'LIMITED_WORKED' && (
+                                                                        <span className="px-1 py-0 text-[8px] font-bold bg-purple-600 text-white rounded flex-shrink-0">限定</span>
+                                                                    )}
+                                                                    {shift.jobType === 'LIMITED_FAVORITE' && (
+                                                                        <span className="px-1 py-0 text-[8px] font-bold bg-pink-500 text-white rounded flex-shrink-0">限定★</span>
+                                                                    )}
+                                                                    <span className="font-bold truncate">{shift.startTime}-{shift.endTime}</span>
+                                                                </div>
                                                             </div>
                                                             <div className="flex items-center gap-1 mt-1 font-medium truncate">
                                                                 <User className="w-3 h-3 flex-shrink-0" />
@@ -466,7 +505,18 @@ export default function ShiftManagementPage() {
                         <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsDetailModalOpen(false)}></div>
                         <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                             <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                                <h3 className="text-lg font-bold text-gray-800">シフト詳細</h3>
+                                <div className="flex items-center gap-2">
+                                    <h3 className="text-lg font-bold text-gray-800">シフト詳細</h3>
+                                    {selectedShift.jobType === 'OFFER' && (
+                                        <span className="px-2 py-0.5 text-xs font-bold bg-blue-600 text-white rounded">オファ</span>
+                                    )}
+                                    {selectedShift.jobType === 'LIMITED_WORKED' && (
+                                        <span className="px-2 py-0.5 text-xs font-bold bg-purple-600 text-white rounded">限定</span>
+                                    )}
+                                    {selectedShift.jobType === 'LIMITED_FAVORITE' && (
+                                        <span className="px-2 py-0.5 text-xs font-bold bg-pink-500 text-white rounded">限定★</span>
+                                    )}
+                                </div>
                                 <button
                                     onClick={() => setIsDetailModalOpen(false)}
                                     className="text-gray-400 hover:text-gray-600 p-1 hover:bg-gray-100 rounded-full transition-colors"

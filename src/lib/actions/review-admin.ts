@@ -555,7 +555,8 @@ export async function createReviewTemplate(facilityId: number, name: string, con
         content,
       },
     });
-    revalidatePath('/admin/worker-reviews');
+    // 注意: /admin/worker-reviewsはrevalidateしない（レビューフォーム入力中にリセットされるため）
+    // ページ内ではrefreshTemplates()で手動更新している
     return { success: true };
   } catch (error) {
     console.error('[createReviewTemplate] Error:', error);
@@ -563,30 +564,50 @@ export async function createReviewTemplate(facilityId: number, name: string, con
   }
 }
 
-export async function updateReviewTemplate(templateId: number, name: string, content: string) {
+export async function updateReviewTemplate(templateId: number, name: string, content: string, facilityId: number) {
   try {
+    // 認可チェック: 対象テンプレートが自施設のものか確認
+    const existing = await prisma.reviewTemplate.findUnique({
+      where: { id: templateId },
+      select: { facility_id: true },
+    });
+
+    if (!existing || existing.facility_id !== facilityId) {
+      return { success: false, error: '権限がありません' };
+    }
+
     await prisma.reviewTemplate.update({
       where: { id: templateId },
       data: { name, content },
     });
-    revalidatePath('/admin/worker-reviews');
+    // 注意: /admin/worker-reviewsはrevalidateしない（レビューフォーム入力中にリセットされるため）
     return { success: true };
   } catch (error) {
     console.error('[updateReviewTemplate] Error:', error);
-    return { success: false };
+    return { success: false, error: 'テンプレートの更新に失敗しました' };
   }
 }
 
-export async function deleteReviewTemplate(templateId: number) {
+export async function deleteReviewTemplate(templateId: number, facilityId: number) {
   try {
+    // 認可チェック: 対象テンプレートが自施設のものか確認
+    const existing = await prisma.reviewTemplate.findUnique({
+      where: { id: templateId },
+      select: { facility_id: true },
+    });
+
+    if (!existing || existing.facility_id !== facilityId) {
+      return { success: false, error: '権限がありません' };
+    }
+
     await prisma.reviewTemplate.delete({
       where: { id: templateId },
     });
-    revalidatePath('/admin/worker-reviews');
+    // 注意: /admin/worker-reviewsはrevalidateしない（レビューフォーム入力中にリセットされるため）
     return { success: true };
   } catch (error) {
     console.error('[deleteReviewTemplate] Error:', error);
-    return { success: false };
+    return { success: false, error: 'テンプレートの削除に失敗しました' };
   }
 }
 
