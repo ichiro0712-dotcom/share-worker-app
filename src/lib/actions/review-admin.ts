@@ -563,8 +563,18 @@ export async function createReviewTemplate(facilityId: number, name: string, con
   }
 }
 
-export async function updateReviewTemplate(templateId: number, name: string, content: string) {
+export async function updateReviewTemplate(templateId: number, name: string, content: string, facilityId: number) {
   try {
+    // 認可チェック: 対象テンプレートが自施設のものか確認
+    const existing = await prisma.reviewTemplate.findUnique({
+      where: { id: templateId },
+      select: { facility_id: true },
+    });
+
+    if (!existing || existing.facility_id !== facilityId) {
+      return { success: false, error: '権限がありません' };
+    }
+
     await prisma.reviewTemplate.update({
       where: { id: templateId },
       data: { name, content },
@@ -573,12 +583,22 @@ export async function updateReviewTemplate(templateId: number, name: string, con
     return { success: true };
   } catch (error) {
     console.error('[updateReviewTemplate] Error:', error);
-    return { success: false };
+    return { success: false, error: 'テンプレートの更新に失敗しました' };
   }
 }
 
-export async function deleteReviewTemplate(templateId: number) {
+export async function deleteReviewTemplate(templateId: number, facilityId: number) {
   try {
+    // 認可チェック: 対象テンプレートが自施設のものか確認
+    const existing = await prisma.reviewTemplate.findUnique({
+      where: { id: templateId },
+      select: { facility_id: true },
+    });
+
+    if (!existing || existing.facility_id !== facilityId) {
+      return { success: false, error: '権限がありません' };
+    }
+
     await prisma.reviewTemplate.delete({
       where: { id: templateId },
     });
@@ -586,7 +606,7 @@ export async function deleteReviewTemplate(templateId: number) {
     return { success: true };
   } catch (error) {
     console.error('[deleteReviewTemplate] Error:', error);
-    return { success: false };
+    return { success: false, error: 'テンプレートの削除に失敗しました' };
   }
 }
 

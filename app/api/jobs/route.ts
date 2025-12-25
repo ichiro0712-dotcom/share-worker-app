@@ -143,6 +143,7 @@ export async function GET(request: NextRequest) {
         weeklyFrequency: job.weekly_frequency,
         effectiveWeeklyFrequency: job.effectiveWeeklyFrequency,
         availableWorkDateCount: job.availableWorkDateCount,
+        jobType: job.jobType,
       };
     });
 

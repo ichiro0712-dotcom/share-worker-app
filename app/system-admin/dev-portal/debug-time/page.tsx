@@ -28,9 +28,9 @@ export default function DebugTimePage() {
     return () => clearInterval(interval);
   }, []);
 
-  // 初期設定を読み込み
+  // 初期設定を読み込み（ローカルストレージを優先）
   useEffect(() => {
-    // ローカルストレージから読み込み
+    // ローカルストレージから読み込み（優先）
     const stored = localStorage.getItem('debugTimeSettings');
     if (stored) {
       try {
@@ -41,17 +41,21 @@ export default function DebugTimePage() {
           setDateInput(formatDateForInput(date));
           setTimeInput(formatTimeForInput(date));
         }
+        // ローカルストレージに値があればそれを使い、サーバーAPIは呼ばない
+        return;
       } catch (e) {
         console.error('Failed to parse debug time settings:', e);
       }
     }
 
-    // サーバーからも読み込み
+    // ローカルストレージになければサーバーから読み込み
     fetch('/api/debug/time')
       .then((res) => res.json())
       .then((data) => {
         if (data.enabled !== undefined) {
           setSettings(data);
+          // ローカルストレージにも保存して同期
+          localStorage.setItem('debugTimeSettings', JSON.stringify(data));
           if (data.time) {
             const date = new Date(data.time);
             setDateInput(formatDateForInput(date));

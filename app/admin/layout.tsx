@@ -10,8 +10,8 @@ export default function AdminRootLayout({
 }) {
   const pathname = usePathname();
 
-  // ログインページ、利用規約、プライバシーポリシーではレイアウトを適用しない
-  const noLayoutPages = ['/admin/login', '/admin/terms', '/admin/privacy'];
+  // ログインページではレイアウトを適用しない
+  const noLayoutPages = ['/admin/login'];
   const shouldShowLayout = !noLayoutPages.includes(pathname || '');
 
   if (!shouldShowLayout) {

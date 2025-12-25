@@ -162,7 +162,7 @@ async function switchLimitedJobsToNormal(now: Date): Promise<{ switched: number;
         where: { id: job.id },
         data: {
           job_type: 'NORMAL',
-          // requires_interview は false のまま維持（即マッチング継続）
+          // requires_interview は元の値を維持（審査ありなら審査あり、なしならなし）
         },
       });
       switched++;
@@ -214,7 +214,7 @@ async function switchLimitedJobsToNormal(now: Date): Promise<{ switched: number;
             allow_car: job.allow_car,
             meal_support: job.meal_support,
             weekly_frequency: job.weekly_frequency,
-            requires_interview: false, // 即マッチング維持
+            requires_interview: job.requires_interview, // 親求人の値を継承
             switch_to_normal_days_before: null, // 子求人には不要
             target_worker_id: null,
             offer_message: null,

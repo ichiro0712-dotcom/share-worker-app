@@ -33,12 +33,12 @@ export const JOB_TYPE_OPTIONS: { value: JobTypeValue; label: string; description
   {
     value: 'LIMITED_WORKED',
     label: '限定求人（勤務済みの方）',
-    description: '過去にあなたの施設で勤務したワーカーのみが閲覧・応募できます。審査なしで即マッチングとなります。',
+    description: '過去にあなたの施設で勤務したワーカーのみが閲覧・応募できます。',
   },
   {
     value: 'LIMITED_FAVORITE',
     label: '限定求人（お気に入りのみ）',
-    description: 'あなたがお気に入り登録しているワーカーのみが閲覧・応募できます。審査なしで即マッチングとなります。',
+    description: 'あなたがお気に入り登録しているワーカーのみが閲覧・応募できます。',
   },
   {
     value: 'ORIENTATION',

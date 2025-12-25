@@ -46,3 +46,4 @@ export * from './message';
 export * from './review-worker';
 export * from './review-admin';
 export * from './labor-document-shift';
+export * from './offer-template';

@@ -1,7 +1,7 @@
 'use client';
 
 import useSWR, { preload } from 'swr';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState, useEffect } from 'react';
 import { generateDates } from '@/utils/date';
 
 interface JobSearchParams {
@@ -90,8 +90,13 @@ export function useJobsSearch(params: JobSearchParams, initialData?: JobsRespons
     }
   );
 
-  // 日付リスト（90日分）
-  const dates = useMemo(() => generateDates(90), []);
+  // 日付リスト（90日分）- クライアントサイドでマウント後に再計算
+  const [dates, setDates] = useState<Date[]>(() => generateDates(90));
+
+  // クライアントサイドでマウント後に日付を再計算（SSRとのずれを解消）
+  useEffect(() => {
+    setDates(generateDates(90));
+  }, []);
 
   // 特定の日付をプリフェッチ
   const prefetchDate = useCallback((dateIndex: number) => {

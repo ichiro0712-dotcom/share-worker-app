@@ -27,6 +27,7 @@ interface JobPreviewModalProps {
     attachments?: string[];
     selectedDates: string[];
     requiresInterview?: boolean;
+    jobType?: 'NORMAL' | 'ORIENTATION' | 'LIMITED_WORKED' | 'LIMITED_FAVORITE' | 'OFFER';
   };
   facilityData: {
     id: number;
@@ -90,6 +91,7 @@ export function JobPreviewModal({ isOpen, onClose, jobData, facilityData }: JobP
     attachments: jobData.attachments || [],
     status: 'published',
     requiresInterview: jobData.requiresInterview || false,
+    jobType: jobData.jobType || 'NORMAL',
     badges: [],
     // 日給・給与
     wage: dailyWage,

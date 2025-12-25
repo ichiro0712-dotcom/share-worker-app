@@ -119,8 +119,12 @@ const JobCardComponent: React.FC<JobCardProps> = ({ job, facility, selectedDate,
               fill
               className={`object-cover ${shouldShowUnavailable ? 'opacity-60 grayscale' : ''}`}
             />
-            {/* 面接ありバッジ - 画像左上 */}
-            {job.requiresInterview && (
+            {/* バッジ - 画像左上 */}
+            {job.jobType === 'ORIENTATION' ? (
+              <span className="absolute top-2 left-2 bg-purple-500 text-white text-[10px] font-bold px-2 py-1 rounded z-10">
+                説明会
+              </span>
+            ) : job.requiresInterview && (
               <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded z-10">
                 審査あり
               </span>
@@ -216,8 +220,12 @@ const JobCardComponent: React.FC<JobCardProps> = ({ job, facility, selectedDate,
               blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFgABAQEAAAAAAAAAAAAAAAAAAAUH/8QAIhAAAgIBAwQDAAAAAAAAAAAAAQIDBAAFERIGEyExQVFh/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAZEQACAwEAAAAAAAAAAAAAAAABAgADESH/2gAMAwAAhEDEQA/A/8A0="
               priority={priority}
             />
-            {/* 面接ありバッジ - 画像左上 */}
-            {job.requiresInterview && (
+            {/* バッジ - 画像左上 */}
+            {job.jobType === 'ORIENTATION' ? (
+              <span className="absolute top-2 left-2 bg-purple-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded z-10">
+                説明会
+              </span>
+            ) : job.requiresInterview && (
               <span className="absolute top-2 left-2 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded z-10">
                 審査あり
               </span>

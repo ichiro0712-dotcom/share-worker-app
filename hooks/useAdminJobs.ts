@@ -60,6 +60,8 @@ interface JobData {
     uniformProvided: boolean;
     allowCar: boolean;
     mealSupport: boolean;
+    targetWorkerId: number | null;
+    targetWorkerName: string | null;
 }
 
 interface AdminJobsParams {
