@@ -40,3 +40,5 @@ scripts/
 _AUDIT_PLAN.md
 .!*
 *.backup
+*.sql
+.serena/
