@@ -14,7 +14,9 @@
     "db:studio": "prisma studio",
     "test": "playwright test",
     "test:ui": "playwright test --ui",
-    "test:headed": "playwright test --headed"
+    "test:headed": "playwright test --headed",
+    "deploy:preview": "vercel --yes | tee /dev/stderr | grep -o 'https://[^ ]*vercel.app' | head -1 | xargs -I {} vercel alias {} stg-share-worker.vercel.app",
+    "deploy:prod": "vercel --prod --yes"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.953.0",
@@ -22,7 +24,7 @@
     "@aws-sdk/s3-request-presigner": "^3.956.0",
     "@ducanh2912/next-pwa": "^10.2.9",
     "@pdf-lib/fontkit": "^1.1.1",
-    "@prisma/client": "^5.22.0",
+    "@prisma/client": "5.22.0",
     "@supabase/supabase-js": "^2.45.0",
     "@types/archiver": "^7.0.0",
     "@types/bcrypt": "^6.0.0",
@@ -61,7 +63,8 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.57.0",
-    "prisma": "^5.22.0",
+    "dotenv": "^17.2.3",
+    "prisma": "5.22.0",
     "tsx": "^4.20.6"
   }
 }

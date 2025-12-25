@@ -24,10 +24,6 @@ const nextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'ziaunavcbawzorrwwnos.supabase.co',
-      },
-      {
-        protocol: 'https',
         hostname: '*.supabase.co',
       },
       {
