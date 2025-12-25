@@ -505,7 +505,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
             <ChevronLeft className="w-6 h-6" />
           </button>
           <div className="flex-1 text-center text-sm">
-            {formatDateTime(job.workDate, job.startTime, job.endTime)}
+            {formatDateTime(selectedDate || job.workDate, job.startTime, job.endTime)}
           </div>
           <button
             onClick={handleSaveForLater}
@@ -536,8 +536,14 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
 
         {/* 画像カルーセル */}
         <div className="relative mb-4">
-          {/* 面接ありバッジ - overflow-hiddenの外に配置 */}
-          {job.requiresInterview && (
+          {/* バッジ - overflow-hiddenの外に配置 */}
+          {job.jobType === 'ORIENTATION' ? (
+            <div className="absolute top-3 left-3 z-30">
+              <span className="bg-purple-500 text-white text-xs font-bold px-2 py-1 rounded shadow-md">
+                説明会
+              </span>
+            </div>
+          ) : job.requiresInterview && (
             <div className="absolute top-3 left-3 z-30">
               <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded shadow-md">
                 審査あり

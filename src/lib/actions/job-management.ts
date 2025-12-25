@@ -62,6 +62,12 @@ export async function getFacilityJobs(
                 },
                 facility: true,
                 template: true,
+                targetWorker: {
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                },
             },
             orderBy: { created_at: 'desc' },
             skip,
@@ -133,6 +139,8 @@ export async function getFacilityJobs(
             templateId: job.template_id,
             templateName: job.template?.name || null,
             requiresInterview: job.requires_interview,
+            targetWorkerId: job.target_worker_id,
+            targetWorkerName: job.targetWorker?.name || null,
         };
     });
 
@@ -297,8 +305,8 @@ export async function createJobs(input: CreateJobInput) {
     };
     const dbJobType = jobTypeMap[input.jobType || 'NORMAL'] || 'NORMAL';
 
-    // 限定求人の場合は審査なしに固定
-    const requiresInterview = (dbJobType === 'LIMITED_WORKED' || dbJobType === 'LIMITED_FAVORITE' || dbJobType === 'OFFER')
+    // オファー・説明会の場合は審査なしに固定
+    const requiresInterview = (dbJobType === 'OFFER' || dbJobType === 'ORIENTATION')
         ? false
         : (input.requiresInterview || false);
 
@@ -791,5 +799,53 @@ export async function updateJob(
     } catch (error) {
         console.error('[updateJob] Error:', error);
         return { success: false, error: '求人の更新に失敗しました' };
+    }
+}
+
+/**
+ * 限定求人の対象者数を取得
+ * - 勤務済みワーカー数: この施設でCOMPLETED_RATEDステータスの応募があるワーカーのユニーク数
+ * - お気に入りワーカー数: この施設がFAVORITEとしてブックマークしているワーカーのユニーク数
+ */
+export async function getLimitedJobTargetCounts(facilityId: number): Promise<{
+    workedCount: number;
+    favoriteCount: number;
+}> {
+    try {
+        // 勤務済みワーカー数: COMPLETED_RATED のアプリケーションを持つユニークなワーカー数
+        const workedWorkers = await prisma.application.findMany({
+            where: {
+                status: 'COMPLETED_RATED',
+                workDate: {
+                    job: {
+                        facility_id: facilityId,
+                    },
+                },
+            },
+            select: {
+                user_id: true,
+            },
+            distinct: ['user_id'],
+        });
+
+        // お気に入りワーカー数: この施設がFAVORITEとしてブックマークしているワーカー数
+        const favoriteWorkers = await prisma.bookmark.count({
+            where: {
+                facility_id: facilityId,
+                target_user_id: { not: null },
+                type: 'FAVORITE',
+            },
+        });
+
+        return {
+            workedCount: workedWorkers.length,
+            favoriteCount: favoriteWorkers,
+        };
+    } catch (error) {
+        console.error('[getLimitedJobTargetCounts] Error:', error);
+        return {
+            workedCount: 0,
+            favoriteCount: 0,
+        };
     }
 }

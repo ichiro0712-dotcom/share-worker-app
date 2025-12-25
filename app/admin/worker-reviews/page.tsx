@@ -165,17 +165,21 @@ export default function WorkerReviewsPage() {
 
     // テンプレート更新
     const handleUpdateTemplate = async () => {
-        if (!editingTemplate || !newTemplateName.trim() || !newTemplateContent.trim()) {
+        if (!admin?.facilityId || !editingTemplate || !newTemplateName.trim() || !newTemplateContent.trim()) {
             toast.error('タイトルと内容を入力してください');
             return;
         }
         try {
-            await updateReviewTemplate(editingTemplate.id, newTemplateName.trim(), newTemplateContent.trim());
-            toast.success('テンプレートを更新しました');
-            setEditingTemplate(null);
-            setNewTemplateName('');
-            setNewTemplateContent('');
-            await refreshTemplates();
+            const result = await updateReviewTemplate(editingTemplate.id, newTemplateName.trim(), newTemplateContent.trim(), admin.facilityId);
+            if (result.success) {
+                toast.success('テンプレートを更新しました');
+                setEditingTemplate(null);
+                setNewTemplateName('');
+                setNewTemplateContent('');
+                await refreshTemplates();
+            } else {
+                toast.error(result.error || 'テンプレートの更新に失敗しました');
+            }
         } catch (error) {
             const debugInfo = extractDebugInfo(error);
             showDebugError({
@@ -193,11 +197,16 @@ export default function WorkerReviewsPage() {
 
     // テンプレート削除
     const handleDeleteTemplate = async (templateId: number) => {
+        if (!admin?.facilityId) return;
         if (!confirm('このテンプレートを削除しますか？')) return;
         try {
-            await deleteReviewTemplate(templateId);
-            toast.success('テンプレートを削除しました');
-            await refreshTemplates();
+            const result = await deleteReviewTemplate(templateId, admin.facilityId);
+            if (result.success) {
+                toast.success('テンプレートを削除しました');
+                await refreshTemplates();
+            } else {
+                toast.error(result.error || 'テンプレートの削除に失敗しました');
+            }
         } catch (error) {
             const debugInfo = extractDebugInfo(error);
             showDebugError({

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { getFacilityStaffName, getFacilitySidebarBadges } from '@/src/lib/actions';
+import { getFacilityStaffName, getFacilitySidebarBadges, getFacilityInfo } from '@/src/lib/actions';
 import toast from 'react-hot-toast';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import {
@@ -52,6 +52,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const [isMasquerade, setIsMasquerade] = useState(false);
   // 担当者名（DBから取得）
   const [staffName, setStaffName] = useState<string | null>(null);
+  // 施設名（DBから取得）
+  const [facilityName, setFacilityName] = useState<string | null>(null);
   // 通知バッジ用
   const [badges, setBadges] = useState({
     unreadMessages: 0,
@@ -90,28 +92,35 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     checkSessionStatus();
   }, []);
 
-  // 担当者名を取得
+  // 担当者名と施設名を取得
   useEffect(() => {
-    const fetchStaffName = async () => {
+    const fetchFacilityData = async () => {
       if (admin?.facilityId) {
         try {
+          // 担当者名を取得
           const name = await getFacilityStaffName(admin.facilityId);
           setStaffName(name);
+
+          // 施設名を取得
+          const facilityInfo = await getFacilityInfo(admin.facilityId);
+          if (facilityInfo) {
+            setFacilityName(facilityInfo.facilityName);
+          }
         } catch (error) {
           const debugInfo = extractDebugInfo(error);
           showDebugError({
             type: 'fetch',
-            operation: '施設担当者名取得',
+            operation: '施設情報取得',
             message: debugInfo.message,
             details: debugInfo.details,
             stack: debugInfo.stack,
             context: { facilityId: admin?.facilityId }
           });
-          console.error('Failed to fetch staff name:', error);
+          console.error('Failed to fetch facility data:', error);
         }
       }
     };
-    fetchStaffName();
+    fetchFacilityData();
   }, [admin?.facilityId]);
 
   // 通知バッジを取得
@@ -257,7 +266,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     <div className="flex h-screen bg-gray-50">
       {/* サイドバー */}
       <div
-        className={`bg-admin-sidebar border-r border-gray-800 flex flex-col transition-all duration-300 ease-in-out ${isCollapsed ? 'w-16' : 'w-64'
+        className={`bg-admin-sidebar border-r border-gray-800 flex flex-col transition-all duration-300 ease-in-out ${isCollapsed ? 'w-16' : 'w-56'
           }`}
       >
         {/* ロゴ・施設名 */}
@@ -477,32 +486,41 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                 </>
               ) : (
                 <>
-                  <p className="text-xs text-gray-500 mb-1">ログイン中</p>
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-xs text-gray-500">ログイン中</p>
+                    <button
+                      onClick={handleLogout}
+                      className="flex items-center gap-1 text-xs text-gray-500 hover:text-white transition-colors"
+                    >
+                      <LogOut className="w-3 h-3" />
+                      ログアウト
+                    </button>
+                  </div>
                   <p className="text-sm font-medium text-white">{staffName || admin?.name || '担当者'}</p>
+                  {facilityName && (
+                    <p className="text-xs text-gray-400 mt-1 truncate" title={facilityName}>{facilityName}</p>
+                  )}
                 </>
               )}
             </div>
           )}
           {!isCollapsed && (
-            <div className="mb-3 flex items-center justify-center gap-3 text-xs text-gray-500">
-              <Link href="/admin/terms" prefetch={true} className="hover:text-blue-400 hover:underline">
-                利用規約
-              </Link>
-              <span>•</span>
-              <Link href="/admin/privacy" prefetch={true} className="hover:text-blue-400 hover:underline">
-                プライバシーポリシー
+            <div className="mb-3 flex items-center justify-center text-xs text-gray-500">
+              <Link href="/admin/terms-privacy" prefetch={true} className="hover:text-blue-400 hover:underline">
+                利用規約・プライバシーポリシー
               </Link>
             </div>
           )}
-          <button
-            onClick={handleLogout}
-            className={`w-full flex items-center justify-center gap-2 text-sm text-gray-400 border border-gray-700 rounded-admin-button hover:bg-white/5 hover:text-white transition-colors ${isCollapsed ? 'p-2' : 'px-4 py-2'
-              }`}
-            title={isCollapsed ? 'ログアウト' : undefined}
-          >
-            <LogOut className="w-5 h-5" />
-            {!isCollapsed && <span>ログアウト</span>}
-          </button>
+          {/* サイドバー折りたたみ時のみログアウトアイコンボタン表示 */}
+          {isCollapsed && (
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center justify-center p-2 text-gray-400 hover:text-white transition-colors"
+              title="ログアウト"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
+          )}
         </div>
       </div>
 
