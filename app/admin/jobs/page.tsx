@@ -580,7 +580,7 @@ export default function AdminJobsList() {
               { value: 'NORMAL', label: '通常', color: 'bg-gray-100 text-gray-700 hover:bg-gray-200' },
               { value: 'LIMITED_WORKED', label: '限定（勤務実績）', color: 'bg-purple-50 text-purple-700 hover:bg-purple-100' },
               { value: 'LIMITED_FAVORITE', label: '限定（お気に入り）', color: 'bg-pink-50 text-pink-700 hover:bg-pink-100' },
-              { value: 'OFFER', label: 'オファー', color: 'bg-blue-50 text-blue-700 hover:bg-blue-100' },
+              { value: 'OFFER', label: 'オファ', color: 'bg-blue-50 text-blue-700 hover:bg-blue-100' },
               { value: 'ORIENTATION', label: '説明会', color: 'bg-teal-50 text-teal-700 hover:bg-teal-100' },
             ].map((type) => (
               <button
@@ -662,7 +662,7 @@ export default function AdminJobsList() {
                       <div className="flex items-center gap-3 mb-2">
                         {/* オファーバッジ */}
                         <span className="px-2 py-0.5 text-xs font-bold rounded bg-blue-600 text-white">
-                          オファー
+                          オファ
                         </span>
 
                         {/* オファー対象者名 */}
@@ -780,14 +780,16 @@ export default function AdminJobsList() {
                       {/* 求人種別バッジ */}
                       {job.jobType && job.jobType !== 'NORMAL' && (
                         <div className="flex-shrink-0">
-                          <span className={`px-2 py-0.5 text-xs font-medium rounded ${
-                            job.jobType === 'LIMITED_WORKED' ? 'bg-purple-100 text-purple-700' :
-                            job.jobType === 'LIMITED_FAVORITE' ? 'bg-pink-100 text-pink-700' :
-                            job.jobType === 'ORIENTATION' ? 'bg-teal-100 text-teal-700' :
+                          <span className={`px-2 py-0.5 text-xs font-bold rounded shadow-sm ${
+                            job.jobType === 'LIMITED_WORKED' ? 'bg-purple-600 text-white' :
+                            job.jobType === 'LIMITED_FAVORITE' ? 'bg-pink-500 text-white' :
+                            job.jobType === 'ORIENTATION' ? 'bg-teal-500 text-white' :
                             'bg-gray-100 text-gray-700'
                           }`}>
-                            {job.jobType === 'LIMITED_WORKED' ? '限定（勤務実績）' :
-                             job.jobType === 'LIMITED_FAVORITE' ? '限定（お気に入り）' :
+                            {job.jobType === 'LIMITED_WORKED' ? '限定' :
+                             job.jobType === 'LIMITED_FAVORITE' ? (
+                               <>限定<span className="text-yellow-300">★</span></>
+                             ) :
                              job.jobType === 'ORIENTATION' ? '説明会' : ''}
                           </span>
                         </div>

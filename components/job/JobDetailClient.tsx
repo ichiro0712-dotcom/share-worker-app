@@ -536,20 +536,34 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
 
         {/* 画像カルーセル */}
         <div className="relative mb-4">
-          {/* バッジ - overflow-hiddenの外に配置 */}
-          {job.jobType === 'ORIENTATION' ? (
-            <div className="absolute top-3 left-3 z-30">
-              <span className="bg-purple-500 text-white text-xs font-bold px-2 py-1 rounded shadow-md">
+          {/* バッジ - overflow-hiddenの外に配置（求人種別 + 審査あり） */}
+          <div className="absolute top-3 left-3 z-30 flex flex-col gap-1">
+            {job.jobType === 'OFFER' && (
+              <span className="bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded shadow-md">
+                オファ
+              </span>
+            )}
+            {job.jobType === 'LIMITED_WORKED' && (
+              <span className="bg-purple-600 text-white text-xs font-bold px-2 py-1 rounded shadow-md">
+                限定
+              </span>
+            )}
+            {job.jobType === 'LIMITED_FAVORITE' && (
+              <span className="bg-pink-500 text-white text-xs font-bold px-2 py-1 rounded shadow-md flex items-center gap-0.5">
+                限定<span className="text-yellow-300">★</span>
+              </span>
+            )}
+            {job.jobType === 'ORIENTATION' && (
+              <span className="bg-teal-500 text-white text-xs font-bold px-2 py-1 rounded shadow-md">
                 説明会
               </span>
-            </div>
-          ) : job.requiresInterview && (
-            <div className="absolute top-3 left-3 z-30">
+            )}
+            {job.requiresInterview && (
               <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded shadow-md">
                 審査あり
               </span>
-            </div>
-          )}
+            )}
+          </div>
           <div className="relative aspect-video rounded-card overflow-hidden">
             {jobImages[currentImageIndex].startsWith('blob:') ? (
               <img

@@ -555,7 +555,8 @@ export async function createReviewTemplate(facilityId: number, name: string, con
         content,
       },
     });
-    revalidatePath('/admin/worker-reviews');
+    // 注意: /admin/worker-reviewsはrevalidateしない（レビューフォーム入力中にリセットされるため）
+    // ページ内ではrefreshTemplates()で手動更新している
     return { success: true };
   } catch (error) {
     console.error('[createReviewTemplate] Error:', error);
@@ -579,7 +580,7 @@ export async function updateReviewTemplate(templateId: number, name: string, con
       where: { id: templateId },
       data: { name, content },
     });
-    revalidatePath('/admin/worker-reviews');
+    // 注意: /admin/worker-reviewsはrevalidateしない（レビューフォーム入力中にリセットされるため）
     return { success: true };
   } catch (error) {
     console.error('[updateReviewTemplate] Error:', error);
@@ -602,7 +603,7 @@ export async function deleteReviewTemplate(templateId: number, facilityId: numbe
     await prisma.reviewTemplate.delete({
       where: { id: templateId },
     });
-    revalidatePath('/admin/worker-reviews');
+    // 注意: /admin/worker-reviewsはrevalidateしない（レビューフォーム入力中にリセットされるため）
     return { success: true };
   } catch (error) {
     console.error('[deleteReviewTemplate] Error:', error);

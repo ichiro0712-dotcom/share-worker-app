@@ -261,6 +261,7 @@ export async function getShiftsForFacility(
     status: string;
     jobId: number;
     weeklyFrequency: number | null;
+    jobType: string;
 }>> {
     'use server';
 
@@ -297,6 +298,7 @@ export async function getShiftsForFacility(
                                 start_time: true,
                                 end_time: true,
                                 weekly_frequency: true,
+                                job_type: true,
                             },
                         },
                     },
@@ -324,6 +326,7 @@ export async function getShiftsForFacility(
             status: app.status,
             jobId: app.workDate.job.id,
             weeklyFrequency: app.workDate.job.weekly_frequency,
+            jobType: app.workDate.job.job_type,
         }));
     } catch (error) {
         console.error('[getShiftsForFacility] Error:', error);
