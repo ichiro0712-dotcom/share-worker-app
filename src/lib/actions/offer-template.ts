@@ -57,7 +57,8 @@ export async function createOfferTemplate(
       },
     });
 
-    revalidatePath('/admin/jobs/new');
+    // 注意: /admin/jobs/newはrevalidateしない（フォーム入力中にリセットされるため）
+    // JobForm内ではrefreshOfferTemplates()で手動更新している
     revalidatePath('/admin/settings/offer-templates');
     return { success: true };
   } catch (error) {
@@ -91,7 +92,7 @@ export async function updateOfferTemplate(
       data: { name, message },
     });
 
-    revalidatePath('/admin/jobs/new');
+    // 注意: /admin/jobs/newはrevalidateしない（フォーム入力中にリセットされるため）
     revalidatePath('/admin/settings/offer-templates');
     return { success: true };
   } catch (error) {
@@ -122,7 +123,7 @@ export async function deleteOfferTemplate(
       where: { id: templateId },
     });
 
-    revalidatePath('/admin/jobs/new');
+    // 注意: /admin/jobs/newはrevalidateしない（フォーム入力中にリセットされるため）
     revalidatePath('/admin/settings/offer-templates');
     return { success: true };
   } catch (error) {

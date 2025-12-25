@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSWRConfig } from 'swr';
 import { useAuth } from '@/contexts/AuthContext';
@@ -140,6 +140,9 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
     // 新規作成用 State
     const [selectedDates, setSelectedDates] = useState<string[]>([]);
     const [showConfirm, setShowConfirm] = useState(false);
+
+    // 切り替え設定へのRef（バリデーションエラー時にスクロールするため）
+    const switchSettingRef = useRef<HTMLDivElement>(null);
 
     // 条件設定用 State
     const [skillInput, setSkillInput] = useState('');
@@ -588,6 +591,27 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
 
     // === ハンドラー ===
 
+    // 勤務日までの日数に応じて切り替え日数のデフォルト値を計算
+    const calculateDefaultSwitchDays = (workDates: string[]): number | null => {
+        if (workDates.length === 0) return null;
+
+        const now = getCurrentTime();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+        // 最も近い勤務日を取得
+        const earliestDate = workDates
+            .map(d => new Date(d))
+            .sort((a, b) => a.getTime() - b.getTime())[0];
+
+        const daysUntilWork = Math.ceil((earliestDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+        // 仕様に基づくデフォルト値
+        if (daysUntilWork >= 7) return 7;
+        if (daysUntilWork >= 3) return 3;
+        if (daysUntilWork >= 1) return 1;
+        return null; // 1日未満は切り替えなし
+    };
+
     const handleInputChange = (field: string, value: any) => {
         setFormData({ ...formData, [field]: value });
     };
@@ -721,14 +745,62 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
         handleInputChange('existingAttachments', formData.existingAttachments.filter((_, i) => i !== index));
     };
 
+    // 切り替え日数バリデーション関数
+    // 「X日前に切り替え」とは勤務日のX日前に通常求人になるということ
+    // 例: 勤務日が3日後で「1日前に切り替え」→ 2日後に切り替わる → OK
+    // 例: 勤務日が1日後（明日）で「1日前に切り替え」→ 今日切り替わる必要がある → NG（すでに今日）
+    // したがって、switchDays < daysUntilWork である必要がある（等号なし）
+    const validateSwitchDays = (workDates: string[], switchDays: number | null): { valid: boolean; daysUntilWork: number } => {
+        if (switchDays === null || workDates.length === 0) return { valid: true, daysUntilWork: 0 };
+
+        const now = getCurrentTime();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+        // 最も近い勤務日を取得
+        const earliestDate = workDates
+            .map(d => new Date(d))
+            .sort((a, b) => a.getTime() - b.getTime())[0];
+
+        const daysUntilWork = Math.ceil((earliestDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+        // switchDays < daysUntilWork でなければならない
+        // 例: 勤務日が2日後(daysUntilWork=2)なら、1日前切り替え(switchDays=1)はOK（明日切り替わる）
+        // 例: 勤務日が1日後(daysUntilWork=1)なら、1日前切り替え(switchDays=1)はNG（今日切り替える必要がある）
+        return {
+            valid: switchDays < daysUntilWork,
+            daysUntilWork
+        };
+    };
+
     // カレンダー操作
     const handleDateClick = (dateString: string) => {
         if (mode === 'create') {
+            let newDates: string[];
             if (selectedDates.includes(dateString)) {
-                setSelectedDates(selectedDates.filter(d => d !== dateString));
+                newDates = selectedDates.filter(d => d !== dateString);
             } else {
-                setSelectedDates([...selectedDates, dateString].sort());
+                newDates = [...selectedDates, dateString].sort();
             }
+
+            // 限定求人の場合、バリデーションを行う
+            if (formData.jobType === 'LIMITED_WORKED' || formData.jobType === 'LIMITED_FAVORITE') {
+                // nullの場合はデフォルト値7を使用
+                const switchDays = formData.switchToNormalDaysBefore ?? 7;
+                const { valid, daysUntilWork } = validateSwitchDays(newDates, switchDays);
+                if (!valid && newDates.length > 0) {
+                    // より分かりやすいエラーメッセージ
+                    const requiredDays = switchDays + 1; // X日前に切り替えるには少なくともX+1日先の勤務日が必要
+                    toast.error(
+                        `「${switchDays}日前に切り替え」を選択中ですが、最短の勤務日まで${daysUntilWork}日しかありません。少なくとも${requiredDays}日以上先の日付を選択するか、切り替え設定を変更してください。`,
+                        { duration: 5000 }
+                    );
+                    // 設定箇所にスクロール
+                    switchSettingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    return; // 日付選択をキャンセル
+                }
+            }
+
+            setSelectedDates(newDates);
         } else {
             // 編集モード
             const existing = existingWorkDates.find(wd => wd.date === dateString);
@@ -893,6 +965,26 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
             errors.push('限定求人（お気に入りのみ）を作成するには、お気に入り登録しているワーカーが必要です');
         }
 
+        // 限定求人の切り替え日数バリデーション
+        if ((formData.jobType === 'LIMITED_WORKED' || formData.jobType === 'LIMITED_FAVORITE') && formData.switchToNormalDaysBefore !== null) {
+            const now = getCurrentTime();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const workDatesToValidate = mode === 'create' ? selectedDates : existingWorkDates.map(wd => wd.date);
+
+            if (workDatesToValidate.length > 0) {
+                // 最も近い勤務日を取得
+                const earliestDate = workDatesToValidate
+                    .map(d => new Date(d))
+                    .sort((a, b) => a.getTime() - b.getTime())[0];
+
+                const daysUntilWork = Math.ceil((earliestDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+                if (formData.switchToNormalDaysBefore > daysUntilWork) {
+                    errors.push(`最短の勤務日まで${daysUntilWork}日しかないため、${formData.switchToNormalDaysBefore}日前に通常求人へ切り替えることはできません。${daysUntilWork}日以下の値を選択してください。`);
+                }
+            }
+        }
+
         // 新規作成時は勤務日必須
         if (mode === 'create') {
             if (selectedDates.length === 0) errors.push('勤務日は少なくとも1つ選択してください');
@@ -966,8 +1058,8 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
                 // 新規作成
                 let workDates = selectedDates;
 
-                // 限定求人の場合は審査なしに固定
-                const requiresInterview = (formData.jobType === 'LIMITED_WORKED' || formData.jobType === 'LIMITED_FAVORITE')
+                // オファーのみ審査なし固定（限定求人は審査あり/なし選択可能）
+                const requiresInterview = formData.jobType === 'OFFER'
                     ? false
                     : formData.requiresInterview;
 
@@ -1017,7 +1109,10 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
                     globalMutate((key) => typeof key === 'string' && key.includes('/api/admin/jobs'));
                     router.push('/admin/jobs');
                 } else {
-                    throw new Error(res.error || '作成失敗');
+                    // オファー重複エラーなど、ユーザー向けのエラーはトーストで表示
+                    toast.error(res.error || '作成に失敗しました');
+                    setIsSaving(false);
+                    return;
                 }
 
             } else {
@@ -1126,7 +1221,7 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
                             disabled={isSaving}
                             className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:bg-blue-400 disabled:cursor-not-allowed"
                         >
-                            {isSaving ? '保存中...' : (mode === 'create' ? '公開する' : '更新する')}
+                            {isSaving ? '保存中...' : (mode === 'create' ? (isOfferMode ? 'オファーする' : '公開する') : '更新する')}
                         </button>
                     </div>
                 </div>
@@ -1219,6 +1314,11 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
                                                     onChange={(e) => {
                                                         const newJobType = e.target.value as JobTypeValue;
                                                         handleInputChange('jobType', newJobType);
+
+                                                        // 限定求人に変更した場合、切り替え日数を7日に初期化
+                                                        if (newJobType === 'LIMITED_WORKED' || newJobType === 'LIMITED_FAVORITE') {
+                                                            setFormData(prev => ({ ...prev, jobType: newJobType, switchToNormalDaysBefore: 7 }));
+                                                        }
                                                     }}
                                                     className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                                                 >
@@ -1253,7 +1353,7 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
 
                                             {/* 限定求人：通常求人への自動切り替え設定 */}
                                             {(formData.jobType === 'LIMITED_WORKED' || formData.jobType === 'LIMITED_FAVORITE') && (
-                                                <div className="bg-white border border-gray-200 rounded-lg p-2">
+                                                <div ref={switchSettingRef} className="bg-white border border-gray-200 rounded-lg p-2">
                                                     <div className="flex items-center gap-1.5 flex-wrap text-xs">
                                                         <span className="text-gray-700">勤務開始日の</span>
                                                         <select
@@ -2408,7 +2508,13 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
                                     {!isCreatingOfferTemplate && !editingOfferTemplate && (
                                         <button
                                             type="button"
-                                            onClick={() => setIsCreatingOfferTemplate(true)}
+                                            onClick={() => {
+                                                setIsCreatingOfferTemplate(true);
+                                                // 現在入力中のメッセージがあればテンプレート作成フォームにデフォルトセット
+                                                if (formData.offerMessage?.trim()) {
+                                                    setNewOfferTemplateMessage(formData.offerMessage.trim());
+                                                }
+                                            }}
                                             className="mb-4 flex items-center gap-2 px-4 py-2 text-sm text-blue-600 border border-blue-300 rounded-lg hover:bg-blue-50"
                                         >
                                             <Plus className="w-4 h-4" />

@@ -119,16 +119,34 @@ const JobCardComponent: React.FC<JobCardProps> = ({ job, facility, selectedDate,
               fill
               className={`object-cover ${shouldShowUnavailable ? 'opacity-60 grayscale' : ''}`}
             />
-            {/* バッジ - 画像左上 */}
-            {job.jobType === 'ORIENTATION' ? (
-              <span className="absolute top-2 left-2 bg-purple-500 text-white text-[10px] font-bold px-2 py-1 rounded z-10">
-                説明会
-              </span>
-            ) : job.requiresInterview && (
-              <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded z-10">
-                審査あり
-              </span>
-            )}
+            {/* バッジ - 画像左上（求人種別 + 審査あり） */}
+            <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
+              {job.jobType === 'OFFER' && (
+                <span className="bg-blue-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow-sm">
+                  オファ
+                </span>
+              )}
+              {job.jobType === 'LIMITED_WORKED' && (
+                <span className="bg-purple-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow-sm">
+                  限定
+                </span>
+              )}
+              {job.jobType === 'LIMITED_FAVORITE' && (
+                <span className="bg-pink-500 text-white text-[10px] font-bold px-2 py-1 rounded shadow-sm flex items-center gap-0.5">
+                  限定<span className="text-yellow-300">★</span>
+                </span>
+              )}
+              {job.jobType === 'ORIENTATION' && (
+                <span className="bg-teal-500 text-white text-[10px] font-bold px-2 py-1 rounded shadow-sm">
+                  説明会
+                </span>
+              )}
+              {job.requiresInterview && (
+                <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded shadow-sm">
+                  審査あり
+                </span>
+              )}
+            </div>
             {shouldShowUnavailable && (
               <div className="absolute inset-0 flex items-center justify-center">
                 <span className="bg-gray-800 text-white text-sm font-bold px-3 py-1.5 rounded">
@@ -220,16 +238,34 @@ const JobCardComponent: React.FC<JobCardProps> = ({ job, facility, selectedDate,
               blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFgABAQEAAAAAAAAAAAAAAAAAAAUH/8QAIhAAAgIBAwQDAAAAAAAAAAAAAQIDBAAFERIGEyExQVFh/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAZEQACAwEAAAAAAAAAAAAAAAABAgADESH/2gAMAwAAhEDEQA/A/8A0="
               priority={priority}
             />
-            {/* バッジ - 画像左上 */}
-            {job.jobType === 'ORIENTATION' ? (
-              <span className="absolute top-2 left-2 bg-purple-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded z-10">
-                説明会
-              </span>
-            ) : job.requiresInterview && (
-              <span className="absolute top-2 left-2 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded z-10">
-                審査あり
-              </span>
-            )}
+            {/* バッジ - 画像左上（求人種別 + 審査あり） */}
+            <div className="absolute top-2 left-2 flex flex-col gap-0.5 z-10">
+              {job.jobType === 'OFFER' && (
+                <span className="bg-blue-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm">
+                  オファ
+                </span>
+              )}
+              {job.jobType === 'LIMITED_WORKED' && (
+                <span className="bg-purple-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm">
+                  限定
+                </span>
+              )}
+              {job.jobType === 'LIMITED_FAVORITE' && (
+                <span className="bg-pink-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm flex items-center gap-0.5">
+                  限定<span className="text-yellow-300">★</span>
+                </span>
+              )}
+              {job.jobType === 'ORIENTATION' && (
+                <span className="bg-teal-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm">
+                  説明会
+                </span>
+              )}
+              {job.requiresInterview && (
+                <span className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm">
+                  審査あり
+                </span>
+              )}
+            </div>
             {shouldShowUnavailable && (
               <div className="absolute inset-0 flex items-center justify-center">
                 <span className="bg-gray-800 text-white text-xs font-bold px-2 py-1 rounded">
