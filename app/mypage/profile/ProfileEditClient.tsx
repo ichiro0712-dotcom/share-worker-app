@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { updateUserProfile } from '@/src/lib/actions';
 import { validateFile, getSafeImageUrl, isValidImageUrl } from '@/utils/fileValidation';
-import { formatKatakana, formatKatakanaWithSpace, formatPhoneNumber } from '@/utils/inputValidation';
+import { formatKatakana, formatKatakanaWithSpace, formatPhoneNumber, isKatakanaOnly, isKatakanaWithSpaceOnly } from '@/utils/inputValidation';
 import toast from 'react-hot-toast';
 import AddressSelector from '@/components/ui/AddressSelector';
 import { QUALIFICATION_GROUPS } from '@/constants/qualifications';
@@ -475,6 +475,21 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
       return;
     }
 
+    // フリガナのカタカナチェック
+    if (formData.lastNameKana && !isKatakanaOnly(formData.lastNameKana)) {
+      toast.error('姓（カナ）はカタカナで入力してください');
+      return;
+    }
+    if (formData.firstNameKana && !isKatakanaOnly(formData.firstNameKana)) {
+      toast.error('名（カナ）はカタカナで入力してください');
+      return;
+    }
+    // 口座名義のカタカナチェック
+    if (formData.accountName && !isKatakanaWithSpaceOnly(formData.accountName)) {
+      toast.error('口座名義はカタカナで入力してください');
+      return;
+    }
+
     setIsSaving(true);
 
     try {
@@ -698,11 +713,14 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                   const value = formatKatakana(e.target.value);
                   setFormData({ ...formData, lastNameKana: value });
                 }}
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.lastNameKana ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.lastNameKana ? 'border-red-500 bg-red-50' : formData.lastNameKana && !isKatakanaOnly(formData.lastNameKana) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                 placeholder="ヤマダ"
               />
               {showErrors && !formData.lastNameKana && (
                 <p className="text-red-500 text-xs mt-1">姓（カナ）を入力してください</p>
+              )}
+              {formData.lastNameKana && !isKatakanaOnly(formData.lastNameKana) && (
+                <p className="text-red-500 text-xs mt-1">カタカナで入力してください</p>
               )}
               <p className="text-xs text-gray-500 mt-1">※カタカナで入力（ひらがなは自動変換）</p>
             </div>
@@ -715,11 +733,14 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                   const value = formatKatakana(e.target.value);
                   setFormData({ ...formData, firstNameKana: value });
                 }}
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.firstNameKana ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.firstNameKana ? 'border-red-500 bg-red-50' : formData.firstNameKana && !isKatakanaOnly(formData.firstNameKana) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                 placeholder="タロウ"
               />
               {showErrors && !formData.firstNameKana && (
                 <p className="text-red-500 text-xs mt-1">名（カナ）を入力してください</p>
+              )}
+              {formData.firstNameKana && !isKatakanaOnly(formData.firstNameKana) && (
+                <p className="text-red-500 text-xs mt-1">カタカナで入力してください</p>
               )}
               <p className="text-xs text-gray-500 mt-1">※カタカナで入力（ひらがなは自動変換）</p>
             </div>
@@ -1278,10 +1299,13 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                   value={formData.accountName}
                   onChange={(e) => setFormData({ ...formData, accountName: formatKatakanaWithSpace(e.target.value) })}
                   placeholder="ヤマダ タロウ"
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.accountName ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.accountName ? 'border-red-500 bg-red-50' : formData.accountName && !isKatakanaWithSpaceOnly(formData.accountName) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                 />
                 {showErrors && !formData.accountName && (
                   <p className="text-red-500 text-xs mt-1">口座名義を入力してください</p>
+                )}
+                {formData.accountName && !isKatakanaWithSpaceOnly(formData.accountName) && (
+                  <p className="text-red-500 text-xs mt-1">カタカナで入力してください</p>
                 )}
                 <p className="text-xs text-gray-500 mt-1">※カタカナで入力（ひらがなは自動変換）</p>
               </div>
