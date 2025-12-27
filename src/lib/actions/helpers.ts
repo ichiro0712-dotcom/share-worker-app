@@ -238,7 +238,7 @@ export interface CreateJobInput {
   address?: string;
 }
 
-export type WorkerListStatus = 'NOT_STARTED' | 'WORKING' | 'COMPLETED' | 'CANCELLED';
+export type WorkerListStatus = 'NOT_STARTED' | 'WORKING' | 'COMPLETED' | 'REVIEW_PENDING' | 'CANCELLED';
 
 export interface WorkerListItem {
   userId: number;
@@ -260,8 +260,14 @@ export interface WorkerListItem {
   lastOtherWorkDate: string | null; // 他社での最終勤務日
   // 統計（合計）
   totalWorkCount: number;        // 総勤務回数
-  lastWorkDate: string | null;   // 最終勤務日（自社/他社問わず）
+  lastWorkDate: string | null;   // 最終勤務日（自社/他社問わず、完了済みのみ）
   lastWorkFacilityType: 'our' | 'other' | null; // 最終勤務が自社か他社か
+  // 勤務予定
+  scheduledDates: {
+    date: string;       // 勤務日（YYYY-MM-DD形式）
+    startTime: string;  // 開始時刻（HH:MM形式）
+    endTime: string;    // 終了時刻（HH:MM形式）
+  }[];                  // 勤務予定（自社のみ、時間情報付き）
   // キャンセル率
   cancelRate: number;            // キャンセル率（%）
   lastMinuteCancelRate: number;  // 直前キャンセル率（%）
@@ -279,7 +285,6 @@ export interface WorkerListSearchParams {
   keyword?: string;
   status?: string;
   jobCategory?: string;
-  sortBy?: string;
   page?: number;
   limit?: number;
   sort?: string;

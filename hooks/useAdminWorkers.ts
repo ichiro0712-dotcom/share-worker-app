@@ -3,7 +3,7 @@
 import useSWR from 'swr';
 import { useMemo } from 'react';
 
-export type WorkerListStatus = 'NOT_STARTED' | 'WORKING' | 'COMPLETED' | 'CANCELLED';
+export type WorkerListStatus = 'NOT_STARTED' | 'WORKING' | 'COMPLETED' | 'REVIEW_PENDING' | 'CANCELLED';
 
 export interface WorkerListItem {
     userId: number;
@@ -23,6 +23,11 @@ export interface WorkerListItem {
     totalWorkCount: number;
     lastWorkDate: string | null;
     lastWorkFacilityType: 'our' | 'other' | null;
+    scheduledDates: {
+        date: string;
+        startTime: string;
+        endTime: string;
+    }[];
     cancelRate: number;
     lastMinuteCancelRate: number;
     experienceFields: Record<string, string> | null;

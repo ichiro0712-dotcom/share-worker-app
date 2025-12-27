@@ -59,6 +59,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     unreadMessages: 0,
     pendingApplications: 0,
     unreadAnnouncements: 0,
+    pendingReviews: 0,
   });
 
   // 折りたたみ状態をlocalStorageから復元
@@ -222,11 +223,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       active: pathname?.startsWith('/admin/workers') && !pathname?.startsWith('/admin/worker-reviews'),
     },
     {
-      title: 'ワーカーレビュー',
+      title: 'ワーカーレビュ',
       icon: <Star className="w-5 h-5" />,
       href: '/admin/worker-reviews',
       active: pathname?.startsWith('/admin/worker-reviews'),
       isSubItem: true,
+      badge: badges.pendingReviews,
     },
     {
       title: 'メッセージ',

@@ -480,6 +480,21 @@ export async function submitWorkerReviewByJob(data: {
       },
     });
 
+    // この求人に対する該当ワーカーの全応募をCOMPLETED_RATEDに更新
+    await prisma.application.updateMany({
+      where: {
+        user_id: data.userId,
+        workDate: {
+          job_id: data.jobId,
+        },
+        status: 'COMPLETED_PENDING',
+      },
+      data: {
+        status: 'COMPLETED_RATED',
+        facility_review_status: 'COMPLETED',
+      },
+    });
+
     // アクション処理（お気に入り・ブロック）
     if (data.action === 'favorite') {
       await toggleWorkerFavorite(data.userId, data.facilityId);
@@ -489,6 +504,7 @@ export async function submitWorkerReviewByJob(data: {
 
     console.log('[submitWorkerReviewByJob] Review submitted successfully');
     revalidatePath('/admin/worker-reviews');
+    revalidatePath('/admin/workers');
     return { success: true };
   } catch (error) {
     console.error('[submitWorkerReviewByJob] Error:', error);
@@ -1079,6 +1095,12 @@ export async function getWorkerListForFacility(
         workDate: {
           select: {
             work_date: true,
+            job: {
+              select: {
+                start_time: true,
+                end_time: true,
+              },
+            },
           },
         },
       },
@@ -1130,11 +1152,22 @@ export async function getWorkerListForFacility(
     }
 
     // 自社での勤務データを集計
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // 勤務予定の詳細情報型
+    type ScheduledWorkInfo = {
+      date: Date;
+      startTime: string;
+      endTime: string;
+    };
+
     const ourDataMap = new Map<number, {
       user: typeof ourApplications[0]['user'];
       statuses: Set<string>;
       completedDates: Date[];
       workingDates: Date[];
+      scheduledWorks: ScheduledWorkInfo[]; // 勤務予定日（今日以降の予定・勤務中）+ 時間情報
       cancelledCount: number;
       totalApplications: number;
     }>();
@@ -1143,7 +1176,19 @@ export async function getWorkerListForFacility(
       const existing = ourDataMap.get(app.user.id);
       const isCompleted = app.status === 'COMPLETED_PENDING' || app.status === 'COMPLETED_RATED';
       const isWorking = app.status === 'WORKING';
+      const isScheduled = app.status === 'SCHEDULED';
       const isWorkerCancelled = app.status === 'CANCELLED' && app.cancelled_by === 'WORKER';
+      // 勤務予定：今日以降のSCHEDULED/WORKING
+      const workDate = new Date(app.workDate.work_date);
+      workDate.setHours(0, 0, 0, 0);
+      const isFutureOrToday = workDate >= today;
+      const isUpcomingWork = (isScheduled || isWorking) && isFutureOrToday;
+
+      const scheduledWorkInfo: ScheduledWorkInfo = {
+        date: app.workDate.work_date,
+        startTime: app.workDate.job.start_time,
+        endTime: app.workDate.job.end_time,
+      };
 
       if (existing) {
         existing.statuses.add(app.status);
@@ -1154,6 +1199,9 @@ export async function getWorkerListForFacility(
         if (isWorking) {
           existing.workingDates.push(app.workDate.work_date);
         }
+        if (isUpcomingWork) {
+          existing.scheduledWorks.push(scheduledWorkInfo);
+        }
         if (isWorkerCancelled) {
           existing.cancelledCount++;
         }
@@ -1163,6 +1211,7 @@ export async function getWorkerListForFacility(
           statuses: new Set([app.status]),
           completedDates: isCompleted ? [app.workDate.work_date] : [],
           workingDates: isWorking ? [app.workDate.work_date] : [],
+          scheduledWorks: isUpcomingWork ? [scheduledWorkInfo] : [],
           cancelledCount: isWorkerCancelled ? 1 : 0,
           totalApplications: 1,
         });
@@ -1226,8 +1275,9 @@ export async function getWorkerListForFacility(
 
       // ステータスを判定
       const statuses: WorkerListStatus[] = [];
-      const hasCompleted = statusSet.has('COMPLETED_PENDING') || statusSet.has('COMPLETED_RATED');
+      const hasCompletedPending = statusSet.has('COMPLETED_PENDING'); // レビュー待ち
       const hasCompletedRated = statusSet.has('COMPLETED_RATED'); // レビュー完了（オファー対象）
+      const hasCompleted = hasCompletedPending || hasCompletedRated;
       const hasCancelled = statusSet.has('CANCELLED');
       const hasScheduled = statusSet.has('SCHEDULED');
       const hasWorking = statusSet.has('WORKING');
@@ -1238,19 +1288,32 @@ export async function getWorkerListForFacility(
       if (hasWorking) {
         statuses.push('WORKING');
       }
-      if (hasCompleted) {
+      if (hasCompletedRated) {
+        // レビュー完了済みは「就労済」
         statuses.push('COMPLETED');
+      }
+      if (hasCompletedPending) {
+        // 勤務完了しているがレビュー待ちの状態
+        statuses.push('REVIEW_PENDING');
       }
       if (hasCancelled) {
         statuses.push('CANCELLED');
       }
 
-      // 自社の最終勤務日（完了 + 勤務中を含む）
-      const ourAllWorkDates = [...data.completedDates, ...data.workingDates];
-      const ourSortedDates = ourAllWorkDates.sort((a, b) => b.getTime() - a.getTime());
-      const lastOurWorkDate = ourSortedDates.length > 0
-        ? ourSortedDates[0].toISOString().split('T')[0]
+      // 自社の最終勤務日（完了済みのみ - 勤務予定は含まない）
+      const ourCompletedSortedDates = [...data.completedDates].sort((a, b) => b.getTime() - a.getTime());
+      const lastOurWorkDate = ourCompletedSortedDates.length > 0
+        ? ourCompletedSortedDates[0].toISOString().split('T')[0]
         : null;
+
+      // 勤務予定（日付順にソート、時間情報付き）
+      const scheduledDatesWithTime = data.scheduledWorks
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+        .map(sw => ({
+          date: new Date(sw.date).toISOString().split('T')[0],
+          startTime: sw.startTime,
+          endTime: sw.endTime,
+        }));
 
       // 他社の最終勤務日
       const otherSortedDates = otherData
@@ -1311,6 +1374,7 @@ export async function getWorkerListForFacility(
         totalWorkCount,
         lastWorkDate,
         lastWorkFacilityType,
+        scheduledDates: scheduledDatesWithTime, // 勤務予定（自社のみ、時間情報付き）
         cancelRate,
         lastMinuteCancelRate: 0,
         experienceFields,
@@ -1360,34 +1424,8 @@ export async function getWorkerListForFacility(
       );
     }
 
-    // 並び替え
-    switch (params?.sortBy) {
-      case 'workCount_desc':
-        workers.sort((a, b) => b.totalWorkCount - a.totalWorkCount);
-        break;
-      case 'workCount_asc':
-        workers.sort((a, b) => a.totalWorkCount - b.totalWorkCount);
-        break;
-      case 'lastWorkDate_desc':
-        workers.sort((a, b) => {
-          if (!a.lastWorkDate && !b.lastWorkDate) return 0;
-          if (!a.lastWorkDate) return 1;
-          if (!b.lastWorkDate) return -1;
-          return new Date(b.lastWorkDate).getTime() - new Date(a.lastWorkDate).getTime();
-        });
-        break;
-      case 'lastWorkDate_asc':
-        workers.sort((a, b) => {
-          if (!a.lastWorkDate && !b.lastWorkDate) return 0;
-          if (!a.lastWorkDate) return 1;
-          if (!b.lastWorkDate) return -1;
-          return new Date(a.lastWorkDate).getTime() - new Date(b.lastWorkDate).getTime();
-        });
-        break;
-      default:
-        // デフォルト: 勤務回数多い順
-        workers.sort((a, b) => b.totalWorkCount - a.totalWorkCount);
-    }
+    // ソートはページネーション前（line 1028-1040）で既に実施済み
+    // paginatedIdsの順序を保持するため、ここでは再ソート不要
 
     return { data: workers, pagination: { currentPage: page, totalPages: Math.ceil(totalCount / limit), totalCount, hasMore: skip + paginatedIds.length < totalCount } };
   } catch (error) {
