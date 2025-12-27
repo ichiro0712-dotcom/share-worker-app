@@ -217,6 +217,16 @@ export default function WorkerRegisterPage() {
       return;
     }
 
+    // フリガナのカタカナチェック
+    if (!isKatakanaOnly(formData.lastNameKana)) {
+      toast.error('セイ（フリガナ）はカタカナで入力してください');
+      return;
+    }
+    if (!isKatakanaOnly(formData.firstNameKana)) {
+      toast.error('メイ（フリガナ）はカタカナで入力してください');
+      return;
+    }
+
     // 経験分野確認
     if (experienceFields.length === 0) {
       toast.error('少なくとも1つの経験分野を選択してください');
@@ -376,11 +386,14 @@ export default function WorkerRegisterPage() {
                     required
                     value={formData.lastNameKana}
                     onChange={(e) => setFormData({ ...formData, lastNameKana: formatKatakana(e.target.value) })}
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.lastNameKana ? 'border-red-500 bg-red-50' : showErrors && formData.lastNameKana && !isKatakanaOnly(formData.lastNameKana) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.lastNameKana ? 'border-red-500 bg-red-50' : formData.lastNameKana && !isKatakanaOnly(formData.lastNameKana) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                     placeholder="ヤマダ"
                   />
                   {showErrors && !formData.lastNameKana && (
                     <p className="text-red-500 text-xs mt-1">セイ（フリガナ）を入力してください</p>
+                  )}
+                  {formData.lastNameKana && !isKatakanaOnly(formData.lastNameKana) && (
+                    <p className="text-red-500 text-xs mt-1">カタカナで入力してください</p>
                   )}
                   <p className="text-xs text-gray-500 mt-1">※カタカナで入力（ひらがなは自動変換）</p>
                 </div>
@@ -393,11 +406,14 @@ export default function WorkerRegisterPage() {
                     required
                     value={formData.firstNameKana}
                     onChange={(e) => setFormData({ ...formData, firstNameKana: formatKatakana(e.target.value) })}
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.firstNameKana ? 'border-red-500 bg-red-50' : showErrors && formData.firstNameKana && !isKatakanaOnly(formData.firstNameKana) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.firstNameKana ? 'border-red-500 bg-red-50' : formData.firstNameKana && !isKatakanaOnly(formData.firstNameKana) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                     placeholder="タロウ"
                   />
                   {showErrors && !formData.firstNameKana && (
                     <p className="text-red-500 text-xs mt-1">メイ（フリガナ）を入力してください</p>
+                  )}
+                  {formData.firstNameKana && !isKatakanaOnly(formData.firstNameKana) && (
+                    <p className="text-red-500 text-xs mt-1">カタカナで入力してください</p>
                   )}
                   <p className="text-xs text-gray-500 mt-1">※カタカナで入力（ひらがなは自動変換）</p>
                 </div>
