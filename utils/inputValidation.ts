@@ -16,20 +16,24 @@ export function hiraganaToKatakana(value: string): string {
   });
 }
 
-// カタカナ入力用のハンドラー（ひらがな自動変換 + カタカナ以外を除外）
+// カタカナ入力用のハンドラー（ひらがな自動変換のみ、他の文字は残す）
+// バリデーションは送信時にisKatakanaOnlyで行う
 export function formatKatakana(value: string): string {
-  // ひらがなをカタカナに変換
-  let converted = hiraganaToKatakana(value);
-  // カタカナ、長音記号、中点のみを残す
-  return converted.replace(/[^ァ-ヶー・]/g, '');
+  // ひらがなをカタカナに変換するだけ（他の文字は残す）
+  return hiraganaToKatakana(value);
 }
 
 // カタカナ入力用（スペース許容版: 口座名義などに使用）
+// バリデーションは送信時にisKatakanaWithSpaceOnlyで行う
 export function formatKatakanaWithSpace(value: string): string {
-  // ひらがなをカタカナに変換
-  let converted = hiraganaToKatakana(value);
-  // カタカナ、長音記号、中点、全角スペース、半角スペースを残す
-  return converted.replace(/[^ァ-ヶー・　 ]/g, '');
+  // ひらがなをカタカナに変換するだけ（他の文字は残す）
+  return hiraganaToKatakana(value);
+}
+
+// カタカナとスペースのみかどうかを判定（口座名義用）
+export function isKatakanaWithSpaceOnly(value: string): boolean {
+  // 全角カタカナ、長音記号、中点、全角スペース、半角スペースのみ許可
+  return /^[ァ-ヶー・　 ]+$/.test(value);
 }
 
 // 電話番号フォーマット（ハイフン自動挿入）
