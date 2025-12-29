@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Star, AlertTriangle, FileText, Heart, Ban, X, Plus, Trash2, Edit3 } from 'lucide-react';
+import { Star, FileText, Heart, Ban, X, Plus, Trash2, Edit3 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { ReviewCard } from '@/components/admin/ReviewCard';
 import toast from 'react-hot-toast';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
@@ -335,49 +336,18 @@ export default function WorkerReviewsPage() {
                             </div>
                         ) : (
                             pendingReviews.map((review) => (
-                                <div
+                                <ReviewCard
                                     key={review.applicationId}
-                                    className={`bg-white rounded-lg border p-4 ${review.daysSinceWork >= 3 ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                                        }`}
-                                >
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            {/* プロフィール画像 */}
-                                            <div className="w-12 h-12 rounded-full bg-gray-200 overflow-hidden">
-                                                {review.userProfileImage ? (
-                                                    <img src={review.userProfileImage} alt="" className="w-full h-full object-cover" />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center text-gray-400 font-bold">
-                                                        {review.userName.charAt(0)}
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            <div>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-bold">{review.userName}</span>
-                                                    {review.daysSinceWork >= 3 && (
-                                                        <span className="flex items-center gap-1 text-red-600 text-xs">
-                                                            <AlertTriangle className="w-3 h-3" />
-                                                            {review.daysSinceWork}日経過
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <p className="text-sm text-gray-600">{review.jobTitle}</p>
-                                                <p className="text-xs text-gray-500">
-                                                    {new Date(review.workDate).toLocaleDateString('ja-JP')} {review.startTime}-{review.endTime}
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        <button
-                                            onClick={() => setSelectedApplication(review)}
-                                            className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
-                                        >
-                                            レビューを入力
-                                        </button>
-                                    </div>
-                                </div>
+                                    applicationId={review.applicationId}
+                                    userName={review.userName}
+                                    userProfileImage={review.userProfileImage}
+                                    jobTitle={review.jobTitle}
+                                    workDate={review.workDate}
+                                    startTime={review.startTime}
+                                    endTime={review.endTime}
+                                    daysSinceWork={review.daysSinceWork}
+                                    onSelect={() => setSelectedApplication(review)}
+                                />
                             ))
                         )}
                     </div>

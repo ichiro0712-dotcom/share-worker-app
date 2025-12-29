@@ -540,9 +540,10 @@ export async function getFacilitySidebarBadges(facilityId: number): Promise<{
     unreadMessages: number;
     pendingApplications: number;
     unreadAnnouncements: number;
+    pendingReviews: number;
 }> {
     try {
-        const [unreadMessages, unviewedCount, unreadAnnouncementsCount] = await Promise.all([
+        const [unreadMessages, unviewedCount, unreadAnnouncementsCount, pendingReviewCount] = await Promise.all([
             getFacilityUnreadMessageCount(facilityId),
             prisma.application.count({
                 where: {
@@ -562,12 +563,24 @@ export async function getFacilitySidebarBadges(facilityId: number): Promise<{
                     is_read: false,
                 },
             }),
+            // 未入力レビュー（COMPLETED_PENDING = レビュー待ち）の件数
+            prisma.application.count({
+                where: {
+                    workDate: {
+                        job: {
+                            facility_id: facilityId,
+                        },
+                    },
+                    status: 'COMPLETED_PENDING',
+                },
+            }),
         ]);
 
         return {
             unreadMessages,
             pendingApplications: unviewedCount,
             unreadAnnouncements: unreadAnnouncementsCount,
+            pendingReviews: pendingReviewCount,
         };
     } catch (error) {
         console.error('[getFacilitySidebarBadges] Error:', error);
@@ -575,6 +588,7 @@ export async function getFacilitySidebarBadges(facilityId: number): Promise<{
             unreadMessages: 0,
             pendingApplications: 0,
             unreadAnnouncements: 0,
+            pendingReviews: 0,
         };
     }
 }

@@ -15,7 +15,8 @@ import {
   Heart,
   Ban,
   FileText,
-  CalendarDays
+  CalendarDays,
+  ChevronDown
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useErrorToast } from '@/components/ui/PersistentErrorToast';
@@ -36,6 +37,7 @@ import { getQualificationAbbreviations } from '@/src/lib/content-actions';
 import { Pagination } from '@/components/ui/Pagination';
 import { useApplicationsByJob, useApplicationsByWorker } from '@/hooks/useApplications';
 import { ApplicationsSkeleton } from '@/components/admin/ApplicationsSkeleton';
+import { QUALIFICATION_GROUPS } from '@/constants/qualifications';
 
 // 型定義
 interface PaginationData {
@@ -185,6 +187,9 @@ function ApplicationsContent() {
       ? initialStatusFilter
       : 'all'
   );
+  const [jobTypeFilter, setJobTypeFilter] = useState<string>('all');
+  const [qualificationCategory, setQualificationCategory] = useState<string>('all');
+  const [workerSortBy, setWorkerSortBy] = useState<string>('workCount_desc');
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [page, setPage] = useState(initialPage ? parseInt(initialPage) : 1);
@@ -564,9 +569,70 @@ function ApplicationsContent() {
     }
   };
 
-  // フィルタリング (サーバーサイドに移行したため、ここでは単純にデータを通す)
-  const filteredJobs = jobs;
-  const filteredWorkers = workers;
+  // フィルタリング (求人種別フィルタと資格フィルタを適用)
+  const filteredJobs = useMemo(() => {
+    let result = [...jobs];
+
+    // 求人種別でフィルタリング
+    if (jobTypeFilter !== 'all') {
+      result = result.filter(job => job.jobType === jobTypeFilter);
+    }
+
+    // 資格カテゴリでフィルタリング（求人の必須資格で絞り込み）
+    if (qualificationCategory !== 'all') {
+      const categoryGroup = QUALIFICATION_GROUPS.find(g => g.name === qualificationCategory);
+      if (categoryGroup) {
+        const categoryQualifications = categoryGroup.qualifications as readonly string[];
+        result = result.filter(job =>
+          job.requiredQualifications.some(qual =>
+            categoryQualifications.includes(qual)
+          )
+        );
+      }
+    }
+
+    return result;
+  }, [jobs, jobTypeFilter, qualificationCategory]);
+
+  const filteredWorkers = useMemo(() => {
+    let result = [...workers];
+
+    // 資格カテゴリでフィルタリング
+    if (qualificationCategory !== 'all') {
+      const categoryGroup = QUALIFICATION_GROUPS.find(g => g.name === qualificationCategory);
+      if (categoryGroup) {
+        const categoryQualifications = categoryGroup.qualifications as readonly string[];
+        result = result.filter(workerData =>
+          workerData.worker.qualifications.some(qual =>
+            categoryQualifications.includes(qual)
+          )
+        );
+      }
+    }
+
+    // 並べ替え
+    result.sort((a, b) => {
+      switch (workerSortBy) {
+        case 'workCount_desc':
+          return b.worker.totalWorkDays - a.worker.totalWorkDays;
+        case 'workCount_asc':
+          return a.worker.totalWorkDays - b.worker.totalWorkDays;
+        case 'lastWorkDate_desc':
+          // 最近応募した順（応募日でソート）
+          const aLatest = a.applications.length > 0 ? new Date(a.applications[0].createdAt).getTime() : 0;
+          const bLatest = b.applications.length > 0 ? new Date(b.applications[0].createdAt).getTime() : 0;
+          return bLatest - aLatest;
+        case 'lastWorkDate_asc':
+          const aOldest = a.applications.length > 0 ? new Date(a.applications[0].createdAt).getTime() : Infinity;
+          const bOldest = b.applications.length > 0 ? new Date(b.applications[0].createdAt).getTime() : Infinity;
+          return aOldest - bOldest;
+        default:
+          return 0;
+      }
+    });
+
+    return result;
+  }, [workers, qualificationCategory, workerSortBy]);
 
   // 日付ごとの展開切り替え
   const toggleDateExpand = (dateId: number) => {
@@ -611,115 +677,194 @@ function ApplicationsContent() {
         {/* ヘッダー */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">応募管理</h1>
-          <p className="text-gray-500 mt-1">求人またはワーカーごとの応募状況を確認・管理できます</p>
         </div>
 
         {/* タブ切り替え */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-1 mb-6 inline-flex">
-          <button
-            onClick={() => setViewMode('jobs')}
-            className={`px-4 py-2 text-sm font-medium rounded transition-colors flex items-center gap-2 ${viewMode === 'jobs'
-              ? 'bg-admin-primary text-white'
-              : 'text-gray-600 hover:bg-gray-100'
-              }`}
-          >
-            <Briefcase className="w-4 h-4" />
-            求人から
-            {tabBadges.byJob > 0 && (
-              <span className={`text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 ${viewMode === 'jobs' ? 'bg-white text-admin-primary' : 'bg-red-500 text-white'
-                }`}>
-                {tabBadges.byJob}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setViewMode('workers')}
-            className={`px-4 py-2 text-sm font-medium rounded transition-colors flex items-center gap-2 ${viewMode === 'workers'
-              ? 'bg-admin-primary text-white'
-              : 'text-gray-600 hover:bg-gray-100'
-              }`}
-          >
-            <Users className="w-4 h-4" />
-            ワーカーから
-            {tabBadges.byWorker > 0 && (
-              <span className={`text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 ${viewMode === 'workers' ? 'bg-white text-admin-primary' : 'bg-red-500 text-white'
-                }`}>
-                {tabBadges.byWorker}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setViewMode('shift')}
-            className={`px-4 py-2 text-sm font-medium rounded transition-colors flex items-center gap-2 ${viewMode === 'shift'
-              ? 'bg-admin-primary text-white'
-              : 'text-gray-600 hover:bg-gray-100'
-              }`}
-          >
-            <CalendarDays className="w-4 h-4" />
-            シフトから
-          </button>
+        <div className="flex items-center gap-4 mb-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-1 inline-flex">
+            <button
+              onClick={() => setViewMode('jobs')}
+              className={`px-4 py-2 text-sm font-medium rounded transition-colors flex items-center gap-2 ${viewMode === 'jobs'
+                ? 'bg-admin-primary text-white'
+                : 'text-gray-600 hover:bg-gray-100'
+                }`}
+            >
+              <Briefcase className="w-4 h-4" />
+              求人から
+              {tabBadges.byJob > 0 && (
+                <span className={`text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 ${viewMode === 'jobs' ? 'bg-white text-admin-primary' : 'bg-red-500 text-white'
+                  }`}>
+                  {tabBadges.byJob}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setViewMode('workers')}
+              className={`px-4 py-2 text-sm font-medium rounded transition-colors flex items-center gap-2 ${viewMode === 'workers'
+                ? 'bg-admin-primary text-white'
+                : 'text-gray-600 hover:bg-gray-100'
+                }`}
+            >
+              <Users className="w-4 h-4" />
+              ワーカーから
+              {tabBadges.byWorker > 0 && (
+                <span className={`text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 ${viewMode === 'workers' ? 'bg-white text-admin-primary' : 'bg-red-500 text-white'
+                  }`}>
+                  {tabBadges.byWorker}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setViewMode('shift')}
+              className={`px-4 py-2 text-sm font-medium rounded transition-colors flex items-center gap-2 ${viewMode === 'shift'
+                ? 'bg-admin-primary text-white'
+                : 'text-gray-600 hover:bg-gray-100'
+                }`}
+            >
+              <CalendarDays className="w-4 h-4" />
+              シフトから
+            </button>
+          </div>
+
+          {/* シフトビューの場合は求人種別フィルタと資格フィルタをタブの右に表示 */}
+          {viewMode === 'shift' && (
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-700 font-medium">求人種別:</span>
+                <select
+                  value={jobTypeFilter}
+                  onChange={(e) => {
+                    setJobTypeFilter(e.target.value);
+                    setPage(1);
+                  }}
+                  className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-admin-primary bg-white"
+                >
+                  <option value="all">すべて</option>
+                  <option value="NORMAL">通常</option>
+                  <option value="LIMITED_WORKED">限定（勤務実績）</option>
+                  <option value="LIMITED_FAVORITE">限定（お気に入り）</option>
+                  <option value="OFFER">オファー</option>
+                  <option value="ORIENTATION">説明会</option>
+                </select>
+              </div>
+
+              {/* 資格フィルタ */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-700 font-medium">資格:</span>
+                <select
+                  value={qualificationCategory}
+                  onChange={(e) => {
+                    setQualificationCategory(e.target.value);
+                    setPage(1);
+                  }}
+                  className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-admin-primary bg-white"
+                >
+                  <option value="all">すべて</option>
+                  {QUALIFICATION_GROUPS.map((group) => (
+                    <option key={group.name} value={group.name}>
+                      {group.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* フィルタ・検索 - シフトビュー以外で表示 */}
         {viewMode !== 'shift' && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6 flex flex-wrap gap-4 items-center justify-between">
-            {/* 求人ビューの場合はステータスフィルタを表示 */}
+            {/* 求人ビューの場合は求人種別フィルタと資格フィルタを表示 */}
             {viewMode === 'jobs' && (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    setStatusFilter('all');
-                    setPage(1);
-                    updateUrlParams('all', 1);
-                  }}
-                  className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${statusFilter === 'all' ? 'bg-admin-primary text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                >
-                  すべて
-                </button>
-                <button
-                  onClick={() => {
-                    setStatusFilter('published');
-                    setPage(1);
-                    updateUrlParams('published', 1);
-                  }}
-                  className={`px-3 py-1.5 text-xs font-medium rounded transition-colors flex items-center gap-1.5 ${statusFilter === 'published' ? 'bg-gray-200 text-gray-900' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                >
-                  <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                  公開中
-                </button>
-                <button
-                  onClick={() => {
-                    setStatusFilter('stopped');
-                    setPage(1);
-                    updateUrlParams('stopped', 1);
-                  }}
-                  className={`px-3 py-1.5 text-xs font-medium rounded transition-colors flex items-center gap-1.5 ${statusFilter === 'stopped' ? 'bg-gray-200 text-gray-900' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                >
-                  <span className="w-2 h-2 rounded-full bg-gray-400"></span>
-                  停止中
-                </button>
-                <button
-                  onClick={() => {
-                    setStatusFilter('completed');
-                    setPage(1);
-                    updateUrlParams('completed', 1);
-                  }}
-                  className={`px-3 py-1.5 text-xs font-medium rounded transition-colors flex items-center gap-1.5 ${statusFilter === 'completed' ? 'bg-gray-200 text-gray-900' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                >
-                  <span className="w-2 h-2 rounded-full bg-gray-400"></span>
-                  完了
-                </button>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-700 font-medium">求人種別:</span>
+                  <select
+                    value={jobTypeFilter}
+                    onChange={(e) => {
+                      setJobTypeFilter(e.target.value);
+                      setPage(1);
+                    }}
+                    className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-admin-primary"
+                  >
+                    <option value="all">すべて</option>
+                    <option value="NORMAL">通常</option>
+                    <option value="LIMITED_WORKED">限定（勤務実績）</option>
+                    <option value="LIMITED_FAVORITE">限定（お気に入り）</option>
+                    <option value="OFFER">オファー</option>
+                    <option value="ORIENTATION">説明会</option>
+                  </select>
+                </div>
+
+                {/* 資格フィルタ */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-700 font-medium">資格:</span>
+                  <select
+                    value={qualificationCategory}
+                    onChange={(e) => {
+                      setQualificationCategory(e.target.value);
+                      setPage(1);
+                    }}
+                    className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-admin-primary"
+                  >
+                    <option value="all">すべて</option>
+                    {QUALIFICATION_GROUPS.map((group) => (
+                      <option key={group.name} value={group.name}>
+                        {group.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             )}
 
-            {/* ワーカービューの場合は件数を表示 */}
+            {/* ワーカービューの場合は資格カテゴリフィルタと並べ替えを表示 */}
             {viewMode === 'workers' && (
-              <div className="text-sm text-gray-600">
-                応募ワーカー: {filteredWorkers.length}名
+              <div className="flex items-center gap-4">
+                {/* 資格カテゴリフィルタ */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-700 font-medium">資格:</span>
+                  <select
+                    value={qualificationCategory}
+                    onChange={(e) => {
+                      setQualificationCategory(e.target.value);
+                      setPage(1);
+                    }}
+                    className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-admin-primary"
+                  >
+                    <option value="all">すべて</option>
+                    {QUALIFICATION_GROUPS.map((group) => (
+                      <option key={group.name} value={group.name}>
+                        {group.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 並び替え */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-700 font-medium">並び替え:</span>
+                  <div className="relative">
+                    <select
+                      value={workerSortBy}
+                      onChange={(e) => {
+                        setWorkerSortBy(e.target.value);
+                        setPage(1);
+                      }}
+                      className="appearance-none bg-white border border-gray-300 rounded pl-3 pr-8 py-2 text-sm focus:ring-2 focus:ring-admin-primary focus:border-transparent cursor-pointer"
+                    >
+                      <option value="workCount_desc">勤務回数（多い順）</option>
+                      <option value="workCount_asc">勤務回数（少ない順）</option>
+                      <option value="lastWorkDate_desc">最終勤務日（新しい順）</option>
+                      <option value="lastWorkDate_asc">最終勤務日（古い順）</option>
+                    </select>
+                    <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  </div>
+                </div>
+
+                <div className="text-sm text-gray-600">
+                  応募ワーカー: {filteredWorkers.length}名
+                </div>
               </div>
             )}
 
@@ -740,7 +885,7 @@ function ApplicationsContent() {
         {viewMode === 'shift' && (
           <div className="h-[calc(100vh-220px)]">
             <MonthlyShiftView
-              jobs={jobs as any}
+              jobs={filteredJobs as any}
               qualificationAbbreviations={qualificationAbbreviations}
               onStatusUpdate={handleStatusUpdate}
               onMatchAll={handleMatchAll}

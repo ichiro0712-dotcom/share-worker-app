@@ -493,7 +493,7 @@ export default function AdminJobsList() {
             </div>
           </div>
 
-          {/* 2段目: 期間指定 */}
+          {/* 2段目: 期間指定 + 求人種別 */}
           <div className="flex items-center gap-3">
             <span className="text-sm text-gray-700 font-medium">期間:</span>
 
@@ -536,6 +536,25 @@ export default function AdminJobsList() {
                 </option>
               ))}
             </select>
+
+            {/* 求人種別フィルタ */}
+            <span className="text-sm text-gray-700 font-medium ml-4">求人種別:</span>
+            <select
+              value={jobTypeFilter}
+              onChange={(e) => {
+                setJobTypeFilter(e.target.value);
+                setCurrentPage(1);
+                updateUrlParams({ jobType: e.target.value, page: 1 });
+              }}
+              className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-admin-primary"
+            >
+              <option value="all">すべて</option>
+              <option value="NORMAL">通常</option>
+              <option value="LIMITED_WORKED">限定（勤務実績）</option>
+              <option value="LIMITED_FAVORITE">限定（お気に入り）</option>
+              <option value="OFFER">オファー</option>
+              <option value="ORIENTATION">説明会</option>
+            </select>
           </div>
 
           {/* ステータスボタンフィルタ */}
@@ -572,34 +591,6 @@ export default function AdminJobsList() {
             ))}
           </div>
 
-          {/* 求人種別フィルタ */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500">種別:</span>
-            {[
-              { value: 'all', label: 'すべて', color: 'bg-gray-100 text-gray-700 hover:bg-gray-200' },
-              { value: 'NORMAL', label: '通常', color: 'bg-gray-100 text-gray-700 hover:bg-gray-200' },
-              { value: 'LIMITED_WORKED', label: '限定（勤務実績）', color: 'bg-purple-50 text-purple-700 hover:bg-purple-100' },
-              { value: 'LIMITED_FAVORITE', label: '限定（お気に入り）', color: 'bg-pink-50 text-pink-700 hover:bg-pink-100' },
-              { value: 'OFFER', label: 'オファ', color: 'bg-blue-50 text-blue-700 hover:bg-blue-100' },
-              { value: 'ORIENTATION', label: '説明会', color: 'bg-teal-50 text-teal-700 hover:bg-teal-100' },
-            ].map((type) => (
-              <button
-                key={type.value}
-                onClick={() => {
-                  setJobTypeFilter(type.value);
-                  setCurrentPage(1);
-                  updateUrlParams({ jobType: type.value, page: 1 });
-                }}
-                className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
-                  jobTypeFilter === type.value
-                    ? type.value === 'all' ? 'bg-admin-primary text-white' : 'ring-2 ring-offset-1 ring-gray-400 ' + type.color
-                    : type.color
-                }`}
-              >
-                {type.label}
-              </button>
-            ))}
-          </div>
         </div>
       </div>
 
