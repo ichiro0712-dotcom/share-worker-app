@@ -36,6 +36,23 @@ const nextConfig = {
       },
     ],
   },
+  // パッケージ最適化: ツリーシェイキングを改善
+  experimental: {
+    optimizePackageImports: [
+      'lucide-react',
+      'date-fns',
+      'react-hot-toast',
+    ],
+  },
+  // サーバー専用パッケージをクライアントバンドルから除外
+  serverExternalPackages: [
+    'puppeteer',
+    '@aws-sdk/client-s3',
+    '@aws-sdk/lib-storage',
+    '@aws-sdk/s3-request-presigner',
+    'archiver',
+    'bcryptjs',
+  ],
 };
 
 export default withPWA(nextConfig);
