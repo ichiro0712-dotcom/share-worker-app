@@ -25,7 +25,7 @@ export const BottomNav = () => {
     ];
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-primary z-10">
+    <div className="fixed bottom-0 left-0 right-0 bg-primary z-10" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
       <div className="flex justify-around py-2">
         {navItems.map((item) => {
           const Icon = item.icon;

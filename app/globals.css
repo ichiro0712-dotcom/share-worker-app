@@ -8,9 +8,22 @@
   box-sizing: border-box;
 }
 
+html {
+  /* iOS safe-area対応: 全幅表示を保証 */
+  width: 100%;
+  overflow-x: hidden;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   background-color: #ffffff;
+  /* iOS safe-area対応: 左右のsafe-areaを考慮 */
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  /* 全幅表示を保証 */
+  width: 100%;
+  min-width: 100%;
+  overflow-x: hidden;
 }
 
 /* スクロールバーを隠す */
