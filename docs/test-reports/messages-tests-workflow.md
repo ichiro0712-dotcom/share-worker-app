@@ -8,6 +8,7 @@
 - ステージングURL: `https://stg-share-worker.vercel.app`
 - ログインアカウントは `tests/e2e/.auth/test-accounts.json` を使用
 - レポート出力先: `reports/playwright`
+- メッセージは「マッチング成立済み」の相手のみ表示される
 
 ## 作業手順
 1. 作業ブランチ作成
