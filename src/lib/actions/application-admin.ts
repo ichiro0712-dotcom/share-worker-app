@@ -302,6 +302,16 @@ export async function updateApplicationStatus(
     }
 }
 
+// 求人別応募ソートオプションの型定義
+type JobApplicationsSortOption =
+    | 'created_desc'
+    | 'created_asc'
+    | 'applied_desc'
+    | 'applied_asc'
+    | 'unviewed_desc'
+    | 'workDate_asc'
+    | 'workDate_desc';
+
 /**
  * 施設管理用: 求人ごとの応募状況を取得
  */
@@ -312,10 +322,11 @@ export async function getJobsWithApplications(
         limit?: number;
         status?: 'PUBLISHED' | 'STOPPED' | 'COMPLETED' | 'all';
         query?: string;
+        sort?: string;
     } = {}
 ) {
     try {
-        const { page = 1, limit = 10, status = 'all', query = '' } = options;
+        const { page = 1, limit = 10, status = 'all', query = '', sort = 'created_desc' } = options;
         const skip = (page - 1) * limit;
 
         const whereConditions: any = { facility_id: facilityId };
@@ -323,6 +334,15 @@ export async function getJobsWithApplications(
         if (query) whereConditions.title = { contains: query, mode: 'insensitive' };
 
         const totalCount = await prisma.job.count({ where: whereConditions });
+
+        // ソートが計算フィールド（applied, unviewed, workDate）の場合は全件取得してからソート
+        const needsPostSort = ['applied_desc', 'applied_asc', 'unviewed_desc', 'workDate_asc', 'workDate_desc'].includes(sort as JobApplicationsSortOption);
+
+        // Prismaのソート設定（created_asc/created_descの場合のみ使用）
+        let orderBy: any = { created_at: 'desc' };
+        if (sort === 'created_asc') {
+            orderBy = { created_at: 'asc' };
+        }
 
         const jobs = await prisma.job.findMany({
             where: whereConditions,
@@ -339,9 +359,8 @@ export async function getJobsWithApplications(
                     orderBy: { work_date: 'asc' },
                 },
             },
-            orderBy: { created_at: 'desc' },
-            skip,
-            take: limit,
+            orderBy,
+            ...(needsPostSort ? {} : { skip, take: limit }),
         });
 
         const workerIds = new Set<number>();
@@ -452,9 +471,41 @@ export async function getJobsWithApplications(
             };
         });
 
+        // ポストソート処理（計算フィールドによるソート）
+        let sortedJobs = formattedJobs;
+        if (needsPostSort) {
+            switch (sort) {
+                case 'applied_desc':
+                    sortedJobs = [...formattedJobs].sort((a, b) => b.totalApplied - a.totalApplied);
+                    break;
+                case 'applied_asc':
+                    sortedJobs = [...formattedJobs].sort((a, b) => a.totalApplied - b.totalApplied);
+                    break;
+                case 'unviewed_desc':
+                    sortedJobs = [...formattedJobs].sort((a, b) => b.unviewedCount - a.unviewedCount);
+                    break;
+                case 'workDate_asc':
+                    sortedJobs = [...formattedJobs].sort((a, b) => {
+                        const aDate = a.workDates[0]?.date || '';
+                        const bDate = b.workDates[0]?.date || '';
+                        return aDate.localeCompare(bDate);
+                    });
+                    break;
+                case 'workDate_desc':
+                    sortedJobs = [...formattedJobs].sort((a, b) => {
+                        const aDate = a.workDates[0]?.date || '';
+                        const bDate = b.workDates[0]?.date || '';
+                        return bDate.localeCompare(aDate);
+                    });
+                    break;
+            }
+            // ポストソート後にページネーション適用
+            sortedJobs = sortedJobs.slice(skip, skip + limit);
+        }
+
         return {
-            data: formattedJobs,
-            pagination: { currentPage: page, totalPages: Math.ceil(totalCount / limit), totalCount, hasMore: skip + jobs.length < totalCount },
+            data: sortedJobs,
+            pagination: { currentPage: page, totalPages: Math.ceil(totalCount / limit), totalCount, hasMore: skip + sortedJobs.length < totalCount },
         };
     } catch (error) {
         console.error('[getJobsWithApplications] Error:', error);
