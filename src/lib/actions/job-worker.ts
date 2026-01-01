@@ -530,41 +530,44 @@ export async function getJobsListWithPagination(
                 currentUserId = parseInt(session.user.id, 10);
 
                 if (listType === 'limited') {
-                    // 限定求人（勤務済み）の対象施設: 過去にcompleted_ratedになったワーカー
-                    const workedApplications = await prisma.application.findMany({
-                        where: {
-                            user_id: currentUserId,
-                            status: 'COMPLETED_RATED',
-                        },
-                        select: {
-                            workDate: {
-                                select: {
-                                    job: {
-                                        select: {
-                                            facility_id: true,
+                    // 限定求人クエリを並列実行（パフォーマンス改善）
+                    const [workedApplications, favoriteBookmarks] = await Promise.all([
+                        // 限定求人（勤務済み）の対象施設: 過去にcompleted_ratedになったワーカー
+                        prisma.application.findMany({
+                            where: {
+                                user_id: currentUserId,
+                                status: 'COMPLETED_RATED',
+                            },
+                            select: {
+                                workDate: {
+                                    select: {
+                                        job: {
+                                            select: {
+                                                facility_id: true,
+                                            },
                                         },
                                     },
                                 },
                             },
-                        },
-                    });
+                        }),
+                        // 限定求人（お気に入り）の対象施設: 施設がこのワーカーをお気に入り登録している
+                        prisma.bookmark.findMany({
+                            where: {
+                                target_user_id: currentUserId,
+                                type: 'FAVORITE',
+                                facility_id: { not: null },
+                            },
+                            select: {
+                                facility_id: true,
+                            },
+                        }),
+                    ]);
+
                     workedFacilityIds = Array.from(new Set(
                         workedApplications
                             .map(app => app.workDate?.job?.facility_id)
                             .filter((id): id is number => id !== null && id !== undefined)
                     ));
-
-                    // 限定求人（お気に入り）の対象施設: 施設がこのワーカーをお気に入り登録している
-                    const favoriteBookmarks = await prisma.bookmark.findMany({
-                        where: {
-                            target_user_id: currentUserId,
-                            type: 'FAVORITE',
-                            facility_id: { not: null },
-                        },
-                        select: {
-                            facility_id: true,
-                        },
-                    });
                     favoritedByFacilityIds = favoriteBookmarks
                         .map(b => b.facility_id)
                         .filter((id): id is number => id !== null);
@@ -929,10 +932,7 @@ export async function getJobsListWithPagination(
         orderByCondition = { hourly_wage: 'desc' };
     }
 
-    // 総件数を取得
-    const totalCount = await prisma.job.count({ where: whereConditions });
-
-    // workDatesの取得条件
+    // workDatesの取得条件（先に定義して並列実行可能に）
     const workDatesWhereCondition: any = {
         AND: [
             { work_date: { gte: todayStart } },
@@ -965,11 +965,42 @@ export async function getJobsListWithPagination(
         };
     }
 
-    const jobs = await prisma.job.findMany({
+    // 総件数と求人一覧を並列取得（パフォーマンス改善）
+    const [totalCount, jobs] = await Promise.all([
+        prisma.job.count({ where: whereConditions }),
+        prisma.job.findMany({
         where: whereConditions,
         include: {
-            facility: true,
+            facility: {
+                select: {
+                    id: true,
+                    facility_name: true,
+                    facility_type: true,
+                    prefecture: true,
+                    city: true,
+                    address: true,
+                    address_line: true,
+                    lat: true,
+                    lng: true,
+                    rating: true,
+                    review_count: true,
+                    created_at: true,
+                    updated_at: true,
+                },
+            },
             workDates: {
+                select: {
+                    id: true,
+                    work_date: true,
+                    deadline: true,
+                    applied_count: true,
+                    matched_count: true,
+                    recruitment_count: true,
+                    visible_from: true,
+                    visible_until: true,
+                    created_at: true,
+                    updated_at: true,
+                },
                 orderBy: { work_date: 'asc' },
                 where: workDatesWhereCondition
             },
@@ -977,7 +1008,8 @@ export async function getJobsListWithPagination(
         orderBy: orderByCondition,
         skip,
         take: limit,
-    });
+    }),
+    ]);
 
     // ユーザーの応募済み情報を取得
     let userAppliedWorkDateIds: number[] = [];
@@ -992,9 +1024,13 @@ export async function getJobsListWithPagination(
                     user_id: userId,
                     status: { notIn: ['CANCELLED'] },
                 },
-                include: {
+                select: {
+                    work_date_id: true,
+                    status: true,
                     workDate: {
-                        include: {
+                        select: {
+                            id: true,
+                            work_date: true,
                             job: {
                                 select: {
                                     start_time: true,
@@ -1488,41 +1524,44 @@ export async function getJobListTypeCounts(): Promise<{
         if (session?.user?.id) {
             const userId = parseInt(session.user.id, 10);
 
-            // 限定求人（勤務済み）の対象施設を取得
-            const workedApplications = await prisma.application.findMany({
-                where: {
-                    user_id: userId,
-                    status: 'COMPLETED_RATED',
-                },
-                select: {
-                    workDate: {
-                        select: {
-                            job: {
-                                select: {
-                                    facility_id: true,
+            // 限定求人クエリを並列実行（パフォーマンス改善）
+            const [workedApplications, favoriteBookmarks] = await Promise.all([
+                // 限定求人（勤務済み）の対象施設を取得
+                prisma.application.findMany({
+                    where: {
+                        user_id: userId,
+                        status: 'COMPLETED_RATED',
+                    },
+                    select: {
+                        workDate: {
+                            select: {
+                                job: {
+                                    select: {
+                                        facility_id: true,
+                                    },
                                 },
                             },
                         },
                     },
-                },
-            });
+                }),
+                // 限定求人（お気に入り）の対象施設を取得
+                prisma.bookmark.findMany({
+                    where: {
+                        target_user_id: userId,
+                        type: 'FAVORITE',
+                        facility_id: { not: null },
+                    },
+                    select: {
+                        facility_id: true,
+                    },
+                }),
+            ]);
+
             const workedFacilityIds = Array.from(new Set(
                 workedApplications
                     .map(app => app.workDate?.job?.facility_id)
                     .filter((id): id is number => id !== null && id !== undefined)
             ));
-
-            // 限定求人（お気に入り）の対象施設を取得
-            const favoriteBookmarks = await prisma.bookmark.findMany({
-                where: {
-                    target_user_id: userId,
-                    type: 'FAVORITE',
-                    facility_id: { not: null },
-                },
-                select: {
-                    facility_id: true,
-                },
-            });
             const favoritedByFacilityIds = favoriteBookmarks
                 .map(b => b.facility_id)
                 .filter((id): id is number => id !== null);
