@@ -1,0 +1,24 @@
+テスト実行日時,環境,テストファイル,テスト名,結果,実行時間,エラー内容,関連デバッグシートID
+2026-01-01,Vercel Staging,display-fixes.spec.ts,ログイン画面にロゴ/ヘッダー画像が表示される,PASS,2.3s,,#3
+2026-01-01,Vercel Staging,display-fixes.spec.ts,問い合わせページが正常に表示される（施設管理者）,PASS,6.5s,,#6
+2026-01-01,Vercel Staging,display-fixes.spec.ts,プロフィール編集画面に「佐藤」サンプルが表示されない,PASS,5.2s,,#41
+2026-01-01,Vercel Staging,display-fixes.spec.ts,ワーカー詳細ページで資格証明書写真エリアがエラーにならない,PASS,3.3s,,#14
+2026-01-01,Vercel Staging,display-fixes.spec.ts,ワーカー詳細の各タブがエラーなく表示される,PASS,2.7s,,#2
+2026-01-01,Vercel Staging,display-fixes.spec.ts,新規施設登録画面に挨拶文の補足情報がある,PASS,4.5s,,#19
+2026-01-01,Vercel Staging,form-validation-fixes.spec.ts,必須項目未入力時に視覚的なエラー表示がある,PASS,3.9s,,#30
+2026-01-01,Vercel Staging,form-validation-fixes.spec.ts,郵便番号入力で都道府県・市区町村が自動入力される,PASS,1.3s,,#23
+2026-01-01,Vercel Staging,form-validation-fixes.spec.ts,フリガナフィールドにひらがなを入力してもエラーにならない,PASS,1.4s,,#40
+2026-01-01,Vercel Staging,form-validation-fixes.spec.ts,バリデーションエラー時に具体的なエラー内容が表示される,PASS,3.9s,,#51
+2026-01-01,Vercel Staging,form-validation-fixes.spec.ts,求人作成時に必須項目未入力でエラーが表示される,PASS,6.3s,,#30
+2026-01-01,Vercel Staging,job-application-fixes.spec.ts,過去の日付を勤務日に設定できない,PASS,3.1s,,#20
+2026-01-01,Vercel Staging,job-application-fixes.spec.ts,当日の求人は現在時刻から4時間後以降の開始時刻が必要,PASS,5.0s,,#54
+2026-01-01,Vercel Staging,job-application-fixes.spec.ts,求人一覧に過去の勤務日の求人が表示されない,PASS,4.9s,,#54
+2026-01-01,Vercel Staging,job-application-fixes.spec.ts,求人一覧が5秒以内に表示される,FAIL,6.9s,5249ms > 5000ms（パフォーマンス閾値要調整）,#69/#70
+2026-01-01,Vercel Staging,job-application-fixes.spec.ts,メッセージ内の労働条件通知書リンクが正しく機能する,PASS,4.2s,,#17
+2026-01-01,Vercel Staging,job-application-fixes.spec.ts,ページ遷移後もメッセージが保持される,PASS,3.0s,,#60
+2026-01-01,Vercel Staging,job-application-fixes.spec.ts,求人作成画面で性別指定オプションが存在する,PASS,2.9s,,#26
+2026-01-01,Vercel Staging,upload-fixes.spec.ts,施設担当者写真がアップロードできる,FAIL,0.5s,net::ERR_ABORTED（ナビゲーションエラー・リトライ追加必要）,#18/#21
+2026-01-01,Vercel Staging,upload-fixes.spec.ts,アップロードエラー時に理由が表示される,PASS,3.5s,,#31
+2026-01-01,Vercel Staging,upload-fixes.spec.ts,資格を選択して資格証をアップロードしないとエラーが表示される,PASS,1.3s,,#34
+2026-01-01,Vercel Staging,upload-fixes.spec.ts,資格選択時に資格証アップロードフィールドが表示される,PASS,1.3s,,#34
+2026-01-01,Vercel Staging,upload-fixes.spec.ts,求人作成画面で画像がアップロードできる,PASS,5.1s,,#18
