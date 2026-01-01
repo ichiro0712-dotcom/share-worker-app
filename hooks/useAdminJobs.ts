@@ -64,11 +64,22 @@ interface JobData {
     targetWorkerName: string | null;
 }
 
+// ソートオプションの型定義
+export type JobSortOption =
+    | 'created_desc'
+    | 'created_asc'
+    | 'applied_desc'
+    | 'applied_asc'
+    | 'wage_desc'
+    | 'wage_asc'
+    | 'workDate_asc';
+
 interface AdminJobsParams {
     facilityId?: number;
     page?: number;
     status?: string;
     query?: string;
+    sort?: JobSortOption;
 }
 
 interface AdminJobsResponse {
@@ -94,11 +105,12 @@ const buildUrl = (params: AdminJobsParams): string | null => {
     if (params.page) searchParams.set('page', String(params.page));
     if (params.status && params.status !== 'all') searchParams.set('status', params.status);
     if (params.query) searchParams.set('query', params.query);
+    if (params.sort) searchParams.set('sort', params.sort);
     return `/api/admin/jobs/list?${searchParams.toString()}`;
 };
 
 export function useAdminJobs(params: AdminJobsParams) {
-    const url = useMemo(() => buildUrl(params), [params.facilityId, params.page, params.status, params.query]);
+    const url = useMemo(() => buildUrl(params), [params.facilityId, params.page, params.status, params.query, params.sort]);
 
     const { data, error, isLoading, mutate } = useSWR<AdminJobsResponse>(
         url,

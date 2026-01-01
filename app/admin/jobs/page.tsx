@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { getAdminJobTemplates, getFacilityInfo, deleteJobs, updateJobsStatus } from '@/src/lib/actions';
-import { useAdminJobs } from '@/hooks/useAdminJobs';
+import { useAdminJobs, JobSortOption } from '@/hooks/useAdminJobs';
 import { JobsListSkeleton } from '@/components/admin/JobsListSkeleton';
 import { getCurrentTime } from '@/utils/debugTime';
 import {
@@ -112,6 +112,7 @@ export default function AdminJobsList() {
   const initialPeriodEnd = searchParams.get('periodEnd');
   const initialTemplate = searchParams.get('template');
   const initialJobType = searchParams.get('jobType');
+  const initialSort = searchParams.get('sort') as JobSortOption | null;
 
   const [facilityName, setFacilityName] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -124,6 +125,11 @@ export default function AdminJobsList() {
   const [periodEndFilter, setPeriodEndFilter] = useState(initialPeriodEnd || '');
   const [templateFilter, setTemplateFilter] = useState(initialTemplate || 'all');
   const [jobTypeFilter, setJobTypeFilter] = useState(initialJobType || 'all');
+  const [sortOption, setSortOption] = useState<JobSortOption>(
+    initialSort && ['created_desc', 'created_asc', 'applied_desc', 'applied_asc', 'wage_desc', 'wage_asc', 'workDate_asc'].includes(initialSort)
+      ? initialSort
+      : 'created_desc'
+  );
 
   const updateUrlParams = (updates: {
     status?: string;
@@ -132,6 +138,7 @@ export default function AdminJobsList() {
     periodEnd?: string;
     template?: string;
     jobType?: string;
+    sort?: string;
   }) => {
     const params = new URLSearchParams(window.location.search);
 
@@ -165,6 +172,11 @@ export default function AdminJobsList() {
       else params.set('jobType', updates.jobType);
     }
 
+    if (updates.sort !== undefined) {
+      if (updates.sort === 'created_desc') params.delete('sort');
+      else params.set('sort', updates.sort);
+    }
+
     router.replace(`/admin/jobs?${params.toString()}`, { scroll: false });
   };
   const [selectedJob, setSelectedJob] = useState<JobData | null>(null);
@@ -196,6 +208,7 @@ export default function AdminJobsList() {
     page: currentPage,
     status: statusFilter,
     query: searchQuery,
+    sort: sortOption,
   });
 
   // テンプレートと施設情報の取得
@@ -554,6 +567,28 @@ export default function AdminJobsList() {
               <option value="LIMITED_FAVORITE">限定（お気に入り）</option>
               <option value="OFFER">オファー</option>
               <option value="ORIENTATION">説明会</option>
+            </select>
+
+            {/* ソートセレクト */}
+            <span className="text-sm text-gray-700 font-medium ml-4">並び順:</span>
+            <select
+              name="sort"
+              value={sortOption}
+              onChange={(e) => {
+                const newSort = e.target.value as JobSortOption;
+                setSortOption(newSort);
+                setCurrentPage(1);
+                updateUrlParams({ sort: newSort, page: 1 });
+              }}
+              className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-admin-primary"
+            >
+              <option value="created_desc">作成日（新しい順）</option>
+              <option value="created_asc">作成日（古い順）</option>
+              <option value="applied_desc">応募数（多い順）</option>
+              <option value="applied_asc">応募数（少ない順）</option>
+              <option value="wage_desc">時給（高い順）</option>
+              <option value="wage_asc">時給（低い順）</option>
+              <option value="workDate_asc">勤務日（近い順）</option>
             </select>
           </div>
 
