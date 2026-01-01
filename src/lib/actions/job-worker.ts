@@ -1431,9 +1431,12 @@ export async function isJobBookmarked(jobId: string, type: 'FAVORITE' | 'WATCH_L
 /**
  * ユーザーがブックマークした求人一覧を取得
  */
-export async function getBookmarkedJobs(type: 'FAVORITE' | 'WATCH_LATER') {
+export async function getBookmarkedJobs(type: 'FAVORITE' | 'WATCH_LATER', options?: { limit?: number; offset?: number }) {
     try {
         const user = await getAuthenticatedUser();
+
+        const limit = options?.limit ?? 50; // デフォルト50件
+        const offset = options?.offset ?? 0;
 
         const bookmarks = await prisma.bookmark.findMany({
             where: {
@@ -1446,13 +1449,30 @@ export async function getBookmarkedJobs(type: 'FAVORITE' | 'WATCH_LATER') {
             include: {
                 targetJob: {
                     include: {
-                        facility: true,
+                        facility: {
+                            select: {
+                                id: true,
+                                corporation_name: true,
+                                facility_name: true,
+                                facility_type: true,
+                                address: true,
+                                lat: true,
+                                lng: true,
+                                images: true,
+                                rating: true,
+                                review_count: true,
+                                created_at: true,
+                                updated_at: true,
+                            },
+                        },
                     },
                 },
             },
             orderBy: {
                 created_at: 'desc',
             },
+            take: limit,
+            skip: offset,
         });
 
         return bookmarks
