@@ -101,7 +101,7 @@ if (workDatesToCheck.includes(todayStr) && formData.startTime) {
 作成モード・編集モード両方に対応",こちら承知しました。問題ないと思います。,,
 16,提案,水野,普,iPhone SE,iOS17.6.1, Google Chrome,https://s-work.netlify.app/my-jobs,交通費が0円の時に画面いっぱいに表示されているので、金額が入ったときの見え方を確認したい,,,,FALSE,,,,,,
 28,提案,水野,普,windowsPC,11Pro, Google Chrome,https://s-work.netlify.app/admin/jobs/new,業務設定と仕事詳細のテンプレがリンクすると求人の作成がしやすい,,,,FALSE,,,,,,
-36,提案,水野,普,windowsPC,11Pro, Google Chrome,,求人プレビューページが全体的に左に寄っている,,,,FALSE,,,,,,
+36,提案,水野,普,windowsPC,11Pro, Google Chrome,,求人プレビューページが全体的に左に寄っている,,,,TRUE,JobDetailClientにmax-w-lg mx-autoを追加し中央配置,fix/job-preview-alignment-36,2026-01-02,,
 60,バグ,竹上,,,,,,ワーカー画面で、メッセージ機能で送ったメッセージがほかのページに遷移した後にもう一度メッセージ機能に戻ると消えていた。施設管理画面のメッセージの方には残っている,,完了,川嶋,TRUE,,,,,,
 61,提案,水野,普,windowsPC,11Pro, Google Chrome,https://s-work.netlify.app/messages,不採用通知,マッチングの場合はメッセージが来るが、不採用の場合は来ないのが不親切かも,,,FALSE,,,,,,
 63,提案,水野,普,windowsPC,11Pro, Google Chrome,https://s-work.netlify.app/admin/applications,審査あり求人への応募者の採用に関して,審査あり求人の応募者を不採用にする際は一度押下した後確認のポップアップがでるが、マッチングの場合はそれがなく即マッチングとなる,,,FALSE,,,,,,
