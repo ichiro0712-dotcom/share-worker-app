@@ -184,17 +184,31 @@ export async function resetPassword(token: string, newPassword: string): Promise
         const tokenData = passwordResetTokens.get(token);
 
         if (!tokenData) {
-            return { success: false, message: '無効なトークンです' };
+            return { success: false, message: '無効なトークンです。再度パスワードリセットをリクエストしてください。' };
         }
 
         // 有効期限チェック
         if (Date.now() > tokenData.expires) {
             passwordResetTokens.delete(token);
-            return { success: false, message: 'トークンの有効期限が切れています' };
+            return { success: false, message: 'トークンの有効期限が切れています。再度パスワードリセットをリクエストしてください。' };
+        }
+
+        const bcrypt = await import('bcryptjs');
+
+        // 現在のパスワードと同じかチェック
+        const currentUser = await prisma.user.findUnique({
+            where: { email: tokenData.email },
+            select: { password_hash: true },
+        });
+
+        if (currentUser?.password_hash) {
+            const isSamePassword = await bcrypt.compare(newPassword, currentUser.password_hash);
+            if (isSamePassword) {
+                return { success: false, message: '現在のパスワードと同じパスワードは使用できません。別のパスワードを設定してください。' };
+            }
         }
 
         // パスワードをハッシュ化して更新
-        const bcrypt = await import('bcryptjs');
         const password_hash = await bcrypt.hash(newPassword, 12);
 
         await prisma.user.update({
