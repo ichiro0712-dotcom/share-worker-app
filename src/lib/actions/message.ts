@@ -42,39 +42,48 @@ export async function getConversations() {
 
     console.log('[getConversations] Found applications:', applications.length);
 
-    // 会話形式に変換
-    const conversations = await Promise.all(
-      applications.map(async (app) => {
-        // 未読メッセージ数を取得
-        const unreadCount = await prisma.message.count({
-          where: {
-            application_id: app.id,
-            to_user_id: user.id,
-            read_at: null,
-          },
-        });
+    // 未読メッセージ数を一括取得（N+1クエリ対策）
+    const applicationIds = applications.map((app) => app.id);
+    const unreadCounts = await prisma.message.groupBy({
+      by: ['application_id'],
+      where: {
+        application_id: { in: applicationIds },
+        to_user_id: user.id,
+        read_at: null,
+      },
+      _count: {
+        id: true,
+      },
+    });
 
-        const lastMessage = app.messages[0];
-
-        return {
-          applicationId: app.id,
-          facilityId: app.workDate.job.facility_id,
-          facilityName: app.workDate.job.facility.facility_name,
-          jobId: app.workDate.job.id,
-          jobTitle: app.workDate.job.title,
-          jobDate: app.workDate.work_date.toISOString().split('T')[0],
-          status: app.status,
-          lastMessage: lastMessage?.content || '新しい応募があります',
-          lastMessageTime: lastMessage
-            ? formatMessageTime(lastMessage.created_at)
-            : formatMessageTime(app.created_at),
-          lastMessageTimestamp: lastMessage
-            ? lastMessage.created_at.toISOString()
-            : app.created_at.toISOString(),
-          unreadCount,
-        };
-      })
+    // application_id -> unreadCount のマップを作成
+    const unreadCountMap = new Map(
+      unreadCounts.map((item) => [item.application_id, item._count.id])
     );
+
+    // 会話形式に変換
+    const conversations = applications.map((app) => {
+      const lastMessage = app.messages[0];
+      const unreadCount = unreadCountMap.get(app.id) || 0;
+
+      return {
+        applicationId: app.id,
+        facilityId: app.workDate.job.facility_id,
+        facilityName: app.workDate.job.facility.facility_name,
+        jobId: app.workDate.job.id,
+        jobTitle: app.workDate.job.title,
+        jobDate: app.workDate.work_date.toISOString().split('T')[0],
+        status: app.status,
+        lastMessage: lastMessage?.content || '新しい応募があります',
+        lastMessageTime: lastMessage
+          ? formatMessageTime(lastMessage.created_at)
+          : formatMessageTime(app.created_at),
+        lastMessageTimestamp: lastMessage
+          ? lastMessage.created_at.toISOString()
+          : app.created_at.toISOString(),
+        unreadCount,
+      };
+    });
 
     return conversations;
   } catch (error) {
@@ -283,41 +292,50 @@ export async function getFacilityConversations(facilityId: number) {
 
     console.log('[getFacilityConversations] Found applications:', applications.length);
 
-    // 会話形式に変換
-    const conversations = await Promise.all(
-      applications.map(async (app) => {
-        // 未読メッセージ数を取得
-        const unreadCount = await prisma.message.count({
-          where: {
-            application_id: app.id,
-            to_facility_id: facilityId,
-            read_at: null,
-          },
-        });
+    // 未読メッセージ数を一括取得（N+1クエリ対策）
+    const applicationIds = applications.map((app) => app.id);
+    const unreadCounts = await prisma.message.groupBy({
+      by: ['application_id'],
+      where: {
+        application_id: { in: applicationIds },
+        to_facility_id: facilityId,
+        read_at: null,
+      },
+      _count: {
+        id: true,
+      },
+    });
 
-        const lastMessage = app.messages[0];
-
-        return {
-          applicationId: app.id,
-          userId: app.user_id,
-          userName: app.user.name,
-          userProfileImage: app.user.profile_image,
-          userQualifications: app.user.qualifications,
-          jobId: app.workDate.job.id,
-          jobTitle: app.workDate.job.title,
-          jobDate: app.workDate.work_date.toISOString().split('T')[0],
-          status: app.status,
-          lastMessage: lastMessage?.content || '新しい応募があります',
-          lastMessageTime: lastMessage
-            ? formatMessageTime(lastMessage.created_at)
-            : formatMessageTime(app.created_at),
-          lastMessageTimestamp: lastMessage
-            ? lastMessage.created_at.toISOString()
-            : app.created_at.toISOString(),
-          unreadCount,
-        };
-      })
+    // application_id -> unreadCount のマップを作成
+    const unreadCountMap = new Map(
+      unreadCounts.map((item) => [item.application_id, item._count.id])
     );
+
+    // 会話形式に変換
+    const conversations = applications.map((app) => {
+      const lastMessage = app.messages[0];
+      const unreadCount = unreadCountMap.get(app.id) || 0;
+
+      return {
+        applicationId: app.id,
+        userId: app.user_id,
+        userName: app.user.name,
+        userProfileImage: app.user.profile_image,
+        userQualifications: app.user.qualifications,
+        jobId: app.workDate.job.id,
+        jobTitle: app.workDate.job.title,
+        jobDate: app.workDate.work_date.toISOString().split('T')[0],
+        status: app.status,
+        lastMessage: lastMessage?.content || '新しい応募があります',
+        lastMessageTime: lastMessage
+          ? formatMessageTime(lastMessage.created_at)
+          : formatMessageTime(app.created_at),
+        lastMessageTimestamp: lastMessage
+          ? lastMessage.created_at.toISOString()
+          : app.created_at.toISOString(),
+        unreadCount,
+      };
+    });
 
     return conversations;
   } catch (error) {
@@ -628,19 +646,23 @@ export async function getGroupedConversations() {
     },
   });
 
-  // スレッドの未読メッセージ数を取得
-  const threadUnreadCounts = await Promise.all(
-    threads.map(async (thread) => ({
-      threadId: thread.id,
-      facilityId: thread.facility_id,
-      count: await prisma.message.count({
-        where: {
-          thread_id: thread.id,
-          to_user_id: user.id,
-          read_at: null,
-        },
-      }),
-    }))
+  // スレッドの未読メッセージ数を一括取得（N+1クエリ対策）
+  const threadIds = threads.map((thread) => thread.id);
+  const threadUnreadCounts = await prisma.message.groupBy({
+    by: ['thread_id'],
+    where: {
+      thread_id: { in: threadIds },
+      to_user_id: user.id,
+      read_at: null,
+    },
+    _count: {
+      id: true,
+    },
+  });
+
+  // thread_id -> unreadCount のマップを作成
+  const threadUnreadCountMap = new Map(
+    threadUnreadCounts.map((item) => [item.thread_id, item._count.id])
   );
 
   // 施設ごとにグループ化
@@ -712,8 +734,7 @@ export async function getGroupedConversations() {
 
     const existing = facilityMap.get(facility.id);
     const lastMsg = thread.messages[0];
-    const unreadInfo = threadUnreadCounts.find(u => u.threadId === thread.id);
-    const unread = unreadInfo?.count || 0;
+    const unread = threadUnreadCountMap.get(thread.id) || 0;
 
     if (existing) {
       existing.threadIds.push(thread.id);

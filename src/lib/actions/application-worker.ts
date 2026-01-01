@@ -14,10 +14,13 @@ import { sendNearbyJobNotifications } from '../notification-service';
 /**
  * ユーザーが応募した仕事の一覧を取得
  */
-export async function getMyApplications() {
+export async function getMyApplications(options?: { limit?: number; offset?: number }) {
     try {
         const user = await getAuthenticatedUser();
         console.log('[getMyApplications] Fetching applications for user:', user.id);
+
+        const limit = options?.limit ?? 50; // デフォルト50件
+        const offset = options?.offset ?? 0;
 
         const applications = await prisma.application.findMany({
             where: {
@@ -28,7 +31,25 @@ export async function getMyApplications() {
                     include: {
                         job: {
                             include: {
-                                facility: true,
+                                facility: {
+                                    select: {
+                                        id: true,
+                                        corporation_name: true,
+                                        facility_name: true,
+                                        facility_type: true,
+                                        address: true,
+                                        lat: true,
+                                        lng: true,
+                                        phone_number: true,
+                                        description: true,
+                                        images: true,
+                                        rating: true,
+                                        review_count: true,
+                                        initial_message: true,
+                                        created_at: true,
+                                        updated_at: true,
+                                    },
+                                },
                             },
                         },
                     },
@@ -37,6 +58,8 @@ export async function getMyApplications() {
             orderBy: {
                 created_at: 'desc',
             },
+            take: limit,
+            skip: offset,
         });
 
         console.log('[getMyApplications] Found applications:', applications.length);

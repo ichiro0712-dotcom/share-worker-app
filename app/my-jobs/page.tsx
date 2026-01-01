@@ -52,9 +52,6 @@ export default function MyJobsPage() {
   useEffect(() => {
     const fetchApplications = async () => {
       try {
-        // ステータス更新をトリガー
-        await fetch('/api/cron/update-statuses');
-
         const data = await getMyApplications();
         setApplications(data as Application[]);
       } catch (error) {
