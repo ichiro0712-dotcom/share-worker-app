@@ -1,0 +1,28 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e12]:
+    - link "探す" [ref=e13] [cursor=pointer]:
+      - /url: /
+      - img [ref=e15]
+      - generic [ref=e18]: 探す
+    - link "保存済み" [ref=e19] [cursor=pointer]:
+      - /url: /bookmarks
+      - img [ref=e21]
+      - generic [ref=e23]: 保存済み
+    - link "メッセージ" [ref=e24] [cursor=pointer]:
+      - /url: /messages
+      - img [ref=e26]
+      - generic [ref=e28]: メッセージ
+    - link "仕事管理" [ref=e29] [cursor=pointer]:
+      - /url: /my-jobs
+      - img [ref=e31]
+      - generic [ref=e34]: 仕事管理
+    - link "マイページ" [ref=e35] [cursor=pointer]:
+      - /url: /mypage
+      - img [ref=e37]
+      - generic [ref=e40]: マイページ
+  - status [ref=e46]: ログインしました
+  - alert [ref=e47]
+```

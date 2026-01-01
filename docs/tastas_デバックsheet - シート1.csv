@@ -74,13 +74,13 @@ Unexpected token 'I', ""Internal E""... is not valid JSON
 ご利用ガイド（最大100MB対応） (app/system-admin/content/user-guide/page.tsx)
 
 以上",承知しました。vercelに移行する際も問題がないと思うので良いのではないかと。,,
-27,提案,伊藤,普,windowsPC,, Google Chrome,https://s-work.netlify.app/admin/jobs,施設管理画面で、ログインアカウント名は出るが、施設名や法人名もヘッダー等に表示してほしい。複数施設を管理される担当者様もいると思います。,,,,FALSE,,,,,,
-38,提案,伊藤,高,iPhone 16e,iOS18.4, Google Chrome,,ワーカーの新規登録画面で、メールアドレスの有効性の確認ステップがありません。誤入力の可能性もあります。,,,,TRUE,メールアドレス確認入力欄（二重入力）を追加。リアルタイムで一致/不一致を表示。送信時にも一致確認バリデーション追加。,fix/email-validation-38,2026-01-01,,
+27,提案,伊藤,普,windowsPC,, Google Chrome,https://s-work.netlify.app/admin/jobs,施設管理画面で、ログインアカウント名は出るが、施設名や法人名もヘッダー等に表示してほしい。複数施設を管理される担当者様もいると思います。,,,,TRUE,サイドバー上部ヘッダーに施設名を青色で表示。折りたたみ時もツールチップで表示。,fix/facility-name-header-27,2026-01-02,,
+38,提案,伊藤,高,iPhone 16e,iOS18.4, Google Chrome,,ワーカーの新規登録画面で、メールアドレスの有効性の確認ステップがありません。誤入力の可能性もあります。,,完了,川嶋,TRUE,PR #18,メールアドレス確認入力欄（二重入力）を追加。リアルタイムで一致/不一致を表示。送信時にも一致確認バリデーション追加。,fix/email-validation-38,2026-01-01
 30,,一郎,普,,,,,各種必須項目ありの登録ページで、必須項目が足りていない場合、どこか視覚的にわかるようにしてほしい,,完了,川嶋,TRUE,,,UIを最新のものに変更。トースト通知だけでなく、赤枠をつけた,,,
-45,提案,伊藤,普,iPhone 16e,iOS18.4, Google Chrome,,ワーカー：新しいパスワードを設定で、古いパスワードと同じものを設定しようとすると「無効なトークンです」と表示されます。過去のパスワードの再設定がＮＧなのであれば、そのような内容を表示してほしい,,,,TRUE,PR #21,resetPassword関数に現在のパスワードとの比較チェックを追加。同じパスワードの場合は明確なエラーメッセージ「現在のパスワードと同じパスワードは使用できません」を表示,src/lib/actions/auth.ts,fix/password-reset-error-45,
-48,提案,伊藤,普,windowsPC,, Google Chrome,,施設管理画面、テンプレート作成で、勤務時間の入力で、実働時間を自動計算して表示してほしい,,完了,川嶋,TRUE,PR #22,JobTemplateFormとJobFormに実働時間表示を追加。開始時刻・終了時刻・休憩時間から自動計算。data-testid属性付きでE2Eテスト対応,components/admin/JobTemplateForm.tsx components/admin/JobForm.tsx,fix/working-hours-calc-48,
-62,提案,伊藤,普,iPhone 16e,iOS18.4, Google Chrome,,ダイレクトに求人詳細ページから流入した場合、TOPページやその他コンテンツへ遷移できない。ＴＯＰへのリンクか、メニューを画面下部に固定するなどの対応が必要,,,,TRUE,PR #20,求人詳細ヘッダーにホームアイコン追加。戻るボタンも履歴がない場合はホームに遷移するよう改善,components/job/JobDetailClient.tsx,fix/job-detail-navigation-62,
-65,提案,伊藤,普,iPhone 16e,iOS18.4, Google Chrome,,求人が2列で表示されてますが、どのサイトもアプリも1列が一般的なのでユーザーも１列の方が見やすいと思います。,,完了,川嶋,TRUE,PR #23,JobListSkeletonとapp/jobs/loading.tsxのグリッドレイアウトをspace-y-4（1列）に変更。ローディング時も表示時も統一されたレイアウトに,components/job/JobCardSkeleton.tsx app/jobs/loading.tsx,fix/job-list-single-column-65,
+45,提案,伊藤,普,iPhone 16e,iOS18.4, Google Chrome,,ワーカー：新しいパスワードを設定で、古いパスワードと同じものを設定しようとすると「無効なトークンです」と表示されます。過去のパスワードの再設定がＮＧなのであれば、そのような内容を表示してほしい,,完了,川嶋,TRUE,PR #21,resetPassword関数に現在のパスワードとの比較チェックを追加。同じパスワードの場合は明確なエラーメッセージ「現在のパスワードと同じパスワードは使用できません」を表示,src/lib/actions/auth.ts,fix/password-reset-error-45,2026-01-01
+48,提案,伊藤,普,windowsPC,, Google Chrome,,施設管理画面、テンプレート作成で、勤務時間の入力で、実働時間を自動計算して表示してほしい,,完了,川嶋,TRUE,PR #22,JobTemplateFormとJobFormに実働時間表示を追加。開始時刻・終了時刻・休憩時間から自動計算。data-testid属性付きでE2Eテスト対応,components/admin/JobTemplateForm.tsx components/admin/JobForm.tsx,fix/working-hours-calc-48,2026-01-01
+62,提案,伊藤,普,iPhone 16e,iOS18.4, Google Chrome,,ダイレクトに求人詳細ページから流入した場合、TOPページやその他コンテンツへ遷移できない。ＴＯＰへのリンクか、メニューを画面下部に固定するなどの対応が必要,,完了,川嶋,TRUE,PR #20,求人詳細ヘッダーにホームアイコン追加。戻るボタンも履歴がない場合はホームに遷移するよう改善,components/job/JobDetailClient.tsx,fix/job-detail-navigation-62,2026-01-01
+65,提案,伊藤,普,iPhone 16e,iOS18.4, Google Chrome,,求人が2列で表示されてますが、どのサイトもアプリも1列が一般的なのでユーザーも１列の方が見やすいと思います。,,完了,川嶋,TRUE,PR #23,JobListSkeletonとapp/jobs/loading.tsxのグリッドレイアウトをspace-y-4（1列）に変更。ローディング時も表示時も統一されたレイアウトに,components/job/JobCardSkeleton.tsx app/jobs/loading.tsx,fix/job-list-single-column-65,2026-01-02
 51,,一郎,,,,,,なんのエラーで保存できなかったか、プロフィール、求人、などに入れる,,完了,川嶋,TRUE,,,,,,
 6,バグ,大東,低,windowsPC,11Pro, Google Chrome,https://s-work.netlify.app/admin/contact,問い合わせページがまだエラー,,完了,川嶋,TRUE,,,,,,
 41,バグ,大東,緊急,iPhone 16e,ios26.2, Google Chrome,https://s-work.netlify.app/mypage/profile?returnUrl=%2Fjobs%2F244,プロフィール編集画面の画像サンプルに「佐藤」と入っている,,完了,川嶋,TRUE,,デフォルトの設定の問題なので、表示内容を変更する事で解消可能,,,,
@@ -105,7 +105,7 @@ if (workDatesToCheck.includes(todayStr) && formData.startTime) {
 60,バグ,竹上,,,,,,ワーカー画面で、メッセージ機能で送ったメッセージがほかのページに遷移した後にもう一度メッセージ機能に戻ると消えていた。施設管理画面のメッセージの方には残っている,,完了,川嶋,TRUE,,,,,,
 61,提案,水野,普,windowsPC,11Pro, Google Chrome,https://s-work.netlify.app/messages,不採用通知,マッチングの場合はメッセージが来るが、不採用の場合は来ないのが不親切かも,,,FALSE,,,,,,
 63,提案,水野,普,windowsPC,11Pro, Google Chrome,https://s-work.netlify.app/admin/applications,審査あり求人への応募者の採用に関して,審査あり求人の応募者を不採用にする際は一度押下した後確認のポップアップがでるが、マッチングの場合はそれがなく即マッチングとなる,,,FALSE,,,,,,
-7,提案,大東,普,windowsPC,11Pro, Google Chrome,https://s-work.netlify.app/admin/jobs/new,"施設管理　給与　時給が1200がコンマがない1,200に変更？",,,,FALSE,,,,,,
+7,提案,大東,普,windowsPC,11Pro, Google Chrome,https://s-work.netlify.app/admin/jobs/new,"施設管理　給与　時給が1200がコンマがない1,200に変更？",,完了,川嶋,TRUE,PR #25,時給入力欄の下にコンマ付きフォーマット表示（¥1,200）を追加。リアルタイムで更新される。,components/admin/JobForm.tsx components/admin/JobTemplateForm.tsx,fix/salary-comma-format-7,2026-01-02
 32,提案,大東,普,iPhone 16e,ios26.2, Google Chrome,https://s-work.netlify.app/register/worker,経験を複数入れる際に、追加＋のようなボタンがあれば分かりやすい,,,,FALSE,,,,,,
 42,提案,大東,普,iPhone 16e,ios26.2, Google Chrome,https://s-work.netlify.app/mypage/profile?returnUrl=%2Fjobs%2F244,希望開始時刻、希望終了時刻が不要？,入れるなら希望シフト（日勤のみ、夜勤のみ、フル勤務）,,,FALSE,,,,,,
 47,提案,大東,普,iPhone 16e,ios26.2, Google Chrome,https://s-work.netlify.app/mypage/profile?returnUrl=%2Fjobs%2F244,緊急連絡先は必須にしない,,,,FALSE,,,,,,
@@ -148,7 +148,7 @@ contact?_rsc=4aoi7:1  Failed to load resource: the server responded with a statu
 64,,一郎,緊急,,,,,限定・指名求人機能オープンまでに必須,,対応・未チェック,川嶋,FALSE,,,,,,
 10,バグ,水野,普,windowsPC,11Pro, Google Chrome,https://s-work.netlify.app/admin/workers/1,トーク画面を開いたままだと新規メッセージを受信しない,メッセージ自体は来ているのでリロードすれば表示される,要ヒアリング,,FALSE,,,リアルタイム確認を入れると処理が重くなるため、原稿のままいこうとおもうがどうか,,リアルタイム確認確かに重くなりますが、表示中に、10秒に1回とか5秒に1回確認させるとかでしたら軽く表示できるかもです。,
 39,,,,,,,,経験の入力方法を改善したい,例えば3施設での経験がある場合、特養、有料、GHのすべてにチェックをして、それぞれの経験年数を入れていくのは分かりにくい。経験①有料→年数を入力し、2つ目を入力したい場合は⊕ボタンから入力欄を追加していける方が分かりやすいのではないか,要ヒアリング,,FALSE,,,資格が多くUIが複雑になりそう。コメントで資格書の写真を必ず添付するように明記したがどうか,,こちらはキャリアさん側ともご相談と思います,
-72,バグ,一郎,緊急,,,,http://localhost:3000/admin/jobs,求人管理、応募管理のソートがおかしい。仕様を確認し正しいステータスを表示するように,,完了,Claude,TRUE,Phase1: 求人管理ページにソート機能追加。Phase2: 応募管理・求人ビューにソート機能追加。ソートオプション: 作成日順、応募数順、未確認応募順、勤務日順,,,,,,
+72,バグ,一郎,緊急,,,,http://localhost:3000/admin/jobs,求人管理、応募管理のソートがおかしい。仕様を確認し正しいステータスを表示するように,,完了,Claude,TRUE,PR #16,Phase1: 求人管理ページにソート機能追加。Phase2: 応募管理・求人ビューにソート機能追加。ソートオプション: 作成日順、応募数順、未確認応募順、勤務日順,fix/sort-function,2026-01-01,,
 73,バグ,竹上,,iPhone SE,iOS18.4, Google Chrome,,ワーカーの新規登録で、名前のフリガナを打とうとすると、打っていない文字が勝手に入力される,,,,FALSE,,,,,,
 74,,,,,,,,,,,,FALSE,,,,,,
 75,,,,,,,,,,,,FALSE,,,,,,

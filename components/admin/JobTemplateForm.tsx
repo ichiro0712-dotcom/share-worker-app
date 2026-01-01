@@ -873,7 +873,7 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                                 </label>
                                 <input
                                     type="number"
-                                    value={formData.hourlyWage}
+                                    value={formData.hourlyWage === 0 ? '' : formData.hourlyWage}
                                     onChange={(e) => handleInputChange('hourlyWage', Number(e.target.value))}
                                     className={`w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-600 ${showErrors && formData.hourlyWage <= 0 ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                                 />

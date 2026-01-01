@@ -1,0 +1,14 @@
+{
+  "worker": {
+    "email": "e2e-worker-1767277910406@example.com",
+    "password": "password123"
+  },
+  "facilityAdmin": {
+    "email": "e2e-admin-1767277910406@example.com",
+    "password": "password123"
+  },
+  "systemAdmin": {
+    "email": "e2e-system-admin-1767277910406@example.com",
+    "password": "password123"
+  }
+}
