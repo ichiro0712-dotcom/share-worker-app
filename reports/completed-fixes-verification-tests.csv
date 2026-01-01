@@ -1,0 +1,21 @@
+ID,種別,報告者,優先度,端末,OS,ブラウザ,ページURL,概要,詳細,ステータス,対応者,対応完了,コメント,調査結果,いちろう返答,テストファイル,テスト内容,テスト実装状況,前提条件
+1,バグ,大東,低,windowsPC,11Pro,Google Chrome,https://s-work.netlify.app/admin/jobs/templates/1/edit,画像がエラー表示になっている,川嶋さんMACでは見れた,完了,川嶋,TRUE,本番で解消：テスト時のデータが残っていたため,,,display-fixes.spec.ts,環境依存のため自動テスト対象外,対象外,本番環境でのデータ確認
+2,バグ,水野,普,windowsPC,11Pro,Google Chrome,https://s-work.netlify.app/admin/workers/1,資格証明書写真、緊急連絡先をクリックするとエラー画面が出る,Unexpected token is not valid JSON,完了,川嶋,TRUE,,,,display-fixes.spec.ts,ワーカー詳細の各タブがエラーなく表示される,実装済み,施設管理者ログイン
+3,バグ,水野,普,iPhone SE,iOS17.6.1,Google Chrome,https://s-work.netlify.app/login,ログイン画面上部の画像が表示されず,,完了,川嶋,TRUE,,,,display-fixes.spec.ts,ログイン画面にロゴ/ヘッダー画像が表示される,実装済み,なし
+6,バグ,大東,低,windowsPC,11Pro,Google Chrome,https://s-work.netlify.app/admin/contact,問い合わせページがまだエラー,,完了,川嶋,TRUE,,,,display-fixes.spec.ts,問い合わせページが正常に表示される,実装済み,施設管理者ログイン
+14,バグ,安庭,普,windowsPC,11Pro,Google Chrome,https://s-work.netlify.app/admin/workers/1/certificates,施設管理画面にて資格証明書写真が表示されない,ワーカー管理＞ワーカー詳細＞資格証明書写真,完了,川嶋,TRUE,,,,display-fixes.spec.ts,ワーカー詳細ページで資格証明書写真エリアがエラーにならない,実装済み,施設管理者ログイン・ワーカーデータ存在
+17,バグ,伊藤,普,iPhone 16e,iOS18.4,Google Chrome,,メッセージ内、労働条件通知書のお知らせでリンクがされていないものがある,/my-jobs/257 /my-jobs/258,完了,川嶋,TRUE,,,,job-application-fixes.spec.ts,メッセージ内の労働条件通知書リンクが正しく機能する,実装済み,ワーカーログイン・メッセージ存在
+18,バグ,竹上,,,,,施設管理画面で担当者顔写真がアップできずに進めない,,完了,川嶋,TRUE,,署名付きURL方式へ全面切り替え完了,,upload-fixes.spec.ts,施設担当者写真がアップロードできる,実装済み,施設管理者ログイン
+19,提案,伊藤,高,windowsPC,,Google Chrome,https://s-work.netlify.app/admin/facility,新規施設登録、挨拶文が、どこに表示されるのか、推奨文字数などの補足情報が欲しい,,完了,川嶋,FALSE,,,,display-fixes.spec.ts,新規施設登録画面に挨拶文の補足情報がある,実装済み,システム管理者ログイン
+20,バグ,安庭,,,,,求人の作成について終了している日付でも作成出来てしまう,,完了,川嶋,TRUE,,当日+4時間チェック追加,,job-application-fixes.spec.ts,過去の日付を勤務日に設定できない,実装済み,施設管理者ログイン
+21,,一郎,緊急,windowsPC,,Google Chrome,,新しく作った施設の施設管理で、担当者の顔写真をアップロードして保存しようとして、保存しようとしたら、保存できました,,完了,川嶋,TRUE,アップロード条件を5Mから20Mに変更,,,upload-fixes.spec.ts,20MBまでの画像がアップロードできる,実装済み,施設管理者ログイン
+23,提案,大東,高,iPhone 16e,ios26.2,Google Chrome,https://s-work.netlify.app/register/worker,郵便番号を入れたら都道府県が入って欲しい,,完了,川嶋,FALSE,,,,form-validation-fixes.spec.ts,郵便番号入力で都道府県・市区町村が自動入力される,実装済み,なし
+26,その他,水野,高,windowsPC,11Pro,Google Chrome,https://s-work.netlify.app/admin/jobs/new,性別指定での求人が作成できてしまうが、違法性がないか,,完了,川嶋,TRUE,同性介助目的は法的に認められる,,,job-application-fixes.spec.ts,求人作成画面で性別指定オプションが存在する（仕様確認）,実装済み,施設管理者ログイン
+30,,一郎,普,,,,,各種必須項目ありの登録ページで、必須項目が足りていない場合、どこか視覚的にわかるようにしてほしい,,完了,川嶋,TRUE,,トースト通知+赤枠追加,,form-validation-fixes.spec.ts,必須項目未入力時に視覚的なエラー表示がある,実装済み,なし
+34,バグ,伊藤,高,iPhone 16e,iOS18.4,Google Chrome,,ワーカーの新規登録画面で、介護福祉士、看護師を選択し、介護福祉士の資格書しかアップロードしないで保存を押した場合、エラーも何も出ません,,完了,川嶋,TRUE,アップロード条件変更,,,upload-fixes.spec.ts,資格を選択して資格証をアップロードしないとエラーが表示される,実装済み,なし
+40,バグ,伊藤,低,iPhone 16e,iOS18.4,Google Chrome,,ワーカーの新規登録画面で、フリガナはひらがなでも登録完了しました,,完了,川嶋,TRUE,,,,form-validation-fixes.spec.ts,フリガナフィールドにひらがなを入力してもエラーにならない,実装済み,なし
+41,バグ,大東,緊急,iPhone 16e,ios26.2,Google Chrome,https://s-work.netlify.app/mypage/profile?returnUrl=%2Fjobs%2F244,プロフィール編集画面の画像サンプルに「佐藤」と入っている,,完了,川嶋,TRUE,,デフォルト設定を変更,,display-fixes.spec.ts,プロフィール編集画面に「佐藤」サンプルが表示されない,実装済み,ワーカーログイン
+51,,一郎,,,,,なんのエラーで保存できなかったか、プロフィール、求人、などに入れる,,完了,川嶋,TRUE,,,,form-validation-fixes.spec.ts,バリデーションエラー時に具体的なエラー内容が表示される,実装済み,なし
+53,バグ,大東,緊急,iPhone 16e,ios26.2,Google Chrome,https://s-work.netlify.app/mypage/profile?returnUrl=%2Fjobs%2F244,マッチングが2日程チェックしたが、成立した日程が書いていないので2日程かどうかわからない,,完了,川嶋,TRUE,,メッセージテンプレートに日付変数追加,承知しました,job-application-fixes.spec.ts,複合テストのため個別実装なし,対象外（メッセージテンプレート設定）,システム管理画面での設定確認
+54,バグ,竹上,,,,,勤務日時が過ぎた求人に応募できる,,完了,川嶋,TRUE,,フロントエンド・サーバー両方でチェック追加,応募締切2時間前で非表示,job-application-fixes.spec.ts,求人一覧に過去の勤務日の求人が表示されない,実装済み,ワーカーログイン
+60,バグ,竹上,,,,,ワーカー画面で、メッセージ機能で送ったメッセージがほかのページに遷移した後にもう一度メッセージ機能に戻ると消えていた,,完了,川嶋,TRUE,,,,job-application-fixes.spec.ts,ページ遷移後もメッセージが保持される,実装済み,ワーカーログイン・メッセージ存在
