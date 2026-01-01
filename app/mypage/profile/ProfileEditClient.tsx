@@ -1160,7 +1160,8 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
 
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-medium mb-3">経験分野 <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium mb-2">経験分野 <span className="text-red-500">*</span></label>
+              <p className="text-xs text-gray-500 mb-3">※複数選択できます</p>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 {experienceFieldsList.map((field) => (
                   <label key={field} className="flex items-center gap-2 cursor-pointer">

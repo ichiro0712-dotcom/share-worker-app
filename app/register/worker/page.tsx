@@ -667,9 +667,10 @@ export default function WorkerRegisterPage() {
 
               {/* 経験分野チェックボックス */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   経験分野 <span className="text-red-500">*</span>
                 </label>
+                <p className="text-xs text-gray-500 mb-3">※複数選択できます</p>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   {experienceFieldsList.map((field) => (
                     <label key={field} className="flex items-center gap-2 cursor-pointer">
