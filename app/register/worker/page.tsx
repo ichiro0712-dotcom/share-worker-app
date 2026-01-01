@@ -29,6 +29,7 @@ export default function WorkerRegisterPage() {
 
     // メールアドレス
     email: '',
+    emailConfirm: '',  // メールアドレス確認用
 
     // 郵便番号
     postalCode: '',
@@ -182,6 +183,7 @@ export default function WorkerRegisterPage() {
     if (!formData.gender) errors.push('性別');
     if (!formData.nationality) errors.push('国籍');
     if (!formData.email) errors.push('メールアドレス');
+    if (!formData.emailConfirm) errors.push('メールアドレス（確認）');
     if (!formData.phoneNumber) errors.push('電話番号');
     if (!formData.prefecture) errors.push('都道府県');
     if (!formData.city) errors.push('市区町村');
@@ -196,6 +198,12 @@ export default function WorkerRegisterPage() {
     // パスワード確認
     if (formData.password !== formData.passwordConfirm) {
       toast.error('パスワードが一致しません');
+      return;
+    }
+
+    // メールアドレス一致確認
+    if (formData.email !== formData.emailConfirm) {
+      toast.error('メールアドレスが一致しません');
       return;
     }
 
@@ -474,7 +482,7 @@ export default function WorkerRegisterPage() {
             <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
               <h3 className="font-bold text-gray-900">連絡先情報 <span className="text-red-500">*</span></h3>
 
-              {/* メールアドレスと電話番号を横並び */}
+              {/* メールアドレス（2段構成） */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -492,6 +500,32 @@ export default function WorkerRegisterPage() {
                     <p className="text-red-500 text-xs mt-1">メールアドレスを入力してください</p>
                   )}
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    メールアドレス（確認） <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={formData.emailConfirm}
+                    onChange={(e) => setFormData({ ...formData, emailConfirm: e.target.value })}
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.emailConfirm ? 'border-red-500 bg-red-50' : formData.emailConfirm && formData.email !== formData.emailConfirm ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                    placeholder="確認のため再入力"
+                  />
+                  {showErrors && !formData.emailConfirm && (
+                    <p className="text-red-500 text-xs mt-1">メールアドレス（確認）を入力してください</p>
+                  )}
+                  {formData.emailConfirm && formData.email !== formData.emailConfirm && (
+                    <p className="text-red-500 text-xs mt-1">メールアドレスが一致しません</p>
+                  )}
+                  {formData.emailConfirm && formData.email === formData.emailConfirm && (
+                    <p className="text-green-600 text-xs mt-1">✓ 一致しています</p>
+                  )}
+                </div>
+              </div>
+
+              {/* 電話番号 */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     電話番号 <span className="text-red-500">*</span>
