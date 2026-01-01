@@ -913,6 +913,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
 
       {/* 申込条件 */}
       <div className="mb-4 px-4">
+        <h3 className="mb-3 text-base font-bold text-primary py-3 -mx-4 px-4 border-b-2 border-primary">申込条件</h3>
         <div className="mt-3 space-y-4">
           <div>
             <h4 className="text-sm mb-2 font-bold">必要な資格・条件</h4>
