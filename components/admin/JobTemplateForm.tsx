@@ -7,7 +7,7 @@ import { useSWRConfig } from 'swr';
 import { useAuth } from '@/contexts/AuthContext';
 import { Upload, X } from 'lucide-react';
 import { TemplatePreviewModal } from '@/components/admin/TemplatePreviewModal';
-import { calculateDailyWage } from '@/utils/salary';
+import { calculateDailyWage, calculateWorkingHours } from '@/utils/salary';
 import { validateImageFiles, validateAttachmentFiles } from '@/utils/fileValidation';
 import toast from 'react-hot-toast';
 import { directUploadMultiple } from '@/utils/directUpload';
@@ -282,6 +282,22 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
         formData.hourlyWage,
         formData.transportationFee
     );
+
+    // 実働時間を計算
+    const workingHours = calculateWorkingHours(
+        formData.startTime,
+        formData.endTime,
+        formData.breakTime
+    );
+
+    // 実働時間を「X時間Y分」形式でフォーマット
+    const formatWorkingHours = (hours: number): string => {
+        if (hours <= 0) return '0時間';
+        const h = Math.floor(hours);
+        const m = Math.round((hours - h) * 60);
+        if (m === 0) return `${h}時間`;
+        return `${h}時間${m}分`;
+    };
 
     const requiresGenderSpecification = formData.workContent.includes('入浴介助(大浴場)') ||
         formData.workContent.includes('入浴介助(全般)') ||
@@ -768,6 +784,19 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                                         ))}
                                     </select>
                                 </div>
+                            </div>
+
+                            {/* 実働時間表示 */}
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-sm font-medium text-gray-700">実働時間</span>
+                                    <span className="text-lg font-bold text-blue-600" data-testid="working-hours-display">
+                                        {formatWorkingHours(workingHours)}
+                                    </span>
+                                </div>
+                                <p className="text-xs text-gray-500 mt-1">
+                                    ※ 開始時刻・終了時刻・休憩時間から自動計算されます
+                                </p>
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
