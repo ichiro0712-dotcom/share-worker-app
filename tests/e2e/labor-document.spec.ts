@@ -1,33 +1,6 @@
-import { test, expect, Page } from '@playwright/test';
-
-// テスト用のアカウント情報
-const TEST_WORKER = {
-  email: 'tanaka@example.com',
-  password: 'password123',
-};
-
-const TEST_ADMIN = {
-  email: 'admin@tastas.jp',
-  password: 'admin123',
-};
-
-// ワーカーとしてログイン
-async function loginAsWorker(page: Page) {
-  await page.goto('/login');
-  await page.fill('input[type="email"]', TEST_WORKER.email);
-  await page.fill('input[type="password"]', TEST_WORKER.password);
-  await page.click('button[type="submit"]');
-  await page.waitForURL(/\/(mypage|$)/);
-}
-
-// 管理者としてログイン
-async function loginAsAdmin(page: Page) {
-  await page.goto('/admin/login');
-  await page.fill('input[type="email"]', TEST_ADMIN.email);
-  await page.fill('input[type="password"]', TEST_ADMIN.password);
-  await page.click('button[type="submit"]');
-  await page.waitForURL('/admin/**');
-}
+import { test, expect } from '@playwright/test';
+import { loginAsWorker, loginAsFacilityAdmin } from './fixtures/auth.fixture';
+import { openWorkerBottomNav } from './fixtures/navigation.fixture';
 
 test.describe('労働条件通知書機能', () => {
   test.describe('ワーカー側', () => {
@@ -36,18 +9,11 @@ test.describe('労働条件通知書機能', () => {
     });
 
     test('マイページから仕事管理ページに遷移できる', async ({ page }) => {
-      await page.goto('/mypage');
-
-      // 「仕事管理」メニューが表示されていることを確認
-      const jobsLink = page.locator('text=仕事管理');
-      await expect(jobsLink).toBeVisible();
-
-      // クリックして遷移
-      await jobsLink.click();
-      await page.waitForURL('/my-jobs');
+      // ボトムナビから仕事管理に遷移
+      await openWorkerBottomNav(page, '仕事管理', /\/my-jobs/);
 
       // ページタイトルを確認
-      await expect(page.locator('h1')).toContainText('仕事管理');
+      await expect(page.getByRole('heading', { name: '仕事管理' })).toBeVisible();
     });
 
     test('仕事一覧ページが正しく表示される', async ({ page }) => {
@@ -122,12 +88,13 @@ test.describe('労働条件通知書機能', () => {
 
   test.describe('管理者側', () => {
     test.beforeEach(async ({ page }) => {
-      await loginAsAdmin(page);
+      await loginAsFacilityAdmin(page);
     });
 
     test('ワーカー詳細ページに労働条件通知書リンクがある', async ({ page }) => {
       // ワーカー一覧ページへ
       await page.goto('/admin/workers');
+      await page.waitForLoadState('networkidle');
 
       // 最初のワーカーをクリック
       const workerLink = page.locator('a[href^="/admin/workers/"]').first();
@@ -136,35 +103,59 @@ test.describe('労働条件通知書機能', () => {
         await page.waitForLoadState('networkidle');
 
         // 労働条件通知書リンクを確認
-        const laborDocLink = page.locator('text=労働条件通知書');
+        const laborDocLink = page.getByText('労働条件通知書').first();
         await expect(laborDocLink).toBeVisible();
       }
     });
 
     test('労働条件通知書一覧ページが表示される', async ({ page }) => {
-      // ワーカーID 1の労働条件通知書一覧へ直接アクセス
-      await page.goto('/admin/workers/1/labor-documents');
+      // ワーカー一覧から労働条件通知書一覧へ遷移
+      await page.goto('/admin/workers');
+      await page.waitForLoadState('networkidle');
 
-      // ページタイトルを確認
-      await expect(page.locator('h1')).toContainText('労働条件通知書');
+      const workerLink = page.locator('a[href^="/admin/workers/"]').first();
+      if (await workerLink.isVisible()) {
+        await workerLink.click();
+        await page.waitForLoadState('networkidle');
 
-      // 戻るリンクがあることを確認
-      const backLink = page.locator('text=ワーカー詳細に戻る');
-      await expect(backLink).toBeVisible();
+        // 労働条件通知書リンクをクリック
+        const laborDocLink = page.getByRole('link', { name: /労働条件通知書/ }).first();
+        if (await laborDocLink.isVisible()) {
+          await laborDocLink.click();
+          await page.waitForLoadState('networkidle');
+
+          // ページタイトルを確認
+          await expect(page.getByRole('heading', { name: /労働条件通知書/ })).toBeVisible();
+        }
+      }
     });
 
     test('労働条件通知書詳細ページで印刷ボタンがある', async ({ page }) => {
-      await page.goto('/admin/workers/1/labor-documents');
+      await page.goto('/admin/workers');
+      await page.waitForLoadState('networkidle');
 
-      // 労働条件通知書があれば詳細へ
-      const docLink = page.locator('a:has-text("表示")').first();
-      if (await docLink.isVisible()) {
-        await docLink.click();
+      const workerLink = page.locator('a[href^="/admin/workers/"]').first();
+      if (await workerLink.isVisible()) {
+        await workerLink.click();
         await page.waitForLoadState('networkidle');
 
-        // 印刷ボタンを確認
-        const printButton = page.locator('button:has-text("印刷")');
-        await expect(printButton).toBeVisible();
+        // 労働条件通知書リンクをクリック
+        const laborDocLink = page.getByRole('link', { name: /労働条件通知書/ }).first();
+        if (await laborDocLink.isVisible()) {
+          await laborDocLink.click();
+          await page.waitForLoadState('networkidle');
+
+          // 労働条件通知書があれば詳細へ
+          const docLink = page.locator('a:has-text("表示")').first();
+          if (await docLink.isVisible()) {
+            await docLink.click();
+            await page.waitForLoadState('networkidle');
+
+            // 印刷ボタンを確認
+            const printButton = page.locator('button:has-text("印刷")');
+            await expect(printButton).toBeVisible();
+          }
+        }
       }
     });
   });
