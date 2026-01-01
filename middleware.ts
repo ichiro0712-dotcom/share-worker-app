@@ -21,6 +21,7 @@ const ignoredPaths = [
   '/_next',
   '/favicon.ico',
   '/api/auth',
+  '/api/admin',
   '/api/debug', // デバッグ用API
   '/api/error-messages', // エラーメッセージ設定（認証不要）
   '/rogo', // ロゴ画像
