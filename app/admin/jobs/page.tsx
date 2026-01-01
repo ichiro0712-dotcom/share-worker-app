@@ -270,8 +270,8 @@ export default function AdminJobsList() {
   // バッジ用: パターン5（青ベース統一）
   // フィルターボタン用: ドットインジケーター風
   const statusConfig = {
-    recruiting: { label: '公開中', badge: 'bg-blue-600 text-white', dotColor: 'bg-green-500' },
-    paused: { label: '停止中', badge: 'bg-blue-100 text-blue-400', dotColor: 'bg-gray-400' },
+    recruiting: { label: '公開中', badge: 'bg-blue-600 text-white', dotColor: 'bg-blue-600' },
+    paused: { label: '停止中', badge: 'bg-blue-100 text-blue-400', dotColor: 'bg-blue-300' },
     working: { label: '勤務中', badge: 'bg-blue-800 text-white', dotColor: 'bg-blue-500' },
     review: { label: '評価待ち', badge: 'bg-blue-300 text-blue-900', dotColor: 'bg-amber-500' },
     completed: { label: '完了', badge: 'bg-blue-50 text-blue-300', dotColor: 'bg-gray-400' },
