@@ -274,7 +274,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         {/* ロゴ・施設名 */}
         <div className="p-3 border-b border-gray-800">
           <div className="flex items-center justify-between">
-            <Link href="/admin/jobs" prefetch={true} className="flex items-center gap-3 flex-1 min-w-0">
+            <Link
+              href="/admin/jobs"
+              prefetch={true}
+              className="flex items-center gap-3 flex-1 min-w-0"
+              title={isCollapsed && facilityName ? facilityName : undefined}
+            >
               <Image
                 src="/images/logo.png"
                 alt="+TASTAS"
@@ -286,6 +291,11 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                 <div className="overflow-hidden">
                   <h1 className="text-lg font-bold text-white whitespace-nowrap">+TASTAS</h1>
                   <p className="text-xs text-gray-400 whitespace-nowrap">施設管理画面</p>
+                  {facilityName && (
+                    <p className="text-xs text-blue-400 mt-1 truncate" title={facilityName}>
+                      {facilityName}
+                    </p>
+                  )}
                 </div>
               )}
             </Link>
