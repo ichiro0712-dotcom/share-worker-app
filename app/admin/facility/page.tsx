@@ -574,8 +574,8 @@ export default function FacilityPage() {
       toast.error('パスワードを入力してください');
       return;
     }
-    if (newAccount.password.length < 6) {
-      toast.error('パスワードは6文字以上で入力してください');
+    if (newAccount.password.length < 8) {
+      toast.error('パスワードは8文字以上で入力してください');
       return;
     }
 
@@ -607,8 +607,8 @@ export default function FacilityPage() {
   // パスワード変更
   const handleChangePassword = async (accountId: number) => {
     if (!admin?.facilityId) return;
-    if (!newPassword || newPassword.length < 6) {
-      toast.error('パスワードは6文字以上で入力してください');
+    if (!newPassword || newPassword.length < 8) {
+      toast.error('パスワードは8文字以上で入力してください');
       return;
     }
 
@@ -2139,7 +2139,7 @@ export default function FacilityPage() {
                   value={newAccount.password}
                   onChange={(e) => setNewAccount({ ...newAccount, password: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
-                  placeholder="6文字以上"
+                  placeholder="8文字以上"
                 />
               </div>
             </div>
@@ -2179,7 +2179,7 @@ export default function FacilityPage() {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
-                placeholder="6文字以上"
+                placeholder="8文字以上"
               />
             </div>
             <div className="flex gap-3 mt-6">
