@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect, useMemo } from 'react';
-import { X, ChevronLeft, Heart, Clock, MapPin, ChevronRight, ChevronLeft as ChevronLeftIcon, Bookmark, VolumeX, Volume2, ExternalLink, Building2, Train, Car, Bike, Bus, Edit2, AlertTriangle } from 'lucide-react';
+import { X, ChevronLeft, Heart, Clock, MapPin, ChevronRight, ChevronLeft as ChevronLeftIcon, Bookmark, VolumeX, Volume2, ExternalLink, Building2, Train, Car, Bike, Bus, Edit2, AlertTriangle, Home } from 'lucide-react';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/Button';
@@ -501,9 +501,28 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
           </div>
         )}
         <div className="px-4 py-3 flex items-center justify-between">
-          <button onClick={() => router.back()}>
-            <ChevronLeft className="w-6 h-6" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                // 履歴がある場合は戻る、ない場合はホームへ
+                if (window.history.length > 1) {
+                  router.back();
+                } else {
+                  router.push('/');
+                }
+              }}
+              aria-label="戻る"
+            >
+              <ChevronLeft className="w-6 h-6" />
+            </button>
+            <button
+              onClick={() => router.push('/')}
+              className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+              aria-label="トップページへ"
+            >
+              <Home className="w-5 h-5 text-gray-600" />
+            </button>
+          </div>
           <div className="flex-1 text-center text-sm">
             {formatDateTime(selectedDate || job.workDate, job.startTime, job.endTime)}
           </div>
