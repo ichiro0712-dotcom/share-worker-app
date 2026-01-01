@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { BadgeProvider } from "@/contexts/BadgeContext";
@@ -7,6 +7,15 @@ import MasqueradeBanner from "@/components/MasqueradeBanner";
 import { ErrorToastProvider } from '@/components/ui/PersistentErrorToast';
 import { DebugErrorProvider } from '@/components/debug/DebugErrorBanner';
 import { WorkerLayout } from '@/components/layout/WorkerLayout';
+
+// Viewport設定（iOS safe-area対応）
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: 'cover', // iPhoneのノッチ/Dynamic Island対応
+};
 
 export const metadata: Metadata = {
   title: "+TASTAS - 看護師・介護士のための求人マッチング",

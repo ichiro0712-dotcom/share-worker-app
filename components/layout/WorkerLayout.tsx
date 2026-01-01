@@ -39,7 +39,7 @@ export function WorkerLayout({ children }: WorkerLayoutProps) {
 
   return (
     <>
-      <div className="pb-20">
+      <div className="pb-20" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}>
         {children}
       </div>
       <BottomNav />

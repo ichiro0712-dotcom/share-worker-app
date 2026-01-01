@@ -1270,7 +1270,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
 
       {/* 申し込みボタン（プレビューモードでは非表示） - フッターナビの上に配置 */}
       {!isPreviewMode && (
-        <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-200 p-4 z-10">
+        <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-200 p-4 z-10" style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom))' }}>
           <Button
             onClick={handleApplyButtonClick}
             size="lg"
