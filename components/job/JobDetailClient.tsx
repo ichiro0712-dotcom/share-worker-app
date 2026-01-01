@@ -492,7 +492,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
   };
 
   return (
-    <div className="min-h-screen bg-background pb-36">
+    <div className="min-h-screen bg-background pb-36 max-w-lg mx-auto">
       {/* ヘッダー */}
       <div className="sticky top-0 bg-white border-b border-gray-200 z-20">
         {isPreviewMode && (
