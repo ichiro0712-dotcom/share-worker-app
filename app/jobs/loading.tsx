@@ -13,7 +13,7 @@ export default function Loading() {
                 <div className="h-12 bg-gray-200 rounded mb-6"></div>
 
                 {/* 求人カードスケルトン */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="space-y-4">
                     {[...Array(6)].map((_, i) => (
                         <div key={i} className="bg-white rounded-lg shadow p-4">
                             <div className="h-40 bg-gray-200 rounded mb-4"></div>
