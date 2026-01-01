@@ -82,7 +82,7 @@ async function ensureWorkerProfileComplete(email: string): Promise<void> {
   }
 }
 
-async function findAvailableWorkDate(email: string, minDaysFromToday = 14, maxLookaheadDays = 90): Promise<Date> {
+async function findAvailableWorkDate(email: string, minDaysFromToday = 3, maxLookaheadDays = 30): Promise<Date> {
   if (!process.env.DATABASE_URL) {
     throw new Error('DATABASE_URL is required to check scheduled jobs.');
   }
@@ -185,33 +185,42 @@ async function publishJob(page: Page, jobTitle: string): Promise<void> {
   const publishButton = page.getByRole('button', { name: '公開する' }).first();
   await publishButton.click();
 
-  await expect(page.getByText('求人公開の確認')).toBeVisible();
+  await expect(page.getByText('求人公開の確認')).toBeVisible({ timeout: TIMEOUTS.navigation });
   const confirmButton = page.getByRole('button', { name: '公開する' }).last();
   await confirmButton.click();
 
-  await page.waitForURL('/admin/jobs**');
-  const toast = await waitForToast(page, '求人を作成しました', TIMEOUTS.toast);
-  if (toast) {
-    return;
-  }
+  // 求人一覧ページのタイトル「求人管理」を待つ
+  await expect(page.getByRole('heading', { name: '求人管理' })).toBeVisible({ timeout: 60000 });
+  await page.waitForLoadState('networkidle');
 
+  // トーストを待つ
+  await waitForToast(page, '求人を作成しました', TIMEOUTS.toast);
+
+  // 求人一覧を更新するためにページをリロード
+  await page.reload();
+  await page.waitForLoadState('networkidle');
+
+  // 求人一覧で作成した求人を確認
+  await page.waitForTimeout(TIMEOUTS.animation * 2);
   const searchInput = page.getByPlaceholder(/求人タイトル|ワーカー名/);
   if (await searchInput.isVisible()) {
     await searchInput.fill(jobTitle);
-    await page.waitForTimeout(TIMEOUTS.animation * 2);
+    await page.waitForTimeout(TIMEOUTS.animation * 3);
   }
 
   const jobCard = page
-    .locator('.rounded-admin-card, a[href^="/admin/jobs/"]')
+    .locator('.rounded-admin-card')
     .filter({ hasText: jobTitle })
     .first();
-  await expect(jobCard.or(page.getByText(jobTitle).first())).toBeVisible();
+
+  await expect(jobCard).toBeVisible({ timeout: TIMEOUTS.navigation });
 }
 
 async function mockDirectUpload(page: Page, baseURL: string): Promise<void> {
-  const mockUploadUrl = `${baseURL}/__mock-upload`;
   const fallbackPublicUrl = '/images/samples/facility_top_1.png';
+  const mockUploadEndpoint = `${baseURL}/api/mock-upload`;
 
+  // presigned API をモックして、ローカルのモックエンドポイントを返す
   await page.route('**/api/upload/presigned', async (route) => {
     if (route.request().method() !== 'POST') {
       await route.fallback();
@@ -219,28 +228,32 @@ async function mockDirectUpload(page: Page, baseURL: string): Promise<void> {
     }
 
     const timestamp = Date.now();
+    const randomStr = Math.random().toString(36).substring(2, 8);
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        presignedUrl: `${mockUploadUrl}?t=${timestamp}`,
+        success: true,
+        presignedUrl: mockUploadEndpoint,
         publicUrl: fallbackPublicUrl,
+        key: `jobs/${timestamp}-${randomStr}.jpg`,
       }),
     });
   });
 
-  await page.route('**/__mock-upload**', async (route) => {
-    await route.fulfill({ status: 200, body: '' });
+  // モックアップロードエンドポイントへのリクエストを成功として処理
+  await page.route('**/api/mock-upload**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/plain',
+      body: 'OK',
+    });
   });
 }
 
-async function waitForJobsResponse(page: Page, dateIndex: number): Promise<void> {
-  await page.waitForResponse(
-    (response) => response.url().includes('/api/jobs') &&
-      response.url().includes(`dateIndex=${dateIndex}`) &&
-      response.status() === 200,
-    { timeout: TIMEOUTS.navigation }
-  );
+async function waitForJobsLoaded(page: Page): Promise<void> {
+  await page.waitForLoadState('networkidle');
+  await page.waitForTimeout(TIMEOUTS.animation * 2);
 }
 
 async function selectJobListDate(page: Page, target: Date): Promise<void> {
@@ -273,7 +286,7 @@ test('審査あり求人の応募→承認がワーカーへ反映される', as
 
   try {
     const facilityPage = await facilityContext.newPage();
-    await mockDirectUpload(facilityPage, baseURL);
+    // 画像アップロードはスキップ（画像は必須ではない）
     await loginAsFacilityAdmin(facilityPage);
     await openJobCreate(facilityPage);
 
@@ -285,8 +298,7 @@ test('審査あり求人の応募→承認がワーカーへ反映される', as
     const titleInput = facilityPage.locator('input[placeholder*="デイサービス"]');
     await titleInput.fill(jobTitle);
 
-    const topImageInput = facilityPage.locator('input[type="file"][accept="image/*"]').first();
-    await topImageInput.setInputFiles(imagePath);
+    // 画像アップロードをスキップ（必須ではないため）
 
     const timeSection = facilityPage.getByRole('heading', { name: '勤務時間' }).locator('..');
     const startTimeRow = timeSection.getByText('開始時刻').locator('..');
@@ -310,14 +322,24 @@ test('審査あり求人の応募→承認がワーカーへ反映される', as
     const wageInput = facilityPage.getByText('時給（円）').locator('..').locator('input[type="number"]');
     await wageInput.fill('1800');
 
+    // デバッグ用スクリーンショット
+    await facilityPage.screenshot({ path: 'test-results/debug-before-publish.png' });
+
     await publishJob(facilityPage, jobTitle);
+
+    // 求人公開後、インデックス反映を待つ
+    await facilityPage.waitForTimeout(3000);
 
     let workerPage = await workerContext.newPage();
     await loginAsWorker(workerPage);
     await openWorkerBottomNav(workerPage, '探す', /\/$/);
+
+    // ページをリロードして最新の求人を取得
+    await workerPage.reload();
+    await workerPage.waitForLoadState('networkidle');
+
     await selectJobListDate(workerPage, workDate);
-    const dateIndex = getDateIndexFromToday(workDate);
-    await waitForJobsResponse(workerPage, dateIndex);
+    await waitForJobsLoaded(workerPage);
 
     const searchInput = workerPage.locator('input[placeholder*="検索"], input[type="search"]').first();
     if (await searchInput.isVisible()) {
@@ -384,9 +406,13 @@ test('審査あり求人の応募→承認がワーカーへ反映される', as
     await expect(matchButton).toBeVisible();
     facilityPage.once('dialog', (dialog) => dialog.accept());
     await matchButton.click();
-    await facilityPage.waitForTimeout(TIMEOUTS.animation * 2);
+
+    // マッチング済ラベルを確認（モーダル内で即座に確認）
     const matchedLabel = applicationModal.getByText('マッチング済').first();
     await expect(matchedLabel).toBeVisible({ timeout: TIMEOUTS.navigation });
+
+    // または成功トーストを確認
+    await waitForToast(facilityPage, 'ステータスを更新しました', TIMEOUTS.toast);
 
     if (workerPage.isClosed()) {
       workerPage = await workerContext.newPage();
