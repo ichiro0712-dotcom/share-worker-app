@@ -117,7 +117,7 @@ if (workDatesToCheck.includes(todayStr) && formData.startTime) {
 15,提案,竹上,,,,,,求人の勤務時間設定時に、6時間を超える勤務の場合は45分、8時間を超える勤務の場合は1時間の休憩を必須にする,,,,FALSE,,,,,,
 50,バグ,大東,緊急,iPhone 16e,ios26.2, Google Chrome,https://s-work.netlify.app/mypage/profile?returnUrl=%2Fjobs%2F244,応募に進み、個人情報を入れたが、エラーも出ず、登録も出来ない,,再現できず,,FALSE,,ワーカーのログイン画面から実際の状況を確認する必要あり。アカウント情報の共有を依頼中,,,,
 55,バグ,水野,普,windowsPC,11Pro, Google Chrome,https://s-work.netlify.app/admin/jobs/244/edit,審査してからマッチングが機能しないときがあったかも,審査してからマッチングに☑を入れても、求人に反映されず応募即マッチングしてしまうことがあった。何回か試したらできた。,再現できず,,FALSE,,,,,,
-33,提案,竹上,,,,,,,求人の時給を入力し直したときに0が頭に残る,,,FALSE,,,,,,
+33,提案,竹上,,,,,,,求人の時給を入力し直したときに0が頭に残る,完了,川嶋,TRUE,PR #26,時給入力欄のvalue属性を修正。0の場合は空文字を表示するように変更し再入力時に0が頭に残る問題を解消,components/admin/JobForm.tsx components/admin/JobTemplateForm.tsx,fix/hourly-wage-zero-33,2026-01-02
 37,提案,竹上,,,,,,求人ページの、仕事内容（複数選択）のところが、看護を想定した選択肢になっていない？,,,,FALSE,,,,,,
 46,提案,竹上,,,,,,求人のコピー機能,,,,FALSE,,,,,,
 31,バグ,竹上,,,,,,,求人を公開するボタンを押したが、「保存に失敗しました」となる,再現できず,,FALSE,,"ひかり介護センター
