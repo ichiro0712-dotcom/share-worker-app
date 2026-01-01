@@ -35,7 +35,7 @@ import {
 } from '@/src/lib/actions';
 import { getQualificationAbbreviations } from '@/src/lib/content-actions';
 import { Pagination } from '@/components/ui/Pagination';
-import { useApplicationsByJob, useApplicationsByWorker } from '@/hooks/useApplications';
+import { useApplicationsByJob, useApplicationsByWorker, JobApplicationsSortOption } from '@/hooks/useApplications';
 import { ApplicationsSkeleton } from '@/components/admin/ApplicationsSkeleton';
 import { QUALIFICATION_GROUPS } from '@/constants/qualifications';
 
@@ -190,12 +190,17 @@ function ApplicationsContent() {
   const [jobTypeFilter, setJobTypeFilter] = useState<string>('all');
   const [qualificationCategory, setQualificationCategory] = useState<string>('all');
   const [workerSortBy, setWorkerSortBy] = useState<string>('workCount_desc');
+  const initialJobSort = searchParams.get('jobSort') as JobApplicationsSortOption | null;
+  const [jobSortBy, setJobSortBy] = useState<JobApplicationsSortOption>(
+    initialJobSort && ['created_desc', 'created_asc', 'applied_desc', 'applied_asc', 'unviewed_desc', 'workDate_asc', 'workDate_desc'].includes(initialJobSort)
+      ? initialJobSort : 'created_desc'
+  );
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [page, setPage] = useState(initialPage ? parseInt(initialPage) : 1);
 
   // statusFilter変更時のURL更新用関数を追加
-  const updateUrlParams = (newStatus?: string, newPage?: number) => {
+  const updateUrlParams = (newStatus?: string, newPage?: number, newJobSort?: string) => {
     const params = new URLSearchParams(window.location.search);
 
     if (newStatus !== undefined) {
@@ -211,6 +216,14 @@ function ApplicationsContent() {
         params.delete('page');
       } else {
         params.set('page', newPage.toString());
+      }
+    }
+
+    if (newJobSort !== undefined) {
+      if (newJobSort === 'created_desc') {
+        params.delete('jobSort');
+      } else {
+        params.set('jobSort', newJobSort);
       }
     }
 
@@ -285,6 +298,7 @@ function ApplicationsContent() {
     page: viewMode === 'jobs' ? page : 1,
     status: statusFilter,
     query: debouncedQuery,
+    sort: jobSortBy,
   });
 
   const {
@@ -814,6 +828,33 @@ function ApplicationsContent() {
                       </option>
                     ))}
                   </select>
+                </div>
+
+                {/* 並び替え */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-700 font-medium">並び替え:</span>
+                  <div className="relative">
+                    <select
+                      name="jobSort"
+                      value={jobSortBy}
+                      onChange={(e) => {
+                        const newSort = e.target.value as JobApplicationsSortOption;
+                        setJobSortBy(newSort);
+                        setPage(1);
+                        updateUrlParams(undefined, 1, newSort);
+                      }}
+                      className="appearance-none bg-white border border-gray-300 rounded pl-3 pr-8 py-2 text-sm focus:ring-2 focus:ring-admin-primary focus:border-transparent cursor-pointer"
+                    >
+                      <option value="created_desc">作成日（新しい順）</option>
+                      <option value="created_asc">作成日（古い順）</option>
+                      <option value="applied_desc">応募数（多い順）</option>
+                      <option value="applied_asc">応募数（少ない順）</option>
+                      <option value="unviewed_desc">未確認応募（多い順）</option>
+                      <option value="workDate_asc">勤務日（近い順）</option>
+                      <option value="workDate_desc">勤務日（遠い順）</option>
+                    </select>
+                    <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  </div>
                 </div>
               </div>
             )}

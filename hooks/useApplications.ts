@@ -105,11 +105,22 @@ interface WorkersApplicationsResponse {
   pagination: PaginationData;
 }
 
+// 求人別ソートオプションの型定義
+export type JobApplicationsSortOption =
+  | 'created_desc'
+  | 'created_asc'
+  | 'applied_desc'
+  | 'applied_asc'
+  | 'unviewed_desc'
+  | 'workDate_asc'
+  | 'workDate_desc';
+
 interface ApplicationsByJobParams {
   facilityId?: number;
   page?: number;
   status?: 'all' | 'published' | 'stopped' | 'completed';
   query?: string;
+  sort?: JobApplicationsSortOption;
 }
 
 interface ApplicationsByWorkerParams {
@@ -137,6 +148,7 @@ const buildJobsUrl = (params: ApplicationsByJobParams): string | null => {
     searchParams.set('status', params.status.toUpperCase());
   }
   if (params.query) searchParams.set('query', params.query);
+  if (params.sort) searchParams.set('sort', params.sort);
   return `/api/admin/applications?${searchParams.toString()}`;
 };
 
@@ -151,7 +163,7 @@ const buildWorkersUrl = (params: ApplicationsByWorkerParams): string | null => {
 
 // 求人別応募一覧フック
 export function useApplicationsByJob(params: ApplicationsByJobParams) {
-  const url = useMemo(() => buildJobsUrl(params), [params.facilityId, params.page, params.status, params.query]);
+  const url = useMemo(() => buildJobsUrl(params), [params.facilityId, params.page, params.status, params.query, params.sort]);
 
   const { data, error, isLoading, isValidating, mutate } = useSWR<JobsApplicationsResponse>(
     url,
