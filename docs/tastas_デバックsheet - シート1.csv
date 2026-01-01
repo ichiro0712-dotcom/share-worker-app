@@ -106,7 +106,7 @@ if (workDatesToCheck.includes(todayStr) && formData.startTime) {
 61,提案,水野,普,windowsPC,11Pro, Google Chrome,https://s-work.netlify.app/messages,不採用通知,マッチングの場合はメッセージが来るが、不採用の場合は来ないのが不親切かも,,,FALSE,,,,,,
 63,提案,水野,普,windowsPC,11Pro, Google Chrome,https://s-work.netlify.app/admin/applications,審査あり求人への応募者の採用に関して,審査あり求人の応募者を不採用にする際は一度押下した後確認のポップアップがでるが、マッチングの場合はそれがなく即マッチングとなる,,,FALSE,,,,,,
 7,提案,大東,普,windowsPC,11Pro, Google Chrome,https://s-work.netlify.app/admin/jobs/new,"施設管理　給与　時給が1200がコンマがない1,200に変更？",,完了,川嶋,TRUE,PR #25,時給入力欄の下にコンマ付きフォーマット表示（¥1,200）を追加。リアルタイムで更新される。,components/admin/JobForm.tsx components/admin/JobTemplateForm.tsx,fix/salary-comma-format-7,2026-01-02
-32,提案,大東,普,iPhone 16e,ios26.2, Google Chrome,https://s-work.netlify.app/register/worker,経験を複数入れる際に、追加＋のようなボタンがあれば分かりやすい,,,,FALSE,,,,,,
+32,提案,大東,普,iPhone 16e,ios26.2, Google Chrome,https://s-work.netlify.app/register/worker,経験を複数入れる際に、追加＋のようなボタンがあれば分かりやすい,,,,TRUE,経験分野ラベル下に「※複数選択できます」の説明を追加,fix/experience-add-button-32,2026-01-02,,
 42,提案,大東,普,iPhone 16e,ios26.2, Google Chrome,https://s-work.netlify.app/mypage/profile?returnUrl=%2Fjobs%2F244,希望開始時刻、希望終了時刻が不要？,入れるなら希望シフト（日勤のみ、夜勤のみ、フル勤務）,,,FALSE,,,,,,
 47,提案,大東,普,iPhone 16e,ios26.2, Google Chrome,https://s-work.netlify.app/mypage/profile?returnUrl=%2Fjobs%2F244,緊急連絡先は必須にしない,,,,FALSE,,,,,,
 57,提案,大東,普,iPhone 16e,ios26.2, Google Chrome,https://s-work.netlify.app/mypage/profile?returnUrl=%2Fjobs%2F244,応募完了後、メッセージ画面から、お仕事詳細ページにとぶURLは、同じタブ上で進めたい,,,,FALSE,,,,,,
