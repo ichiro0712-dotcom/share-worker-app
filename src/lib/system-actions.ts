@@ -7,6 +7,7 @@ import { JobStatus } from '@prisma/client';
 import { generateLaborDocumentPdf } from '@/src/lib/laborDocumentPdf';
 import { requireSystemAdminAuth } from '@/lib/system-admin-session-server';
 import { geocodeAddress } from '@/src/lib/geocoding';
+import { sendAdminNewFacilityNotification, sendAdminNewWorkerNotification, sendAdminHighCancelRateNotification, sendAdminLowRatingStreakNotification } from '@/src/lib/actions/notification';
 export { geocodeAddress };
 
 
@@ -1313,6 +1314,13 @@ export async function createFacilityWithAdmin(data: {
 
             return facility;
         });
+
+        // 管理者に新規施設登録を通知
+        await sendAdminNewFacilityNotification(
+            result.id,
+            data.facilityName,
+            data.corporationName
+        );
 
         return { success: true, facility: result };
     } catch (error) {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
+import { sendAdminNewWorkerNotification } from '@/src/lib/actions/notification';
 
 export async function POST(request: NextRequest) {
   try {
@@ -78,6 +79,13 @@ export async function POST(request: NextRequest) {
         qualification_certificates: qualificationCertificates && Object.keys(qualificationCertificates).length > 0 ? qualificationCertificates : Prisma.DbNull,
       },
     });
+
+    // 管理者に新規ワーカー登録を通知
+    await sendAdminNewWorkerNotification(
+      user.id,
+      user.name,
+      user.email
+    );
 
     return NextResponse.json({
       message: '登録が完了しました',
