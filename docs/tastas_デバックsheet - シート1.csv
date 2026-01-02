@@ -5,7 +5,8 @@ ID,種別,報告者,優先度,端末,OS,ブラウザ,ページURL,概要,詳細,
 3,バグ,水野,普,iPhone SE,iOS17.6.1, Google Chrome,https://s-work.netlify.app/login,ログイン画面上部の画像が表示されず,,完了,川嶋,TRUE,,,,,,
 44,提案,大東,緊急,iPhone 16e,ios26.2, Google Chrome,,"①案件みるための情報（メールアドレス、最低限資格証）
 ②応募段階で必要な情報（個人情報、身分証）
-③就業するために必要な情報（口座情報）",ワーカー登録時左のように情報を整理,要ヒアリング,,FALSE,具体的にはどうしたい？（各ページ,,,,,
+③就業するために必要な情報（口座情報）
+",ワーカー登録時左のように情報を整理,要ヒアリング,,FALSE,具体的にはどうしたい？（各ページ,,,,,
 14,バグ,安庭,普,windowsPC,11Pro, Google Chrome,https://s-work.netlify.app/admin/workers/1/certificates,施設管理画面にて資格証明書写真が表示されない,ワーカー管理＞ワーカー詳細＞資格証明書写真,完了,川嶋,TRUE,,,,,,
 25,提案,伊東,高,windowsPC,11Pro, Google Chrome,,同一法人での勤務時間を管理したいので、新規登録時に法人番号などの登録を必須にしておいてもらいたい,,要ヒアリング,川嶋,FALSE,法人番号必須にしたが、同一法人での勤務時間を管理したいという意味がわからない、現在の使用は１施設１管理画面になっている。法人が複数の事業所を使う時はそれぞれ管理画面を設定しないといけない仕様です。,,,,,
 19,提案,伊藤,高,windowsPC,, Google Chrome,https://s-work.netlify.app/admin/facility,新規施設登録、挨拶文が、どこに表示されるのか、推奨文字数などの補足情報が欲しい,,完了,川嶋,TRUE,,,,,,
@@ -14,14 +15,14 @@ ID,種別,報告者,優先度,端末,OS,ブラウザ,ページURL,概要,詳細,
 /my-jobs/258",,完了,川嶋,TRUE,,,,,,
 21,,一郎,緊急,windowsPC,, Google Chrome,,新しく作った施設の施設管理で、担当者の顔写真をアップロードして保存しようとして、保存しようとしたら、保存できました,,完了,川嶋,TRUE,アップロード条件を5Mから20Mに変更したが、バグが起きた画像は数百mbだそう。,,,,,
 23,提案,大東,高,iPhone 16e,ios26.2, Google Chrome,https://s-work.netlify.app/register/worker,郵便番号を入れたら都道府県が入って欲しい,,完了,川嶋,TRUE,,,,,,
-35,提案,大東,高,iPhone 16e,ios26.2, Google Chrome,https://s-work.netlify.app/jobs/244?date=2025-12-22,求人ページが全体的に左に寄っている、右に余白がある,,,,TRUE,viewport-fit:cover追加、safe-area-inset対応をbody、BottomNav、WorkerLayout、JobDetailClientに追加,fix/job-page-alignment-35,2026-01-01,,
+35,提案,大東,高,iPhone 16e,ios26.2, Google Chrome,https://s-work.netlify.app/jobs/244?date=2025-12-22,求人ページが全体的に左に寄っている、右に余白がある,完了,Claude,TRUE,viewport-fit:cover追加、safe-area-inset対応をbody、BottomNav、WorkerLayout、JobDetailClientに追加,fix/job-page-alignment-35,2026-01-02,,
 58,提案,大東,高,iPhone 16e,ios26.2, Google Chrome,https://s-work.netlify.app/mypage/profile?returnUrl=%2Fjobs%2F244,身分証の選択と、マスキングすべき場所を指示して、枠に合わせて勝手に撮影して、必要な項目のみを保存したい,,,,FALSE,,,,,,
-24,提案,安庭,低,windowsPC,11Pro, Google Chrome,,施設の登録画面で施設管理者のPW変更が6桁以上と表示。初期登録は8桁以上,システム管理画面＞施設管理＞新規登録,,,TRUE,施設管理画面のパスワード要件を8文字に統一,fix/password-validation-text-24,2026-01-02,,
+24,提案,安庭,低,windowsPC,11Pro, Google Chrome,,施設の登録画面で施設管理者のPW変更が6桁以上と表示。初期登録は8桁以上,システム管理画面＞施設管理＞新規登録,完了,Claude,TRUE,施設管理画面のパスワード要件を8文字に統一,fix/password-validation-text-24,2026-01-02,,
 26,その他,水野,高,windowsPC,11Pro, Google Chrome,https://s-work.netlify.app/admin/jobs/new,性別指定での求人が作成できてしまうが、違法性がないか,,完了,川嶋,TRUE,介護業務（排泄・入浴介助など）における「同性介助」を目的とした性別の指定は、男女雇用機会均等法の例外として認められる可能性が高い,,,,,
 59,提案,伊藤,低,iPhone 16e,, Google Chrome,,マイページのプロフィールについて、変更頻度が低い基本情報（個人情報、資格情報）と、働き方やシフト希望などの項目は分けたほうがよいかと思います。,,,,FALSE,,,,,,
-13,提案,一郎,低,android pixsel9pro,android, Google Chrome,netlify.app/mypage/profile,プロフィールの希望開始時刻（特になし）をデフォルトにしたい,,,,TRUE,既に正常動作。DBがnull時に空文字→「特になし」がデフォルト選択される,fix/preferred-time-default-13,2026-01-02,,
+13,提案,一郎,低,android pixsel9pro,android, Google Chrome,netlify.app/mypage/profile,プロフィールの希望開始時刻（特になし）をデフォルトにしたい,完了,Claude,TRUE,既に正常動作。DBがnull時に空文字→「特になし」がデフォルト選択される,fix/preferred-time-default-13,2026-01-02,,
 34,バグ,伊藤,高,iPhone 16e,iOS18.4, Google Chrome,,ワーカーの新規登録画面で、介護福祉士、看護師を選択し、介護福祉士の資格書しかアップロードしないで保存を押した場合、エラーも何も出ません。,,完了,川嶋,TRUE,アップロード条件を5Mから20Mに変更したが、バグが起きた画像は数百mbだそう。,,,,,
-12,提案,水野,低,windowsPC,11Pro, Google Chrome,https://s-work.netlify.app/admin/jobs,公開中や停止中のタブの色を求人とそろえた方が見やすい,,,,TRUE,フィルタータブのドット色を求人バッジと統一（公開中:青/停止中:薄青）,fix/tab-color-consistency-12,2026-01-02,,
+12,提案,水野,低,windowsPC,11Pro, Google Chrome,https://s-work.netlify.app/admin/jobs,公開中や停止中のタブの色を求人とそろえた方が見やすい,完了,Claude,TRUE,フィルタータブのドット色を求人バッジと統一（公開中:青/停止中:薄青）,fix/tab-color-consistency-12,2026-01-02,,
 40,バグ,伊藤,低,iPhone 16e,iOS18.4, Google Chrome,,メモ：ワーカーの新規登録画面で、フリガナはひらがなでも登録完了しました,,完了,川嶋,TRUE,,,,,,
 53,バグ,大東,緊急,iPhone 16e,ios26.2, Google Chrome,https://s-work.netlify.app/mypage/profile?returnUrl=%2Fjobs%2F244,マッチングが2日程チェックしたが、成立した日程が書いていないので2日程かどうかわからない,かどうか分からない,完了,川嶋,TRUE,,"仕事管理ページのデフォルトが「仕事の予定」になっているが、審査中のタブに気づかないことがあった。大東さんには、再読み込みしても表示されないか？審査中のタブはどうなっているかを確認
 iphoneで操作されていたということで、すでに一度仕事管理ページを表示していた場合に、キャッシュで仕事がない状態が表示されてしまっている可能性があります。
@@ -39,7 +40,8 @@ iphoneで操作されていたということで、すでに一度仕事管理�
 求人一覧 - SuspenseでスケルトンUIが正しく表示されるよう修正
 求人作成 - 当日4時間制限のタイムゾーンバグ修正
 お知らせ - 公開日最小日付のタイムゾーンバグ修正",承知しました。問題ないと思います,,
-9,提案,伊藤,普,iPhone 16e,iOS18.4, Google Chrome,"https://s-work.netlify.app/jobs/243",求人詳細ページ、責任者のコンテンツから下、余白がなく左に寄りすぎ,,,,TRUE,「申込条件」セクションヘッダーを追加し視覚的な区切りを明確化。,fix/job-detail-padding-9,2026-01-01,,,
+9,提案,伊藤,普,iPhone 16e,iOS18.4, Google Chrome,"https://s-work.netlify.app/jobs/243
+",求人詳細ページ、責任者のコンテンツから下、余白がなく左に寄りすぎ,完了,Claude,TRUE,「申込条件」セクションヘッダーを追加し視覚的な区切りを明確化。,fix/job-detail-padding-9, 2026-01-02,,,
 18,バグ,竹上,,,,,,施設管理画面で担当者顔写真がアップできずに進めない,,完了,川嶋,TRUE,,"システム管理ページから、施設ページにいき、施設管理より、一度510KB程度のjpg画像をアップロードは問題なし。
 その後、別のページを表示してから、7mb程度のpng画像をアップロードしたところ、エラー。
 アップロード
@@ -74,7 +76,7 @@ Unexpected token 'I', ""Internal E""... is not valid JSON
 ご利用ガイド（最大100MB対応） (app/system-admin/content/user-guide/page.tsx)
 
 以上",承知しました。vercelに移行する際も問題がないと思うので良いのではないかと。,,
-27,提案,伊藤,普,windowsPC,, Google Chrome,https://s-work.netlify.app/admin/jobs,施設管理画面で、ログインアカウント名は出るが、施設名や法人名もヘッダー等に表示してほしい。複数施設を管理される担当者様もいると思います。,,,,TRUE,サイドバー上部ヘッダーに施設名を青色で表示。折りたたみ時もツールチップで表示。,fix/facility-name-header-27,2026-01-02,,
+27,提案,伊藤,普,windowsPC,, Google Chrome,https://s-work.netlify.app/admin/jobs,施設管理画面で、ログインアカウント名は出るが、施設名や法人名もヘッダー等に表示してほしい。複数施設を管理される担当者様もいると思います。,完了,Claude,TRUE,サイドバー上部ヘッダーに施設名を青色で表示。折りたたみ時もツールチップで表示。,fix/facility-name-header-27,2026-01-02,,
 38,提案,伊藤,高,iPhone 16e,iOS18.4, Google Chrome,,ワーカーの新規登録画面で、メールアドレスの有効性の確認ステップがありません。誤入力の可能性もあります。,,完了,川嶋,TRUE,PR #18,メールアドレス確認入力欄（二重入力）を追加。リアルタイムで一致/不一致を表示。送信時にも一致確認バリデーション追加。,fix/email-validation-38,2026-01-01
 30,,一郎,普,,,,,各種必須項目ありの登録ページで、必須項目が足りていない場合、どこか視覚的にわかるようにしてほしい,,完了,川嶋,TRUE,,,UIを最新のものに変更。トースト通知だけでなく、赤枠をつけた,,,
 45,提案,伊藤,普,iPhone 16e,iOS18.4, Google Chrome,,ワーカー：新しいパスワードを設定で、古いパスワードと同じものを設定しようとすると「無効なトークンです」と表示されます。過去のパスワードの再設定がＮＧなのであれば、そのような内容を表示してほしい,,完了,川嶋,TRUE,PR #21,resetPassword関数に現在のパスワードとの比較チェックを追加。同じパスワードの場合は明確なエラーメッセージ「現在のパスワードと同じパスワードは使用できません」を表示,src/lib/actions/auth.ts,fix/password-reset-error-45,2026-01-01
@@ -99,18 +101,18 @@ if (workDatesToCheck.includes(todayStr) && formData.startTime) {
 当日を勤務日に含む場合のみチェック
 開始時刻が「現在時刻+4時間」より前ならエラー表示
 作成モード・編集モード両方に対応",こちら承知しました。問題ないと思います。,,
-16,提案,水野,普,iPhone SE,iOS17.6.1, Google Chrome,https://s-work.netlify.app/my-jobs,交通費が0円の時に画面いっぱいに表示されているので、金額が入ったときの見え方を確認したい,,,,TRUE,交通費が0円の場合「なし」と表示するよう改善,fix/transportation-fee-display-16,2026-01-02,,
+16,提案,水野,普,iPhone SE,iOS17.6.1, Google Chrome,https://s-work.netlify.app/my-jobs,交通費が0円の時に画面いっぱいに表示されているので、金額が入ったときの見え方を確認したい,完了,Claude,TRUE,交通費が0円の場合「なし」と表示するよう改善,fix/transportation-fee-display-16,2026-01-02,,
 28,提案,水野,普,windowsPC,11Pro, Google Chrome,https://s-work.netlify.app/admin/jobs/new,業務設定と仕事詳細のテンプレがリンクすると求人の作成がしやすい,,,,FALSE,,,,,,
-36,提案,水野,普,windowsPC,11Pro, Google Chrome,,求人プレビューページが全体的に左に寄っている,,,,TRUE,JobDetailClientにmax-w-lg mx-autoを追加し中央配置,fix/job-preview-alignment-36,2026-01-02,,
+36,提案,水野,普,windowsPC,11Pro, Google Chrome,,求人プレビューページが全体的に左に寄っている,完了,Claude,TRUE,JobDetailClientにmax-w-lg mx-autoを追加し中央配置,fix/job-preview-alignment-36,2026-01-02,,
 60,バグ,竹上,,,,,,ワーカー画面で、メッセージ機能で送ったメッセージがほかのページに遷移した後にもう一度メッセージ機能に戻ると消えていた。施設管理画面のメッセージの方には残っている,,完了,川嶋,TRUE,,,,,,
-61,提案,水野,普,windowsPC,11Pro, Google Chrome,https://s-work.netlify.app/messages,不採用通知,マッチングの場合はメッセージが来るが、不採用の場合は来ないのが不親切かも,,,TRUE,APPLIED→CANCELLED時に不採用通知（チャット+メール）を送信,fix/rejection-notification-61,2026-01-02,,
-63,提案,水野,普,windowsPC,11Pro, Google Chrome,https://s-work.netlify.app/admin/applications,審査あり求人への応募者の採用に関して,審査あり求人の応募者を不採用にする際は一度押下した後確認のポップアップがでるが、マッチングの場合はそれがなく即マッチングとなる,,,TRUE,審査あり求人の採用ボタンに確認ダイアログを追加,fix/interview-job-match-confirm-63,2026-01-02,,
+61,提案,水野,普,windowsPC,11Pro, Google Chrome,https://s-work.netlify.app/messages,不採用通知,マッチングの場合はメッセージが来るが、不採用の場合は来ないのが不親切かも,完了,Claude,TRUE,APPLIED→CANCELLED時に不採用通知（チャット+メール）を送信,fix/rejection-notification-61,2026-01-02,,
+63,提案,水野,普,windowsPC,11Pro, Google Chrome,https://s-work.netlify.app/admin/applications,審査あり求人への応募者の採用に関して,審査あり求人の応募者を不採用にする際は一度押下した後確認のポップアップがでるが、マッチングの場合はそれがなく即マッチングとなる,完了,Claude,TRUE,審査あり求人の採用ボタンに確認ダイアログを追加,fix/interview-job-match-confirm-63,2026-01-02,,
 7,提案,大東,普,windowsPC,11Pro, Google Chrome,https://s-work.netlify.app/admin/jobs/new,"施設管理　給与　時給が1200がコンマがない1,200に変更？",,完了,川嶋,TRUE,PR #25,時給入力欄の下にコンマ付きフォーマット表示（¥1,200）を追加。リアルタイムで更新される。,components/admin/JobForm.tsx components/admin/JobTemplateForm.tsx,fix/salary-comma-format-7,2026-01-02
-32,提案,大東,普,iPhone 16e,ios26.2, Google Chrome,https://s-work.netlify.app/register/worker,経験を複数入れる際に、追加＋のようなボタンがあれば分かりやすい,,,,TRUE,経験分野ラベル下に「※複数選択できます」の説明を追加,fix/experience-add-button-32,2026-01-02,,
+32,提案,大東,普,iPhone 16e,ios26.2, Google Chrome,https://s-work.netlify.app/register/worker,経験を複数入れる際に、追加＋のようなボタンがあれば分かりやすい,完了,Claude,TRUE,経験分野ラベル下に「※複数選択できます」の説明を追加,fix/experience-add-button-32,2026-01-02,,
 42,提案,大東,普,iPhone 16e,ios26.2, Google Chrome,https://s-work.netlify.app/mypage/profile?returnUrl=%2Fjobs%2F244,希望開始時刻、希望終了時刻が不要？,入れるなら希望シフト（日勤のみ、夜勤のみ、フル勤務）,,,FALSE,,,,,,
-47,提案,大東,普,iPhone 16e,ios26.2, Google Chrome,https://s-work.netlify.app/mypage/profile?returnUrl=%2Fjobs%2F244,緊急連絡先は必須にしない,,,,TRUE,緊急連絡先を任意項目に変更（バリデーション削除・UI更新）,fix/optional-emergency-contact-47,2026-01-02,,
-57,提案,大東,普,iPhone 16e,ios26.2, Google Chrome,https://s-work.netlify.app/mypage/profile?returnUrl=%2Fjobs%2F244,応募完了後、メッセージ画面から、お仕事詳細ページにとぶURLは、同じタブ上で進めたい,,,,TRUE,内部リンク検出regex拡張（/my-jobs/も対象に）・同じタブで遷移,fix/message-job-link-same-tab-57,2026-01-02,,
-29,提案,鈴木,普,windowsPC,, Google Chrome,https://s-work.netlify.app/admin/shifts,,休憩時間が入力されていません,,,TRUE,シフト詳細モーダルに休憩時間を表示（未入力の場合は警告表示）,fix/shift-break-time-display-29,2026-01-02,,
+47,提案,大東,普,iPhone 16e,ios26.2, Google Chrome,https://s-work.netlify.app/mypage/profile?returnUrl=%2Fjobs%2F244,緊急連絡先は必須にしない,完了,Claude,TRUE,緊急連絡先を任意項目に変更（バリデーション削除・UI更新）,fix/optional-emergency-contact-47,2026-01-02,,
+57,提案,大東,普,iPhone 16e,ios26.2, Google Chrome,https://s-work.netlify.app/mypage/profile?returnUrl=%2Fjobs%2F244,応募完了後、メッセージ画面から、お仕事詳細ページにとぶURLは、同じタブ上で進めたい,完了,Claude,TRUE,内部リンク検出regex拡張（/my-jobs/も対象に）・同じタブで遷移,fix/message-job-link-same-tab-57,2026-01-02,,
+29,提案,鈴木,普,windowsPC,, Google Chrome,https://s-work.netlify.app/admin/shifts,,休憩時間が入力されていません,完了,Claude,TRUE,シフト詳細モーダルに休憩時間を表示（未入力の場合は警告表示）,fix/shift-break-time-display-29,2026-01-02,,
 43,バグ,伊藤,普,iPhone 16e,iOS18.4, Google Chrome,,パスワードリセットのメールが送信されない（受信を確認できませんでした）,,後日対応,,FALSE,,メールソフトの設定で解消見込み,,,,
 8,提案,竹上,,,,,,「限定」「指名」の工事中のページから、ページ内の戻る矢印を押すとマイページに戻る,,,,FALSE,,,,,,
 11,提案,竹上,,,,,,求人一覧画面で出てくる「締切りまで締切済み」の意味がわからない,,,,FALSE,,,,,,
