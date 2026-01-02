@@ -309,7 +309,11 @@ export default function MyJobsPage() {
                     <span className="text-gray-300">|</span>
                     <div className="flex items-center gap-0.5 text-gray-600">
                       <span>交通費</span>
-                      <span className="font-medium">¥{app.job.transportation_fee.toLocaleString()}</span>
+                      <span className="font-medium">
+                        {app.job.transportation_fee > 0
+                          ? `¥${app.job.transportation_fee.toLocaleString()}`
+                          : 'なし'}
+                      </span>
                     </div>
                     <span className="text-gray-300">|</span>
                     <div className="flex items-center gap-0.5 text-primary">
