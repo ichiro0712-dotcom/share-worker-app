@@ -403,6 +403,54 @@ export async function sendReviewRequestNotification(
 }
 
 /**
+ * 施設向けレビュー依頼通知を送信
+ * ワーカーの勤務完了時に施設へレビュー依頼を送信
+ */
+export async function sendFacilityReviewRequestNotification(
+    facilityId: number,
+    workerName: string,
+    jobTitle: string,
+    applicationId: number
+) {
+    try {
+        const facility = await prisma.facility.findUnique({
+            where: { id: facilityId },
+            select: { facility_name: true },
+        });
+        if (!facility) return null;
+
+        const facilityAdmins = await prisma.facilityAdmin.findMany({
+            where: { facility_id: facilityId },
+            select: { id: true, name: true, email: true },
+        });
+        if (facilityAdmins.length === 0) return null;
+
+        const facilityEmails = facilityAdmins.map(admin => admin.email);
+        const primaryAdmin = facilityAdmins[0];
+
+        await sendNotification({
+            notificationKey: 'FACILITY_REVIEW_REQUEST',
+            targetType: 'FACILITY',
+            recipientId: primaryAdmin.id,
+            recipientName: primaryAdmin.name,
+            facilityEmails,
+            applicationId,
+            variables: {
+                facility_name: facility.facility_name,
+                worker_name: workerName,
+                job_title: jobTitle,
+                review_url: `${process.env.NEXTAUTH_URL || 'https://tastas.jp'}/admin/reviews`,
+            },
+        });
+
+        return { success: true };
+    } catch (error) {
+        console.error('[sendFacilityReviewRequestNotification] Error:', error);
+        return null;
+    }
+}
+
+/**
  * 応募キャンセル通知を送信（ワーカー宛）
  * 施設がマッチング済み応募をキャンセルした場合に送信
  */
@@ -449,16 +497,86 @@ export async function sendCancelNotification(
 
 /**
  * レビュー受信通知を送信（施設宛）
- * 注: 現在のNotificationモデルはuser_idのみ対応。施設向け通知は将来実装予定
+ * ワーカーがレビューを投稿した時に施設へ通知
  */
 export async function sendReviewReceivedNotificationToFacility(
-    _facilityId: number,
-    _workerName: string,
+    facilityId: number,
+    workerName: string,
     _rating: number
 ) {
-    // TODO: 施設向け通知機能を実装する
-    console.log('[sendReviewReceivedNotificationToFacility] Facility notifications not yet implemented');
-    return null;
+    try {
+        // 施設情報を取得
+        const facility = await prisma.facility.findUnique({
+            where: { id: facilityId },
+            select: { facility_name: true },
+        });
+
+        if (!facility) return null;
+
+        // 施設管理者のメールアドレスを取得
+        const facilityAdmins = await prisma.facilityAdmin.findMany({
+            where: { facility_id: facilityId },
+            select: { id: true, name: true, email: true },
+        });
+
+        if (facilityAdmins.length === 0) return null;
+
+        const facilityEmails = facilityAdmins.map(admin => admin.email);
+        const primaryAdmin = facilityAdmins[0];
+
+        await sendNotification({
+            notificationKey: 'FACILITY_REVIEW_RECEIVED',
+            targetType: 'FACILITY',
+            recipientId: primaryAdmin.id,
+            recipientName: primaryAdmin.name,
+            facilityEmails,
+            variables: {
+                facility_name: facility.facility_name,
+                worker_name: workerName,
+            },
+        });
+
+        return { success: true };
+    } catch (error) {
+        console.error('[sendReviewReceivedNotificationToFacility] Error:', error);
+        return null;
+    }
+}
+
+/**
+ * レビュー受信通知を送信（ワーカー宛）
+ * 施設がレビューを投稿した時にワーカーへ通知
+ */
+export async function sendReviewReceivedNotificationToWorker(
+    userId: number,
+    facilityName: string
+) {
+    try {
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { name: true, email: true },
+        });
+
+        if (!user) return null;
+
+        await sendNotification({
+            notificationKey: 'WORKER_REVIEW_RECEIVED',
+            targetType: 'WORKER',
+            recipientId: userId,
+            recipientName: user.name,
+            recipientEmail: user.email,
+            variables: {
+                worker_name: user.name,
+                facility_name: facilityName,
+                review_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://tastas.jp'}/mypage/reviews`,
+            },
+        });
+
+        return { success: true };
+    } catch (error) {
+        console.error('[sendReviewReceivedNotificationToWorker] Error:', error);
+        return null;
+    }
 }
 
 /**
