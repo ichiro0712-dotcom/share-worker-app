@@ -973,6 +973,37 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
         if (!formData.recruitmentCount || formData.recruitmentCount <= 0) errors.push('募集人数は必須です');
         if (formData.qualifications.length === 0) errors.push('必要な資格を選択してください');
 
+        // 勤務時間（拘束時間）に応じた休憩時間チェック（労働基準法準拠）
+        if (formData.startTime && formData.endTime) {
+            const parseTimeForValidation = (time: string) => {
+                const isNextDay = time.startsWith('翌');
+                const timePart = isNextDay ? time.slice(1) : time;
+                const [hour, min] = timePart.split(':').map(Number);
+                return { hour, min, isNextDay };
+            };
+
+            const start = parseTimeForValidation(formData.startTime);
+            const end = parseTimeForValidation(formData.endTime);
+
+            const startMinutes = start.hour * 60 + start.min;
+            let endMinutes = end.hour * 60 + end.min;
+            if (end.isNextDay) {
+                endMinutes += 24 * 60;
+            }
+
+            let grossMinutes = endMinutes - startMinutes;
+            if (grossMinutes < 0) grossMinutes += 24 * 60;
+
+            // 8時間（480分）を超える勤務 → 60分以上の休憩が必要
+            if (grossMinutes > 480 && formData.breakTime < 60) {
+                errors.push('8時間を超える勤務の場合、休憩時間は60分以上必要です');
+            }
+            // 6時間（360分）を超える勤務 → 45分以上の休憩が必要
+            else if (grossMinutes > 360 && formData.breakTime < 45) {
+                errors.push('6時間を超える勤務の場合、休憩時間は45分以上必要です');
+            }
+        }
+
         // 限定求人の対象者チェック
         if (formData.jobType === 'LIMITED_WORKED' && limitedJobTargetCounts.workedCount === 0) {
             errors.push('限定求人（勤務済みの方）を作成するには、過去に勤務完了したワーカーが必要です');
