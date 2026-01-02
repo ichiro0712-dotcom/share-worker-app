@@ -24,6 +24,7 @@ export default function WorkerLogin() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [isEmailNotVerified, setIsEmailNotVerified] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [testUsers, setTestUsers] = useState<TestUser[]>([]);
 
@@ -35,6 +36,7 @@ export default function WorkerLogin() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setIsEmailNotVerified(false);
 
     if (!email || !password) {
       setError('メールアドレスとパスワードを入力してください');
@@ -51,13 +53,19 @@ export default function WorkerLogin() {
         router.push('/');
         router.refresh();
       } else {
-        showDebugError({
-          type: 'other',
-          operation: 'ログイン',
-          message: result.error || 'ログインに失敗しました',
-          context: { email }
-        });
-        setError(result.error || 'ログインに失敗しました');
+        // メール未認証エラーの場合
+        if (result.error?.includes('EMAIL_NOT_VERIFIED')) {
+          setIsEmailNotVerified(true);
+          setError('メールアドレスが認証されていません。登録時に送信された確認メールのリンクをクリックしてください。');
+        } else {
+          showDebugError({
+            type: 'other',
+            operation: 'ログイン',
+            message: result.error || 'ログインに失敗しました',
+            context: { email }
+          });
+          setError(result.error || 'ログインに失敗しました');
+        }
       }
     } catch (err) {
       const debugInfo = extractDebugInfo(err);
@@ -103,7 +111,15 @@ export default function WorkerLogin() {
 
           {error && (
             <div className="mb-4 p-3 bg-white/90 border border-red-200 rounded-lg text-red-700 text-sm">
-              {error}
+              <p>{error}</p>
+              {isEmailNotVerified && (
+                <Link
+                  href={`/auth/resend-verification?email=${encodeURIComponent(email)}`}
+                  className="mt-2 block text-primary font-medium hover:underline"
+                >
+                  確認メールを再送信する
+                </Link>
+              )}
             </div>
           )}
 
