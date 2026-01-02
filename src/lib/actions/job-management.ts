@@ -5,6 +5,7 @@ import { revalidatePath, revalidateTag } from 'next/cache';
 import { getCurrentTime } from '@/utils/debugTime';
 import { sendNearbyJobNotifications } from '../notification-service';
 import { CreateJobInput } from './helpers';
+import { sendFavoriteNewJobNotification } from './notification';
 
 /**
  * ローカル用の日付フォーマット関数 (M/D形式)
@@ -580,6 +581,12 @@ export async function createJobs(input: CreateJobInput) {
         // 通常の求人の場合は近くのワーカーに通知
         sendNearbyJobNotifications(job.id, 'WORKER_NEARBY_NEW_JOB')
             .catch(e => console.error('[createJobs] Nearby notification error:', e));
+    }
+
+    // 通常求人・説明会の場合、お気に入りワーカーに通知
+    if (dbJobType === 'NORMAL' || dbJobType === 'ORIENTATION') {
+        sendFavoriteNewJobNotification(input.facilityId, facility.facility_name, job.id)
+            .catch(e => console.error('[createJobs] Favorite notification error:', e));
     }
 
     return { success: true, jobId: job.id };
