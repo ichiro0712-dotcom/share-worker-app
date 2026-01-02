@@ -104,7 +104,7 @@ if (workDatesToCheck.includes(todayStr) && formData.startTime) {
 36,提案,水野,普,windowsPC,11Pro, Google Chrome,,求人プレビューページが全体的に左に寄っている,,,,TRUE,JobDetailClientにmax-w-lg mx-autoを追加し中央配置,fix/job-preview-alignment-36,2026-01-02,,
 60,バグ,竹上,,,,,,ワーカー画面で、メッセージ機能で送ったメッセージがほかのページに遷移した後にもう一度メッセージ機能に戻ると消えていた。施設管理画面のメッセージの方には残っている,,完了,川嶋,TRUE,,,,,,
 61,提案,水野,普,windowsPC,11Pro, Google Chrome,https://s-work.netlify.app/messages,不採用通知,マッチングの場合はメッセージが来るが、不採用の場合は来ないのが不親切かも,,,TRUE,APPLIED→CANCELLED時に不採用通知（チャット+メール）を送信,fix/rejection-notification-61,2026-01-02,,
-63,提案,水野,普,windowsPC,11Pro, Google Chrome,https://s-work.netlify.app/admin/applications,審査あり求人への応募者の採用に関して,審査あり求人の応募者を不採用にする際は一度押下した後確認のポップアップがでるが、マッチングの場合はそれがなく即マッチングとなる,,,FALSE,,,,,,
+63,提案,水野,普,windowsPC,11Pro, Google Chrome,https://s-work.netlify.app/admin/applications,審査あり求人への応募者の採用に関して,審査あり求人の応募者を不採用にする際は一度押下した後確認のポップアップがでるが、マッチングの場合はそれがなく即マッチングとなる,,,TRUE,審査あり求人の採用ボタンに確認ダイアログを追加,fix/interview-job-match-confirm-63,2026-01-02,,
 7,提案,大東,普,windowsPC,11Pro, Google Chrome,https://s-work.netlify.app/admin/jobs/new,"施設管理　給与　時給が1200がコンマがない1,200に変更？",,完了,川嶋,TRUE,PR #25,時給入力欄の下にコンマ付きフォーマット表示（¥1,200）を追加。リアルタイムで更新される。,components/admin/JobForm.tsx components/admin/JobTemplateForm.tsx,fix/salary-comma-format-7,2026-01-02
 32,提案,大東,普,iPhone 16e,ios26.2, Google Chrome,https://s-work.netlify.app/register/worker,経験を複数入れる際に、追加＋のようなボタンがあれば分かりやすい,,,,TRUE,経験分野ラベル下に「※複数選択できます」の説明を追加,fix/experience-add-button-32,2026-01-02,,
 42,提案,大東,普,iPhone 16e,ios26.2, Google Chrome,https://s-work.netlify.app/mypage/profile?returnUrl=%2Fjobs%2F244,希望開始時刻、希望終了時刻が不要？,入れるなら希望シフト（日勤のみ、夜勤のみ、フル勤務）,,,FALSE,,,,,,
@@ -123,7 +123,7 @@ if (workDatesToCheck.includes(todayStr) && formData.startTime) {
 31,バグ,竹上,,,,,,,求人を公開するボタンを押したが、「保存に失敗しました」となる,再現できず,,FALSE,,"ひかり介護センター
 テンプレートを　テスト12/20　にし、
 TOP画像を閉じて、サイズオーバーの7mbの画像をアップロードしようとしたところエラーになりました。作成していた求人が丸ごと消えてしまうので、公開するボタンを押した時、またはアップロード時にエラーチェックをすればいいと思います。　アップロードできる画像の種類も明記があると良いと思いました。",画像アップロードでエラーになった際に、理由を通知するように修正した,,こちらはアップロードする箇所全体の対応で問題ないでしょうか。,
-52,提案,竹上,,,,,,新規ワーカー登録で、必須項目に入力していないと登録ができないが何もエラーメッセージが出てこない,,,,,,,,,,
+52,提案,竹上,,,,,,新規ワーカー登録で、必須項目に入力していないと登録ができないが何もエラーメッセージが出てこない,#50で対応済み：showErrorsステートを使用した赤枠+テキストエラー表示を実装済み,完了,Claude,TRUE,#50で対応済み,送信ボタン押下時にshowErrors=trueになり各フィールドにエラー表示,,2026-01-02,,
 49,バグ,竹上,,,,,,システム管理から求人作成をしようとすると、求人の公開ボタンを押した後に作成ができない,,対応・未チェック,川嶋,TRUE,,"作成後、コンソールエラー
 contact?_rsc=4aoi7:1  Failed to load resource: the server responded with a status of 404 ()
 
@@ -149,7 +149,7 @@ contact?_rsc=4aoi7:1  Failed to load resource: the server responded with a statu
 10,バグ,水野,普,windowsPC,11Pro, Google Chrome,https://s-work.netlify.app/admin/workers/1,トーク画面を開いたままだと新規メッセージを受信しない,メッセージ自体は来ているのでリロードすれば表示される,要ヒアリング,,FALSE,,,リアルタイム確認を入れると処理が重くなるため、原稿のままいこうとおもうがどうか,,リアルタイム確認確かに重くなりますが、表示中に、10秒に1回とか5秒に1回確認させるとかでしたら軽く表示できるかもです。,
 39,,,,,,,,経験の入力方法を改善したい,例えば3施設での経験がある場合、特養、有料、GHのすべてにチェックをして、それぞれの経験年数を入れていくのは分かりにくい。経験①有料→年数を入力し、2つ目を入力したい場合は⊕ボタンから入力欄を追加していける方が分かりやすいのではないか,要ヒアリング,,FALSE,,,資格が多くUIが複雑になりそう。コメントで資格書の写真を必ず添付するように明記したがどうか,,こちらはキャリアさん側ともご相談と思います,
 72,バグ,一郎,緊急,,,,http://localhost:3000/admin/jobs,求人管理、応募管理のソートがおかしい。仕様を確認し正しいステータスを表示するように,,完了,Claude,TRUE,PR #16,Phase1: 求人管理ページにソート機能追加。Phase2: 応募管理・求人ビューにソート機能追加。ソートオプション: 作成日順、応募数順、未確認応募順、勤務日順,fix/sort-function,2026-01-01,,
-73,バグ,竹上,,iPhone SE,iOS18.4, Google Chrome,,ワーカーの新規登録で、名前のフリガナを打とうとすると、打っていない文字が勝手に入力される,,,,FALSE,,,,,,
+73,バグ,竹上,,iPhone SE,iOS18.4, Google Chrome,,ワーカーの新規登録で、名前のフリガナを打とうとすると、打っていない文字が勝手に入力される,KatakanaInputコンポーネントを作成しIME入力中は変換処理をスキップするよう修正,完了,Claude,TRUE,PR #45,iOS IME composition対応,fix/furigana-input-issue-73,2026-01-02,,
 74,,,,,,,,,,,,FALSE,,,,,,
 75,,,,,,,,,,,,FALSE,,,,,,
 76,,,,,,,,,,,,FALSE,,,,,,
