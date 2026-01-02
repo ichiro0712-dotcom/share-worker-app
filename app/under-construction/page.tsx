@@ -1,12 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
 export default function UnderConstruction() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const page = searchParams.get('page') || 'このページ';
 
   const pageNames: Record<string, string> = {
@@ -20,14 +21,23 @@ export default function UnderConstruction() {
 
   const pageName = pageNames[page] || page;
 
+  const handleBack = () => {
+    // ブラウザ履歴がある場合は戻る、なければホームへ
+    if (window.history.length > 1) {
+      router.back();
+    } else {
+      router.push('/');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white">
       {/* ヘッダー */}
       <div className="sticky top-0 bg-white border-b border-gray-200">
         <div className="px-4 py-3 flex items-center">
-          <Link href="/mypage">
+          <button onClick={handleBack} className="p-1 -ml-1">
             <ChevronLeft className="w-6 h-6" />
-          </Link>
+          </button>
           <h1 className="flex-1 text-center text-lg">{pageName}</h1>
           <div className="w-6" />
         </div>
