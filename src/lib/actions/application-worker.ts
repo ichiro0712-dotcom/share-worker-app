@@ -10,6 +10,7 @@ import {
     sendApplicationNotificationMultiple,
 } from './notification';
 import { sendNearbyJobNotifications, sendNotification } from '../notification-service';
+import { updateApplicationStatuses } from '../status-updater';
 
 /**
  * ユーザーが応募した仕事の一覧を取得
@@ -18,6 +19,9 @@ export async function getMyApplications(options?: { limit?: number; offset?: num
     try {
         const user = await getAuthenticatedUser();
         console.log('[getMyApplications] Fetching applications for user:', user.id);
+
+        // アクセス時にステータスをリアルタイム更新
+        await updateApplicationStatuses({ userId: user.id });
 
         const limit = options?.limit ?? 50; // デフォルト50件
         const offset = options?.offset ?? 0;

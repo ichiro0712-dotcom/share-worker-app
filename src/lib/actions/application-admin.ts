@@ -12,6 +12,7 @@ import {
 } from './notification';
 import { sendNotification } from '../notification-service';
 import { getAuthenticatedUser } from './helpers';
+import { updateApplicationStatuses } from '../status-updater';
 
 /**
  * 施設管理用: 施設に届いた応募一覧を取得
@@ -19,6 +20,9 @@ import { getAuthenticatedUser } from './helpers';
 export async function getFacilityApplications(facilityId: number) {
     try {
         console.log('[getFacilityApplications] Fetching applications for facility:', facilityId);
+
+        // アクセス時にステータスをリアルタイム更新
+        await updateApplicationStatuses({ facilityId });
 
         const applications = await prisma.application.findMany({
             where: {
