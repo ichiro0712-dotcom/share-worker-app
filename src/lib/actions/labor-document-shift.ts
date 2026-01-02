@@ -252,6 +252,7 @@ export async function getShiftsForFacility(
     workDate: Date;
     startTime: string;
     endTime: string;
+    breakTime: number | null;
     hourlyRate: number;
     transportationFee: number;
     workerId: number;
@@ -297,6 +298,7 @@ export async function getShiftsForFacility(
                                 transportation_fee: true,
                                 start_time: true,
                                 end_time: true,
+                                break_time: true,
                                 weekly_frequency: true,
                                 job_type: true,
                             },
@@ -317,6 +319,11 @@ export async function getShiftsForFacility(
             workDate: app.workDate.work_date,
             startTime: app.workDate.job.start_time,
             endTime: app.workDate.job.end_time,
+            breakTime: app.workDate.job.break_time
+                ? (typeof app.workDate.job.break_time === 'string'
+                    ? parseInt(app.workDate.job.break_time, 10)
+                    : app.workDate.job.break_time)
+                : null,
             hourlyRate: app.workDate.job.hourly_wage,
             transportationFee: app.workDate.job.transportation_fee,
             workerId: app.user.id,

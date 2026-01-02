@@ -27,6 +27,7 @@ interface Shift {
     workDate: Date;
     startTime: string;
     endTime: string;
+    breakTime: number | null;
     hourlyRate: number;
     transportationFee: number;
     workerId: number;
@@ -568,6 +569,11 @@ export default function ShiftManagementPage() {
                                             <p className="text-xs text-gray-500">勤務時間</p>
                                             <p className="font-medium text-gray-900">
                                                 {selectedShift.startTime} 〜 {selectedShift.endTime}
+                                                <span className="ml-2 text-sm text-gray-500">
+                                                    （休憩: {selectedShift.breakTime != null && selectedShift.breakTime > 0
+                                                        ? `${selectedShift.breakTime}分`
+                                                        : <span className="text-amber-600">未入力</span>}）
+                                                </span>
                                             </p>
                                         </div>
                                     </div>
