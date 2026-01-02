@@ -8,6 +8,7 @@ import {
     sendReviewRequestNotification,
     sendCancelNotification,
     sendFacilityReviewRequestNotification,
+    sendSlotsFilled,
 } from './notification';
 import { sendNotification } from '../notification-service';
 import { getAuthenticatedUser } from './helpers';
@@ -259,6 +260,26 @@ export async function updateApplicationStatus(
                     content: matchingConfirmMessage,
                 },
             });
+
+            // 枠が埋まったかチェック
+            const workDateData = await prisma.jobWorkDate.findUnique({
+                where: { id: application.work_date_id },
+                select: { recruitment_count: true },
+            });
+            const scheduledCount = await prisma.application.count({
+                where: {
+                    work_date_id: application.work_date_id,
+                    status: { in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'] },
+                },
+            });
+            if (workDateData && scheduledCount >= workDateData.recruitment_count) {
+                const workDateStr = application.workDate.work_date.toISOString().split('T')[0];
+                await sendSlotsFilled(
+                    facilityId,
+                    application.workDate.job.title,
+                    workDateStr
+                );
+            }
         }
 
         if (newStatus === 'COMPLETED_PENDING') {
