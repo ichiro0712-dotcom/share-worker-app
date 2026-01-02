@@ -214,7 +214,8 @@ export async function updateApplicationStatus(
                     workDate: application.workDate.work_date,
                     startTime: application.workDate.job.start_time,
                     endTime: application.workDate.job.end_time,
-                }
+                },
+                application.workDate.job.requires_interview // 審査あり求人フラグ
             );
 
             const workDate = new Date(application.workDate.work_date);

@@ -155,6 +155,7 @@ export async function markAllFacilityNotificationsAsRead(_facilityId: number) {
 
 /**
  * マッチング成立通知を送信（ワーカー宛）
+ * @param isInterviewJob - 審査あり求人の場合true（WORKER_INTERVIEW_ACCEPTEDを使用）
  */
 export async function sendMatchingNotification(
     userId: number,
@@ -162,7 +163,8 @@ export async function sendMatchingNotification(
     facilityName: string,
     jobId: number,
     applicationId?: number,
-    workDateInfo?: { workDate: Date; startTime: string; endTime: string }
+    workDateInfo?: { workDate: Date; startTime: string; endTime: string },
+    isInterviewJob: boolean = false
 ) {
     // DB通知作成
     await createNotification({
@@ -196,8 +198,11 @@ export async function sendMatchingNotification(
             : '';
 
         // 通知サービス経由で送信
+        // 審査あり求人の場合はWORKER_INTERVIEW_ACCEPTED、それ以外はWORKER_MATCHED
+        const notificationKey = isInterviewJob ? 'WORKER_INTERVIEW_ACCEPTED' : 'WORKER_MATCHED';
+
         await sendNotification({
-            notificationKey: 'WORKER_MATCHED',
+            notificationKey,
             targetType: 'WORKER',
             recipientId: userId,
             recipientName: user.name,
