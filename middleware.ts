@@ -23,6 +23,7 @@ const ignoredPaths = [
   '/api/auth',
   '/api/admin',
   '/api/debug', // デバッグ用API
+  '/api/dev', // 開発用API（テストメール送信など）
   '/api/error-messages', // エラーメッセージ設定（認証不要）
   '/rogo', // ロゴ画像
   '/images', // 画像ファイル
