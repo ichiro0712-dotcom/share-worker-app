@@ -546,7 +546,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
             ? 'bg-red-500 text-white'
             : 'bg-gray-300 text-gray-800'
             }`}>
-            締切まで{getDeadlineText(job.deadline)}
+            {getDeadlineText(job.deadline) === '締切済み' ? '募集終了' : `締切まで${getDeadlineText(job.deadline)}`}
           </span>
           <Badge variant="red">
             募集人数 {job.appliedCount}/{job.recruitmentCount}人

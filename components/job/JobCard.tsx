@@ -209,7 +209,7 @@ const JobCardComponent: React.FC<JobCardProps> = ({ job, facility, selectedDate,
                 ? 'bg-red-500 text-white'
                 : 'bg-gray-300 text-gray-800'
                 }`}>
-                締切まで{deadlineText}
+                {deadlineText === '締切済み' ? '募集終了' : `締切まで${deadlineText}`}
               </span>
             </div>
 
@@ -328,7 +328,7 @@ const JobCardComponent: React.FC<JobCardProps> = ({ job, facility, selectedDate,
                 ? 'bg-red-500 text-white'
                 : 'bg-gray-300 text-gray-800'
                 }`}>
-                締切まで{deadlineText}
+                {deadlineText === '締切済み' ? '募集終了' : `締切まで${deadlineText}`}
               </span>
             </div>
 
