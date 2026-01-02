@@ -319,6 +319,39 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
         if (formData.qualifications.length === 0) errors.push('資格条件');
         if (formData.icons.length === 0) errors.push('アイコン');
 
+        // 勤務時間（拘束時間）に応じた休憩時間チェック（労働基準法準拠）
+        if (formData.startTime && formData.endTime) {
+            const parseTimeForValidation = (time: string) => {
+                const isNextDay = time.startsWith('翌');
+                const timePart = isNextDay ? time.slice(1) : time;
+                const [hour, min] = timePart.split(':').map(Number);
+                return { hour, min, isNextDay };
+            };
+
+            const start = parseTimeForValidation(formData.startTime);
+            const end = parseTimeForValidation(formData.endTime);
+
+            const startMinutes = start.hour * 60 + start.min;
+            let endMinutes = end.hour * 60 + end.min;
+            if (end.isNextDay) {
+                endMinutes += 24 * 60;
+            }
+
+            let grossMinutes = endMinutes - startMinutes;
+            if (grossMinutes < 0) grossMinutes += 24 * 60;
+
+            // 8時間（480分）を超える勤務 → 60分以上の休憩が必要
+            if (grossMinutes > 480 && formData.breakTime < 60) {
+                toast.error('8時間を超える勤務の場合、休憩時間は60分以上必要です');
+                return;
+            }
+            // 6時間（360分）を超える勤務 → 45分以上の休憩が必要
+            else if (grossMinutes > 360 && formData.breakTime < 45) {
+                toast.error('6時間を超える勤務の場合、休憩時間は45分以上必要です');
+                return;
+            }
+        }
+
         if (!admin?.facilityId) {
             toast.error('施設情報が取得できません');
             return;
