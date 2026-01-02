@@ -459,8 +459,8 @@ export default function MessagesClient({ initialConversations, userId }: Message
 
   // テキスト内のURLをリンクに変換する関数
   const renderContentWithLinks = (content: string, linkColorStyle: 'default' | 'light' = 'default') => {
-    // 外部URL、www、アプリ内パス（/jobs/123など）を検出
-    const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|\/jobs\/\d+)/g;
+    // 外部URL、www、アプリ内パス（/jobs/123, /my-jobs/123など）を検出
+    const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|\/(?:jobs|my-jobs)\/\d+)/g;
     const parts = content.split(urlRegex);
 
     const linkClassName = linkColorStyle === 'light'
