@@ -70,6 +70,13 @@ model User {
   /// メッセージスレッド
   messageThreads         MessageThread[]
 
+  /// メール認証済みフラグ
+  email_verified            Boolean        @default(false) @map("email_verified")
+  /// メール認証トークン
+  verification_token        String?        @map("verification_token")
+  /// 認証トークンの有効期限
+  verification_token_expires DateTime?     @map("verification_token_expires")
+
   is_suspended           Boolean        @default(false) @map("is_suspended")
   suspended_at           DateTime?      @map("suspended_at")
   /// 退会日時（nullなら退会していない）

@@ -25,6 +25,11 @@ export const authOptions: NextAuthOptions = {
           throw new Error('メールアドレスまたはパスワードが正しくありません');
         }
 
+        // メールアドレス未認証チェック
+        if (!user.email_verified) {
+          throw new Error('EMAIL_NOT_VERIFIED');
+        }
+
         // テストユーザーログイン用の特別パスワード（開発環境のみ）
         // パスワードがこの値の場合はハッシュチェックをスキップ
         const MAGIC_PASSWORD = process.env.NODE_ENV === 'production'
