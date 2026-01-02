@@ -447,11 +447,11 @@ export default function JobApplicationModal({
                                                                 {app.status === 'APPLIED' && onStatusUpdate && (
                                                                     <>
                                                                         <button
-                                                                            onClick={() => onStatusUpdate(app.id, 'SCHEDULED')}
+                                                                            onClick={() => onStatusUpdate(app.id, 'SCHEDULED', job.requiresInterview ? 'この応募を採用してマッチングしますか？' : undefined)}
                                                                             disabled={isUpdating === app.id}
                                                                             className="px-3 py-1.5 bg-admin-primary text-white text-xs font-medium rounded-admin-button hover:bg-admin-primary-dark transition-colors disabled:opacity-50"
                                                                         >
-                                                                            マッチング
+                                                                            {job.requiresInterview ? '採用' : 'マッチング'}
                                                                         </button>
                                                                         <button
                                                                             onClick={() => onStatusUpdate(app.id, 'CANCELLED', job.requiresInterview ? 'この応募を不採用にしますか？' : 'この応募をキャンセルしますか？')}
