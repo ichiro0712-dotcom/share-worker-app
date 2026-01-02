@@ -14,16 +14,17 @@ export type TestAccounts = {
 
 export const DEFAULT_TEST_ACCOUNTS: TestAccounts = {
   worker: {
-    email: 'tanaka@example.com',
-    password: 'password123',
+    email: process.env.TEST_WORKER_EMAIL || 'tanaka@example.com',
+    password: process.env.TEST_WORKER_PASSWORD || 'password123',
   },
   facilityAdmin: {
-    email: 'admin1@facility.com',
-    password: 'password123',
+    email: process.env.TEST_FACILITY_ADMIN_EMAIL || 'admin1@facility.com',
+    password: process.env.TEST_FACILITY_ADMIN_PASSWORD || 'password123',
   },
   systemAdmin: {
-    email: 'system-admin@example.com',
-    password: 'password123',
+    // シードスクリプト: admin@tastas.jp / password123
+    email: process.env.SYSTEM_ADMIN_EMAIL || 'admin@tastas.jp',
+    password: process.env.SYSTEM_ADMIN_PASSWORD || 'password123',
   },
 };
 
