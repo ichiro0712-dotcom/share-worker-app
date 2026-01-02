@@ -7,8 +7,9 @@ import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { compressImage, MAX_FILE_SIZE, formatFileSize } from '@/utils/fileValidation';
-import { formatKatakana, formatPhoneNumber, isValidEmail, isValidPhoneNumber, isKatakanaOnly } from '@/utils/inputValidation';
+import { formatPhoneNumber, isValidEmail, isValidPhoneNumber, isKatakanaOnly } from '@/utils/inputValidation';
 import AddressSelector from '@/components/ui/AddressSelector';
+import { KatakanaInput } from '@/components/ui/KatakanaInput';
 import { QUALIFICATION_GROUPS } from '@/constants/qualifications';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
@@ -389,16 +390,15 @@ export default function WorkerRegisterPage() {
                     <p className="text-red-500 text-xs mt-1">名を入力してください</p>
                   )}
                 </div>
-                {/* フリガナ（姓名の直後） */}
+                {/* フリガナ（姓名の直後） - iOS IME対応コンポーネント使用 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     セイ（フリガナ） <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
+                  <KatakanaInput
                     required
                     value={formData.lastNameKana}
-                    onChange={(e) => setFormData({ ...formData, lastNameKana: formatKatakana(e.target.value) })}
+                    onChange={(value) => setFormData({ ...formData, lastNameKana: value })}
                     className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.lastNameKana ? 'border-red-500 bg-red-50' : formData.lastNameKana && !isKatakanaOnly(formData.lastNameKana) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                     placeholder="ヤマダ"
                   />
@@ -414,11 +414,10 @@ export default function WorkerRegisterPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     メイ（フリガナ） <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
+                  <KatakanaInput
                     required
                     value={formData.firstNameKana}
-                    onChange={(e) => setFormData({ ...formData, firstNameKana: formatKatakana(e.target.value) })}
+                    onChange={(value) => setFormData({ ...formData, firstNameKana: value })}
                     className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.firstNameKana ? 'border-red-500 bg-red-50' : formData.firstNameKana && !isKatakanaOnly(formData.firstNameKana) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                     placeholder="タロウ"
                   />
