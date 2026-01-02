@@ -144,7 +144,7 @@ contact?_rsc=4aoi7:1  Failed to load resource: the server responded with a statu
 ・スケルトンUI - 即時表示で体感速度向上
 ・APIエンドポイント化 - クライアントから直接フェッチ",,66ばんと同様に問題ないと思います。しばらく動作確認します,
 69,バグ,,緊急,,,,,求人一覧の表示がうまくいかない,・遅い、応募できないはずの求人がまだ出てきたりする。逆に出てくるはずの求人がでてこなかったりする。時間が経ったり何度もハードリロードすると、なおったりする。,完了,,TRUE,サーバー変更とSWR導入で対応,他課題で全体的に速度対応をしている,,,
-71,その他,一郎,緊急,,,,,メール・通知周りの機能が実装されていない可能性がある。（チャットは一部確認済み）,,調査中,,FALSE,,,,,,
+71,その他,一郎,緊急,,,,,メール・通知周りの機能が実装されていない可能性がある。（チャットは一部確認済み）,,完了,Claude,TRUE,,"PR #46-53でResend連携・各種通知を実装完了。実装済み: WORKER_MATCHED, WORKER_INTERVIEW_ACCEPTED/REJECTED, WORKER_CANCELLED_BY_FACILITY, WORKER_REVIEW_REQUEST/RECEIVED, WORKER_FAVORITE_NEW_JOB, FACILITY_NEW_APPLICATION, FACILITY_CANCELLED_BY_WORKER, FACILITY_REVIEW_REQUEST/RECEIVED, FACILITY_SLOTS_FILLED, ADMIN_NEW_FACILITY, ADMIN_NEW_WORKER, ADMIN_HIGH_CANCEL_RATE, ADMIN_LOW_RATING_STREAK。Cron通知(リマインド系)もPR#52で実装完了",,,
 64,,一郎,緊急,,,,,限定・指名求人機能オープンまでに必須,,対応・未チェック,川嶋,FALSE,,,,,,
 10,バグ,水野,普,windowsPC,11Pro, Google Chrome,https://s-work.netlify.app/admin/workers/1,トーク画面を開いたままだと新規メッセージを受信しない,メッセージ自体は来ているのでリロードすれば表示される,要ヒアリング,,FALSE,,,リアルタイム確認を入れると処理が重くなるため、原稿のままいこうとおもうがどうか,,リアルタイム確認確かに重くなりますが、表示中に、10秒に1回とか5秒に1回確認させるとかでしたら軽く表示できるかもです。,
 39,,,,,,,,経験の入力方法を改善したい,例えば3施設での経験がある場合、特養、有料、GHのすべてにチェックをして、それぞれの経験年数を入れていくのは分かりにくい。経験①有料→年数を入力し、2つ目を入力したい場合は⊕ボタンから入力欄を追加していける方が分かりやすいのではないか,要ヒアリング,,FALSE,,,資格が多くUIが複雑になりそう。コメントで資格書の写真を必ず添付するように明記したがどうか,,こちらはキャリアさん側ともご相談と思います,

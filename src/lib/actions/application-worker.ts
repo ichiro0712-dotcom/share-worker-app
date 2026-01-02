@@ -8,6 +8,7 @@ import { checkProfileComplete } from './user-profile';
 import {
     sendApplicationNotification,
     sendApplicationNotificationMultiple,
+    sendAdminHighCancelRateNotification,
 } from './notification';
 import { sendNearbyJobNotifications, sendNotification } from '../notification-service';
 import { updateApplicationStatuses } from '../status-updater';
@@ -835,6 +836,36 @@ export async function cancelApplicationByWorker(applicationId: number) {
                     end_time: application.workDate.job.end_time,
                 },
             });
+        }
+
+        // キャンセル率チェック（高いキャンセル率の場合は管理者に通知）
+        const CANCEL_RATE_THRESHOLD = 0.2; // 20%以上でアラート
+        const MIN_APPLICATIONS_FOR_ALERT = 5; // 最低5件以上の応募がある場合のみ
+
+        const [cancelledCount, totalCount] = await Promise.all([
+            prisma.application.count({
+                where: { user_id: user.id, status: 'CANCELLED', cancelled_by: 'WORKER' },
+            }),
+            prisma.application.count({
+                where: { user_id: user.id, status: { in: ['COMPLETED_RATED', 'CANCELLED'] } },
+            }),
+        ]);
+
+        if (totalCount >= MIN_APPLICATIONS_FOR_ALERT) {
+            const cancelRate = cancelledCount / totalCount;
+            if (cancelRate >= CANCEL_RATE_THRESHOLD) {
+                const workerName = (await prisma.user.findUnique({
+                    where: { id: user.id },
+                    select: { name: true },
+                }))?.name || 'ワーカー';
+
+                await sendAdminHighCancelRateNotification(
+                    'WORKER',
+                    user.id,
+                    workerName,
+                    Math.round(cancelRate * 100)
+                );
+            }
         }
 
         revalidatePath('/my-jobs');

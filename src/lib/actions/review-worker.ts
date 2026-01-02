@@ -3,7 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { getAuthenticatedUser, getCurrentTime } from './helpers';
-import { sendReviewReceivedNotificationToFacility } from './notification';
+import { sendReviewReceivedNotificationToFacility, sendAdminLowRatingStreakNotification } from './notification';
 
 /**
  * 年代を計算する内部ヘルパー
@@ -139,6 +139,36 @@ export async function submitReview(
         });
 
         await sendReviewReceivedNotificationToFacility(job.facility_id, user.name, rating);
+
+        // 施設の連続低評価チェック（低評価が続いている場合は管理者に通知）
+        const LOW_RATING_THRESHOLD = 2; // 2以下を低評価とみなす
+        const STREAK_COUNT_THRESHOLD = 3; // 3回連続で低評価の場合にアラート
+
+        const recentReviews = await prisma.review.findMany({
+            where: { facility_id: job.facility_id, reviewer_type: 'WORKER' },
+            orderBy: { created_at: 'desc' },
+            take: STREAK_COUNT_THRESHOLD,
+            select: { rating: true },
+        });
+
+        if (recentReviews.length >= STREAK_COUNT_THRESHOLD) {
+            const allLowRatings = recentReviews.every(r => r.rating <= LOW_RATING_THRESHOLD);
+            if (allLowRatings) {
+                const avgRating = recentReviews.reduce((sum, r) => sum + r.rating, 0) / recentReviews.length;
+                const facility = await prisma.facility.findUnique({
+                    where: { id: job.facility_id },
+                    select: { facility_name: true },
+                });
+
+                await sendAdminLowRatingStreakNotification(
+                    'FACILITY',
+                    job.facility_id,
+                    facility?.facility_name || '施設',
+                    STREAK_COUNT_THRESHOLD,
+                    Math.round(avgRating * 10) / 10
+                );
+            }
+        }
 
         revalidatePath('/mypage/reviews');
         revalidatePath('/facilities/' + job.facility_id);

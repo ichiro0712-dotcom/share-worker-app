@@ -3,7 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { unstable_noStore, revalidatePath } from 'next/cache';
 import { getCurrentTime, getTodayStart, type WorkerListItem, type WorkerListSearchParams, type WorkerListStatus } from './helpers';
-import { sendReviewReceivedNotificationToWorker } from './notification';
+import { sendReviewReceivedNotificationToWorker, sendAdminLowRatingStreakNotification } from './notification';
 
 /**
  * 施設管理者用: ワーカーの詳細情報を取得（統計・評価・キャンセル率含む）
@@ -389,6 +389,36 @@ export async function submitWorkerReview(data: {
       await toggleWorkerBlock(application.user_id, data.facilityId);
     }
 
+    // ワーカーの連続低評価チェック（低評価が続いている場合は管理者に通知）
+    const LOW_RATING_THRESHOLD = 2; // 2以下を低評価とみなす
+    const STREAK_COUNT_THRESHOLD = 3; // 3回連続で低評価の場合にアラート
+
+    const recentReviews = await prisma.review.findMany({
+      where: { user_id: application.user_id, reviewer_type: 'FACILITY' },
+      orderBy: { created_at: 'desc' },
+      take: STREAK_COUNT_THRESHOLD,
+      select: { rating: true },
+    });
+
+    if (recentReviews.length >= STREAK_COUNT_THRESHOLD) {
+      const allLowRatings = recentReviews.every(r => r.rating <= LOW_RATING_THRESHOLD);
+      if (allLowRatings) {
+        const avgRating = recentReviews.reduce((sum, r) => sum + r.rating, 0) / recentReviews.length;
+        const worker = await prisma.user.findUnique({
+          where: { id: application.user_id },
+          select: { name: true },
+        });
+
+        await sendAdminLowRatingStreakNotification(
+          'WORKER',
+          application.user_id,
+          worker?.name || 'ワーカー',
+          STREAK_COUNT_THRESHOLD,
+          Math.round(avgRating * 10) / 10
+        );
+      }
+    }
+
     revalidatePath('/admin/worker-reviews');
     return { success: true };
   } catch (error) {
@@ -501,6 +531,36 @@ export async function submitWorkerReviewByJob(data: {
       await toggleWorkerFavorite(data.userId, data.facilityId);
     } else if (data.action === 'block') {
       await toggleWorkerBlock(data.userId, data.facilityId);
+    }
+
+    // ワーカーの連続低評価チェック（低評価が続いている場合は管理者に通知）
+    const LOW_RATING_THRESHOLD = 2; // 2以下を低評価とみなす
+    const STREAK_COUNT_THRESHOLD = 3; // 3回連続で低評価の場合にアラート
+
+    const recentReviews = await prisma.review.findMany({
+      where: { user_id: data.userId, reviewer_type: 'FACILITY' },
+      orderBy: { created_at: 'desc' },
+      take: STREAK_COUNT_THRESHOLD,
+      select: { rating: true },
+    });
+
+    if (recentReviews.length >= STREAK_COUNT_THRESHOLD) {
+      const allLowRatings = recentReviews.every(r => r.rating <= LOW_RATING_THRESHOLD);
+      if (allLowRatings) {
+        const avgRating = recentReviews.reduce((sum, r) => sum + r.rating, 0) / recentReviews.length;
+        const worker = await prisma.user.findUnique({
+          where: { id: data.userId },
+          select: { name: true },
+        });
+
+        await sendAdminLowRatingStreakNotification(
+          'WORKER',
+          data.userId,
+          worker?.name || 'ワーカー',
+          STREAK_COUNT_THRESHOLD,
+          Math.round(avgRating * 10) / 10
+        );
+      }
     }
 
     console.log('[submitWorkerReviewByJob] Review submitted successfully');

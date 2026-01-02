@@ -918,5 +918,176 @@ export async function sendMessageNotificationToFacility(
 }
 
 // ========================================
+// システム管理者向け通知
+// ========================================
+
+/**
+ * 新規施設登録通知（システム管理者宛）
+ */
+export async function sendAdminNewFacilityNotification(
+    facilityId: number,
+    facilityName: string,
+    corporationName: string
+) {
+    try {
+        // システム管理者を取得
+        const admins = await prisma.systemAdmin.findMany({
+            select: { id: true, name: true, email: true },
+        });
+
+        if (admins.length === 0) return null;
+
+        for (const admin of admins) {
+            await sendNotification({
+                notificationKey: 'ADMIN_NEW_FACILITY',
+                targetType: 'SYSTEM_ADMIN',
+                recipientId: admin.id,
+                recipientName: admin.name,
+                recipientEmail: admin.email,
+                variables: {
+                    facility_name: facilityName,
+                    corporation_name: corporationName,
+                    facility_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://tastas.jp'}/system-admin/facilities/${facilityId}`,
+                },
+            });
+        }
+
+        return { success: true };
+    } catch (error) {
+        console.error('[sendAdminNewFacilityNotification] Error:', error);
+        return null;
+    }
+}
+
+/**
+ * 新規ワーカー登録通知（システム管理者宛）
+ */
+export async function sendAdminNewWorkerNotification(
+    workerId: number,
+    workerName: string,
+    workerEmail: string
+) {
+    try {
+        const admins = await prisma.systemAdmin.findMany({
+            select: { id: true, name: true, email: true },
+        });
+
+        if (admins.length === 0) return null;
+
+        for (const admin of admins) {
+            await sendNotification({
+                notificationKey: 'ADMIN_NEW_WORKER',
+                targetType: 'SYSTEM_ADMIN',
+                recipientId: admin.id,
+                recipientName: admin.name,
+                recipientEmail: admin.email,
+                variables: {
+                    worker_name: workerName,
+                    worker_email: workerEmail,
+                    worker_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://tastas.jp'}/system-admin/workers/${workerId}`,
+                },
+            });
+        }
+
+        return { success: true };
+    } catch (error) {
+        console.error('[sendAdminNewWorkerNotification] Error:', error);
+        return null;
+    }
+}
+
+/**
+ * 高キャンセル率警告（システム管理者宛）
+ * @param targetType 'WORKER' | 'FACILITY'
+ * @param targetId ワーカーIDまたは施設ID
+ * @param targetName 対象者名
+ * @param cancelRate キャンセル率（%）
+ */
+export async function sendAdminHighCancelRateNotification(
+    targetType: 'WORKER' | 'FACILITY',
+    targetId: number,
+    targetName: string,
+    cancelRate: number
+) {
+    try {
+        const admins = await prisma.systemAdmin.findMany({
+            select: { id: true, name: true, email: true },
+        });
+
+        if (admins.length === 0) return null;
+
+        const targetUrl = targetType === 'WORKER'
+            ? `${process.env.NEXT_PUBLIC_APP_URL || 'https://tastas.jp'}/system-admin/workers/${targetId}`
+            : `${process.env.NEXT_PUBLIC_APP_URL || 'https://tastas.jp'}/system-admin/facilities/${targetId}`;
+
+        for (const admin of admins) {
+            await sendNotification({
+                notificationKey: 'ADMIN_HIGH_CANCEL_RATE',
+                targetType: 'SYSTEM_ADMIN',
+                recipientId: admin.id,
+                recipientName: admin.name,
+                recipientEmail: admin.email,
+                variables: {
+                    target_type: targetType === 'WORKER' ? 'ワーカー' : '施設',
+                    target_name: targetName,
+                    cancel_rate: `${cancelRate.toFixed(1)}%`,
+                    target_url: targetUrl,
+                },
+            });
+        }
+
+        return { success: true };
+    } catch (error) {
+        console.error('[sendAdminHighCancelRateNotification] Error:', error);
+        return null;
+    }
+}
+
+/**
+ * 低評価連続警告（システム管理者宛）
+ */
+export async function sendAdminLowRatingStreakNotification(
+    targetType: 'WORKER' | 'FACILITY',
+    targetId: number,
+    targetName: string,
+    streakCount: number,
+    avgRating: number
+) {
+    try {
+        const admins = await prisma.systemAdmin.findMany({
+            select: { id: true, name: true, email: true },
+        });
+
+        if (admins.length === 0) return null;
+
+        const targetUrl = targetType === 'WORKER'
+            ? `${process.env.NEXT_PUBLIC_APP_URL || 'https://tastas.jp'}/system-admin/workers/${targetId}`
+            : `${process.env.NEXT_PUBLIC_APP_URL || 'https://tastas.jp'}/system-admin/facilities/${targetId}`;
+
+        for (const admin of admins) {
+            await sendNotification({
+                notificationKey: 'ADMIN_LOW_RATING_STREAK',
+                targetType: 'SYSTEM_ADMIN',
+                recipientId: admin.id,
+                recipientName: admin.name,
+                recipientEmail: admin.email,
+                variables: {
+                    target_type: targetType === 'WORKER' ? 'ワーカー' : '施設',
+                    target_name: targetName,
+                    streak_count: String(streakCount),
+                    avg_rating: avgRating.toFixed(1),
+                    target_url: targetUrl,
+                },
+            });
+        }
+
+        return { success: true };
+    } catch (error) {
+        console.error('[sendAdminLowRatingStreakNotification] Error:', error);
+        return null;
+    }
+}
+
+// ========================================
 // 施設情報の取得・更新
 // ========================================

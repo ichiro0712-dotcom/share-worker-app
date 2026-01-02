@@ -9,6 +9,7 @@ import {
     sendCancelNotification,
     sendFacilityReviewRequestNotification,
     sendSlotsFilled,
+    sendAdminHighCancelRateNotification,
 } from './notification';
 import { sendNotification } from '../notification-service';
 import { getAuthenticatedUser } from './helpers';
@@ -371,6 +372,45 @@ export async function updateApplicationStatus(
                     work_date: workDateStr,
                 },
             });
+        }
+
+        // 施設のキャンセル率チェック（CANCELLED状態へ変更時のみ）
+        if (newStatus === 'CANCELLED') {
+            const CANCEL_RATE_THRESHOLD = 0.2; // 20%以上でアラート
+            const MIN_APPLICATIONS_FOR_ALERT = 5; // 最低5件以上の応募がある場合のみ
+
+            const [cancelledCount, totalCount] = await Promise.all([
+                prisma.application.count({
+                    where: {
+                        workDate: { job: { facility_id: facilityId } },
+                        status: 'CANCELLED',
+                        cancelled_by: 'FACILITY',
+                    },
+                }),
+                prisma.application.count({
+                    where: {
+                        workDate: { job: { facility_id: facilityId } },
+                        status: { in: ['COMPLETED_RATED', 'CANCELLED'] },
+                    },
+                }),
+            ]);
+
+            if (totalCount >= MIN_APPLICATIONS_FOR_ALERT) {
+                const cancelRate = cancelledCount / totalCount;
+                if (cancelRate >= CANCEL_RATE_THRESHOLD) {
+                    const facility = await prisma.facility.findUnique({
+                        where: { id: facilityId },
+                        select: { facility_name: true },
+                    });
+
+                    await sendAdminHighCancelRateNotification(
+                        'FACILITY',
+                        facilityId,
+                        facility?.facility_name || '施設',
+                        Math.round(cancelRate * 100)
+                    );
+                }
+            }
         }
 
         revalidatePath('/admin/applications');
