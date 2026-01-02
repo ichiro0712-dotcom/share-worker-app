@@ -580,6 +580,60 @@ export async function sendReviewReceivedNotificationToWorker(
 }
 
 /**
+ * お気に入り施設の新着求人通知を送信（ワーカー宛）
+ * 施設が新しい求人を作成した時に、その施設をお気に入りしているワーカーに通知
+ */
+export async function sendFavoriteNewJobNotification(
+    facilityId: number,
+    facilityName: string,
+    jobId: number
+) {
+    try {
+        // この施設をお気に入りしているワーカーを取得
+        const bookmarks = await prisma.bookmark.findMany({
+            where: {
+                target_facility_id: facilityId,
+                user_id: { not: null },
+            },
+            include: {
+                user: {
+                    select: { id: true, name: true, email: true },
+                },
+            },
+        });
+
+        if (bookmarks.length === 0) {
+            console.log('[sendFavoriteNewJobNotification] No bookmarks found for facility:', facilityId);
+            return { success: true, count: 0 };
+        }
+
+        let sentCount = 0;
+        for (const bookmark of bookmarks) {
+            if (!bookmark.user) continue;
+
+            await sendNotification({
+                notificationKey: 'WORKER_FAVORITE_NEW_JOB',
+                targetType: 'WORKER',
+                recipientId: bookmark.user.id,
+                recipientName: bookmark.user.name,
+                recipientEmail: bookmark.user.email,
+                variables: {
+                    facility_name: facilityName,
+                    job_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://tastas.jp'}/jobs/${jobId}`,
+                },
+            });
+            sentCount++;
+        }
+
+        console.log('[sendFavoriteNewJobNotification] Sent to', sentCount, 'workers');
+        return { success: true, count: sentCount };
+    } catch (error) {
+        console.error('[sendFavoriteNewJobNotification] Error:', error);
+        return null;
+    }
+}
+
+/**
  * 施設向け未認識の応募数を取得
  */
 export async function getFacilityPendingApplicationCount(facilityId: number): Promise<{
