@@ -7,6 +7,7 @@ import {
     sendMatchingNotification,
     sendReviewRequestNotification,
     sendCancelNotification,
+    sendFacilityReviewRequestNotification,
 } from './notification';
 import { sendNotification } from '../notification-service';
 import { getAuthenticatedUser } from './helpers';
@@ -261,9 +262,17 @@ export async function updateApplicationStatus(
         }
 
         if (newStatus === 'COMPLETED_PENDING') {
+            // ワーカーへレビュー依頼
             await sendReviewRequestNotification(
                 application.user_id,
                 application.workDate.job.facility.facility_name,
+                application.workDate.job.title,
+                applicationId
+            );
+            // 施設へレビュー依頼
+            await sendFacilityReviewRequestNotification(
+                facilityId,
+                application.user.name,
                 application.workDate.job.title,
                 applicationId
             );

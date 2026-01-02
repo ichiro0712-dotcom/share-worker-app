@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { unstable_noStore, revalidatePath } from 'next/cache';
 import { getCurrentTime, getTodayStart, type WorkerListItem, type WorkerListSearchParams, type WorkerListStatus } from './helpers';
+import { sendReviewReceivedNotificationToWorker } from './notification';
 
 /**
  * 施設管理者用: ワーカーの詳細情報を取得（統計・評価・キャンセル率含む）
@@ -946,6 +947,18 @@ export async function submitFacilityReviewForWorker(
         });
       }
     });
+
+    // ワーカーへレビュー受信通知を送信
+    const facility = await prisma.facility.findUnique({
+      where: { id: facilityId },
+      select: { facility_name: true },
+    });
+    if (facility) {
+      await sendReviewReceivedNotificationToWorker(
+        application.user_id,
+        facility.facility_name
+      );
+    }
 
     console.log('[submitFacilityReviewForWorker] Review submitted successfully');
 

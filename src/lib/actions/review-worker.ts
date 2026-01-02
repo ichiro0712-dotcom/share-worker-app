@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { getAuthenticatedUser, getCurrentTime } from './helpers';
+import { sendReviewReceivedNotificationToFacility } from './notification';
 
 /**
  * 年代を計算する内部ヘルパー
@@ -251,14 +252,3 @@ export async function getFacilityReviews(facilityId: number) {
     }
 }
 
-/**
- * 施設向けレビュー受信通知（プレースホルダー）
- */
-async function sendReviewReceivedNotificationToFacility(
-    _facilityId: number,
-    _workerName: string,
-    _rating: number
-) {
-    console.log('[sendReviewReceivedNotificationToFacility] Facility notifications not yet implemented');
-    return null;
-}
