@@ -103,7 +103,7 @@ if (workDatesToCheck.includes(todayStr) && formData.startTime) {
 28,提案,水野,普,windowsPC,11Pro, Google Chrome,https://s-work.netlify.app/admin/jobs/new,業務設定と仕事詳細のテンプレがリンクすると求人の作成がしやすい,,,,FALSE,,,,,,
 36,提案,水野,普,windowsPC,11Pro, Google Chrome,,求人プレビューページが全体的に左に寄っている,,,,TRUE,JobDetailClientにmax-w-lg mx-autoを追加し中央配置,fix/job-preview-alignment-36,2026-01-02,,
 60,バグ,竹上,,,,,,ワーカー画面で、メッセージ機能で送ったメッセージがほかのページに遷移した後にもう一度メッセージ機能に戻ると消えていた。施設管理画面のメッセージの方には残っている,,完了,川嶋,TRUE,,,,,,
-61,提案,水野,普,windowsPC,11Pro, Google Chrome,https://s-work.netlify.app/messages,不採用通知,マッチングの場合はメッセージが来るが、不採用の場合は来ないのが不親切かも,,,FALSE,,,,,,
+61,提案,水野,普,windowsPC,11Pro, Google Chrome,https://s-work.netlify.app/messages,不採用通知,マッチングの場合はメッセージが来るが、不採用の場合は来ないのが不親切かも,,,TRUE,APPLIED→CANCELLED時に不採用通知（チャット+メール）を送信,fix/rejection-notification-61,2026-01-02,,
 63,提案,水野,普,windowsPC,11Pro, Google Chrome,https://s-work.netlify.app/admin/applications,審査あり求人への応募者の採用に関して,審査あり求人の応募者を不採用にする際は一度押下した後確認のポップアップがでるが、マッチングの場合はそれがなく即マッチングとなる,,,FALSE,,,,,,
 7,提案,大東,普,windowsPC,11Pro, Google Chrome,https://s-work.netlify.app/admin/jobs/new,"施設管理　給与　時給が1200がコンマがない1,200に変更？",,完了,川嶋,TRUE,PR #25,時給入力欄の下にコンマ付きフォーマット表示（¥1,200）を追加。リアルタイムで更新される。,components/admin/JobForm.tsx components/admin/JobTemplateForm.tsx,fix/salary-comma-format-7,2026-01-02
 32,提案,大東,普,iPhone 16e,ios26.2, Google Chrome,https://s-work.netlify.app/register/worker,経験を複数入れる際に、追加＋のようなボタンがあれば分かりやすい,,,,TRUE,経験分野ラベル下に「※複数選択できます」の説明を追加,fix/experience-add-button-32,2026-01-02,,
