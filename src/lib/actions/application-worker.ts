@@ -9,7 +9,7 @@ import {
     sendApplicationNotification,
     sendApplicationNotificationMultiple,
 } from './notification';
-import { sendNearbyJobNotifications } from '../notification-service';
+import { sendNearbyJobNotifications, sendNotification } from '../notification-service';
 
 /**
  * ユーザーが応募した仕事の一覧を取得
@@ -798,6 +798,40 @@ export async function cancelApplicationByWorker(applicationId: number) {
                 content: `【システムメッセージ】\nワーカーが「${application.workDate.job.title}」（${workDateStr}）のマッチングをキャンセルしました。`,
             },
         });
+
+        // 施設への通知（メール・プッシュ）
+        const workerUser = await prisma.user.findUnique({
+            where: { id: user.id },
+            select: { name: true },
+        });
+
+        // 施設管理者のメールアドレスを取得
+        const facilityAdmins = await prisma.facilityAdmin.findMany({
+            where: { facility_id: application.workDate.job.facility_id },
+            select: { email: true, name: true, id: true },
+        });
+
+        if (facilityAdmins.length > 0) {
+            const facilityEmails = facilityAdmins.map(admin => admin.email);
+            const primaryAdmin = facilityAdmins[0];
+
+            await sendNotification({
+                notificationKey: 'FACILITY_CANCELLED_BY_WORKER',
+                targetType: 'FACILITY',
+                recipientId: primaryAdmin.id,
+                recipientName: primaryAdmin.name,
+                facilityEmails,
+                applicationId,
+                variables: {
+                    facility_name: application.workDate.job.facility.facility_name,
+                    worker_name: workerUser?.name || '',
+                    job_title: application.workDate.job.title,
+                    work_date: workDateStr,
+                    start_time: application.workDate.job.start_time,
+                    end_time: application.workDate.job.end_time,
+                },
+            });
+        }
 
         revalidatePath('/my-jobs');
         revalidatePath('/admin/applications');
