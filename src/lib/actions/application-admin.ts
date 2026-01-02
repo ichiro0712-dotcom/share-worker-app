@@ -8,6 +8,7 @@ import {
     sendReviewRequestNotification,
     sendCancelNotification,
 } from './notification';
+import { sendNotification } from '../notification-service';
 import { getAuthenticatedUser } from './helpers';
 
 /**
@@ -290,6 +291,51 @@ export async function updateApplicationStatus(
                     endTime: application.workDate.job.end_time,
                 }
             );
+        }
+
+        // 不採用通知（APPLIED状態からCANCELLED = 審査後の不採用）
+        if (newStatus === 'CANCELLED' && application.status === 'APPLIED') {
+            const workDateStr = application.workDate.work_date.toISOString().split('T')[0];
+
+            // 不採用のチャットメッセージ作成
+            const rejectionSetting = await prisma.notificationSetting.findUnique({
+                where: { notification_key: 'WORKER_INTERVIEW_REJECTED' },
+            });
+
+            let rejectionMessage: string;
+            if (rejectionSetting?.chat_enabled && rejectionSetting?.chat_message) {
+                rejectionMessage = rejectionSetting.chat_message
+                    .replace(/\{\{worker_name\}\}/g, application.user.name || '')
+                    .replace(/\{\{facility_name\}\}/g, application.workDate.job.facility.facility_name);
+            } else {
+                rejectionMessage = `${application.user.name}さん、この度は${application.workDate.job.facility.facility_name}へのご応募ありがとうございました。\n\n選考の結果、今回はご縁がありませんでした。\nまた別の求人でお会いできることを楽しみにしております。`;
+            }
+
+            await prisma.message.create({
+                data: {
+                    application_id: applicationId,
+                    job_id: application.workDate.job_id,
+                    from_facility_id: facilityId,
+                    to_user_id: application.user_id,
+                    content: rejectionMessage,
+                },
+            });
+
+            // メール通知送信
+            await sendNotification({
+                notificationKey: 'WORKER_INTERVIEW_REJECTED',
+                targetType: 'WORKER',
+                recipientId: application.user_id,
+                recipientName: application.user.name,
+                recipientEmail: application.user.email,
+                applicationId: applicationId,
+                variables: {
+                    worker_name: application.user.name || '',
+                    facility_name: application.workDate.job.facility.facility_name,
+                    job_title: application.workDate.job.title,
+                    work_date: workDateStr,
+                },
+            });
         }
 
         revalidatePath('/admin/applications');
