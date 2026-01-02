@@ -246,6 +246,11 @@ export default function WorkerRegisterPage() {
     const missingCertificates = qualificationsNeedingCertificates.filter(qual => !qualificationCertificates[qual]);
     if (missingCertificates.length > 0) {
       toast.error(`以下の資格の証明書をアップロードしてください: ${missingCertificates.join('、')}`);
+      // 証明書アップロードセクションにスクロール
+      const certificateSection = document.getElementById('certificate-upload-section');
+      if (certificateSection) {
+        certificateSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
       return;
     }
 
@@ -345,7 +350,7 @@ export default function WorkerRegisterPage() {
             以下の情報を入力して登録してください。登録後、ログインして求人検索ができます。
           </p>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} noValidate className="space-y-6">
             {/* 1. 基本情報 */}
             <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
               <h3 className="font-bold text-gray-900">基本情報 <span className="text-red-500">*</span></h3>
@@ -605,7 +610,7 @@ export default function WorkerRegisterPage() {
 
               {/* 資格証明書アップロード - 選択された資格（その他以外）の数だけ表示 */}
               {formData.qualifications.filter(qual => qual !== 'その他').length > 0 && (
-                <div className="space-y-4">
+                <div id="certificate-upload-section" className="space-y-4">
                   <label className="block text-sm font-medium text-gray-700">資格証明書アップロード <span className="text-red-500">*</span></label>
                   {formData.qualifications.filter(qual => qual !== 'その他').map((qual) => (
                     <div key={qual} className={`border rounded-lg p-4 ${showErrors && !qualificationCertificates[qual] ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}>
@@ -639,19 +644,18 @@ export default function WorkerRegisterPage() {
                         </div>
                       ) : (
                         <div className="space-y-2">
-                          <label className={`block w-full px-4 py-3 rounded-lg hover:bg-blue-100 transition-colors cursor-pointer text-center text-sm font-medium border-2 border-dashed ${showErrors ? 'bg-red-50 text-red-700 border-red-300' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
+                          <label className={`block w-full px-4 py-3 rounded-lg hover:bg-blue-100 transition-colors cursor-pointer text-center text-sm font-medium border-2 border-dashed ${showErrors && !qualificationCertificates[qual] ? 'bg-red-50 text-red-700 border-red-300 animate-pulse' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
                             📷 ファイルを選択
                             <input
                               type="file"
                               accept="image/*,.pdf"
                               onChange={(e) => handleQualificationCertificateChange(qual, e)}
                               className="hidden"
-                              required
                             />
                           </label>
                           <p className="text-xs text-gray-500 text-center">20MB以下 / JPG, PNG, HEIC, PDF形式（自動圧縮）</p>
-                          {showErrors && (
-                            <p className="text-red-500 text-xs text-center">資格証明書をアップロードしてください</p>
+                          {showErrors && !qualificationCertificates[qual] && (
+                            <p className="text-red-600 text-sm font-medium text-center">⚠️ {qual}の資格証明書をアップロードしてください</p>
                           )}
                         </div>
                       )}
