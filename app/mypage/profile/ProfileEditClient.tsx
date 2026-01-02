@@ -6,9 +6,10 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { updateUserProfile } from '@/src/lib/actions';
 import { validateFile, getSafeImageUrl, isValidImageUrl } from '@/utils/fileValidation';
-import { formatKatakana, formatKatakanaWithSpace, formatPhoneNumber, isKatakanaOnly, isKatakanaWithSpaceOnly } from '@/utils/inputValidation';
+import { formatPhoneNumber, isKatakanaOnly, isKatakanaWithSpaceOnly } from '@/utils/inputValidation';
 import toast from 'react-hot-toast';
 import AddressSelector from '@/components/ui/AddressSelector';
+import { KatakanaInput, KatakanaWithSpaceInput } from '@/components/ui/KatakanaInput';
 import { QUALIFICATION_GROUPS } from '@/constants/qualifications';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
@@ -705,13 +706,9 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">姓（カナ） <span className="text-red-500">*</span></label>
-              <input
-                type="text"
+              <KatakanaInput
                 value={formData.lastNameKana}
-                onChange={(e) => {
-                  const value = formatKatakana(e.target.value);
-                  setFormData({ ...formData, lastNameKana: value });
-                }}
+                onChange={(value) => setFormData({ ...formData, lastNameKana: value })}
                 className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.lastNameKana ? 'border-red-500 bg-red-50' : formData.lastNameKana && !isKatakanaOnly(formData.lastNameKana) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                 placeholder="ヤマダ"
               />
@@ -725,13 +722,9 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">名（カナ） <span className="text-red-500">*</span></label>
-              <input
-                type="text"
+              <KatakanaInput
                 value={formData.firstNameKana}
-                onChange={(e) => {
-                  const value = formatKatakana(e.target.value);
-                  setFormData({ ...formData, firstNameKana: value });
-                }}
+                onChange={(value) => setFormData({ ...formData, firstNameKana: value })}
                 className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.firstNameKana ? 'border-red-500 bg-red-50' : formData.firstNameKana && !isKatakanaOnly(formData.firstNameKana) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                 placeholder="タロウ"
               />
@@ -1288,10 +1281,9 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">口座名義（カナ） <span className="text-red-500">*</span></label>
-                <input
-                  type="text"
+                <KatakanaWithSpaceInput
                   value={formData.accountName}
-                  onChange={(e) => setFormData({ ...formData, accountName: formatKatakanaWithSpace(e.target.value) })}
+                  onChange={(value) => setFormData({ ...formData, accountName: value })}
                   placeholder="ヤマダ タロウ"
                   className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.accountName ? 'border-red-500 bg-red-50' : formData.accountName && !isKatakanaWithSpaceOnly(formData.accountName) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                 />
