@@ -580,6 +580,45 @@ export async function sendReviewReceivedNotificationToWorker(
 }
 
 /**
+ * 募集枠が埋まった通知を送信（施設宛）
+ * 求人日の募集枠が全て埋まった時に施設へ通知
+ */
+export async function sendSlotsFilled(
+    facilityId: number,
+    jobTitle: string,
+    workDate: string
+) {
+    try {
+        const facilityAdmins = await prisma.facilityAdmin.findMany({
+            where: { facility_id: facilityId },
+            select: { id: true, name: true, email: true },
+        });
+
+        if (facilityAdmins.length === 0) return null;
+
+        const facilityEmails = facilityAdmins.map(admin => admin.email);
+        const primaryAdmin = facilityAdmins[0];
+
+        await sendNotification({
+            notificationKey: 'FACILITY_SLOTS_FILLED',
+            targetType: 'FACILITY',
+            recipientId: primaryAdmin.id,
+            recipientName: primaryAdmin.name,
+            facilityEmails,
+            variables: {
+                job_title: jobTitle,
+                work_date: workDate,
+            },
+        });
+
+        return { success: true };
+    } catch (error) {
+        console.error('[sendSlotsFilled] Error:', error);
+        return null;
+    }
+}
+
+/**
  * お気に入り施設の新着求人通知を送信（ワーカー宛）
  * 施設が新しい求人を作成した時に、その施設をお気に入りしているワーカーに通知
  */
