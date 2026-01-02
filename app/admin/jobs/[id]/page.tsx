@@ -261,7 +261,11 @@ export default function AdminJobDetailPage() {
               <div className="flex items-center gap-2 text-sm">
                 <MapPin className="w-4 h-4 text-gray-400" />
                 <span className="text-gray-600">交通費:</span>
-                <span className="font-medium">¥{job.transportation_fee.toLocaleString()}</span>
+                <span className="font-medium">
+                  {job.transportation_fee > 0
+                    ? `¥${job.transportation_fee.toLocaleString()}`
+                    : 'なし'}
+                </span>
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <Users className="w-4 h-4 text-gray-400" />
