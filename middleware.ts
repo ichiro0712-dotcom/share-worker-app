@@ -4,10 +4,13 @@ import { getToken } from 'next-auth/jwt';
 
 // 認証不要なパス
 const publicPaths = [
+  '/', // トップページ（求人一覧）
+  '/jobs', // 求人関連ページ
   '/login',
   '/register',
   '/admin/login',
   '/api/auth',
+  '/api/jobs', // 求人API
   '/auth', // メール認証関連（/auth/verify, /auth/verify-pending, /auth/resend-verification）
   '/dev-portal', // 開発用ポータル
   '/password-reset', // パスワードリセット
@@ -51,7 +54,8 @@ export async function middleware(request: NextRequest) {
   }
 
   // 公開ページはそのまま通す
-  if (publicPaths.some((path) => pathname.startsWith(path))) {
+  // '/' は完全一致、それ以外は前方一致でチェック
+  if (publicPaths.some((path) => path === '/' ? pathname === '/' : pathname.startsWith(path))) {
     return NextResponse.next();
   }
 
