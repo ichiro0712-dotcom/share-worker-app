@@ -1,6 +1,7 @@
 'use client';
 
 import { X, AlertTriangle, CheckCircle, Eye } from 'lucide-react';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 
 interface JobConfirmModalProps {
   isOpen: boolean;
@@ -76,7 +77,7 @@ export function JobConfirmModal({
           >
             {isSubmitting ? (
               <>
-                <span className="animate-spin">⏳</span>
+                <LoadingSpinner size="sm" color="white" />
                 公開中...
               </>
             ) : (

@@ -11,6 +11,7 @@ import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBa
 import AddressSelector from '@/components/ui/AddressSelector';
 import { JobConfirmModal } from '@/components/admin/JobConfirmModal';
 import { JobPreviewModal } from '@/components/admin/JobPreviewModal';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { calculateDailyWage, calculateWorkingHours } from '@/utils/salary';
 import { getCurrentTime } from '@/utils/debugTime';
 import { validateImageFiles, validateAttachmentFiles } from '@/utils/fileValidation';
@@ -1266,8 +1267,9 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
                         <button
                             onClick={handleShowConfirm}
                             disabled={isSaving}
-                            className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:bg-blue-400 disabled:cursor-not-allowed"
+                            className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:bg-blue-400 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-w-[100px]"
                         >
+                            {isSaving && <LoadingSpinner size="sm" color="white" />}
                             {isSaving ? '保存中...' : (mode === 'create' ? (isOfferMode ? 'オファーする' : '公開する') : '更新する')}
                         </button>
                     </div>
