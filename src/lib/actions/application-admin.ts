@@ -454,8 +454,6 @@ export async function getJobsWithApplications(
         if (status !== 'all') whereConditions.status = status;
         if (query) whereConditions.title = { contains: query, mode: 'insensitive' };
 
-        const totalCount = await prisma.job.count({ where: whereConditions });
-
         // ソートが計算フィールド（applied, unviewed, workDate）の場合は全件取得してからソート
         const needsPostSort = ['applied_desc', 'applied_asc', 'unviewed_desc', 'workDate_asc', 'workDate_desc'].includes(sort as JobApplicationsSortOption);
 
@@ -465,33 +463,53 @@ export async function getJobsWithApplications(
             orderBy = { created_at: 'asc' };
         }
 
-        const jobs = await prisma.job.findMany({
-            where: whereConditions,
-            include: {
-                workDates: {
-                    include: {
-                        applications: {
-                            include: {
-                                user: { select: { id: true, name: true, profile_image: true, qualifications: true } },
+        // 並列でcount + jobs取得（最適化）
+        const [totalCount, jobs] = await Promise.all([
+            prisma.job.count({ where: whereConditions }),
+            prisma.job.findMany({
+                where: whereConditions,
+                include: {
+                    workDates: {
+                        include: {
+                            applications: {
+                                include: {
+                                    user: { select: { id: true, name: true, profile_image: true, qualifications: true } },
+                                },
+                                orderBy: { created_at: 'desc' },
                             },
-                            orderBy: { created_at: 'desc' },
                         },
+                        orderBy: { work_date: 'asc' },
                     },
-                    orderBy: { work_date: 'asc' },
                 },
-            },
-            orderBy,
-            ...(needsPostSort ? {} : { skip, take: limit }),
-        });
+                orderBy,
+                ...(needsPostSort ? {} : { skip, take: limit }),
+            }),
+        ]);
 
         const workerIds = new Set<number>();
         jobs.forEach(job => job.workDates.forEach(wd => wd.applications.forEach(app => workerIds.add(app.user.id))));
         const uniqueWorkerIds = Array.from(workerIds);
 
-        const workerReviews = await prisma.review.findMany({
-            where: { user_id: { in: uniqueWorkerIds }, reviewer_type: 'FACILITY' },
-            select: { user_id: true, rating: true },
-        });
+        // ワーカー関連データを並列で取得（最適化）
+        const [workerReviews, workerAllApps] = await Promise.all([
+            prisma.review.findMany({
+                where: { user_id: { in: uniqueWorkerIds }, reviewer_type: 'FACILITY' },
+                select: { user_id: true, rating: true },
+            }),
+            prisma.application.findMany({
+                where: {
+                    user_id: { in: uniqueWorkerIds },
+                    status: { in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED', 'CANCELLED'] },
+                },
+                select: {
+                    user_id: true,
+                    status: true,
+                    updated_at: true,
+                    cancelled_by: true,
+                    workDate: { select: { work_date: true } },
+                },
+            }),
+        ]);
 
         const workerRatings = new Map<number, { total: number; count: number }>();
         workerReviews.forEach(r => {
@@ -499,20 +517,6 @@ export async function getJobsWithApplications(
             current.total += r.rating;
             current.count += 1;
             workerRatings.set(r.user_id, current);
-        });
-
-        const workerAllApps = await prisma.application.findMany({
-            where: {
-                user_id: { in: uniqueWorkerIds },
-                status: { in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED', 'CANCELLED'] },
-            },
-            select: {
-                user_id: true,
-                status: true,
-                updated_at: true,
-                cancelled_by: true,
-                workDate: { select: { work_date: true } },
-            },
         });
 
         const workerCancelStats = new Map<number, { totalScheduled: number; lastMinuteCancels: number }>();
@@ -636,6 +640,7 @@ export async function getJobsWithApplications(
 
 /**
  * 施設管理用: ワーカーベースで応募情報を取得
+ * 最適化: Promise.allで並列クエリ実行
  */
 export async function getApplicationsByWorker(
     facilityId: number,
@@ -655,22 +660,24 @@ export async function getApplicationsByWorker(
 
         if (query) whereConditions.user = { name: { contains: query } };
 
-        const distinctWorkers = await prisma.application.findMany({
-            where: whereConditions,
-            distinct: ['user_id'],
-            select: { user_id: true },
-        });
+        // 並列でdistinct取得（最適化）
+        const [distinctWorkers, paginatedDistinctApps] = await Promise.all([
+            prisma.application.findMany({
+                where: whereConditions,
+                distinct: ['user_id'],
+                select: { user_id: true },
+            }),
+            prisma.application.findMany({
+                where: whereConditions,
+                distinct: ['user_id'],
+                orderBy: { created_at: 'desc' },
+                skip,
+                take: limit,
+                select: { user_id: true },
+            }),
+        ]);
+
         const totalCount = distinctWorkers.length;
-
-        const paginatedDistinctApps = await prisma.application.findMany({
-            where: whereConditions,
-            distinct: ['user_id'],
-            orderBy: { created_at: 'desc' },
-            skip,
-            take: limit,
-            select: { user_id: true },
-        });
-
         const targetWorkerIds = paginatedDistinctApps.map(app => app.user_id);
         if (targetWorkerIds.length === 0) return { data: [], pagination: { currentPage: page, totalPages: Math.ceil(totalCount / limit), totalCount, hasMore: false } };
 
@@ -692,17 +699,31 @@ export async function getApplicationsByWorker(
         });
 
         const workerIds = Array.from(new Set(applications.map(app => app.user.id)));
-        const workerBookmarks = await prisma.bookmark.findMany({
-            where: { facility_id: facilityId, target_user_id: { in: workerIds }, type: { in: ['FAVORITE', 'WATCH_LATER'] } },
-            select: { target_user_id: true, type: true },
-        });
+
+        // 全ワーカー関連データを並列で取得（最適化）
+        const [workerBookmarks, workerReviews, workerAllApps, workerWorkCounts] = await Promise.all([
+            prisma.bookmark.findMany({
+                where: { facility_id: facilityId, target_user_id: { in: workerIds }, type: { in: ['FAVORITE', 'WATCH_LATER'] } },
+                select: { target_user_id: true, type: true },
+            }),
+            prisma.review.findMany({
+                where: { user_id: { in: workerIds }, reviewer_type: 'FACILITY' },
+                select: { user_id: true, rating: true },
+            }),
+            prisma.application.findMany({
+                where: { user_id: { in: workerIds }, status: { in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED', 'CANCELLED'] } },
+                select: { user_id: true, status: true, updated_at: true, cancelled_by: true, workDate: { select: { work_date: true } } },
+            }),
+            prisma.application.groupBy({
+                by: ['user_id'],
+                where: { user_id: { in: workerIds }, status: { in: ['COMPLETED_PENDING', 'COMPLETED_RATED'] } },
+                _count: true,
+            }),
+        ]);
+
         const favoriteWorkerIds = new Set(workerBookmarks.filter(b => b.type === 'FAVORITE').map(b => b.target_user_id));
         const blockedWorkerIds = new Set(workerBookmarks.filter(b => b.type === 'WATCH_LATER').map(b => b.target_user_id));
 
-        const workerReviews = await prisma.review.findMany({
-            where: { user_id: { in: workerIds }, reviewer_type: 'FACILITY' },
-            select: { user_id: true, rating: true },
-        });
         const workerRatings = new Map<number, { total: number; count: number }>();
         workerReviews.forEach(r => {
             const current = workerRatings.get(r.user_id) || { total: 0, count: 0 };
@@ -711,10 +732,6 @@ export async function getApplicationsByWorker(
             workerRatings.set(r.user_id, current);
         });
 
-        const workerAllApps = await prisma.application.findMany({
-            where: { user_id: { in: workerIds }, status: { in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED', 'CANCELLED'] } },
-            select: { user_id: true, status: true, updated_at: true, cancelled_by: true, workDate: { select: { work_date: true } } },
-        });
         const workerCancelStats = new Map<number, { totalScheduled: number; lastMinuteCancels: number }>();
         workerAllApps.forEach(app => {
             const current = workerCancelStats.get(app.user_id) || { totalScheduled: 0, lastMinuteCancels: 0 };
@@ -730,11 +747,6 @@ export async function getApplicationsByWorker(
             workerCancelStats.set(app.user_id, current);
         });
 
-        const workerWorkCounts = await prisma.application.groupBy({
-            by: ['user_id'],
-            where: { user_id: { in: workerIds }, status: { in: ['COMPLETED_PENDING', 'COMPLETED_RATED'] } },
-            _count: true,
-        });
         const workerWorkCountMap = new Map(workerWorkCounts.map(w => [w.user_id, w._count]));
 
         const workerMap = new Map<number, any>();
