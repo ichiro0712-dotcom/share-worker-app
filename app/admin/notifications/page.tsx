@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ChevronLeft,
@@ -14,30 +14,20 @@ import {
   Building2,
 } from 'lucide-react';
 import { AdminBottomNav } from '@/components/layout/AdminBottomNav';
-import {
-  getFacilityNotifications,
-  markAllFacilityNotificationsAsRead,
-} from '@/src/lib/actions';
+import { markAllFacilityNotificationsAsRead } from '@/src/lib/actions';
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
-
-interface Notification {
-  id: number;
-  type: string;
-  title: string;
-  message: string;
-  link: string | null;
-  isRead: boolean;
-  createdAt: string;
-}
+import { useAdminNotifications } from '@/hooks/useAdminNotifications';
 
 export default function AdminNotificationsPage() {
   const router = useRouter();
   const { showDebugError } = useDebugError();
   const { admin, isAdmin, isAdminLoading } = useAuth();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(true);
+  const facilityId = admin?.facilityId;
+
+  // SWRによる通知データ取得
+  const { notifications, isLoading: loading, error, mutate } = useAdminNotifications(facilityId);
 
   // ログインしていない、または管理者でない場合はログインページへリダイレクト
   useEffect(() => {
@@ -47,21 +37,9 @@ export default function AdminNotificationsPage() {
     }
   }, [isAdmin, admin, isAdminLoading, router]);
 
-  const facilityId = admin?.facilityId;
-
+  // エラー時の処理
   useEffect(() => {
-    if (facilityId) {
-      loadNotifications();
-    }
-  }, [facilityId]);
-
-  const loadNotifications = async () => {
-    if (!facilityId) return;
-    setLoading(true);
-    try {
-      const data = await getFacilityNotifications(facilityId);
-      setNotifications(data);
-    } catch (error) {
+    if (error) {
       const debugInfo = extractDebugInfo(error);
       showDebugError({
         type: 'fetch',
@@ -73,12 +51,10 @@ export default function AdminNotificationsPage() {
       });
       console.error('Failed to load notifications:', error);
       toast.error('通知の読み込みに失敗しました');
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [error, facilityId, showDebugError]);
 
-  const handleNotificationClick = (notification: Notification) => {
+  const handleNotificationClick = (notification: { link: string | null }) => {
     if (notification.link) {
       router.push(notification.link);
     }
@@ -89,8 +65,10 @@ export default function AdminNotificationsPage() {
     try {
       const result = await markAllFacilityNotificationsAsRead(facilityId);
       if (result.success) {
-        setNotifications((prev) =>
-          prev.map((n) => ({ ...n, isRead: true }))
+        // SWRキャッシュを楽観的に更新
+        mutate(
+          notifications.map((n) => ({ ...n, isRead: true })),
+          false // revalidateを無効化
         );
         toast.success('すべて既読にしました');
       }
