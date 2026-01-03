@@ -1,32 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { ArrowUpDown, Sparkles, X, TrendingUp, TrendingDown, Lightbulb, Star } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
-import { getFacilityReviewsForAdmin, getFacilityReviewStats } from '@/src/lib/actions';
+import { useAdminReviews, AdminReview } from '@/hooks/useAdminReviews';
 
 type SortType = 'rating-high' | 'rating-low' | 'newest' | 'oldest';
-
-interface Review {
-  id: number;
-  rating: number;
-  goodPoints: string | null;
-  improvements: string | null;
-  createdAt: string;
-  userName: string;
-  userQualifications: string[];
-  jobTitle: string;
-  jobDate: string;
-}
-
-interface ReviewStats {
-  averageRating: number;
-  totalCount: number;
-  distribution: { 5: number; 4: number; 3: number; 2: number; 1: number };
-}
 
 export default function AdminReviewsPage() {
   const router = useRouter();
@@ -36,9 +18,11 @@ export default function AdminReviewsPage() {
   const [sortType, setSortType] = useState<SortType>('newest');
   const [showAiAnalysis, setShowAiAnalysis] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [reviews, setReviews] = useState<Review[]>([]);
-  const [stats, setStats] = useState<ReviewStats | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+
+  const facilityId = admin?.facilityId;
+
+  // SWRによるレビューデータ取得
+  const { reviews, stats, isLoading, error } = useAdminReviews(facilityId);
 
   useEffect(() => {
     if (isAdminLoading) return;
@@ -47,54 +31,40 @@ export default function AdminReviewsPage() {
     }
   }, [isAdmin, admin, isAdminLoading, router]);
 
-  // データ取得
+  // エラー時の処理
   useEffect(() => {
-    const fetchData = async () => {
-      if (!admin?.facilityId) return;
-
-      setIsLoading(true);
-      try {
-        const [reviewsData, statsData] = await Promise.all([
-          getFacilityReviewsForAdmin(admin.facilityId),
-          getFacilityReviewStats(admin.facilityId),
-        ]);
-        setReviews(reviewsData);
-        setStats(statsData);
-      } catch (error) {
-        const debugInfo = extractDebugInfo(error);
-        showDebugError({
-          type: 'fetch',
-          operation: '自社レビューデータ取得',
-          message: debugInfo.message,
-          details: debugInfo.details,
-          stack: debugInfo.stack,
-          context: { facilityId: admin.facilityId }
-        });
-        console.error('Failed to fetch reviews:', error);
-        toast.error('レビューの取得に失敗しました');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [admin?.facilityId]);
-
-  // ソート処理
-  const sortedReviews = [...reviews].sort((a, b) => {
-    switch (sortType) {
-      case 'rating-high':
-        return b.rating - a.rating;
-      case 'rating-low':
-        return a.rating - b.rating;
-      case 'newest':
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      case 'oldest':
-        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-      default:
-        return 0;
+    if (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'fetch',
+        operation: '自社レビューデータ取得',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { facilityId }
+      });
+      console.error('Failed to fetch reviews:', error);
+      toast.error('レビューの取得に失敗しました');
     }
-  });
+  }, [error, facilityId, showDebugError]);
+
+  // ソート処理（useMemoでメモ化）
+  const sortedReviews = useMemo(() => {
+    return [...reviews].sort((a, b) => {
+      switch (sortType) {
+        case 'rating-high':
+          return b.rating - a.rating;
+        case 'rating-low':
+          return a.rating - b.rating;
+        case 'newest':
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        case 'oldest':
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        default:
+          return 0;
+      }
+    });
+  }, [reviews, sortType]);
 
   // AIレビュー分析を実行（ダミー）
   const handleAiAnalysis = () => {
