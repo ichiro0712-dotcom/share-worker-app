@@ -70,6 +70,8 @@ export function useConversations() {
         {
             revalidateOnFocus: true,
             refreshInterval: 30000, // 30秒ごとに更新
+            dedupingInterval: 5000, // 5秒間は重複リクエストを防止
+            keepPreviousData: true, // 再検証中も前のデータを表示
         }
     );
 
@@ -88,6 +90,8 @@ export function useMessagesByFacility(facilityId: number | null) {
         {
             revalidateOnFocus: true,
             refreshInterval: 10000, // メッセージ画面表示中は10秒ごとに更新
+            dedupingInterval: 3000, // 3秒間は重複リクエストを防止（詳細画面は頻繁に切り替わるため短め）
+            keepPreviousData: true, // 再検証中も前のデータを表示（ちらつき防止）
         }
     );
 
