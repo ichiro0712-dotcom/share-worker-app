@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import {
     ChevronLeft,
     ChevronRight,
@@ -14,30 +14,17 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { getShiftsForFacility, cancelShift } from '@/src/lib/actions';
+import { cancelShift } from '@/src/lib/actions';
+import { useAdminShifts, type Shift } from '@/hooks/useAdminShifts';
 import { getCurrentTime } from '@/utils/debugTime';
 import toast from 'react-hot-toast';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, addWeeks, subWeeks, getDay } from 'date-fns';
 import { ja } from 'date-fns/locale';
 
-interface Shift {
-    applicationId: number;
-    workDateId: number;
+// Shift型はhooksからimport（workDateはDate型に変換済み）
+interface ShiftWithDate extends Omit<Shift, 'workDate'> {
     workDate: Date;
-    startTime: string;
-    endTime: string;
-    breakTime: number | null;
-    hourlyRate: number;
-    transportationFee: number;
-    workerId: number;
-    workerName: string;
-    workerProfileImage: string | null;
-    qualifications: string[];
-    status: string;
-    jobId: number;
-    weeklyFrequency: number | null;
-    jobType: string;
 }
 
 // Helper functions for timeline view
@@ -69,15 +56,15 @@ function isTimeOverlapping(start1: string, end1: string, start2: string, end2: s
     return e1 > s2 && e2 > s1;
 }
 
-function groupOverlappingShifts(shifts: Shift[]): Shift[][] {
+function groupOverlappingShifts(shifts: ShiftWithDate[]): ShiftWithDate[][] {
     if (shifts.length === 0) return [];
 
     const sorted = [...shifts].sort((a, b) =>
         timeToPixels(a.startTime) - timeToPixels(b.startTime)
     );
 
-    const groups: Shift[][] = [];
-    let currentGroup: Shift[] = [sorted[0]];
+    const groups: ShiftWithDate[][] = [];
+    let currentGroup: ShiftWithDate[] = [sorted[0]];
 
     for (let i = 1; i < sorted.length; i++) {
         const current = sorted[i];
@@ -102,61 +89,35 @@ export default function ShiftManagementPage() {
     const { showDebugError } = useDebugError();
     const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
     const [currentDate, setCurrentDate] = useState(new Date());
-    const [shifts, setShifts] = useState<Shift[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
+    const [selectedShift, setSelectedShift] = useState<ShiftWithDate | null>(null);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
     const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
 
-    const fetchShifts = useCallback(async () => {
-        if (!admin?.facilityId) return;
-
-        setIsLoading(true);
-        try {
-            let start, end;
-            if (viewMode === 'week') {
-                start = startOfWeek(currentDate, { weekStartsOn: 1 });
-                end = endOfWeek(currentDate, { weekStartsOn: 1 });
-            } else {
-                start = startOfMonth(currentDate);
-                end = endOfMonth(currentDate);
-            }
-
-            const searchStart = subWeeks(start, 1);
-            const searchEnd = addWeeks(end, 1);
-
-            const data = await getShiftsForFacility(
-                admin.facilityId,
-                searchStart.toISOString(),
-                searchEnd.toISOString()
-            );
-
-            const parsedData = data.map(d => ({
-                ...d,
-                workDate: new Date(d.workDate)
-            }));
-
-            setShifts(parsedData);
-        } catch (error) {
-            const debugInfo = extractDebugInfo(error);
-            showDebugError({
-                type: 'fetch',
-                operation: 'シフトデータ取得',
-                message: debugInfo.message,
-                details: debugInfo.details,
-                stack: debugInfo.stack,
-                context: { facilityId: admin?.facilityId, viewMode, currentDate: currentDate.toISOString() }
-            });
-            console.error('Failed to fetch shifts:', error);
-            toast.error('シフトの取得に失敗しました');
-        } finally {
-            setIsLoading(false);
+    // 検索範囲を計算
+    const { startDate, endDate } = useMemo(() => {
+        let start, end;
+        if (viewMode === 'week') {
+            start = startOfWeek(currentDate, { weekStartsOn: 1 });
+            end = endOfWeek(currentDate, { weekStartsOn: 1 });
+        } else {
+            start = startOfMonth(currentDate);
+            end = endOfMonth(currentDate);
         }
-    }, [admin?.facilityId, currentDate, viewMode]);
+        // 前後1週間のマージンを追加
+        const searchStart = subWeeks(start, 1);
+        const searchEnd = addWeeks(end, 1);
+        return {
+            startDate: searchStart.toISOString(),
+            endDate: searchEnd.toISOString()
+        };
+    }, [currentDate, viewMode]);
 
-    useEffect(() => {
-        fetchShifts();
-    }, [fetchShifts]);
+    // SWRでシフトデータ取得
+    const { shifts, isLoading, mutate } = useAdminShifts({
+        facilityId: admin?.facilityId,
+        startDate,
+        endDate
+    });
 
     const handlePrev = () => {
         if (viewMode === 'week') {
@@ -188,7 +149,7 @@ export default function ShiftManagementPage() {
             end: endOfWeek(endOfMonth(currentDate), { weekStartsOn: 1 })
         });
 
-    const getShiftsForDay = (date: Date) => {
+    const getShiftsForDay = (date: Date): ShiftWithDate[] => {
         return shifts.filter(s => isSameDay(s.workDate, date));
     };
 
@@ -201,12 +162,12 @@ export default function ShiftManagementPage() {
         return weeks;
     };
 
-    const openDetailModal = (shift: Shift) => {
+    const openDetailModal = (shift: ShiftWithDate) => {
         setSelectedShift(shift);
         setIsDetailModalOpen(true);
     };
 
-    const openCancelModal = (e: React.MouseEvent, shift: Shift) => {
+    const openCancelModal = (e: React.MouseEvent, shift: ShiftWithDate) => {
         e.stopPropagation();
         setSelectedShift(shift);
         setIsCancelModalOpen(true);
@@ -219,7 +180,7 @@ export default function ShiftManagementPage() {
             const result = await cancelShift(selectedShift.applicationId);
             if (result.success) {
                 toast.success('シフトをキャンセル（マッチング解除）しました');
-                fetchShifts();
+                mutate(); // SWRで再取得
                 setIsCancelModalOpen(false);
                 setIsDetailModalOpen(false);
                 setSelectedShift(null);
