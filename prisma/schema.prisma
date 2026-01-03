@@ -528,6 +528,9 @@ model Message {
   @@index([from_user_id, created_at])
   @@index([to_user_id, read_at])
   @@index([thread_id, created_at])
+  // 追加インデックス（施設フィルタ用）
+  @@index([to_facility_id])
+  @@index([from_facility_id])
   @@map("messages")
 }
 
