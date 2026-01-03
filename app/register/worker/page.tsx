@@ -295,19 +295,10 @@ export default function WorkerRegisterPage() {
         throw new Error(data.error || '登録に失敗しました');
       }
 
-      // 自動ログイン
-      const loginResult = await login(formData.email, formData.password);
-      console.log('[Registration] Auto-login result:', loginResult);
-
-      if (loginResult.success) {
-        toast.success('登録完了！求人を検索できます');
-        router.push('/');
-        router.refresh();
-      } else {
-        console.error('[Registration] Auto-login failed:', loginResult.error);
-        toast.error('登録は完了しましたが、自動ログインに失敗しました。ログイン画面からログインしてください。');
-        router.push('/login');
-      }
+      // 登録成功 - メール認証待ちページへリダイレクト
+      toast.success('登録が完了しました。メールをご確認ください。');
+      router.push(`/auth/verify-pending?email=${encodeURIComponent(formData.email)}`);
+      router.refresh();
     } catch (error) {
       const debugInfo = extractDebugInfo(error);
       showDebugError({
