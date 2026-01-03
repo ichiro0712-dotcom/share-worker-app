@@ -63,19 +63,20 @@ const fetcher = async (url: string) => {
     return res.json();
 };
 
-export function useConversations() {
+export function useConversations(fallbackData?: Conversation[]) {
     const { data, error, isLoading, mutate } = useSWR<Conversation[]>(
         '/api/messages/conversations',
         fetcher,
         {
             revalidateOnFocus: true,
             refreshInterval: 30000, // 30秒ごとに更新
+            fallbackData, // SSRで取得した初期データ
         }
     );
 
     return {
         conversations: data ?? [],
-        isLoading,
+        isLoading: fallbackData ? false : isLoading, // fallbackDataがあれば初回ローディングなし
         error,
         mutate,
     };

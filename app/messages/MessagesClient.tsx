@@ -33,12 +33,12 @@ export default function MessagesClient({ initialConversations, userId }: Message
   const searchParams = useSearchParams();
   const { decrementMessages, decrementAnnouncements } = useBadge();
 
-  // SWRでデータ取得
+  // SWRでデータ取得（SSRで取得したinitialConversationsをfallbackとして使用）
   const {
     conversations,
     isLoading: isConversationsLoading,
     mutate: mutateConversations
-  } = useConversations();
+  } = useConversations(initialConversations);
 
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
 
