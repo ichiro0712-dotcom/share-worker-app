@@ -7,52 +7,105 @@ import { sendReviewReceivedNotificationToWorker, sendAdminLowRatingStreakNotific
 
 /**
  * 施設管理者用: ワーカーの詳細情報を取得（統計・評価・キャンセル率含む）
+ * 最適化: Promise.allで並列クエリ実行
  */
 export async function getWorkerDetail(workerId: number, facilityId: number) {
   try {
-    const hasApplied = await prisma.application.findFirst({
-      where: {
-        user_id: workerId,
-        workDate: { job: { facility_id: facilityId } },
-      },
-    });
+    // 最初に応募確認とユーザー情報を並列で取得
+    const [hasApplied, user] = await Promise.all([
+      prisma.application.findFirst({
+        where: {
+          user_id: workerId,
+          workDate: { job: { facility_id: facilityId } },
+        },
+      }),
+      prisma.user.findUnique({ where: { id: workerId } }),
+    ]);
 
-    if (!hasApplied) return null;
+    if (!hasApplied || !user) return null;
 
-    const user = await prisma.user.findUnique({ where: { id: workerId } });
-    if (!user) return null;
+    const today = getTodayStart();
 
-    const ourFacilityCompletedApps = await prisma.application.findMany({
-      where: {
-        user_id: workerId,
-        workDate: { job: { facility_id: facilityId } },
-        status: { in: ['COMPLETED_PENDING', 'COMPLETED_RATED'] },
-      },
-      include: { workDate: { include: { job: true } } },
-      orderBy: { created_at: 'desc' },
-    });
+    // 全ての独立したクエリを並列で実行
+    const [
+      ourFacilityCompletedApps,
+      ourFacilityReviews,
+      allReviews,
+      otherFacilityApps,
+      allApplications,
+      upcomingSchedules,
+      isFavoriteBookmark,
+      isBlockedBookmark,
+    ] = await Promise.all([
+      prisma.application.findMany({
+        where: {
+          user_id: workerId,
+          workDate: { job: { facility_id: facilityId } },
+          status: { in: ['COMPLETED_PENDING', 'COMPLETED_RATED'] },
+        },
+        include: { workDate: { include: { job: true } } },
+        orderBy: { created_at: 'desc' },
+      }),
+      prisma.review.findMany({
+        where: {
+          user_id: workerId,
+          facility_id: facilityId,
+          reviewer_type: 'FACILITY',
+        },
+        include: { job: true },
+        orderBy: { created_at: 'desc' },
+      }),
+      prisma.review.findMany({
+        where: { user_id: workerId, reviewer_type: 'FACILITY' },
+        include: { facility: { select: { facility_type: true } } },
+      }),
+      prisma.application.count({
+        where: {
+          user_id: workerId,
+          workDate: { job: { facility_id: { not: facilityId } } },
+          status: { in: ['COMPLETED_PENDING', 'COMPLETED_RATED'] },
+        },
+      }),
+      prisma.application.findMany({
+        where: {
+          user_id: workerId,
+          status: { in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED', 'CANCELLED'] },
+        },
+        select: {
+          status: true,
+          updated_at: true,
+          cancelled_by: true,
+          workDate: { select: { work_date: true } },
+        },
+      }),
+      prisma.application.findMany({
+        where: {
+          user_id: workerId,
+          status: 'SCHEDULED',
+          workDate: { work_date: { gte: today }, job: { facility_id: facilityId } },
+        },
+        include: {
+          workDate: {
+            include: { job: { include: { facility: { select: { facility_name: true } } } } },
+          },
+        },
+        orderBy: { workDate: { work_date: 'asc' } },
+        take: 30,
+      }),
+      prisma.bookmark.findFirst({
+        where: { facility_id: facilityId, target_user_id: workerId, type: 'FAVORITE' },
+      }),
+      prisma.bookmark.findFirst({
+        where: { facility_id: facilityId, target_user_id: workerId, type: 'WATCH_LATER' },
+      }),
+    ]);
 
     // レビュー完了済み（COMPLETED_RATED）があるか確認（オファー対象判定用）
     const hasCompletedRated = ourFacilityCompletedApps.some(app => app.status === 'COMPLETED_RATED');
 
-    const ourFacilityReviews = await prisma.review.findMany({
-      where: {
-        user_id: workerId,
-        facility_id: facilityId,
-        reviewer_type: 'FACILITY',
-      },
-      include: { job: true },
-      orderBy: { created_at: 'desc' },
-    });
-
     const ourAvgRating = ourFacilityReviews.length > 0
       ? ourFacilityReviews.reduce((sum, r) => sum + r.rating, 0) / ourFacilityReviews.length
       : 0;
-
-    const allReviews = await prisma.review.findMany({
-      where: { user_id: workerId, reviewer_type: 'FACILITY' },
-      include: { facility: { select: { facility_type: true } } },
-    });
 
     const totalAvgRating = allReviews.length > 0
       ? allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length
@@ -91,27 +144,6 @@ export async function getWorkerDetail(workerId: number, facilityId: number) {
       attitude: categoryCounts.attitude > 0 ? ratingsByCategory.attitude / categoryCounts.attitude : null,
     };
 
-    const otherFacilityApps = await prisma.application.count({
-      where: {
-        user_id: workerId,
-        workDate: { job: { facility_id: { not: facilityId } } },
-        status: { in: ['COMPLETED_PENDING', 'COMPLETED_RATED'] },
-      },
-    });
-
-    const allApplications = await prisma.application.findMany({
-      where: {
-        user_id: workerId,
-        status: { in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED', 'CANCELLED'] },
-      },
-      select: {
-        status: true,
-        updated_at: true,
-        cancelled_by: true,
-        workDate: { select: { work_date: true } },
-      },
-    });
-
     const workerCancelledApps = allApplications.filter(
       (app) => app.status === 'CANCELLED' && app.cancelled_by === 'WORKER'
     );
@@ -127,22 +159,6 @@ export async function getWorkerDetail(workerId: number, facilityId: number) {
       if (updatedAt >= dayBefore) lastMinuteCancelCount += 1;
     });
     const lastMinuteCancelRate = allApplications.length > 0 ? (lastMinuteCancelCount / allApplications.length) * 100 : 0;
-
-    const today = getTodayStart();
-    const upcomingSchedules = await prisma.application.findMany({
-      where: {
-        user_id: workerId,
-        status: 'SCHEDULED',
-        workDate: { work_date: { gte: today }, job: { facility_id: facilityId } },
-      },
-      include: {
-        workDate: {
-          include: { job: { include: { facility: { select: { facility_name: true } } } } },
-        },
-      },
-      orderBy: { workDate: { work_date: 'asc' } },
-      take: 30,
-    });
 
     let age: number | null = null;
     if (user.birth_date) {
@@ -220,12 +236,8 @@ export async function getWorkerDetail(workerId: number, facilityId: number) {
         rating: r.rating,
         comment: r.good_points,
       })),
-      isFavorite: await prisma.bookmark.findFirst({
-        where: { facility_id: facilityId, target_user_id: workerId, type: 'FAVORITE' },
-      }).then(b => !!b),
-      isBlocked: await prisma.bookmark.findFirst({
-        where: { facility_id: facilityId, target_user_id: workerId, type: 'WATCH_LATER' },
-      }).then(b => !!b),
+      isFavorite: !!isFavoriteBookmark,
+      isBlocked: !!isBlockedBookmark,
       ratingsByCategory: finalRatingsByCategory,
       qualificationCertificates: user.qualification_certificates as Record<string, string | { certificate_image?: string }> | null,
       hasCompletedRated, // レビュー完了済み（オファー対象）
@@ -1069,24 +1081,26 @@ export async function getWorkerListForFacility(
       };
     }
 
-    // 集計（ID一覧とソート用データ）
-    const groupedApps = await prisma.application.groupBy({
-      by: ['user_id'],
-      where: whereConditions,
-      _count: { id: true },
-      _max: {
-        created_at: true
-      },
-    });
-
-    // 妥協案: まず対象ワーカーIDを全て取得 (distinct)
-    const distinctApps = await prisma.application.findMany({
-      where: whereConditions,
-      distinct: ['user_id'],
-      select: {
-        user_id: true,
-      }
-    });
+    // 並列で集計とdistinctを実行
+    const [groupedApps, distinctApps] = await Promise.all([
+      // 集計（ID一覧とソート用データ）
+      prisma.application.groupBy({
+        by: ['user_id'],
+        where: whereConditions,
+        _count: { id: true },
+        _max: {
+          created_at: true
+        },
+      }),
+      // 対象ワーカーIDを全て取得 (distinct)
+      prisma.application.findMany({
+        where: whereConditions,
+        distinct: ['user_id'],
+        select: {
+          user_id: true,
+        }
+      }),
+    ]);
 
     let candidateUserIds = distinctApps.map(app => app.user_id);
 
@@ -1136,82 +1150,95 @@ export async function getWorkerListForFacility(
       return { data: [], pagination: { currentPage: page, totalPages: Math.ceil(totalCount / limit), totalCount, hasMore: false } };
     }
 
-    // 5. 詳細データ取得 (paginatedIds に対してのみ)
+    // 5. 詳細データ取得 (paginatedIds に対してのみ) - 並列実行
     const userIds = paginatedIds;
 
-    const ourApplications = await prisma.application.findMany({
-      where: {
-        workDate: {
-          job: {
-            facility_id: facilityId,
-          },
-        },
-        user_id: { in: userIds },
-        status: {
-          in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED', 'CANCELLED'],
-        },
-      },
-      select: {
-        status: true,
-        cancelled_by: true,
-        user: {
-          select: {
-            id: true,
-            name: true,
-            profile_image: true,
-            qualifications: true,
-            prefecture: true,
-            city: true,
-            experience_fields: true,
-          },
-        },
-        workDate: {
-          select: {
-            work_date: true,
+    const [ourApplications, otherApplications, bookmarks, reviews] = await Promise.all([
+      // 自社での勤務データ
+      prisma.application.findMany({
+        where: {
+          workDate: {
             job: {
-              select: {
-                start_time: true,
-                end_time: true,
+              facility_id: facilityId,
+            },
+          },
+          user_id: { in: userIds },
+          status: {
+            in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED', 'CANCELLED'],
+          },
+        },
+        select: {
+          status: true,
+          cancelled_by: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              profile_image: true,
+              qualifications: true,
+              prefecture: true,
+              city: true,
+              experience_fields: true,
+            },
+          },
+          workDate: {
+            select: {
+              work_date: true,
+              job: {
+                select: {
+                  start_time: true,
+                  end_time: true,
+                },
               },
             },
           },
         },
-      },
-    });
-
-    // 他社での勤務データを取得
-    const otherApplications = await prisma.application.findMany({
-      where: {
-        user_id: { in: userIds },
-        workDate: {
-          job: {
-            facility_id: { not: facilityId },
+      }),
+      // 他社での勤務データ
+      prisma.application.findMany({
+        where: {
+          user_id: { in: userIds },
+          workDate: {
+            job: {
+              facility_id: { not: facilityId },
+            },
+          },
+          status: {
+            in: ['COMPLETED_PENDING', 'COMPLETED_RATED'],
           },
         },
-        status: {
-          in: ['COMPLETED_PENDING', 'COMPLETED_RATED'],
-        },
-      },
-      include: {
-        workDate: {
-          select: {
-            work_date: true,
+        include: {
+          workDate: {
+            select: {
+              work_date: true,
+            },
           },
         },
-      },
-    });
-
-    // お気に入り・ブロック状態を取得
-    const bookmarks = await prisma.bookmark.findMany({
-      where: {
-        facility_id: facilityId,
-        target_user_id: { in: userIds },
-      },
-      select: {
-        target_user_id: true,
-        type: true,
-      },
-    });
+      }),
+      // お気に入り・ブロック状態
+      prisma.bookmark.findMany({
+        where: {
+          facility_id: facilityId,
+          target_user_id: { in: userIds },
+        },
+        select: {
+          target_user_id: true,
+          type: true,
+        },
+      }),
+      // 各ワーカーの評価（自社のみ）
+      prisma.review.findMany({
+        where: {
+          user_id: { in: userIds },
+          facility_id: facilityId,
+          reviewer_type: 'FACILITY',
+        },
+        select: {
+          user_id: true,
+          rating: true,
+        },
+      }),
+    ]);
 
     // ブックマークをマップ化
     const favoriteSet = new Set<number>();
@@ -1306,19 +1333,6 @@ export async function getWorkerListForFacility(
         });
       }
     }
-
-    // 各ワーカーの評価を取得（自社のみ）
-    const reviews = await prisma.review.findMany({
-      where: {
-        user_id: { in: userIds },
-        facility_id: facilityId,
-        reviewer_type: 'FACILITY',
-      },
-      select: {
-        user_id: true,
-        rating: true,
-      },
-    });
 
     // ユーザーごとの評価を集計
     const reviewMap = new Map<number, { totalRating: number; count: number }>();
