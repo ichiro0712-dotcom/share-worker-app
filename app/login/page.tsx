@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { getCsrfToken } from 'next-auth/react';
 import toast from 'react-hot-toast';
 import { getTestUsers } from '@/src/lib/actions';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
@@ -27,6 +28,15 @@ export default function WorkerLogin() {
   const [isEmailNotVerified, setIsEmailNotVerified] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [testUsers, setTestUsers] = useState<TestUser[]>([]);
+  const [csrfReady, setCsrfReady] = useState(false);
+
+  // CSRFトークンを事前取得（1回目ログイン失敗問題の対策）
+  useEffect(() => {
+    getCsrfToken().then(() => {
+      console.log('[Login] CSRF token ready');
+      setCsrfReady(true);
+    });
+  }, []);
 
   // テストユーザーをDBから取得
   useEffect(() => {
