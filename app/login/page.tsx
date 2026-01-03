@@ -60,8 +60,8 @@ export default function WorkerLogin() {
 
       if (result.success) {
         toast.success('ログインしました');
-        router.push('/');
-        router.refresh();
+        // セッションCookieが確実に反映されるようフルページナビゲーション
+        window.location.href = '/';
       } else {
         // メール未認証エラーの場合
         if (result.error?.includes('EMAIL_NOT_VERIFIED')) {
