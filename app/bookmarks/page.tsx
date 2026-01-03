@@ -24,6 +24,8 @@ function BookmarkListSkeleton() {
 
 // データ取得用Server Component
 async function BookmarkDataLoader() {
+  // デバッグ: 2秒遅延を追加してストリーミングを確認
+  await new Promise(resolve => setTimeout(resolve, 2000));
   const bookmarks = await getBookmarkedJobs('WATCH_LATER');
   return <BookmarkListClient initialBookmarks={bookmarks} />;
 }
