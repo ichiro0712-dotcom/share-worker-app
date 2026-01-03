@@ -531,6 +531,8 @@ model Message {
   // 追加インデックス（施設フィルタ用）
   @@index([to_facility_id])
   @@index([from_facility_id])
+  // 施設未読メッセージカウント用
+  @@index([to_facility_id, read_at])
   @@map("messages")
 }
 
@@ -551,6 +553,7 @@ model SystemNotification {
   job               Job?         @relation(fields: [job_id], references: [id], onDelete: SetNull)
 
   @@index([target_type, recipient_id])
+  @@index([target_type, recipient_id, read_at]) // 未読カウント用複合インデックス
   @@index([notification_key])
   @@index([created_at])
   @@map("system_notifications")

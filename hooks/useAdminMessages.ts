@@ -64,26 +64,37 @@ const fetcher = async (url: string) => {
     return res.json();
 };
 
-export function useAdminConversations(facilityId?: number) {
+/**
+ * 施設メッセージ会話一覧取得
+ * 最適化: dedupingIntervalを長めに設定し、revalidateOnFocusを無効化
+ */
+export function useAdminConversations(facilityId?: number, initialData?: AdminConversation[]) {
     const url = facilityId ? `/api/admin/messages/conversations?facilityId=${facilityId}` : null;
 
     const { data, error, isLoading, mutate } = useSWR<AdminConversation[]>(
         url,
         fetcher,
         {
-            revalidateOnFocus: true,
-            refreshInterval: 30000,
+            fallbackData: initialData,
+            revalidateOnFocus: false, // フォーカス時の再取得を無効化
+            revalidateOnReconnect: true, // ネットワーク復帰時は再取得
+            refreshInterval: 30000, // 30秒ごとにポーリング
+            dedupingInterval: 5000, // 5秒間は同一リクエストを重複排除
         }
     );
 
     return {
         conversations: data ?? [],
-        isLoading,
+        isLoading: initialData ? false : isLoading, // 初期データがある場合はloadingをスキップ
         error,
         mutate,
     };
 }
 
+/**
+ * ワーカー別メッセージ取得
+ * 最適化: dedupingIntervalを設定し、不要な再取得を防止
+ */
 export function useAdminMessagesByWorker(facilityId: number | undefined, workerId: number | null) {
     const url = facilityId && workerId !== null
         ? `/api/admin/messages/detail?facilityId=${facilityId}&workerId=${workerId}&markAsRead=true`
@@ -93,8 +104,10 @@ export function useAdminMessagesByWorker(facilityId: number | undefined, workerI
         url,
         fetcher,
         {
-            revalidateOnFocus: true,
-            refreshInterval: 10000,
+            revalidateOnFocus: false, // フォーカス時の再取得を無効化
+            revalidateOnReconnect: true,
+            refreshInterval: 10000, // 10秒ごとにポーリング（チャットなのでやや短め）
+            dedupingInterval: 3000, // 3秒間は同一リクエストを重複排除
         }
     );
 
@@ -106,6 +119,10 @@ export function useAdminMessagesByWorker(facilityId: number | undefined, workerI
     };
 }
 
+/**
+ * お知らせ取得
+ * 最適化: 頻度が低いためrefreshIntervalを長めに
+ */
 export function useAdminAnnouncements(facilityId?: number) {
     const url = facilityId ? `/api/admin/messages/announcements?facilityId=${facilityId}` : null;
 
@@ -113,8 +130,10 @@ export function useAdminAnnouncements(facilityId?: number) {
         url,
         fetcher,
         {
-            revalidateOnFocus: true,
-            refreshInterval: 60000,
+            revalidateOnFocus: false,
+            revalidateOnReconnect: true,
+            refreshInterval: 120000, // 2分ごと（お知らせはリアルタイム性が低い）
+            dedupingInterval: 10000, // 10秒間は同一リクエストを重複排除
         }
     );
 

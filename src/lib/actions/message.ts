@@ -934,58 +934,81 @@ export async function getMessagesByFacility(
 
 /**
  * 施設用: ワーカーごとにグループ化した会話一覧を取得
+ * 最適化: Promise.allで並列実行 + select最小化
  */
 export async function getGroupedWorkerConversations(facilityId: number) {
-  // 施設の全応募を取得（ワーカー情報付き）
-  // キャンセル以外のステータス、またはメッセージがある応募を含める
-  const applications = await prisma.application.findMany({
-    where: {
-      workDate: {
-        job: { facility_id: facilityId },
+  // 3つの独立したクエリを並列実行
+  const [applications, threads, officeData] = await Promise.all([
+    // 1. 施設の全応募を取得（必要なフィールドのみ）
+    prisma.application.findMany({
+      where: {
+        workDate: {
+          job: { facility_id: facilityId },
+        },
+        OR: [
+          { status: { in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'] } },
+          { messages: { some: {} } },
+        ],
       },
-      OR: [
-        { status: { in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'] } },
-        { messages: { some: {} } },  // メッセージがある応募は含める
-      ],
-    },
-    include: {
-      user: true,
-      messages: {
+      select: {
+        id: true,
+        status: true,
+        created_at: true,
+        user: {
+          select: { id: true, name: true, profile_image: true },
+        },
+        messages: {
+          orderBy: { created_at: 'desc' as const },
+          take: 1,
+          select: { content: true, created_at: true },
+        },
+        workDate: {
+          select: {
+            job: { select: { title: true } },
+          },
+        },
+        _count: {
+          select: {
+            messages: {
+              where: {
+                read_at: null,
+                to_facility_id: { not: null },
+              },
+            },
+          },
+        },
+      },
+    }),
+    // 2. MessageThread取得（オファー用）
+    prisma.messageThread.findMany({
+      where: { facility_id: facilityId },
+      select: {
+        id: true,
+        created_at: true,
+        worker: {
+          select: { id: true, name: true, profile_image: true },
+        },
+        messages: {
+          orderBy: { created_at: 'desc' as const },
+          take: 1,
+          select: { content: true, created_at: true, read_at: true, to_facility_id: true },
+        },
+      },
+    }),
+    // 3. 運営通知（2つのクエリを並列実行）
+    Promise.all([
+      prisma.systemNotification.findFirst({
+        where: { target_type: 'FACILITY', recipient_id: facilityId },
         orderBy: { created_at: 'desc' },
-        take: 1,
-      },
-      workDate: {
-        include: {
-          job: true
-        }
-      },
-      // 未読メッセージ数を正確にカウント（施設宛の全未読 = ワーカーからのメッセージ + システム通知）
-      _count: {
-        select: {
-          messages: {
-            where: {
-              read_at: null,
-              to_facility_id: { not: null }, // 施設宛のメッセージ（ワーカー送信 + システム通知）
-            }
-          }
-        }
-      }
-    },
-  });
+        select: { content: true, created_at: true },
+      }),
+      prisma.systemNotification.count({
+        where: { target_type: 'FACILITY', recipient_id: facilityId, read_at: null },
+      }),
+    ]),
+  ]);
 
-  // この施設とのMessageThreadを取得（オファー用）
-  const threads = await prisma.messageThread.findMany({
-    where: {
-      facility_id: facilityId,
-    },
-    include: {
-      worker: true,
-      messages: {
-        orderBy: { created_at: 'desc' },
-        take: 1,
-      },
-    },
-  });
+  const [officeLastNotification, officeUnreadCount] = officeData;
 
   // ワーカーごとにグループ化
   const workerMap = new Map<number, {
@@ -993,14 +1016,13 @@ export async function getGroupedWorkerConversations(facilityId: number) {
     userName: string;
     userProfileImage: string | null;
     applicationIds: number[];
-    threadIds: number[];          // オファー用スレッドID
+    threadIds: number[];
     lastMessage: string;
     lastMessageTime: Date;
     unreadCount: number;
-    // 最新の求人情報など（表示用）
     jobTitle: string;
     status: string;
-    isOffice?: boolean; // 運営フラグ
+    isOffice?: boolean;
   }>();
 
   // 応募ベースのメッセージを処理
@@ -1010,7 +1032,6 @@ export async function getGroupedWorkerConversations(facilityId: number) {
 
     const existing = workerMap.get(user.id);
     const lastMsg = app.messages[0];
-    // _countから正確な未読数を取得
     const unread = app._count?.messages || 0;
     const userName = user.name || '不明なユーザー';
 
@@ -1020,7 +1041,6 @@ export async function getGroupedWorkerConversations(facilityId: number) {
       if (lastMsg && lastMsg.created_at > existing.lastMessageTime) {
         existing.lastMessage = lastMsg.content;
         existing.lastMessageTime = lastMsg.created_at;
-        // 最新のメッセージに関連するジョブ情報を優先表示
         existing.jobTitle = app.workDate?.job?.title || '';
         existing.status = app.status;
       }
@@ -1048,19 +1068,15 @@ export async function getGroupedWorkerConversations(facilityId: number) {
     const existing = workerMap.get(user.id);
     const lastMsg = thread.messages[0];
     const userName = user.name || '不明なユーザー';
-
-    // スレッドの未読メッセージ数を計算（施設宛のメッセージ）
     const threadUnreadCount = thread.messages.filter(m => !m.read_at && m.to_facility_id).length;
 
     if (existing) {
       existing.threadIds.push(thread.id);
-      // スレッドに新しいメッセージがあれば更新
       if (lastMsg && lastMsg.created_at > existing.lastMessageTime) {
         existing.lastMessage = lastMsg.content;
         existing.lastMessageTime = lastMsg.created_at;
       }
     } else {
-      // 応募がなくスレッドのみある場合（オファーのみの場合）
       workerMap.set(user.id, {
         userId: user.id,
         userName: userName,
@@ -1076,26 +1092,7 @@ export async function getGroupedWorkerConversations(facilityId: number) {
     }
   }
 
-  // 「運営」用のシステム通知を集計（SystemNotificationテーブルから）
-  const officeNotifications = await prisma.systemNotification.findMany({
-    where: {
-      target_type: 'FACILITY',
-      recipient_id: facilityId,
-    },
-    orderBy: { created_at: 'desc' },
-    take: 1,
-  });
-
-  const officeUnreadCount = await prisma.systemNotification.count({
-    where: {
-      target_type: 'FACILITY',
-      recipient_id: facilityId,
-      read_at: null,
-    },
-  });
-
-  // 「運営」エントリを追加（システム通知がある場合）
-  const officeLastNotification = officeNotifications[0];
+  // 「運営」エントリを追加
   if (officeLastNotification || officeUnreadCount > 0) {
     workerMap.set(-1, {
       userId: -1,
