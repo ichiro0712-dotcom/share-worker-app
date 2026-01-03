@@ -12,6 +12,7 @@ import AddressSelector from '@/components/ui/AddressSelector';
 import { KatakanaInput } from '@/components/ui/KatakanaInput';
 import { QUALIFICATION_GROUPS } from '@/constants/qualifications';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 
 export default function WorkerRegisterPage() {
   const router = useRouter();
@@ -800,8 +801,9 @@ export default function WorkerRegisterPage() {
               <button
                 type="submit"
                 disabled={isSubmitting || !!compressingQual}
-                className="px-6 py-2 bg-primary hover:bg-primary-dark text-white rounded-md transition-colors font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-6 py-2 bg-primary hover:bg-primary-dark text-white rounded-md transition-colors font-bold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-w-[100px]"
               >
+                {(isSubmitting || compressingQual) && <LoadingSpinner size="sm" color="white" />}
                 {compressingQual ? '画像圧縮中...' : isSubmitting ? '登録中...' : '登録'}
               </button>
             </div>

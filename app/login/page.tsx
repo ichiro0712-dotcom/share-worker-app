@@ -9,6 +9,7 @@ import { getCsrfToken } from 'next-auth/react';
 import toast from 'react-hot-toast';
 import { getTestUsers } from '@/src/lib/actions';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 
 type TestUser = {
   id: number;
@@ -190,8 +191,9 @@ export default function WorkerLogin() {
             <button
               type="submit"
               disabled={isSubmitting || authLoading}
-              className="w-full py-3 bg-white text-primary rounded-lg font-bold hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+              className="w-full py-3 bg-white text-primary rounded-lg font-bold hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md flex items-center justify-center gap-2"
             >
+              {isSubmitting && <LoadingSpinner size="sm" color="primary" />}
               {isSubmitting ? 'ログイン中...' : 'ログイン'}
             </button>
           </form>
