@@ -9,6 +9,7 @@ import { useBadge } from '@/contexts/BadgeContext';
 import { directUpload } from '@/utils/directUpload';
 import { useConversations, useMessagesByFacility, useAnnouncements, type Message, type Conversation, type MessagesResponse } from '@/hooks/useMessages';
 import { MessagesSkeleton, ConversationsSkeleton } from '@/components/MessagesSkeleton';
+import { preload } from 'swr';
 
 
 interface Announcement {
@@ -22,6 +23,13 @@ interface Announcement {
 
 type TabType = 'messages' | 'notifications';
 type SortType = 'newest' | 'workDate';
+
+// SWRプリフェッチ用fetcher
+const fetcher = async (url: string) => {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Failed to fetch');
+  return res.json();
+};
 
 interface MessagesClientProps {
   initialConversations?: Conversation[]; // Optional for SWR fallback if wanted
@@ -457,6 +465,12 @@ export default function MessagesClient({ initialConversations, userId }: Message
 
   const unreadAnnouncementsCount = announcements.filter(a => !a.isRead).length;
 
+  // 会話にホバーした時にメッセージ詳細をプリフェッチ
+  const handleConversationHover = useCallback((facilityId: number) => {
+    const url = `/api/messages/detail?facilityId=${facilityId}&markAsRead=false`;
+    preload(url, fetcher);
+  }, []);
+
   // テキスト内のURLをリンクに変換する関数
   const renderContentWithLinks = (content: string, linkColorStyle: 'default' | 'light' = 'default') => {
     // 外部URL、www、アプリ内パス（/jobs/123, /my-jobs/123など）を検出
@@ -624,6 +638,8 @@ export default function MessagesClient({ initialConversations, userId }: Message
                   <button
                     key={conv.facilityId}
                     onClick={() => handleSelectConversation(conv)}
+                    onMouseEnter={() => handleConversationHover(conv.facilityId)}
+                    onTouchStart={() => handleConversationHover(conv.facilityId)}
                     className="w-full bg-white hover:bg-gray-50 px-4 py-4 text-left transition-colors"
                   >
                     <div className="flex items-start gap-3">
