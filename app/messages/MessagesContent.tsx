@@ -1,28 +1,17 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { ChevronLeft, Send, Paperclip, Calendar, Search, Bell, Megaphone, X, FileText, Image as ImageIcon, Loader2, Check, AlertCircle, RotateCcw, Trash2 } from 'lucide-react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { ChevronLeft, Send, Paperclip, Search, Bell, Megaphone, X, FileText, Loader2, Check, AlertCircle, RotateCcw, Trash2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { sendMessageToFacility } from '@/src/lib/actions';
-import { getWorkerAnnouncements, markAnnouncementAsRead } from '@/src/lib/system-actions';
+import { markAnnouncementAsRead } from '@/src/lib/system-actions';
 import { useBadge } from '@/contexts/BadgeContext';
 import { directUpload } from '@/utils/directUpload';
-import { useConversations, useMessagesByFacility, useAnnouncements, type Message, type Conversation, type MessagesResponse } from '@/hooks/useMessages';
+import { useConversations, useMessagesByFacility, useAnnouncements, type Message, type Conversation, type MessagesResponse, type Announcement } from '@/hooks/useMessages';
 import { MessagesSkeleton, ConversationsSkeleton } from '@/components/MessagesSkeleton';
 import { preload } from 'swr';
 
-
-interface Announcement {
-  id: number;
-  title: string;
-  content: string;
-  category: string;
-  publishedAt: Date | null;
-  isRead: boolean;
-}
-
 type TabType = 'messages' | 'notifications';
-type SortType = 'newest' | 'workDate';
 
 // SWRプリフェッチ用fetcher
 const fetcher = async (url: string) => {
@@ -31,14 +20,15 @@ const fetcher = async (url: string) => {
   return res.json();
 };
 
-interface MessagesClientProps {
-  initialConversations?: Conversation[]; // Optional for SWR fallback if wanted
+interface MessagesContentProps {
+  initialConversations?: Conversation[];
   userId: number;
+  initialTab: TabType;
+  initialFacilityId: number | null;
 }
 
-export default function MessagesClient({ initialConversations, userId }: MessagesClientProps) {
+export function MessagesContent({ initialConversations, userId, initialTab, initialFacilityId }: MessagesContentProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { decrementMessages, decrementAnnouncements } = useBadge();
 
   // SWRでデータ取得（SSRで取得したinitialConversationsをfallbackとして使用）
@@ -70,24 +60,9 @@ export default function MessagesClient({ initialConversations, userId }: Message
   }, [swrChatData, localMessages]);
 
   const [messageInput, setMessageInput] = useState('');
-  const initialTab = searchParams.get('tab') as TabType | null;
-  const [activeTab, setActiveTab] = useState<TabType>(
-    initialTab && ['messages', 'notifications'].includes(initialTab)
-      ? initialTab
-      : 'messages'
-  );
+  const [activeTab, setActiveTab] = useState<TabType>(initialTab);
 
-  const updateUrlParams = (tab: TabType) => {
-    const params = new URLSearchParams(window.location.search);
-    if (tab === 'messages') {
-      params.delete('tab');
-    } else {
-      params.set('tab', tab);
-    }
-    router.replace(`/messages?${params.toString()}`, { scroll: false });
-  };
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortType, setSortType] = useState<SortType>('newest');
   const [isSending, setIsSending] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [pendingAttachments, setPendingAttachments] = useState<string[]>([]);
@@ -116,8 +91,24 @@ export default function MessagesClient({ initialConversations, userId }: Message
 
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
 
+  // URLパラメータの変更を監視してタブを更新（Linkでの遷移時）
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
+
+  // URLパラメータからfacilityIdを取得して自動的に開く
+  useEffect(() => {
+    if (selectedConversation) return;
+    if (!initialFacilityId) return;
+
+    const conv = conversations.find((c) => c.facilityId === initialFacilityId);
+    if (conv) {
+      handleSelectConversation(conv);
+    }
+  }, [initialFacilityId, conversations, selectedConversation]);
+
   // お知らせを開く（既読にして詳細表示）
-  const handleOpenAnnouncement = async (announcement: any) => {
+  const handleOpenAnnouncement = async (announcement: Announcement) => {
     if (!announcement.isRead) {
       await markAnnouncementAsRead(announcement.id, 'WORKER', userId);
       mutateAnnouncements();
@@ -131,21 +122,6 @@ export default function MessagesClient({ initialConversations, userId }: Message
   const handleBackFromAnnouncement = () => {
     setSelectedAnnouncement(null);
   };
-
-  // URLパラメータからfacilityIdを取得して自動的に開く
-  useEffect(() => {
-    if (selectedConversation) return;
-
-    const facilityId = searchParams.get('facilityId');
-
-    if (facilityId) {
-      // facilityIdで検索
-      const conv = conversations.find((c) => c.facilityId === parseInt(facilityId, 10));
-      if (conv) {
-        handleSelectConversation(conv);
-      }
-    }
-  }, [searchParams, conversations, selectedConversation]);
 
   // 初期ロード完了時に最下部にスクロール（新しい会話を選んだ時のみ）
   useEffect(() => {
@@ -521,10 +497,9 @@ export default function MessagesClient({ initialConversations, userId }: Message
 
   // お知らせ詳細表示
   if (selectedAnnouncement) {
-    // (省略なし、既存と同じUI)
     const categoryStyle = getCategoryStyle(selectedAnnouncement.category);
     return (
-      <div className="min-h-screen bg-gray-50 pb-20">
+      <div className="pb-20">
         <div className="bg-white border-b border-gray-200 px-4 py-3">
           <div className="flex items-center gap-3">
             <button
@@ -573,46 +548,7 @@ export default function MessagesClient({ initialConversations, userId }: Message
   // チャットルーム一覧表示
   if (!selectedConversation) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        {/* ヘッダー */}
-        <div className="bg-white border-b border-gray-200">
-          <div className="px-4 py-4">
-            <h1 className="text-xl font-bold text-gray-900">メッセージ</h1>
-          </div>
-
-          <div className="flex border-t border-gray-200">
-            <button
-              onClick={() => {
-                setActiveTab('messages');
-                updateUrlParams('messages');
-              }}
-              className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'messages'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-gray-500'
-                }`}
-            >
-              メッセージ
-            </button>
-            <button
-              onClick={() => {
-                setActiveTab('notifications');
-                updateUrlParams('notifications');
-              }}
-              className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'notifications'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-gray-500'
-                }`}
-            >
-              お知らせ
-              {unreadAnnouncementsCount > 0 && (
-                <span className="ml-1 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5">
-                  {unreadAnnouncementsCount}
-                </span>
-              )}
-            </button>
-          </div>
-        </div>
-
+      <>
         {activeTab === 'messages' ? (
           <>
             <div className="bg-white border-b border-gray-200 px-4 py-3">
@@ -775,15 +711,15 @@ export default function MessagesClient({ initialConversations, userId }: Message
             )}
           </div>
         )}
-      </div>
+      </>
     );
   }
 
   // チャット画面
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="flex flex-col" style={{ height: 'calc(100vh - 108px)' }}>
       {/* ヘッダー - 固定 */}
-      <div className="bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-10">
+      <div className="bg-white border-b border-gray-200 px-4 py-3 sticky top-[108px] z-10">
         <div className="flex items-center gap-3">
           <button
             onClick={handleBackToList}
