@@ -6,8 +6,7 @@ import { authOptions } from '@/lib/auth';
 import Link from 'next/link';
 import { Skeleton } from '@/components/ui/skeleton';
 
-// 動的レンダリングを強制（セッションを使用するため）
-export const dynamic = 'force-dynamic';
+// ミドルウェアで認証済み。dynamic exportは不要（Suspense内で動的データ取得）
 
 // タブの型定義
 type TabType = 'messages' | 'notifications';

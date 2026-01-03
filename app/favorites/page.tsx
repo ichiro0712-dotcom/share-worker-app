@@ -5,8 +5,7 @@ import { FavoriteListClient } from '@/components/favorite/FavoriteListClient';
 import { getFavoriteFacilities } from '@/src/lib/actions';
 import { Skeleton } from '@/components/ui/skeleton';
 
-// 動的レンダリングを強制（セッションを使用するため）
-export const dynamic = 'force-dynamic';
+// ミドルウェアで認証済み。Suspense内で動的データ取得
 
 // ローディングスケルトン
 function FavoriteListSkeleton() {
