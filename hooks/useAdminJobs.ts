@@ -109,6 +109,10 @@ const buildUrl = (params: AdminJobsParams): string | null => {
     return `/api/admin/jobs/list?${searchParams.toString()}`;
 };
 
+/**
+ * 施設求人一覧取得フック
+ * 最適化: revalidateOnFocusで画面復帰時に更新されるため、過度なポーリングを削除
+ */
 export function useAdminJobs(params: AdminJobsParams) {
     const url = useMemo(() => buildUrl(params), [params.facilityId, params.page, params.status, params.query, params.sort]);
 
@@ -116,10 +120,12 @@ export function useAdminJobs(params: AdminJobsParams) {
         url,
         fetcher,
         {
-            revalidateOnFocus: true,
+            revalidateOnFocus: true, // タブ復帰時に再取得
             revalidateOnMount: true, // ページに戻った時に必ず再取得
-            dedupingInterval: 2000,
-            refreshInterval: 5000, // 5秒ごとに再取得（バックグラウンド保存対応）
+            revalidateOnReconnect: true, // ネットワーク復帰時に再取得
+            dedupingInterval: 5000, // 5秒間は同一リクエストを重複排除
+            // refreshIntervalを削除: revalidateOnFocusがあるので不要
+            // 必要に応じてmutate()で手動更新可能
         }
     );
 

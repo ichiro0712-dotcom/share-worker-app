@@ -76,6 +76,10 @@ const buildUrl = (params: AdminWorkersParams): string | null => {
     return `/api/admin/workers/list?${searchParams.toString()}`;
 };
 
+/**
+ * 施設ワーカー一覧取得フック
+ * 最適化: dedupingIntervalを延長して重複リクエストを削減
+ */
 export function useAdminWorkers(params: AdminWorkersParams) {
     const url = useMemo(() => buildUrl(params), [
         params.facilityId,
@@ -91,8 +95,9 @@ export function useAdminWorkers(params: AdminWorkersParams) {
         url,
         fetcher,
         {
-            revalidateOnFocus: true,
-            dedupingInterval: 2000,
+            revalidateOnFocus: true, // タブ復帰時に再取得
+            revalidateOnReconnect: true, // ネットワーク復帰時に再取得
+            dedupingInterval: 5000, // 5秒間は同一リクエストを重複排除
         }
     );
 
