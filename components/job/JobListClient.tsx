@@ -312,10 +312,23 @@ export function JobListClient({
     return filters;
   }, [searchParams]);
 
-  // 日付変更ハンドラ（URL遷移なし、ローカルステートのみ更新）
+  // 日付変更ハンドラ（URLパラメータも更新して履歴に保存）
   const handleDateChange = useCallback((index: number) => {
     setSelectedDateIndex(index);
-  }, []);
+
+    // URLパラメータを更新（ブラウザ履歴に保存）
+    const params = new URLSearchParams(searchParams.toString());
+    if (index === 0) {
+      // デフォルト値（今日）の場合はパラメータを削除
+      params.delete('dateIndex');
+    } else {
+      params.set('dateIndex', String(index));
+    }
+
+    // router.replaceでURLを更新（履歴を置き換え、スクロール位置維持）
+    const newUrl = params.toString() ? `/?${params.toString()}` : '/';
+    router.replace(newUrl, { scroll: false });
+  }, [searchParams, router]);
 
   // 日付ホバー時のプリフェッチ
   const handleDateHover = useCallback((index: number) => {
