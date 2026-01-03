@@ -8,6 +8,7 @@ const publicPaths = [
   '/register',
   '/admin/login',
   '/api/auth',
+  '/auth', // メール認証関連（/auth/verify, /auth/verify-pending, /auth/resend-verification）
   '/dev-portal', // 開発用ポータル
   '/password-reset', // パスワードリセット
   '/faq',
