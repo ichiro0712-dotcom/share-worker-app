@@ -17,5 +17,8 @@ export default async function MessagesPage() {
 
   const userId = session.user?.id ? parseInt(session.user.id) : 0;
 
-  return <MessagesClient userId={userId} />;
+  // SSR: サーバーサイドでメッセージ一覧を事前取得
+  const initialConversations = await getGroupedConversations();
+
+  return <MessagesClient userId={userId} initialConversations={initialConversations} />;
 }
