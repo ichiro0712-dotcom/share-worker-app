@@ -4,113 +4,9 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronLeft, Star, MapPin, Heart, Ban, X, FileText, Download, ExternalLink, Phone, User, Users, MapPin as MapPinIcon, Send } from 'lucide-react';
-import { getWorkerDetail, toggleWorkerFavorite, toggleWorkerBlock } from '@/src/lib/actions';
+import { toggleWorkerFavorite, toggleWorkerBlock } from '@/src/lib/actions';
 import { useAuth } from '@/contexts/AuthContext';
-
-interface WorkerDetailData {
-  id: number;
-  name: string;
-  email: string;
-  phone: string | null;
-  profileImage: string | null;
-  qualifications: string[];
-  birthDate: string | null;
-  age: number | null;
-  // 追加フィールド
-  gender: string | null;
-  nationality: string | null;
-  lastNameKana: string | null;
-  firstNameKana: string | null;
-  // 住所
-  postalCode: string | null;
-  prefecture: string | null;
-  city: string | null;
-  addressLine: string | null;
-  building: string | null;
-  // 緊急連絡先
-  emergencyName: string | null;
-  emergencyRelation: string | null;
-  emergencyPhone: string | null;
-  emergencyAddress: string | null;
-  // 働き方・希望
-  currentWorkStyle: string | null;
-  desiredWorkStyle: string | null;
-  jobChangeDesire: string | null;
-  desiredWorkDaysPerWeek: string | null;
-  desiredWorkPeriod: string | null;
-  desiredWorkDays: string[];
-  desiredStartTime: string | null;
-  desiredEndTime: string | null;
-  // 経験
-  experienceFields: Record<string, string> | null;
-  workHistories: string[];
-  // 自己PR
-  selfPR: string | null;
-  // 銀行口座
-  bankName: string | null;
-  branchName: string | null;
-  accountName: string | null;
-  accountNumber: string | null;
-  // その他
-  pensionNumber: string | null;
-  // 自社データ
-  ourFacilityWorkDays: number;
-  ourFacilityAvgRating: number;
-  ourFacilityReviewCount: number;
-  // 全体データ
-  totalWorkDays: number;
-  otherFacilityWorkDays: number;
-  totalAvgRating: number;
-  totalReviewCount: number;
-  // キャンセル率
-  cancelRate: number;
-  lastMinuteCancelRate: number;
-  // サービス種別ごとの評価
-  ratingsByFacilityType: {
-    facilityType: string;
-    averageRating: number;
-    reviewCount: number;
-  }[];
-  // 直近勤務予定
-  upcomingSchedules: {
-    id: number;
-    workDate: string;
-    startTime: string;
-    endTime: string;
-    jobTitle: string;
-    facilityName: string;
-  }[];
-  // 勤務履歴
-  workHistory: {
-    id: number;
-    jobTitle: string;
-    workDate: string;
-    status: string;
-  }[];
-  // 評価履歴
-  evaluations: {
-    id: number;
-    jobTitle: string;
-    jobDate: string;
-    rating: number;
-    comment: string | null;
-  }[];
-  // ブックマーク状態
-  isFavorite: boolean;
-  isBlocked: boolean;
-  // 項目別平均評価（新規追加）
-  ratingsByCategory: {
-    attendance: number | null;
-    skill: number | null;
-    execution: number | null;
-    communication: number | null;
-    attitude: number | null;
-  } | null;
-  // 資格証明書画像
-  qualificationCertificates: Record<string, string | { certificate_image?: string }> | null;
-  // オファー対象（レビュー完了済み）
-  hasCompletedRated: boolean;
-}
+import { useAdminWorkerDetail, WorkerDetailData } from '@/hooks/useAdminWorkerDetail';
 
 // 経験分野の略称変換
 const getAbbreviation = (field: string): string => {
@@ -179,44 +75,35 @@ export default function WorkerDetailPage({
   const searchParams = useSearchParams();
   const { admin, isAdmin, isAdminLoading } = useAuth();
   const workerId = parseInt(params.id);
-  const [worker, setWorker] = useState<WorkerDetailData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const facilityId = admin?.facilityId;
+
+  // SWRによるワーカー詳細データ取得
+  const { worker, isLoading, mutate } = useAdminWorkerDetail(workerId, facilityId);
+
+  // お気に入り・ブロック状態をローカルで管理（楽観的更新用）
   const [isFavorite, setIsFavorite] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
   // モーダル表示用ステート
   const [showCertificatesModal, setShowCertificatesModal] = useState(false);
   const [showEmergencyContactModal, setShowEmergencyContactModal] = useState(false);
 
+  // ワーカーデータが読み込まれたらローカル状態を更新
   useEffect(() => {
-    console.log('[WorkerDetail] useEffect triggered', { isAdminLoading, isAdmin, admin, workerId });
+    if (worker) {
+      setIsFavorite(worker.isFavorite || false);
+      setIsBlocked(worker.isBlocked || false);
+    }
+  }, [worker]);
+
+  // ログインしていない場合はリダイレクト
+  useEffect(() => {
     if (isAdminLoading) return;
     if (!isAdmin || !admin) {
       router.push('/admin/login');
-      return;
     }
+  }, [isAdmin, admin, isAdminLoading, router]);
 
-    const loadWorker = async () => {
-      console.log('[WorkerDetail] loadWorker started');
-      setLoading(true);
-      try {
-        console.log('[WorkerDetail] Calling getWorkerDetail', { workerId, facilityId: admin.facilityId });
-        const data = await getWorkerDetail(workerId, admin.facilityId);
-        console.log('[WorkerDetail] getWorkerDetail result:', data ? 'Data received' : 'Null');
-        setWorker(data);
-        if (data) {
-          setIsFavorite(data.isFavorite || false);
-          setIsBlocked(data.isBlocked || false);
-        }
-      } catch (error) {
-        console.error('Failed to load worker:', error);
-      } finally {
-        console.log('[WorkerDetail] loadWorker finished, setting loading to false');
-        setLoading(false);
-      }
-    };
-
-    loadWorker();
-  }, [workerId, admin, isAdmin, isAdminLoading, router]);
+  const loading = isLoading || isAdminLoading;
 
   const handleToggleFavorite = async () => {
     if (!admin) return;
