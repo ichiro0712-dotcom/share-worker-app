@@ -1007,34 +1007,36 @@ export async function getLimitedJobTargetCounts(facilityId: number): Promise<{
     favoriteCount: number;
 }> {
     try {
-        // 勤務済みワーカー数: COMPLETED_RATED のアプリケーションを持つユニークなワーカー数
-        const workedWorkers = await prisma.application.findMany({
-            where: {
-                status: 'COMPLETED_RATED',
-                workDate: {
-                    job: {
-                        facility_id: facilityId,
+        // 並列でクエリを実行
+        const [workedWorkers, favoriteCount] = await Promise.all([
+            // 勤務済みワーカー数: COMPLETED_RATED のアプリケーションを持つユニークなワーカー数
+            prisma.application.findMany({
+                where: {
+                    status: 'COMPLETED_RATED',
+                    workDate: {
+                        job: {
+                            facility_id: facilityId,
+                        },
                     },
                 },
-            },
-            select: {
-                user_id: true,
-            },
-            distinct: ['user_id'],
-        });
-
-        // お気に入りワーカー数: この施設がFAVORITEとしてブックマークしているワーカー数
-        const favoriteWorkers = await prisma.bookmark.count({
-            where: {
-                facility_id: facilityId,
-                target_user_id: { not: null },
-                type: 'FAVORITE',
-            },
-        });
+                select: {
+                    user_id: true,
+                },
+                distinct: ['user_id'],
+            }),
+            // お気に入りワーカー数: この施設がFAVORITEとしてブックマークしているワーカー数
+            prisma.bookmark.count({
+                where: {
+                    facility_id: facilityId,
+                    target_user_id: { not: null },
+                    type: 'FAVORITE',
+                },
+            }),
+        ]);
 
         return {
             workedCount: workedWorkers.length,
-            favoriteCount: favoriteWorkers,
+            favoriteCount: favoriteCount,
         };
     } catch (error) {
         console.error('[getLimitedJobTargetCounts] Error:', error);
