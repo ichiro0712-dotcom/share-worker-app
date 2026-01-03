@@ -1,7 +1,6 @@
 import { Suspense } from 'react';
 import { getGroupedConversations } from '@/src/lib/actions';
 import { MessagesContent } from './MessagesContent';
-import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import Link from 'next/link';
@@ -34,18 +33,22 @@ function MessagesListSkeleton() {
   );
 }
 
-// データ取得用Server Component（Suspense境界内で実行）
+// データ取得用Server Component（Suspense境界内で実行 - すべてのawaitをここに集約）
 async function MessagesDataLoader({
-  userId,
-  initialTab,
-  initialFacilityId,
+  searchParams,
 }: {
-  userId: number;
-  initialTab: TabType;
-  initialFacilityId: number | null;
+  searchParams: Promise<{ tab?: string; facilityId?: string }>;
 }) {
-  // データ取得はここで行う（Suspense内なのでストリーミング可能）
-  const initialConversations = await getGroupedConversations();
+  // すべての非同期処理をSuspense内で実行
+  const [session, params, initialConversations] = await Promise.all([
+    getServerSession(authOptions),
+    searchParams,
+    getGroupedConversations(),
+  ]);
+
+  const userId = session?.user?.id ? parseInt(session.user.id) : 0;
+  const initialTab: TabType = params.tab === 'notifications' ? 'notifications' : 'messages';
+  const initialFacilityId = params.facilityId ? parseInt(params.facilityId, 10) : null;
 
   return (
     <MessagesContent
@@ -57,21 +60,57 @@ async function MessagesDataLoader({
   );
 }
 
-export default async function MessagesPage({ searchParams }: MessagesPageProps) {
-  const session = await getServerSession(authOptions);
-
-  // 未ログイン時はログインページへリダイレクト
-  if (!session) {
-    redirect('/login?callbackUrl=/messages');
-  }
-
-  const userId = session.user?.id ? parseInt(session.user.id) : 0;
-
-  // URLパラメータからタブを取得（軽量な処理なのでここで実行）
+// タブ表示用コンポーネント（searchParamsを非同期で取得）
+async function TabsWithActiveState({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string; facilityId?: string }>;
+}) {
   const params = await searchParams;
-  const initialTab: TabType = params.tab === 'notifications' ? 'notifications' : 'messages';
-  const initialFacilityId = params.facilityId ? parseInt(params.facilityId, 10) : null;
+  const activeTab: TabType = params.tab === 'notifications' ? 'notifications' : 'messages';
 
+  return (
+    <div className="flex border-t border-gray-200">
+      <Link
+        href="/messages"
+        className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors text-center ${
+          activeTab === 'messages'
+            ? 'border-primary text-primary'
+            : 'border-transparent text-gray-500 hover:text-gray-700'
+        }`}
+      >
+        メッセージ
+      </Link>
+      <Link
+        href="/messages?tab=notifications"
+        className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors text-center ${
+          activeTab === 'notifications'
+            ? 'border-primary text-primary'
+            : 'border-transparent text-gray-500 hover:text-gray-700'
+        }`}
+      >
+        お知らせ
+      </Link>
+    </div>
+  );
+}
+
+// タブのスケルトン
+function TabsSkeleton() {
+  return (
+    <div className="flex border-t border-gray-200">
+      <div className="flex-1 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 text-center">
+        メッセージ
+      </div>
+      <div className="flex-1 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 text-center">
+        お知らせ
+      </div>
+    </div>
+  );
+}
+
+export default function MessagesPage({ searchParams }: MessagesPageProps) {
+  // ミドルウェアで認証済み。ここではawaitなし = 即座にHTMLを返す
   return (
     <div className="min-h-screen bg-gray-50">
       {/* 静的ヘッダー - 即座にHTML表示 */}
@@ -80,38 +119,15 @@ export default async function MessagesPage({ searchParams }: MessagesPageProps) 
           <h1 className="text-xl font-bold text-gray-900">メッセージ</h1>
         </div>
 
-        {/* 静的タブ - 即座にHTML表示 */}
-        <div className="flex border-t border-gray-200">
-          <Link
-            href="/messages"
-            className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors text-center ${
-              initialTab === 'messages'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            メッセージ
-          </Link>
-          <Link
-            href="/messages?tab=notifications"
-            className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors text-center ${
-              initialTab === 'notifications'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            お知らせ
-          </Link>
-        </div>
+        {/* タブ - アクティブ状態はストリーミング */}
+        <Suspense fallback={<TabsSkeleton />}>
+          <TabsWithActiveState searchParams={searchParams} />
+        </Suspense>
       </div>
 
       {/* 動的コンテンツ - Suspenseでストリーミング */}
       <Suspense fallback={<MessagesListSkeleton />}>
-        <MessagesDataLoader
-          userId={userId}
-          initialTab={initialTab}
-          initialFacilityId={initialFacilityId}
-        />
+        <MessagesDataLoader searchParams={searchParams} />
       </Suspense>
     </div>
   );
