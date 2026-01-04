@@ -455,7 +455,9 @@ export async function updateUserProfile(formData: FormData) {
             },
         });
 
+        // プロフィール関連ページのキャッシュを無効化
         revalidatePath('/mypage/profile');
+        revalidatePath('/mypage');
 
         return {
             success: true,
