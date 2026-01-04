@@ -7,9 +7,10 @@ import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { compressImage, MAX_FILE_SIZE, formatFileSize } from '@/utils/fileValidation';
-import { formatPhoneNumber, isValidEmail, isValidPhoneNumber, isKatakanaOnly } from '@/utils/inputValidation';
+import { isValidEmail, isValidPhoneNumber, isKatakanaOnly } from '@/utils/inputValidation';
 import AddressSelector from '@/components/ui/AddressSelector';
 import { KatakanaInput } from '@/components/ui/KatakanaInput';
+import { PhoneNumberInput } from '@/components/ui/PhoneNumberInput';
 import { QUALIFICATION_GROUPS } from '@/constants/qualifications';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -526,11 +527,10 @@ export default function WorkerRegisterPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     電話番号 <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="tel"
+                  <PhoneNumberInput
                     required
                     value={formData.phoneNumber}
-                    onChange={(e) => setFormData({ ...formData, phoneNumber: formatPhoneNumber(e.target.value) })}
+                    onChange={(value) => setFormData({ ...formData, phoneNumber: value })}
                     placeholder="090-1234-5678"
                     className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.phoneNumber ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                   />

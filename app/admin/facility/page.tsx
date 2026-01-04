@@ -18,9 +18,9 @@ import {
 import { getSystemTemplates } from '@/src/lib/content-actions';
 import { MapPin } from 'lucide-react';
 import { validateFile } from '@/utils/fileValidation';
-import { formatPhoneNumber } from '@/utils/inputValidation';
 import { directUpload, MAX_FILE_SIZE, formatFileSize } from '@/utils/directUpload';
 import AddressSelector from '@/components/ui/AddressSelector';
+import { PhoneNumberInput } from '@/components/ui/PhoneNumberInput';
 import { SERVICE_TYPES } from '@/constants/serviceTypes';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
@@ -1231,10 +1231,9 @@ export default function FacilityPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     代表電話番号 <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="tel"
+                  <PhoneNumberInput
                     value={corporateInfo.phone}
-                    onChange={(e) => setCorporateInfo({ ...corporateInfo, phone: formatPhoneNumber(e.target.value) })}
+                    onChange={(value) => setCorporateInfo({ ...corporateInfo, phone: value })}
                     placeholder="03-1234-5678"
                     className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
                   />
@@ -1446,10 +1445,9 @@ export default function FacilityPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       電話番号 <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      type="tel"
+                    <PhoneNumberInput
                       value={managerInfo.phone}
-                      onChange={(e) => setManagerInfo({ ...managerInfo, phone: formatPhoneNumber(e.target.value) })}
+                      onChange={(value) => setManagerInfo({ ...managerInfo, phone: value })}
                       placeholder="090-1234-5678"
                       className={`w-full max-w-xs px-2 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent ${showErrors && !managerInfo.phone ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                     />
@@ -1605,10 +1603,9 @@ export default function FacilityPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       連絡先電話番号 <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      type="tel"
+                    <PhoneNumberInput
                       value={staffInfo.phone}
-                      onChange={(e) => setStaffInfo({ ...staffInfo, phone: formatPhoneNumber(e.target.value) })}
+                      onChange={(value) => setStaffInfo({ ...staffInfo, phone: value })}
                       placeholder="090-1234-5678"
                       className={`w-full max-w-xs px-2 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent ${showErrors && !staffInfo.phone ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                     />

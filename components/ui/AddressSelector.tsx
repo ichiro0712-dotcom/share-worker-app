@@ -4,6 +4,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { PREFECTURES } from '@/src/lib/analytics-constants';
 import { CITIES_BY_PREFECTURE } from '@/constants/japan-cities';
 import { X, Loader2 } from 'lucide-react';
+import { PostalCodeInput } from './PostalCodeInput';
 
 interface AddressSelectorProps {
     prefecture: string;
@@ -91,18 +92,16 @@ export default function AddressSelector({
     }, [addressLine, building, onChange]);
 
     // 郵便番号変更時のハンドラー
-    const handlePostalCodeChange = (value: string) => {
+    const handlePostalCodeChange = useCallback((value: string) => {
         // 郵便番号を更新
         onChange({ prefecture, city, addressLine, building, postalCode: value });
+        setPostalCodeError('');
+    }, [prefecture, city, addressLine, building, onChange]);
 
-        // 自動検索（7桁入力時）
-        const cleanValue = value.replace(/[-\s]/g, '');
-        if (cleanValue.length === 7) {
-            searchAddressByPostalCode(value);
-        } else {
-            setPostalCodeError('');
-        }
-    };
+    // 郵便番号入力完了時のハンドラー（7桁入力時に住所検索）
+    const handlePostalCodeComplete = useCallback((value: string) => {
+        searchAddressByPostalCode(value);
+    }, [searchAddressByPostalCode]);
 
     // 選択された都道府県の市区町村リスト
     const availableCities = useMemo(() => {
@@ -151,13 +150,12 @@ export default function AddressSelector({
                         </span>
                     </label>
                     <div className="flex items-center gap-2">
-                        <input
-                            type="text"
+                        <PostalCodeInput
                             value={postalCode}
-                            onChange={e => handlePostalCodeChange(e.target.value)}
+                            onChange={handlePostalCodeChange}
+                            onComplete={handlePostalCodeComplete}
                             className="w-full max-w-[200px] px-2 py-1.5 text-sm border border-slate-300 rounded-lg"
                             placeholder="123-4567"
-                            maxLength={8}
                         />
                         {isSearchingPostalCode && (
                             <Loader2 className="w-5 h-5 text-primary animate-spin" />

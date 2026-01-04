@@ -6,10 +6,11 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { updateUserProfile } from '@/src/lib/actions';
 import { validateFile, getSafeImageUrl, isValidImageUrl } from '@/utils/fileValidation';
-import { formatPhoneNumber, isKatakanaOnly, isKatakanaWithSpaceOnly } from '@/utils/inputValidation';
+import { isKatakanaOnly, isKatakanaWithSpaceOnly } from '@/utils/inputValidation';
 import toast from 'react-hot-toast';
 import AddressSelector from '@/components/ui/AddressSelector';
 import { KatakanaInput, KatakanaWithSpaceInput } from '@/components/ui/KatakanaInput';
+import { PhoneNumberInput } from '@/components/ui/PhoneNumberInput';
 import { QUALIFICATION_GROUPS } from '@/constants/qualifications';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
@@ -929,13 +930,9 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <div>
               <label className="block text-sm font-medium mb-2">電話番号 <span className="text-red-500">*</span></label>
-              <input
-                type="tel"
+              <PhoneNumberInput
                 value={formData.phone}
-                onChange={(e) => {
-                  const value = formatPhoneNumber(e.target.value);
-                  setFormData({ ...formData, phone: value });
-                }}
+                onChange={(value) => setFormData({ ...formData, phone: value })}
                 placeholder="090-1234-5678"
                 className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.phone ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
               />
@@ -1025,13 +1022,9 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">電話番号</label>
-              <input
-                type="tel"
+              <PhoneNumberInput
                 value={formData.emergencyContactPhone}
-                onChange={(e) => {
-                  const value = formatPhoneNumber(e.target.value);
-                  setFormData({ ...formData, emergencyContactPhone: value });
-                }}
+                onChange={(value) => setFormData({ ...formData, emergencyContactPhone: value })}
                 placeholder="090-1234-5678"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               />
