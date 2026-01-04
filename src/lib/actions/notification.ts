@@ -164,7 +164,8 @@ export async function sendMatchingNotification(
     jobId: number,
     applicationId?: number,
     workDateInfo?: { workDate: Date; startTime: string; endTime: string },
-    isInterviewJob: boolean = false
+    isInterviewJob: boolean = false,
+    facilityId?: number // チャットメッセージ送信用
 ) {
     // DB通知作成
     await createNotification({
@@ -197,6 +198,16 @@ export async function sendMatchingNotification(
             })
             : '';
 
+        // 短いフォーマットの勤務日（チャットメッセージ用）
+        const shortWorkDate = workDateInfo?.workDate
+            ? `${new Date(workDateInfo.workDate).getMonth() + 1}/${new Date(workDateInfo.workDate).getDate()}`
+            : '';
+
+        // 応募日程文字列（チャットメッセージ用）
+        const appliedDateStr = workDateInfo
+            ? `${shortWorkDate} ${workDateInfo.startTime.substring(0, 5)}〜${workDateInfo.endTime.substring(0, 5)}`
+            : '';
+
         // 通知サービス経由で送信
         // 審査あり求人の場合はWORKER_INTERVIEW_ACCEPTED、それ以外はWORKER_MATCHED
         const notificationKey = isInterviewJob ? 'WORKER_INTERVIEW_ACCEPTED' : 'WORKER_MATCHED';
@@ -210,14 +221,23 @@ export async function sendMatchingNotification(
             applicationId: applicationId,
             variables: {
                 worker_name: user.name,
+                worker_last_name: user.name?.split(' ')[0] || user.name,
                 facility_name: facilityName,
                 job_title: jobTitle,
                 wage: job?.hourly_wage?.toLocaleString() || '',
-                job_url: `${process.env.NEXT_PUBLIC_APP_URL}/jobs/${jobId}`,
+                hourly_wage: job?.hourly_wage?.toString() || '',
+                job_url: `${process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || 'https://tastas.jp'}/jobs/${jobId}`,
                 work_date: formattedWorkDate,
-                start_time: workDateInfo?.startTime || '',
-                end_time: workDateInfo?.endTime || '',
+                start_time: workDateInfo?.startTime?.substring(0, 5) || '',
+                end_time: workDateInfo?.endTime?.substring(0, 5) || '',
+                applied_dates: appliedDateStr,
             },
+            // チャットメッセージ（Messageテーブル）用
+            chatMessageData: facilityId ? {
+                jobId,
+                fromFacilityId: facilityId,
+                toUserId: userId,
+            } : undefined,
         });
     }
 }
@@ -460,7 +480,9 @@ export async function sendCancelNotification(
     facilityName: string,
     workDate: string,
     jobId: number,
-    timeInfo?: { startTime: string; endTime: string }
+    timeInfo?: { startTime: string; endTime: string },
+    applicationId?: number,
+    facilityId?: number
 ) {
     await createNotification({
         userId,
@@ -482,15 +504,22 @@ export async function sendCancelNotification(
             recipientId: userId,
             recipientName: user.name,
             recipientEmail: user.email,
+            applicationId,
             variables: {
                 worker_name: user.name,
                 facility_name: facilityName,
                 job_title: jobTitle,
                 work_date: workDate,
-                job_url: `${process.env.NEXT_PUBLIC_APP_URL}/jobs/${jobId}`,
-                start_time: timeInfo?.startTime || '',
-                end_time: timeInfo?.endTime || '',
-            }
+                job_url: `${process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || 'https://tastas.jp'}/jobs/${jobId}`,
+                start_time: timeInfo?.startTime?.substring(0, 5) || '',
+                end_time: timeInfo?.endTime?.substring(0, 5) || '',
+            },
+            // チャットメッセージ（Messageテーブル）用
+            chatMessageData: facilityId ? {
+                jobId,
+                fromFacilityId: facilityId,
+                toUserId: userId,
+            } : undefined,
         });
     }
 }
@@ -1084,6 +1113,254 @@ export async function sendAdminLowRatingStreakNotification(
         return { success: true };
     } catch (error) {
         console.error('[sendAdminLowRatingStreakNotification] Error:', error);
+        return null;
+    }
+}
+
+/**
+ * 応募受付確認通知を送信（ワーカー宛）
+ * WORKER_APPLICATION_CONFIRMED の設定を使用
+ */
+export async function sendApplicationConfirmNotification(
+    userId: number,
+    jobTitle: string,
+    facilityName: string,
+    jobId: number,
+    appliedDatesStr: string,
+    isImmediateMatch: boolean,
+    applicationId: number,
+    facilityId: number
+) {
+    try {
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { name: true, email: true },
+        });
+
+        if (!user) return null;
+
+        const job = await prisma.job.findUnique({
+            where: { id: jobId },
+            select: { hourly_wage: true }
+        });
+
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || 'https://tastas.jp';
+        const statusMessage = isImmediateMatch
+            ? 'マッチングが成立しました。勤務日をお待ちください。'
+            : '施設からの返答をお待ちください。';
+
+        await sendNotification({
+            notificationKey: 'WORKER_APPLICATION_CONFIRMED',
+            targetType: 'WORKER',
+            recipientId: userId,
+            recipientName: user.name,
+            recipientEmail: user.email,
+            applicationId: applicationId,
+            variables: {
+                worker_name: user.name,
+                worker_last_name: user.name?.split(' ')[0] || user.name,
+                facility_name: facilityName,
+                job_title: jobTitle,
+                applied_dates: appliedDatesStr,
+                hourly_wage: job?.hourly_wage?.toString() || '',
+                job_url: `${baseUrl}/my-jobs/${applicationId}`,
+                status_message: statusMessage,
+            },
+            chatMessageData: {
+                jobId,
+                fromFacilityId: facilityId,
+                toUserId: userId,
+            },
+        });
+
+        return { success: true };
+    } catch (error) {
+        console.error('[sendApplicationConfirmNotification] Error:', error);
+        return null;
+    }
+}
+
+/**
+ * ワーカーからのキャンセル通知を送信（施設宛）
+ * FACILITY_CANCELLED_BY_WORKER の設定を使用
+ */
+export async function sendWorkerCancelNotification(
+    facilityId: number,
+    workerName: string,
+    jobTitle: string,
+    workDate: string,
+    applicationId: number,
+    jobId: number,
+    userId: number
+) {
+    try {
+        const facility = await prisma.facility.findUnique({
+            where: { id: facilityId },
+            select: { facility_name: true },
+        });
+
+        if (!facility) return null;
+
+        const facilityAdmins = await prisma.facilityAdmin.findMany({
+            where: { facility_id: facilityId },
+            select: { id: true, name: true, email: true },
+        });
+
+        if (facilityAdmins.length === 0) return null;
+
+        const facilityEmails = facilityAdmins.map(admin => admin.email);
+        const primaryAdmin = facilityAdmins[0];
+
+        await sendNotification({
+            notificationKey: 'FACILITY_CANCELLED_BY_WORKER',
+            targetType: 'FACILITY',
+            recipientId: primaryAdmin.id,
+            recipientName: primaryAdmin.name,
+            facilityEmails,
+            applicationId,
+            variables: {
+                facility_name: facility.facility_name,
+                worker_name: workerName,
+                job_title: jobTitle,
+                work_date: workDate,
+            },
+            chatMessageData: {
+                jobId,
+                fromUserId: userId,
+                toFacilityId: facilityId,
+            },
+        });
+
+        return { success: true };
+    } catch (error) {
+        console.error('[sendWorkerCancelNotification] Error:', error);
+        return null;
+    }
+}
+
+/**
+ * 応募取り消し通知を送信（施設宛）
+ * FACILITY_APPLICATION_WITHDRAWN の設定を使用
+ */
+export async function sendApplicationWithdrawalNotification(
+    facilityId: number,
+    jobTitle: string,
+    workDate: string,
+    applicationId: number,
+    jobId: number,
+    userId: number
+) {
+    try {
+        const facility = await prisma.facility.findUnique({
+            where: { id: facilityId },
+            select: { facility_name: true },
+        });
+
+        if (!facility) return null;
+
+        const facilityAdmins = await prisma.facilityAdmin.findMany({
+            where: { facility_id: facilityId },
+            select: { id: true, name: true, email: true },
+        });
+
+        if (facilityAdmins.length === 0) return null;
+
+        const facilityEmails = facilityAdmins.map(admin => admin.email);
+        const primaryAdmin = facilityAdmins[0];
+
+        await sendNotification({
+            notificationKey: 'FACILITY_APPLICATION_WITHDRAWN',
+            targetType: 'FACILITY',
+            recipientId: primaryAdmin.id,
+            recipientName: primaryAdmin.name,
+            facilityEmails,
+            applicationId,
+            variables: {
+                facility_name: facility.facility_name,
+                job_title: jobTitle,
+                work_date: workDate,
+            },
+            chatMessageData: {
+                jobId,
+                fromUserId: userId,
+                toFacilityId: facilityId,
+            },
+        });
+
+        return { success: true };
+    } catch (error) {
+        console.error('[sendApplicationWithdrawalNotification] Error:', error);
+        return null;
+    }
+}
+
+/**
+ * 初回挨拶通知を送信（ワーカー宛）
+ * FACILITY_INITIAL_GREETING の設定を使用（初めてマッチングした施設からの挨拶）
+ */
+export async function sendInitialGreetingNotification(
+    userId: number,
+    facilityId: number,
+    jobId: number,
+    applicationId: number,
+    workerLastName: string
+) {
+    try {
+        // 既にこの施設とマッチング済みかチェック
+        const previousMatchCount = await prisma.application.count({
+            where: {
+                id: { not: applicationId },
+                user_id: userId,
+                status: { in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED', 'CANCELLED'] },
+                workDate: {
+                    job: {
+                        facility_id: facilityId,
+                    },
+                },
+            },
+        });
+
+        // 初回マッチングでない場合はスキップ
+        if (previousMatchCount > 0) {
+            console.log('[sendInitialGreetingNotification] Not first match, skipping');
+            return { success: false, reason: 'not_first_match' };
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { name: true, email: true },
+        });
+
+        const facility = await prisma.facility.findUnique({
+            where: { id: facilityId },
+            select: { facility_name: true },
+        });
+
+        if (!user || !facility) return null;
+
+        await sendNotification({
+            notificationKey: 'FACILITY_INITIAL_GREETING',
+            targetType: 'WORKER',
+            recipientId: userId,
+            recipientName: user.name,
+            recipientEmail: user.email,
+            applicationId,
+            variables: {
+                worker_name: user.name,
+                'ワーカー名字': workerLastName,
+                '施設名': facility.facility_name,
+            },
+            chatMessageData: {
+                jobId,
+                fromFacilityId: facilityId,
+                toUserId: userId,
+            },
+        });
+
+        console.log('[sendInitialGreetingNotification] Initial greeting sent for first-time matching');
+        return { success: true };
+    } catch (error) {
+        console.error('[sendInitialGreetingNotification] Error:', error);
         return null;
     }
 }

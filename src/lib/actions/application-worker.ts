@@ -9,6 +9,11 @@ import {
     sendApplicationNotification,
     sendApplicationNotificationMultiple,
     sendAdminHighCancelRateNotification,
+    sendMatchingNotification,
+    sendApplicationConfirmNotification,
+    sendWorkerCancelNotification,
+    sendApplicationWithdrawalNotification,
+    sendInitialGreetingNotification,
 } from './notification';
 import { sendNearbyJobNotifications, sendNotification } from '../notification-service';
 import { updateApplicationStatuses } from '../status-updater';
@@ -270,74 +275,32 @@ export async function applyForJob(jobId: string, workDateId?: number) {
         ).catch(err => console.error('[applyForJob] Background notification error:', err));
 
         if (isImmediateMatch) {
-            const baseUrl = process.env.NEXTAUTH_URL || 'https://tastas.jp';
-            const jobDetailUrl = `${baseUrl}/my-jobs/${application.id}`;
+            const workerLastName = user.name?.split(' ')[0] || user.name || '';
 
-            const matchingSetting = await prisma.notificationSetting.findUnique({
-                where: { notification_key: 'WORKER_MATCHED' },
-            });
-
-            if (matchingSetting?.chat_enabled && matchingSetting?.chat_message) {
-                const workDateStr = new Date(targetWorkDate.work_date).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' });
-                const startTimeStr = job.start_time.substring(0, 5);
-                const endTimeStr = job.end_time.substring(0, 5);
-                const appliedDateStr = `${new Date(targetWorkDate.work_date).getMonth() + 1}/${new Date(targetWorkDate.work_date).getDate()} ${job.start_time}〜${job.end_time}`;
-                const workerLastName = user.name?.split(' ')[0] || user.name || '';
-
-                const matchingMessage = matchingSetting.chat_message
-                    .replace(/\{\{worker_name\}\}/g, user.name || '')
-                    .replace(/\{\{worker_last_name\}\}/g, workerLastName)
-                    .replace(/\{\{facility_name\}\}/g, job.facility.facility_name)
-                    .replace(/\{\{work_date\}\}/g, workDateStr)
-                    .replace(/\{\{start_time\}\}/g, startTimeStr)
-                    .replace(/\{\{end_time\}\}/g, endTimeStr)
-                    .replace(/\{\{wage\}\}/g, job.wage?.toString() || '')
-                    .replace(/\{\{hourly_wage\}\}/g, job.hourly_wage?.toString() || '')
-                    .replace(/\{\{job_url\}\}/g, jobDetailUrl)
-                    .replace(/\{\{applied_dates\}\}/g, appliedDateStr)
-                    .replace(/\{\{job_title\}\}/g, job.title);
-
-                await prisma.message.create({
-                    data: {
-                        application_id: application.id,
-                        job_id: jobIdNum,
-                        from_facility_id: job.facility_id,
-                        to_user_id: user.id,
-                        content: matchingMessage,
-                    },
-                });
-                console.log('[applyForJob] Matching message sent');
-            }
-        }
-
-        if (isImmediateMatch && job.facility.initial_message) {
-            const previousMatchCount = await prisma.application.count({
-                where: {
-                    id: { not: application.id },
-                    user_id: user.id,
-                    status: { in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'] },
-                    workDate: { job: { facility_id: job.facility_id } },
+            // マッチング通知を送信（通知設定に基づく）
+            sendMatchingNotification(
+                user.id,
+                job.title,
+                job.facility.facility_name,
+                jobIdNum,
+                application.id,
+                {
+                    workDate: targetWorkDate.work_date,
+                    startTime: job.start_time,
+                    endTime: job.end_time,
                 },
-            });
+                job.requires_interview,
+                job.facility_id
+            ).catch(err => console.error('[applyForJob] Matching notification error:', err));
 
-            if (previousMatchCount === 0) {
-                const workerLastName = user.name?.split(' ')[0] || user.name || '';
-                const facilityName = job.facility.facility_name || '';
-                const messageContent = job.facility.initial_message
-                    .replace(/\[ワーカー名字\]/g, workerLastName)
-                    .replace(/\[施設名\]/g, facilityName);
-
-                await prisma.message.create({
-                    data: {
-                        application_id: application.id,
-                        job_id: jobIdNum,
-                        from_facility_id: job.facility_id,
-                        to_user_id: user.id,
-                        content: messageContent,
-                    },
-                });
-                console.log('[applyForJob] Initial message sent for first-time matching');
-            }
+            // 初回挨拶通知を送信（通知設定に基づく）
+            sendInitialGreetingNotification(
+                user.id,
+                job.facility_id,
+                jobIdNum,
+                application.id,
+                workerLastName
+            ).catch(err => console.error('[applyForJob] Initial greeting error:', err));
         }
 
         const message = isImmediateMatch
@@ -501,83 +464,49 @@ export async function applyForJobMultipleDates(jobId: string, workDateIds: numbe
             applicationConfirmMessage = `【応募を受け付けました】\n\n以下の日程に応募しました：\n${appliedDatesListStr}\n\n▼ 求人詳細\n${job.title}\n${jobDetailUrl}\n\n${isImmediateMatch ? 'マッチングが成立しました。勤務日をお待ちください。' : '施設からの返答をお待ちください。'}`;
         }
 
-        await prisma.message.create({
-            data: {
-                application_id: createdApplications[0].id,
-                job_id: jobIdNum,
-                from_facility_id: job.facility_id,
-                to_user_id: user.id,
-                content: applicationConfirmMessage,
-            },
-        });
+        // 応募確認通知を送信（通知設定に基づく）
+        sendApplicationConfirmNotification(
+            user.id,
+            job.title,
+            job.facility.facility_name,
+            jobIdNum,
+            appliedDatesListStr,
+            isImmediateMatch,
+            createdApplications[0].id,
+            job.facility_id
+        ).catch(err => console.error('[applyForJobMultipleDates] Application confirm notification error:', err));
 
         if (isImmediateMatch) {
-            const matchingSetting = await prisma.notificationSetting.findUnique({
-                where: { notification_key: 'WORKER_MATCHED' },
-            });
+            const firstCreatedApp = createdApplications[0];
+            const firstWorkDate = targetWorkDates.find(wd => wd.id === firstCreatedApp.work_date_id)
+                || job.workDates.find(wd => wd.id === firstCreatedApp.work_date_id);
 
-            if (matchingSetting?.chat_enabled && matchingSetting?.chat_message) {
-                const firstCreatedApp = createdApplications[0];
-                const firstWorkDate = targetWorkDates.find(wd => wd.id === firstCreatedApp.work_date_id)
-                    || job.workDates.find(wd => wd.id === firstCreatedApp.work_date_id);
-
-                if (firstWorkDate) {
-                    const workDateStr = new Date(firstWorkDate.work_date).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' });
-                    const startTimeStr = job.start_time.substring(0, 5);
-                    const endTimeStr = job.end_time.substring(0, 5);
-
-                    const matchingMessage = matchingSetting.chat_message
-                        .replace(/\{\{worker_name\}\}/g, user.name || '')
-                        .replace(/\{\{worker_last_name\}\}/g, workerLastName)
-                        .replace(/\{\{facility_name\}\}/g, job.facility.facility_name)
-                        .replace(/\{\{work_date\}\}/g, workDateStr)
-                        .replace(/\{\{start_time\}\}/g, startTimeStr)
-                        .replace(/\{\{end_time\}\}/g, endTimeStr)
-                        .replace(/\{\{wage\}\}/g, job.wage?.toString() || '')
-                        .replace(/\{\{hourly_wage\}\}/g, job.hourly_wage?.toString() || '')
-                        .replace(/\{\{job_url\}\}/g, `${baseUrl}/my-jobs/${createdApplications[0].id}`)
-                        .replace(/\{\{applied_dates\}\}/g, appliedDatesListStr)
-                        .replace(/\{\{job_title\}\}/g, job.title);
-
-                    await prisma.message.create({
-                        data: {
-                            application_id: createdApplications[0].id,
-                            job_id: jobIdNum,
-                            from_facility_id: job.facility_id,
-                            to_user_id: user.id,
-                            content: matchingMessage,
-                        },
-                    });
-                }
-            }
-
-            if (job.facility.initial_message) {
-                const previousMatchCount = await prisma.application.count({
-                    where: {
-                        id: { notIn: createdApplications.map(a => a.id) },
-                        user_id: user.id,
-                        status: { in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'] },
-                        workDate: { job: { facility_id: job.facility_id } },
+            if (firstWorkDate) {
+                // マッチング通知を送信（通知設定に基づく）
+                sendMatchingNotification(
+                    user.id,
+                    job.title,
+                    job.facility.facility_name,
+                    jobIdNum,
+                    createdApplications[0].id,
+                    {
+                        workDate: firstWorkDate.work_date,
+                        startTime: job.start_time,
+                        endTime: job.end_time,
                     },
-                });
-
-                if (previousMatchCount === 0) {
-                    const facilityName = job.facility.facility_name || '';
-                    const messageContent = job.facility.initial_message
-                        .replace(/\[ワーカー名字\]/g, workerLastName)
-                        .replace(/\[施設名\]/g, facilityName);
-
-                    await prisma.message.create({
-                        data: {
-                            application_id: createdApplications[0].id,
-                            job_id: jobIdNum,
-                            from_facility_id: job.facility_id,
-                            to_user_id: user.id,
-                            content: messageContent,
-                        },
-                    });
-                }
+                    job.requires_interview,
+                    job.facility_id
+                ).catch(err => console.error('[applyForJobMultipleDates] Matching notification error:', err));
             }
+
+            // 初回挨拶通知を送信（通知設定に基づく）
+            sendInitialGreetingNotification(
+                user.id,
+                job.facility_id,
+                jobIdNum,
+                createdApplications[0].id,
+                workerLastName
+            ).catch(err => console.error('[applyForJobMultipleDates] Initial greeting error:', err));
         }
 
         const message = isImmediateMatch
@@ -794,49 +723,22 @@ export async function cancelApplicationByWorker(applicationId: number) {
         });
 
         const workDateStr = application.workDate.work_date.toISOString().split('T')[0];
-        await prisma.message.create({
-            data: {
-                application_id: applicationId,
-                job_id: application.workDate.job_id,
-                from_user_id: user.id,
-                to_facility_id: application.workDate.job.facility_id,
-                content: `【システムメッセージ】\nワーカーが「${application.workDate.job.title}」（${workDateStr}）のマッチングをキャンセルしました。`,
-            },
-        });
 
-        // 施設への通知（メール・プッシュ）
+        // ワーカーからのキャンセル通知（通知設定に基づく - チャット・メール・プッシュ）
         const workerUser = await prisma.user.findUnique({
             where: { id: user.id },
             select: { name: true },
         });
 
-        // 施設管理者のメールアドレスを取得
-        const facilityAdmins = await prisma.facilityAdmin.findMany({
-            where: { facility_id: application.workDate.job.facility_id },
-            select: { email: true, name: true, id: true },
-        });
-
-        if (facilityAdmins.length > 0) {
-            const facilityEmails = facilityAdmins.map(admin => admin.email);
-            const primaryAdmin = facilityAdmins[0];
-
-            await sendNotification({
-                notificationKey: 'FACILITY_CANCELLED_BY_WORKER',
-                targetType: 'FACILITY',
-                recipientId: primaryAdmin.id,
-                recipientName: primaryAdmin.name,
-                facilityEmails,
-                applicationId,
-                variables: {
-                    facility_name: application.workDate.job.facility.facility_name,
-                    worker_name: workerUser?.name || '',
-                    job_title: application.workDate.job.title,
-                    work_date: workDateStr,
-                    start_time: application.workDate.job.start_time,
-                    end_time: application.workDate.job.end_time,
-                },
-            });
-        }
+        await sendWorkerCancelNotification(
+            application.workDate.job.facility_id,
+            workerUser?.name || '',
+            application.workDate.job.title,
+            workDateStr,
+            applicationId,
+            application.workDate.job_id,
+            user.id
+        );
 
         // キャンセル率チェック（高いキャンセル率の場合は管理者に通知）
         const CANCEL_RATE_THRESHOLD = 0.2; // 20%以上でアラート
@@ -994,72 +896,32 @@ export async function acceptOffer(jobId: string, workDateId: number) {
         const baseUrl = process.env.NEXTAUTH_URL || 'https://tastas.jp';
         const jobDetailUrl = `${baseUrl}/my-jobs/${application.id}`;
 
-        const matchingSetting = await prisma.notificationSetting.findUnique({
-            where: { notification_key: 'WORKER_MATCHED' },
-        });
+        const workerLastName = user.name?.split(' ')[0] || user.name || '';
 
-        if (matchingSetting?.chat_enabled && matchingSetting?.chat_message) {
-            const workDateStr = new Date(targetWorkDate.work_date).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' });
-            const startTimeStr = job.start_time.substring(0, 5);
-            const endTimeStr = job.end_time.substring(0, 5);
-            const appliedDateStr = `${new Date(targetWorkDate.work_date).getMonth() + 1}/${new Date(targetWorkDate.work_date).getDate()} ${job.start_time}〜${job.end_time}`;
-            const workerLastName = user.name?.split(' ')[0] || user.name || '';
+        // マッチング通知を送信（通知設定に基づく）
+        sendMatchingNotification(
+            user.id,
+            job.title,
+            job.facility.facility_name,
+            jobIdNum,
+            application.id,
+            {
+                workDate: targetWorkDate.work_date,
+                startTime: job.start_time,
+                endTime: job.end_time,
+            },
+            job.requires_interview,
+            job.facility_id
+        ).catch(err => console.error('[acceptOffer] Matching notification error:', err));
 
-            const matchingMessage = matchingSetting.chat_message
-                .replace(/\{\{worker_name\}\}/g, user.name || '')
-                .replace(/\{\{worker_last_name\}\}/g, workerLastName)
-                .replace(/\{\{facility_name\}\}/g, job.facility.facility_name)
-                .replace(/\{\{work_date\}\}/g, workDateStr)
-                .replace(/\{\{start_time\}\}/g, startTimeStr)
-                .replace(/\{\{end_time\}\}/g, endTimeStr)
-                .replace(/\{\{wage\}\}/g, job.wage?.toString() || '')
-                .replace(/\{\{hourly_wage\}\}/g, job.hourly_wage?.toString() || '')
-                .replace(/\{\{job_url\}\}/g, jobDetailUrl)
-                .replace(/\{\{applied_dates\}\}/g, appliedDateStr)
-                .replace(/\{\{job_title\}\}/g, job.title);
-
-            await prisma.message.create({
-                data: {
-                    application_id: application.id,
-                    job_id: jobIdNum,
-                    from_facility_id: job.facility_id,
-                    to_user_id: user.id,
-                    content: matchingMessage,
-                },
-            });
-            console.log('[acceptOffer] Matching message sent');
-        }
-
-        // 初回マッチング時のイニシャルメッセージ
-        if (job.facility.initial_message) {
-            const previousMatchCount = await prisma.application.count({
-                where: {
-                    id: { not: application.id },
-                    user_id: user.id,
-                    status: { in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'] },
-                    workDate: { job: { facility_id: job.facility_id } },
-                },
-            });
-
-            if (previousMatchCount === 0) {
-                const workerLastName = user.name?.split(' ')[0] || user.name || '';
-                const facilityName = job.facility.facility_name || '';
-                const messageContent = job.facility.initial_message
-                    .replace(/\[ワーカー名字\]/g, workerLastName)
-                    .replace(/\[施設名\]/g, facilityName);
-
-                await prisma.message.create({
-                    data: {
-                        application_id: application.id,
-                        job_id: jobIdNum,
-                        from_facility_id: job.facility_id,
-                        to_user_id: user.id,
-                        content: messageContent,
-                    },
-                });
-                console.log('[acceptOffer] Initial message sent for first-time matching');
-            }
-        }
+        // 初回挨拶通知を送信（通知設定に基づく）
+        sendInitialGreetingNotification(
+            user.id,
+            job.facility_id,
+            jobIdNum,
+            application.id,
+            workerLastName
+        ).catch(err => console.error('[acceptOffer] Initial greeting error:', err));
 
         revalidatePath(`/jobs/${jobIdNum}`);
         revalidatePath('/my-jobs');
@@ -1107,15 +969,16 @@ export async function cancelAppliedApplication(applicationId: number) {
         });
 
         const workDateStr = application.workDate.work_date.toISOString().split('T')[0];
-        await prisma.message.create({
-            data: {
-                application_id: applicationId,
-                job_id: application.workDate.job_id,
-                from_user_id: user.id,
-                to_facility_id: application.workDate.job.facility_id,
-                content: `【システムメッセージ】\nワーカーが「${application.workDate.job.title}」（${workDateStr}）への応募を取り消しました。\n※審査中の応募取消のため、キャンセル率には影響しません。`,
-            },
-        });
+
+        // 応募取り消し通知を送信（通知設定に基づく）
+        await sendApplicationWithdrawalNotification(
+            application.workDate.job.facility_id,
+            application.workDate.job.title,
+            workDateStr,
+            applicationId,
+            application.workDate.job_id,
+            user.id
+        );
 
         revalidatePath('/my-jobs');
         revalidatePath('/admin/applications');

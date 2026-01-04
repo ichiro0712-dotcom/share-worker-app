@@ -23,8 +23,16 @@ interface SendNotificationParams {
     recipientName: string;
     recipientEmail?: string;
     facilityEmails?: string[]; // 施設向け: 複数担当者メール
-    applicationId?: number; // チャット通知用
+    applicationId?: number; // システム通知用
     variables: Record<string, string>;
+    // チャットメッセージ（Messageテーブル）用の追加情報
+    chatMessageData?: {
+        jobId: number;
+        fromFacilityId?: number;
+        fromUserId?: number;
+        toUserId?: number;
+        toFacilityId?: number;
+    };
 }
 
 // テンプレート内の変数を置換
@@ -48,6 +56,7 @@ export async function sendNotification(params: SendNotificationParams): Promise<
         facilityEmails,
         applicationId,
         variables,
+        chatMessageData,
     } = params;
 
     // 通知設定を取得
@@ -60,7 +69,28 @@ export async function sendNotification(params: SendNotificationParams): Promise<
         return;
     }
 
-    // チャット通知
+    // チャットメッセージ（Messageテーブル）を送信
+    if (setting.chat_enabled && setting.chat_message && chatMessageData) {
+        const chatContent = replaceVariables(setting.chat_message, variables);
+        try {
+            await prisma.message.create({
+                data: {
+                    application_id: applicationId || null,
+                    job_id: chatMessageData.jobId,
+                    from_facility_id: chatMessageData.fromFacilityId || null,
+                    from_user_id: chatMessageData.fromUserId || null,
+                    to_user_id: chatMessageData.toUserId || null,
+                    to_facility_id: chatMessageData.toFacilityId || null,
+                    content: chatContent,
+                },
+            });
+            console.log(`[sendNotification] Chat message sent for ${notificationKey}`);
+        } catch (error) {
+            console.error(`[sendNotification] Failed to create chat message for ${notificationKey}:`, error);
+        }
+    }
+
+    // システム通知（SystemNotificationテーブル）を送信
     if (setting.chat_enabled && setting.chat_message && applicationId) {
         await sendChatNotification({
             notificationKey,
