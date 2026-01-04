@@ -571,14 +571,8 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
       const result = await updateUserProfile(form);
 
       if (result.success) {
-        toast.success(result.message || 'プロフィールを更新しました');
-        // 画像アップロード後はファイル状態をリセット
-        setProfileImageFile(null);
-        setIdDocumentFile(null);
-        setBankBookImageFile(null);
-        setQualificationCertificateFiles({});
         // フルページリロードでリダイレクト（キャッシュを確実に無効化）
-        // router.push()ではクライアントキャッシュが効いてしまうため
+        // 状態リセットは不要（リダイレクト後にページがリロードされるため）
         const redirectUrl = returnUrl || '/mypage';
         window.location.replace(redirectUrl);
         return;
