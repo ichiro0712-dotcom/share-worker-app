@@ -7,7 +7,7 @@ import { createFacilityWithAdmin } from '@/src/lib/system-actions';
 import { SERVICE_TYPES } from '@/constants/serviceTypes';
 import { ChevronLeft, Building2, User, Lock, Mail, Phone, MapPin } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { formatPhoneNumber } from '@/utils/inputValidation';
+import { PhoneNumberInput } from '@/components/ui/PhoneNumberInput';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 export default function SystemAdminNewFacilityPage() {
@@ -181,11 +181,10 @@ export default function SystemAdminNewFacilityPage() {
 
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">電話番号</label>
-                            <input
-                                type="tel"
+                            <PhoneNumberInput
                                 name="phoneNumber"
                                 value={formData.phoneNumber}
-                                onChange={(e) => setFormData(prev => ({ ...prev, phoneNumber: formatPhoneNumber(e.target.value) }))}
+                                onChange={(value) => setFormData(prev => ({ ...prev, phoneNumber: value }))}
                                 placeholder="例: 03-1234-5678"
                                 className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                             />
@@ -296,11 +295,10 @@ export default function SystemAdminNewFacilityPage() {
 
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">電話番号</label>
-                            <input
-                                type="tel"
+                            <PhoneNumberInput
                                 name="adminPhone"
                                 value={formData.adminPhone}
-                                onChange={(e) => setFormData(prev => ({ ...prev, adminPhone: formatPhoneNumber(e.target.value) }))}
+                                onChange={(value) => setFormData(prev => ({ ...prev, adminPhone: value }))}
                                 placeholder="例: 090-1234-5678"
                                 className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                             />
