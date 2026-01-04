@@ -579,11 +579,9 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
         setQualificationCertificateFiles({});
         // フルページリロードでリダイレクト（キャッシュを確実に無効化）
         // router.push()ではクライアントキャッシュが効いてしまうため
-        if (returnUrl) {
-          window.location.href = returnUrl;
-        } else {
-          window.location.href = '/mypage';
-        }
+        const redirectUrl = returnUrl || '/mypage';
+        window.location.replace(redirectUrl);
+        return;
       } else {
         // デバッグ用エラー通知を表示
         showDebugError({
