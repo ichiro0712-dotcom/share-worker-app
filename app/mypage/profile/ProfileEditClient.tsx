@@ -576,6 +576,8 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
         setIdDocumentFile(null);
         setBankBookImageFile(null);
         setQualificationCertificateFiles({});
+        // キャッシュを無効化してからリダイレクト
+        router.refresh();
         // リダイレクト: returnUrlがあれば戻り先へ、なければマイページへ
         if (returnUrl) {
           router.push(returnUrl);
