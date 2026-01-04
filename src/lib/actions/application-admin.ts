@@ -211,6 +211,7 @@ export async function updateApplicationStatus(
                 }
             }
 
+            // マッチング通知（チャット・メール・プッシュを設定に基づいて送信）
             await sendMatchingNotification(
                 application.user_id,
                 application.workDate.job.title,
@@ -222,49 +223,9 @@ export async function updateApplicationStatus(
                     startTime: application.workDate.job.start_time,
                     endTime: application.workDate.job.end_time,
                 },
-                application.workDate.job.requires_interview // 審査あり求人フラグ
+                application.workDate.job.requires_interview, // 審査あり求人フラグ
+                facilityId // チャットメッセージ送信用
             );
-
-            const workDate = new Date(application.workDate.work_date);
-            const workDateStr = `${workDate.getMonth() + 1}/${workDate.getDate()}`;
-            const baseUrl = process.env.NEXTAUTH_URL || 'https://tastas.jp';
-            const jobDetailUrl = `${baseUrl}/jobs/${application.workDate.job_id}`;
-            const startTimeStr = application.workDate.job.start_time.substring(0, 5);
-            const endTimeStr = application.workDate.job.end_time.substring(0, 5);
-            const appliedDateStr = `${workDateStr} ${startTimeStr}〜${endTimeStr}`;
-
-            const matchingSetting = await prisma.notificationSetting.findUnique({
-                where: { notification_key: 'WORKER_MATCHED' },
-            });
-
-            const workerLastName = application.user.name?.split(' ')[0] || application.user.name || '';
-            let matchingConfirmMessage: string;
-            if (matchingSetting?.chat_enabled && matchingSetting?.chat_message) {
-                matchingConfirmMessage = matchingSetting.chat_message
-                    .replace(/\{\{worker_name\}\}/g, application.user.name || '')
-                    .replace(/\{\{worker_last_name\}\}/g, workerLastName)
-                    .replace(/\{\{facility_name\}\}/g, application.workDate.job.facility.facility_name)
-                    .replace(/\{\{work_date\}\}/g, workDateStr)
-                    .replace(/\{\{start_time\}\}/g, startTimeStr)
-                    .replace(/\{\{end_time\}\}/g, endTimeStr)
-                    .replace(/\{\{wage\}\}/g, String(application.workDate.job.wage || application.workDate.job.hourly_wage))
-                    .replace(/\{\{hourly_wage\}\}/g, String(application.workDate.job.hourly_wage || ''))
-                    .replace(/\{\{job_title\}\}/g, application.workDate.job.title)
-                    .replace(/\{\{job_url\}\}/g, jobDetailUrl)
-                    .replace(/\{\{applied_dates\}\}/g, appliedDateStr);
-            } else {
-                matchingConfirmMessage = `【マッチングが成立しました】\n\n以下の日程が確定しました：\n${appliedDateStr}\n\n▼ 求人詳細\n${application.workDate.job.title}\n${jobDetailUrl}\n\n勤務日をお待ちください。`;
-            }
-
-            await prisma.message.create({
-                data: {
-                    application_id: applicationId,
-                    job_id: application.workDate.job_id,
-                    from_facility_id: facilityId,
-                    to_user_id: application.user_id,
-                    content: matchingConfirmMessage,
-                },
-            });
 
             // 枠が埋まったかチェック
             const workDateData = await prisma.jobWorkDate.findUnique({
@@ -306,16 +267,8 @@ export async function updateApplicationStatus(
 
         if (newStatus === 'CANCELLED' && application.status === 'SCHEDULED') {
             const workDateStr = application.workDate.work_date.toISOString().split('T')[0];
-            await prisma.message.create({
-                data: {
-                    application_id: applicationId,
-                    job_id: application.workDate.job_id,
-                    from_facility_id: facilityId,
-                    to_user_id: application.user_id,
-                    content: `【システムメッセージ】\n「${application.workDate.job.title}」（${workDateStr}）のマッチングが施設によりキャンセルされました。\nご不明な点がございましたら、メッセージにてお問い合わせください。`,
-                },
-            });
 
+            // キャンセル通知（チャット・メール・プッシュを設定に基づいて送信）
             await sendCancelNotification(
                 application.user_id,
                 application.workDate.job.title,
@@ -325,7 +278,9 @@ export async function updateApplicationStatus(
                 {
                     startTime: application.workDate.job.start_time,
                     endTime: application.workDate.job.end_time,
-                }
+                },
+                applicationId,
+                facilityId
             );
         }
 
@@ -333,31 +288,7 @@ export async function updateApplicationStatus(
         if (newStatus === 'CANCELLED' && application.status === 'APPLIED') {
             const workDateStr = application.workDate.work_date.toISOString().split('T')[0];
 
-            // 不採用のチャットメッセージ作成
-            const rejectionSetting = await prisma.notificationSetting.findUnique({
-                where: { notification_key: 'WORKER_INTERVIEW_REJECTED' },
-            });
-
-            let rejectionMessage: string;
-            if (rejectionSetting?.chat_enabled && rejectionSetting?.chat_message) {
-                rejectionMessage = rejectionSetting.chat_message
-                    .replace(/\{\{worker_name\}\}/g, application.user.name || '')
-                    .replace(/\{\{facility_name\}\}/g, application.workDate.job.facility.facility_name);
-            } else {
-                rejectionMessage = `${application.user.name}さん、この度は${application.workDate.job.facility.facility_name}へのご応募ありがとうございました。\n\n選考の結果、今回はご縁がありませんでした。\nまた別の求人でお会いできることを楽しみにしております。`;
-            }
-
-            await prisma.message.create({
-                data: {
-                    application_id: applicationId,
-                    job_id: application.workDate.job_id,
-                    from_facility_id: facilityId,
-                    to_user_id: application.user_id,
-                    content: rejectionMessage,
-                },
-            });
-
-            // メール通知送信
+            // 不採用通知（チャット・メール・プッシュを設定に基づいて送信）
             await sendNotification({
                 notificationKey: 'WORKER_INTERVIEW_REJECTED',
                 targetType: 'WORKER',
@@ -370,6 +301,12 @@ export async function updateApplicationStatus(
                     facility_name: application.workDate.job.facility.facility_name,
                     job_title: application.workDate.job.title,
                     work_date: workDateStr,
+                },
+                // チャットメッセージ（Messageテーブル）用
+                chatMessageData: {
+                    jobId: application.workDate.job_id,
+                    fromFacilityId: facilityId,
+                    toUserId: application.user_id,
                 },
             });
         }

@@ -626,6 +626,40 @@ const notificationSettings = [
     push_body: '{{worker_name}}さんが勤務をキャンセルしました',
   },
   {
+    notification_key: 'FACILITY_APPLICATION_WITHDRAWN',
+    name: 'ワーカーからの応募取り消し',
+    description: 'ワーカーが審査中の応募を取り消した時に送信',
+    target_type: 'FACILITY',
+    chat_enabled: true,
+    email_enabled: false,
+    push_enabled: false,
+    chat_message: `【システムメッセージ】
+ワーカーが「{{job_title}}」（{{work_date}}）への応募を取り消しました。
+※審査中の応募取消のため、キャンセル率には影響しません。`,
+    email_subject: null,
+    email_body: null,
+    push_title: null,
+    push_body: null,
+  },
+  {
+    notification_key: 'FACILITY_INITIAL_GREETING',
+    name: '施設からの初回挨拶',
+    description: '初めてマッチングしたワーカーに送る施設からの挨拶メッセージ',
+    target_type: 'WORKER',
+    chat_enabled: true,
+    email_enabled: false,
+    push_enabled: false,
+    chat_message: `[ワーカー名字]さん、初めまして！
+[施設名]です。
+
+この度はマッチングありがとうございます。
+当日はよろしくお願いいたします。`,
+    email_subject: null,
+    email_body: null,
+    push_title: null,
+    push_body: null,
+  },
+  {
     notification_key: 'FACILITY_REMINDER_DAY_BEFORE',
     name: '勤務前日リマインド',
     description: '勤務前日に送信するリマインダー',
