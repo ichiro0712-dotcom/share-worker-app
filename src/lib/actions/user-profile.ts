@@ -289,7 +289,7 @@ export async function updateUserProfile(formData: FormData) {
         }
 
         // Supabase Storage用ヘルパー関数
-        const uploadToSupabaseStorage = async (file: FileBlob, folder: string, prefix: string, userId: number): Promise<string | null> => {
+        const uploadToSupabaseStorage = async (file: FileBlob, folder: string, prefix: string, userId: number): Promise<{ url: string } | { error: string }> => {
             try {
                 const timestamp = Date.now();
                 const fileExtension = file.name.split('.').pop();
@@ -306,12 +306,14 @@ export async function updateUserProfile(formData: FormData) {
                 );
 
                 if ('error' in result) {
-                    return null;
+                    console.error('[Profile Upload] Upload failed:', result.error);
+                    return { error: result.error };
                 }
 
-                return result.url;
+                return { url: result.url };
             } catch (error) {
-                return null;
+                console.error('[Profile Upload] Unexpected error:', error);
+                return { error: error instanceof Error ? error.message : '画像のアップロードに失敗しました' };
             }
         };
 
@@ -319,28 +321,40 @@ export async function updateUserProfile(formData: FormData) {
         let profileImagePath = user.profile_image;
 
         if (profileImageFile && profileImageFile.size > 0) {
-            const uploadedUrl = await uploadToSupabaseStorage(profileImageFile, 'profiles', 'profile', user.id);
-            if (uploadedUrl) {
-                profileImagePath = uploadedUrl;
+            const uploadResult = await uploadToSupabaseStorage(profileImageFile, 'profiles', 'profile', user.id);
+            if ('error' in uploadResult) {
+                return {
+                    success: false,
+                    error: `プロフィール画像のアップロードに失敗しました: ${uploadResult.error}`,
+                };
             }
+            profileImagePath = uploadResult.url;
         }
 
         // 身分証明書のアップロード処理
         let idDocumentPath = user.id_document;
         if (idDocumentFile && idDocumentFile.size > 0) {
-            const uploadedUrl = await uploadToSupabaseStorage(idDocumentFile, 'documents', 'id-document', user.id);
-            if (uploadedUrl) {
-                idDocumentPath = uploadedUrl;
+            const uploadResult = await uploadToSupabaseStorage(idDocumentFile, 'documents', 'id-document', user.id);
+            if ('error' in uploadResult) {
+                return {
+                    success: false,
+                    error: `身分証明書のアップロードに失敗しました: ${uploadResult.error}`,
+                };
             }
+            idDocumentPath = uploadResult.url;
         }
 
         // 通帳コピーのアップロード処理
         let bankBookImagePath = user.bank_book_image;
         if (bankBookImageFile && bankBookImageFile.size > 0) {
-            const uploadedUrl = await uploadToSupabaseStorage(bankBookImageFile, 'documents', 'bank-book', user.id);
-            if (uploadedUrl) {
-                bankBookImagePath = uploadedUrl;
+            const uploadResult = await uploadToSupabaseStorage(bankBookImageFile, 'documents', 'bank-book', user.id);
+            if ('error' in uploadResult) {
+                return {
+                    success: false,
+                    error: `通帳コピーのアップロードに失敗しました: ${uploadResult.error}`,
+                };
             }
+            bankBookImagePath = uploadResult.url;
         }
 
         // 資格証明書のアップロード処理
@@ -361,10 +375,14 @@ export async function updateUserProfile(formData: FormData) {
 
         for (const [qualification, file] of Object.entries(qualificationCertificateFiles)) {
             const encodedQualName = Buffer.from(qualification).toString('base64').replace(/[+/=]/g, '_');
-            const uploadedUrl = await uploadToSupabaseStorage(file, 'certificates', `cert-${encodedQualName}`, user.id);
-            if (uploadedUrl) {
-                newCertificates[qualification] = uploadedUrl;
+            const uploadResult = await uploadToSupabaseStorage(file, 'certificates', `cert-${encodedQualName}`, user.id);
+            if ('error' in uploadResult) {
+                return {
+                    success: false,
+                    error: `資格証明書（${qualification}）のアップロードに失敗しました: ${uploadResult.error}`,
+                };
             }
+            newCertificates[qualification] = uploadResult.url;
         }
 
         // 住所が変更された場合（または入力がある場合）、ジオコーディングを実行
