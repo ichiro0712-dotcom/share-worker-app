@@ -577,13 +577,12 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
         setIdDocumentFile(null);
         setBankBookImageFile(null);
         setQualificationCertificateFiles({});
-        // キャッシュを無効化してからリダイレクト
-        router.refresh();
-        // リダイレクト: returnUrlがあれば戻り先へ、なければマイページへ
+        // フルページリロードでリダイレクト（キャッシュを確実に無効化）
+        // router.push()ではクライアントキャッシュが効いてしまうため
         if (returnUrl) {
-          router.push(returnUrl);
+          window.location.href = returnUrl;
         } else {
-          router.push('/mypage');
+          window.location.href = '/mypage';
         }
       } else {
         // デバッグ用エラー通知を表示
