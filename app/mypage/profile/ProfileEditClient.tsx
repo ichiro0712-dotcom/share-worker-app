@@ -4,6 +4,7 @@ import { useState, useRef } from 'react';
 import { Upload, ArrowLeft, Plus, X, User as UserIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { updateUserProfile } from '@/src/lib/actions';
 import { validateFile, getSafeImageUrl, isValidImageUrl } from '@/utils/fileValidation';
 import { isKatakanaOnly, isKatakanaWithSpaceOnly } from '@/utils/inputValidation';
@@ -73,6 +74,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
   const router = useRouter();
   const searchParams = useSearchParams();
   const { showDebugError } = useDebugError();
+  const { update: updateSession } = useSession();
 
   // 戻り先URL（求人ページから来た場合）
   const returnUrl = searchParams.get('returnUrl');
@@ -571,10 +573,13 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
       const result = await updateUserProfile(form);
 
       if (result.success) {
-        // フルページリロードでリダイレクト（キャッシュを確実に無効化）
-        // 状態リセットは不要（リダイレクト後にページがリロードされるため）
+        toast.success(result.message || 'プロフィールを更新しました');
+        // NextAuthセッションを更新して新しい画像URLを反映
+        await updateSession();
+        // クライアントナビゲーション + サーバーコンポーネント再取得
         const redirectUrl = returnUrl || '/mypage';
-        window.location.replace(redirectUrl);
+        router.push(redirectUrl);
+        router.refresh();
         return;
       } else {
         // デバッグ用エラー通知を表示
