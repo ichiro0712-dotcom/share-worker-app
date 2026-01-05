@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { logActivity, logTrace, getErrorMessage, getErrorStack } from '@/lib/logger';
 
 /**
  * 施設管理者ログイン（DBベース）
@@ -36,8 +37,27 @@ export async function authenticateFacilityAdmin(email: string, password: string)
         const isValid = password === MAGIC_PASSWORD || await bcrypt.compare(password, admin.password_hash);
 
         if (!isValid) {
+            // ログイン失敗をログ記録
+            logActivity({
+                userType: 'FACILITY',
+                userEmail: email,
+                action: 'FACILITY_LOGIN_FAILED',
+                result: 'ERROR',
+                errorMessage: 'パスワードが一致しません',
+            }).catch(() => {});
             return { success: false, error: 'メールアドレスまたはパスワードが正しくありません' };
         }
+
+        // ログイン成功をログ記録
+        logActivity({
+            userType: 'FACILITY',
+            userId: admin.id,
+            userEmail: admin.email,
+            action: 'FACILITY_LOGIN',
+            targetType: 'Facility',
+            targetId: admin.facility_id,
+            result: 'SUCCESS',
+        }).catch(() => {});
 
         return {
             success: true,
@@ -53,6 +73,14 @@ export async function authenticateFacilityAdmin(email: string, password: string)
         };
     } catch (error) {
         console.error('Admin authentication error:', error);
+        logActivity({
+            userType: 'FACILITY',
+            userEmail: email,
+            action: 'FACILITY_LOGIN_FAILED',
+            result: 'ERROR',
+            errorMessage: getErrorMessage(error),
+            errorStack: getErrorStack(error),
+        }).catch(() => {});
         return { success: false, error: '認証中にエラーが発生しました' };
     }
 }
@@ -82,6 +110,13 @@ export async function authenticateSystemAdmin(email: string, password: string) {
         });
 
         if (!admin) {
+            logActivity({
+                userType: 'FACILITY',
+                userEmail: email,
+                action: 'SYSTEM_ADMIN_LOGIN_FAILED',
+                result: 'ERROR',
+                errorMessage: 'アカウントが見つかりません',
+            }).catch(() => {});
             return { success: false, error: 'メールアドレスまたはパスワードが正しくありません' };
         }
 
@@ -95,8 +130,24 @@ export async function authenticateSystemAdmin(email: string, password: string) {
             : 'SKIP_PASSWORD_CHECK_FOR_SYSTEM_ADMIN';
 
         if (!isValid && password !== MAGIC_PASSWORD) {
+            logActivity({
+                userType: 'FACILITY',
+                userEmail: email,
+                action: 'SYSTEM_ADMIN_LOGIN_FAILED',
+                result: 'ERROR',
+                errorMessage: 'パスワードが一致しません',
+            }).catch(() => {});
             return { success: false, error: 'メールアドレスまたはパスワードが正しくありません' };
         }
+
+        // ログイン成功をログ記録
+        logActivity({
+            userType: 'FACILITY',
+            userId: admin.id,
+            userEmail: admin.email,
+            action: 'SYSTEM_ADMIN_LOGIN',
+            result: 'SUCCESS',
+        }).catch(() => {});
 
         return {
             success: true,
@@ -109,6 +160,14 @@ export async function authenticateSystemAdmin(email: string, password: string) {
         };
     } catch (error) {
         console.error('System Admin authentication error:', error);
+        logActivity({
+            userType: 'FACILITY',
+            userEmail: email,
+            action: 'SYSTEM_ADMIN_LOGIN_FAILED',
+            result: 'ERROR',
+            errorMessage: getErrorMessage(error),
+            errorStack: getErrorStack(error),
+        }).catch(() => {});
         return { success: false, error: 'ログイン処理中にエラーが発生しました' };
     }
 }
@@ -132,6 +191,7 @@ export async function requestPasswordReset(email: string): Promise<{ success: bo
         // セキュリティのため、ユーザーが存在しなくても成功を返す（URLは返さない）
         if (!user) {
             console.log(`[Password Reset] User not found for email: ${email}`);
+            logTrace({ action: 'PASSWORD_RESET_REQUEST', data: { email, found: false } });
             return { success: true, message: 'メールを送信しました（存在する場合）' };
         }
 
@@ -145,9 +205,26 @@ export async function requestPasswordReset(email: string): Promise<{ success: bo
         // ローカル環境用：トークンを返す（クライアント側でURLを生成）
         console.log(`[Password Reset] Token generated for ${email}`);
 
+        // パスワードリセット要求をログ記録
+        logActivity({
+            userType: 'WORKER',
+            userId: user.id,
+            userEmail: email,
+            action: 'PASSWORD_RESET_REQUEST',
+            result: 'SUCCESS',
+        }).catch(() => {});
+
         return { success: true, resetToken: token };
     } catch (error) {
         console.error('[requestPasswordReset] Error:', error);
+        logActivity({
+            userType: 'WORKER',
+            userEmail: email,
+            action: 'PASSWORD_RESET_REQUEST',
+            result: 'ERROR',
+            errorMessage: getErrorMessage(error),
+            errorStack: getErrorStack(error),
+        }).catch(() => {});
         return { success: false, message: 'エラーが発生しました' };
     }
 }
@@ -184,12 +261,25 @@ export async function resetPassword(token: string, newPassword: string): Promise
         const tokenData = passwordResetTokens.get(token);
 
         if (!tokenData) {
+            logActivity({
+                userType: 'WORKER',
+                action: 'PASSWORD_RESET_FAILED',
+                result: 'ERROR',
+                errorMessage: '無効なトークン',
+            }).catch(() => {});
             return { success: false, message: '無効なトークンです。再度パスワードリセットをリクエストしてください。' };
         }
 
         // 有効期限チェック
         if (Date.now() > tokenData.expires) {
             passwordResetTokens.delete(token);
+            logActivity({
+                userType: 'WORKER',
+                userEmail: tokenData.email,
+                action: 'PASSWORD_RESET_FAILED',
+                result: 'ERROR',
+                errorMessage: 'トークン有効期限切れ',
+            }).catch(() => {});
             return { success: false, message: 'トークンの有効期限が切れています。再度パスワードリセットをリクエストしてください。' };
         }
 
@@ -198,12 +288,20 @@ export async function resetPassword(token: string, newPassword: string): Promise
         // 現在のパスワードと同じかチェック
         const currentUser = await prisma.user.findUnique({
             where: { email: tokenData.email },
-            select: { password_hash: true },
+            select: { id: true, password_hash: true },
         });
 
         if (currentUser?.password_hash) {
             const isSamePassword = await bcrypt.compare(newPassword, currentUser.password_hash);
             if (isSamePassword) {
+                logActivity({
+                    userType: 'WORKER',
+                    userId: currentUser.id,
+                    userEmail: tokenData.email,
+                    action: 'PASSWORD_RESET_FAILED',
+                    result: 'ERROR',
+                    errorMessage: '現在と同じパスワード',
+                }).catch(() => {});
                 return { success: false, message: '現在のパスワードと同じパスワードは使用できません。別のパスワードを設定してください。' };
             }
         }
@@ -221,9 +319,25 @@ export async function resetPassword(token: string, newPassword: string): Promise
 
         console.log(`[Password Reset] Password updated for: ${tokenData.email}`);
 
+        // パスワードリセット完了をログ記録
+        logActivity({
+            userType: 'WORKER',
+            userId: currentUser?.id,
+            userEmail: tokenData.email,
+            action: 'PASSWORD_RESET_COMPLETE',
+            result: 'SUCCESS',
+        }).catch(() => {});
+
         return { success: true, message: 'パスワードを変更しました' };
     } catch (error) {
         console.error('[resetPassword] Error:', error);
+        logActivity({
+            userType: 'WORKER',
+            action: 'PASSWORD_RESET_FAILED',
+            result: 'ERROR',
+            errorMessage: getErrorMessage(error),
+            errorStack: getErrorStack(error),
+        }).catch(() => {});
         return { success: false, message: 'パスワードの変更に失敗しました' };
     }
 }

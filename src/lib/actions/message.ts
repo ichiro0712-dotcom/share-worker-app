@@ -7,6 +7,7 @@ import { getAuthenticatedUser, formatMessageTime } from './helpers';
 import { revalidatePath } from 'next/cache';
 
 import { sendMessageNotificationToWorker, sendMessageNotificationToFacility } from './notification';
+import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 
 export async function getConversations() {
   try {
@@ -231,6 +232,22 @@ export async function sendMessage(applicationId: number, content: string) {
 
     revalidatePath('/messages');
 
+    // メッセージ送信成功をログ記録
+    logActivity({
+      userType: 'WORKER',
+      userId: user.id,
+      userEmail: user.email,
+      action: 'MESSAGE_SEND',
+      targetType: 'Message',
+      targetId: message.id,
+      requestData: {
+        applicationId,
+        toFacilityId: application.workDate.job.facility_id,
+        contentLength: content.length,
+      },
+      result: 'SUCCESS',
+    }).catch(() => {});
+
     return {
       success: true,
       message: {
@@ -244,6 +261,17 @@ export async function sendMessage(applicationId: number, content: string) {
     };
   } catch (error) {
     console.error('[sendMessage] Error:', error);
+
+    // メッセージ送信失敗をログ記録
+    logActivity({
+      userType: 'WORKER',
+      action: 'MESSAGE_SEND_FAILED',
+      requestData: { applicationId },
+      result: 'ERROR',
+      errorMessage: getErrorMessage(error),
+      errorStack: getErrorStack(error),
+    }).catch(() => {});
+
     return {
       success: false,
       error: 'メッセージの送信に失敗しました',
@@ -506,6 +534,22 @@ export async function sendFacilityMessage(
 
     revalidatePath('/admin/messages');
 
+    // 施設からのメッセージ送信成功をログ記録
+    logActivity({
+      userType: 'FACILITY',
+      action: 'MESSAGE_SEND',
+      targetType: 'Message',
+      targetId: message.id,
+      requestData: {
+        applicationId,
+        fromFacilityId: facilityId,
+        toUserId: application.user_id,
+        contentLength: content.length,
+        hasAttachments: attachments.length > 0,
+      },
+      result: 'SUCCESS',
+    }).catch(() => {});
+
     return {
       success: true,
       message: {
@@ -520,6 +564,17 @@ export async function sendFacilityMessage(
     };
   } catch (error) {
     console.error('[sendFacilityMessage] Error:', error);
+
+    // 施設からのメッセージ送信失敗をログ記録
+    logActivity({
+      userType: 'FACILITY',
+      action: 'MESSAGE_SEND_FAILED',
+      requestData: { applicationId, facilityId },
+      result: 'ERROR',
+      errorMessage: getErrorMessage(error),
+      errorStack: getErrorStack(error),
+    }).catch(() => {});
+
     return {
       success: false,
       error: 'メッセージの送信に失敗しました',

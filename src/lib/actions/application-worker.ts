@@ -17,6 +17,7 @@ import {
 } from './notification';
 import { sendNearbyJobNotifications, sendNotification } from '../notification-service';
 import { updateApplicationStatuses } from '../status-updater';
+import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 
 /**
  * ユーザーが応募した仕事の一覧を取得
@@ -310,6 +311,26 @@ export async function applyForJob(jobId: string, workDateId?: number) {
         revalidatePath(`/jobs/${jobIdNum}`);
         revalidatePath('/my-jobs');
 
+        // 応募成功をログ記録
+        logActivity({
+            userType: 'WORKER',
+            userId: user.id,
+            userEmail: user.email,
+            action: 'JOB_APPLY',
+            targetType: 'Application',
+            targetId: application.id,
+            requestData: {
+                jobId: jobIdNum,
+                jobTitle: job.title,
+                workDateId: targetWorkDateId,
+                workDate: targetWorkDate.work_date.toISOString(),
+                facilityId: job.facility_id,
+                facilityName: job.facility.facility_name,
+                isImmediateMatch,
+            },
+            result: 'SUCCESS',
+        }).catch(() => {});
+
         return {
             success: true,
             message,
@@ -318,6 +339,17 @@ export async function applyForJob(jobId: string, workDateId?: number) {
         };
     } catch (error) {
         console.error('[applyForJob] Error details:', error);
+
+        // 応募失敗をログ記録
+        logActivity({
+            userType: 'WORKER',
+            action: 'JOB_APPLY_FAILED',
+            requestData: { jobId },
+            result: 'ERROR',
+            errorMessage: getErrorMessage(error),
+            errorStack: getErrorStack(error),
+        }).catch(() => {});
+
         return { success: false, error: '応募に失敗しました。もう一度お試しください。' };
     }
 }
@@ -772,9 +804,38 @@ export async function cancelApplicationByWorker(applicationId: number) {
 
         revalidatePath('/my-jobs');
         revalidatePath('/admin/applications');
+
+        // キャンセル成功をログ記録
+        logActivity({
+            userType: 'WORKER',
+            userId: user.id,
+            userEmail: user.email,
+            action: 'JOB_CANCEL',
+            targetType: 'Application',
+            targetId: applicationId,
+            requestData: {
+                jobId: application.workDate.job_id,
+                jobTitle: application.workDate.job.title,
+                workDate: application.workDate.work_date.toISOString(),
+                facilityId: application.workDate.job.facility_id,
+            },
+            result: 'SUCCESS',
+        }).catch(() => {});
+
         return { success: true, message: 'キャンセルしました' };
     } catch (error) {
         console.error('[cancelApplicationByWorker] Error:', error);
+
+        // キャンセル失敗をログ記録
+        logActivity({
+            userType: 'WORKER',
+            action: 'JOB_CANCEL_FAILED',
+            requestData: { applicationId },
+            result: 'ERROR',
+            errorMessage: getErrorMessage(error),
+            errorStack: getErrorStack(error),
+        }).catch(() => {});
+
         return { success: false, error: 'キャンセルに失敗しました' };
     }
 }
