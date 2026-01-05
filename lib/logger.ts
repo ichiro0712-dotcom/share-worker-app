@@ -67,6 +67,22 @@ export type ActivityAction =
   | 'APPLICATION_APPROVE'      // 応募承認
   | 'APPLICATION_REJECT'       // 応募却下
   | 'FACILITY_CANCEL'          // 施設からのキャンセル
+  | 'FACILITY_UPDATE'          // 施設情報更新
+  | 'FACILITY_ACCOUNT_CREATE'  // 施設アカウント追加
+  | 'FACILITY_ACCOUNT_UPDATE'  // 施設アカウント更新
+  | 'FACILITY_ACCOUNT_DELETE'  // 施設アカウント削除
+  | 'JOB_TEMPLATE_CREATE'      // 求人テンプレート作成
+  | 'JOB_TEMPLATE_UPDATE'      // 求人テンプレート更新
+  | 'OFFER_TEMPLATE_CREATE'    // オファーテンプレート作成
+  | 'OFFER_TEMPLATE_UPDATE'    // オファーテンプレート更新
+  | 'OFFER_TEMPLATE_DELETE'    // オファーテンプレート削除
+  | 'REVIEW_CREATE'            // レビュー作成
+  | 'REVIEW_TEMPLATE_CREATE'   // レビューテンプレート作成
+  | 'REVIEW_TEMPLATE_UPDATE'   // レビューテンプレート更新
+  | 'REVIEW_TEMPLATE_DELETE'   // レビューテンプレート削除
+  | 'BOOKMARK_CREATE'          // ブックマーク作成
+  | 'BOOKMARK_DELETE'          // ブックマーク削除
+  | 'NOTIFICATION_READ'        // 通知既読
   // ========== システム管理者系 ==========
   | 'SYSTEM_ADMIN_LOGIN'       // システム管理者ログイン
   | 'SYSTEM_ADMIN_LOGIN_FAILED'// システム管理者ログイン失敗

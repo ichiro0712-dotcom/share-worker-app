@@ -12,6 +12,7 @@ import {
     JobSearchParams,
     JobListType
 } from './helpers';
+import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 
 /**
  * キャッシュされた求人詳細を取得
@@ -1336,7 +1337,7 @@ export async function addJobBookmark(jobId: string, type: 'FAVORITE' | 'WATCH_LA
             };
         }
 
-        await prisma.bookmark.create({
+        const bookmark = await prisma.bookmark.create({
             data: {
                 user_id: user.id,
                 target_job_id: jobIdNum,
@@ -1348,12 +1349,40 @@ export async function addJobBookmark(jobId: string, type: 'FAVORITE' | 'WATCH_LA
         revalidatePath('/bookmarks');
         revalidatePath('/favorites');
 
+        // ログ記録
+        logActivity({
+            userId: user.id,
+            userType: 'WORKER',
+            action: 'BOOKMARK_CREATE',
+            targetType: 'Bookmark',
+            targetId: bookmark.id,
+            requestData: {
+                jobId: jobIdNum,
+                type,
+            },
+            result: 'SUCCESS',
+        }).catch(() => {});
+
         return {
             success: true,
             message: type === 'FAVORITE' ? 'お気に入りに追加しました' : '後で見るに追加しました',
         };
     } catch (error) {
         console.error('[addJobBookmark] Error:', error);
+
+        // エラーログ記録
+        logActivity({
+            userType: 'WORKER',
+            action: 'BOOKMARK_CREATE',
+            requestData: {
+                jobId,
+                type,
+            },
+            result: 'FAILURE',
+            errorMessage: getErrorMessage(error),
+            errorStack: getErrorStack(error),
+        }).catch(() => {});
+
         return {
             success: false,
             error: 'ブックマークの追加に失敗しました',
@@ -1376,7 +1405,7 @@ export async function removeJobBookmark(jobId: string, type: 'FAVORITE' | 'WATCH
             };
         }
 
-        await prisma.bookmark.deleteMany({
+        const deleteResult = await prisma.bookmark.deleteMany({
             where: {
                 user_id: user.id,
                 target_job_id: jobIdNum,
@@ -1388,12 +1417,39 @@ export async function removeJobBookmark(jobId: string, type: 'FAVORITE' | 'WATCH
         revalidatePath('/bookmarks');
         revalidatePath('/favorites');
 
+        // ログ記録
+        logActivity({
+            userId: user.id,
+            userType: 'WORKER',
+            action: 'BOOKMARK_DELETE',
+            requestData: {
+                jobId: jobIdNum,
+                type,
+                deletedCount: deleteResult.count,
+            },
+            result: 'SUCCESS',
+        }).catch(() => {});
+
         return {
             success: true,
             message: type === 'FAVORITE' ? 'お気に入りから削除しました' : '後で見るから削除しました',
         };
     } catch (error) {
         console.error('[removeJobBookmark] Error:', error);
+
+        // エラーログ記録
+        logActivity({
+            userType: 'WORKER',
+            action: 'BOOKMARK_DELETE',
+            requestData: {
+                jobId,
+                type,
+            },
+            result: 'FAILURE',
+            errorMessage: getErrorMessage(error),
+            errorStack: getErrorStack(error),
+        }).catch(() => {});
+
         return {
             success: false,
             error: 'ブックマークの削除に失敗しました',

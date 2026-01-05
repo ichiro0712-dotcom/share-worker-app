@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedUser } from './helpers';
 import { sendNotification } from '../notification-service';
+import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 
 /**
  * 労働条件通知書データを取得
@@ -406,9 +407,36 @@ export async function cancelShift(applicationId: number): Promise<{ success: boo
             },
         });
 
+        // ログ記録
+        logActivity({
+            userType: 'FACILITY',
+            action: 'FACILITY_CANCEL',
+            targetType: 'Application',
+            targetId: applicationId,
+            requestData: {
+                facilityId: application.workDate.job.facility_id,
+                workerId: application.user_id,
+                workerName: application.user.name,
+                workDate: application.workDate.work_date.toISOString(),
+            },
+            result: 'SUCCESS',
+        }).catch(() => {});
+
         return { success: true };
     } catch (error) {
         console.error('[cancelShift] Error:', error);
+
+        // エラーログ記録
+        logActivity({
+            userType: 'FACILITY',
+            action: 'FACILITY_CANCEL',
+            targetType: 'Application',
+            targetId: applicationId,
+            result: 'FAILURE',
+            errorMessage: getErrorMessage(error),
+            errorStack: getErrorStack(error),
+        }).catch(() => {});
+
         return { success: false, error: 'Failed to cancel shift' };
     }
 }

@@ -5,6 +5,7 @@ import { revalidatePath, revalidateTag } from 'next/cache';
 import { getAuthenticatedUser, createNotification } from './helpers';
 import { sendNotification } from '../notification-service';
 import { getFacilityUnreadMessageCount, getWorkerUnreadMessageCount } from './message';
+import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 
 /**
  * ユーザーの通知一覧を取得
@@ -106,9 +107,31 @@ export async function markNotificationAsRead(notificationId: number) {
 
         revalidatePath('/notifications');
 
+        // ログ記録
+        logActivity({
+            userType: 'WORKER',
+            userId: user.id,
+            action: 'NOTIFICATION_READ',
+            targetType: 'Notification',
+            targetId: notificationId,
+            result: 'SUCCESS',
+        }).catch(() => {});
+
         return { success: true };
     } catch (error) {
         console.error('[markNotificationAsRead] Error:', error);
+
+        // エラーログ記録
+        logActivity({
+            userType: 'WORKER',
+            action: 'NOTIFICATION_READ',
+            targetType: 'Notification',
+            targetId: notificationId,
+            result: 'FAILURE',
+            errorMessage: getErrorMessage(error),
+            errorStack: getErrorStack(error),
+        }).catch(() => {});
+
         return { success: false, error: '通知の更新に失敗しました' };
     }
 }
@@ -120,7 +143,7 @@ export async function markAllNotificationsAsRead() {
     try {
         const user = await getAuthenticatedUser();
 
-        await prisma.notification.updateMany({
+        const result = await prisma.notification.updateMany({
             where: {
                 user_id: user.id,
                 read: false,
@@ -132,9 +155,35 @@ export async function markAllNotificationsAsRead() {
 
         revalidatePath('/notifications');
 
+        // ログ記録
+        logActivity({
+            userType: 'WORKER',
+            userId: user.id,
+            action: 'NOTIFICATION_READ',
+            targetType: 'Notification',
+            requestData: {
+                action: 'mark_all_read',
+                count: result.count,
+            },
+            result: 'SUCCESS',
+        }).catch(() => {});
+
         return { success: true };
     } catch (error) {
         console.error('[markAllNotificationsAsRead] Error:', error);
+
+        // エラーログ記録
+        logActivity({
+            userType: 'WORKER',
+            action: 'NOTIFICATION_READ',
+            requestData: {
+                action: 'mark_all_read',
+            },
+            result: 'FAILURE',
+            errorMessage: getErrorMessage(error),
+            errorStack: getErrorStack(error),
+        }).catch(() => {});
+
         return { success: false, error: '通知の更新に失敗しました' };
     }
 }

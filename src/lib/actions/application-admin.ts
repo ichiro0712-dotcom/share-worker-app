@@ -14,6 +14,7 @@ import {
 import { sendNotification } from '../notification-service';
 import { getAuthenticatedUser } from './helpers';
 import { updateApplicationStatuses } from '../status-updater';
+import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 
 /**
  * 施設管理用: 施設に届いた応募一覧を取得
@@ -353,9 +354,48 @@ export async function updateApplicationStatus(
         revalidatePath('/admin/applications');
         revalidatePath('/admin/workers');
 
+        // ステータス更新をログ記録
+        const actionMap: Record<string, string> = {
+            'APPLIED_TO_SCHEDULED': 'APPLICATION_APPROVE',
+            'APPLIED_TO_CANCELLED': 'APPLICATION_REJECT',
+            'SCHEDULED_TO_CANCELLED': 'FACILITY_CANCEL',
+        };
+        const actionKey = `${application.status}_TO_${newStatus}`;
+        const action = actionMap[actionKey] || 'APPLICATION_APPROVE';
+
+        logActivity({
+            userType: 'FACILITY',
+            action,
+            targetType: 'Application',
+            targetId: applicationId,
+            requestData: {
+                facilityId,
+                previousStatus: application.status,
+                newStatus,
+                workerId: application.user_id,
+                workerName: application.user.name,
+                jobId: application.workDate.job_id,
+                jobTitle: application.workDate.job.title,
+                workDate: application.workDate.work_date.toISOString(),
+            },
+            result: 'SUCCESS',
+        }).catch(() => {});
+
         return { success: true };
     } catch (error) {
         console.error('[updateApplicationStatus] Error:', error);
+
+        logActivity({
+            userType: 'FACILITY',
+            action: 'APPLICATION_APPROVE',
+            targetType: 'Application',
+            targetId: applicationId,
+            requestData: { facilityId, newStatus },
+            result: 'ERROR',
+            errorMessage: getErrorMessage(error),
+            errorStack: getErrorStack(error),
+        }).catch(() => {});
+
         return { success: false, error: 'ステータスの更新に失敗しました' };
     }
 }

@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { unstable_noStore, revalidatePath } from 'next/cache';
 import { getCurrentTime, getTodayStart, type WorkerListItem, type WorkerListSearchParams, type WorkerListStatus } from './helpers';
 import { sendReviewReceivedNotificationToWorker, sendAdminLowRatingStreakNotification } from './notification';
+import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 
 /**
  * 施設管理者用: ワーカーの詳細情報を取得（統計・評価・キャンセル率含む）
@@ -432,9 +433,40 @@ export async function submitWorkerReview(data: {
     }
 
     revalidatePath('/admin/worker-reviews');
+
+    // ログ記録
+    logActivity({
+      userType: 'FACILITY',
+      action: 'REVIEW_CREATE',
+      targetType: 'Review',
+      requestData: {
+        facilityId: data.facilityId,
+        applicationId: data.applicationId,
+        workerId: application.user_id,
+        rating: averageRating,
+        ratings: data.ratings,
+        action: data.action,
+      },
+      result: 'SUCCESS',
+    }).catch(() => {});
+
     return { success: true };
   } catch (error) {
     console.error('[submitWorkerReview] Error:', error);
+
+    // エラーログ記録
+    logActivity({
+      userType: 'FACILITY',
+      action: 'REVIEW_CREATE',
+      requestData: {
+        facilityId: data.facilityId,
+        applicationId: data.applicationId,
+      },
+      result: 'FAILURE',
+      errorMessage: getErrorMessage(error),
+      errorStack: getErrorStack(error),
+    }).catch(() => {});
+
     return { success: false, error: 'Failed to submit review' };
   }
 }
@@ -578,9 +610,41 @@ export async function submitWorkerReviewByJob(data: {
     console.log('[submitWorkerReviewByJob] Review submitted successfully');
     revalidatePath('/admin/worker-reviews');
     revalidatePath('/admin/workers');
+
+    // ログ記録
+    logActivity({
+      userType: 'FACILITY',
+      action: 'REVIEW_CREATE',
+      targetType: 'Review',
+      requestData: {
+        facilityId: data.facilityId,
+        jobId: data.jobId,
+        workerId: data.userId,
+        rating: averageRating,
+        ratings: data.ratings,
+        action: data.action,
+      },
+      result: 'SUCCESS',
+    }).catch(() => {});
+
     return { success: true };
   } catch (error) {
     console.error('[submitWorkerReviewByJob] Error:', error);
+
+    // エラーログ記録
+    logActivity({
+      userType: 'FACILITY',
+      action: 'REVIEW_CREATE',
+      requestData: {
+        facilityId: data.facilityId,
+        jobId: data.jobId,
+        workerId: data.userId,
+      },
+      result: 'FAILURE',
+      errorMessage: getErrorMessage(error),
+      errorStack: getErrorStack(error),
+    }).catch(() => {});
+
     return { success: false, error: 'レビューの登録に失敗しました' };
   }
 }
@@ -637,7 +701,7 @@ export async function getReviewTemplates(facilityId: number) {
 
 export async function createReviewTemplate(facilityId: number, name: string, content: string) {
   try {
-    await prisma.reviewTemplate.create({
+    const template = await prisma.reviewTemplate.create({
       data: {
         facility_id: facilityId,
         name,
@@ -646,9 +710,37 @@ export async function createReviewTemplate(facilityId: number, name: string, con
     });
     // 注意: /admin/worker-reviewsはrevalidateしない（レビューフォーム入力中にリセットされるため）
     // ページ内ではrefreshTemplates()で手動更新している
+
+    // ログ記録
+    logActivity({
+      userType: 'FACILITY',
+      action: 'REVIEW_TEMPLATE_CREATE',
+      targetType: 'ReviewTemplate',
+      targetId: template.id,
+      requestData: {
+        facilityId,
+        name,
+      },
+      result: 'SUCCESS',
+    }).catch(() => {});
+
     return { success: true };
   } catch (error) {
     console.error('[createReviewTemplate] Error:', error);
+
+    // エラーログ記録
+    logActivity({
+      userType: 'FACILITY',
+      action: 'REVIEW_TEMPLATE_CREATE',
+      requestData: {
+        facilityId,
+        name,
+      },
+      result: 'FAILURE',
+      errorMessage: getErrorMessage(error),
+      errorStack: getErrorStack(error),
+    }).catch(() => {});
+
     return { success: false };
   }
 }
@@ -670,9 +762,39 @@ export async function updateReviewTemplate(templateId: number, name: string, con
       data: { name, content },
     });
     // 注意: /admin/worker-reviewsはrevalidateしない（レビューフォーム入力中にリセットされるため）
+
+    // ログ記録
+    logActivity({
+      userType: 'FACILITY',
+      action: 'REVIEW_TEMPLATE_UPDATE',
+      targetType: 'ReviewTemplate',
+      targetId: templateId,
+      requestData: {
+        facilityId,
+        name,
+      },
+      result: 'SUCCESS',
+    }).catch(() => {});
+
     return { success: true };
   } catch (error) {
     console.error('[updateReviewTemplate] Error:', error);
+
+    // エラーログ記録
+    logActivity({
+      userType: 'FACILITY',
+      action: 'REVIEW_TEMPLATE_UPDATE',
+      targetType: 'ReviewTemplate',
+      targetId: templateId,
+      requestData: {
+        facilityId,
+        name,
+      },
+      result: 'FAILURE',
+      errorMessage: getErrorMessage(error),
+      errorStack: getErrorStack(error),
+    }).catch(() => {});
+
     return { success: false, error: 'テンプレートの更新に失敗しました' };
   }
 }
@@ -693,9 +815,37 @@ export async function deleteReviewTemplate(templateId: number, facilityId: numbe
       where: { id: templateId },
     });
     // 注意: /admin/worker-reviewsはrevalidateしない（レビューフォーム入力中にリセットされるため）
+
+    // ログ記録
+    logActivity({
+      userType: 'FACILITY',
+      action: 'REVIEW_TEMPLATE_DELETE',
+      targetType: 'ReviewTemplate',
+      targetId: templateId,
+      requestData: {
+        facilityId,
+      },
+      result: 'SUCCESS',
+    }).catch(() => {});
+
     return { success: true };
   } catch (error) {
     console.error('[deleteReviewTemplate] Error:', error);
+
+    // エラーログ記録
+    logActivity({
+      userType: 'FACILITY',
+      action: 'REVIEW_TEMPLATE_DELETE',
+      targetType: 'ReviewTemplate',
+      targetId: templateId,
+      requestData: {
+        facilityId,
+      },
+      result: 'FAILURE',
+      errorMessage: getErrorMessage(error),
+      errorStack: getErrorStack(error),
+    }).catch(() => {});
+
     return { success: false, error: 'テンプレートの削除に失敗しました' };
   }
 }
@@ -717,19 +867,64 @@ export async function toggleWorkerFavorite(workerId: number, facilityId: number)
       await prisma.bookmark.delete({
         where: { id: existing.id },
       });
+
+      // ログ記録
+      logActivity({
+        userType: 'FACILITY',
+        action: 'BOOKMARK_DELETE',
+        targetType: 'Bookmark',
+        targetId: existing.id,
+        requestData: {
+          facilityId,
+          workerId,
+          type: 'FAVORITE',
+        },
+        result: 'SUCCESS',
+      }).catch(() => {});
+
       return { success: true, isFavorite: false };
     } else {
-      await prisma.bookmark.create({
+      const bookmark = await prisma.bookmark.create({
         data: {
           facility_id: facilityId,
           target_user_id: workerId,
           type: 'FAVORITE',
         },
       });
+
+      // ログ記録
+      logActivity({
+        userType: 'FACILITY',
+        action: 'BOOKMARK_CREATE',
+        targetType: 'Bookmark',
+        targetId: bookmark.id,
+        requestData: {
+          facilityId,
+          workerId,
+          type: 'FAVORITE',
+        },
+        result: 'SUCCESS',
+      }).catch(() => {});
+
       return { success: true, isFavorite: true };
     }
   } catch (error) {
     console.error('[toggleWorkerFavorite] Error:', error);
+
+    // エラーログ記録
+    logActivity({
+      userType: 'FACILITY',
+      action: 'BOOKMARK_CREATE',
+      requestData: {
+        facilityId,
+        workerId,
+        type: 'FAVORITE',
+      },
+      result: 'FAILURE',
+      errorMessage: getErrorMessage(error),
+      errorStack: getErrorStack(error),
+    }).catch(() => {});
+
     return { success: false, error: 'お気に入りの更新に失敗しました' };
   }
 }
@@ -751,19 +946,64 @@ export async function toggleWorkerBlock(workerId: number, facilityId: number): P
       await prisma.bookmark.delete({
         where: { id: existing.id },
       });
+
+      // ログ記録
+      logActivity({
+        userType: 'FACILITY',
+        action: 'BOOKMARK_DELETE',
+        targetType: 'Bookmark',
+        targetId: existing.id,
+        requestData: {
+          facilityId,
+          workerId,
+          type: 'BLOCK',
+        },
+        result: 'SUCCESS',
+      }).catch(() => {});
+
       return { success: true, isBlocked: false };
     } else {
-      await prisma.bookmark.create({
+      const bookmark = await prisma.bookmark.create({
         data: {
           facility_id: facilityId,
           target_user_id: workerId,
           type: 'WATCH_LATER',
         },
       });
+
+      // ログ記録
+      logActivity({
+        userType: 'FACILITY',
+        action: 'BOOKMARK_CREATE',
+        targetType: 'Bookmark',
+        targetId: bookmark.id,
+        requestData: {
+          facilityId,
+          workerId,
+          type: 'BLOCK',
+        },
+        result: 'SUCCESS',
+      }).catch(() => {});
+
       return { success: true, isBlocked: true };
     }
   } catch (error) {
     console.error('[toggleWorkerBlock] Error:', error);
+
+    // エラーログ記録
+    logActivity({
+      userType: 'FACILITY',
+      action: 'BOOKMARK_CREATE',
+      requestData: {
+        facilityId,
+        workerId,
+        type: 'BLOCK',
+      },
+      result: 'FAILURE',
+      errorMessage: getErrorMessage(error),
+      errorStack: getErrorStack(error),
+    }).catch(() => {});
+
     return { success: false, error: 'ブロックの更新に失敗しました' };
   }
 }
@@ -1037,12 +1277,40 @@ export async function submitFacilityReviewForWorker(
     revalidatePath('/admin/workers');
     revalidatePath('/admin/reviews');
 
+    // ログ記録
+    logActivity({
+      userType: 'FACILITY',
+      action: 'REVIEW_CREATE',
+      targetType: 'Review',
+      requestData: {
+        facilityId,
+        applicationId,
+        workerId: application.user_id,
+        rating: data.rating,
+      },
+      result: 'SUCCESS',
+    }).catch(() => {});
+
     return {
       success: true,
       message: '評価を投稿しました',
     };
   } catch (error) {
     console.error('[submitFacilityReviewForWorker] Error:', error);
+
+    // エラーログ記録
+    logActivity({
+      userType: 'FACILITY',
+      action: 'REVIEW_CREATE',
+      requestData: {
+        facilityId,
+        applicationId,
+      },
+      result: 'FAILURE',
+      errorMessage: getErrorMessage(error),
+      errorStack: getErrorStack(error),
+    }).catch(() => {});
+
     return {
       success: false,
       error: '評価の投稿に失敗しました',
