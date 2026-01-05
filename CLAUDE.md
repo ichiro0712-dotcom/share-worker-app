@@ -12,10 +12,61 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    - `postgres.ziaunavcbawzorrwwnos` を含む接続文字列
    - `pooler.supabase.com` を含むホスト名
 
-**正しい本番環境:**
-- **デプロイ**: Vercel（https://share-worker-app.vercel.app）
+**正しい環境:**
+
+| 環境 | URL | ブランチ | 用途 |
+|------|-----|----------|------|
+| 本番 | https://share-worker-app.vercel.app | main | 本番環境 |
+| ステージング | https://stg-share-worker.vercel.app | develop | 検証環境 |
+| 開発 | http://localhost:3000 | - | ローカル開発 |
+
 - **本番DB**: Vercelの環境変数で設定済み（CLAUDEが直接接続する必要はない）
 - **開発DB**: ローカルDocker PostgreSQL（localhost:5432）
+
+## ⚠️ Git操作の厳格ルール（Claude Code必須遵守）
+
+### 🚫 絶対禁止事項
+
+1. **mainブランチへの直接push禁止**
+   - `git push origin main` は絶対に実行しないこと
+   - mainへの変更は必ずPR経由
+
+2. **mainブランチへの直接PR作成禁止**
+   - `feature/*` → `main` へのPRは作成しない
+   - `fix/*` → `main` へのPRも作成しない
+   - **必ず `develop` ブランチを経由すること**
+
+3. **developブランチへの直接push禁止（推奨）**
+   - 原則としてPR経由でマージ
+
+### ✅ 正しいワークフロー
+
+```
+feature/* または fix/*
+    ↓ PRを作成（ターゲット: develop）
+develop ← マージ
+    ↓ Vercel自動デプロイ
+https://stg-share-worker.vercel.app/ で確認
+    ↓ 確認OK後、管理者がPRを作成（ターゲット: main）
+main ← マージ
+    ↓ Vercel自動デプロイ
+https://share-worker-app.vercel.app/ に本番反映
+```
+
+### PR作成時の確認
+
+PRを作成する前に、必ず以下を確認すること：
+
+```bash
+# 現在のブランチ確認
+git branch
+
+# PRのターゲットブランチ確認（重要！）
+# ✅ 正しい: gh pr create --base develop
+# 🚫 禁止: gh pr create --base main
+```
+
+**Claude CodeがPRを作成する場合は、必ず `--base develop` を指定すること。**
 
 ## Project Overview
 
@@ -303,10 +354,14 @@ npm run lint   # Lintエラーがないこと
 ## Development Guidelines
 
 ### Git Workflow
-- `main`: Production branch (no direct commits)
-- `feature/xxx`: Feature development
-- `fix/xxx`: Bug fixes
+- `main`: 本番ブランチ（直接push/PR禁止、developからのマージのみ）
+- `develop`: ステージングブランチ（feature/fix からのPRマージ先）
+- `feature/xxx`: 機能開発
+- `fix/xxx`: バグ修正
+- `docs/xxx`: ドキュメント更新
 - Commit messages in Japanese: `機能追加: ...`, `バグ修正: ...`, `リファクタリング: ...`
+
+**重要**: 上部の「Git操作の厳格ルール」セクションを必ず参照すること。
 
 ### Code Quality
 - Run `npm run build` before committing to ensure no TypeScript errors
