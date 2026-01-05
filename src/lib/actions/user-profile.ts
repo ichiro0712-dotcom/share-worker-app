@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { getAuthenticatedUser, FileBlob } from './helpers';
 import { geocodeAddress } from '@/src/lib/geocoding';
 import { uploadFile, STORAGE_BUCKETS } from '@/lib/supabase';
+import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 
 /**
  * プロフィールの完成状態をチェックする
@@ -459,6 +460,28 @@ export async function updateUserProfile(formData: FormData) {
         revalidatePath('/mypage/profile');
         revalidatePath('/mypage');
 
+        // プロフィール更新成功をログ記録
+        logActivity({
+            userType: 'WORKER',
+            userId: user.id,
+            userEmail: user.email,
+            action: 'PROFILE_UPDATE',
+            targetType: 'User',
+            targetId: user.id,
+            requestData: {
+                name,
+                email,
+                phoneNumber,
+                prefecture,
+                city,
+                qualificationsCount: qualifications.length,
+                hasProfileImage: !!profileImagePath,
+                hasIdDocument: !!idDocumentPath,
+                hasBankBookImage: !!bankBookImagePath,
+            },
+            result: 'SUCCESS',
+        }).catch(() => {});
+
         return {
             success: true,
             message: 'プロフィールを更新しました',
@@ -466,6 +489,16 @@ export async function updateUserProfile(formData: FormData) {
     } catch (error) {
         console.error('[updateUserProfile] Error:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+        // プロフィール更新失敗をログ記録
+        logActivity({
+            userType: 'WORKER',
+            action: 'PROFILE_UPDATE_FAILED',
+            result: 'ERROR',
+            errorMessage: getErrorMessage(error),
+            errorStack: getErrorStack(error),
+        }).catch(() => {});
+
         return {
             success: false,
             error: `プロフィールの更新に失敗しました: ${errorMessage}`,

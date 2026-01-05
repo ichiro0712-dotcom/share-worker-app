@@ -1034,3 +1034,43 @@ model OfferTemplate {
   @@index([facility_id])
   @@map("offer_templates")
 }
+
+// ========== ユーザー操作ログ ==========
+
+/// ユーザー操作ログ（デバッグ・調査用）
+/// Vercel Logs（3日）+ DB（長期保存）の二重記録
+model UserActivityLog {
+  id            Int      @id @default(autoincrement())
+
+  // 誰が
+  user_type     String   @map("user_type")    // "WORKER" | "FACILITY" | "GUEST"
+  user_id       Int?     @map("user_id")      // User.id or FacilityAdmin.id
+  user_email    String?  @map("user_email")   // 特定しやすいように
+
+  // 何をした
+  action        String                        // "LOGIN", "PROFILE_UPDATE", "JOB_APPLY", etc.
+  target_type   String?  @map("target_type")  // "Job", "Application", "Message", etc.
+  target_id     Int?     @map("target_id")    // 対象のID
+
+  // どんなデータ
+  request_data  Json?    @map("request_data")  // 送信されたデータ
+  response_data Json?    @map("response_data") // レスポンス（あれば）
+
+  // 結果
+  result        String   @default("SUCCESS")   // "SUCCESS" | "ERROR"
+  error_message String?  @map("error_message")
+  error_stack   String?  @db.Text @map("error_stack")
+
+  // コンテキスト
+  url           String?                        // リクエストURL
+  user_agent    String?  @map("user_agent")
+  ip_address    String?  @map("ip_address")
+
+  created_at    DateTime @default(now()) @map("created_at")
+
+  @@index([user_type, user_id])
+  @@index([action])
+  @@index([result])
+  @@index([created_at])
+  @@map("user_activity_logs")
+}
