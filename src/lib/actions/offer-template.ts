@@ -2,6 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
+import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 
 /**
  * 施設のオファーテンプレート一覧を取得
@@ -48,7 +49,7 @@ export async function createOfferTemplate(
       _max: { sort_order: true },
     });
 
-    await prisma.offerTemplate.create({
+    const template = await prisma.offerTemplate.create({
       data: {
         facility_id: facilityId,
         name,
@@ -60,9 +61,37 @@ export async function createOfferTemplate(
     // 注意: /admin/jobs/newはrevalidateしない（フォーム入力中にリセットされるため）
     // JobForm内ではrefreshOfferTemplates()で手動更新している
     revalidatePath('/admin/settings/offer-templates');
+
+    // ログ記録
+    logActivity({
+      userType: 'FACILITY',
+      action: 'OFFER_TEMPLATE_CREATE',
+      targetType: 'OfferTemplate',
+      targetId: template.id,
+      requestData: {
+        facilityId,
+        name,
+      },
+      result: 'SUCCESS',
+    }).catch(() => {});
+
     return { success: true };
   } catch (error) {
     console.error('[createOfferTemplate] Error:', error);
+
+    // エラーログ記録
+    logActivity({
+      userType: 'FACILITY',
+      action: 'OFFER_TEMPLATE_CREATE',
+      requestData: {
+        facilityId,
+        name,
+      },
+      result: 'FAILURE',
+      errorMessage: getErrorMessage(error),
+      errorStack: getErrorStack(error),
+    }).catch(() => {});
+
     return { success: false, error: 'テンプレートの作成に失敗しました' };
   }
 }
@@ -94,9 +123,39 @@ export async function updateOfferTemplate(
 
     // 注意: /admin/jobs/newはrevalidateしない（フォーム入力中にリセットされるため）
     revalidatePath('/admin/settings/offer-templates');
+
+    // ログ記録
+    logActivity({
+      userType: 'FACILITY',
+      action: 'OFFER_TEMPLATE_UPDATE',
+      targetType: 'OfferTemplate',
+      targetId: templateId,
+      requestData: {
+        facilityId,
+        name,
+      },
+      result: 'SUCCESS',
+    }).catch(() => {});
+
     return { success: true };
   } catch (error) {
     console.error('[updateOfferTemplate] Error:', error);
+
+    // エラーログ記録
+    logActivity({
+      userType: 'FACILITY',
+      action: 'OFFER_TEMPLATE_UPDATE',
+      targetType: 'OfferTemplate',
+      targetId: templateId,
+      requestData: {
+        facilityId,
+        name,
+      },
+      result: 'FAILURE',
+      errorMessage: getErrorMessage(error),
+      errorStack: getErrorStack(error),
+    }).catch(() => {});
+
     return { success: false, error: 'テンプレートの更新に失敗しました' };
   }
 }
@@ -125,9 +184,37 @@ export async function deleteOfferTemplate(
 
     // 注意: /admin/jobs/newはrevalidateしない（フォーム入力中にリセットされるため）
     revalidatePath('/admin/settings/offer-templates');
+
+    // ログ記録
+    logActivity({
+      userType: 'FACILITY',
+      action: 'OFFER_TEMPLATE_DELETE',
+      targetType: 'OfferTemplate',
+      targetId: templateId,
+      requestData: {
+        facilityId,
+      },
+      result: 'SUCCESS',
+    }).catch(() => {});
+
     return { success: true };
   } catch (error) {
     console.error('[deleteOfferTemplate] Error:', error);
+
+    // エラーログ記録
+    logActivity({
+      userType: 'FACILITY',
+      action: 'OFFER_TEMPLATE_DELETE',
+      targetType: 'OfferTemplate',
+      targetId: templateId,
+      requestData: {
+        facilityId,
+      },
+      result: 'FAILURE',
+      errorMessage: getErrorMessage(error),
+      errorStack: getErrorStack(error),
+    }).catch(() => {});
+
     return { success: false, error: 'テンプレートの削除に失敗しました' };
   }
 }

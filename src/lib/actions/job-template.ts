@@ -2,6 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
+import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 
 /**
  * 管理者用: 施設に属する全ての求人テンプレートを取得
@@ -137,12 +138,40 @@ export async function createJobTemplate(
 
         revalidatePath('/admin/jobs/templates');
 
+        // ログ記録
+        logActivity({
+            userType: 'FACILITY',
+            action: 'JOB_TEMPLATE_CREATE',
+            targetType: 'JobTemplate',
+            targetId: template.id,
+            requestData: {
+                facilityId,
+                name: data.name,
+                title: data.title,
+            },
+            result: 'SUCCESS',
+        }).catch(() => {});
+
         return {
             success: true,
             templateId: template.id,
         };
     } catch (error) {
         console.error('[createJobTemplate] Error:', error);
+
+        // エラーログ記録
+        logActivity({
+            userType: 'FACILITY',
+            action: 'JOB_TEMPLATE_CREATE',
+            requestData: {
+                facilityId,
+                name: data.name,
+            },
+            result: 'FAILURE',
+            errorMessage: getErrorMessage(error),
+            errorStack: getErrorStack(error),
+        }).catch(() => {});
+
         return {
             success: false,
             error: 'テンプレートの作成に失敗しました',
@@ -223,11 +252,41 @@ export async function updateJobTemplate(
 
         revalidatePath('/admin/jobs/templates');
 
+        // ログ記録
+        logActivity({
+            userType: 'FACILITY',
+            action: 'JOB_TEMPLATE_UPDATE',
+            targetType: 'JobTemplate',
+            targetId: templateId,
+            requestData: {
+                facilityId,
+                name: data.name,
+                title: data.title,
+            },
+            result: 'SUCCESS',
+        }).catch(() => {});
+
         return {
             success: true,
         };
     } catch (error) {
         console.error('[updateJobTemplate] Error:', error);
+
+        // エラーログ記録
+        logActivity({
+            userType: 'FACILITY',
+            action: 'JOB_TEMPLATE_UPDATE',
+            targetType: 'JobTemplate',
+            targetId: templateId,
+            requestData: {
+                facilityId,
+                name: data.name,
+            },
+            result: 'FAILURE',
+            errorMessage: getErrorMessage(error),
+            errorStack: getErrorStack(error),
+        }).catch(() => {});
+
         return {
             success: false,
             error: 'テンプレートの更新に失敗しました',
