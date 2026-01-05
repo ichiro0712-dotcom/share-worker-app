@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache';
 import { getAuthenticatedUser } from './helpers';
 import { uploadFile, STORAGE_BUCKETS } from '@/lib/supabase';
+import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 
 /**
  * 施設IDから施設情報を取得
@@ -78,19 +79,63 @@ export async function toggleFacilityFavorite(facilityId: string) {
             await prisma.bookmark.delete({
                 where: { id: existingFavorite.id },
             });
+
+            // ログ記録（お気に入り解除）
+            logActivity({
+                userType: 'WORKER',
+                userId: user.id,
+                action: 'BOOKMARK_DELETE',
+                targetType: 'Bookmark',
+                targetId: existingFavorite.id,
+                requestData: {
+                    facilityId: facilityIdNum,
+                    bookmarkType: 'FAVORITE',
+                },
+                result: 'SUCCESS',
+            }).catch(() => {});
+
             return { success: true, isFavorite: false };
         } else {
-            await prisma.bookmark.create({
+            const bookmark = await prisma.bookmark.create({
                 data: {
                     user_id: user.id,
                     type: 'FAVORITE',
                     target_facility_id: facilityIdNum,
                 },
             });
+
+            // ログ記録（お気に入り追加）
+            logActivity({
+                userType: 'WORKER',
+                userId: user.id,
+                action: 'BOOKMARK_CREATE',
+                targetType: 'Bookmark',
+                targetId: bookmark.id,
+                requestData: {
+                    facilityId: facilityIdNum,
+                    bookmarkType: 'FAVORITE',
+                },
+                result: 'SUCCESS',
+            }).catch(() => {});
+
             return { success: true, isFavorite: true };
         }
     } catch (error) {
         console.error('[toggleFacilityFavorite] Error:', error);
+
+        // エラーログ記録
+        logActivity({
+            userType: 'WORKER',
+            action: 'BOOKMARK_CREATE',
+            requestData: {
+                facilityId,
+                bookmarkType: 'FAVORITE',
+            },
+            result: 'FAILURE',
+            errorMessage: getErrorMessage(error),
+            errorStack: getErrorStack(error),
+        }).catch(() => {});
+
         return { success: false, error: 'お気に入りの更新に失敗しました' };
     }
 }
@@ -229,8 +274,35 @@ export async function updateFacilityInitialMessage(facilityId: number, initialMe
         });
         revalidatePath('/admin/facility');
         revalidateTag(`facility-${facilityId}`);
+
+        // ログ記録
+        logActivity({
+            userType: 'FACILITY',
+            action: 'FACILITY_UPDATE',
+            targetType: 'Facility',
+            targetId: facilityId,
+            requestData: {
+                field: 'initial_message',
+            },
+            result: 'SUCCESS',
+        }).catch(() => {});
+
         return { success: true };
     } catch (error) {
+        // エラーログ記録
+        logActivity({
+            userType: 'FACILITY',
+            action: 'FACILITY_UPDATE',
+            targetType: 'Facility',
+            targetId: facilityId,
+            requestData: {
+                field: 'initial_message',
+            },
+            result: 'FAILURE',
+            errorMessage: getErrorMessage(error),
+            errorStack: getErrorStack(error),
+        }).catch(() => {});
+
         return { success: false, error: 'Failed to update initial message' };
     }
 }
@@ -308,8 +380,36 @@ export async function updateFacilityBasicInfo(facilityId: number, data: any) {
             },
         });
         revalidateTag(`facility-${facilityId}`);
+
+        // ログ記録
+        logActivity({
+            userType: 'FACILITY',
+            action: 'FACILITY_UPDATE',
+            targetType: 'Facility',
+            targetId: facilityId,
+            requestData: {
+                facilityName: data.facilityName,
+                corporationName: data.corporationName,
+            },
+            result: 'SUCCESS',
+        }).catch(() => {});
+
         return { success: true, isPendingCleared: true };
     } catch (error) {
+        // エラーログ記録
+        logActivity({
+            userType: 'FACILITY',
+            action: 'FACILITY_UPDATE',
+            targetType: 'Facility',
+            targetId: facilityId,
+            requestData: {
+                facilityName: data.facilityName,
+            },
+            result: 'FAILURE',
+            errorMessage: getErrorMessage(error),
+            errorStack: getErrorStack(error),
+        }).catch(() => {});
+
         return { success: false, error: 'Failed to update facility' };
     }
 }
@@ -352,8 +452,37 @@ export async function updateFacilityLatLng(facilityId: number, lat: number, lng:
     try {
         await prisma.facility.update({ where: { id: facilityId }, data: { lat, lng } });
         revalidatePath('/admin/facility');
+
+        // ログ記録
+        logActivity({
+            userType: 'FACILITY',
+            action: 'FACILITY_UPDATE',
+            targetType: 'Facility',
+            targetId: facilityId,
+            requestData: {
+                field: 'lat_lng',
+                lat,
+                lng,
+            },
+            result: 'SUCCESS',
+        }).catch(() => {});
+
         return { success: true };
     } catch (error) {
+        // エラーログ記録
+        logActivity({
+            userType: 'FACILITY',
+            action: 'FACILITY_UPDATE',
+            targetType: 'Facility',
+            targetId: facilityId,
+            requestData: {
+                field: 'lat_lng',
+            },
+            result: 'FAILURE',
+            errorMessage: getErrorMessage(error),
+            errorStack: getErrorStack(error),
+        }).catch(() => {});
+
         return { success: false, error: '緯度経度の更新に失敗しました' };
     }
 }
@@ -385,8 +514,37 @@ export async function updateFacilityMapImageByLatLng(facilityId: number, lat: nu
 
         await prisma.facility.update({ where: { id: facilityId }, data: { map_image: result.url, lat, lng } });
         revalidatePath('/admin/facility');
+
+        // ログ記録
+        logActivity({
+            userType: 'FACILITY',
+            action: 'FACILITY_UPDATE',
+            targetType: 'Facility',
+            targetId: facilityId,
+            requestData: {
+                field: 'map_image_lat_lng',
+                lat,
+                lng,
+            },
+            result: 'SUCCESS',
+        }).catch(() => {});
+
         return { success: true, mapImage: result.url };
     } catch (error) {
+        // エラーログ記録
+        logActivity({
+            userType: 'FACILITY',
+            action: 'FACILITY_UPDATE',
+            targetType: 'Facility',
+            targetId: facilityId,
+            requestData: {
+                field: 'map_image_lat_lng',
+            },
+            result: 'FAILURE',
+            errorMessage: getErrorMessage(error),
+            errorStack: getErrorStack(error),
+        }).catch(() => {});
+
         return { success: false, error: '地図画像の更新に失敗しました' };
     }
 }

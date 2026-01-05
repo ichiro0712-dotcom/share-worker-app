@@ -6,6 +6,7 @@ import { getCurrentTime } from '@/utils/debugTime';
 import { sendNearbyJobNotifications } from '../notification-service';
 import { CreateJobInput } from './helpers';
 import { sendFavoriteNewJobNotification } from './notification';
+import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 
 /**
  * ローカル用の日付フォーマット関数 (M/D形式)
@@ -589,6 +590,24 @@ export async function createJobs(input: CreateJobInput) {
             .catch(e => console.error('[createJobs] Favorite notification error:', e));
     }
 
+    // 求人作成をログ記録
+    logActivity({
+        userType: 'FACILITY',
+        action: 'JOB_CREATE',
+        targetType: 'Job',
+        targetId: job.id,
+        requestData: {
+            facilityId: input.facilityId,
+            title: input.title,
+            jobType: dbJobType,
+            workDatesCount: input.workDates.length,
+            recruitmentCount: input.recruitmentCount,
+            hourlyWage: input.hourlyWage,
+            targetWorkerId: input.targetWorkerId,
+        },
+        result: 'SUCCESS',
+    }).catch(() => {});
+
     return { success: true, jobId: job.id };
 }
 
@@ -661,6 +680,18 @@ export async function deleteJobs(jobIds: number[], facilityId: number): Promise<
 
         revalidatePath('/admin/jobs');
 
+        // 求人削除をログ記録
+        logActivity({
+            userType: 'FACILITY',
+            action: 'JOB_DELETE',
+            requestData: {
+                facilityId,
+                jobIds: validJobIds,
+                deletedCount: result.count,
+            },
+            result: 'SUCCESS',
+        }).catch(() => {});
+
         return {
             success: true,
             message: `${result.count}件の求人を削除しました`,
@@ -668,6 +699,16 @@ export async function deleteJobs(jobIds: number[], facilityId: number): Promise<
         };
     } catch (error) {
         console.error('[deleteJobs] Error:', error);
+
+        logActivity({
+            userType: 'FACILITY',
+            action: 'JOB_DELETE',
+            requestData: { facilityId, jobIds },
+            result: 'ERROR',
+            errorMessage: getErrorMessage(error),
+            errorStack: getErrorStack(error),
+        }).catch(() => {});
+
         return { success: false, message: '求人の削除に失敗しました' };
     }
 }
@@ -750,6 +791,21 @@ export async function updateJobsStatus(
         }
 
         const statusLabel = status === 'PUBLISHED' ? '公開' : '停止';
+
+        // 求人ステータス更新をログ記録
+        const action = status === 'PUBLISHED' ? 'JOB_PUBLISH' : 'JOB_STOP';
+        logActivity({
+            userType: 'FACILITY',
+            action,
+            requestData: {
+                facilityId,
+                jobIds: validJobIds,
+                status,
+                updatedCount: result.count,
+            },
+            result: 'SUCCESS',
+        }).catch(() => {});
+
         return {
             success: true,
             message: `${result.count}件の求人を${statusLabel}しました`,
@@ -757,6 +813,16 @@ export async function updateJobsStatus(
         };
     } catch (error) {
         console.error('[updateJobsStatus] Error:', error);
+
+        logActivity({
+            userType: 'FACILITY',
+            action: status === 'PUBLISHED' ? 'JOB_PUBLISH' : 'JOB_STOP',
+            requestData: { facilityId, jobIds, status },
+            result: 'ERROR',
+            errorMessage: getErrorMessage(error),
+            errorStack: getErrorStack(error),
+        }).catch(() => {});
+
         return { success: false, message: '求人のステータス更新に失敗しました' };
     }
 }
@@ -990,9 +1056,39 @@ export async function updateJob(
 
         revalidatePath('/admin/jobs');
         revalidateTag(`job-${jobId}`);
+
+        // 求人更新をログ記録
+        logActivity({
+            userType: 'FACILITY',
+            action: 'JOB_UPDATE',
+            targetType: 'Job',
+            targetId: jobId,
+            requestData: {
+                facilityId,
+                title: data.title,
+                hourlyWage: data.hourlyWage,
+                recruitmentCount: data.recruitmentCount,
+                addWorkDatesCount: data.addWorkDates?.length || 0,
+                removeWorkDateIdsCount: data.removeWorkDateIds?.length || 0,
+            },
+            result: 'SUCCESS',
+        }).catch(() => {});
+
         return { success: true };
     } catch (error) {
         console.error('[updateJob] Error:', error);
+
+        logActivity({
+            userType: 'FACILITY',
+            action: 'JOB_UPDATE',
+            targetType: 'Job',
+            targetId: jobId,
+            requestData: { facilityId, title: data.title },
+            result: 'ERROR',
+            errorMessage: getErrorMessage(error),
+            errorStack: getErrorStack(error),
+        }).catch(() => {});
+
         return { success: false, error: '求人の更新に失敗しました' };
     }
 }

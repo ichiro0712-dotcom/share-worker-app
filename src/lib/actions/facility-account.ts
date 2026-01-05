@@ -2,6 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
+import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 
 /**
  * 施設のアカウント一覧を取得
@@ -72,9 +73,37 @@ export async function addFacilityAccount(
             },
         });
 
+        // ログ記録
+        logActivity({
+            userType: 'FACILITY',
+            action: 'FACILITY_ACCOUNT_CREATE',
+            targetType: 'FacilityAdmin',
+            targetId: account.id,
+            requestData: {
+                facilityId,
+                email: data.email,
+                name: data.name,
+            },
+            result: 'SUCCESS',
+        }).catch(() => {});
+
         return { success: true, account };
     } catch (error) {
         console.error('Failed to add facility account:', error);
+
+        // エラーログ記録
+        logActivity({
+            userType: 'FACILITY',
+            action: 'FACILITY_ACCOUNT_CREATE',
+            requestData: {
+                facilityId,
+                email: data.email,
+            },
+            result: 'FAILURE',
+            errorMessage: getErrorMessage(error),
+            errorStack: getErrorStack(error),
+        }).catch(() => {});
+
         return { success: false, error: 'アカウントの追加に失敗しました' };
     }
 }
@@ -120,9 +149,38 @@ export async function updateFacilityAccount(
             },
         });
 
+        // ログ記録
+        logActivity({
+            userType: 'FACILITY',
+            action: 'FACILITY_ACCOUNT_UPDATE',
+            targetType: 'FacilityAdmin',
+            targetId: accountId,
+            requestData: {
+                facilityId,
+                email: data.email,
+                name: data.name,
+            },
+            result: 'SUCCESS',
+        }).catch(() => {});
+
         return { success: true, account: updated };
     } catch (error) {
         console.error('Failed to update facility account:', error);
+
+        // エラーログ記録
+        logActivity({
+            userType: 'FACILITY',
+            action: 'FACILITY_ACCOUNT_UPDATE',
+            targetType: 'FacilityAdmin',
+            targetId: accountId,
+            requestData: {
+                facilityId,
+            },
+            result: 'FAILURE',
+            errorMessage: getErrorMessage(error),
+            errorStack: getErrorStack(error),
+        }).catch(() => {});
+
         return { success: false, error: 'アカウントの更新に失敗しました' };
     }
 }
@@ -151,9 +209,38 @@ export async function updateFacilityAccountPassword(
             data: { password_hash },
         });
 
+        // ログ記録（パスワードは記録しない）
+        logActivity({
+            userType: 'FACILITY',
+            action: 'FACILITY_ACCOUNT_UPDATE',
+            targetType: 'FacilityAdmin',
+            targetId: accountId,
+            requestData: {
+                facilityId,
+                field: 'password',
+            },
+            result: 'SUCCESS',
+        }).catch(() => {});
+
         return { success: true };
     } catch (error) {
         console.error('Failed to update password:', error);
+
+        // エラーログ記録
+        logActivity({
+            userType: 'FACILITY',
+            action: 'FACILITY_ACCOUNT_UPDATE',
+            targetType: 'FacilityAdmin',
+            targetId: accountId,
+            requestData: {
+                facilityId,
+                field: 'password',
+            },
+            result: 'FAILURE',
+            errorMessage: getErrorMessage(error),
+            errorStack: getErrorStack(error),
+        }).catch(() => {});
+
         return { success: false, error: 'パスワードの変更に失敗しました' };
     }
 }
@@ -179,9 +266,37 @@ export async function deleteFacilityAccount(accountId: number, facilityId: numbe
             where: { id: accountId },
         });
 
+        // ログ記録
+        logActivity({
+            userType: 'FACILITY',
+            action: 'FACILITY_ACCOUNT_DELETE',
+            targetType: 'FacilityAdmin',
+            targetId: accountId,
+            requestData: {
+                facilityId,
+                email: account.email,
+            },
+            result: 'SUCCESS',
+        }).catch(() => {});
+
         return { success: true };
     } catch (error) {
         console.error('Failed to delete facility account:', error);
+
+        // エラーログ記録
+        logActivity({
+            userType: 'FACILITY',
+            action: 'FACILITY_ACCOUNT_DELETE',
+            targetType: 'FacilityAdmin',
+            targetId: accountId,
+            requestData: {
+                facilityId,
+            },
+            result: 'FAILURE',
+            errorMessage: getErrorMessage(error),
+            errorStack: getErrorStack(error),
+        }).catch(() => {});
+
         return { success: false, error: 'アカウントの削除に失敗しました' };
     }
 }
