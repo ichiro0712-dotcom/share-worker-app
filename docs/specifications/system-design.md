@@ -649,10 +649,123 @@ NEXTAUTH_URL="http://localhost:3000"
 
 ---
 
+## 10. 通知システム
+
+### 10.1 概要
+
+通知は `notification_settings` テーブルで一元管理され、システム管理画面（`/system-admin/content/notifications`）から設定可能。
+
+**送信チャネル:**
+| チャネル | 説明 | 制御フィールド |
+|----------|------|---------------|
+| チャット | Messageテーブルに保存、アプリ内メッセージとして表示 | `chat_enabled` |
+| メール | Resend経由で送信 | `email_enabled` |
+| プッシュ | Web Push通知 | `push_enabled` |
+
+### 10.2 通知設定テーブル
+
+```sql
+notification_settings (
+  id                SERIAL PRIMARY KEY,
+  notification_key  VARCHAR UNIQUE NOT NULL,  -- 通知識別キー
+  name              VARCHAR NOT NULL,          -- 管理画面表示名
+  description       TEXT,                      -- 説明
+  target_type       VARCHAR NOT NULL,          -- 'WORKER' | 'FACILITY' | 'SYSTEM_ADMIN'
+
+  -- チャネル有効/無効
+  chat_enabled      BOOLEAN DEFAULT false,
+  email_enabled     BOOLEAN DEFAULT false,
+  push_enabled      BOOLEAN DEFAULT false,
+
+  -- テンプレート（変数は {{variable_name}} 形式）
+  chat_message      TEXT,
+  email_subject     VARCHAR,
+  email_body        TEXT,
+  push_title        VARCHAR,
+  push_body         TEXT
+)
+```
+
+### 10.3 通知キー一覧
+
+#### ワーカー向け通知
+| キー | 名称 | 説明 |
+|------|------|------|
+| `WORKER_APPLICATION_CONFIRMED` | 応募受付確認 | 求人への応募が受け付けられた時 |
+| `WORKER_MATCHED` | マッチング成立 | 即マッチング求人で応募が承認された時 |
+| `WORKER_INTERVIEW_ACCEPTED` | 審査あり求人：採用決定 | 審査後に採用が決定した時 |
+| `WORKER_INTERVIEW_REJECTED` | 審査あり求人：不採用 | 審査後に不採用となった時 |
+| `WORKER_CANCELLED_BY_FACILITY` | 施設からのキャンセル | 施設が予約をキャンセルした時 |
+| `WORKER_REMINDER_DAY_BEFORE` | 勤務前日リマインド | 勤務前日に送信 |
+| `WORKER_REMINDER_SAME_DAY` | 勤務当日リマインド | 勤務当日朝に送信 |
+| `WORKER_REVIEW_REQUEST` | レビュー依頼 | 勤務終了後にレビュー投稿を依頼 |
+| `WORKER_REVIEW_RECEIVED` | 施設からレビューが届いた | 施設からレビューが投稿された時 |
+| `WORKER_NEW_MESSAGE` | 施設からのメッセージ | 施設から新しいメッセージが届いた時 |
+| `WORKER_NEARBY_NEW_JOB` | 近隣エリアの新着求人 | 登録住所の近くで新しい求人が出た時 |
+| `WORKER_NEARBY_CANCEL_AVAILABLE` | 近隣エリアのキャンセル枠発生 | 近くの求人でキャンセルが発生した時 |
+| `FACILITY_INITIAL_GREETING` | 施設からの初回挨拶 | 初めてマッチングした施設からの挨拶 |
+
+#### 施設向け通知
+| キー | 名称 | 説明 |
+|------|------|------|
+| `FACILITY_NEW_APPLICATION` | 新規応募 | ワーカーから新しい応募があった時 |
+| `FACILITY_CANCELLED_BY_WORKER` | ワーカーからのキャンセル | ワーカーが予約をキャンセルした時 |
+| `FACILITY_APPLICATION_WITHDRAWN` | ワーカーからの応募取り消し | ワーカーが審査中の応募を取り消した時 |
+| `FACILITY_REMINDER_DAY_BEFORE` | 勤務前日リマインド | 勤務前日に送信 |
+| `FACILITY_REVIEW_REQUEST` | レビュー依頼 | 勤務終了後にレビュー投稿を依頼 |
+| `FACILITY_REVIEW_RECEIVED` | ワーカーからレビューが届いた | ワーカーからレビューが投稿された時 |
+| `FACILITY_NEW_MESSAGE` | ワーカーからのメッセージ | ワーカーから新しいメッセージが届いた時 |
+| `FACILITY_SLOTS_FILLED` | 募集枠が埋まった | 求人の募集枠が全て埋まった時 |
+
+#### システム管理者向け通知
+| キー | 名称 | 説明 |
+|------|------|------|
+| `ADMIN_NEW_FACILITY` | 新規施設登録 | 新しい施設が登録された時 |
+| `ADMIN_NEW_WORKER` | 新規ワーカー登録 | 新しいワーカーが登録された時 |
+| `ADMIN_HIGH_CANCEL_RATE` | キャンセル率異常 | ユーザーのキャンセル率が閾値を超えた時 |
+
+### 10.4 チャットメッセージの送信者
+
+システムが自動送信するチャットメッセージは、**施設またはワーカーとして代理送信**される仕様。
+
+```
+┌────────────────────────────────────────────────────────┐
+│ 通知タイプ                │ 送信者として設定           │
+├────────────────────────────────────────────────────────┤
+│ マッチング成立            │ from_facility_id（施設）   │
+│ 初回挨拶                  │ from_facility_id（施設）   │
+│ 応募確認                  │ from_facility_id（施設）   │
+│ ワーカーキャンセル通知    │ from_user_id（ワーカー）   │
+│ 応募取り消し通知          │ from_user_id（ワーカー）   │
+└────────────────────────────────────────────────────────┘
+```
+
+**注意:** 「運営から」という送信者は存在しない。ワーカーが返信すると施設に通知され、施設側には自分が送ったように見えるメッセージへの返信として表示される。
+
+### 10.5 テンプレート変数
+
+テンプレート内で使用可能な変数（`{{variable_name}}` 形式）:
+
+| 変数 | 説明 |
+|------|------|
+| `{{worker_name}}` | ワーカーのフルネーム |
+| `{{worker_last_name}}` | ワーカーの名字 |
+| `{{facility_name}}` | 施設名 |
+| `{{job_title}}` | 求人タイトル |
+| `{{work_date}}` | 勤務日 |
+| `{{start_time}}` | 開始時刻 |
+| `{{end_time}}` | 終了時刻 |
+| `{{hourly_wage}}` | 時給 |
+| `{{job_url}}` | 求人詳細URL |
+| `{{applied_dates}}` | 応募日程一覧 |
+
+---
+
 ## 更新履歴
 
 | 日付 | 内容 |
 |------|------|
+| 2026-01-04 | 通知システムセクション追加（通知設定の一元管理、チャット代理送信仕様） |
 | 2025-12-13 | 指標定義セクション追加（MetricDefinitions.tsxと同期） |
 | 2025-12-10 | 用語定義セクション追加（親求人/子求人、マッチング期間の定義） |
 | 2025-12-04 | 実装済みシステムに基づく設計書を新規作成 |
