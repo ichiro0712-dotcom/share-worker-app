@@ -50,7 +50,47 @@ test.describe('施設管理者画面スクリーンショット', () => {
     await page.goto('/admin/login');
     await page.waitForLoadState('domcontentloaded');
     await sleep(1500);
+    // テストアカウントセクションを非表示にしてスクリーンショット撮影
+    await page.evaluate(() => {
+      // テスト管理者セクションを含む全ての要素を探して非表示
+      document.querySelectorAll('h3, h4, p, span, div').forEach(el => {
+        const text = el.textContent?.trim() || '';
+        if (text === 'テスト管理者でログイン' || text.startsWith('テスト管理者でログイン')) {
+          // この要素の親カードを非表示
+          let parent = el.parentElement;
+          while (parent && parent !== document.body) {
+            if (parent.classList.contains('bg-white') || parent.classList.contains('card') ||
+                parent.tagName === 'SECTION' || (parent.className && parent.className.includes('rounded'))) {
+              parent.style.display = 'none';
+              parent.setAttribute('data-hidden-for-screenshot', 'true');
+              break;
+            }
+            parent = parent.parentElement;
+          }
+        }
+      });
+      // プレースホルダーのみ残して入力値をクリア
+      const emailInput = document.querySelector('input[type="email"]') as HTMLInputElement;
+      if (emailInput) {
+        emailInput.setAttribute('data-original-value', emailInput.value);
+        emailInput.value = '';
+      }
+    });
+    await sleep(300);
     await page.screenshot({ path: path.join(FACILITY_OUTPUT_DIR, '01-login.png') });
+    // 元に戻す
+    await page.evaluate(() => {
+      document.querySelectorAll('[data-hidden-for-screenshot="true"]').forEach(el => {
+        (el as HTMLElement).style.display = '';
+        el.removeAttribute('data-hidden-for-screenshot');
+      });
+      const emailInput = document.querySelector('input[type="email"]') as HTMLInputElement;
+      if (emailInput) {
+        const originalValue = emailInput.getAttribute('data-original-value');
+        if (originalValue) emailInput.value = originalValue;
+        emailInput.removeAttribute('data-original-value');
+      }
+    });
 
     // ログイン
     await page.fill('input[type="email"]', TEST_ACCOUNTS.facilityAdmin.email);
@@ -98,12 +138,34 @@ test.describe('施設管理者画面スクリーンショット', () => {
     await sleep(2000);
     await page.screenshot({ path: path.join(FACILITY_OUTPUT_DIR, '06-workers-list.png') });
 
-    // 7. メッセージ
+    // 7. メッセージ一覧
     console.log('7. メッセージ');
     await page.goto('/admin/messages');
     await page.waitForLoadState('domcontentloaded');
     await sleep(2000);
     await page.screenshot({ path: path.join(FACILITY_OUTPUT_DIR, '07-messages.png') });
+
+    // 7b. メッセージ詳細（チャット画面）
+    console.log('7b. メッセージ詳細');
+    // メッセージ一覧から最初のワーカー名をクリック（運営以外）
+    const messageItem = page.locator('div:has(> div:has-text("山田")) >> nth=0').or(
+      page.locator('div:has(img[alt*="avatar"]) >> nth=0')
+    ).or(
+      page.locator('.cursor-pointer:has-text("山田")').first()
+    );
+    // より簡単なセレクター：リスト内の最初のクリック可能なアイテム
+    const clickableItem = page.locator('div[class*="cursor-pointer"]').first();
+    if (await clickableItem.isVisible().catch(() => false)) {
+      await clickableItem.click();
+      await page.waitForLoadState('domcontentloaded');
+      await sleep(2000);
+      await page.screenshot({ path: path.join(FACILITY_OUTPUT_DIR, '07b-message-detail.png') });
+    } else {
+      // フォールバック：リスト内の最初のdivをクリック
+      await page.locator('text=山田 太郎').first().click().catch(() => {});
+      await sleep(2000);
+      await page.screenshot({ path: path.join(FACILITY_OUTPUT_DIR, '07b-message-detail.png') }).catch(() => {});
+    }
 
     // 8. 施設情報
     console.log('8. 施設情報');
@@ -151,7 +213,11 @@ test.describe('ワーカー画面スクリーンショット', () => {
     await page.goto('/login');
     await page.waitForLoadState('domcontentloaded');
     await sleep(1500);
-    await page.screenshot({ path: path.join(WORKER_OUTPUT_DIR, '01-login.png') });
+    // ログインフォーム部分のみをキャプチャ（テストアカウントセクションを除く）
+    await page.screenshot({
+      path: path.join(WORKER_OUTPUT_DIR, '01-login.png'),
+      clip: { x: 0, y: 0, width: 390, height: 700 }  // 上部のみキャプチャ
+    });
 
     // ログイン
     await page.fill('input[type="email"]', TEST_ACCOUNTS.worker.email);
