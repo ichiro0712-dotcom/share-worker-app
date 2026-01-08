@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
     // 求人リストタイプ（限定求人・オファー対応）
     const listType = (searchParams.get('listType') as 'all' | 'limited' | 'offer') || 'all';
 
-    // 日付フィルター用のDateオブジェクト生成（デバッグ時刻対応）
+    // 日付フィルター用のDateオブジェクト生成（デバッグ時刻対応・JST）
     const dates = generateDatesFromBase(currentTime, 90);
     const targetDate = dates[dateIndex];
 
