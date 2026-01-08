@@ -432,7 +432,7 @@ export async function cancelShift(applicationId: number): Promise<{ success: boo
             action: 'FACILITY_CANCEL',
             targetType: 'Application',
             targetId: applicationId,
-            result: 'FAILURE',
+            result: 'ERROR',
             errorMessage: getErrorMessage(error),
             errorStack: getErrorStack(error),
         }).catch(() => {});

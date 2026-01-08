@@ -127,7 +127,7 @@ export async function markNotificationAsRead(notificationId: number) {
             action: 'NOTIFICATION_READ',
             targetType: 'Notification',
             targetId: notificationId,
-            result: 'FAILURE',
+            result: 'ERROR',
             errorMessage: getErrorMessage(error),
             errorStack: getErrorStack(error),
         }).catch(() => {});
@@ -179,7 +179,7 @@ export async function markAllNotificationsAsRead() {
             requestData: {
                 action: 'mark_all_read',
             },
-            result: 'FAILURE',
+            result: 'ERROR',
             errorMessage: getErrorMessage(error),
             errorStack: getErrorStack(error),
         }).catch(() => {});

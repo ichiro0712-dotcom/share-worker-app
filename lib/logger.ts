@@ -7,6 +7,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 
 // ========== 型定義 ==========
 
@@ -191,8 +192,8 @@ export async function logActivity(params: ActivityLogParams): Promise<void> {
         action: params.action,
         target_type: params.targetType,
         target_id: params.targetId,
-        request_data: sanitizedRequestData,
-        response_data: params.responseData,
+        request_data: sanitizedRequestData as Prisma.InputJsonValue | undefined,
+        response_data: params.responseData as Prisma.InputJsonValue | undefined,
         result: params.result || 'SUCCESS',
         error_message: params.errorMessage,
         error_stack: params.errorStack,
