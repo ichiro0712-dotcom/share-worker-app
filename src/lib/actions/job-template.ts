@@ -167,7 +167,7 @@ export async function createJobTemplate(
                 facilityId,
                 name: data.name,
             },
-            result: 'FAILURE',
+            result: 'ERROR',
             errorMessage: getErrorMessage(error),
             errorStack: getErrorStack(error),
         }).catch(() => {});
@@ -282,7 +282,7 @@ export async function updateJobTemplate(
                 facilityId,
                 name: data.name,
             },
-            result: 'FAILURE',
+            result: 'ERROR',
             errorMessage: getErrorMessage(error),
             errorStack: getErrorStack(error),
         }).catch(() => {});

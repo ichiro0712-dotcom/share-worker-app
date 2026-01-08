@@ -131,7 +131,7 @@ export async function toggleFacilityFavorite(facilityId: string) {
                 facilityId,
                 bookmarkType: 'FAVORITE',
             },
-            result: 'FAILURE',
+            result: 'ERROR',
             errorMessage: getErrorMessage(error),
             errorStack: getErrorStack(error),
         }).catch(() => {});
@@ -298,7 +298,7 @@ export async function updateFacilityInitialMessage(facilityId: number, initialMe
             requestData: {
                 field: 'initial_message',
             },
-            result: 'FAILURE',
+            result: 'ERROR',
             errorMessage: getErrorMessage(error),
             errorStack: getErrorStack(error),
         }).catch(() => {});
@@ -405,7 +405,7 @@ export async function updateFacilityBasicInfo(facilityId: number, data: any) {
             requestData: {
                 facilityName: data.facilityName,
             },
-            result: 'FAILURE',
+            result: 'ERROR',
             errorMessage: getErrorMessage(error),
             errorStack: getErrorStack(error),
         }).catch(() => {});
@@ -478,7 +478,7 @@ export async function updateFacilityLatLng(facilityId: number, lat: number, lng:
             requestData: {
                 field: 'lat_lng',
             },
-            result: 'FAILURE',
+            result: 'ERROR',
             errorMessage: getErrorMessage(error),
             errorStack: getErrorStack(error),
         }).catch(() => {});
@@ -540,7 +540,7 @@ export async function updateFacilityMapImageByLatLng(facilityId: number, lat: nu
             requestData: {
                 field: 'map_image_lat_lng',
             },
-            result: 'FAILURE',
+            result: 'ERROR',
             errorMessage: getErrorMessage(error),
             errorStack: getErrorStack(error),
         }).catch(() => {});

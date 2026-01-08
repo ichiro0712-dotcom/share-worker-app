@@ -99,7 +99,7 @@ export async function addFacilityAccount(
                 facilityId,
                 email: data.email,
             },
-            result: 'FAILURE',
+            result: 'ERROR',
             errorMessage: getErrorMessage(error),
             errorStack: getErrorStack(error),
         }).catch(() => {});
@@ -176,7 +176,7 @@ export async function updateFacilityAccount(
             requestData: {
                 facilityId,
             },
-            result: 'FAILURE',
+            result: 'ERROR',
             errorMessage: getErrorMessage(error),
             errorStack: getErrorStack(error),
         }).catch(() => {});
@@ -236,7 +236,7 @@ export async function updateFacilityAccountPassword(
                 facilityId,
                 field: 'password',
             },
-            result: 'FAILURE',
+            result: 'ERROR',
             errorMessage: getErrorMessage(error),
             errorStack: getErrorStack(error),
         }).catch(() => {});
@@ -292,7 +292,7 @@ export async function deleteFacilityAccount(accountId: number, facilityId: numbe
             requestData: {
                 facilityId,
             },
-            result: 'FAILURE',
+            result: 'ERROR',
             errorMessage: getErrorMessage(error),
             errorStack: getErrorStack(error),
         }).catch(() => {});

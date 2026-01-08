@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { revalidatePath, unstable_cache, unstable_noStore as noStore } from 'next/cache';
 import { getCurrentTime, getTodayStart } from '@/utils/debugTime';
+import { getJSTTodayStart } from '@/utils/debugTime.server';
 import {
     getAuthenticatedUser,
     isTimeOverlapping,
@@ -513,8 +514,8 @@ export async function getJobsListWithPagination(
 
     // デバッグ時刻対応: API Routeから渡された時刻を優先
     const now = providedTime || getCurrentTime();
-    const todayStart = new Date(now);
-    todayStart.setHours(0, 0, 0, 0);
+    // 日本時間（JST）での今日の開始時刻を使用（サーバーがUTCでも正しく動作）
+    const todayStart = getJSTTodayStart(now);
 
     // listTypeに基づいて求人種別フィルタを決定
     const listType: JobListType = searchParams?.listType || 'all';
@@ -1193,8 +1194,8 @@ export async function getJobById(id: string, options?: { currentTime?: Date }) {
 
     // デバッグ時刻対応: 渡された時刻を優先
     const now = options?.currentTime || getCurrentTime();
-    const todayStart = new Date(now);
-    todayStart.setHours(0, 0, 0, 0);
+    // 日本時間（JST）での今日の開始時刻を使用
+    const todayStart = getJSTTodayStart(now);
 
     const job = await prisma.job.findUnique({
         where: {
@@ -1378,7 +1379,7 @@ export async function addJobBookmark(jobId: string, type: 'FAVORITE' | 'WATCH_LA
                 jobId,
                 type,
             },
-            result: 'FAILURE',
+            result: 'ERROR',
             errorMessage: getErrorMessage(error),
             errorStack: getErrorStack(error),
         }).catch(() => {});
@@ -1445,7 +1446,7 @@ export async function removeJobBookmark(jobId: string, type: 'FAVORITE' | 'WATCH
                 jobId,
                 type,
             },
-            result: 'FAILURE',
+            result: 'ERROR',
             errorMessage: getErrorMessage(error),
             errorStack: getErrorStack(error),
         }).catch(() => {});
@@ -1553,8 +1554,8 @@ export async function getJobListTypeCounts(): Promise<{
     offer: number;
 }> {
     const now = getCurrentTime();
-    const todayStart = new Date(now);
-    todayStart.setHours(0, 0, 0, 0);
+    // 日本時間（JST）での今日の開始時刻を使用
+    const todayStart = getJSTTodayStart(now);
 
     // 基本条件（表示可能な求人）
     const baseConditions: any = {

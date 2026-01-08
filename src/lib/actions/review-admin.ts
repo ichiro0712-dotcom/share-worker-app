@@ -462,7 +462,7 @@ export async function submitWorkerReview(data: {
         facilityId: data.facilityId,
         applicationId: data.applicationId,
       },
-      result: 'FAILURE',
+      result: 'ERROR',
       errorMessage: getErrorMessage(error),
       errorStack: getErrorStack(error),
     }).catch(() => {});
@@ -640,7 +640,7 @@ export async function submitWorkerReviewByJob(data: {
         jobId: data.jobId,
         workerId: data.userId,
       },
-      result: 'FAILURE',
+      result: 'ERROR',
       errorMessage: getErrorMessage(error),
       errorStack: getErrorStack(error),
     }).catch(() => {});
@@ -736,7 +736,7 @@ export async function createReviewTemplate(facilityId: number, name: string, con
         facilityId,
         name,
       },
-      result: 'FAILURE',
+      result: 'ERROR',
       errorMessage: getErrorMessage(error),
       errorStack: getErrorStack(error),
     }).catch(() => {});
@@ -790,7 +790,7 @@ export async function updateReviewTemplate(templateId: number, name: string, con
         facilityId,
         name,
       },
-      result: 'FAILURE',
+      result: 'ERROR',
       errorMessage: getErrorMessage(error),
       errorStack: getErrorStack(error),
     }).catch(() => {});
@@ -841,7 +841,7 @@ export async function deleteReviewTemplate(templateId: number, facilityId: numbe
       requestData: {
         facilityId,
       },
-      result: 'FAILURE',
+      result: 'ERROR',
       errorMessage: getErrorMessage(error),
       errorStack: getErrorStack(error),
     }).catch(() => {});
@@ -920,7 +920,7 @@ export async function toggleWorkerFavorite(workerId: number, facilityId: number)
         workerId,
         type: 'FAVORITE',
       },
-      result: 'FAILURE',
+      result: 'ERROR',
       errorMessage: getErrorMessage(error),
       errorStack: getErrorStack(error),
     }).catch(() => {});
@@ -999,7 +999,7 @@ export async function toggleWorkerBlock(workerId: number, facilityId: number): P
         workerId,
         type: 'BLOCK',
       },
-      result: 'FAILURE',
+      result: 'ERROR',
       errorMessage: getErrorMessage(error),
       errorStack: getErrorStack(error),
     }).catch(() => {});
@@ -1306,7 +1306,7 @@ export async function submitFacilityReviewForWorker(
         facilityId,
         applicationId,
       },
-      result: 'FAILURE',
+      result: 'ERROR',
       errorMessage: getErrorMessage(error),
       errorStack: getErrorStack(error),
     }).catch(() => {});

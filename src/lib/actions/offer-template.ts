@@ -87,7 +87,7 @@ export async function createOfferTemplate(
         facilityId,
         name,
       },
-      result: 'FAILURE',
+      result: 'ERROR',
       errorMessage: getErrorMessage(error),
       errorStack: getErrorStack(error),
     }).catch(() => {});
@@ -151,7 +151,7 @@ export async function updateOfferTemplate(
         facilityId,
         name,
       },
-      result: 'FAILURE',
+      result: 'ERROR',
       errorMessage: getErrorMessage(error),
       errorStack: getErrorStack(error),
     }).catch(() => {});
@@ -210,7 +210,7 @@ export async function deleteOfferTemplate(
       requestData: {
         facilityId,
       },
-      result: 'FAILURE',
+      result: 'ERROR',
       errorMessage: getErrorMessage(error),
       errorStack: getErrorStack(error),
     }).catch(() => {});
