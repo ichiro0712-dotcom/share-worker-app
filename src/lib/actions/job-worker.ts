@@ -896,11 +896,11 @@ export async function getJobsListWithPagination(
     }
 
     // 日付フィルター
+    // targetDateは既にgenerateDatesFromBase()でJST基準の日付になっている
+    // setHours()はサーバーのタイムゾーン(UTC)で動作するため使用しない
     if (targetDate) {
-        const startOfDay = new Date(targetDate);
-        startOfDay.setHours(0, 0, 0, 0);
-        const endOfDay = new Date(targetDate);
-        endOfDay.setHours(23, 59, 59, 999);
+        const startOfDay = targetDate;
+        const endOfDay = new Date(targetDate.getTime() + 24 * 60 * 60 * 1000 - 1);
 
         whereConditions.workDates = {
             some: {
@@ -954,10 +954,9 @@ export async function getJobsListWithPagination(
     };
 
     if (targetDate) {
-        const startOfDayForInclude = new Date(targetDate);
-        startOfDayForInclude.setHours(0, 0, 0, 0);
-        const endOfDayForInclude = new Date(targetDate);
-        endOfDayForInclude.setHours(23, 59, 59, 999);
+        // targetDateは既にJST基準なのでそのまま使用
+        const startOfDayForInclude = targetDate;
+        const endOfDayForInclude = new Date(targetDate.getTime() + 24 * 60 * 60 * 1000 - 1);
 
         workDatesWhereCondition.AND[0] = {
             work_date: {
