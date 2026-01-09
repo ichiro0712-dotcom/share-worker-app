@@ -70,14 +70,28 @@ export const generateDates = (count: number = 90): Date[] => {
 /**
  * 指定した基準日から日付リストを生成（サーバーサイド用）
  * API Routeなど、Cookieから直接デバッグ時刻を読み取る場合に使用
+ *
+ * 重要: 日本時間（JST）ベースで日付を生成する
+ * サーバーがUTCで動作していても、JSTの日付を基準にする
  */
 export const generateDatesFromBase = (baseDate: Date, count: number = 90): Date[] => {
   const dates: Date[] = [];
 
+  // JSTのオフセット（+9時間 = 540分）
+  const JST_OFFSET = 9 * 60;
+
+  // 基準日をJSTに変換して、その日の00:00:00を取得
+  const jstBase = new Date(baseDate.getTime() + JST_OFFSET * 60 * 1000);
+  const jstYear = jstBase.getUTCFullYear();
+  const jstMonth = jstBase.getUTCMonth();
+  const jstDay = jstBase.getUTCDate();
+
   for (let i = 0; i < count; i++) {
-    const date = new Date(baseDate);
-    date.setDate(baseDate.getDate() + i);
-    dates.push(date);
+    // JSTでの日付を計算（UTCとして格納するが、JSTの日付を表す）
+    const jstDate = new Date(Date.UTC(jstYear, jstMonth, jstDay + i, 0, 0, 0, 0));
+    // JSTの00:00をUTCに戻す（-9時間）= UTC 15:00（前日）
+    const utcDate = new Date(jstDate.getTime() - JST_OFFSET * 60 * 1000);
+    dates.push(utcDate);
   }
 
   return dates;

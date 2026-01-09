@@ -5,6 +5,7 @@ import { unstable_noStore, revalidatePath } from 'next/cache';
 import { getCurrentTime, getTodayStart, type WorkerListItem, type WorkerListSearchParams, type WorkerListStatus } from './helpers';
 import { sendReviewReceivedNotificationToWorker, sendAdminLowRatingStreakNotification } from './notification';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
+import { getJSTTodayStart, normalizeToJSTDayStart } from '@/utils/debugTime.server';
 
 /**
  * 施設管理者用: ワーカーの詳細情報を取得（統計・評価・キャンセル率含む）
@@ -152,11 +153,10 @@ export async function getWorkerDetail(workerId: number, facilityId: number) {
 
     let lastMinuteCancelCount = 0;
     workerCancelledApps.forEach((app) => {
-      const workDate = new Date(app.workDate.work_date);
+      const workDateNormalized = normalizeToJSTDayStart(new Date(app.workDate.work_date));
       const updatedAt = new Date(app.updated_at);
-      const dayBefore = new Date(workDate);
-      dayBefore.setDate(dayBefore.getDate() - 1);
-      dayBefore.setHours(0, 0, 0, 0);
+      // 前日 = workDate - 24時間（JST基準）
+      const dayBefore = new Date(workDateNormalized.getTime() - 24 * 60 * 60 * 1000);
       if (updatedAt >= dayBefore) lastMinuteCancelCount += 1;
     });
     const lastMinuteCancelRate = allApplications.length > 0 ? (lastMinuteCancelCount / allApplications.length) * 100 : 0;
@@ -462,7 +462,7 @@ export async function submitWorkerReview(data: {
         facilityId: data.facilityId,
         applicationId: data.applicationId,
       },
-      result: 'FAILURE',
+      result: 'ERROR',
       errorMessage: getErrorMessage(error),
       errorStack: getErrorStack(error),
     }).catch(() => {});
@@ -640,7 +640,7 @@ export async function submitWorkerReviewByJob(data: {
         jobId: data.jobId,
         workerId: data.userId,
       },
-      result: 'FAILURE',
+      result: 'ERROR',
       errorMessage: getErrorMessage(error),
       errorStack: getErrorStack(error),
     }).catch(() => {});
@@ -736,7 +736,7 @@ export async function createReviewTemplate(facilityId: number, name: string, con
         facilityId,
         name,
       },
-      result: 'FAILURE',
+      result: 'ERROR',
       errorMessage: getErrorMessage(error),
       errorStack: getErrorStack(error),
     }).catch(() => {});
@@ -790,7 +790,7 @@ export async function updateReviewTemplate(templateId: number, name: string, con
         facilityId,
         name,
       },
-      result: 'FAILURE',
+      result: 'ERROR',
       errorMessage: getErrorMessage(error),
       errorStack: getErrorStack(error),
     }).catch(() => {});
@@ -841,7 +841,7 @@ export async function deleteReviewTemplate(templateId: number, facilityId: numbe
       requestData: {
         facilityId,
       },
-      result: 'FAILURE',
+      result: 'ERROR',
       errorMessage: getErrorMessage(error),
       errorStack: getErrorStack(error),
     }).catch(() => {});
@@ -920,7 +920,7 @@ export async function toggleWorkerFavorite(workerId: number, facilityId: number)
         workerId,
         type: 'FAVORITE',
       },
-      result: 'FAILURE',
+      result: 'ERROR',
       errorMessage: getErrorMessage(error),
       errorStack: getErrorStack(error),
     }).catch(() => {});
@@ -999,7 +999,7 @@ export async function toggleWorkerBlock(workerId: number, facilityId: number): P
         workerId,
         type: 'BLOCK',
       },
-      result: 'FAILURE',
+      result: 'ERROR',
       errorMessage: getErrorMessage(error),
       errorStack: getErrorStack(error),
     }).catch(() => {});
@@ -1306,7 +1306,7 @@ export async function submitFacilityReviewForWorker(
         facilityId,
         applicationId,
       },
-      result: 'FAILURE',
+      result: 'ERROR',
       errorMessage: getErrorMessage(error),
       errorStack: getErrorStack(error),
     }).catch(() => {});
@@ -1519,9 +1519,8 @@ export async function getWorkerListForFacility(
       }
     }
 
-    // 自社での勤務データを集計
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // 自社での勤務データを集計（JST対応）
+    const today = getJSTTodayStart();
 
     // 勤務予定の詳細情報型
     type ScheduledWorkInfo = {
@@ -1546,9 +1545,8 @@ export async function getWorkerListForFacility(
       const isWorking = app.status === 'WORKING';
       const isScheduled = app.status === 'SCHEDULED';
       const isWorkerCancelled = app.status === 'CANCELLED' && app.cancelled_by === 'WORKER';
-      // 勤務予定：今日以降のSCHEDULED/WORKING
-      const workDate = new Date(app.workDate.work_date);
-      workDate.setHours(0, 0, 0, 0);
+      // 勤務予定：今日以降のSCHEDULED/WORKING（JST基準で比較）
+      const workDate = normalizeToJSTDayStart(new Date(app.workDate.work_date));
       const isFutureOrToday = workDate >= today;
       const isUpcomingWork = (isScheduled || isWorking) && isFutureOrToday;
 

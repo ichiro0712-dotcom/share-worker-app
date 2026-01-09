@@ -91,6 +91,71 @@ export async function getLaborDocument(applicationId: number) {
 }
 
 /**
+ * 労働条件通知書プレビューを取得（求人詳細ページ用）
+ * 認証不要、ワーカー名なし
+ */
+export async function getLaborDocumentPreview(jobId: number) {
+    try {
+        console.log('[getLaborDocumentPreview] Fetching preview for job:', jobId);
+
+        const job = await prisma.job.findUnique({
+            where: { id: jobId },
+            include: {
+                facility: true,
+                template: true,
+                workDates: {
+                    orderBy: { work_date: 'asc' },
+                    take: 1,
+                },
+            },
+        });
+
+        if (!job) {
+            console.log('[getLaborDocumentPreview] Job not found');
+            return null;
+        }
+
+        const facility = job.facility;
+        const template = job.template;
+        // 最初の勤務日を代表として使用（プレビュー用）
+        const firstWorkDate = job.workDates[0];
+
+        return {
+            job: {
+                id: job.id,
+                title: job.title,
+                start_time: job.start_time,
+                end_time: job.end_time,
+                break_time: typeof job.break_time === 'string' ? parseInt(job.break_time) : job.break_time,
+                wage: job.wage,
+                hourly_wage: job.hourly_wage,
+                transportation_fee: job.transportation_fee,
+                address: job.address,
+                overview: job.overview,
+                work_content: job.work_content,
+                belongings: job.belongings,
+            },
+            facility: {
+                id: facility.id,
+                corporation_name: facility.corporation_name,
+                facility_name: facility.facility_name,
+                address: facility.address,
+                prefecture: facility.prefecture,
+                city: facility.city,
+                address_detail: facility.address_detail,
+                smoking_measure: facility.smoking_measure,
+            },
+            // プレビュー用の勤務日（応募時に選択される）
+            sampleWorkDate: firstWorkDate ? firstWorkDate.work_date.toISOString() : null,
+            dismissalReasons: template?.dismissal_reasons || null,
+        };
+    } catch (error) {
+        console.error('[getLaborDocumentPreview] Error:', error);
+        return null;
+    }
+}
+
+/**
  * 管理画面：ワーカーの労働条件通知書一覧を取得
  */
 export async function getWorkerLaborDocuments(workerId: number, facilityId: number) {
@@ -432,7 +497,7 @@ export async function cancelShift(applicationId: number): Promise<{ success: boo
             action: 'FACILITY_CANCEL',
             targetType: 'Application',
             targetId: applicationId,
-            result: 'FAILURE',
+            result: 'ERROR',
             errorMessage: getErrorMessage(error),
             errorStack: getErrorStack(error),
         }).catch(() => {});

@@ -2,7 +2,8 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect, useMemo } from 'react';
-import { X, ChevronLeft, Heart, Clock, MapPin, ChevronRight, ChevronLeft as ChevronLeftIcon, Bookmark, VolumeX, Volume2, ExternalLink, Building2, Train, Car, Bike, Bus, Edit2, AlertTriangle, Home } from 'lucide-react';
+import { X, ChevronLeft, Heart, Clock, MapPin, ChevronRight, ChevronLeft as ChevronLeftIcon, Bookmark, VolumeX, Volume2, ExternalLink, Building2, Train, Car, Bike, Bus, Edit2, AlertTriangle, Home, FileText } from 'lucide-react';
+import Link from 'next/link';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/Button';
@@ -1159,14 +1160,15 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
         </div>
       </div>
 
-      {/* 労働条件通知書ボタン */}
+      {/* 労働条件通知書プレビュー */}
       <div className="mb-4 px-4">
-        <button
-          onClick={() => toast('労働条件通知書のダミーデータです', { icon: '📄' })}
-          className="px-3 py-1.5 text-xs text-white bg-primary rounded hover:bg-primary/90 transition-colors"
+        <Link
+          href={`/jobs/${job.id}/labor-document`}
+          className="flex items-center gap-2 px-3 py-2 text-sm text-primary border border-primary rounded-lg hover:bg-primary/5 transition-colors"
         >
+          <FileText className="w-4 h-4" />
           労働条件通知書を確認
-        </button>
+        </Link>
       </div>
 
       {/* レビュー */}

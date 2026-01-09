@@ -127,7 +127,7 @@ export async function markNotificationAsRead(notificationId: number) {
             action: 'NOTIFICATION_READ',
             targetType: 'Notification',
             targetId: notificationId,
-            result: 'FAILURE',
+            result: 'ERROR',
             errorMessage: getErrorMessage(error),
             errorStack: getErrorStack(error),
         }).catch(() => {});
@@ -179,7 +179,7 @@ export async function markAllNotificationsAsRead() {
             requestData: {
                 action: 'mark_all_read',
             },
-            result: 'FAILURE',
+            result: 'ERROR',
             errorMessage: getErrorMessage(error),
             errorStack: getErrorStack(error),
         }).catch(() => {});
@@ -261,6 +261,7 @@ export async function sendMatchingNotification(
         // 審査あり求人の場合はWORKER_INTERVIEW_ACCEPTED、それ以外はWORKER_MATCHED
         const notificationKey = isInterviewJob ? 'WORKER_INTERVIEW_ACCEPTED' : 'WORKER_MATCHED';
 
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || 'https://tastas.jp';
         await sendNotification({
             notificationKey,
             targetType: 'WORKER',
@@ -275,7 +276,9 @@ export async function sendMatchingNotification(
                 job_title: jobTitle,
                 wage: job?.hourly_wage?.toLocaleString() || '',
                 hourly_wage: job?.hourly_wage?.toString() || '',
-                job_url: `${process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || 'https://tastas.jp'}/jobs/${jobId}`,
+                job_url: `${baseUrl}/jobs/${jobId}`,
+                my_job_url: `${baseUrl}/my-jobs/${applicationId}`,
+                labor_document_url: `${baseUrl}/my-jobs/${applicationId}/labor-document`,
                 work_date: formattedWorkDate,
                 start_time: workDateInfo?.startTime?.substring(0, 5) || '',
                 end_time: workDateInfo?.endTime?.substring(0, 5) || '',

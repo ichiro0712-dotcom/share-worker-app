@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { revalidatePath, unstable_cache, unstable_noStore as noStore } from 'next/cache';
 import { getCurrentTime, getTodayStart } from '@/utils/debugTime';
+import { getJSTTodayStart, normalizeToJSTDayStart } from '@/utils/debugTime.server';
 import {
     getAuthenticatedUser,
     isTimeOverlapping,
@@ -513,8 +514,8 @@ export async function getJobsListWithPagination(
 
     // デバッグ時刻対応: API Routeから渡された時刻を優先
     const now = providedTime || getCurrentTime();
-    const todayStart = new Date(now);
-    todayStart.setHours(0, 0, 0, 0);
+    // 日本時間（JST）での今日の開始時刻を使用（サーバーがUTCでも正しく動作）
+    const todayStart = getJSTTodayStart(now);
 
     // listTypeに基づいて求人種別フィルタを決定
     const listType: JobListType = searchParams?.listType || 'all';
@@ -895,11 +896,11 @@ export async function getJobsListWithPagination(
     }
 
     // 日付フィルター
+    // targetDateは既にgenerateDatesFromBase()でJST基準の日付になっている
+    // setHours()はサーバーのタイムゾーン(UTC)で動作するため使用しない
     if (targetDate) {
-        const startOfDay = new Date(targetDate);
-        startOfDay.setHours(0, 0, 0, 0);
-        const endOfDay = new Date(targetDate);
-        endOfDay.setHours(23, 59, 59, 999);
+        const startOfDay = targetDate;
+        const endOfDay = new Date(targetDate.getTime() + 24 * 60 * 60 * 1000 - 1);
 
         whereConditions.workDates = {
             some: {
@@ -953,10 +954,9 @@ export async function getJobsListWithPagination(
     };
 
     if (targetDate) {
-        const startOfDayForInclude = new Date(targetDate);
-        startOfDayForInclude.setHours(0, 0, 0, 0);
-        const endOfDayForInclude = new Date(targetDate);
-        endOfDayForInclude.setHours(23, 59, 59, 999);
+        // targetDateは既にJST基準なのでそのまま使用
+        const startOfDayForInclude = targetDate;
+        const endOfDayForInclude = new Date(targetDate.getTime() + 24 * 60 * 60 * 1000 - 1);
 
         workDatesWhereCondition.AND[0] = {
             work_date: {
@@ -1193,8 +1193,8 @@ export async function getJobById(id: string, options?: { currentTime?: Date }) {
 
     // デバッグ時刻対応: 渡された時刻を優先
     const now = options?.currentTime || getCurrentTime();
-    const todayStart = new Date(now);
-    todayStart.setHours(0, 0, 0, 0);
+    // 日本時間（JST）での今日の開始時刻を使用
+    const todayStart = getJSTTodayStart(now);
 
     const job = await prisma.job.findUnique({
         where: {
@@ -1236,11 +1236,10 @@ export async function getJobById(id: string, options?: { currentTime?: Date }) {
     const totalAppliedCount = job.workDates.reduce((sum: number, wd) => sum + wd.applied_count, 0);
     const totalMatchedCount = job.workDates.reduce((sum: number, wd) => sum + wd.matched_count, 0);
 
-    // 今日以降の勤務日をカウント
+    // 今日以降の勤務日をカウント（JST基準で比較）
     const today = todayStart;
     const futureWorkDateCount = job.workDates.filter(wd => {
-        const workDate = new Date(wd.work_date);
-        workDate.setHours(0, 0, 0, 0);
+        const workDate = normalizeToJSTDayStart(new Date(wd.work_date));
         return workDate >= today;
     }).length;
 
@@ -1378,7 +1377,7 @@ export async function addJobBookmark(jobId: string, type: 'FAVORITE' | 'WATCH_LA
                 jobId,
                 type,
             },
-            result: 'FAILURE',
+            result: 'ERROR',
             errorMessage: getErrorMessage(error),
             errorStack: getErrorStack(error),
         }).catch(() => {});
@@ -1445,7 +1444,7 @@ export async function removeJobBookmark(jobId: string, type: 'FAVORITE' | 'WATCH
                 jobId,
                 type,
             },
-            result: 'FAILURE',
+            result: 'ERROR',
             errorMessage: getErrorMessage(error),
             errorStack: getErrorStack(error),
         }).catch(() => {});
@@ -1553,8 +1552,8 @@ export async function getJobListTypeCounts(): Promise<{
     offer: number;
 }> {
     const now = getCurrentTime();
-    const todayStart = new Date(now);
-    todayStart.setHours(0, 0, 0, 0);
+    // 日本時間（JST）での今日の開始時刻を使用
+    const todayStart = getJSTTodayStart(now);
 
     // 基本条件（表示可能な求人）
     const baseConditions: any = {

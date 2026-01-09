@@ -15,6 +15,7 @@ import { sendNotification } from '../notification-service';
 import { getAuthenticatedUser } from './helpers';
 import { updateApplicationStatuses } from '../status-updater';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
+import { normalizeToJSTDayStart } from '@/utils/debugTime.server';
 
 /**
  * 施設管理用: 施設に届いた応募一覧を取得
@@ -149,7 +150,8 @@ export async function updateApplicationStatus(
                     include: { job: true },
                 });
 
-                if (workDate && !workDate.job.requires_interview && workDate.matched_count >= workDate.recruitment_count) {
+                // 審査あり・なしに関わらず、募集枠を超えた採用を防止
+                if (workDate && workDate.matched_count >= workDate.recruitment_count) {
                     throw new Error('この勤務日は既に募集人数に達しています');
                 }
 
@@ -501,11 +503,10 @@ export async function getJobsWithApplications(
             const current = workerCancelStats.get(app.user_id) || { totalScheduled: 0, lastMinuteCancels: 0 };
             current.totalScheduled += 1;
             if (app.status === 'CANCELLED' && app.cancelled_by === 'WORKER') {
-                const workDate = new Date(app.workDate.work_date);
+                const workDateNormalized = normalizeToJSTDayStart(new Date(app.workDate.work_date));
                 const updatedAt = new Date(app.updated_at);
-                const dayBefore = new Date(workDate);
-                dayBefore.setDate(dayBefore.getDate() - 1);
-                dayBefore.setHours(0, 0, 0, 0);
+                // 前日 = workDate - 24時間（JST基準）
+                const dayBefore = new Date(workDateNormalized.getTime() - 24 * 60 * 60 * 1000);
                 if (updatedAt >= dayBefore) current.lastMinuteCancels += 1;
             }
             workerCancelStats.set(app.user_id, current);
@@ -714,11 +715,10 @@ export async function getApplicationsByWorker(
             const current = workerCancelStats.get(app.user_id) || { totalScheduled: 0, lastMinuteCancels: 0 };
             current.totalScheduled += 1;
             if (app.status === 'CANCELLED' && app.cancelled_by === 'WORKER') {
-                const workDate = new Date(app.workDate.work_date);
+                const workDateNormalized = normalizeToJSTDayStart(new Date(app.workDate.work_date));
                 const updatedAt = new Date(app.updated_at);
-                const dayBefore = new Date(workDate);
-                dayBefore.setDate(dayBefore.getDate() - 1);
-                dayBefore.setHours(0, 0, 0, 0);
+                // 前日 = workDate - 24時間（JST基準）
+                const dayBefore = new Date(workDateNormalized.getTime() - 24 * 60 * 60 * 1000);
                 if (updatedAt >= dayBefore) current.lastMinuteCancels += 1;
             }
             workerCancelStats.set(app.user_id, current);
@@ -987,11 +987,10 @@ export async function getFacilityApplicationsByWorker(facilityId: number) {
       // 直前キャンセルの判定：ワーカー自身のキャンセルかつ勤務日の前日以降に更新された
       // 施設からのキャンセルはカウントしない
       if (app.status === 'CANCELLED' && app.cancelled_by === 'WORKER') {
-        const workDate = new Date(app.workDate.work_date);
+        const workDateNormalized = normalizeToJSTDayStart(new Date(app.workDate.work_date));
         const updatedAt = new Date(app.updated_at);
-        const dayBefore = new Date(workDate);
-        dayBefore.setDate(dayBefore.getDate() - 1);
-        dayBefore.setHours(0, 0, 0, 0);
+        // 前日 = workDate - 24時間（JST基準）
+        const dayBefore = new Date(workDateNormalized.getTime() - 24 * 60 * 60 * 1000);
 
         if (updatedAt >= dayBefore) {
           current.lastMinuteCancels += 1;
