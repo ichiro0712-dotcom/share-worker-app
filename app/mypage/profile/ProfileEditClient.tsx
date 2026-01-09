@@ -451,6 +451,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
     if (!formData.email) errors.push('メールアドレス');
     if (!formData.prefecture) errors.push('都道府県');
     if (!formData.city) errors.push('市区町村');
+    if (!formData.address) errors.push('町名・番地');
     // 緊急連絡先は必須項目（応募時にバックエンドでもチェック）
     if (!formData.emergencyContactName) errors.push('緊急連絡先氏名');
     if (!formData.emergencyContactPhone) errors.push('緊急連絡先電話番号');
