@@ -666,10 +666,14 @@ export async function getGroupedConversations() {
   const user = await getAuthenticatedUser();
 
   // ユーザーの全応募を取得（施設情報付き）
+  // ID-82/86対応: APPLIED（審査待ち）やCANCELLED（不採用）でもメッセージがある場合は表示
   const applications = await prisma.application.findMany({
     where: {
       user_id: user.id,
-      status: { in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'] },
+      OR: [
+        { status: { in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'] } },
+        { messages: { some: {} } }, // メッセージがある応募は全て表示
+      ],
     },
     include: {
       workDate: {
