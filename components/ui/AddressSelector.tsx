@@ -266,15 +266,19 @@ export default function AddressSelector({
             {/* 町名・番地 */}
             <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                    町名・番地
+                    町名・番地 {required && <span className="text-red-500">*</span>}
                 </label>
                 <input
                     type="text"
                     value={addressLine}
                     onChange={e => onChange({ prefecture, city, addressLine: e.target.value, building, postalCode })}
-                    className="w-full px-2 py-1.5 text-sm border border-slate-300 rounded-lg"
+                    className={`w-full px-2 py-1.5 text-sm border rounded-lg ${showErrors && required && !addressLine ? 'border-red-500 bg-red-50' : 'border-slate-300'}`}
                     placeholder="例: ●●町1-2-3"
+                    required={required}
                 />
+                {showErrors && required && !addressLine && (
+                    <p className="text-red-500 text-xs mt-1">町名・番地を入力してください</p>
+                )}
             </div>
 
             {/* 建物名 */}
