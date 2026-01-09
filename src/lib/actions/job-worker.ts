@@ -5,7 +5,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { revalidatePath, unstable_cache, unstable_noStore as noStore } from 'next/cache';
 import { getCurrentTime, getTodayStart } from '@/utils/debugTime';
-import { getJSTTodayStart } from '@/utils/debugTime.server';
+import { getJSTTodayStart, normalizeToJSTDayStart } from '@/utils/debugTime.server';
 import {
     getAuthenticatedUser,
     isTimeOverlapping,
@@ -1236,11 +1236,10 @@ export async function getJobById(id: string, options?: { currentTime?: Date }) {
     const totalAppliedCount = job.workDates.reduce((sum: number, wd) => sum + wd.applied_count, 0);
     const totalMatchedCount = job.workDates.reduce((sum: number, wd) => sum + wd.matched_count, 0);
 
-    // 今日以降の勤務日をカウント
+    // 今日以降の勤務日をカウント（JST基準で比較）
     const today = todayStart;
     const futureWorkDateCount = job.workDates.filter(wd => {
-        const workDate = new Date(wd.work_date);
-        workDate.setHours(0, 0, 0, 0);
+        const workDate = normalizeToJSTDayStart(new Date(wd.work_date));
         return workDate >= today;
     }).length;
 

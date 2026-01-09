@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { getCurrentTime } from '@/utils/debugTime';
+import { normalizeToJSTDayStart } from '@/utils/debugTime.server';
 
 /**
  * 求人の勤務期間を取得する（最初の勤務日と最後の勤務日）
@@ -48,9 +49,8 @@ export async function canReview(jobId: number, userId: number): Promise<boolean>
     if (!period) return false;
 
     const today = getCurrentTime();
-    // 勤務初日の0:00以降ならレビュー可能
-    const startDate = new Date(period.start);
-    startDate.setHours(0, 0, 0, 0);
+    // 勤務初日の0:00以降ならレビュー可能（JST基準で比較）
+    const startDate = normalizeToJSTDayStart(new Date(period.start));
 
     return today >= startDate;
 }
@@ -74,10 +74,10 @@ export async function isReviewPending(jobId: number, userId: number, reviewerTyp
     if (!period) return false;
 
     const today = getCurrentTime();
-    const endDate = new Date(period.end);
-    // 最終勤務日の翌日以降なら督促対象
-    endDate.setDate(endDate.getDate() + 1);
-    endDate.setHours(0, 0, 0, 0);
+    // 最終勤務日の翌日以降なら督促対象（JST基準で比較）
+    const endDateNormalized = normalizeToJSTDayStart(new Date(period.end));
+    // 翌日 = +24時間
+    const nextDay = new Date(endDateNormalized.getTime() + 24 * 60 * 60 * 1000);
 
-    return today >= endDate;
+    return today >= nextDay;
 }
