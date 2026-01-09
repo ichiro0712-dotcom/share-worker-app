@@ -150,7 +150,8 @@ export async function updateApplicationStatus(
                     include: { job: true },
                 });
 
-                if (workDate && !workDate.job.requires_interview && workDate.matched_count >= workDate.recruitment_count) {
+                // 審査あり・なしに関わらず、募集枠を超えた採用を防止
+                if (workDate && workDate.matched_count >= workDate.recruitment_count) {
                     throw new Error('この勤務日は既に募集人数に達しています');
                 }
 
