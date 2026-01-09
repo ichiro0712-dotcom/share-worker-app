@@ -1232,9 +1232,10 @@ export async function getJobById(id: string, options?: { currentTime?: Date }) {
 
     // 一番近い勤務日を取得
     const nearestWorkDate = job.workDates.length > 0 ? job.workDates[0] : null;
-    // 総応募数を計算
+    // 総数を計算（各勤務日の値を合計）
     const totalAppliedCount = job.workDates.reduce((sum: number, wd) => sum + wd.applied_count, 0);
     const totalMatchedCount = job.workDates.reduce((sum: number, wd) => sum + wd.matched_count, 0);
+    const totalRecruitmentCount = job.workDates.reduce((sum: number, wd) => sum + wd.recruitment_count, 0);
 
     // 今日以降の勤務日をカウント（JST基準で比較）
     const today = todayStart;
@@ -1254,6 +1255,7 @@ export async function getJobById(id: string, options?: { currentTime?: Date }) {
         deadline: nearestWorkDate ? nearestWorkDate.deadline.toISOString() : null,
         applied_count: totalAppliedCount,
         matched_count: totalMatchedCount,
+        recruitment_count: totalRecruitmentCount,
         workDates: job.workDates.map((wd) => ({
             ...wd,
             work_date: wd.work_date.toISOString(),
