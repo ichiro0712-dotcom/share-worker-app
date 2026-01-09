@@ -67,6 +67,28 @@ export function getJSTTodayStart(baseTime?: Date): Date {
 }
 
 /**
+ * 任意の日付をJST基準の日の開始時刻（00:00:00 JST）に正規化
+ * DBから取得した日付を比較用に正規化する際に使用
+ */
+export function normalizeToJSTDayStart(date: Date): Date {
+  const JST_OFFSET = 9 * 60;
+
+  // 日付をJSTに変換
+  const jstTime = new Date(date.getTime() + JST_OFFSET * 60 * 1000);
+
+  // JSTでの日の00:00:00を計算
+  const jstDayStart = new Date(Date.UTC(
+    jstTime.getUTCFullYear(),
+    jstTime.getUTCMonth(),
+    jstTime.getUTCDate(),
+    0, 0, 0, 0
+  ));
+
+  // JSTの00:00をUTCに戻す（-9時間）
+  return new Date(jstDayStart.getTime() - JST_OFFSET * 60 * 1000);
+}
+
+/**
  * 日本時間（JST）での今日の日付文字列を取得（YYYY-MM-DD形式）
  */
 export function getJSTTodayString(baseTime?: Date): string {
