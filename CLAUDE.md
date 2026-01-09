@@ -39,6 +39,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 3. **developブランチへの直接push禁止（推奨）**
    - 原則としてPR経由でマージ
 
+4. **指示がない限りPRをマージしない**
+   - PRを作成した後、ユーザーから明示的な指示があるまで絶対にマージしないこと
+   - `gh pr merge` は指示があるまで実行禁止
+
 ### ✅ 正しいワークフロー
 
 ```
