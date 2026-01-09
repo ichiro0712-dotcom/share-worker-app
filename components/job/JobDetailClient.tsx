@@ -1159,14 +1159,12 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
         </div>
       </div>
 
-      {/* 労働条件通知書ボタン */}
+      {/* 労働条件通知書の案内 */}
       <div className="mb-4 px-4">
-        <button
-          onClick={() => toast('労働条件通知書のダミーデータです', { icon: '📄' })}
-          className="px-3 py-1.5 text-xs text-white bg-primary rounded hover:bg-primary/90 transition-colors"
-        >
-          労働条件通知書を確認
-        </button>
+        <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
+          <span>📄</span>
+          <span>労働条件通知書はマッチング成立後、仕事管理画面から確認できます</span>
+        </div>
       </div>
 
       {/* レビュー */}
