@@ -451,7 +451,9 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
     if (!formData.email) errors.push('メールアドレス');
     if (!formData.prefecture) errors.push('都道府県');
     if (!formData.city) errors.push('市区町村');
-    // 緊急連絡先は任意項目のため必須チェックを削除
+    // 緊急連絡先は必須項目（応募時にバックエンドでもチェック）
+    if (!formData.emergencyContactName) errors.push('緊急連絡先氏名');
+    if (!formData.emergencyContactPhone) errors.push('緊急連絡先電話番号');
     if (formData.qualifications.length === 0) errors.push('保有資格');
     if (formData.experienceFields.length === 0) errors.push('経験分野');
     if (!formData.bankName) errors.push('銀行名');
@@ -998,16 +1000,19 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
           {/* 緊急連絡先 */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
-              <h3 className="text-md font-semibold mb-3">緊急連絡先 <span className="text-sm text-gray-500 font-normal">（任意）</span></h3>
+              <h3 className="text-md font-semibold mb-3">緊急連絡先 <span className="text-red-500">*</span></h3>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">氏名</label>
+              <label className="block text-sm font-medium mb-2">氏名 <span className="text-red-500">*</span></label>
               <input
                 type="text"
                 value={formData.emergencyContactName}
                 onChange={(e) => setFormData({ ...formData, emergencyContactName: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.emergencyContactName ? 'border-red-500' : 'border-gray-300'}`}
               />
+              {showErrors && !formData.emergencyContactName && (
+                <p className="text-red-500 text-xs mt-1">緊急連絡先氏名は必須です</p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">続柄</label>
@@ -1019,14 +1024,17 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">電話番号</label>
+              <label className="block text-sm font-medium mb-2">電話番号 <span className="text-red-500">*</span></label>
               <PhoneNumberInput
                 value={formData.emergencyContactPhone}
                 onChange={(value) => setFormData({ ...formData, emergencyContactPhone: value })}
                 placeholder="090-1234-5678"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.emergencyContactPhone ? 'border-red-500' : 'border-gray-300'}`}
               />
               <p className="text-xs text-gray-500 mt-1">※数字のみ入力（ハイフンは自動挿入）</p>
+              {showErrors && !formData.emergencyContactPhone && (
+                <p className="text-red-500 text-xs mt-1">緊急連絡先電話番号は必須です</p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">住所</label>
