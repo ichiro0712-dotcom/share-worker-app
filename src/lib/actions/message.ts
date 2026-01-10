@@ -212,13 +212,15 @@ export async function sendMessage(applicationId: number, content: string) {
         from_user_id: user.id,
         to_facility_id: application.workDate.job.facility_id,
         content,
+        updated_by_type: 'WORKER',
+        updated_by_id: user.id,
       },
     });
 
     // 応募の更新日時を更新
     await prisma.application.update({
       where: { id: applicationId },
-      data: { updated_at: new Date() },
+      data: { updated_at: new Date(), updated_by_type: 'WORKER', updated_by_id: user.id },
     });
 
     // 施設への通知を送信
@@ -470,7 +472,8 @@ export async function sendFacilityMessage(
   applicationId: number,
   facilityId: number,
   content: string,
-  attachments: string[] = []
+  attachments: string[] = [],
+  adminId?: number
 ) {
   try {
     console.log('[sendFacilityMessage] Sending message for application:', applicationId);
@@ -514,13 +517,17 @@ export async function sendFacilityMessage(
         to_user_id: application.user_id,
         content,
         attachments,
+        ...(adminId && { updated_by_type: 'FACILITY_ADMIN', updated_by_id: adminId }),
       },
     });
 
     // 応募の更新日時を更新
     await prisma.application.update({
       where: { id: applicationId },
-      data: { updated_at: new Date() },
+      data: {
+        updated_at: new Date(),
+        ...(adminId && { updated_by_type: 'FACILITY_ADMIN', updated_by_id: adminId }),
+      },
     });
 
     // ワーカーへの通知を送信
@@ -1457,6 +1464,8 @@ export async function sendMessageToFacility(facilityId: number, content: string,
         to_facility_id: facilityId,
         application_id: latestApplication.id,
         job_id: latestApplication.workDate.job_id,
+        updated_by_type: 'WORKER',
+        updated_by_id: user.id,
       },
     });
 
