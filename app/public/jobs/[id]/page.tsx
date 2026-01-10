@@ -4,7 +4,8 @@ import Image from 'next/image';
 import Script from 'next/script';
 import { headers } from 'next/headers';
 import { getPublicJobById } from '@/src/lib/actions/job-public';
-import { MapPin, Clock, JapaneseYen, Calendar, Users, Building2 } from 'lucide-react';
+import Link from 'next/link';
+import { MapPin, Clock, JapaneseYen, Calendar, Users, Building2, FileText } from 'lucide-react';
 
 interface PageProps {
     params: Promise<{ id: string }>;
@@ -358,6 +359,17 @@ export default async function PublicJobDetailPage({ params }: PageProps) {
                         <p className="text-gray-700 whitespace-pre-wrap">{job.description}</p>
                     </div>
                 )}
+
+                {/* 労働条件通知書プレビュー */}
+                <div>
+                    <Link
+                        href={`/public/jobs/${job.id}/labor-document`}
+                        className="flex items-center gap-2 px-3 py-2 text-sm text-primary border border-primary rounded-lg hover:bg-primary/5 transition-colors"
+                    >
+                        <FileText className="w-4 h-4" />
+                        労働条件通知書を確認
+                    </Link>
+                </div>
 
                 {/* 審査について */}
                 {job.requires_interview && (

@@ -139,6 +139,76 @@ export async function getPublicJobById(id: string) {
 }
 
 /**
+ * 公開用労働条件通知書プレビューを取得
+ * - 認証不要
+ * - NORMAL求人のみ（限定・指名求人は除外）
+ * - 公開中の求人のみ
+ */
+export async function getPublicLaborDocumentPreview(id: string) {
+    const jobId = parseInt(id, 10);
+
+    if (isNaN(jobId)) {
+        return null;
+    }
+
+    const job = await prisma.job.findUnique({
+        where: {
+            id: jobId,
+            // 公開中かつ通常求人のみ
+            status: 'PUBLISHED',
+            job_type: 'NORMAL',
+        },
+        include: {
+            facility: true,
+            template: true,
+            workDates: {
+                orderBy: { work_date: 'asc' },
+                take: 1,
+            },
+        },
+    });
+
+    if (!job) {
+        return null;
+    }
+
+    const facility = job.facility;
+    const template = job.template;
+    // 最初の勤務日を代表として使用（プレビュー用）
+    const firstWorkDate = job.workDates[0];
+
+    return {
+        job: {
+            id: job.id,
+            title: job.title,
+            start_time: job.start_time,
+            end_time: job.end_time,
+            break_time: typeof job.break_time === 'string' ? parseInt(job.break_time) : job.break_time,
+            wage: job.wage,
+            hourly_wage: job.hourly_wage,
+            transportation_fee: job.transportation_fee,
+            address: job.address,
+            overview: job.overview,
+            work_content: job.work_content,
+            belongings: job.belongings,
+        },
+        facility: {
+            id: facility.id,
+            corporation_name: facility.corporation_name,
+            facility_name: facility.facility_name,
+            address: facility.address,
+            prefecture: facility.prefecture,
+            city: facility.city,
+            address_detail: facility.address_detail,
+            smoking_measure: facility.smoking_measure,
+        },
+        // プレビュー用の勤務日（応募時に選択される）
+        sampleWorkDate: firstWorkDate ? firstWorkDate.work_date.toISOString() : null,
+        dismissalReasons: template?.dismissal_reasons || null,
+    };
+}
+
+/**
  * 公開用求人一覧を取得（サイトマップ用）
  */
 export async function getPublicJobsForSitemap() {
