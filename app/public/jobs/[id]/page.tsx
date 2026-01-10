@@ -1,6 +1,8 @@
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
+import Script from 'next/script';
+import { headers } from 'next/headers';
 import { getPublicJobById } from '@/src/lib/actions/job-public';
 import { MapPin, Clock, JapaneseYen, Calendar, Users, Building2 } from 'lucide-react';
 
@@ -22,31 +24,84 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     const { id } = await params;
     const job = await getPublicJobById(id);
 
+    // ベースURL取得
+    const headersList = await headers();
+    const host = headersList.get('host') || '';
+    const protocol = host.includes('localhost') ? 'http' : 'https';
+    const baseUrl = host ? `${protocol}://${host}` : 'https://share-worker-app.vercel.app';
+
     if (!job) {
         return {
             title: '求人が見つかりません | +TASTAS',
+            robots: { index: false, follow: false },
         };
     }
 
-    const description = `時給${job.hourly_wage.toLocaleString()}円 | ${job.facility.prefecture}${job.facility.city} | ${job.qualifications?.join('・') || '資格不問'}`;
+    // 職種名を生成（資格から推定）
+    const jobType = job.qualifications?.length > 0
+        ? job.qualifications[0]
+        : '介護・看護スタッフ';
+
+    // 地域名
+    const location = `${job.facility.prefecture || ''}${job.facility.city || ''}`;
+
+    // SEO最適化されたタイトル: [職種] [地域]の求人 | 時給○○円 | +TASTAS
+    const seoTitle = `【${jobType}】${location}の求人 | 時給${job.hourly_wage.toLocaleString()}円 | +TASTAS`;
+
+    // 詳細なdescription
+    const description = `${location}で${jobType}の求人募集中！時給${job.hourly_wage.toLocaleString()}円、${job.start_time}〜${job.end_time}勤務。${job.facility.name}での${job.qualifications?.join('・') || '資格不問'}のお仕事です。単発・スポットバイトをお探しの方におすすめ。`;
+
+    // キーワード生成
+    const keywords = [
+        jobType,
+        job.facility.prefecture,
+        job.facility.city,
+        '求人',
+        '単発バイト',
+        'スポットワーク',
+        '介護',
+        '看護',
+        job.facility.name,
+    ].filter(Boolean).join(',');
 
     return {
-        title: `${job.title} | +TASTAS`,
+        title: seoTitle,
         description,
+        keywords,
+        authors: [{ name: '+TASTAS' }],
+        robots: {
+            index: true,
+            follow: true,
+            googleBot: {
+                index: true,
+                follow: true,
+                'max-video-preview': -1,
+                'max-image-preview': 'large',
+                'max-snippet': -1,
+            },
+        },
         openGraph: {
-            title: `${job.title} | +TASTAS`,
+            title: seoTitle,
             description,
             type: 'website',
-            images: job.images?.[0] ? [{ url: job.images[0] }] : [{ url: '/images/og-default.png' }],
-            siteName: '+TASTAS',
+            url: `${baseUrl}/public/jobs/${id}`,
+            images: job.images?.[0]
+                ? [{ url: job.images[0], width: 1200, height: 630, alt: job.title }]
+                : [{ url: `${baseUrl}/images/og-default.png`, width: 1200, height: 630, alt: '+TASTAS 求人' }],
+            siteName: '+TASTAS（タスタス）',
+            locale: 'ja_JP',
         },
         twitter: {
             card: 'summary_large_image',
-            title: `${job.title} | +TASTAS`,
+            title: seoTitle,
             description,
+            site: '@tastas_jp',
         },
         alternates: {
-            canonical: `/public/jobs/${id}`,
+            canonical: `${baseUrl}/public/jobs/${id}`,
+        },
+        other: {
+            'format-detection': 'telephone=no',
         },
     };
 }
@@ -54,6 +109,12 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function PublicJobDetailPage({ params }: PageProps) {
     const { id } = await params;
     const job = await getPublicJobById(id);
+
+    // ベースURL取得
+    const headersList = await headers();
+    const host = headersList.get('host') || '';
+    const protocol = host.includes('localhost') ? 'http' : 'https';
+    const baseUrl = host ? `${protocol}://${host}` : 'https://share-worker-app.vercel.app';
 
     if (!job) {
         notFound();
@@ -96,7 +157,73 @@ export default async function PublicJobDetailPage({ params }: PageProps) {
         return `${date.getMonth() + 1}/${date.getDate()}(${weekdays[date.getDay()]})`;
     };
 
+    // 職種名（資格から推定）
+    const jobType = job.qualifications?.length > 0
+        ? job.qualifications[0]
+        : '介護・看護スタッフ';
+
+    // Google for Jobs 構造化データ (JSON-LD)
+    const jobPostingJsonLd = {
+        '@context': 'https://schema.org/',
+        '@type': 'JobPosting',
+        title: job.title,
+        description: job.description || `${job.facility.name}での${jobType}のお仕事です。`,
+        identifier: {
+            '@type': 'PropertyValue',
+            name: '+TASTAS',
+            value: `tastas-job-${job.id}`,
+        },
+        datePosted: job.created_at,
+        validThrough: job.workDates[job.workDates.length - 1]?.work_date || job.work_date,
+        employmentType: 'TEMPORARY',
+        hiringOrganization: {
+            '@type': 'Organization',
+            name: job.facility.name,
+            sameAs: `${baseUrl}/public/facilities/${job.facility.id}`,
+            logo: job.facility.images?.[0] || `${baseUrl}/images/logo.png`,
+        },
+        jobLocation: {
+            '@type': 'Place',
+            address: {
+                '@type': 'PostalAddress',
+                streetAddress: `${job.facility.address || ''}${job.facility.address_line || ''}`,
+                addressLocality: job.facility.city || '',
+                addressRegion: job.facility.prefecture || '',
+                addressCountry: 'JP',
+            },
+            ...(job.facility.lat && job.facility.lng ? {
+                geo: {
+                    '@type': 'GeoCoordinates',
+                    latitude: job.facility.lat,
+                    longitude: job.facility.lng,
+                },
+            } : {}),
+        },
+        baseSalary: {
+            '@type': 'MonetaryAmount',
+            currency: 'JPY',
+            value: {
+                '@type': 'QuantitativeValue',
+                value: job.hourly_wage,
+                unitText: 'HOUR',
+            },
+        },
+        workHours: `${job.start_time}-${job.end_time}`,
+        jobBenefits: job.transportation_fee && job.transportation_fee > 0
+            ? `交通費支給（${job.transportation_fee.toLocaleString()}円）`
+            : undefined,
+        qualifications: job.qualifications?.join('、') || '資格不問',
+        directApply: true,
+    };
+
     return (
+        <>
+            {/* Google for Jobs 構造化データ */}
+            <Script
+                id="job-posting-jsonld"
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{ __html: JSON.stringify(jobPostingJsonLd) }}
+            />
         <div className="bg-background">
             {/* 画像カルーセル */}
             <div className="relative aspect-video bg-gray-100">
@@ -242,5 +369,6 @@ export default async function PublicJobDetailPage({ params }: PageProps) {
                 )}
             </div>
         </div>
+        </>
     );
 }
