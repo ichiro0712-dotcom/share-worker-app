@@ -1,4 +1,5 @@
 import { MetadataRoute } from 'next';
+import { headers } from 'next/headers';
 import { getPublicJobsForSitemap } from '@/src/lib/actions/job-public';
 
 /**
@@ -7,7 +8,11 @@ import { getPublicJobsForSitemap } from '@/src/lib/actions/job-public';
  * - 求人の更新日時を lastModified に設定
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://share-worker-app.vercel.app';
+    // リクエストのホストからベースURLを取得（環境変数のフォールバック付き）
+    const headersList = await headers();
+    const host = headersList.get('host') || '';
+    const protocol = host.includes('localhost') ? 'http' : 'https';
+    const baseUrl = host ? `${protocol}://${host}` : (process.env.NEXT_PUBLIC_BASE_URL || 'https://share-worker-app.vercel.app');
 
     // 静的ページ
     const staticPages: MetadataRoute.Sitemap = [
