@@ -967,15 +967,36 @@ export async function getMessagesByFacility(
   }));
 
   // 初回読み込み時のみ未読を既読に（markAsRead=trueの場合）
+  // この施設からの全未読メッセージを一括で既読にする（バッジ表示問題の修正）
   if (markAsRead && !cursor) {
-    const unreadIds = formattedMessages
-      .filter(m => !m.isRead && m.senderType === 'facility')
-      .map(m => m.id);
-    if (unreadIds.length > 0) {
-      await prisma.message.updateMany({
-        where: { id: { in: unreadIds } },
+    const updateConditions: any[] = [];
+
+    // 応募ベースのメッセージ
+    if (applicationIds.length > 0) {
+      updateConditions.push({
+        application_id: { in: applicationIds },
+        to_facility_id: null,
+        from_user_id: null,  // 施設からのメッセージ
+        read_at: null,
+      });
+    }
+
+    // スレッドベースのメッセージ（オファー）
+    if (thread) {
+      updateConditions.push({
+        thread_id: thread.id,
+        from_user_id: null,  // 施設からのメッセージ
+        read_at: null,
+      });
+    }
+
+    if (updateConditions.length > 0) {
+      console.log('[getMessagesByFacility] Marking all unread as read:', JSON.stringify(updateConditions));
+      const result = await prisma.message.updateMany({
+        where: { OR: updateConditions },
         data: { read_at: new Date() },
       });
+      console.log('[getMessagesByFacility] Updated count:', result.count);
     }
   }
 
