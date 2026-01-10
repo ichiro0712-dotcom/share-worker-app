@@ -36,7 +36,6 @@ public/uploads/
 # Local development files
 ichiro/
 claudedocs/
-scripts/
 _AUDIT_PLAN.md
 .!*
 *.backup
