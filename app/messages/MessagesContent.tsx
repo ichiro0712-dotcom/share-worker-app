@@ -29,7 +29,7 @@ interface MessagesContentProps {
 
 export function MessagesContent({ initialConversations, userId, initialTab, initialFacilityId }: MessagesContentProps) {
   const router = useRouter();
-  const { decrementMessages, decrementAnnouncements } = useBadge();
+  const { decrementMessages, decrementAnnouncements, refreshBadges } = useBadge();
 
   // SWRでデータ取得（SSRで取得したinitialConversationsをfallbackとして使用）
   const {
@@ -144,11 +144,12 @@ export function MessagesContent({ initialConversations, userId, initialTab, init
     setCursor(null);
     setHasMore(false);
 
-    // バッジを減らす
-    if (conversation.unreadCount > 0) {
-      decrementMessages(conversation.unreadCount);
-      mutateConversations(); // リストを更新
-    }
+    // バッジをリフレッシュ（サーバー側で全未読を既読にするため、完全リフレッシュが必要）
+    // APIが既読処理を完了した後にバッジをリフレッシュ
+    setTimeout(() => {
+      refreshBadges();
+      mutateConversations();
+    }, 1000);
   };
 
   // SWRでデータが来た時の初期処理
