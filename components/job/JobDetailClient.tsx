@@ -380,8 +380,10 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
           toast.success('マッチングが成立しました！');
         }
 
-        // メッセージバッジを更新
-        refreshBadges();
+        // メッセージバッジを更新（サーバー側の非同期メッセージ作成を待つため遅延）
+        setTimeout(() => {
+          refreshBadges();
+        }, 2000);
 
         // サーバーサイドのキャッシュを更新してからリダイレクト
         router.refresh();
