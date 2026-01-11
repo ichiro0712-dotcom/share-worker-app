@@ -258,7 +258,7 @@ export default function BranchSelector({
           {showApiSearchHint && !isSearchingApi && searchQuery && (
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-sm text-blue-700 mb-2">
-                ローカルデータベースに該当する支店が見つかりませんでした。
+                支店名が見つかりませんでした。
               </p>
               <button
                 type="button"
@@ -266,7 +266,7 @@ export default function BranchSelector({
                 className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
               >
                 <Search className="w-4 h-4" />
-                検索
+                最新情報を検索
               </button>
             </div>
           )}
@@ -299,7 +299,7 @@ export default function BranchSelector({
             ) : branches.length === 0 ? (
               <div className="p-4 text-center text-sm text-slate-500">
                 {searchQuery
-                  ? (showApiSearchHint ? '外部データベースで検索してください' : '検索結果がありません')
+                  ? (showApiSearchHint ? '最新情報を検索してください' : '検索結果がありません')
                   : initialBranches.length === 0
                   ? '支店情報がありません'
                   : '支店を検索してください'}
