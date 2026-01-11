@@ -42,6 +42,8 @@ export default function BankSelector({
   const [showApiSearchHint, setShowApiSearchHint] = useState(false);
   const [isSearchingApi, setIsSearchingApi] = useState(false);
   const [apiSearched, setApiSearched] = useState(false);
+  // フォーカス状態（リスト表示制御用）
+  const [isFocused, setIsFocused] = useState(false);
 
   // 主要銀行を取得
   useEffect(() => {
@@ -200,6 +202,11 @@ export default function BankSelector({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => {
+                // 少し遅延させてクリックイベントを先に処理
+                setTimeout(() => setIsFocused(false), 200);
+              }}
               className={`w-full pl-9 pr-4 py-2 text-sm border rounded-lg ${
                 showErrors && required && !value
                   ? 'border-red-500 bg-red-50'
@@ -221,15 +228,15 @@ export default function BankSelector({
           {showApiSearchHint && !isSearchingApi && (
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-sm text-blue-700 mb-2">
-                ローカルデータベースに該当する銀行が見つかりませんでした。
+                銀行名が見つかりませんでした。
               </p>
               <button
                 type="button"
                 onClick={searchBanksFromExternalApi}
                 className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
               >
-                <ExternalLink className="w-4 h-4" />
-                外部データベースで検索
+                <Search className="w-4 h-4" />
+                最新情報を検索
               </button>
             </div>
           )}
@@ -250,43 +257,45 @@ export default function BankSelector({
             </div>
           )}
 
-          {/* 銀行リスト */}
-          <div className={`border rounded-lg max-h-48 overflow-y-auto ${
-            showErrors && required && !value ? 'border-red-500' : 'border-slate-300'
-          }`}>
-            {isLoadingMajor && !searchQuery ? (
-              <div className="flex items-center justify-center p-4">
-                <Loader2 className="w-5 h-5 text-slate-400 animate-spin" />
-              </div>
-            ) : displayBanks.length === 0 ? (
-              <div className="p-4 text-center text-sm text-slate-500">
-                {searchQuery.length >= 2
-                  ? (showApiSearchHint ? '外部データベースで検索してください' : '検索結果がありません')
-                  : searchQuery.length > 0
-                  ? '2文字以上入力してください'
-                  : '主要銀行を読み込み中...'}
-              </div>
-            ) : (
-              <div className="divide-y divide-slate-100">
-                {!searchQuery && (
-                  <div className="px-3 py-2 bg-slate-50 text-xs font-medium text-slate-600">
-                    主要銀行
-                  </div>
-                )}
-                {displayBanks.map((bank) => (
-                  <button
-                    key={bank.code}
-                    type="button"
-                    onClick={() => handleSelectBank(bank)}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50 flex items-center justify-between"
-                  >
-                    <span className="font-medium text-slate-700">{bank.name}</span>
-                    <span className="text-xs text-slate-400">{bank.code}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          {/* 銀行リスト（フォーカス時または検索クエリがある時のみ表示） */}
+          {(isFocused || searchQuery.length > 0) && (
+            <div className={`border rounded-lg max-h-48 overflow-y-auto ${
+              showErrors && required && !value ? 'border-red-500' : 'border-slate-300'
+            }`}>
+              {isLoadingMajor && !searchQuery ? (
+                <div className="flex items-center justify-center p-4">
+                  <Loader2 className="w-5 h-5 text-slate-400 animate-spin" />
+                </div>
+              ) : displayBanks.length === 0 ? (
+                <div className="p-4 text-center text-sm text-slate-500">
+                  {searchQuery.length >= 2
+                    ? (showApiSearchHint ? '最新情報を検索してください' : '検索結果がありません')
+                    : searchQuery.length > 0
+                    ? '2文字以上入力してください'
+                    : '主要銀行を読み込み中...'}
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {!searchQuery && (
+                    <div className="px-3 py-2 bg-slate-50 text-xs font-medium text-slate-600">
+                      主要銀行
+                    </div>
+                  )}
+                  {displayBanks.map((bank) => (
+                    <button
+                      key={bank.code}
+                      type="button"
+                      onClick={() => handleSelectBank(bank)}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50 flex items-center justify-between"
+                    >
+                      <span className="font-medium text-slate-700">{bank.name}</span>
+                      <span className="text-xs text-slate-400">{bank.code}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* バリデーションエラー */}
           {showErrors && required && !value && (
