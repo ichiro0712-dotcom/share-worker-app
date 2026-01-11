@@ -56,7 +56,9 @@ interface UserProfile {
   // 自己PR
   self_pr: string | null;
   // 銀行口座
+  bank_code: string | null;
   bank_name: string | null;
+  branch_code: string | null;
   branch_name: string | null;
   account_name: string | null;
   account_number: string | null;
@@ -165,13 +167,12 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
     selfPR: userProfile.self_pr || '',
 
     // 6. 銀行口座情報
+    bankCode: userProfile.bank_code || '',
     bankName: userProfile.bank_name || '',
+    branchCode: userProfile.branch_code || '',
     branchName: userProfile.branch_name || '',
     accountName: userProfile.account_name || '',
     accountNumber: userProfile.account_number || '',
-    // 新しい銀行検索機能用（フィーチャーフラグ有効時のみ使用）
-    bankCode: '',
-    branchCode: '',
 
     // 7. その他
     pensionNumber: userProfile.pension_number || '',
@@ -548,7 +549,9 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
       form.append('selfPR', formData.selfPR);
 
       // 銀行口座
+      form.append('bankCode', formData.bankCode);
       form.append('bankName', formData.bankName);
+      form.append('branchCode', formData.branchCode);
       form.append('branchName', formData.branchName);
       form.append('accountName', formData.accountName);
       form.append('accountNumber', formData.accountNumber);
@@ -579,6 +582,24 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
 
       // サーバーアクションを呼び出し
       const result = await updateUserProfile(form);
+
+      // resultがundefinedの場合のエラーハンドリング
+      if (!result) {
+        showDebugError({
+          type: 'save',
+          operation: 'プロフィール更新',
+          message: 'サーバーからの応答がありませんでした。認証セッションが切れている可能性があります。',
+          context: {
+            formDataKeys: Array.from(form.keys()),
+            hasProfileImage: !!profileImageFile,
+            hasIdDocument: !!idDocumentFile,
+            hasBankBookImage: !!bankBookImageFile,
+            qualificationCertificateCount: Object.keys(qualificationCertificateFiles).length,
+          }
+        });
+        toast.error('セッションが切れた可能性があります。再度ログインしてください。');
+        return;
+      }
 
       if (result.success) {
         toast.success(result.message || 'プロフィールを更新しました');
