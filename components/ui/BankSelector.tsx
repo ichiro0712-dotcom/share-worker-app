@@ -1,14 +1,15 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { X, Loader2, Search, Building2 } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { X, Loader2, Search, Building2, ExternalLink } from 'lucide-react';
+import Link from 'next/link';
 
-// 銀行データ型
+// 銀行データ型（APIレスポンスに合わせる）
 interface Bank {
   code: string;
   name: string;
-  nameKana: string;
-  isMajor: boolean;
+  kana?: string;  // カタカナ（検索APIのみ）
+  hira?: string;  // ひらがな（検索APIのみ）
 }
 
 interface BankSelectorProps {
@@ -17,6 +18,8 @@ interface BankSelectorProps {
   required?: boolean;
   showErrors?: boolean;
   disabled?: boolean;
+  /** 既存データ（コードなし）の名前表示用 */
+  legacyName?: string;
 }
 
 export default function BankSelector({
@@ -25,13 +28,20 @@ export default function BankSelector({
   required = false,
   showErrors = false,
   disabled = false,
+  legacyName = '',
 }: BankSelectorProps) {
+  // 既存データ表示モード（コードなしで名前だけある場合）
+  const [showLegacy, setShowLegacy] = useState(!!legacyName && !value);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Bank[]>([]);
   const [majorBanks, setMajorBanks] = useState<Bank[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isLoadingMajor, setIsLoadingMajor] = useState(true);
   const [error, setError] = useState('');
+  // 外部API検索関連
+  const [showApiSearchHint, setShowApiSearchHint] = useState(false);
+  const [isSearchingApi, setIsSearchingApi] = useState(false);
+  const [apiSearched, setApiSearched] = useState(false);
 
   // 主要銀行を取得
   useEffect(() => {
@@ -51,22 +61,27 @@ export default function BankSelector({
     fetchMajorBanks();
   }, []);
 
-  // 銀行検索API呼び出し
+  // 銀行検索API呼び出し（ローカルDB）
   const searchBanks = useCallback(async (query: string) => {
     if (!query || query.length < 2) {
       setSearchResults([]);
+      setShowApiSearchHint(false);
+      setApiSearched(false);
       return;
     }
 
     setIsSearching(true);
     setError('');
+    setShowApiSearchHint(false);
+    setApiSearched(false);
 
     try {
       const response = await fetch(`/api/bank/search?q=${encodeURIComponent(query)}`);
       if (response.ok) {
         const data = await response.json();
         setSearchResults(data.banks || []);
-        if (data.banks?.length === 0) {
+        setShowApiSearchHint(data.showApiSearchHint || false);
+        if (data.banks?.length === 0 && !data.showApiSearchHint) {
           setError('該当する銀行が見つかりませんでした');
         }
       } else {
@@ -79,6 +94,34 @@ export default function BankSelector({
       setIsSearching(false);
     }
   }, []);
+
+  // 外部API検索
+  const searchBanksFromExternalApi = async () => {
+    if (!searchQuery || searchQuery.length < 2) return;
+
+    setIsSearchingApi(true);
+    setError('');
+
+    try {
+      const response = await fetch(`/api/bank/search?q=${encodeURIComponent(searchQuery)}&source=api`);
+      if (response.ok) {
+        const data = await response.json();
+        setSearchResults(data.banks || []);
+        setApiSearched(true);
+        setShowApiSearchHint(false);
+        if (data.banks?.length === 0) {
+          setError('外部データベースでも見つかりませんでした。銀行名を再度ご確認ください。');
+        }
+      } else {
+        setError('外部検索に失敗しました');
+      }
+    } catch (err) {
+      console.error('外部API検索エラー:', err);
+      setError('外部検索に失敗しました');
+    } finally {
+      setIsSearchingApi(false);
+    }
+  };
 
   // デバウンス検索（useEffect + setTimeout）
   useEffect(() => {
@@ -94,6 +137,8 @@ export default function BankSelector({
     setSearchQuery('');
     setSearchResults([]);
     setError('');
+    setShowApiSearchHint(false);
+    setApiSearched(false);
   };
 
   // 選択解除
@@ -126,8 +171,28 @@ export default function BankSelector({
         </div>
       )}
 
+      {/* 既存データ表示（コードなしで名前だけある場合） */}
+      {!value && showLegacy && legacyName && (
+        <div className="flex items-center gap-2 mb-2">
+          <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-100 text-amber-700 text-sm rounded-lg">
+            <Building2 className="w-4 h-4" />
+            {legacyName}
+            <span className="text-xs text-amber-500">（既存データ）</span>
+            {!disabled && (
+              <button
+                type="button"
+                onClick={() => setShowLegacy(false)}
+                className="hover:text-amber-900 ml-1 text-xs underline"
+              >
+                変更する
+              </button>
+            )}
+          </span>
+        </div>
+      )}
+
       {/* 検索入力 */}
-      {!value && !disabled && (
+      {!value && !showLegacy && !disabled && (
         <>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -142,7 +207,7 @@ export default function BankSelector({
               }`}
               placeholder="銀行名で検索（2文字以上）..."
             />
-            {isSearching && (
+            {(isSearching || isSearchingApi) && (
               <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-primary animate-spin" />
             )}
           </div>
@@ -150,6 +215,39 @@ export default function BankSelector({
           {/* エラー表示 */}
           {error && (
             <p className="text-xs text-red-500">{error}</p>
+          )}
+
+          {/* 外部API検索ボタン */}
+          {showApiSearchHint && !isSearchingApi && (
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-700 mb-2">
+                ローカルデータベースに該当する銀行が見つかりませんでした。
+              </p>
+              <button
+                type="button"
+                onClick={searchBanksFromExternalApi}
+                className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
+              >
+                <ExternalLink className="w-4 h-4" />
+                外部データベースで検索
+              </button>
+            </div>
+          )}
+
+          {/* 外部APIでも見つからない場合の問い合わせ案内 */}
+          {apiSearched && searchResults.length === 0 && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <p className="text-sm text-amber-700 mb-2">
+                銀行名を再度ご確認ください。見つからない場合は運営までお問い合わせください。
+              </p>
+              <Link
+                href="/contact"
+                className="inline-flex items-center gap-1 text-sm text-amber-700 underline hover:text-amber-900"
+              >
+                お問い合わせはこちら
+                <ExternalLink className="w-3 h-3" />
+              </Link>
+            </div>
           )}
 
           {/* 銀行リスト */}
@@ -163,7 +261,7 @@ export default function BankSelector({
             ) : displayBanks.length === 0 ? (
               <div className="p-4 text-center text-sm text-slate-500">
                 {searchQuery.length >= 2
-                  ? '検索結果がありません'
+                  ? (showApiSearchHint ? '外部データベースで検索してください' : '検索結果がありません')
                   : searchQuery.length > 0
                   ? '2文字以上入力してください'
                   : '主要銀行を読み込み中...'}

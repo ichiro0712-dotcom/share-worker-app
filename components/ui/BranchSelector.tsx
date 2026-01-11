@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { X, Loader2, Search, MapPin } from 'lucide-react';
+import { X, Loader2, Search, MapPin, ExternalLink } from 'lucide-react';
+import Link from 'next/link';
 
 // 支店データ型（APIレスポンスに合わせる）
 interface Branch {
@@ -18,6 +19,8 @@ interface BranchSelectorProps {
   required?: boolean;
   showErrors?: boolean;
   disabled?: boolean;
+  /** 既存データ（コードなし）の名前表示用 */
+  legacyName?: string;
 }
 
 export default function BranchSelector({
@@ -27,31 +30,45 @@ export default function BranchSelector({
   required = false,
   showErrors = false,
   disabled = false,
+  legacyName = '',
 }: BranchSelectorProps) {
+  // 既存データ表示モード（コードなしで名前だけある場合）
+  const [showLegacy, setShowLegacy] = useState(!!legacyName && !value);
   const [searchQuery, setSearchQuery] = useState('');
   const [branches, setBranches] = useState<Branch[]>([]);
-  const [filteredBranches, setFilteredBranches] = useState<Branch[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState('');
+  // 外部API検索関連
+  const [showApiSearchHint, setShowApiSearchHint] = useState(false);
+  const [isSearchingApi, setIsSearchingApi] = useState(false);
+  const [apiSearched, setApiSearched] = useState(false);
+  // 初期表示用支店リスト（銀行選択時に取得）
+  const [initialBranches, setInitialBranches] = useState<Branch[]>([]);
 
-  // 銀行コードが変更されたら支店リストを取得
+  // 銀行コードが変更されたら初期支店リストを取得
   useEffect(() => {
     if (!bankCode) {
       setBranches([]);
-      setFilteredBranches([]);
+      setInitialBranches([]);
+      setShowApiSearchHint(false);
+      setApiSearched(false);
       return;
     }
 
-    const fetchBranches = async () => {
+    const fetchInitialBranches = async () => {
       setIsLoading(true);
       setError('');
+      setShowApiSearchHint(false);
+      setApiSearched(false);
 
       try {
-        const response = await fetch(`/api/bank/${bankCode}/branches?limit=200`);
+        const response = await fetch(`/api/bank/${bankCode}/branches?limit=50`);
         if (response.ok) {
           const data = await response.json();
-          setBranches(data.branches || []);
-          setFilteredBranches((data.branches || []).slice(0, 50));
+          const branchList = data.branches || [];
+          setInitialBranches(branchList);
+          setBranches(branchList);
         } else {
           setError('支店一覧の取得に失敗しました');
         }
@@ -63,38 +80,85 @@ export default function BranchSelector({
       }
     };
 
-    fetchBranches();
-  }, [bankCode]); // onChangeを依存配列から削除
+    fetchInitialBranches();
+  }, [bankCode]);
 
-  // 検索フィルタリング（漢字・カタカナ・ひらがな・コード全て対応）
-  const filterBranches = useCallback((query: string) => {
+  // サーバーサイド支店検索API呼び出し
+  const searchBranches = useCallback(async (query: string) => {
+    if (!bankCode) return;
+
     if (!query) {
-      setFilteredBranches(branches.slice(0, 50));
+      // 検索クエリがない場合は初期リストを表示
+      setBranches(initialBranches);
+      setShowApiSearchHint(false);
+      setApiSearched(false);
       return;
     }
 
-    const filtered = branches.filter(
-      (branch) =>
-        branch.name.includes(query) ||  // 漢字名
-        branch.kana.includes(query) ||  // カタカナ
-        branch.hira.includes(query) ||  // ひらがな
-        branch.code.includes(query)     // 支店コード
-    );
-    setFilteredBranches(filtered);
-  }, [branches]);
+    setIsSearching(true);
+    setError('');
+    setShowApiSearchHint(false);
+    setApiSearched(false);
 
-  // デバウンスフィルタリング（useEffect + setTimeout）
+    try {
+      const response = await fetch(`/api/bank/${bankCode}/branches?q=${encodeURIComponent(query)}&limit=50`);
+      if (response.ok) {
+        const data = await response.json();
+        setBranches(data.branches || []);
+        setShowApiSearchHint(data.showApiSearchHint || false);
+      } else {
+        setError('検索に失敗しました');
+      }
+    } catch (err) {
+      console.error('支店検索エラー:', err);
+      setError('検索に失敗しました');
+    } finally {
+      setIsSearching(false);
+    }
+  }, [bankCode, initialBranches]);
+
+  // 外部API検索
+  const searchBranchesFromExternalApi = async () => {
+    if (!bankCode || !searchQuery) return;
+
+    setIsSearchingApi(true);
+    setError('');
+
+    try {
+      const response = await fetch(`/api/bank/${bankCode}/branches?q=${encodeURIComponent(searchQuery)}&source=api&limit=50`);
+      if (response.ok) {
+        const data = await response.json();
+        setBranches(data.branches || []);
+        setApiSearched(true);
+        setShowApiSearchHint(false);
+        if (data.branches?.length === 0) {
+          setError('外部データベースでも見つかりませんでした。');
+        }
+      } else {
+        setError('外部検索に失敗しました');
+      }
+    } catch (err) {
+      console.error('外部API検索エラー:', err);
+      setError('外部検索に失敗しました');
+    } finally {
+      setIsSearchingApi(false);
+    }
+  };
+
+  // デバウンス検索（useEffect + setTimeout）
   useEffect(() => {
     const timer = setTimeout(() => {
-      filterBranches(searchQuery);
-    }, 200);
+      searchBranches(searchQuery);
+    }, 300);
     return () => clearTimeout(timer);
-  }, [searchQuery, filterBranches]);
+  }, [searchQuery, searchBranches]);
 
   // 支店選択
   const handleSelectBranch = (branch: Branch) => {
     onChange({ code: branch.code, name: branch.name });
     setSearchQuery('');
+    setShowApiSearchHint(false);
+    setApiSearched(false);
   };
 
   // 選択解除
@@ -143,8 +207,28 @@ export default function BranchSelector({
         </div>
       )}
 
+      {/* 既存データ表示（コードなしで名前だけある場合） */}
+      {!value && showLegacy && legacyName && (
+        <div className="flex items-center gap-2 mb-2">
+          <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-100 text-amber-700 text-sm rounded-lg">
+            <MapPin className="w-4 h-4" />
+            {legacyName}
+            <span className="text-xs text-amber-500">（既存データ）</span>
+            {!disabled && (
+              <button
+                type="button"
+                onClick={() => setShowLegacy(false)}
+                className="hover:text-amber-900 ml-1 text-xs underline"
+              >
+                変更する
+              </button>
+            )}
+          </span>
+        </div>
+      )}
+
       {/* 検索入力 */}
-      {!value && !disabled && (
+      {!value && !showLegacy && !disabled && (
         <>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -160,7 +244,7 @@ export default function BranchSelector({
               placeholder="支店名で検索..."
               disabled={isLoading}
             />
-            {isLoading && (
+            {(isLoading || isSearching || isSearchingApi) && (
               <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-primary animate-spin" />
             )}
           </div>
@@ -168,6 +252,39 @@ export default function BranchSelector({
           {/* エラー表示 */}
           {error && (
             <p className="text-xs text-red-500">{error}</p>
+          )}
+
+          {/* 外部API検索ボタン */}
+          {showApiSearchHint && !isSearchingApi && searchQuery && (
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-700 mb-2">
+                ローカルデータベースに該当する支店が見つかりませんでした。
+              </p>
+              <button
+                type="button"
+                onClick={searchBranchesFromExternalApi}
+                className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
+              >
+                <Search className="w-4 h-4" />
+                検索
+              </button>
+            </div>
+          )}
+
+          {/* 外部APIでも見つからない場合の問い合わせ案内 */}
+          {apiSearched && branches.length === 0 && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <p className="text-sm text-amber-700 mb-2">
+                支店名を再度ご確認ください。見つからない場合は運営までお問い合わせください。
+              </p>
+              <Link
+                href="/contact"
+                className="inline-flex items-center gap-1 text-sm text-amber-700 underline hover:text-amber-900"
+              >
+                お問い合わせはこちら
+                <ExternalLink className="w-3 h-3" />
+              </Link>
+            </div>
           )}
 
           {/* 支店リスト */}
@@ -179,22 +296,22 @@ export default function BranchSelector({
                 <Loader2 className="w-5 h-5 text-slate-400 animate-spin" />
                 <span className="ml-2 text-sm text-slate-500">支店一覧を取得中...</span>
               </div>
-            ) : filteredBranches.length === 0 ? (
+            ) : branches.length === 0 ? (
               <div className="p-4 text-center text-sm text-slate-500">
                 {searchQuery
-                  ? '検索結果がありません'
-                  : branches.length === 0
+                  ? (showApiSearchHint ? '外部データベースで検索してください' : '検索結果がありません')
+                  : initialBranches.length === 0
                   ? '支店情報がありません'
                   : '支店を検索してください'}
               </div>
             ) : (
               <div className="divide-y divide-slate-100">
-                {!searchQuery && branches.length > 50 && (
+                {!searchQuery && initialBranches.length > 50 && (
                   <div className="px-3 py-2 bg-slate-50 text-xs font-medium text-slate-600">
-                    {branches.length}件中50件表示（検索で絞り込み可能）
+                    50件表示中（検索で絞り込み可能）
                   </div>
                 )}
-                {filteredBranches.map((branch) => (
+                {branches.map((branch) => (
                   <button
                     key={branch.code}
                     type="button"
