@@ -1,6 +1,5 @@
 import { getPublicLaborDocumentPreview } from '@/src/lib/actions/job-public';
-import Link from 'next/link';
-import { ChevronLeft, Info } from 'lucide-react';
+import { Info } from 'lucide-react';
 import { notFound } from 'next/navigation';
 import { DEFAULT_DISMISSAL_REASONS } from '@/constants/employment';
 import { Metadata } from 'next';
@@ -57,16 +56,6 @@ export default async function PublicLaborDocumentPage({ params }: Props) {
 
     return (
         <div className="min-h-screen bg-gray-50 pb-24">
-            {/* ヘッダー */}
-            <div className="bg-white sticky top-0 z-10 border-b border-gray-200">
-                <div className="px-4 py-3 flex items-center">
-                    <Link href={`/public/jobs/${id}`} className="mr-4">
-                        <ChevronLeft className="w-6 h-6" />
-                    </Link>
-                    <h1 className="text-lg font-bold">労働条件通知書（プレビュー）</h1>
-                </div>
-            </div>
-
             {/* プレビュー説明 */}
             <div className="mx-4 mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-2">
                 <Info className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
