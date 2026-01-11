@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { searchBranchesFromAPI, getAllBranchesFromAPI } from '@/lib/bankcode-jp';
+import { toFullWidth, toHalfWidth, katakanaToHiragana, hiraganaToKatakana } from '@/lib/string-utils';
 
 export interface BranchSearchResult {
   code: string;
@@ -69,17 +70,26 @@ export async function GET(
     }
 
     // ローカルDB検索
+    // 全角・半角、ひらがな・カタカナの両方で検索
     const whereClause: Record<string, unknown> = {
       bankCode,
     };
 
     if (query) {
-      whereClause.OR = [
-        { name: { contains: query, mode: 'insensitive' } },
-        { hira: { contains: query, mode: 'insensitive' } },
-        { kana: { contains: query, mode: 'insensitive' } },
-        { code: { startsWith: query } },
-      ];
+      const queryHalfWidth = toHalfWidth(query);
+      const queryFullWidth = toFullWidth(query);
+      const queryHiragana = katakanaToHiragana(query);
+      const queryKatakana = hiraganaToKatakana(query);
+
+      // 重複を除いた検索クエリのセット
+      const queries = Array.from(new Set([query, queryHalfWidth, queryFullWidth, queryHiragana, queryKatakana]));
+
+      whereClause.OR = queries.flatMap(q => [
+        { name: { contains: q, mode: 'insensitive' } },
+        { hira: { contains: q, mode: 'insensitive' } },
+        { kana: { contains: q, mode: 'insensitive' } },
+        { code: { startsWith: q } },
+      ]);
     }
 
     const localResults = await prisma.branch.findMany({
