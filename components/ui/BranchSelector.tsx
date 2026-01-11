@@ -3,11 +3,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { X, Loader2, Search, MapPin } from 'lucide-react';
 
-// 支店データ型
+// 支店データ型（APIレスポンスに合わせる）
 interface Branch {
   code: string;
   name: string;
-  nameKana: string;
+  kana: string;  // カタカナ
+  hira: string;  // ひらがな
 }
 
 interface BranchSelectorProps {
@@ -38,7 +39,6 @@ export default function BranchSelector({
     if (!bankCode) {
       setBranches([]);
       setFilteredBranches([]);
-      onChange(null);
       return;
     }
 
@@ -47,7 +47,7 @@ export default function BranchSelector({
       setError('');
 
       try {
-        const response = await fetch(`/api/bank/${bankCode}/branches`);
+        const response = await fetch(`/api/bank/${bankCode}/branches?limit=200`);
         if (response.ok) {
           const data = await response.json();
           setBranches(data.branches || []);
@@ -64,9 +64,9 @@ export default function BranchSelector({
     };
 
     fetchBranches();
-  }, [bankCode, onChange]);
+  }, [bankCode]); // onChangeを依存配列から削除
 
-  // 検索フィルタリング
+  // 検索フィルタリング（漢字・カタカナ・ひらがな・コード全て対応）
   const filterBranches = useCallback((query: string) => {
     if (!query) {
       setFilteredBranches(branches.slice(0, 50));
@@ -75,9 +75,10 @@ export default function BranchSelector({
 
     const filtered = branches.filter(
       (branch) =>
-        branch.name.toLowerCase().includes(query.toLowerCase()) ||
-        branch.nameKana.toLowerCase().includes(query.toLowerCase()) ||
-        branch.code.includes(query)
+        branch.name.includes(query) ||  // 漢字名
+        branch.kana.includes(query) ||  // カタカナ
+        branch.hira.includes(query) ||  // ひらがな
+        branch.code.includes(query)     // 支店コード
     );
     setFilteredBranches(filtered);
   }, [branches]);
