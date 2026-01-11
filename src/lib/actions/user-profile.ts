@@ -173,7 +173,7 @@ export async function updateUserSelfPR(selfPR: string): Promise<{ success: boole
 
         await prisma.user.update({
             where: { id: user.id },
-            data: { self_pr: selfPR.trim() || null },
+            data: { self_pr: selfPR.trim() || null, updated_by_type: 'WORKER', updated_by_id: user.id },
         });
 
         return { success: true };
@@ -453,6 +453,9 @@ export async function updateUserProfile(formData: FormData) {
                 id_document: idDocumentPath,
                 bank_book_image: bankBookImagePath,
                 qualification_certificates: Object.keys(newCertificates).length > 0 ? newCertificates : undefined,
+                // 更新者追跡
+                updated_by_type: 'WORKER',
+                updated_by_id: user.id,
             },
         });
 

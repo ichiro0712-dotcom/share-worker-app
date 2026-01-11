@@ -4,6 +4,11 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { logActivity, logTrace, getErrorMessage, getErrorStack } from '@/lib/logger';
+import { Resend } from 'resend';
+
+// Resend設定
+const resend = new Resend(process.env.RESEND_API_KEY);
+const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'noreply@tastas.site';
 
 /**
  * 施設管理者ログイン（DBベース）
@@ -178,8 +183,112 @@ export async function authenticateSystemAdmin(email: string, password: string) {
 const passwordResetTokens = new Map<string, { email: string; expires: number }>();
 
 /**
+ * パスワードリセットメールを送信
+ */
+async function sendPasswordResetEmail(
+    email: string,
+    name: string,
+    resetUrl: string
+): Promise<{ success: boolean; error?: string }> {
+    // メール送信が無効化されている場合はスキップ
+    if (process.env.DISABLE_EMAIL_SENDING === 'true') {
+        console.log('[Password Reset Email] Sending disabled, logging only:', { to: email, resetUrl });
+        return { success: true };
+    }
+
+    try {
+        const { error } = await resend.emails.send({
+            from: `+TASTAS <${FROM_EMAIL}>`,
+            to: [email],
+            subject: '【+TASTAS】パスワードリセットのご案内',
+            html: formatPasswordResetEmailHtml(name, resetUrl),
+            text: formatPasswordResetEmailText(name, resetUrl),
+        });
+
+        if (error) {
+            console.error('[Password Reset Email] Failed to send:', error);
+            return { success: false, error: error.message };
+        }
+
+        console.log('[Password Reset Email] Sent successfully to:', email);
+        return { success: true };
+    } catch (error: any) {
+        console.error('[Password Reset Email] Error:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * パスワードリセットメールのHTML本文
+ */
+function formatPasswordResetEmailHtml(name: string, resetUrl: string): string {
+    return `
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: 'Helvetica Neue', Arial, 'Hiragino Sans', sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <div style="background-color: #f8f9fa; padding: 30px; border-radius: 8px;">
+        <h2 style="color: #2563eb; margin-bottom: 20px;">パスワードリセット</h2>
+
+        <p>${name} 様</p>
+
+        <p>パスワードリセットのリクエストを受け付けました。</p>
+
+        <p>下記のボタンをクリックして、新しいパスワードを設定してください。</p>
+
+        <div style="text-align: center; margin: 30px 0;">
+            <a href="${resetUrl}"
+               style="display: inline-block; background-color: #2563eb; color: white; text-decoration: none;
+                      padding: 14px 28px; border-radius: 6px; font-weight: bold;">
+                パスワードを再設定する
+            </a>
+        </div>
+
+        <p style="font-size: 14px; color: #666;">
+            ボタンがクリックできない場合は、以下のURLをブラウザにコピー＆ペーストしてください：<br>
+            <a href="${resetUrl}" style="color: #2563eb; word-break: break-all;">${resetUrl}</a>
+        </p>
+
+        <p style="font-size: 14px; color: #666; margin-top: 20px;">
+            ※このリンクは1時間有効です。<br>
+            ※このメールに心当たりがない場合は、お手数ですが削除してください。パスワードは変更されません。
+        </p>
+    </div>
+
+    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #666;">
+        <p>このメールは +TASTAS より自動送信されています。</p>
+    </div>
+</body>
+</html>`;
+}
+
+/**
+ * パスワードリセットメールのプレーンテキスト本文
+ */
+function formatPasswordResetEmailText(name: string, resetUrl: string): string {
+    return `
+${name} 様
+
+パスワードリセットのリクエストを受け付けました。
+
+下記のURLをクリックして、新しいパスワードを設定してください：
+
+${resetUrl}
+
+※このリンクは1時間有効です。
+※このメールに心当たりがない場合は、お手数ですが削除してください。パスワードは変更されません。
+
+---
+このメールは +TASTAS より自動送信されています。
+`;
+}
+
+/**
  * パスワードリセットをリクエスト
- * ローカル環境ではモーダルでURLを表示
+ * 本番環境ではメール送信、開発環境ではモーダルでURLを表示
  */
 export async function requestPasswordReset(email: string): Promise<{ success: boolean; message?: string; resetToken?: string }> {
     try {
@@ -202,7 +311,6 @@ export async function requestPasswordReset(email: string): Promise<{ success: bo
         // トークンを保存
         passwordResetTokens.set(token, { email, expires });
 
-        // ローカル環境用：トークンを返す（クライアント側でURLを生成）
         console.log(`[Password Reset] Token generated for ${email}`);
 
         // パスワードリセット要求をログ記録
@@ -214,7 +322,23 @@ export async function requestPasswordReset(email: string): Promise<{ success: bo
             result: 'SUCCESS',
         }).catch(() => {});
 
-        return { success: true, resetToken: token };
+        // 本番環境ではメールを送信、開発環境ではトークンを返す
+        const isProduction = process.env.NODE_ENV === 'production';
+        const APP_URL = process.env.NEXTAUTH_URL || 'https://tastas.jp';
+        const resetUrl = `${APP_URL}/password-reset/reset?token=${token}`;
+
+        if (isProduction || process.env.ENABLE_PASSWORD_RESET_EMAIL === 'true') {
+            // メール送信
+            const emailResult = await sendPasswordResetEmail(email, user.name, resetUrl);
+            if (!emailResult.success) {
+                console.error('[Password Reset] Failed to send email:', emailResult.error);
+                // メール送信に失敗してもセキュリティのため成功を返す
+            }
+            return { success: true, message: 'パスワードリセット用のメールを送信しました' };
+        } else {
+            // 開発環境：トークンを返す（クライアント側でURLを表示）
+            return { success: true, resetToken: token };
+        }
     } catch (error) {
         console.error('[requestPasswordReset] Error:', error);
         logActivity({

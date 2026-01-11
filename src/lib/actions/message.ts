@@ -212,13 +212,15 @@ export async function sendMessage(applicationId: number, content: string) {
         from_user_id: user.id,
         to_facility_id: application.workDate.job.facility_id,
         content,
+        updated_by_type: 'WORKER',
+        updated_by_id: user.id,
       },
     });
 
     // 応募の更新日時を更新
     await prisma.application.update({
       where: { id: applicationId },
-      data: { updated_at: new Date() },
+      data: { updated_at: new Date(), updated_by_type: 'WORKER', updated_by_id: user.id },
     });
 
     // 施設への通知を送信
@@ -470,7 +472,8 @@ export async function sendFacilityMessage(
   applicationId: number,
   facilityId: number,
   content: string,
-  attachments: string[] = []
+  attachments: string[] = [],
+  adminId?: number
 ) {
   try {
     console.log('[sendFacilityMessage] Sending message for application:', applicationId);
@@ -514,13 +517,17 @@ export async function sendFacilityMessage(
         to_user_id: application.user_id,
         content,
         attachments,
+        ...(adminId && { updated_by_type: 'FACILITY_ADMIN', updated_by_id: adminId }),
       },
     });
 
     // 応募の更新日時を更新
     await prisma.application.update({
       where: { id: applicationId },
-      data: { updated_at: new Date() },
+      data: {
+        updated_at: new Date(),
+        ...(adminId && { updated_by_type: 'FACILITY_ADMIN', updated_by_id: adminId }),
+      },
     });
 
     // ワーカーへの通知を送信
@@ -666,10 +673,14 @@ export async function getGroupedConversations() {
   const user = await getAuthenticatedUser();
 
   // ユーザーの全応募を取得（施設情報付き）
+  // ID-82/86対応: APPLIED（審査待ち）やCANCELLED（不採用）でもメッセージがある場合は表示
   const applications = await prisma.application.findMany({
     where: {
       user_id: user.id,
-      status: { in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'] },
+      OR: [
+        { status: { in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'] } },
+        { messages: { some: {} } }, // メッセージがある応募は全て表示
+      ],
     },
     include: {
       workDate: {
@@ -963,15 +974,36 @@ export async function getMessagesByFacility(
   }));
 
   // 初回読み込み時のみ未読を既読に（markAsRead=trueの場合）
+  // この施設からの全未読メッセージを一括で既読にする（バッジ表示問題の修正）
   if (markAsRead && !cursor) {
-    const unreadIds = formattedMessages
-      .filter(m => !m.isRead && m.senderType === 'facility')
-      .map(m => m.id);
-    if (unreadIds.length > 0) {
-      await prisma.message.updateMany({
-        where: { id: { in: unreadIds } },
+    const updateConditions: any[] = [];
+
+    // 応募ベースのメッセージ
+    if (applicationIds.length > 0) {
+      updateConditions.push({
+        application_id: { in: applicationIds },
+        to_facility_id: null,
+        from_user_id: null,  // 施設からのメッセージ
+        read_at: null,
+      });
+    }
+
+    // スレッドベースのメッセージ（オファー）
+    if (thread) {
+      updateConditions.push({
+        thread_id: thread.id,
+        from_user_id: null,  // 施設からのメッセージ
+        read_at: null,
+      });
+    }
+
+    if (updateConditions.length > 0) {
+      console.log('[getMessagesByFacility] Marking all unread as read:', JSON.stringify(updateConditions));
+      const result = await prisma.message.updateMany({
+        where: { OR: updateConditions },
         data: { read_at: new Date() },
       });
+      console.log('[getMessagesByFacility] Updated count:', result.count);
     }
   }
 
@@ -1432,6 +1464,8 @@ export async function sendMessageToFacility(facilityId: number, content: string,
         to_facility_id: facilityId,
         application_id: latestApplication.id,
         job_id: latestApplication.workDate.job_id,
+        updated_by_type: 'WORKER',
+        updated_by_id: user.id,
       },
     });
 

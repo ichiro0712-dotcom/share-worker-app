@@ -15,6 +15,9 @@ const publicPaths = [
   '/terms',
   '/privacy',
   '/contact',
+  '/public', // SEO用公開ページ
+  '/robots.txt', // SEO: robots.txt
+  '/sitemap.xml', // SEO: サイトマップ
 ];
 
 // 静的ファイルとAPI認証エンドポイント

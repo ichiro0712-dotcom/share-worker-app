@@ -190,6 +190,7 @@ export default function WorkerRegisterPage() {
     if (!formData.phoneNumber) errors.push('電話番号');
     if (!formData.prefecture) errors.push('都道府県');
     if (!formData.city) errors.push('市区町村');
+    if (!formData.address) errors.push('町名・番地');
     if (!formData.password) errors.push('パスワード');
     if (!formData.passwordConfirm) errors.push('パスワード（確認）');
 

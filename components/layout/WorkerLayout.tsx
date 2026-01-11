@@ -23,6 +23,7 @@ const EXCLUDED_PREFIXES = [
   '/system-admin/',
   '/register/',
   '/password-reset/',
+  '/public/',  // SEO用公開ページ
 ];
 
 export function WorkerLayout({ children }: WorkerLayoutProps) {

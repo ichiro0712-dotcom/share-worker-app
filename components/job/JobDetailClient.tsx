@@ -380,8 +380,10 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
           toast.success('マッチングが成立しました！');
         }
 
-        // メッセージバッジを更新
-        refreshBadges();
+        // メッセージバッジを更新（サーバー側の非同期メッセージ作成を待つため遅延）
+        setTimeout(() => {
+          refreshBadges();
+        }, 2000);
 
         // サーバーサイドのキャッシュを更新してからリダイレクト
         router.refresh();
@@ -1092,23 +1094,25 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
             )}
 
             <div className="relative aspect-video overflow-hidden rounded-lg bg-gray-100 mb-2">
-              {job.mapImage && !job.mapImage.includes('map-placeholder') ? (
-                <Image
-                  src={job.mapImage}
-                  alt="地図"
-                  fill
-                  className="object-cover"
+              {facility.lat && facility.lng ? (
+                <iframe
+                  src={`https://www.google.com/maps/embed/v1/place?q=${facility.lat},${facility.lng}&zoom=16&key=AIzaSyA2Ae19xiaciV46yWzQvTh4mG1RvfsaSi8`}
+                  width="100%"
+                  height="100%"
+                  style={{ border: 0 }}
+                  allowFullScreen
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                  title="施設の地図"
                 />
               ) : (
-                <Image
-                  src={`https://maps.googleapis.com/maps/api/staticmap?center=${encodeURIComponent(job.address)}&zoom=15&size=600x400&maptype=roadmap&markers=color:red%7C${encodeURIComponent(job.address)}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''}`}
-                  alt="地図"
-                  fill
-                  className="object-cover"
-                  unoptimized
-                />
+                <div className="w-full h-full flex items-center justify-center text-gray-400">
+                  <div className="text-center">
+                    <MapPin className="w-8 h-8 mx-auto mb-2" />
+                    <p className="text-sm">地図情報がありません</p>
+                  </div>
+                </div>
               )}
-              <MapPin className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 text-red-500" />
             </div>
             <button
               onClick={() => {

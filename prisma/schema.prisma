@@ -84,6 +84,11 @@ model User {
   /// 退会理由
   delete_reason          String?        @map("delete_reason")
 
+  /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
+  updated_by_type        String?        @map("updated_by_type")
+  /// 更新者ID
+  updated_by_id          Int?           @map("updated_by_id")
+
   @@map("users")
 }
 
@@ -100,6 +105,11 @@ model FacilityAdmin {
   updated_at    DateTime @updatedAt @map("updated_at")
   facility      Facility @relation(fields: [facility_id], references: [id], onDelete: Cascade)
   pushSubscriptions  PushSubscription[]
+
+  /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
+  updated_by_type  String?  @map("updated_by_type")
+  /// 更新者ID
+  updated_by_id    Int?     @map("updated_by_id")
 
   @@map("facility_admins")
 }
@@ -198,6 +208,11 @@ model Facility {
   /// 仮登録状態（true: 未完了、false: 正式登録済み）
   is_pending       Boolean          @default(false) @map("is_pending")
 
+  /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
+  updated_by_type  String?          @map("updated_by_type")
+  /// 更新者ID
+  updated_by_id    Int?             @map("updated_by_id")
+
   // パフォーマンス最適化用インデックス
   @@index([facility_type])
   @@index([prefecture, city])
@@ -232,6 +247,11 @@ model JobTemplate {
   updated_at         DateTime @updatedAt @map("updated_at")
   facility           Facility @relation(fields: [facility_id], references: [id], onDelete: Cascade)
   jobs               Job[]
+
+  /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
+  updated_by_type    String?  @map("updated_by_type")
+  /// 更新者ID
+  updated_by_id      Int?     @map("updated_by_id")
 
   @@map("job_templates")
 }
@@ -316,6 +336,11 @@ model Job {
   reviews                 Review[]
   systemNotifications     SystemNotification[]
 
+  /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
+  updated_by_type         String?       @map("updated_by_type")
+  /// 更新者ID
+  updated_by_id           Int?          @map("updated_by_id")
+
   // パフォーマンス最適化用インデックス
   @@index([status, facility_id])
   @@index([created_at])
@@ -344,6 +369,11 @@ model JobWorkDate {
   applications      Application[]
   job               Job           @relation(fields: [job_id], references: [id], onDelete: Cascade)
   reviews           Review[]
+
+  /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
+  updated_by_type   String?       @map("updated_by_type")
+  /// 更新者ID
+  updated_by_id     Int?          @map("updated_by_id")
 
   @@unique([job_id, work_date])
   @@index([visible_from])
@@ -375,6 +405,11 @@ model Application {
   laborDocument          LaborDocument?
   systemNotifications    SystemNotification[]
 
+  /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
+  updated_by_type        String?        @map("updated_by_type")
+  /// 更新者ID
+  updated_by_id          Int?           @map("updated_by_id")
+
   @@unique([work_date_id, user_id])
   // パフォーマンス最適化用インデックス
   @@index([user_id, status])
@@ -399,6 +434,11 @@ model LaborDocument {
   created_at       DateTime    @default(now()) @map("created_at")
   updated_at       DateTime    @updatedAt @map("updated_at")
   application      Application @relation(fields: [application_id], references: [id], onDelete: Cascade)
+
+  /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
+  updated_by_type  String?     @map("updated_by_type")
+  /// 更新者ID
+  updated_by_id    Int?        @map("updated_by_id")
 
   @@map("labor_documents")
 }
@@ -463,6 +503,11 @@ model Review {
   user                 User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
   workDate             JobWorkDate? @relation(fields: [work_date_id], references: [id], onDelete: Cascade)
 
+  /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
+  updated_by_type      String?      @map("updated_by_type")
+  /// 更新者ID
+  updated_by_id        Int?         @map("updated_by_id")
+
   @@unique([job_id, user_id, reviewer_type])
   @@map("reviews")
 }
@@ -476,6 +521,11 @@ model ReviewTemplate {
   updated_at  DateTime @updatedAt @map("updated_at")
   facility    Facility @relation(fields: [facility_id], references: [id], onDelete: Cascade)
 
+  /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
+  updated_by_type  String?  @map("updated_by_type")
+  /// 更新者ID
+  updated_by_id    Int?     @map("updated_by_id")
+
   @@map("review_templates")
 }
 
@@ -483,6 +533,7 @@ model Bookmark {
   id                 Int          @id @default(autoincrement())
   type               BookmarkType
   created_at         DateTime     @default(now()) @map("created_at")
+  updated_at         DateTime     @default(now()) @updatedAt @map("updated_at")
   user_id            Int?         @map("user_id")
   facility_id        Int?         @map("facility_id")
   target_job_id      Int?         @map("target_job_id")
@@ -493,6 +544,11 @@ model Bookmark {
   targetJob          Job?         @relation(fields: [target_job_id], references: [id], onDelete: Cascade)
   targetUser         User?        @relation("BookmarkedUsers", fields: [target_user_id], references: [id], onDelete: Cascade)
   user               User?        @relation("UserBookmarks", fields: [user_id], references: [id], onDelete: Cascade)
+
+  /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
+  updated_by_type    String?      @map("updated_by_type")
+  /// 更新者ID
+  updated_by_id      Int?         @map("updated_by_id")
 
   // パフォーマンス最適化用インデックス
   @@index([user_id, type])
@@ -515,6 +571,7 @@ model Message {
   attachments      String[]    @default([])
   read_at          DateTime?   @map("read_at")
   created_at       DateTime    @default(now()) @map("created_at")
+  updated_at       DateTime    @default(now()) @updatedAt @map("updated_at")
   application      Application? @relation(fields: [application_id], references: [id], onDelete: Cascade)
   fromFacility     Facility?   @relation("FacilitySentMessages", fields: [from_facility_id], references: [id], onDelete: Cascade)
   fromUser         User?       @relation("UserSentMessages", fields: [from_user_id], references: [id], onDelete: Cascade)
@@ -522,6 +579,11 @@ model Message {
   toFacility       Facility?   @relation("FacilityReceivedMessages", fields: [to_facility_id], references: [id], onDelete: Cascade)
   toUser           User?       @relation("UserReceivedMessages", fields: [to_user_id], references: [id], onDelete: Cascade)
   thread           MessageThread? @relation(fields: [thread_id], references: [id], onDelete: Cascade)
+
+  /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
+  updated_by_type  String?        @map("updated_by_type")
+  /// 更新者ID
+  updated_by_id    Int?           @map("updated_by_id")
 
   // パフォーマンス最適化用インデックス
   @@index([application_id, created_at])
@@ -568,7 +630,13 @@ model Notification {
   link       String?
   read       Boolean          @default(false)
   created_at DateTime         @default(now()) @map("created_at")
+  updated_at DateTime         @default(now()) @updatedAt @map("updated_at")
   user       User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
+  updated_by_type  String?    @map("updated_by_type")
+  /// 更新者ID
+  updated_by_id    Int?       @map("updated_by_id")
 
   @@map("notifications")
 }
@@ -669,6 +737,11 @@ model FaqCategory {
   updated_at  DateTime @updatedAt @map("updated_at")
   faqs        Faq[]
 
+  /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
+  updated_by_type  String?  @map("updated_by_type")
+  /// 更新者ID
+  updated_by_id    Int?     @map("updated_by_id")
+
   @@map("faq_categories")
 }
 
@@ -684,6 +757,11 @@ model Faq {
   updated_at   DateTime    @updatedAt @map("updated_at")
   category     FaqCategory @relation(fields: [category_id], references: [id], onDelete: Cascade)
 
+  /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
+  updated_by_type  String?  @map("updated_by_type")
+  /// 更新者ID
+  updated_by_id    Int?     @map("updated_by_id")
+
   @@map("faqs")
 }
 
@@ -696,6 +774,12 @@ model UserGuide {
   file_size   Int      @map("file_size")
   uploaded_by Int      @map("uploaded_by") // SystemAdmin ID
   created_at  DateTime @default(now()) @map("created_at")
+  updated_at  DateTime @default(now()) @updatedAt @map("updated_at")
+
+  /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
+  updated_by_type  String?  @map("updated_by_type")
+  /// 更新者ID
+  updated_by_id    Int?     @map("updated_by_id")
 
   @@map("user_guides")
 }
@@ -712,6 +796,11 @@ model LegalDocument {
   created_by   Int       @map("created_by") // SystemAdmin ID
   created_at   DateTime  @default(now()) @map("created_at")
   updated_at   DateTime  @updatedAt @map("updated_at")
+
+  /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
+  updated_by_type  String?  @map("updated_by_type")
+  /// 更新者ID
+  updated_by_id    Int?     @map("updated_by_id")
 
   @@index([doc_type, target_type, is_current])
   @@map("legal_documents")
@@ -750,6 +839,11 @@ model Announcement {
   // リレーション
   recipients AnnouncementRecipient[]
 
+  /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
+  updated_by_type  String?  @map("updated_by_type")
+  /// 更新者ID
+  updated_by_id    Int?     @map("updated_by_id")
+
   @@map("announcements")
 }
 
@@ -779,6 +873,11 @@ model AnalyticsRegion {
   prefecture_cities Json    @default("{}") @map("prefecture_cities") // { "東京都": [], "神奈川県": ["横浜市", "川崎市"] }
   created_at       DateTime @default(now()) @map("created_at")
   updated_at       DateTime @updatedAt @map("updated_at")
+
+  /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
+  updated_by_type  String?  @map("updated_by_type")
+  /// 更新者ID
+  updated_by_id    Int?     @map("updated_by_id")
 
   @@map("analytics_regions")
 }
@@ -824,6 +923,11 @@ model LaborDocumentTemplate {
   created_at DateTime @default(now()) @map("created_at")
   updated_at DateTime @updatedAt @map("updated_at")
 
+  /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
+  updated_by_type  String?  @map("updated_by_type")
+  /// 更新者ID
+  updated_by_id    Int?     @map("updated_by_id")
+
   @@map("labor_document_templates")
 }
 
@@ -840,6 +944,11 @@ model SystemTemplate {
   facility_id Int?     @map("facility_id")
   facility    Facility? @relation(fields: [facility_id], references: [id])
 
+  /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
+  updated_by_type  String?  @map("updated_by_type")
+  /// 更新者ID
+  updated_by_id    Int?     @map("updated_by_id")
+
   @@map("system_templates")
 }
 
@@ -852,6 +961,11 @@ model JobDescriptionFormat {
   is_active   Boolean  @default(true) // 有効/無効
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
+
+  /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
+  updated_by_type  String?  @map("updated_by_type")
+  /// 更新者ID
+  updated_by_id    Int?     @map("updated_by_id")
 
   @@map("job_description_formats")
 }
@@ -867,6 +981,11 @@ model PushSubscription {
   user_agent String?   @map("user_agent")
   created_at DateTime  @default(now()) @map("created_at")
   updated_at DateTime  @updatedAt @map("updated_at")
+
+  /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
+  updated_by_type  String?  @map("updated_by_type")
+  /// 更新者ID
+  updated_by_id    Int?     @map("updated_by_id")
 
   user       User?          @relation(fields: [user_id], references: [id], onDelete: Cascade)
   admin      FacilityAdmin? @relation(fields: [admin_id], references: [id], onDelete: Cascade)
@@ -909,6 +1028,11 @@ model NotificationSetting {
 
   created_at       DateTime @default(now()) @map("created_at")
   updated_at       DateTime @updatedAt @map("updated_at")
+
+  /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
+  updated_by_type  String?  @map("updated_by_type")
+  /// 更新者ID
+  updated_by_id    Int?     @map("updated_by_id")
 
   @@map("notification_settings")
 }
@@ -977,6 +1101,11 @@ model ErrorMessageSetting {
   created_at  DateTime @default(now()) @map("created_at")
   updated_at  DateTime @updatedAt @map("updated_at")
 
+  /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
+  updated_by_type  String?  @map("updated_by_type")
+  /// 更新者ID
+  updated_by_id    Int?     @map("updated_by_id")
+
   @@map("error_message_settings")
 }
 
@@ -1008,6 +1137,11 @@ model MessageThread {
   created_at   DateTime  @default(now()) @map("created_at")
   updated_at   DateTime  @updatedAt @map("updated_at")
 
+  /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
+  updated_by_type  String?  @map("updated_by_type")
+  /// 更新者ID
+  updated_by_id    Int?     @map("updated_by_id")
+
   worker       User      @relation(fields: [worker_id], references: [id], onDelete: Cascade)
   facility     Facility  @relation(fields: [facility_id], references: [id], onDelete: Cascade)
   messages     Message[]
@@ -1028,6 +1162,11 @@ model OfferTemplate {
   sort_order  Int      @default(0) @map("sort_order")
   created_at  DateTime @default(now()) @map("created_at")
   updated_at  DateTime @updatedAt @map("updated_at")
+
+  /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
+  updated_by_type  String?  @map("updated_by_type")
+  /// 更新者ID
+  updated_by_id    Int?     @map("updated_by_id")
 
   facility    Facility @relation(fields: [facility_id], references: [id], onDelete: Cascade)
 
