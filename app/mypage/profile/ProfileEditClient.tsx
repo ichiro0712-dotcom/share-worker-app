@@ -14,6 +14,9 @@ import { KatakanaInput, KatakanaWithSpaceInput } from '@/components/ui/KatakanaI
 import { PhoneNumberInput } from '@/components/ui/PhoneNumberInput';
 import { QUALIFICATION_GROUPS } from '@/constants/qualifications';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
+import BankSelector from '@/components/ui/BankSelector';
+import BranchSelector from '@/components/ui/BranchSelector';
+import { isFeatureEnabled } from '@/constants/features';
 
 interface UserProfile {
   id: number;
@@ -167,6 +170,9 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
     branchName: userProfile.branch_name || '',
     accountName: userProfile.account_name || '',
     accountNumber: userProfile.account_number || '',
+    // 新しい銀行検索機能用（フィーチャーフラグ有効時のみ使用）
+    bankCode: '',
+    branchCode: '',
 
     // 7. その他
     pensionNumber: userProfile.pension_number || '',
@@ -1254,60 +1260,150 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
           <h2 className="text-lg font-bold mb-4 pb-3 border-b">7. 銀行口座情報 <span className="text-red-500">*</span></h2>
 
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">銀行名 <span className="text-red-500">*</span></label>
-                <input
-                  type="text"
-                  value={formData.bankName}
-                  onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.bankName ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
-                />
-                {showErrors && !formData.bankName && (
-                  <p className="text-red-500 text-xs mt-1">銀行名を入力してください</p>
-                )}
+            {/* フィーチャーフラグで新旧UIを切り替え */}
+            {isFeatureEnabled('BANK_SEARCH_ENABLED') ? (
+              /* 新しい検索ベースUI */
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">銀行名 <span className="text-red-500">*</span></label>
+                  <BankSelector
+                    value={formData.bankCode ? { code: formData.bankCode, name: formData.bankName } : null}
+                    onChange={(bank) => {
+                      if (bank) {
+                        setFormData({
+                          ...formData,
+                          bankCode: bank.code,
+                          bankName: bank.name,
+                          // 銀行変更時は支店をリセット
+                          branchCode: '',
+                          branchName: ''
+                        });
+                      } else {
+                        setFormData({
+                          ...formData,
+                          bankCode: '',
+                          bankName: '',
+                          branchCode: '',
+                          branchName: ''
+                        });
+                      }
+                    }}
+                    required
+                    showErrors={showErrors}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">支店名 <span className="text-red-500">*</span></label>
+                  <BranchSelector
+                    bankCode={formData.bankCode || null}
+                    value={formData.branchCode ? { code: formData.branchCode, name: formData.branchName } : null}
+                    onChange={(branch) => {
+                      if (branch) {
+                        setFormData({
+                          ...formData,
+                          branchCode: branch.code,
+                          branchName: branch.name
+                        });
+                      } else {
+                        setFormData({
+                          ...formData,
+                          branchCode: '',
+                          branchName: ''
+                        });
+                      }
+                    }}
+                    required
+                    showErrors={showErrors}
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">口座名義（カナ） <span className="text-red-500">*</span></label>
+                    <KatakanaWithSpaceInput
+                      value={formData.accountName}
+                      onChange={(value) => setFormData({ ...formData, accountName: value })}
+                      placeholder="ヤマダ タロウ"
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.accountName ? 'border-red-500 bg-red-50' : formData.accountName && !isKatakanaWithSpaceOnly(formData.accountName) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                    />
+                    {showErrors && !formData.accountName && (
+                      <p className="text-red-500 text-xs mt-1">口座名義を入力してください</p>
+                    )}
+                    {formData.accountName && !isKatakanaWithSpaceOnly(formData.accountName) && (
+                      <p className="text-red-500 text-xs mt-1">カタカナで入力してください</p>
+                    )}
+                    <p className="text-xs text-gray-500 mt-1">※カタカナで入力（ひらがなは自動変換）</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">口座番号 <span className="text-red-500">*</span></label>
+                    <input
+                      type="text"
+                      value={formData.accountNumber}
+                      onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.accountNumber ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                    />
+                    {showErrors && !formData.accountNumber && (
+                      <p className="text-red-500 text-xs mt-1">口座番号を入力してください</p>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">支店名 <span className="text-red-500">*</span></label>
-                <input
-                  type="text"
-                  value={formData.branchName}
-                  onChange={(e) => setFormData({ ...formData, branchName: e.target.value })}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.branchName ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
-                />
-                {showErrors && !formData.branchName && (
-                  <p className="text-red-500 text-xs mt-1">支店名を入力してください</p>
-                )}
+            ) : (
+              /* 従来のテキスト入力UI */
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">銀行名 <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    value={formData.bankName}
+                    onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.bankName ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                  />
+                  {showErrors && !formData.bankName && (
+                    <p className="text-red-500 text-xs mt-1">銀行名を入力してください</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">支店名 <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    value={formData.branchName}
+                    onChange={(e) => setFormData({ ...formData, branchName: e.target.value })}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.branchName ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                  />
+                  {showErrors && !formData.branchName && (
+                    <p className="text-red-500 text-xs mt-1">支店名を入力してください</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">口座名義（カナ） <span className="text-red-500">*</span></label>
+                  <KatakanaWithSpaceInput
+                    value={formData.accountName}
+                    onChange={(value) => setFormData({ ...formData, accountName: value })}
+                    placeholder="ヤマダ タロウ"
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.accountName ? 'border-red-500 bg-red-50' : formData.accountName && !isKatakanaWithSpaceOnly(formData.accountName) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                  />
+                  {showErrors && !formData.accountName && (
+                    <p className="text-red-500 text-xs mt-1">口座名義を入力してください</p>
+                  )}
+                  {formData.accountName && !isKatakanaWithSpaceOnly(formData.accountName) && (
+                    <p className="text-red-500 text-xs mt-1">カタカナで入力してください</p>
+                  )}
+                  <p className="text-xs text-gray-500 mt-1">※カタカナで入力（ひらがなは自動変換）</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">口座番号 <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    value={formData.accountNumber}
+                    onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.accountNumber ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                  />
+                  {showErrors && !formData.accountNumber && (
+                    <p className="text-red-500 text-xs mt-1">口座番号を入力してください</p>
+                  )}
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">口座名義（カナ） <span className="text-red-500">*</span></label>
-                <KatakanaWithSpaceInput
-                  value={formData.accountName}
-                  onChange={(value) => setFormData({ ...formData, accountName: value })}
-                  placeholder="ヤマダ タロウ"
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.accountName ? 'border-red-500 bg-red-50' : formData.accountName && !isKatakanaWithSpaceOnly(formData.accountName) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
-                />
-                {showErrors && !formData.accountName && (
-                  <p className="text-red-500 text-xs mt-1">口座名義を入力してください</p>
-                )}
-                {formData.accountName && !isKatakanaWithSpaceOnly(formData.accountName) && (
-                  <p className="text-red-500 text-xs mt-1">カタカナで入力してください</p>
-                )}
-                <p className="text-xs text-gray-500 mt-1">※カタカナで入力（ひらがなは自動変換）</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">口座番号 <span className="text-red-500">*</span></label>
-                <input
-                  type="text"
-                  value={formData.accountNumber}
-                  onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.accountNumber ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
-                />
-                {showErrors && !formData.accountNumber && (
-                  <p className="text-red-500 text-xs mt-1">口座番号を入力してください</p>
-                )}
-              </div>
-            </div>
+            )}
 
             <div>
               <div>
