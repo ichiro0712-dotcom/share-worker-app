@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import Image from 'next/image';
 import { ReactNode } from 'react';
 
 interface PublicLayoutProps {
@@ -8,29 +7,13 @@ interface PublicLayoutProps {
 
 /**
  * 公開ページ用レイアウト
- * - ヘッダー: ロゴのみ
+ * - ヘッダー: なし（各ページで必要に応じて設定）
  * - フッター: 会員登録CTAボタン（固定）
  * - ナビゲーションメニューなし
  */
 export default function PublicLayout({ children }: PublicLayoutProps) {
   return (
     <div className="min-h-screen bg-background">
-      {/* ヘッダー - ロゴのみ */}
-      <header className="sticky top-0 bg-white border-b border-gray-200 z-10">
-        <div className="max-w-lg mx-auto px-4 py-3">
-          <Link href="/" className="inline-block">
-            <Image
-              src="/images/logo.png"
-              alt="+TASTAS"
-              width={120}
-              height={32}
-              className="h-8 w-auto"
-              priority
-            />
-          </Link>
-        </div>
-      </header>
-
       {/* メインコンテンツ */}
       <main
         className="max-w-lg mx-auto"
