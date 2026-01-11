@@ -1287,6 +1287,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                   }}
                   required
                   showErrors={showErrors}
+                  legacyName={!formData.bankCode ? formData.bankName : ''}
                 />
               </div>
               <div>
@@ -1311,6 +1312,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                   }}
                   required
                   showErrors={showErrors}
+                  legacyName={!formData.branchCode ? formData.branchName : ''}
                 />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1334,13 +1336,23 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                   <label className="block text-sm font-medium mb-2">口座番号 <span className="text-red-500">*</span></label>
                   <input
                     type="text"
+                    inputMode="numeric"
                     value={formData.accountNumber}
-                    onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
+                    onChange={(e) => {
+                      // 数字のみ許可（全角数字は半角に変換）
+                      const value = e.target.value
+                        .replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
+                        .replace(/[^0-9]/g, '');
+                      setFormData({ ...formData, accountNumber: value });
+                    }}
+                    maxLength={8}
                     className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.accountNumber ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                    placeholder="1234567"
                   />
                   {showErrors && !formData.accountNumber && (
                     <p className="text-red-500 text-xs mt-1">口座番号を入力してください</p>
                   )}
+                  <p className="text-xs text-gray-500 mt-1">※半角数字で入力（7〜8桁）</p>
                 </div>
               </div>
             </div>

@@ -1,14 +1,14 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { X, Loader2, Search, Building2 } from 'lucide-react';
 
-// 銀行データ型
+// 銀行データ型（APIレスポンスに合わせる）
 interface Bank {
   code: string;
   name: string;
-  nameKana: string;
-  isMajor: boolean;
+  kana?: string;  // カタカナ（検索APIのみ）
+  hira?: string;  // ひらがな（検索APIのみ）
 }
 
 interface BankSelectorProps {
@@ -17,6 +17,8 @@ interface BankSelectorProps {
   required?: boolean;
   showErrors?: boolean;
   disabled?: boolean;
+  /** 既存データ（コードなし）の名前表示用 */
+  legacyName?: string;
 }
 
 export default function BankSelector({
@@ -25,7 +27,10 @@ export default function BankSelector({
   required = false,
   showErrors = false,
   disabled = false,
+  legacyName = '',
 }: BankSelectorProps) {
+  // 既存データ表示モード（コードなしで名前だけある場合）
+  const [showLegacy, setShowLegacy] = useState(!!legacyName && !value);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Bank[]>([]);
   const [majorBanks, setMajorBanks] = useState<Bank[]>([]);
@@ -126,8 +131,28 @@ export default function BankSelector({
         </div>
       )}
 
+      {/* 既存データ表示（コードなしで名前だけある場合） */}
+      {!value && showLegacy && legacyName && (
+        <div className="flex items-center gap-2 mb-2">
+          <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-100 text-amber-700 text-sm rounded-lg">
+            <Building2 className="w-4 h-4" />
+            {legacyName}
+            <span className="text-xs text-amber-500">（既存データ）</span>
+            {!disabled && (
+              <button
+                type="button"
+                onClick={() => setShowLegacy(false)}
+                className="hover:text-amber-900 ml-1 text-xs underline"
+              >
+                変更する
+              </button>
+            )}
+          </span>
+        </div>
+      )}
+
       {/* 検索入力 */}
-      {!value && !disabled && (
+      {!value && !showLegacy && !disabled && (
         <>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />

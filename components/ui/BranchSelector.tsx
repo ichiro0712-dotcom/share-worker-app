@@ -18,6 +18,8 @@ interface BranchSelectorProps {
   required?: boolean;
   showErrors?: boolean;
   disabled?: boolean;
+  /** 既存データ（コードなし）の名前表示用 */
+  legacyName?: string;
 }
 
 export default function BranchSelector({
@@ -27,7 +29,10 @@ export default function BranchSelector({
   required = false,
   showErrors = false,
   disabled = false,
+  legacyName = '',
 }: BranchSelectorProps) {
+  // 既存データ表示モード（コードなしで名前だけある場合）
+  const [showLegacy, setShowLegacy] = useState(!!legacyName && !value);
   const [searchQuery, setSearchQuery] = useState('');
   const [branches, setBranches] = useState<Branch[]>([]);
   const [filteredBranches, setFilteredBranches] = useState<Branch[]>([]);
@@ -143,8 +148,28 @@ export default function BranchSelector({
         </div>
       )}
 
+      {/* 既存データ表示（コードなしで名前だけある場合） */}
+      {!value && showLegacy && legacyName && (
+        <div className="flex items-center gap-2 mb-2">
+          <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-100 text-amber-700 text-sm rounded-lg">
+            <MapPin className="w-4 h-4" />
+            {legacyName}
+            <span className="text-xs text-amber-500">（既存データ）</span>
+            {!disabled && (
+              <button
+                type="button"
+                onClick={() => setShowLegacy(false)}
+                className="hover:text-amber-900 ml-1 text-xs underline"
+              >
+                変更する
+              </button>
+            )}
+          </span>
+        </div>
+      )}
+
       {/* 検索入力 */}
-      {!value && !disabled && (
+      {!value && !showLegacy && !disabled && (
         <>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
