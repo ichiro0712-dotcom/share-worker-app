@@ -16,6 +16,7 @@ import { QUALIFICATION_GROUPS } from '@/constants/qualifications';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import BankSelector from '@/components/ui/BankSelector';
 import BranchSelector from '@/components/ui/BranchSelector';
+import { generateBankAccountName } from '@/lib/string-utils';
 
 interface UserProfile {
   id: number;
@@ -171,7 +172,11 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
     bankName: userProfile.bank_name || '',
     branchCode: userProfile.branch_code || '',
     branchName: userProfile.branch_name || '',
-    accountName: userProfile.account_name || '',
+    // 口座名義は姓名カナから自動生成（既存データがあれば維持）
+    accountName: userProfile.account_name || generateBankAccountName(
+      userProfile.last_name_kana || '',
+      userProfile.first_name_kana || ''
+    ),
     accountNumber: userProfile.account_number || '',
 
     // 7. その他
@@ -736,7 +741,12 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
               <label className="block text-sm font-medium mb-2">姓（カナ） <span className="text-red-500">*</span></label>
               <KatakanaInput
                 value={formData.lastNameKana}
-                onChange={(value) => setFormData({ ...formData, lastNameKana: value })}
+                onChange={(value) => setFormData({
+                  ...formData,
+                  lastNameKana: value,
+                  // 口座名義を自動更新
+                  accountName: generateBankAccountName(value, formData.firstNameKana)
+                })}
                 className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.lastNameKana ? 'border-red-500 bg-red-50' : formData.lastNameKana && !isKatakanaOnly(formData.lastNameKana) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                 placeholder="ヤマダ"
               />
@@ -752,7 +762,12 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
               <label className="block text-sm font-medium mb-2">名（カナ） <span className="text-red-500">*</span></label>
               <KatakanaInput
                 value={formData.firstNameKana}
-                onChange={(value) => setFormData({ ...formData, firstNameKana: value })}
+                onChange={(value) => setFormData({
+                  ...formData,
+                  firstNameKana: value,
+                  // 口座名義を自動更新
+                  accountName: generateBankAccountName(formData.lastNameKana, value)
+                })}
                 className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.firstNameKana ? 'border-red-500 bg-red-50' : formData.firstNameKana && !isKatakanaOnly(formData.firstNameKana) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                 placeholder="タロウ"
               />
@@ -1339,19 +1354,17 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium mb-2">口座名義（カナ） <span className="text-red-500">*</span></label>
-                  <KatakanaWithSpaceInput
+                  <input
+                    type="text"
                     value={formData.accountName}
-                    onChange={(value) => setFormData({ ...formData, accountName: value })}
-                    placeholder="ヤマダ タロウ"
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.accountName ? 'border-red-500 bg-red-50' : formData.accountName && !isKatakanaWithSpaceOnly(formData.accountName) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                    readOnly
+                    className="w-full px-3 py-2 border rounded-lg bg-gray-100 text-gray-700 border-gray-300 cursor-not-allowed"
+                    placeholder="姓名（カナ）を入力すると自動生成されます"
                   />
                   {showErrors && !formData.accountName && (
-                    <p className="text-red-500 text-xs mt-1">口座名義を入力してください</p>
+                    <p className="text-red-500 text-xs mt-1">口座名義を生成するには姓名（カナ）を入力してください</p>
                   )}
-                  {formData.accountName && !isKatakanaWithSpaceOnly(formData.accountName) && (
-                    <p className="text-red-500 text-xs mt-1">カタカナで入力してください</p>
-                  )}
-                  <p className="text-xs text-gray-500 mt-1">※カタカナで入力（ひらがなは自動変換）</p>
+                  <p className="text-xs text-gray-500 mt-1">※姓名（カナ）から自動生成されます</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">口座番号 <span className="text-red-500">*</span></label>

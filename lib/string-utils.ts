@@ -54,3 +54,41 @@ export function hiraganaToKatakana(str: string): string {
     return String.fromCharCode(char.charCodeAt(0) + 0x60);
   });
 }
+
+/**
+ * 小文字カタカナを大文字カタカナに変換（銀行口座名義用）
+ * ァ→ア, ィ→イ, ゥ→ウ, ェ→エ, ォ→オ, ッ→ツ, ャ→ヤ, ュ→ユ, ョ→ヨ, ヮ→ワ
+ */
+export function smallKatakanaToLarge(str: string): string {
+  const smallToLargeMap: Record<string, string> = {
+    'ァ': 'ア',
+    'ィ': 'イ',
+    'ゥ': 'ウ',
+    'ェ': 'エ',
+    'ォ': 'オ',
+    'ッ': 'ツ',
+    'ャ': 'ヤ',
+    'ュ': 'ユ',
+    'ョ': 'ヨ',
+    'ヮ': 'ワ',
+  };
+
+  return str.replace(/[ァィゥェォッャュョヮ]/g, (char) => smallToLargeMap[char] || char);
+}
+
+/**
+ * 銀行口座名義を生成（姓カナ + 全角スペース + 名カナ）
+ * - 小文字カタカナは大文字に変換
+ * - 全角スペースで結合
+ */
+export function generateBankAccountName(lastNameKana: string, firstNameKana: string): string {
+  if (!lastNameKana || !firstNameKana) {
+    return '';
+  }
+
+  const lastName = smallKatakanaToLarge(lastNameKana.trim());
+  const firstName = smallKatakanaToLarge(firstNameKana.trim());
+
+  // 全角スペースで結合
+  return `${lastName}　${firstName}`;
+}
