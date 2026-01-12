@@ -10,6 +10,8 @@ const withPWA = withPWAInit({
   scope: '/',
   // カスタムService Workerを使用
   sw: 'sw.js',
+  // プッシュ通知用のカスタムワーカー
+  customWorkerSrc: 'worker',
 });
 
 /** @type {import('next').NextConfig} */
