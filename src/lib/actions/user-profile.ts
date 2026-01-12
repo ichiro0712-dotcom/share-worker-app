@@ -6,6 +6,7 @@ import { getAuthenticatedUser, FileBlob } from './helpers';
 import { geocodeAddress } from '@/src/lib/geocoding';
 import { uploadFile, STORAGE_BUCKETS } from '@/lib/supabase';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
+import { generateBankAccountName } from '@/lib/string-utils';
 
 /**
  * プロフィールの完成状態をチェックする
@@ -455,7 +456,8 @@ export async function updateUserProfile(formData: FormData) {
                 bank_name: bankName || null,
                 branch_code: branchCode || null,
                 branch_name: branchName || null,
-                account_name: accountName || null,
+                // 口座名義は姓名カナから自動生成（小文字カタカナは大文字に変換）
+                account_name: generateBankAccountName(lastNameKana || '', firstNameKana || '') || null,
                 account_number: accountNumber || null,
                 pension_number: pensionNumber || null,
                 id_document: idDocumentPath,
