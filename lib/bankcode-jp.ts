@@ -6,6 +6,20 @@
 
 const BANKCODE_JP_BASE_URL = 'https://apis.bankcode-jp.com/v3';
 
+// HTTPリファラー（BankcodeJPのAPI制限用）
+const getReferer = () => {
+  // 本番環境
+  if (process.env.VERCEL_ENV === 'production') {
+    return 'https://share-worker-app.vercel.app/';
+  }
+  // プレビュー/ステージング環境
+  if (process.env.VERCEL_ENV === 'preview') {
+    return 'https://stg-share-worker.vercel.app/';
+  }
+  // ローカル開発環境
+  return 'http://localhost:3000/';
+};
+
 export interface BankcodeJPBank {
   code: string;
   name: string;
@@ -69,6 +83,7 @@ export async function searchBanksFromAPI(
     const response = await fetch(url.toString(), {
       headers: {
         apikey: apiKey,
+        Referer: getReferer(),
       },
       next: { revalidate: 3600 }, // 1時間キャッシュ
     });
@@ -112,6 +127,7 @@ export async function searchBranchesFromAPI(
     const response = await fetch(url.toString(), {
       headers: {
         apikey: apiKey,
+        Referer: getReferer(),
       },
       next: { revalidate: 3600 },
     });
@@ -148,6 +164,7 @@ export async function getBankFromAPI(bankCode: string): Promise<BankcodeJPBank |
     const response = await fetch(url.toString(), {
       headers: {
         apikey: apiKey,
+        Referer: getReferer(),
       },
       next: { revalidate: 86400 }, // 24時間キャッシュ
     });
@@ -184,6 +201,7 @@ export async function getAllBranchesFromAPI(
     const response = await fetch(url.toString(), {
       headers: {
         apikey: apiKey,
+        Referer: getReferer(),
       },
       next: { revalidate: 86400 },
     });
