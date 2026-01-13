@@ -212,10 +212,35 @@ export async function getPublicLaborDocumentPreview(id: string) {
  * 公開用求人一覧を取得（サイトマップ用）
  */
 export async function getPublicJobsForSitemap() {
+    const now = getCurrentTime();
+    const todayStart = getJSTTodayStart(now);
+
     const jobs = await prisma.job.findMany({
         where: {
             status: 'PUBLISHED',
             job_type: 'NORMAL',
+            // 今日以降の有効な勤務日が少なくとも1つ存在する求人のみ
+            workDates: {
+                some: {
+                    work_date: { gte: todayStart },
+                    AND: [
+                        // 募集開始日時を過ぎている
+                        {
+                            OR: [
+                                { visible_from: { lte: now } },
+                                { visible_from: null }
+                            ]
+                        },
+                        // 表示期限内
+                        {
+                            OR: [
+                                { visible_until: { gte: now } },
+                                { visible_until: null }
+                            ]
+                        }
+                    ]
+                }
+            }
         },
         select: {
             id: true,
