@@ -15,10 +15,12 @@ import {
   Heart,
   Ban,
   FileText,
-  CalendarDays
+  CalendarDays,
+  ChevronDown
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useErrorToast } from '@/components/ui/PersistentErrorToast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import JobApplicationModal from '@/components/admin/JobApplicationModal';
 import { MonthlyShiftView } from '@/components/admin/MonthlyShiftView';
 import { useAuth } from '@/contexts/AuthContext';
@@ -33,6 +35,9 @@ import {
 } from '@/src/lib/actions';
 import { getQualificationAbbreviations } from '@/src/lib/content-actions';
 import { Pagination } from '@/components/ui/Pagination';
+import { useApplicationsByJob, useApplicationsByWorker, JobApplicationsSortOption } from '@/hooks/useApplications';
+import { ApplicationsSkeleton } from '@/components/admin/ApplicationsSkeleton';
+import { QUALIFICATION_GROUPS } from '@/constants/qualifications';
 
 // 型定義
 interface PaginationData {
@@ -70,10 +75,13 @@ interface WorkDate {
   applications: Application[];
 }
 
+type JobType = 'NORMAL' | 'LIMITED_WORKED' | 'LIMITED_FAVORITE' | 'ORIENTATION' | 'OFFER';
+
 interface JobWithApplications {
   id: number;
   title: string;
   status: string;
+  jobType: JobType;
   startTime: string;
   endTime: string;
   hourlyWage: number;
@@ -119,6 +127,7 @@ interface WorkerWithApplications {
       endTime: string;
       hourlyWage: number;
       requiresInterview: boolean;
+      jobType?: 'NORMAL' | 'OFFER' | 'LIMITED_WORKED' | 'LIMITED_FAVORITE' | 'ORIENTATION';
     };
   }[];
   unviewedCount: number; // ワーカーごとの未確認応募数
@@ -161,22 +170,65 @@ const getExperienceColorByField = (field: string): string => {
 
 function ApplicationsContent() {
   const router = useRouter();
+  const { showDebugError } = useDebugError();
   const { admin, isAdmin, isAdminLoading } = useAuth();
-  const [jobs, setJobs] = useState<JobWithApplications[]>([]);
-  const [workers, setWorkers] = useState<WorkerWithApplications[]>([]);
-  const [jobsPagination, setJobsPagination] = useState<PaginationData | null>(null);
-  const [workersPagination, setWorkersPagination] = useState<PaginationData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState<number | null>(null);
 
   // タブ切り替え状態
   const [viewMode, setViewMode] = useState<'jobs' | 'workers' | 'shift'>('jobs');
 
   // フィルタ・検索状態
-  const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'stopped' | 'completed'>('all');
+  const searchParams = useSearchParams();
+  const initialStatusFilter = searchParams.get('status') as 'all' | 'published' | 'stopped' | 'completed' | null;
+  const initialPage = searchParams.get('page');
+
+  const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'stopped' | 'completed'>(
+    initialStatusFilter && ['all', 'published', 'stopped', 'completed'].includes(initialStatusFilter)
+      ? initialStatusFilter
+      : 'all'
+  );
+  const [jobTypeFilter, setJobTypeFilter] = useState<string>('all');
+  const [qualificationCategory, setQualificationCategory] = useState<string>('all');
+  const [workerSortBy, setWorkerSortBy] = useState<string>('workCount_desc');
+  const initialJobSort = searchParams.get('jobSort') as JobApplicationsSortOption | null;
+  const [jobSortBy, setJobSortBy] = useState<JobApplicationsSortOption>(
+    initialJobSort && ['created_desc', 'created_asc', 'applied_desc', 'applied_asc', 'unviewed_desc', 'workDate_asc', 'workDate_desc'].includes(initialJobSort)
+      ? initialJobSort : 'created_desc'
+  );
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(initialPage ? parseInt(initialPage) : 1);
+
+  // statusFilter変更時のURL更新用関数を追加
+  const updateUrlParams = (newStatus?: string, newPage?: number, newJobSort?: string) => {
+    const params = new URLSearchParams(window.location.search);
+
+    if (newStatus !== undefined) {
+      if (newStatus === 'all') {
+        params.delete('status');
+      } else {
+        params.set('status', newStatus);
+      }
+    }
+
+    if (newPage !== undefined) {
+      if (newPage === 1) {
+        params.delete('page');
+      } else {
+        params.set('page', newPage.toString());
+      }
+    }
+
+    if (newJobSort !== undefined) {
+      if (newJobSort === 'created_desc') {
+        params.delete('jobSort');
+      } else {
+        params.set('jobSort', newJobSort);
+      }
+    }
+
+    router.replace(`/admin/applications?${params.toString()}`, { scroll: false });
+  };
 
   // 検索クエリのデバウンス
   useEffect(() => {
@@ -200,17 +252,22 @@ function ApplicationsContent() {
   // ワーカーの状態管理（お気に入り・ブロック）
   const [workerStates, setWorkerStates] = useState<Record<number, { isFavorite: boolean; isBlocked: boolean }>>({});
 
-  // タブ別の未対応件数
-  const [tabBadges, setTabBadges] = useState<{
-    byJob: number;
-    byWorker: number;
-  }>({ byJob: 0, byWorker: 0 });
 
   // 資格略称マッピング
   const [qualificationAbbreviations, setQualificationAbbreviations] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const fetchAbbreviations = async () => {
+      try {
+        const abbreviations = await getQualificationAbbreviations();
+        setQualificationAbbreviations(abbreviations);
+      } catch (error) {
+        console.error('Failed to fetch abbreviations:', error);
+      }
+    };
+    fetchAbbreviations();
+  }, []);
 
   // URLパラメータからタブを復元
-  const searchParams = useSearchParams();
   useEffect(() => {
     const tab = searchParams.get('tab');
     if (tab === 'workers') {
@@ -230,86 +287,67 @@ function ApplicationsContent() {
     }
   }, [isAdmin, admin, isAdminLoading, router]);
 
-  // データ取得
-  const fetchData = async () => {
-    if (!admin?.facilityId) return;
+  // SWRでデータ取得
+  const {
+    jobs = [],
+    pagination: jobsPagination,
+    isLoading: isJobsLoading,
+    mutate: mutateJobs,
+  } = useApplicationsByJob({
+    facilityId: admin?.facilityId,
+    page: viewMode === 'jobs' ? page : 1,
+    status: statusFilter,
+    query: debouncedQuery,
+    sort: jobSortBy,
+  });
 
-    setIsLoading(true);
-    try {
-      // ステータスマッピング
-      const statusMap: Record<string, 'all' | 'PUBLISHED' | 'STOPPED' | 'COMPLETED'> = {
-        all: 'all',
-        published: 'PUBLISHED',
-        stopped: 'STOPPED',
-        completed: 'COMPLETED'
-      };
+  const {
+    workers = [],
+    pagination: workersPagination,
+    isLoading: isWorkersLoading,
+    mutate: mutateWorkers,
+  } = useApplicationsByWorker({
+    facilityId: admin?.facilityId,
+    page: viewMode === 'workers' ? page : 1,
+    query: debouncedQuery,
+  });
 
-      // 並列でデータ取得
-      const [jobsResponse, workersResponse, abbreviations] = await Promise.all([
-        getJobsWithApplications(admin.facilityId, {
-          page: viewMode === 'jobs' ? page : 1,
-          limit: 10,
-          status: statusMap[statusFilter],
-          query: debouncedQuery
-        }),
-        getApplicationsByWorker(admin.facilityId, {
-          page: viewMode === 'workers' ? page : 1,
-          limit: 10,
-          query: debouncedQuery
-        }),
-        getQualificationAbbreviations(),
-      ]);
+  const isLoading = isJobsLoading || isWorkersLoading;
 
-      setJobs(jobsResponse.data as any); // 型の不一致回避（厳密には修正推奨）
-      setJobsPagination(jobsResponse.pagination);
+  // タブバッジの計算
+  const tabBadges = useMemo(() => ({
+    byJob: jobs.reduce((sum, j) => sum + (j.unviewedCount || 0), 0),
+    byWorker: workers.filter(w => (w.unviewedCount || 0) > 0).length,
+  }), [jobs, workers]);
 
-      setWorkers(workersResponse.data as any);
-      setWorkersPagination(workersResponse.pagination);
-
-      setQualificationAbbreviations(abbreviations);
-
-      // タブバッジの更新（注: ページネーション時は現在のページのみの集計となる制限あり）
-      // 本来は別途統計APIを呼ぶべきだが、一旦現状維持
-      setTabBadges({
-        byJob: jobsResponse.data.reduce((sum: number, j: any) => sum + j.unviewedCount, 0),
-        byWorker: workersResponse.data.filter((w: any) => w.unviewedCount > 0).length,
-      });
-
-      // ワーカー状態の初期化
+  // ワーカー状態の同期 (SWRの結果が更新された時に反映)
+  useEffect(() => {
+    if (workers.length > 0) {
       const initialStates: Record<number, { isFavorite: boolean; isBlocked: boolean }> = {};
-      (workersResponse.data as any[]).forEach(w => {
+      workers.forEach(w => {
         initialStates[w.worker.id] = {
           isFavorite: w.worker.isFavorite,
           isBlocked: w.worker.isBlocked
         };
       });
       setWorkerStates(initialStates);
-
-      // 選択中のジョブがあれば更新
-      if (selectedJob) {
-        const updatedJob = (jobsResponse.data as any[]).find(j => j.id === selectedJob.id);
-        if (updatedJob) {
-          setSelectedJob(updatedJob);
-        }
-      }
-      // 選択中のワーカーがあれば更新
-      if (selectedWorker) {
-        const updatedWorker = (workersResponse.data as any[]).find(w => w.worker.id === selectedWorker.worker.id);
-        if (updatedWorker) {
-          setSelectedWorker(updatedWorker);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to fetch data:', error);
-      toast.error('データの取得に失敗しました');
-    } finally {
-      setIsLoading(false);
     }
-  };
+  }, [workers]);
+
+  // 選択中のアイテム更新 (SWRの結果が更新された時に反映)
+  useEffect(() => {
+    if (selectedJob) {
+      const updatedJob = jobs.find((j: any) => j.id === selectedJob.id);
+      if (updatedJob) setSelectedJob(updatedJob);
+    }
+  }, [jobs]);
 
   useEffect(() => {
-    fetchData();
-  }, [admin?.facilityId, page, statusFilter, debouncedQuery, viewMode]);
+    if (selectedWorker) {
+      const updatedWorker = workers.find((w: any) => w.worker.id === selectedWorker.worker.id);
+      if (updatedWorker) setSelectedWorker(updatedWorker);
+    }
+  }, [workers]);
 
   // ステータス更新処理
   // ステータス更新処理
@@ -337,16 +375,19 @@ function ApplicationsContent() {
         applications: updateAppStatus(wd.applications)
       }))
     }));
-    setJobs(nextJobs);
-
-    // 2. Workers更新
+    // 楽観的更新
+    if (jobsPagination) {
+      mutateJobs({ data: nextJobs, pagination: jobsPagination }, false);
+    }
     const nextWorkers = workers.map(w => ({
       ...w,
       applications: w.applications.map(app =>
         app.id === applicationId ? { ...app, status: newStatus } : app
       )
     }));
-    setWorkers(nextWorkers);
+    if (workersPagination) {
+      mutateWorkers({ data: nextWorkers, pagination: workersPagination }, false);
+    }
 
     // 3. 選択中アイテム更新
     if (selectedJob) {
@@ -376,15 +417,30 @@ function ApplicationsContent() {
 
       if (result.success) {
         // 成功時はバックグラウンドで最新データを取得（整合性確保）
-        fetchData();
+        mutateJobs();
+        mutateWorkers();
       } else {
         throw new Error(result.error);
       }
     } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'update',
+        operation: '応募ステータス更新',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { applicationId, newStatus, facilityId: admin.facilityId }
+      });
       console.error('Failed to update status:', error);
       // ロールバック
-      setJobs(prevJobs);
-      setWorkers(prevWorkers);
+      // ロールバック
+      if (jobsPagination) {
+        mutateJobs({ data: prevJobs, pagination: jobsPagination }, false);
+      }
+      if (workersPagination) {
+        mutateWorkers({ data: prevWorkers, pagination: workersPagination }, false);
+      }
       setSelectedJob(prevSelectedJob);
       setSelectedWorker(prevSelectedWorker);
 
@@ -412,13 +468,23 @@ function ApplicationsContent() {
         const result = await updateApplicationStatus(app.id, 'SCHEDULED', admin.facilityId);
         if (result.success) successCount++;
       } catch (error) {
+        const debugInfo = extractDebugInfo(error);
+        showDebugError({
+          type: 'update',
+          operation: '一括マッチング(個別失敗)',
+          message: debugInfo.message,
+          details: debugInfo.details,
+          stack: debugInfo.stack,
+          context: { applicationId: app.id, facilityId: admin.facilityId }
+        });
         console.error(`Failed to match app ${app.id}:`, error);
       }
     }
 
     setIsUpdating(null);
     toast.success(`${successCount}件のマッチングが完了しました`);
-    await fetchData();
+    mutateJobs();
+    mutateWorkers();
   };
 
   // お気に入り切り替え
@@ -439,18 +505,22 @@ function ApplicationsContent() {
       const result = await toggleWorkerFavorite(workerId, admin.facilityId);
       if (!result.success) {
         // 失敗したら戻す
-        setWorkerStates(prev => ({
-          ...prev,
-          [workerId]: {
-            ...prev[workerId],
-            isFavorite: !prev[workerId]?.isFavorite
-          }
-        }));
+        mutateWorkers();
         toast.error('お気に入りの更新に失敗しました');
       } else {
         toast.success(result.isFavorite ? 'お気に入りに追加しました' : 'お気に入りを解除しました');
+        mutateWorkers();
       }
     } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'update',
+        operation: 'ワーカーお気に入りトグル',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { workerId, facilityId: admin?.facilityId }
+      });
       console.error('Failed to toggle favorite:', error);
       // エラー時も戻す
       setWorkerStates(prev => ({
@@ -485,18 +555,22 @@ function ApplicationsContent() {
       const result = await toggleWorkerBlock(workerId, admin.facilityId);
       if (!result.success) {
         // 失敗したら戻す
-        setWorkerStates(prev => ({
-          ...prev,
-          [workerId]: {
-            ...prev[workerId],
-            isBlocked: !prev[workerId]?.isBlocked
-          }
-        }));
+        mutateWorkers();
         toast.error('ブロックの更新に失敗しました');
       } else {
         toast.success(result.isBlocked ? 'ブロックしました' : 'ブロックを解除しました');
+        mutateWorkers();
       }
     } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'update',
+        operation: 'ワーカーブロックトグル',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { workerId, facilityId: admin?.facilityId }
+      });
       console.error('Failed to toggle block:', error);
       // エラー時も戻す
       setWorkerStates(prev => ({
@@ -509,9 +583,70 @@ function ApplicationsContent() {
     }
   };
 
-  // フィルタリング (サーバーサイドに移行したため、ここでは単純にデータを通す)
-  const filteredJobs = jobs;
-  const filteredWorkers = workers;
+  // フィルタリング (求人種別フィルタと資格フィルタを適用)
+  const filteredJobs = useMemo(() => {
+    let result = [...jobs];
+
+    // 求人種別でフィルタリング
+    if (jobTypeFilter !== 'all') {
+      result = result.filter(job => job.jobType === jobTypeFilter);
+    }
+
+    // 資格カテゴリでフィルタリング（求人の必須資格で絞り込み）
+    if (qualificationCategory !== 'all') {
+      const categoryGroup = QUALIFICATION_GROUPS.find(g => g.name === qualificationCategory);
+      if (categoryGroup) {
+        const categoryQualifications = categoryGroup.qualifications as readonly string[];
+        result = result.filter(job =>
+          job.requiredQualifications.some(qual =>
+            categoryQualifications.includes(qual)
+          )
+        );
+      }
+    }
+
+    return result;
+  }, [jobs, jobTypeFilter, qualificationCategory]);
+
+  const filteredWorkers = useMemo(() => {
+    let result = [...workers];
+
+    // 資格カテゴリでフィルタリング
+    if (qualificationCategory !== 'all') {
+      const categoryGroup = QUALIFICATION_GROUPS.find(g => g.name === qualificationCategory);
+      if (categoryGroup) {
+        const categoryQualifications = categoryGroup.qualifications as readonly string[];
+        result = result.filter(workerData =>
+          workerData.worker.qualifications.some(qual =>
+            categoryQualifications.includes(qual)
+          )
+        );
+      }
+    }
+
+    // 並べ替え
+    result.sort((a, b) => {
+      switch (workerSortBy) {
+        case 'workCount_desc':
+          return b.worker.totalWorkDays - a.worker.totalWorkDays;
+        case 'workCount_asc':
+          return a.worker.totalWorkDays - b.worker.totalWorkDays;
+        case 'lastWorkDate_desc':
+          // 最近応募した順（応募日でソート）
+          const aLatest = a.applications.length > 0 ? new Date(a.applications[0].createdAt).getTime() : 0;
+          const bLatest = b.applications.length > 0 ? new Date(b.applications[0].createdAt).getTime() : 0;
+          return bLatest - aLatest;
+        case 'lastWorkDate_asc':
+          const aOldest = a.applications.length > 0 ? new Date(a.applications[0].createdAt).getTime() : Infinity;
+          const bOldest = b.applications.length > 0 ? new Date(b.applications[0].createdAt).getTime() : Infinity;
+          return aOldest - bOldest;
+        default:
+          return 0;
+      }
+    });
+
+    return result;
+  }, [workers, qualificationCategory, workerSortBy]);
 
   // 日付ごとの展開切り替え
   const toggleDateExpand = (dateId: number) => {
@@ -540,8 +675,12 @@ function ApplicationsContent() {
 
   if (isLoading && jobs.length === 0) {
     return (
-      <div className="h-full bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-admin-primary"></div>
+      <div className="h-full bg-gray-50 flex flex-col p-6">
+        <div className="mb-6">
+          <div className="h-8 bg-gray-200 rounded w-1/4 animate-pulse mb-2" />
+          <div className="h-4 bg-gray-200 rounded w-1/2 animate-pulse" />
+        </div>
+        <ApplicationsSkeleton />
       </div>
     );
   }
@@ -552,99 +691,221 @@ function ApplicationsContent() {
         {/* ヘッダー */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">応募管理</h1>
-          <p className="text-gray-500 mt-1">求人またはワーカーごとの応募状況を確認・管理できます</p>
         </div>
 
         {/* タブ切り替え */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-1 mb-6 inline-flex">
-          <button
-            onClick={() => setViewMode('jobs')}
-            className={`px-4 py-2 text-sm font-medium rounded transition-colors flex items-center gap-2 ${viewMode === 'jobs'
-              ? 'bg-admin-primary text-white'
-              : 'text-gray-600 hover:bg-gray-100'
-              }`}
-          >
-            <Briefcase className="w-4 h-4" />
-            求人から
-            {tabBadges.byJob > 0 && (
-              <span className={`text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 ${viewMode === 'jobs' ? 'bg-white text-admin-primary' : 'bg-red-500 text-white'
-                }`}>
-                {tabBadges.byJob}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setViewMode('workers')}
-            className={`px-4 py-2 text-sm font-medium rounded transition-colors flex items-center gap-2 ${viewMode === 'workers'
-              ? 'bg-admin-primary text-white'
-              : 'text-gray-600 hover:bg-gray-100'
-              }`}
-          >
-            <Users className="w-4 h-4" />
-            ワーカーから
-            {tabBadges.byWorker > 0 && (
-              <span className={`text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 ${viewMode === 'workers' ? 'bg-white text-admin-primary' : 'bg-red-500 text-white'
-                }`}>
-                {tabBadges.byWorker}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setViewMode('shift')}
-            className={`px-4 py-2 text-sm font-medium rounded transition-colors flex items-center gap-2 ${viewMode === 'shift'
-              ? 'bg-admin-primary text-white'
-              : 'text-gray-600 hover:bg-gray-100'
-              }`}
-          >
-            <CalendarDays className="w-4 h-4" />
-            シフトから
-          </button>
+        <div className="flex items-center gap-4 mb-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-1 inline-flex">
+            <button
+              onClick={() => setViewMode('jobs')}
+              className={`px-4 py-2 text-sm font-medium rounded transition-colors flex items-center gap-2 ${viewMode === 'jobs'
+                ? 'bg-admin-primary text-white'
+                : 'text-gray-600 hover:bg-gray-100'
+                }`}
+            >
+              <Briefcase className="w-4 h-4" />
+              求人から
+              {tabBadges.byJob > 0 && (
+                <span className={`text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 ${viewMode === 'jobs' ? 'bg-white text-admin-primary' : 'bg-red-500 text-white'
+                  }`}>
+                  {tabBadges.byJob}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setViewMode('workers')}
+              className={`px-4 py-2 text-sm font-medium rounded transition-colors flex items-center gap-2 ${viewMode === 'workers'
+                ? 'bg-admin-primary text-white'
+                : 'text-gray-600 hover:bg-gray-100'
+                }`}
+            >
+              <Users className="w-4 h-4" />
+              ワーカーから
+              {tabBadges.byWorker > 0 && (
+                <span className={`text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 ${viewMode === 'workers' ? 'bg-white text-admin-primary' : 'bg-red-500 text-white'
+                  }`}>
+                  {tabBadges.byWorker}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setViewMode('shift')}
+              className={`px-4 py-2 text-sm font-medium rounded transition-colors flex items-center gap-2 ${viewMode === 'shift'
+                ? 'bg-admin-primary text-white'
+                : 'text-gray-600 hover:bg-gray-100'
+                }`}
+            >
+              <CalendarDays className="w-4 h-4" />
+              シフトから
+            </button>
+          </div>
+
+          {/* シフトビューの場合は求人種別フィルタと資格フィルタをタブの右に表示 */}
+          {viewMode === 'shift' && (
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-700 font-medium">求人種別:</span>
+                <select
+                  value={jobTypeFilter}
+                  onChange={(e) => {
+                    setJobTypeFilter(e.target.value);
+                    setPage(1);
+                  }}
+                  className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-admin-primary bg-white"
+                >
+                  <option value="all">すべて</option>
+                  <option value="NORMAL">通常</option>
+                  <option value="LIMITED_WORKED">限定（勤務実績）</option>
+                  <option value="LIMITED_FAVORITE">限定（お気に入り）</option>
+                  <option value="OFFER">オファー</option>
+                  <option value="ORIENTATION">説明会</option>
+                </select>
+              </div>
+
+              {/* 資格フィルタ */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-700 font-medium">資格:</span>
+                <select
+                  value={qualificationCategory}
+                  onChange={(e) => {
+                    setQualificationCategory(e.target.value);
+                    setPage(1);
+                  }}
+                  className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-admin-primary bg-white"
+                >
+                  <option value="all">すべて</option>
+                  {QUALIFICATION_GROUPS.map((group) => (
+                    <option key={group.name} value={group.name}>
+                      {group.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* フィルタ・検索 - シフトビュー以外で表示 */}
         {viewMode !== 'shift' && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6 flex flex-wrap gap-4 items-center justify-between">
-            {/* 求人ビューの場合はステータスフィルタを表示 */}
+            {/* 求人ビューの場合は求人種別フィルタと資格フィルタを表示 */}
             {viewMode === 'jobs' && (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setStatusFilter('all')}
-                  className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${statusFilter === 'all' ? 'bg-admin-primary text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                >
-                  すべて
-                </button>
-                <button
-                  onClick={() => setStatusFilter('published')}
-                  className={`px-3 py-1.5 text-xs font-medium rounded transition-colors flex items-center gap-1.5 ${statusFilter === 'published' ? 'bg-gray-200 text-gray-900' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                >
-                  <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                  公開中
-                </button>
-                <button
-                  onClick={() => setStatusFilter('stopped')}
-                  className={`px-3 py-1.5 text-xs font-medium rounded transition-colors flex items-center gap-1.5 ${statusFilter === 'stopped' ? 'bg-gray-200 text-gray-900' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                >
-                  <span className="w-2 h-2 rounded-full bg-gray-400"></span>
-                  停止中
-                </button>
-                <button
-                  onClick={() => setStatusFilter('completed')}
-                  className={`px-3 py-1.5 text-xs font-medium rounded transition-colors flex items-center gap-1.5 ${statusFilter === 'completed' ? 'bg-gray-200 text-gray-900' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                >
-                  <span className="w-2 h-2 rounded-full bg-gray-400"></span>
-                  完了
-                </button>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-700 font-medium">求人種別:</span>
+                  <select
+                    value={jobTypeFilter}
+                    onChange={(e) => {
+                      setJobTypeFilter(e.target.value);
+                      setPage(1);
+                    }}
+                    className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-admin-primary"
+                  >
+                    <option value="all">すべて</option>
+                    <option value="NORMAL">通常</option>
+                    <option value="LIMITED_WORKED">限定（勤務実績）</option>
+                    <option value="LIMITED_FAVORITE">限定（お気に入り）</option>
+                    <option value="OFFER">オファー</option>
+                    <option value="ORIENTATION">説明会</option>
+                  </select>
+                </div>
+
+                {/* 資格フィルタ */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-700 font-medium">資格:</span>
+                  <select
+                    value={qualificationCategory}
+                    onChange={(e) => {
+                      setQualificationCategory(e.target.value);
+                      setPage(1);
+                    }}
+                    className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-admin-primary"
+                  >
+                    <option value="all">すべて</option>
+                    {QUALIFICATION_GROUPS.map((group) => (
+                      <option key={group.name} value={group.name}>
+                        {group.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 並び替え */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-700 font-medium">並び替え:</span>
+                  <div className="relative">
+                    <select
+                      name="jobSort"
+                      value={jobSortBy}
+                      onChange={(e) => {
+                        const newSort = e.target.value as JobApplicationsSortOption;
+                        setJobSortBy(newSort);
+                        setPage(1);
+                        updateUrlParams(undefined, 1, newSort);
+                      }}
+                      className="appearance-none bg-white border border-gray-300 rounded pl-3 pr-8 py-2 text-sm focus:ring-2 focus:ring-admin-primary focus:border-transparent cursor-pointer"
+                    >
+                      <option value="created_desc">作成日（新しい順）</option>
+                      <option value="created_asc">作成日（古い順）</option>
+                      <option value="applied_desc">応募数（多い順）</option>
+                      <option value="applied_asc">応募数（少ない順）</option>
+                      <option value="unviewed_desc">未確認応募（多い順）</option>
+                      <option value="workDate_asc">勤務日（近い順）</option>
+                      <option value="workDate_desc">勤務日（遠い順）</option>
+                    </select>
+                    <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  </div>
+                </div>
               </div>
             )}
 
-            {/* ワーカービューの場合は件数を表示 */}
+            {/* ワーカービューの場合は資格カテゴリフィルタと並べ替えを表示 */}
             {viewMode === 'workers' && (
-              <div className="text-sm text-gray-600">
-                応募ワーカー: {filteredWorkers.length}名
+              <div className="flex items-center gap-4">
+                {/* 資格カテゴリフィルタ */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-700 font-medium">資格:</span>
+                  <select
+                    value={qualificationCategory}
+                    onChange={(e) => {
+                      setQualificationCategory(e.target.value);
+                      setPage(1);
+                    }}
+                    className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-admin-primary"
+                  >
+                    <option value="all">すべて</option>
+                    {QUALIFICATION_GROUPS.map((group) => (
+                      <option key={group.name} value={group.name}>
+                        {group.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 並び替え */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-700 font-medium">並び替え:</span>
+                  <div className="relative">
+                    <select
+                      value={workerSortBy}
+                      onChange={(e) => {
+                        setWorkerSortBy(e.target.value);
+                        setPage(1);
+                      }}
+                      className="appearance-none bg-white border border-gray-300 rounded pl-3 pr-8 py-2 text-sm focus:ring-2 focus:ring-admin-primary focus:border-transparent cursor-pointer"
+                    >
+                      <option value="workCount_desc">勤務回数（多い順）</option>
+                      <option value="workCount_asc">勤務回数（少ない順）</option>
+                      <option value="lastWorkDate_desc">最終勤務日（新しい順）</option>
+                      <option value="lastWorkDate_asc">最終勤務日（古い順）</option>
+                    </select>
+                    <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  </div>
+                </div>
+
+                <div className="text-sm text-gray-600">
+                  応募ワーカー: {filteredWorkers.length}名
+                </div>
               </div>
             )}
 
@@ -664,7 +925,13 @@ function ApplicationsContent() {
         {/* シフトビュー */}
         {viewMode === 'shift' && (
           <div className="h-[calc(100vh-220px)]">
-            <MonthlyShiftView jobs={jobs as any} qualificationAbbreviations={qualificationAbbreviations} />
+            <MonthlyShiftView
+              jobs={filteredJobs as any}
+              qualificationAbbreviations={qualificationAbbreviations}
+              onStatusUpdate={handleStatusUpdate}
+              onMatchAll={handleMatchAll}
+              isUpdating={isUpdating}
+            />
           </div>
         )}
 
@@ -681,6 +948,63 @@ function ApplicationsContent() {
                   ? Math.round((job.totalMatched / job.totalRecruitment) * 100)
                   : 0;
 
+                // オファー求人は専用のカードデザイン（/admin/jobsと同じスタイル）
+                if (job.jobType === 'OFFER') {
+                  return (
+                    <div
+                      key={job.id}
+                      onClick={async () => {
+                        setSelectedJob(job);
+                        const activeDateIds = job.workDates
+                          .filter(wd => wd.applications.length > 0)
+                          .map(wd => wd.id);
+                        setExpandedDates(new Set(activeDateIds));
+                        if (admin?.facilityId && job.unviewedCount > 0) {
+                          await markJobApplicationsAsViewed(admin.facilityId, job.id);
+                          mutateJobs();
+                        }
+                      }}
+                      className="bg-blue-50 rounded-admin-card border-2 border-blue-200 hover:border-blue-400 hover:shadow-md transition-all p-4 cursor-pointer"
+                    >
+                      {/* 1行目: オファーバッジ + 対象者名 + 求人名 */}
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="px-2 py-0.5 text-xs font-bold rounded bg-blue-600 text-white">
+                          オファ
+                        </span>
+                        <span className="text-sm font-medium text-blue-700">
+                          → {(job as any).targetWorkerName || '（対象者不明）'}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-gray-600 truncate">{job.title}</p>
+                        </div>
+                        {/* 未確認応募バッジ */}
+                        {job.unviewedCount > 0 && (
+                          <span className="flex items-center gap-1 px-2 py-0.5 text-xs font-bold rounded-full bg-red-500 text-white animate-pulse">
+                            <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
+                            新着 {job.unviewedCount}件
+                          </span>
+                        )}
+                      </div>
+
+                      {/* 2行目: 時給・日時 */}
+                      <div className="flex items-center gap-3">
+                        <div className="flex-shrink-0 flex items-center gap-1 text-xs font-medium text-blue-700">
+                          <span>¥{job.hourlyWage.toLocaleString()}/時</span>
+                        </div>
+                        <div className="flex-shrink-0">
+                          <div className="flex items-center gap-1 text-xs text-gray-700">
+                            <Calendar className="w-3 h-3 text-gray-400" />
+                            <span>{job.dateRange}</span>
+                            <span className="text-gray-400">•</span>
+                            <span>{job.startTime}〜{job.endTime}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
+                // 通常の求人カード
                 return (
                   <div
                     key={job.id}
@@ -694,16 +1018,8 @@ function ApplicationsContent() {
 
                       // この求人の未確認応募を既読にする
                       if (admin?.facilityId && job.unviewedCount > 0) {
-                        const unviewedToRemove = job.unviewedCount;
                         await markJobApplicationsAsViewed(admin.facilityId, job.id);
-                        // ローカルの状態を更新（バッジを消す）
-                        setJobs(prev => prev.map(j =>
-                          j.id === job.id ? { ...j, unviewedCount: 0 } : j
-                        ));
-                        setTabBadges(prev => ({
-                          ...prev,
-                          byJob: Math.max(0, prev.byJob - unviewedToRemove)
-                        }));
+                        mutateJobs();
                       }
                     }}
                     className="bg-white rounded-admin-card border border-gray-200 p-5 hover:shadow-md hover:border-admin-primary transition-all cursor-pointer group"
@@ -721,6 +1037,21 @@ function ApplicationsContent() {
                                 job.status === 'COMPLETED' ? '完了' :
                                   job.status === 'STOPPED' ? '停止中' : job.status}
                           </span>
+                          {/* 求人種別バッジ */}
+                          {job.jobType && job.jobType !== 'NORMAL' && (
+                            <span className={`px-2 py-0.5 text-xs font-bold rounded shadow-sm ${
+                              job.jobType === 'LIMITED_WORKED' ? 'bg-purple-600 text-white' :
+                              job.jobType === 'LIMITED_FAVORITE' ? 'bg-pink-500 text-white' :
+                              job.jobType === 'ORIENTATION' ? 'bg-teal-500 text-white' :
+                              'bg-gray-100 text-gray-700'
+                            }`}>
+                              {job.jobType === 'LIMITED_WORKED' ? '限定' :
+                               job.jobType === 'LIMITED_FAVORITE' ? (
+                                 <>限定<span className="text-yellow-300">★</span></>
+                               ) :
+                               job.jobType === 'ORIENTATION' ? '説明会' : ''}
+                            </span>
+                          )}
                           {job.requiresInterview && (
                             <span className="px-2 py-0.5 text-xs font-medium rounded bg-orange-100 text-orange-700">
                               審査あり
@@ -799,7 +1130,10 @@ function ApplicationsContent() {
                 <Pagination
                   currentPage={jobsPagination.currentPage}
                   totalPages={jobsPagination.totalPages}
-                  onPageChange={setPage}
+                  onPageChange={(newPage) => {
+                    setPage(newPage);
+                    updateUrlParams(undefined, newPage);
+                  }}
                 />
               </div>
             )}
@@ -964,20 +1298,7 @@ function ApplicationsContent() {
                               // このワーカーの未確認応募を既読にする
                               if (admin?.facilityId && unviewedCount > 0) {
                                 await markWorkerApplicationsAsViewed(admin.facilityId, worker.id);
-                                // ローカルの状態を更新（バッジを消す）
-                                setWorkers(prev => prev.map(w =>
-                                  w.worker.id === worker.id
-                                    ? {
-                                      ...w,
-                                      unviewedCount: 0,
-                                      applications: w.applications.map(app => ({ ...app, isUnviewed: false }))
-                                    }
-                                    : w
-                                ));
-                                setTabBadges(prev => ({
-                                  ...prev,
-                                  byWorker: Math.max(0, prev.byWorker - 1)
-                                }));
+                                mutateWorkers();
                               }
                             }}
                             className="px-4 py-2 bg-admin-primary text-white rounded-lg text-sm font-medium hover:bg-admin-primary/90 transition-colors flex items-center gap-2"
@@ -998,7 +1319,10 @@ function ApplicationsContent() {
                 <Pagination
                   currentPage={workersPagination.currentPage}
                   totalPages={workersPagination.totalPages}
-                  onPageChange={setPage}
+                  onPageChange={(newPage) => {
+                    setPage(newPage);
+                    updateUrlParams(undefined, newPage);
+                  }}
                 />
               </div>
             )}
@@ -1019,42 +1343,51 @@ function ApplicationsContent() {
         )
       }
 
-      {/* ワーカー詳細モーダル */}
+      {/* ワーカー詳細モーダル - カレンダー形式に統一 */}
       {
         selectedWorker && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div className="bg-white w-full max-w-2xl max-h-[90vh] rounded-xl shadow-2xl flex flex-col overflow-hidden">
-              {/* モーダルヘッダー */}
+            <div className="bg-white w-full max-w-3xl max-h-[90vh] rounded-xl shadow-2xl flex flex-col overflow-hidden">
+              {/* モーダルヘッダー - 求人からタブと統一デザイン */}
               <div className="p-6 border-b border-gray-200 flex items-start justify-between bg-gray-50">
                 <div className="flex items-center gap-4">
-                  <Link href={`/admin/workers/${selectedWorker.worker.id}?returnTab=workers`} className="block relative w-16 h-16 rounded-full overflow-hidden flex-shrink-0 hover:opacity-80">
+                  <Link href={`/admin/workers/${selectedWorker.worker.id}?returnTab=workers`} className="block relative w-16 h-16 rounded-full overflow-hidden flex-shrink-0 hover:opacity-80 border-2 border-white shadow-md">
                     {selectedWorker.worker.profileImage ? (
                       <Image src={selectedWorker.worker.profileImage} alt={selectedWorker.worker.name} fill className="object-cover" />
                     ) : (
-                      <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+                      <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
                         <UserCircle className="w-10 h-10 text-gray-400" />
                       </div>
                     )}
                   </Link>
                   <div>
-                    <Link href={`/admin/workers/${selectedWorker.worker.id}?returnTab=workers`} className="text-xl font-bold text-gray-900 hover:text-admin-primary">
-                      {selectedWorker.worker.name}
-                    </Link>
-                    <div className="flex items-center gap-3 text-sm text-gray-600 mt-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Link href={`/admin/workers/${selectedWorker.worker.id}?returnTab=workers`} className="text-xl font-bold text-gray-900 hover:text-admin-primary transition-colors">
+                        {selectedWorker.worker.name}
+                      </Link>
+                      {/* ステータスサマリー */}
+                      {selectedWorker.applications.filter(a => a.status === 'APPLIED').length > 0 && (
+                        <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-xs font-bold rounded-full">
+                          未対応 {selectedWorker.applications.filter(a => a.status === 'APPLIED').length}件
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 text-sm text-gray-600">
                       <div className="flex items-center gap-1">
-                        ★ <span className="text-yellow-500 font-bold">{selectedWorker.worker.rating?.toFixed(1) || '-'}</span>
+                        <span className="text-yellow-500">★</span>
+                        <span className="font-bold text-gray-900">{selectedWorker.worker.rating?.toFixed(1) || '-'}</span>
                         <span className="text-gray-400">({selectedWorker.worker.reviewCount})</span>
                       </div>
                       <span className="text-gray-300">|</span>
-                      <span>勤務: {selectedWorker.worker.totalWorkDays}日</span>
+                      <span>勤務: <span className="font-bold">{selectedWorker.worker.totalWorkDays}日</span></span>
                       <span className="text-gray-300">|</span>
-                      <span className={selectedWorker.worker.lastMinuteCancelRate > 0 ? 'text-red-500' : ''}>
+                      <span className={selectedWorker.worker.lastMinuteCancelRate > 0 ? 'text-red-500 font-medium' : ''}>
                         直前CN: {selectedWorker.worker.lastMinuteCancelRate.toFixed(0)}%
                       </span>
                     </div>
-                    <div className="flex flex-wrap gap-1 mt-2">
+                    <div className="flex flex-wrap gap-1.5 mt-2">
                       {selectedWorker.worker.qualifications.map((qual, i) => (
-                        <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-600 text-xs rounded">
+                        <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded-md font-medium border border-blue-100">
                           {qual}
                         </span>
                       ))}
@@ -1069,82 +1402,139 @@ function ApplicationsContent() {
                 </button>
               </div>
 
-              {/* 応募一覧 */}
-              <div className="flex-1 overflow-y-auto p-6">
-                <h3 className="text-sm font-bold text-gray-700 mb-3">応募一覧（{selectedWorker.applications.length}件）</h3>
+              {/* 応募一覧 - カレンダーカード形式 */}
+              <div className="flex-1 overflow-y-auto p-6 bg-gray-50/50">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold text-gray-700">応募一覧（{selectedWorker.applications.length}件）</h3>
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-400"></span>未対応</span>
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-400"></span>マッチング済</span>
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-300"></span>完了/キャンセル</span>
+                  </div>
+                </div>
                 <div className="space-y-3">
-                  {selectedWorker.applications.map(app => (
-                    <div key={app.id} className="bg-gray-50 rounded-lg p-4 border border-gray-100">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1">
-                          <div className="font-bold text-gray-900 mb-1">{app.job.title}</div>
-                          <div className="flex items-center gap-3 text-xs text-gray-500">
-                            <span className="flex items-center gap-1">
-                              <Calendar className="w-3 h-3" />
-                              {new Date(app.job.workDate).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' })}
+                  {selectedWorker.applications.map(app => {
+                    const workDate = new Date(app.job.workDate);
+                    const isMatched = app.status === 'SCHEDULED';
+                    const isPending = app.status === 'APPLIED';
+                    const isCompleted = ['WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'].includes(app.status);
+
+                    return (
+                      <div
+                        key={app.id}
+                        className={`bg-white rounded-lg border transition-all overflow-hidden ${
+                          isPending ? 'border-orange-200 shadow-md hover:shadow-lg' :
+                          isMatched ? 'border-green-200 shadow-sm' :
+                          'border-gray-200'
+                        }`}
+                      >
+                        <div className="p-4 flex items-center gap-4">
+                          {/* カレンダー日付カード - 求人からタブと統一 */}
+                          <div className={`w-14 h-14 rounded-lg flex flex-col items-center justify-center border flex-shrink-0 ${
+                            isPending ? 'bg-orange-50 border-orange-200 text-orange-700' :
+                            isMatched ? 'bg-green-50 border-green-200 text-green-700' :
+                            isCompleted ? 'bg-blue-50 border-blue-200 text-blue-700' :
+                            'bg-gray-50 border-gray-200 text-gray-500'
+                          }`}>
+                            <span className="text-lg font-bold leading-none">{workDate.getDate()}</span>
+                            <span className="text-[10px] font-medium">
+                              {workDate.toLocaleDateString('ja-JP', { weekday: 'short' })}
                             </span>
-                            <span>{app.job.startTime}〜{app.job.endTime}</span>
-                            <span className="font-bold text-gray-700">¥{app.job.hourlyWage.toLocaleString()}/時</span>
+                            <span className="text-[9px] text-gray-400">
+                              {workDate.getMonth() + 1}月
+                            </span>
+                          </div>
+
+                          {/* メイン情報 */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                              <span className="font-bold text-gray-900 truncate">{app.job.title}</span>
+                              {/* 求人種別バッジ */}
+                              {app.job.jobType && app.job.jobType !== 'NORMAL' && (
+                                <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded shadow-sm ${
+                                  app.job.jobType === 'OFFER' ? 'bg-blue-600 text-white' :
+                                  app.job.jobType === 'LIMITED_WORKED' ? 'bg-purple-600 text-white' :
+                                  app.job.jobType === 'LIMITED_FAVORITE' ? 'bg-pink-500 text-white' :
+                                  app.job.jobType === 'ORIENTATION' ? 'bg-teal-500 text-white' :
+                                  'bg-gray-100 text-gray-700'
+                                }`}>
+                                  {app.job.jobType === 'OFFER' ? 'オファ' :
+                                   app.job.jobType === 'LIMITED_WORKED' ? '限定' :
+                                   app.job.jobType === 'LIMITED_FAVORITE' ? (
+                                     <>限定<span className="text-yellow-300">★</span></>
+                                   ) :
+                                   app.job.jobType === 'ORIENTATION' ? '説明会' : ''}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-3 text-sm text-gray-600">
+                              <span className="font-medium">{app.job.startTime} 〜 {app.job.endTime}</span>
+                              <span className="text-gray-300">|</span>
+                              <span className="font-bold text-gray-900">¥{app.job.hourlyWage.toLocaleString()}<span className="text-xs font-normal text-gray-500">/時</span></span>
+                            </div>
+                          </div>
+
+                          {/* アクションエリア */}
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {app.status === 'APPLIED' && (
+                              <>
+                                <button
+                                  onClick={() => handleStatusUpdate(app.id, 'SCHEDULED')}
+                                  disabled={isUpdating === app.id}
+                                  className="px-4 py-2 bg-admin-primary text-white text-sm font-medium rounded-lg hover:bg-admin-primary-dark transition-colors disabled:opacity-50 shadow-sm hover:shadow-md"
+                                >
+                                  {isUpdating === app.id ? '処理中...' : 'マッチング'}
+                                </button>
+                                <button
+                                  onClick={() => handleStatusUpdate(app.id, 'CANCELLED', app.job.requiresInterview ? 'この応募を不採用にしますか？' : 'この応募をキャンセルしますか？')}
+                                  disabled={isUpdating === app.id}
+                                  className="px-3 py-2 bg-gray-100 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+                                >
+                                  {app.job.requiresInterview ? '不採用' : '辞退'}
+                                </button>
+                              </>
+                            )}
+                            {app.status === 'SCHEDULED' && (
+                              <div className="flex items-center gap-2">
+                                <span className="px-3 py-1.5 bg-green-100 text-green-700 text-sm font-medium rounded-lg flex items-center gap-1.5">
+                                  <CheckCircle className="w-4 h-4" />
+                                  マッチング済
+                                </span>
+                                <button
+                                  onClick={() => handleStatusUpdate(app.id, 'CANCELLED', 'このマッチングをキャンセルしますか？')}
+                                  disabled={isUpdating === app.id}
+                                  className="text-xs text-gray-400 hover:text-red-500 underline transition-colors"
+                                >
+                                  取消
+                                </button>
+                              </div>
+                            )}
+                            {app.status === 'CANCELLED' && (
+                              <span className={`px-3 py-1.5 text-sm font-medium rounded-lg flex items-center gap-1.5 ${
+                                app.cancelledBy === 'WORKER'
+                                  ? 'bg-red-50 text-red-600'
+                                  : app.cancelledBy === 'FACILITY'
+                                    ? 'bg-gray-100 text-gray-600'
+                                    : 'bg-yellow-50 text-yellow-700'
+                              }`}>
+                                <X className="w-4 h-4" />
+                                {app.cancelledBy === 'WORKER'
+                                  ? 'ワーカー辞退'
+                                  : app.cancelledBy === 'FACILITY'
+                                    ? '施設キャンセル'
+                                    : '応募取消'}
+                              </span>
+                            )}
+                            {['WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'].includes(app.status) && (
+                              <span className="px-3 py-1.5 bg-blue-50 text-blue-600 text-sm font-medium rounded-lg">
+                                {app.status === 'WORKING' ? '勤務中' : '完了'}
+                              </span>
+                            )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          {app.status === 'APPLIED' && (
-                            <>
-                              <button
-                                onClick={() => handleStatusUpdate(app.id, 'SCHEDULED')}
-                                disabled={isUpdating === app.id}
-                                className="px-3 py-1.5 bg-admin-primary text-white text-xs font-medium rounded-admin-button hover:bg-admin-primary-dark transition-colors disabled:opacity-50"
-                              >
-                                マッチング
-                              </button>
-                              <button
-                                onClick={() => handleStatusUpdate(app.id, 'CANCELLED', app.job.requiresInterview ? 'この応募を不採用にしますか？' : 'この応募をキャンセルしますか？')}
-                                disabled={isUpdating === app.id}
-                                className="px-3 py-1.5 bg-gray-100 text-gray-600 text-xs font-medium rounded hover:bg-gray-200 transition-colors disabled:opacity-50"
-                              >
-                                {app.job.requiresInterview ? '不採用' : 'キャンセル'}
-                              </button>
-                            </>
-                          )}
-                          {app.status === 'SCHEDULED' && (
-                            <>
-                              <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded flex items-center gap-1">
-                                <CheckCircle className="w-3 h-3" />
-                                マッチング済
-                              </span>
-                              <button
-                                onClick={() => handleStatusUpdate(app.id, 'CANCELLED', 'このマッチングをキャンセルしますか？')}
-                                disabled={isUpdating === app.id}
-                                className="text-xs text-gray-400 hover:text-red-500 underline"
-                              >
-                                キャンセル
-                              </button>
-                            </>
-                          )}
-                          {app.status === 'CANCELLED' && (
-                            <span className={`px-2 py-1 text-xs font-medium rounded flex items-center gap-1 ${app.cancelledBy === 'WORKER'
-                              ? 'bg-red-50 text-red-600'
-                              : app.cancelledBy === 'FACILITY'
-                                ? 'bg-gray-100 text-gray-600'
-                                : 'bg-yellow-50 text-yellow-700'
-                              }`}>
-                              <X className="w-3 h-3" />
-                              {app.cancelledBy === 'WORKER'
-                                ? 'ワーカー辞退'
-                                : app.cancelledBy === 'FACILITY'
-                                  ? '施設キャンセル'
-                                  : '応募取消'}
-                            </span>
-                          )}
-                          {['WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'].includes(app.status) && (
-                            <span className="px-2 py-1 bg-blue-50 text-blue-600 text-xs font-medium rounded">
-                              勤務中/完了
-                            </span>
-                          )}
-                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>

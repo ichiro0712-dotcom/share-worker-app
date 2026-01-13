@@ -8,6 +8,7 @@ import { ArrowLeft, Edit, Clock, JapaneseYen, MapPin, Users, Calendar, FileText 
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { getJobById } from '@/src/lib/actions';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 interface JobData {
   id: number;
@@ -49,6 +50,7 @@ interface JobData {
 export default function AdminJobDetailPage() {
   const router = useRouter();
   const params = useParams();
+  const { showDebugError } = useDebugError();
   const jobId = params.id as string;
   const { admin, isAdmin, isAdminLoading } = useAuth();
 
@@ -85,6 +87,15 @@ export default function AdminJobDetailPage() {
 
         setJob(jobData);
       } catch (error) {
+        const debugInfo = extractDebugInfo(error);
+        showDebugError({
+          type: 'fetch',
+          operation: '求人詳細取得',
+          message: debugInfo.message,
+          details: debugInfo.details,
+          stack: debugInfo.stack,
+          context: { jobId, facilityId: admin?.facilityId }
+        });
         console.error('Failed to fetch data:', error);
         toast.error('データの取得に失敗しました');
       } finally {
@@ -96,8 +107,59 @@ export default function AdminJobDetailPage() {
 
   if (isLoading || isAdminLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-admin-primary"></div>
+      <div className="min-h-screen bg-gray-50">
+        {/* ヘッダー Skeleton */}
+        <div className="bg-white border-b border-gray-200 px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-gray-200 rounded animate-pulse" />
+              <div className="h-6 bg-gray-200 rounded w-24 animate-pulse" />
+              <div className="h-5 bg-gray-200 rounded w-16 animate-pulse" />
+            </div>
+            <div className="h-9 bg-gray-200 rounded w-20 animate-pulse" />
+          </div>
+        </div>
+
+        {/* コンテンツ Skeleton */}
+        <div className="p-6">
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* 基本情報 */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="h-6 bg-gray-200 rounded w-24 mb-4 animate-pulse" />
+              <div className="h-7 bg-gray-200 rounded w-64 mb-2 animate-pulse" />
+              <div className="h-4 bg-gray-200 rounded w-32 mb-4 animate-pulse" />
+              <div className="grid grid-cols-3 gap-2 mb-4">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="aspect-video bg-gray-200 rounded animate-pulse" />
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="h-5 bg-gray-200 rounded w-48 animate-pulse" />
+                ))}
+              </div>
+            </div>
+
+            {/* 勤務日一覧 */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="h-6 bg-gray-200 rounded w-40 mb-4 animate-pulse" />
+              <div className="space-y-2">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="h-5 bg-gray-200 rounded w-32 animate-pulse" />
+                    <div className="h-5 bg-gray-200 rounded w-24 animate-pulse" />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 仕事内容 */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="h-6 bg-gray-200 rounded w-24 mb-4 animate-pulse" />
+              <div className="h-24 bg-gray-100 rounded-lg animate-pulse" />
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -199,7 +261,11 @@ export default function AdminJobDetailPage() {
               <div className="flex items-center gap-2 text-sm">
                 <MapPin className="w-4 h-4 text-gray-400" />
                 <span className="text-gray-600">交通費:</span>
-                <span className="font-medium">¥{job.transportation_fee.toLocaleString()}</span>
+                <span className="font-medium">
+                  {job.transportation_fee > 0
+                    ? `¥${job.transportation_fee.toLocaleString()}`
+                    : 'なし'}
+                </span>
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <Users className="w-4 h-4 text-gray-400" />

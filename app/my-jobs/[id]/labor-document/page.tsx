@@ -1,7 +1,6 @@
 import { getLaborDocument } from '@/src/lib/actions';
 import Link from 'next/link';
 import { ChevronLeft } from 'lucide-react';
-import { BottomNav } from '@/components/layout/BottomNav';
 import { notFound } from 'next/navigation';
 import { DEFAULT_DISMISSAL_REASONS } from '@/constants/employment';
 import { PrintButton } from './LaborDocumentClient';
@@ -38,7 +37,7 @@ export default async function LaborDocumentPage({ params }: Props) {
   const { application, job, facility, user, dismissalReasons } = data;
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen bg-gray-50 pb-24">
       {/* ヘッダー */}
       <div className="bg-white sticky top-0 z-10 border-b border-gray-200">
         <div className="px-4 py-3 flex items-center justify-between">
@@ -171,7 +170,11 @@ export default async function LaborDocumentPage({ params }: Props) {
               </div>
               <div className="flex">
                 <span className="text-gray-600 w-32 shrink-0">諸手当（交通費）</span>
-                <span className="font-medium">{job.transportation_fee.toLocaleString()}円</span>
+                <span className="font-medium">
+                  {job.transportation_fee > 0
+                    ? `${job.transportation_fee.toLocaleString()}円`
+                    : 'なし'}
+                </span>
               </div>
               <div className="flex">
                 <span className="text-gray-600 w-32 shrink-0">時間外労働割増</span>
@@ -245,11 +248,6 @@ export default async function LaborDocumentPage({ params }: Props) {
             <p className="mt-2">発行: +TASTAS</p>
           </div>
         </div>
-      </div>
-
-      {/* 下部ナビゲーション（印刷時は非表示） */}
-      <div className="print:hidden">
-        <BottomNav />
       </div>
     </div>
   );

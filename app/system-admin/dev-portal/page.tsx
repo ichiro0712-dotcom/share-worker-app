@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import Link from 'next/link';
 import { MemoPad } from './MemoPad';
-import { Smartphone, Layout, Hash, Shield, Book, Users, Building2, Settings, ExternalLink, Image as ImageIcon, BellRing, ListChecks } from 'lucide-react';
+import { Smartphone, Layout, Hash, Shield, Book, Users, Building2, Settings, ExternalLink, Image as ImageIcon, BellRing, ListChecks, Clock } from 'lucide-react';
 
 // サイトマップ定義（ツリー構造）
 interface SiteMapNode {
@@ -128,8 +128,7 @@ const ADMIN_TREE: SiteMapNode[] = [
         ]
     },
     { name: 'faq', title: 'FAQ', href: '/admin/faq' },
-    { name: 'terms', title: '利用規約', href: '/admin/terms' },
-    { name: 'privacy', title: 'プライバシーポリシー', href: '/admin/privacy' },
+    { name: 'terms-privacy', title: '利用規約・プライバシーポリシー', href: '/admin/terms-privacy' },
 ];
 
 // システム管理画面（ツリー構造）
@@ -372,6 +371,13 @@ export default function DevPortalPage() {
                                 <ListChecks className="w-4 h-4 text-gray-400 group-hover:text-blue-500" />
                             </div>
                             <p className="text-xs text-gray-500">機能検証チェックリスト</p>
+                        </Link>
+                        <Link href="/system-admin/dev-portal/debug-time" target="_blank" rel="noopener noreferrer" className="block w-full text-left p-3 rounded-lg border border-gray-200 hover:border-indigo-400 hover:shadow-md transition-all group bg-white">
+                            <div className="flex items-center justify-between mb-1">
+                                <div className="font-bold text-gray-800 group-hover:text-indigo-600">デバッグ時刻</div>
+                                <Clock className="w-4 h-4 text-gray-400 group-hover:text-indigo-500" />
+                            </div>
+                            <p className="text-xs text-gray-500">システム時刻の変更</p>
                         </Link>
                     </div>
                 </div>

@@ -36,8 +36,8 @@ public/uploads/
 # Local development files
 ichiro/
 claudedocs/
-rogo/
-scripts/
 _AUDIT_PLAN.md
 .!*
 *.backup
+*.sql
+.serena/

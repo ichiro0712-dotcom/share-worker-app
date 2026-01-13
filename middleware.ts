@@ -8,12 +8,16 @@ const publicPaths = [
   '/register',
   '/admin/login',
   '/api/auth',
+  '/auth', // メール認証関連（/auth/verify, /auth/verify-pending, /auth/resend-verification）
   '/dev-portal', // 開発用ポータル
   '/password-reset', // パスワードリセット
   '/faq',
   '/terms',
   '/privacy',
   '/contact',
+  '/public', // SEO用公開ページ
+  '/robots.txt', // SEO: robots.txt
+  '/sitemap.xml', // SEO: サイトマップ
 ];
 
 // 静的ファイルとAPI認証エンドポイント
@@ -21,8 +25,18 @@ const ignoredPaths = [
   '/_next',
   '/favicon.ico',
   '/api/auth',
+  '/api/admin',
   '/api/debug', // デバッグ用API
+  '/api/dev', // 開発用API（テストメール送信など）
   '/api/error-messages', // エラーメッセージ設定（認証不要）
+  '/rogo', // ロゴ画像
+  '/images', // 画像ファイル
+  '/icons', // アイコン
+  '/fonts', // フォント
+  '/uploads', // アップロードファイル
+  '/sw.js', // Service Worker
+  '/workbox', // Workbox
+  '/manifest.json', // PWA manifest
 ];
 
 export async function middleware(request: NextRequest) {

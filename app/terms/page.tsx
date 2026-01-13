@@ -1,8 +1,8 @@
 import { getLegalDocument } from '@/src/lib/content-actions';
 import LegalDocumentClient from '@/components/legal/LegalDocumentClient';
 
-// 利用規約は頻繁に変わらないので1時間キャッシュ
-export const revalidate = 3600;
+// ビルド時のDB接続エラーを回避するため動的レンダリングに変更
+export const dynamic = 'force-dynamic';
 
 // デフォルトコンテンツ（DBにデータがない場合に表示）
 const defaultTermsContent = `

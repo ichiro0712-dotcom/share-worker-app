@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, Star, Calendar, MapPin, ChevronRight } from 'lucide-react';
-import { BottomNav } from '@/components/layout/BottomNav';
 
 interface PendingReview {
   applicationId: number;
@@ -49,7 +48,7 @@ export default function ReviewsClient({ pendingReviews, myReviews }: ReviewsClie
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen bg-gray-50 pb-24">
       {/* ヘッダー */}
       <div className="bg-white border-b border-gray-200">
         <div className="px-4 py-3 flex items-center">
@@ -228,8 +227,6 @@ export default function ReviewsClient({ pendingReviews, myReviews }: ReviewsClie
           )}
         </div>
       )}
-
-      <BottomNav />
     </div>
   );
 }

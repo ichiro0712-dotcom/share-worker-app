@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronDown, ChevronRight, HelpCircle, MessageCircle } from 'lucide-react';
-import { BottomNav } from '@/components/layout/BottomNav';
 
 interface FaqItem {
     id: number;
@@ -107,8 +106,6 @@ export default function WorkerFaqClient({ categories }: Props) {
                     </button>
                 </div>
             </div>
-
-            <BottomNav />
         </div>
     );
 }

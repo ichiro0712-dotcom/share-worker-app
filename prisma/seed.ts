@@ -107,6 +107,48 @@ function subtractDays(days: number): Date {
 const notificationSettings = [
   // ワーカー向け
   {
+    notification_key: 'WORKER_APPLICATION_CONFIRMED',
+    name: '応募受付確認',
+    description: '求人への応募が受け付けられた時に送信',
+    target_type: 'WORKER',
+    chat_enabled: true,
+    email_enabled: false,
+    push_enabled: false,
+    chat_message: `【応募を受け付けました】
+
+以下の日程に応募しました：
+{{applied_dates}}
+
+▼ 求人詳細
+{{job_title}}
+{{job_url}}
+
+{{status_message}}`,
+    email_subject: '【+TASTAS】応募受付のお知らせ',
+    email_body: `{{worker_name}}様
+
+求人への応募を受け付けました。
+
+━━━━━━━━━━━━━━━━━━━━━━
+■ 応募内容
+━━━━━━━━━━━━━━━━━━━━━━
+求人: {{job_title}}
+施設: {{facility_name}}
+応募日程:
+{{applied_dates}}
+
+{{status_message}}
+
+詳細はこちらからご確認ください。
+{{job_url}}
+
+──────────────────────────
++TASTAS 運営
+──────────────────────────`,
+    push_title: '応募を受け付けました',
+    push_body: '{{facility_name}}への応募を受け付けました',
+  },
+  {
     notification_key: 'WORKER_MATCHED',
     name: 'マッチング成立',
     description: '応募が承認され、マッチングが成立した時に送信',
@@ -119,6 +161,11 @@ const notificationSettings = [
 勤務先: {{facility_name}}
 日時: {{work_date}} {{start_time}}〜{{end_time}}
 報酬: {{wage}}円
+
+▼ 勤務詳細・労働条件通知書はこちら
+{{my_job_url}}
+
+※労働条件通知書は労働基準法第15条に基づき、労働条件を明示するものです。
 
 当日はよろしくお願いいたします。`,
     email_subject: '【+TASTAS】マッチング成立のお知らせ',
@@ -133,8 +180,8 @@ const notificationSettings = [
 日時: {{work_date}} {{start_time}}〜{{end_time}}
 報酬: {{wage}}円
 
-詳細はマイページよりご確認ください。
-{{job_url}}
+▼ 勤務詳細・労働条件通知書はこちら
+{{my_job_url}}
 
 ──────────────────────────
 +TASTAS 運営
@@ -155,6 +202,11 @@ const notificationSettings = [
 勤務先: {{facility_name}}
 日時: {{work_date}} {{start_time}}〜{{end_time}}
 
+▼ 勤務詳細・労働条件通知書はこちら
+{{my_job_url}}
+
+※労働条件通知書は労働基準法第15条に基づき、労働条件を明示するものです。
+
 当日はよろしくお願いいたします。`,
     email_subject: '【+TASTAS】採用決定のお知らせ',
     email_body: `{{worker_name}}様
@@ -168,8 +220,8 @@ const notificationSettings = [
 日時: {{work_date}} {{start_time}}〜{{end_time}}
 報酬: {{wage}}円
 
-詳細はマイページよりご確認ください。
-{{job_url}}
+▼ 勤務詳細・労働条件通知書はこちら
+{{my_job_url}}
 
 ──────────────────────────
 +TASTAS 運営
@@ -576,6 +628,40 @@ const notificationSettings = [
 ──────────────────────────`,
     push_title: 'キャンセル通知',
     push_body: '{{worker_name}}さんが勤務をキャンセルしました',
+  },
+  {
+    notification_key: 'FACILITY_APPLICATION_WITHDRAWN',
+    name: 'ワーカーからの応募取り消し',
+    description: 'ワーカーが審査中の応募を取り消した時に送信',
+    target_type: 'FACILITY',
+    chat_enabled: true,
+    email_enabled: false,
+    push_enabled: false,
+    chat_message: `【システムメッセージ】
+ワーカーが「{{job_title}}」（{{work_date}}）への応募を取り消しました。
+※審査中の応募取消のため、キャンセル率には影響しません。`,
+    email_subject: null,
+    email_body: null,
+    push_title: null,
+    push_body: null,
+  },
+  {
+    notification_key: 'FACILITY_INITIAL_GREETING',
+    name: '施設からの初回挨拶',
+    description: '初めてマッチングしたワーカーに送る施設からの挨拶メッセージ',
+    target_type: 'WORKER',
+    chat_enabled: true,
+    email_enabled: false,
+    push_enabled: false,
+    chat_message: `[ワーカー名字]さん、初めまして！
+[施設名]です。
+
+この度はマッチングありがとうございます。
+当日はよろしくお願いいたします。`,
+    email_subject: null,
+    email_body: null,
+    push_title: null,
+    push_body: null,
   },
   {
     notification_key: 'FACILITY_REMINDER_DAY_BEFORE',

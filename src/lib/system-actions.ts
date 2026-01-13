@@ -7,6 +7,7 @@ import { JobStatus } from '@prisma/client';
 import { generateLaborDocumentPdf } from '@/src/lib/laborDocumentPdf';
 import { requireSystemAdminAuth } from '@/lib/system-admin-session-server';
 import { geocodeAddress } from '@/src/lib/geocoding';
+import { sendAdminNewFacilityNotification, sendAdminNewWorkerNotification, sendAdminHighCancelRateNotification, sendAdminLowRatingStreakNotification } from '@/src/lib/actions/notification';
 export { geocodeAddress };
 
 
@@ -1282,6 +1283,9 @@ export async function createFacilityWithAdmin(data: {
                     description: data.description,
                     lat,
                     lng,
+                    // 通知先メールアドレスに管理者のメールアドレスを初期設定
+                    staff_email: data.adminEmail,
+                    staff_emails: [data.adminEmail],
                 }
             });
 
@@ -1310,6 +1314,13 @@ export async function createFacilityWithAdmin(data: {
 
             return facility;
         });
+
+        // 管理者に新規施設登録を通知
+        await sendAdminNewFacilityNotification(
+            result.id,
+            data.facilityName,
+            data.corporationName
+        );
 
         return { success: true, facility: result };
     } catch (error) {
@@ -2637,6 +2648,9 @@ export async function createPendingFacilityWithMasquerade(
                     city: '（未設定）',
                     address: '',
                     is_pending: true, // 仮登録フラグ
+                    // 通知先メールアドレスに管理者のメールアドレスを初期設定
+                    staff_email: adminEmail,
+                    staff_emails: [adminEmail],
                 }
             });
 

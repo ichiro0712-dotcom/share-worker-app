@@ -130,18 +130,24 @@ function AuthContextProvider({ children }: { children: ReactNode }) {
   // ワーカーログイン
   const login = async (email: string, password: string) => {
     try {
+      console.log('[AuthContext] login started', { email });
       const result = await signIn('credentials', {
         email,
         password,
         redirect: false,
       });
+      console.log('[AuthContext] signIn result:', result);
 
-      if (result?.error) {
-        return { success: false, error: result.error };
+      // result.ok が false の場合も失敗として扱う
+      if (!result?.ok || result?.error) {
+        console.log('[AuthContext] login failed:', result?.error);
+        return { success: false, error: result?.error || 'ログインに失敗しました' };
       }
 
+      console.log('[AuthContext] login success');
       return { success: true };
     } catch (error) {
+      console.error('[AuthContext] login error:', error);
       return { success: false, error: 'ログイン中にエラーが発生しました' };
     }
   };

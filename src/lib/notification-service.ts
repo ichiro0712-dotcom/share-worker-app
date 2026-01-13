@@ -1,5 +1,11 @@
 import { prisma } from '@/lib/prisma';
 import webPush from 'web-push';
+import { Resend } from 'resend';
+import { getTodayStart } from '@/utils/debugTime';
+
+// Resend設定
+const resend = new Resend(process.env.RESEND_API_KEY);
+const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'noreply@tastas.site';
 
 // VAPID設定
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!;
@@ -17,8 +23,16 @@ interface SendNotificationParams {
     recipientName: string;
     recipientEmail?: string;
     facilityEmails?: string[]; // 施設向け: 複数担当者メール
-    applicationId?: number; // チャット通知用
+    applicationId?: number; // システム通知用
     variables: Record<string, string>;
+    // チャットメッセージ（Messageテーブル）用の追加情報
+    chatMessageData?: {
+        jobId: number;
+        fromFacilityId?: number;
+        fromUserId?: number;
+        toUserId?: number;
+        toFacilityId?: number;
+    };
 }
 
 // テンプレート内の変数を置換
@@ -42,6 +56,7 @@ export async function sendNotification(params: SendNotificationParams): Promise<
         facilityEmails,
         applicationId,
         variables,
+        chatMessageData,
     } = params;
 
     // 通知設定を取得
@@ -54,7 +69,28 @@ export async function sendNotification(params: SendNotificationParams): Promise<
         return;
     }
 
-    // チャット通知
+    // チャットメッセージ（Messageテーブル）を送信
+    if (setting.chat_enabled && setting.chat_message && chatMessageData) {
+        const chatContent = replaceVariables(setting.chat_message, variables);
+        try {
+            await prisma.message.create({
+                data: {
+                    application_id: applicationId || null,
+                    job_id: chatMessageData.jobId,
+                    from_facility_id: chatMessageData.fromFacilityId || null,
+                    from_user_id: chatMessageData.fromUserId || null,
+                    to_user_id: chatMessageData.toUserId || null,
+                    to_facility_id: chatMessageData.toFacilityId || null,
+                    content: chatContent,
+                },
+            });
+            console.log(`[sendNotification] Chat message sent for ${notificationKey}`);
+        } catch (error) {
+            console.error(`[sendNotification] Failed to create chat message for ${notificationKey}:`, error);
+        }
+    }
+
+    // システム通知（SystemNotificationテーブル）を送信
     if (setting.chat_enabled && setting.chat_message && applicationId) {
         await sendChatNotification({
             notificationKey,
@@ -165,7 +201,7 @@ async function sendChatNotification(params: {
     }
 }
 
-// メール通知を送信（擬似: DBに記録のみ）
+// メール通知を送信（Resend経由）
 async function sendEmailNotification(params: {
     notificationKey: string;
     targetType: string;
@@ -178,10 +214,9 @@ async function sendEmailNotification(params: {
 }): Promise<void> {
     const { notificationKey, targetType, recipientId, recipientName, recipientEmail, toAddresses, subject, body } = params;
 
-    try {
-        // TODO: 将来的にSMTP連携実装時にここで実際にメール送信
-        // 現在はログ記録のみ
-
+    // メール送信が無効化されている場合はスキップ
+    if (process.env.DISABLE_EMAIL_SENDING === 'true') {
+        console.log('[Email] Sending disabled, logging only:', { to: toAddresses, subject });
         await prisma.notificationLog.create({
             data: {
                 notification_key: notificationKey,
@@ -190,7 +225,43 @@ async function sendEmailNotification(params: {
                 recipient_id: recipientId,
                 recipient_name: recipientName,
                 recipient_email: recipientEmail,
-                from_address: 'noreply@tastas.jp',
+                from_address: FROM_EMAIL,
+                to_addresses: toAddresses,
+                subject,
+                body,
+                status: 'SKIPPED',
+                error_message: 'Email sending disabled',
+            },
+        });
+        return;
+    }
+
+    try {
+        // Resendでメール送信
+        const { data, error } = await resend.emails.send({
+            from: `+TASTAS <${FROM_EMAIL}>`,
+            to: toAddresses,
+            subject: subject,
+            html: formatEmailHtml(body),
+            text: body, // プレーンテキスト版
+        });
+
+        if (error) {
+            throw new Error(error.message);
+        }
+
+        console.log('[Email] Sent successfully:', { messageId: data?.id, to: toAddresses });
+
+        // 成功ログ記録
+        await prisma.notificationLog.create({
+            data: {
+                notification_key: notificationKey,
+                channel: 'EMAIL',
+                target_type: targetType,
+                recipient_id: recipientId,
+                recipient_name: recipientName,
+                recipient_email: recipientEmail,
+                from_address: FROM_EMAIL,
                 to_addresses: toAddresses,
                 subject,
                 body,
@@ -198,7 +269,7 @@ async function sendEmailNotification(params: {
             },
         });
     } catch (error: any) {
-        console.error('Email notification failed:', error);
+        console.error('[Email] Failed to send:', error);
         await prisma.notificationLog.create({
             data: {
                 notification_key: notificationKey,
@@ -207,7 +278,7 @@ async function sendEmailNotification(params: {
                 recipient_id: recipientId,
                 recipient_name: recipientName,
                 recipient_email: recipientEmail,
-                from_address: 'noreply@tastas.jp',
+                from_address: FROM_EMAIL,
                 to_addresses: toAddresses,
                 subject,
                 body,
@@ -216,6 +287,30 @@ async function sendEmailNotification(params: {
             },
         });
     }
+}
+
+// メール本文をHTML形式に変換
+function formatEmailHtml(body: string): string {
+    // 改行をbrタグに変換し、基本的なHTMLテンプレートでラップ
+    const htmlBody = body.replace(/\n/g, '<br>');
+
+    return `
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: 'Helvetica Neue', Arial, 'Hiragino Sans', sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px;">
+        ${htmlBody}
+    </div>
+    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #666;">
+        <p>このメールは +TASTAS より自動送信されています。</p>
+        <p>※このメールに心当たりがない場合は、お手数ですが削除してください。</p>
+    </div>
+</body>
+</html>`;
 }
 
 // プッシュ通知を送信
@@ -367,8 +462,7 @@ async function canSendNearbyNotification(
     notificationKey: string,
     maxPerDay: number
 ): Promise<boolean> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = getTodayStart();
 
     const count = await prisma.nearbyNotificationLog.count({
         where: {

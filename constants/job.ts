@@ -17,7 +17,53 @@ export const FACILITY_TYPES = [
   '介護施設', '医療機関', '保育施設', '障がい者支援施設'
 ] as const;
 
+// 旧定数（後方互換性のため維持、非推奨）
 export const JOB_TYPES = ['通常業務', '説明会'] as const;
+
+// 求人種別（DB保存用の値）
+export type JobTypeValue = 'NORMAL' | 'LIMITED_WORKED' | 'LIMITED_FAVORITE' | 'ORIENTATION' | 'OFFER';
+
+// 求人種別の選択肢（オファーを除く4種類）
+export const JOB_TYPE_OPTIONS: { value: JobTypeValue; label: string; description: string }[] = [
+  {
+    value: 'NORMAL',
+    label: '通常求人',
+    description: 'すべてのワーカーが閲覧・応募できる求人です。',
+  },
+  {
+    value: 'LIMITED_WORKED',
+    label: '限定求人（勤務済みの方）',
+    description: '過去にあなたの施設で勤務したワーカーのみが閲覧・応募できます。',
+  },
+  {
+    value: 'LIMITED_FAVORITE',
+    label: '限定求人（お気に入りのみ）',
+    description: 'あなたがお気に入り登録しているワーカーのみが閲覧・応募できます。',
+  },
+  {
+    value: 'ORIENTATION',
+    label: '説明会',
+    description: '施設の説明会として求人を作成します。「説明会」バッジが表示されます。',
+  },
+];
+
+// 求人種別ラベルのマップ（表示用）
+export const JOB_TYPE_LABELS: Record<JobTypeValue, string> = {
+  NORMAL: '通常求人',
+  LIMITED_WORKED: '限定求人（勤務済み）',
+  LIMITED_FAVORITE: '限定求人（お気に入り）',
+  ORIENTATION: '説明会',
+  OFFER: 'オファー',
+};
+
+// 通常求人切り替え日数の選択肢
+export const SWITCH_TO_NORMAL_OPTIONS = [
+  { value: 0, label: '切り替えない' },
+  { value: 1, label: '1日前' },
+  { value: 3, label: '3日前' },
+  { value: 7, label: '7日前' },
+  { value: 14, label: '14日前' },
+] as const;
 
 export const WORK_CONTENT_OPTIONS = [
   '対話・見守り', '移動介助', '排泄介助', '食事介助', '入浴介助(全般)',

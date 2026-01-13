@@ -40,10 +40,13 @@ export interface WorkDate {
     applications: Application[];
 }
 
+type JobType = 'NORMAL' | 'LIMITED_WORKED' | 'LIMITED_FAVORITE' | 'ORIENTATION' | 'OFFER';
+
 export interface JobWithApplications {
     id: number;
     title: string;
     status: string;
+    jobType?: JobType;
     startTime: string;
     endTime: string;
     hourlyWage: number;
@@ -123,10 +126,13 @@ function getQualificationBarColor(qualification: string, isInactive: boolean): {
 interface MonthlyShiftViewProps {
     jobs: JobWithApplications[];
     qualificationAbbreviations?: Record<string, string>;
+    onStatusUpdate?: (applicationId: number, status: string, confirmMessage?: string) => Promise<void>;
+    onMatchAll?: (workDateId: number, applications: Application[]) => Promise<void>;
+    isUpdating?: number | null;
 }
 
 // 月間シフトビュー
-export function MonthlyShiftView({ jobs, qualificationAbbreviations }: MonthlyShiftViewProps) {
+export function MonthlyShiftView({ jobs, qualificationAbbreviations, onStatusUpdate, onMatchAll, isUpdating }: MonthlyShiftViewProps) {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedItem, setSelectedItem] = useState<VisualItem | null>(null);
 
@@ -280,6 +286,9 @@ export function MonthlyShiftView({ jobs, qualificationAbbreviations }: MonthlySh
                     onClose={() => setSelectedItem(null)}
                     singleDateMode={true}
                     selectedWorkDate={selectedItem.workDate}
+                    onStatusUpdate={onStatusUpdate}
+                    onMatchAll={onMatchAll}
+                    isUpdating={isUpdating}
                 />
             )}
 
@@ -299,7 +308,7 @@ export function MonthlyShiftView({ jobs, qualificationAbbreviations }: MonthlySh
                         </button>
                     </div>
                 </div>
-                <div className="flex items-center gap-4 text-xs text-gray-500">
+                <div className="flex items-center gap-4 text-xs text-gray-500 flex-wrap">
                     <div className="flex items-center gap-1.5">
                         <div className="w-3 h-3 bg-green-50 border border-green-300 rounded"></div>
                         <span>募集中</span>
@@ -319,6 +328,25 @@ export function MonthlyShiftView({ jobs, qualificationAbbreviations }: MonthlySh
                     <div className="flex items-center gap-1.5">
                         <div className="w-0.5 h-3 bg-red-500"></div>
                         <span>現在時刻</span>
+                    </div>
+                    <div className="border-l border-gray-300 pl-4 flex items-center gap-3">
+                        <span className="text-gray-400">種別:</span>
+                        <div className="flex items-center gap-1">
+                            <span className="px-1 py-0.5 text-[9px] font-bold bg-blue-600 text-white rounded">オ</span>
+                            <span>オファー</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <span className="px-1 py-0.5 text-[9px] font-bold bg-purple-600 text-white rounded">限</span>
+                            <span>限定(経験者)</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <span className="px-1 py-0.5 text-[9px] font-bold bg-pink-500 text-white rounded">★</span>
+                            <span>限定(お気に入り)</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <span className="px-1 py-0.5 text-[9px] font-bold bg-teal-500 text-white rounded">説</span>
+                            <span>説明会</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -421,6 +449,30 @@ export function MonthlyShiftView({ jobs, qualificationAbbreviations }: MonthlySh
                                                         }}
                                                     >
                                                         <div className="flex items-center w-full gap-1 overflow-hidden">
+                                                            {/* 0. 求人種別バッジ（NORMAL以外の場合のみ） */}
+                                                            {item.job.jobType && item.job.jobType !== 'NORMAL' && (
+                                                                <span
+                                                                    className={`flex-shrink-0 text-[8px] px-1 py-0.5 rounded font-bold ${
+                                                                        item.job.jobType === 'OFFER' ? 'bg-blue-600 text-white' :
+                                                                        item.job.jobType === 'LIMITED_WORKED' ? 'bg-purple-600 text-white' :
+                                                                        item.job.jobType === 'LIMITED_FAVORITE' ? 'bg-pink-500 text-white' :
+                                                                        item.job.jobType === 'ORIENTATION' ? 'bg-teal-500 text-white' :
+                                                                        'bg-gray-500 text-white'
+                                                                    }`}
+                                                                    title={
+                                                                        item.job.jobType === 'OFFER' ? 'オファ' :
+                                                                        item.job.jobType === 'LIMITED_WORKED' ? '限定' :
+                                                                        item.job.jobType === 'LIMITED_FAVORITE' ? '限定★' :
+                                                                        item.job.jobType === 'ORIENTATION' ? '説明会' : ''
+                                                                    }
+                                                                >
+                                                                    {item.job.jobType === 'OFFER' ? 'オ' :
+                                                                     item.job.jobType === 'LIMITED_WORKED' ? '限' :
+                                                                     item.job.jobType === 'LIMITED_FAVORITE' ? '★' :
+                                                                     item.job.jobType === 'ORIENTATION' ? '説' : ''}
+                                                                </span>
+                                                            )}
+
                                                             {/* 1. 資格条件バッジ（先頭） */}
                                                             {(() => {
                                                                 const qual = item.job.requiredQualifications.length > 0

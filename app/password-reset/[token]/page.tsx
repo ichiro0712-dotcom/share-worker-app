@@ -6,10 +6,12 @@ import Link from 'next/link';
 import { ArrowLeft, Lock, Eye, EyeOff, CheckCircle, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { validateResetToken, resetPassword } from '@/src/lib/actions';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 export default function PasswordResetPage() {
   const params = useParams();
   const router = useRouter();
+  const { showDebugError } = useDebugError();
   const token = params.token as string;
 
   const [isValidating, setIsValidating] = useState(true);
@@ -63,9 +65,24 @@ export default function PasswordResetPage() {
         setIsSuccess(true);
         toast.success('パスワードを変更しました');
       } else {
+        showDebugError({
+          type: 'update',
+          operation: 'パスワードリセット実行',
+          message: result.message || 'エラーが発生しました',
+          context: { email: userEmail }
+        });
         toast.error(result.message || 'エラーが発生しました');
       }
-    } catch {
+    } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'update',
+        operation: 'パスワードリセット実行（例外）',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { email: userEmail }
+      });
       toast.error('エラーが発生しました');
     } finally {
       setIsSubmitting(false);

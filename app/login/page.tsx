@@ -3,10 +3,13 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Mail, Lock, Eye, EyeOff, User } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { getCsrfToken } from 'next-auth/react';
 import toast from 'react-hot-toast';
 import { getTestUsers } from '@/src/lib/actions';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 
 type TestUser = {
   id: number;
@@ -18,12 +21,23 @@ type TestUser = {
 export default function WorkerLogin() {
   const router = useRouter();
   const { login, isLoading: authLoading } = useAuth();
+  const { showDebugError } = useDebugError();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [isEmailNotVerified, setIsEmailNotVerified] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [testUsers, setTestUsers] = useState<TestUser[]>([]);
+  const [csrfReady, setCsrfReady] = useState(false);
+
+  // CSRFトークンを事前取得（1回目ログイン失敗問題の対策）
+  useEffect(() => {
+    getCsrfToken().then(() => {
+      console.log('[Login] CSRF token ready');
+      setCsrfReady(true);
+    });
+  }, []);
 
   // テストユーザーをDBから取得
   useEffect(() => {
@@ -33,6 +47,7 @@ export default function WorkerLogin() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setIsEmailNotVerified(false);
 
     if (!email || !password) {
       setError('メールアドレスとパスワードを入力してください');
@@ -46,12 +61,33 @@ export default function WorkerLogin() {
 
       if (result.success) {
         toast.success('ログインしました');
-        router.push('/');
-        router.refresh();
+        // セッションCookieが確実に反映されるようフルページナビゲーション
+        window.location.href = '/';
       } else {
-        setError(result.error || 'ログインに失敗しました');
+        // メール未認証エラーの場合
+        if (result.error?.includes('EMAIL_NOT_VERIFIED')) {
+          setIsEmailNotVerified(true);
+          setError('メールアドレスが認証されていません。登録時に送信された確認メールのリンクをクリックしてください。');
+        } else {
+          showDebugError({
+            type: 'other',
+            operation: 'ログイン',
+            message: result.error || 'ログインに失敗しました',
+            context: { email }
+          });
+          setError(result.error || 'ログインに失敗しました');
+        }
       }
     } catch (err) {
+      const debugInfo = extractDebugInfo(err);
+      showDebugError({
+        type: 'other',
+        operation: 'ログイン（例外）',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { email }
+      });
       setError('ログイン中にエラーが発生しました');
     } finally {
       setIsSubmitting(false);
@@ -64,33 +100,44 @@ export default function WorkerLogin() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-primary-light to-white flex items-center justify-center px-4">
+    <div className="min-h-screen bg-white flex items-center justify-center px-4">
       <div className="max-w-md w-full">
-        {/* ロゴ・タイトル */}
-        <div className="text-center mb-8">
-          <div className="flex justify-center mb-4">
-            <div className="bg-primary p-4 rounded-full">
-              <User className="w-12 h-12 text-white" />
-            </div>
+        {/* ロゴ */}
+        <div className="text-center mb-5 mt-10">
+          <div className="flex justify-center">
+            <img
+              src="/rogo/rogo5.png"
+              alt="TASTAS"
+              width={200}
+              height={200}
+              className="object-contain"
+            />
           </div>
-          <h1 className="text-3xl font-bold text-primary mb-2">ワーカーログイン</h1>
-          <p className="text-gray-600">+TASTAS</p>
+          <p className="mt-2 text-gray-600">テストのテキスト</p>
         </div>
 
         {/* ログインフォーム */}
-        <div className="bg-white rounded-lg shadow-lg p-6 mb-4">
-          <h2 className="text-xl font-bold mb-6">ログイン</h2>
+        <div className="bg-primary rounded-2xl shadow-lg p-6 mb-4">
+          <h2 className="text-xl font-bold mb-6 text-white">ログイン</h2>
 
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-              {error}
+            <div className="mb-4 p-3 bg-white/90 border border-red-200 rounded-lg text-red-700 text-sm">
+              <p>{error}</p>
+              {isEmailNotVerified && (
+                <Link
+                  href={`/auth/resend-verification?email=${encodeURIComponent(email)}`}
+                  className="mt-2 block text-primary font-medium hover:underline"
+                >
+                  確認メールを再送信する
+                </Link>
+              )}
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* メールアドレス */}
             <div>
-              <label className="block text-sm font-medium mb-2">
+              <label className="block text-sm font-medium mb-2 text-white">
                 メールアドレス
               </label>
               <div className="relative">
@@ -99,7 +146,7 @@ export default function WorkerLogin() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full pl-10 pr-4 py-3 border-0 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50 bg-white"
                   placeholder="yamada.taro@example.com"
                 />
               </div>
@@ -107,7 +154,7 @@ export default function WorkerLogin() {
 
             {/* パスワード */}
             <div>
-              <label className="block text-sm font-medium mb-2">
+              <label className="block text-sm font-medium mb-2 text-white">
                 パスワード
               </label>
               <div className="relative">
@@ -116,7 +163,7 @@ export default function WorkerLogin() {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-12 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full pl-10 pr-12 py-3 border-0 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50 bg-white"
                   placeholder="パスワードを入力"
                 />
                 <button
@@ -135,7 +182,7 @@ export default function WorkerLogin() {
 
             {/* パスワードを忘れた場合 */}
             <div className="text-right">
-              <Link href="/password-reset" className="text-sm text-primary hover:underline">
+              <Link href="/password-reset" className="text-sm text-white/90 hover:text-white hover:underline">
                 パスワードを忘れた場合
               </Link>
             </div>
@@ -144,20 +191,21 @@ export default function WorkerLogin() {
             <button
               type="submit"
               disabled={isSubmitting || authLoading}
-              className="w-full py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-3 bg-white text-primary rounded-lg font-bold hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md flex items-center justify-center gap-2"
             >
+              {isSubmitting && <LoadingSpinner size="sm" color="primary" />}
               {isSubmitting ? 'ログイン中...' : 'ログイン'}
             </button>
           </form>
 
           {/* 新規登録リンク */}
-          <div className="mt-6 pt-6 border-t border-gray-200 text-center">
-            <p className="text-sm text-gray-600 mb-3">
+          <div className="mt-6 pt-6 border-t border-white/30 text-center">
+            <p className="text-sm text-white/90 mb-3">
               アカウントをお持ちでない方
             </p>
             <Link
               href="/register/worker"
-              className="block w-full py-3 border-2 border-primary text-primary rounded-lg font-medium hover:bg-primary-light/10 transition-colors"
+              className="block w-full py-3 border-2 border-white text-white rounded-lg font-medium hover:bg-white/10 transition-colors"
             >
               新規登録はこちら
             </Link>
@@ -165,8 +213,8 @@ export default function WorkerLogin() {
         </div>
 
         {/* テストワーカー */}
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-          <h3 className="font-semibold text-sm text-green-800 mb-3">
+        <div className="bg-primary-light border border-primary/20 rounded-2xl p-4">
+          <h3 className="font-semibold text-sm text-primary mb-3">
             テストワーカーでログイン
           </h3>
           <div className="space-y-2">
@@ -175,7 +223,7 @@ export default function WorkerLogin() {
                 <button
                   key={user.id}
                   onClick={() => handleTestLogin(user.email, 'password123')}
-                  className="w-full text-left px-3 py-2 bg-white border border-green-300 rounded text-sm hover:bg-green-50 transition-colors flex items-center gap-3"
+                  className="w-full text-left px-3 py-2 bg-white border border-primary/30 rounded-lg text-sm hover:bg-primary/5 hover:border-primary/50 transition-colors flex items-center gap-3"
                 >
                   <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden flex-shrink-0">
                     {user.profileImage ? (
@@ -185,8 +233,8 @@ export default function WorkerLogin() {
                     )}
                   </div>
                   <div>
-                    <div className="font-medium">{user.name}</div>
-                    <div className="text-xs text-gray-600">{user.email}</div>
+                    <div className="font-medium text-gray-800">{user.name}</div>
+                    <div className="text-xs text-gray-500">{user.email}</div>
                   </div>
                 </button>
               ))
@@ -194,14 +242,14 @@ export default function WorkerLogin() {
               <p className="text-sm text-gray-500">テストユーザーを読み込み中...</p>
             )}
           </div>
-          <p className="text-xs text-green-700 mt-3">
+          <p className="text-xs text-primary/70 mt-3">
             ※ クリックで自動入力されます。「ログイン」ボタンを押してください。
           </p>
         </div>
 
         {/* TOPに戻るリンク */}
         <div className="mt-4 text-center">
-          <Link href="/" className="text-sm text-gray-600 hover:underline">
+          <Link href="/" className="text-sm text-primary hover:underline">
             TOPに戻る
           </Link>
         </div>

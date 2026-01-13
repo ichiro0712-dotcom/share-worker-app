@@ -15,16 +15,12 @@ const withPWA = withPWAInit({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    // Netlifyでは標準のImage Optimizationがサポートされないため無効化
-    unoptimized: true,
+    // Vercelでは画像最適化を有効化
+    unoptimized: false,
     remotePatterns: [
       {
         protocol: 'https',
         hostname: 'images.unsplash.com',
-      },
-      {
-        protocol: 'https',
-        hostname: 'ziaunavcbawzorrwwnos.supabase.co',
       },
       {
         protocol: 'https',

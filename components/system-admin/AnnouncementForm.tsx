@@ -11,6 +11,7 @@ import {
 import { getAnalyticsRegions, RegionData } from '@/src/lib/analytics-actions';
 import { ChevronLeft, Save, ChevronDown, ChevronUp, Users, Building2, AlertCircle, Clock, Send } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import Link from 'next/link';
 import { AGE_RANGES, GENDERS } from '@/src/lib/analytics-constants';
 import { SERVICE_CATEGORY_LIST } from '@/constants/serviceTypes';
@@ -32,6 +33,7 @@ interface AnnouncementFormProps {
 }
 
 export default function AnnouncementForm({ mode, announcementId }: AnnouncementFormProps) {
+    const { showDebugError } = useDebugError();
     const router = useRouter();
     const [loading, setLoading] = useState(mode === 'edit');
     const [submitting, setSubmitting] = useState(false);
@@ -39,6 +41,7 @@ export default function AnnouncementForm({ mode, announcementId }: AnnouncementF
     const [isWorkerFilterOpen, setIsWorkerFilterOpen] = useState(false);
     const [isFacilityFilterOpen, setIsFacilityFilterOpen] = useState(false);
     const [isAlreadyPublished, setIsAlreadyPublished] = useState(false);
+    const [showErrors, setShowErrors] = useState(false);
 
     const [formData, setFormData] = useState({
         title: '',
@@ -115,6 +118,15 @@ export default function AnnouncementForm({ mode, announcementId }: AnnouncementF
                     setRegions(regionsData);
                 }
             } catch (e) {
+                const debugInfo = extractDebugInfo(e);
+                showDebugError({
+                    type: 'fetch',
+                    operation: 'お知らせ詳細・地域データ取得',
+                    message: debugInfo.message,
+                    details: debugInfo.details,
+                    stack: debugInfo.stack,
+                    context: { mode, announcementId }
+                });
                 console.error(e);
                 toast.error('読み込みに失敗しました');
             } finally {
@@ -150,22 +162,32 @@ export default function AnnouncementForm({ mode, announcementId }: AnnouncementF
     // === 送信処理 ===
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formData.title || !formData.content) {
-            toast.error('タイトルと本文は必須です');
-            return;
-        }
+        setShowErrors(true);
+
+        const errors: string[] = [];
+        if (!formData.title) errors.push('タイトル');
+        if (!formData.content) errors.push('本文');
 
         // 予約公開の場合、日時チェック
         if (publishMode === 'scheduled') {
             if (!scheduledDate) {
-                toast.error('公開日を選択してください');
-                return;
+                errors.push('公開日');
+            } else {
+                const scheduledDateTime = new Date(`${scheduledDate}T${scheduledTime}`);
+                if (scheduledDateTime <= new Date()) {
+                    toast.error('公開日時は現在より後の日時を設定してください');
+                    return;
+                }
             }
-            const scheduledDateTime = new Date(`${scheduledDate}T${scheduledTime}`);
-            if (scheduledDateTime <= new Date()) {
-                toast.error('公開日時は現在より後の日時を設定してください');
-                return;
+        }
+
+        if (errors.length > 0) {
+            toast.error(`以下の項目を入力してください: ${errors.join('、')}`);
+            const firstErrorElement = document.querySelector('.border-red-500');
+            if (firstErrorElement) {
+                firstErrorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
+            return;
         }
 
         const isWorkerTarget = formData.target_type === 'WORKER' || formData.target_type === 'BOTH';
@@ -220,9 +242,27 @@ export default function AnnouncementForm({ mode, announcementId }: AnnouncementF
                 toast.success(message);
                 router.push('/system-admin/announcements');
             } else {
+                const debugInfo = extractDebugInfo(result.error);
+                showDebugError({
+                    type: mode === 'create' ? 'save' : 'update',
+                    operation: mode === 'create' ? 'お知らせ作成' : 'お知らせ更新',
+                    message: debugInfo.message,
+                    details: debugInfo.details,
+                    stack: debugInfo.stack,
+                    context: { payload }
+                });
                 toast.error(result.error || `${mode === 'create' ? '作成' : '更新'}に失敗しました`);
             }
-        } catch {
+        } catch (e) {
+            const debugInfo = extractDebugInfo(e);
+            showDebugError({
+                type: mode === 'create' ? 'save' : 'update',
+                operation: mode === 'create' ? 'お知らせ作成' : 'お知らせ更新',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { formData, publishMode }
+            });
             toast.error('エラーが発生しました');
         } finally {
             setSubmitting(false);
@@ -234,7 +274,9 @@ export default function AnnouncementForm({ mode, announcementId }: AnnouncementF
     const facilityFilterCount = filters.facilityTypes.length;
     const isWorkerTarget = formData.target_type === 'WORKER' || formData.target_type === 'BOTH';
     const isFacilityTarget = formData.target_type === 'FACILITY' || formData.target_type === 'BOTH';
-    const today = new Date().toISOString().split('T')[0];
+    // JST（日本時間）で今日の日付を取得（toISOStringはUTCなので使わない）
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
     // === ローディング表示 ===
     if (loading) {
@@ -279,9 +321,12 @@ export default function AnnouncementForm({ mode, announcementId }: AnnouncementF
                             required
                             value={formData.title}
                             onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                            className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${showErrors && !formData.title ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
                             placeholder="お知らせのタイトル"
                         />
+                        {showErrors && !formData.title && (
+                            <p className="text-red-500 text-xs mt-1">タイトルを入力してください</p>
+                        )}
                     </div>
 
                     {/* カテゴリー・配信先タイプ */}
@@ -506,9 +551,12 @@ export default function AnnouncementForm({ mode, announcementId }: AnnouncementF
                             rows={10}
                             value={formData.content}
                             onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                            className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${showErrors && !formData.content ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
                             placeholder="お知らせの内容を入力してください"
                         />
+                        {showErrors && !formData.content && (
+                            <p className="text-red-500 text-xs mt-1">本文を入力してください</p>
+                        )}
                     </div>
 
                     {/* 公開設定（公開済みでない場合のみ） */}
@@ -566,14 +614,17 @@ export default function AnnouncementForm({ mode, announcementId }: AnnouncementF
                                     {publishMode === 'scheduled' && (
                                         <div className="mt-4 ml-7 flex items-center gap-4">
                                             <div>
-                                                <label className="block text-xs text-slate-500 mb-1">公開日</label>
+                                                <label className="block text-xs text-slate-500 mb-1">公開日 <span className="text-red-500">*</span></label>
                                                 <input
                                                     type="date"
                                                     value={scheduledDate}
                                                     onChange={(e) => setScheduledDate(e.target.value)}
                                                     min={today}
-                                                    className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                                                    className={`px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm ${showErrors && publishMode === 'scheduled' && !scheduledDate ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
                                                 />
+                                                {showErrors && publishMode === 'scheduled' && !scheduledDate && (
+                                                    <p className="text-red-500 text-xs mt-1">公開日を選択してください</p>
+                                                )}
                                             </div>
                                             <div>
                                                 <label className="block text-xs text-slate-500 mb-1">公開時刻</label>
@@ -603,12 +654,12 @@ export default function AnnouncementForm({ mode, announcementId }: AnnouncementF
                             type="submit"
                             disabled={submitting}
                             className={`px-6 py-2 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-70 ${mode === 'edit' && isAlreadyPublished
-                                    ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-                                    : publishMode === 'now'
-                                        ? 'bg-green-600 text-white hover:bg-green-700'
-                                        : publishMode === 'scheduled'
-                                            ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-                                            : 'bg-slate-600 text-white hover:bg-slate-700'
+                                ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                                : publishMode === 'now'
+                                    ? 'bg-green-600 text-white hover:bg-green-700'
+                                    : publishMode === 'scheduled'
+                                        ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                                        : 'bg-slate-600 text-white hover:bg-slate-700'
                                 }`}
                         >
                             {mode === 'edit' && isAlreadyPublished ? (

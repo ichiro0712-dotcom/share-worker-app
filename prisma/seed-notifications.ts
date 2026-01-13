@@ -18,6 +18,11 @@ const notificationSettings = [
 日時: {{work_date}} {{start_time}}〜{{end_time}}
 報酬: {{wage}}円
 
+▼ 勤務詳細・労働条件通知書はこちら
+{{my_job_url}}
+
+※労働条件通知書は労働基準法第15条に基づき、労働条件を明示するものです。
+
 当日はよろしくお願いいたします。`,
         email_subject: '【+TASTAS】マッチング成立のお知らせ',
         email_body: `{{worker_name}}様
@@ -31,8 +36,8 @@ const notificationSettings = [
 日時: {{work_date}} {{start_time}}〜{{end_time}}
 報酬: {{wage}}円
 
-詳細はマイページよりご確認ください。
-{{job_url}}
+▼ 勤務詳細・労働条件通知書はこちら
+{{my_job_url}}
 
 ──────────────────────────
 +TASTAS 運営
@@ -53,6 +58,11 @@ const notificationSettings = [
 勤務先: {{facility_name}}
 日時: {{work_date}} {{start_time}}〜{{end_time}}
 
+▼ 勤務詳細・労働条件通知書はこちら
+{{my_job_url}}
+
+※労働条件通知書は労働基準法第15条に基づき、労働条件を明示するものです。
+
 当日はよろしくお願いいたします。`,
         email_subject: '【+TASTAS】採用決定のお知らせ',
         email_body: `{{worker_name}}様
@@ -66,8 +76,8 @@ const notificationSettings = [
 日時: {{work_date}} {{start_time}}〜{{end_time}}
 報酬: {{wage}}円
 
-詳細はマイページよりご確認ください。
-{{job_url}}
+▼ 勤務詳細・労働条件通知書はこちら
+{{my_job_url}}
 
 ──────────────────────────
 +TASTAS 運営

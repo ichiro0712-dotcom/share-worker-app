@@ -7,10 +7,12 @@ import { getJobTemplate } from '@/src/lib/actions';
 import JobTemplateForm, { TemplateInitialData } from '@/components/admin/JobTemplateForm';
 import { Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 export default function EditJobTemplatePage() {
   const router = useRouter();
   const params = useParams();
+  const { showDebugError } = useDebugError();
   const { admin } = useAuth();
   const [loading, setLoading] = useState(true);
   const [initialData, setInitialData] = useState<TemplateInitialData | null>(null);
@@ -60,6 +62,15 @@ export default function EditJobTemplatePage() {
           dismissalReasons: '',
         });
       } catch (error) {
+        const debugInfo = extractDebugInfo(error);
+        showDebugError({
+          type: 'fetch',
+          operation: 'テンプレート詳細取得',
+          message: debugInfo.message,
+          details: debugInfo.details,
+          stack: debugInfo.stack,
+          context: { templateId, facilityId: admin?.facilityId }
+        });
         console.error('Error fetching template:', error);
         toast.error('テンプレートの取得に失敗しました');
       } finally {

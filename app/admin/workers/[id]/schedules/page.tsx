@@ -93,11 +93,39 @@ export default function WorkerSchedulesPage({
 
   if (loading || isAdminLoading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
-          <p className="text-gray-500">読み込み中...</p>
-        </div>
+      <div className="bg-gray-50 min-h-screen">
+        {/* Header Skeleton */}
+        <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center gap-4">
+          <div className="w-8 h-8 bg-gray-200 rounded-full animate-pulse" />
+          <div>
+            <div className="h-5 bg-gray-200 rounded w-24 mb-1 animate-pulse" />
+            <div className="h-4 bg-gray-200 rounded w-32 animate-pulse" />
+          </div>
+        </header>
+
+        <main className="max-w-3xl mx-auto p-6">
+          {/* Tabs Skeleton */}
+          <div className="flex gap-2 mb-6">
+            <div className="h-10 bg-gray-200 rounded-lg w-32 animate-pulse" />
+            <div className="h-10 bg-gray-200 rounded-lg w-32 animate-pulse" />
+          </div>
+
+          {/* Schedule List Skeleton */}
+          <div className="space-y-3">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 bg-gray-200 rounded-lg animate-pulse" />
+                  <div className="flex-1">
+                    <div className="h-5 bg-gray-200 rounded w-40 mb-2 animate-pulse" />
+                    <div className="h-4 bg-gray-200 rounded w-32 mb-1 animate-pulse" />
+                    <div className="h-4 bg-gray-200 rounded w-48 animate-pulse" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </main>
       </div>
     );
   }

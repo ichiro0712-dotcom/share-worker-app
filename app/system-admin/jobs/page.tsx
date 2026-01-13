@@ -21,6 +21,7 @@ import { getCitiesByPrefecture, Prefecture } from '@/constants/prefectureCities'
 import { SERVICE_TYPES } from '@/constants/serviceTypes';
 import { JOB_QUALIFICATION_OPTIONS } from '@/constants/qualifications';
 import toast from 'react-hot-toast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 // 返されるデータ型
 interface Job {
@@ -61,6 +62,7 @@ const statusLabels: Record<string, string> = {
 };
 
 export default function SystemAdminJobsPage() {
+    const { showDebugError } = useDebugError();
     const { admin } = useSystemAuth();
     const [jobs, setJobs] = useState<Job[]>([]);
     const [loading, setLoading] = useState(true);
@@ -112,6 +114,15 @@ export default function SystemAdminJobsPage() {
             setTotalPages(data.totalPages);
             setTotalCount(data.total);
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'fetch',
+                operation: 'システム管理用求人一覧取得',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { page, search, statusFilter, prefectureFilter, serviceTypeFilter }
+            });
             console.error(error);
             toast.error('求人の取得に失敗しました');
         } finally {
@@ -160,6 +171,15 @@ export default function SystemAdminJobsPage() {
             // 編集画面へリダイレクト（正しいパス: /admin/masquerade）
             window.open(`/admin/masquerade?token=${token}&redirect=/admin/jobs/${job.id}/edit`, '_blank');
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'other',
+                operation: 'マスカレードトークン生成(求人一覧)',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { facilityId: job.facilityId, jobId: job.id }
+            });
             toast.error('編集画面を開けませんでした');
         }
     };

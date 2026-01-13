@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Star, AlertTriangle, FileText, Heart, Ban, X, Plus, Trash2, Edit3 } from 'lucide-react';
+import { Star, FileText, Heart, Ban, X, Plus, Trash2, Edit3 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { ReviewCard } from '@/components/admin/ReviewCard';
 import toast from 'react-hot-toast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 import { getPendingWorkerReviews, getCompletedWorkerReviews, submitWorkerReviewByJob, getReviewTemplates, createReviewTemplate, updateReviewTemplate, deleteReviewTemplate } from '@/src/lib/actions';
 
@@ -38,6 +40,7 @@ interface ReviewTemplate {
 
 export default function WorkerReviewsPage() {
     const router = useRouter();
+    const { showDebugError } = useDebugError();
     const { admin, isAdmin, isAdminLoading } = useAuth();
     const [activeTab, setActiveTab] = useState<'pending' | 'completed'>('pending');
     const [pendingReviews, setPendingReviews] = useState<PendingReview[]>([]);
@@ -108,6 +111,15 @@ export default function WorkerReviewsPage() {
                 const templateData = await getReviewTemplates(admin.facilityId);
                 setTemplates(templateData as ReviewTemplate[]);
             } catch (error) {
+                const debugInfo = extractDebugInfo(error);
+                showDebugError({
+                    type: 'fetch',
+                    operation: 'ワーカーレビューデータ取得',
+                    message: debugInfo.message,
+                    details: debugInfo.details,
+                    stack: debugInfo.stack,
+                    context: { facilityId: admin.facilityId }
+                });
                 console.error('Failed to fetch data:', error);
                 toast.error('データの取得に失敗しました');
             } finally {
@@ -138,6 +150,15 @@ export default function WorkerReviewsPage() {
             setIsCreatingTemplate(false);
             await refreshTemplates();
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'save',
+                operation: 'レビューテンプレート作成',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { facilityId: admin.facilityId, name: newTemplateName.trim() }
+            });
             console.error('Failed to create template:', error);
             toast.error('テンプレートの作成に失敗しました');
         }
@@ -145,18 +166,31 @@ export default function WorkerReviewsPage() {
 
     // テンプレート更新
     const handleUpdateTemplate = async () => {
-        if (!editingTemplate || !newTemplateName.trim() || !newTemplateContent.trim()) {
+        if (!admin?.facilityId || !editingTemplate || !newTemplateName.trim() || !newTemplateContent.trim()) {
             toast.error('タイトルと内容を入力してください');
             return;
         }
         try {
-            await updateReviewTemplate(editingTemplate.id, newTemplateName.trim(), newTemplateContent.trim());
-            toast.success('テンプレートを更新しました');
-            setEditingTemplate(null);
-            setNewTemplateName('');
-            setNewTemplateContent('');
-            await refreshTemplates();
+            const result = await updateReviewTemplate(editingTemplate.id, newTemplateName.trim(), newTemplateContent.trim(), admin.facilityId);
+            if (result.success) {
+                toast.success('テンプレートを更新しました');
+                setEditingTemplate(null);
+                setNewTemplateName('');
+                setNewTemplateContent('');
+                await refreshTemplates();
+            } else {
+                toast.error(result.error || 'テンプレートの更新に失敗しました');
+            }
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'update',
+                operation: 'レビューテンプレート更新',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { templateId: editingTemplate.id, name: newTemplateName.trim() }
+            });
             console.error('Failed to update template:', error);
             toast.error('テンプレートの更新に失敗しました');
         }
@@ -164,12 +198,26 @@ export default function WorkerReviewsPage() {
 
     // テンプレート削除
     const handleDeleteTemplate = async (templateId: number) => {
+        if (!admin?.facilityId) return;
         if (!confirm('このテンプレートを削除しますか？')) return;
         try {
-            await deleteReviewTemplate(templateId);
-            toast.success('テンプレートを削除しました');
-            await refreshTemplates();
+            const result = await deleteReviewTemplate(templateId, admin.facilityId);
+            if (result.success) {
+                toast.success('テンプレートを削除しました');
+                await refreshTemplates();
+            } else {
+                toast.error(result.error || 'テンプレートの削除に失敗しました');
+            }
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'delete',
+                operation: 'レビューテンプレート削除',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { templateId }
+            });
             console.error('Failed to delete template:', error);
             toast.error('テンプレートの削除に失敗しました');
         }
@@ -210,6 +258,15 @@ export default function WorkerReviewsPage() {
                 toast.error(result.error || 'レビューの登録に失敗しました');
             }
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'save',
+                operation: 'ワーカーレビュー投稿(モーダル)',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { jobId: selectedApplication.jobId, userId: selectedApplication.userId, facilityId: admin.facilityId, action }
+            });
             console.error('Failed to submit review:', error);
             toast.error('レビューの登録に失敗しました');
         }
@@ -279,49 +336,18 @@ export default function WorkerReviewsPage() {
                             </div>
                         ) : (
                             pendingReviews.map((review) => (
-                                <div
+                                <ReviewCard
                                     key={review.applicationId}
-                                    className={`bg-white rounded-lg border p-4 ${review.daysSinceWork >= 3 ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                                        }`}
-                                >
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            {/* プロフィール画像 */}
-                                            <div className="w-12 h-12 rounded-full bg-gray-200 overflow-hidden">
-                                                {review.userProfileImage ? (
-                                                    <img src={review.userProfileImage} alt="" className="w-full h-full object-cover" />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center text-gray-400 font-bold">
-                                                        {review.userName.charAt(0)}
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            <div>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-bold">{review.userName}</span>
-                                                    {review.daysSinceWork >= 3 && (
-                                                        <span className="flex items-center gap-1 text-red-600 text-xs">
-                                                            <AlertTriangle className="w-3 h-3" />
-                                                            {review.daysSinceWork}日経過
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <p className="text-sm text-gray-600">{review.jobTitle}</p>
-                                                <p className="text-xs text-gray-500">
-                                                    {new Date(review.workDate).toLocaleDateString('ja-JP')} {review.startTime}-{review.endTime}
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        <button
-                                            onClick={() => setSelectedApplication(review)}
-                                            className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
-                                        >
-                                            レビューを入力
-                                        </button>
-                                    </div>
-                                </div>
+                                    applicationId={review.applicationId}
+                                    userName={review.userName}
+                                    userProfileImage={review.userProfileImage}
+                                    jobTitle={review.jobTitle}
+                                    workDate={review.workDate}
+                                    startTime={review.startTime}
+                                    endTime={review.endTime}
+                                    daysSinceWork={review.daysSinceWork}
+                                    onSelect={() => setSelectedApplication(review)}
+                                />
                             ))
                         )}
                     </div>

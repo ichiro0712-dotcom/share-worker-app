@@ -1,6 +1,8 @@
 import { getJobById, getJobs, hasUserAppliedForJob, getFacilityReviews, getUserApplicationStatuses, getUserScheduledJobs } from '@/src/lib/actions';
 import { JobDetailClient } from '@/components/job/JobDetailClient';
 import { notFound } from 'next/navigation';
+import { cookies } from 'next/headers';
+import { DEBUG_TIME_COOKIE_NAME, parseDebugTimeCookie, getCurrentTimeFromSettings } from '@/utils/debugTime.server';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -11,10 +13,17 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
   const { id } = await params;
   const { date: selectedDate, preview } = await searchParams;
   const isPreviewMode = preview === 'true';
-  // 並列でデータを取得
+
+  // デバッグ時刻をCookieから取得
+  const cookieStore = cookies();
+  const debugTimeCookie = cookieStore.get(DEBUG_TIME_COOKIE_NAME);
+  const debugTimeSettings = parseDebugTimeCookie(debugTimeCookie?.value);
+  const currentTime = getCurrentTimeFromSettings(debugTimeSettings);
+
+  // 並列でデータを取得（デバッグ時刻対応）
   const [jobData, allJobsData, initialHasApplied, appliedWorkDateIds, scheduledJobs] = await Promise.all([
-    getJobById(id),
-    getJobs(),
+    getJobById(id, { currentTime }),
+    getJobs(undefined, { currentTime }),
     hasUserAppliedForJob(id),
     getUserApplicationStatuses(id),
     getUserScheduledJobs(),
@@ -105,6 +114,9 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
     weeklyFrequency: jobData.weekly_frequency,
     effectiveWeeklyFrequency: jobData.effectiveWeeklyFrequency,
     requiresInterview: jobData.requires_interview,
+    // 求人種別（オファー対応）
+    jobType: jobData.job_type as 'NORMAL' | 'LIMITED_WORKED' | 'LIMITED_FAVORITE' | 'OFFER' | 'ORIENTATION',
+    targetWorkerId: jobData.target_worker_id,
   };
 
   const facility = {

@@ -6,10 +6,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { deleteFacilityBySystemAdmin } from '@/src/lib/system-actions';
 import { Trash2, AlertTriangle, Building2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 export default function DeleteFacilityPage() {
     const router = useRouter();
     const { admin, adminLogout } = useAuth();
+    const { showDebugError } = useDebugError();
     const [confirmText, setConfirmText] = useState('');
     const [loading, setLoading] = useState(false);
     const [isMasquerade, setIsMasquerade] = useState(false);
@@ -53,6 +55,15 @@ export default function DeleteFacilityPage() {
                 toast.error(result.error || '削除に失敗しました');
             }
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'delete',
+                operation: '施設削除（マスカレード）',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { facilityId: admin?.facilityId }
+            });
             console.error('Delete facility error:', error);
             toast.error('削除に失敗しました');
         } finally {

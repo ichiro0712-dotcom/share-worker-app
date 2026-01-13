@@ -2,7 +2,6 @@
 
 import { useRouter } from 'next/navigation';
 import { ChevronLeft } from 'lucide-react';
-import { BottomNav } from '@/components/layout/BottomNav';
 
 interface Props {
     title: string;
@@ -14,7 +13,7 @@ export default function LegalDocumentClient({ title, content, lastUpdated }: Pro
     const router = useRouter();
 
     return (
-        <div className="min-h-screen bg-gray-50 pb-20">
+        <div className="min-h-screen bg-gray-50">
             {/* ヘッダー */}
             <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
                 <div className="flex items-center px-4 py-3">
@@ -40,8 +39,6 @@ export default function LegalDocumentClient({ title, content, lastUpdated }: Pro
                     </div>
                 </div>
             </div>
-
-            <BottomNav />
         </div>
     );
 }

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { getMatchingAnalyticsData, MatchingMetrics, AnalyticsFilter } from '@/src/lib/analytics-actions';
 import AnalyticsFilters from '@/components/system-admin/analytics/AnalyticsFilters';
 import { getMatchingPeriodStats } from '@/src/lib/system-actions';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 const ALL_METRIC_LABELS: Record<string, { label: string; category: 'common' | 'worker' | 'facility' }> = {
     parentJobCount: { label: '親求人数', category: 'facility' },
@@ -19,10 +20,16 @@ const ALL_METRIC_LABELS: Record<string, { label: string; category: 'common' | 'w
     parentJobsPerFacility: { label: '施設あたり親求人数', category: 'facility' },
     childJobsPerFacility: { label: '施設あたり子求人数', category: 'facility' },
     matchingsPerFacility: { label: '施設あたりマッチング数', category: 'facility' },
-    reviewsPerFacility: { label: '施設あたりレビュー数', category: 'facility' }
+    reviewsPerFacility: { label: '施設あたりレビュー数', category: 'facility' },
+    // 限定求人・オファー指標
+    limitedJobCount: { label: '限定求人数', category: 'facility' },
+    offerJobCount: { label: 'オファー数', category: 'facility' },
+    offerAcceptanceRate: { label: 'オファー承諾率(%)', category: 'facility' },
+    limitedJobApplicationRate: { label: '限定求人応募率(%)', category: 'facility' }
 };
 
 export default function MatchingAnalytics() {
+    const { showDebugError } = useDebugError();
     const [data, setData] = useState<MatchingMetrics[]>([]);
     const [periodStats, setPeriodStats] = useState<{
         avgApplicationMatchingPeriod: number;
@@ -70,6 +77,15 @@ export default function MatchingAnalytics() {
             setData(result);
             setPeriodStats(stats);
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'fetch',
+                operation: 'マッチング分析データ取得',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { viewMode, filtersToUse }
+            });
             console.error('Failed to fetch matching analytics:', error);
         } finally {
             setLoading(false);
@@ -144,8 +160,8 @@ export default function MatchingAnalytics() {
                         <button
                             onClick={() => handleViewModeChange('daily')}
                             className={`px-4 py-1.5 text-sm font-medium rounded-md transition ${viewMode === 'daily'
-                                    ? 'bg-white text-indigo-600 shadow-sm'
-                                    : 'text-slate-500 hover:text-slate-700'
+                                ? 'bg-white text-indigo-600 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700'
                                 }`}
                         >
                             日次
@@ -153,8 +169,8 @@ export default function MatchingAnalytics() {
                         <button
                             onClick={() => handleViewModeChange('monthly')}
                             className={`px-4 py-1.5 text-sm font-medium rounded-md transition ${viewMode === 'monthly'
-                                    ? 'bg-white text-indigo-600 shadow-sm'
-                                    : 'text-slate-500 hover:text-slate-700'
+                                ? 'bg-white text-indigo-600 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700'
                                 }`}
                         >
                             月次

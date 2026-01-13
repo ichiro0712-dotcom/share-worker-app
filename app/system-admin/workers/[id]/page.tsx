@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 // 経験分野の略称変換
 const getAbbreviation = (field: string): string => {
@@ -68,6 +69,7 @@ const getShiftType = (startTime: string, endTime: string): { label: string; bgCo
 
 export default function SystemAdminWorkerDetailPage({ params }: { params: { id: string } }) {
     const router = useRouter();
+    const { showDebugError } = useDebugError();
     const workerId = parseInt(params.id);
     const [worker, setWorker] = useState<any>(null);
     const [loading, setLoading] = useState(true);
@@ -90,6 +92,15 @@ export default function SystemAdminWorkerDetailPage({ params }: { params: { id: 
                 }
                 setEditLogs(logs);
             } catch (error) {
+                const debugInfo = extractDebugInfo(error);
+                showDebugError({
+                    type: 'fetch',
+                    operation: 'ワーカー詳細・編集ログ取得',
+                    message: debugInfo.message,
+                    details: debugInfo.details,
+                    stack: debugInfo.stack,
+                    context: { workerId }
+                });
                 console.error('Failed to load worker:', error);
             } finally {
                 setLoading(false);
@@ -113,6 +124,15 @@ export default function SystemAdminWorkerDetailPage({ params }: { params: { id: 
                 toast.error('更新に失敗しました');
             }
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'update',
+                operation: 'ワーカー停止ステータス切替',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { workerId, targetSuspension: !isSuspended }
+            });
             toast.error('エラーが発生しました');
         } finally {
             setProcessing(false);
@@ -133,6 +153,15 @@ export default function SystemAdminWorkerDetailPage({ params }: { params: { id: 
                 toast.error('マスカレードトークンの生成に失敗しました');
             }
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'other',
+                operation: 'ワーカーマスカレードトークン生成(auth)',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { workerId }
+            });
             toast.error('エラーが発生しました');
         }
     };

@@ -1,20 +1,28 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSWRConfig } from 'swr';
 import { useAuth } from '@/contexts/AuthContext';
-import { Calendar, MapPin, Upload, X, Loader2, ArrowLeft, ChevronLeft, ChevronRight, Clock, DollarSign, Briefcase, FileText, CheckCircle, AlertCircle, Info, AlertTriangle, Star } from 'lucide-react';
+import { Calendar, MapPin, Upload, X, Loader2, ArrowLeft, ChevronLeft, ChevronRight, Clock, DollarSign, Briefcase, FileText, CheckCircle, AlertCircle, Info, AlertTriangle, Star, Plus, Trash2, Edit3 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useErrorToast } from '@/components/ui/PersistentErrorToast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import AddressSelector from '@/components/ui/AddressSelector';
 import { JobConfirmModal } from '@/components/admin/JobConfirmModal';
 import { JobPreviewModal } from '@/components/admin/JobPreviewModal';
-import { calculateDailyWage } from '@/utils/salary';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { calculateDailyWage, calculateWorkingHours } from '@/utils/salary';
+import { getCurrentTime } from '@/utils/debugTime';
 import { validateImageFiles, validateAttachmentFiles } from '@/utils/fileValidation';
-import { createJobs, updateJob, getAdminJobTemplates, getFacilityInfo, getJobById } from '@/src/lib/actions';
+import { directUploadMultiple } from '@/utils/directUpload';
+import { createJobs, updateJob, getAdminJobTemplates, getFacilityInfo, getJobById, getLimitedJobTargetCounts, getOfferTemplates, createOfferTemplate, updateOfferTemplate, deleteOfferTemplate } from '@/src/lib/actions';
 import { getSystemTemplates, getJobDescriptionFormats, getDismissalReasonsFromLaborTemplate } from '@/src/lib/content-actions';
 import {
     JOB_TYPES,
+    JOB_TYPE_OPTIONS,
+    JOB_TYPE_LABELS,
+    SWITCH_TO_NORMAL_OPTIONS,
     WORK_CONTENT_OPTIONS,
     ICON_OPTIONS,
     BREAK_TIME_OPTIONS,
@@ -27,6 +35,7 @@ import {
     WORK_FREQUENCY_ICONS,
     JOB_DESCRIPTION_FORMATS,
 } from '@/constants';
+import type { JobTypeValue } from '@/constants/job';
 import { QUALIFICATION_GROUPS } from '@/constants/qualifications';
 import { DEFAULT_DISMISSAL_REASONS } from '@/constants/employment';
 
@@ -86,20 +95,38 @@ interface InitialData {
     dismissalReasons?: string;
 }
 
-interface JobFormProps {
+interface OfferTargetWorker {
+    id: number;
+    name: string;
+    profileImage: string | null;
+}
+
+interface OfferTemplate {
+    id: number;
+    name: string;
+    message: string;
+}
+
+export interface JobFormProps {
     mode: 'create' | 'edit';
     jobId?: string;
     initialData?: InitialData;
+    isOfferMode?: boolean;
+    offerTargetWorker?: OfferTargetWorker | null;
 }
 
-export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
+export default function JobForm({ mode, jobId, initialData, isOfferMode = false, offerTargetWorker }: JobFormProps) {
     const router = useRouter();
+    const { mutate: globalMutate } = useSWRConfig();
+    const { showDebugError } = useDebugError();
     const { admin, isAdmin, isAdminLoading } = useAuth();
 
     // === 共通 State ===
     // initialDataがある場合はcreateモードでもロード不要（データ事前取得済み）
     const [isLoading, setIsLoading] = useState(mode === 'edit' || !initialData);
     const [isSaving, setIsSaving] = useState(false);
+    // バリデーションエラー表示用
+    const [showErrors, setShowErrors] = useState(false);
     const [jobTemplates, setJobTemplates] = useState<TemplateData[]>(initialData?.templates || []);
     const [facilityInfo, setFacilityInfo] = useState<FacilityData | null>(initialData?.facilityInfo || null);
     const [jobDescriptionFormats, setJobDescriptionFormats] = useState<{ id: number; label: string; content: string }[]>(initialData?.formats || []);
@@ -114,6 +141,9 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
     // 新規作成用 State
     const [selectedDates, setSelectedDates] = useState<string[]>([]);
     const [showConfirm, setShowConfirm] = useState(false);
+
+    // 切り替え設定へのRef（バリデーションエラー時にスクロールするため）
+    const switchSettingRef = useRef<HTMLDivElement>(null);
 
     // 条件設定用 State
     const [skillInput, setSkillInput] = useState('');
@@ -130,10 +160,25 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
         weeklyFrequency: null as 2 | 3 | 4 | 5 | null,
     });
 
+    // 限定求人の対象者数
+    const [limitedJobTargetCounts, setLimitedJobTargetCounts] = useState<{
+        workedCount: number;
+        favoriteCount: number;
+    }>({ workedCount: 0, favoriteCount: 0 });
+
+    // オファーテンプレート関連
+    const [offerTemplates, setOfferTemplates] = useState<OfferTemplate[]>([]);
+    const [selectedOfferTemplateId, setSelectedOfferTemplateId] = useState<number | null>(null);
+    const [showOfferTemplateModal, setShowOfferTemplateModal] = useState(false);
+    const [editingOfferTemplate, setEditingOfferTemplate] = useState<OfferTemplate | null>(null);
+    const [isCreatingOfferTemplate, setIsCreatingOfferTemplate] = useState(false);
+    const [newOfferTemplateName, setNewOfferTemplateName] = useState('');
+    const [newOfferTemplateMessage, setNewOfferTemplateMessage] = useState('');
+
     // フォームデータ
     const [formData, setFormData] = useState({
         facilityId: null as number | null,
-        jobType: '単発',
+        jobType: 'NORMAL' as JobTypeValue,
         recruitmentCount: 1,
         title: '',
         name: '', // テンプレート名（保存時は使われないが互換性のため）
@@ -166,6 +211,11 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
         genderRequirement: '不問',
         dismissalReasons: '',
         requiresInterview: false,
+        // 限定求人用
+        switchToNormalDaysBefore: null as number | null,
+        // オファー用
+        targetWorkerId: null as number | null,
+        offerMessage: '',
         // 住所情報
         postalCode: '',
         prefecture: '',
@@ -182,6 +232,22 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
         formData.hourlyWage,
         formData.transportationFee
     );
+
+    // 実働時間を計算
+    const workingHours = calculateWorkingHours(
+        formData.startTime,
+        formData.endTime,
+        formData.breakTime
+    );
+
+    // 実働時間を「X時間Y分」形式でフォーマット
+    const formatWorkingHours = (hours: number): string => {
+        if (hours <= 0) return '0時間';
+        const h = Math.floor(hours);
+        const m = Math.round((hours - h) * 60);
+        if (m === 0) return `${h}時間`;
+        return `${h}時間${m}分`;
+    };
 
     const requiresGenderSpecification = formData.workContent.includes('入浴介助(大浴場)') ||
         formData.workContent.includes('入浴介助(全般)') ||
@@ -213,6 +279,13 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                         addressLine: facilityData.addressLine || '',
                         building: facilityData.building || '',
                         address: facilityData.address || '',
+                        // オファーモードの場合
+                        ...(isOfferMode && offerTargetWorker ? {
+                            jobType: 'OFFER' as JobTypeValue,
+                            targetWorkerId: offerTargetWorker.id,
+                            recruitmentCount: 1, // オファーは1名固定
+                            requiresInterview: false, // オファーは審査なし
+                        } : {}),
                     }));
                 }
                 setIsLoading(false);
@@ -223,6 +296,15 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                     try {
                         await fetchEditData(jobId, initialData.facilityInfo, initialData.dismissalReasons || '');
                     } catch (error) {
+                        const debugInfo = extractDebugInfo(error);
+                        showDebugError({
+                            type: 'fetch',
+                            operation: '求人編集データ読込',
+                            message: debugInfo.message,
+                            details: debugInfo.details,
+                            stack: debugInfo.stack,
+                            context: { jobId }
+                        });
                         console.error('Failed to load edit data:', error);
                         toast.error('データの読み込みに失敗しました');
                         setIsLoading(false);
@@ -287,6 +369,15 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                 }
 
             } catch (error) {
+                const debugInfo = extractDebugInfo(error);
+                showDebugError({
+                    type: 'fetch',
+                    operation: '求人初期データ取得',
+                    message: debugInfo.message,
+                    details: debugInfo.details,
+                    stack: debugInfo.stack,
+                    context: { facilityId: admin.facilityId }
+                });
                 console.error('Failed to load initial data:', error);
                 toast.error('データの読み込みに失敗しました');
                 setIsLoading(false);
@@ -302,12 +393,24 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
             const jobData = await getJobById(id);
 
             if (!jobData) {
+                showDebugError({
+                    type: 'fetch',
+                    operation: '求人データ取得(存在せず)',
+                    message: '求人が見つかりません',
+                    context: { jobId: id }
+                });
                 toast.error('求人が見つかりません');
                 router.push('/admin/jobs');
                 return;
             }
 
             if (jobData.facility_id !== admin?.facilityId) {
+                showDebugError({
+                    type: 'fetch',
+                    operation: '求人権限エラー',
+                    message: '編集権限がありません',
+                    context: { jobId: id, facilityId: admin?.facilityId }
+                });
                 toast.error('編集権限がありません');
                 router.push('/admin/jobs');
                 return;
@@ -350,7 +453,7 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                 ...prev,
                 facilityId: jobData.facility_id,
                 title: jobData.title || '',
-                jobType: '単発', // 現状固定
+                jobType: ((jobData as any).job_type as JobTypeValue) || 'NORMAL',
                 recruitmentCount: jobData.workDates?.[0]?.recruitment_count || 1,
                 startTime: jobData.start_time || '09:00',
                 endTime: jobData.end_time || '18:00',
@@ -369,6 +472,11 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                 existingAttachments: jobData.attachments || [],
                 dismissalReasons: (jobData as any).dismissalReasons || (jobData as any).dismissal_reasons || defaultDismissalReasons,
                 requiresInterview: jobData.requires_interview || false,
+                switchToNormalDaysBefore: (jobData as any).switch_to_normal_days_before ?? null,
+                // 募集開始日時
+                recruitmentStartDay: (jobData as any).recruitment_start_day ?? 0,
+                recruitmentStartTime: (jobData as any).recruitment_start_time || '',
+                recruitmentEndDay: jobData.deadline_days_before ?? 1,
                 // 住所
                 prefecture: jobData.prefecture || facility?.prefecture || '',
                 city: jobData.city || facility?.city || '',
@@ -378,6 +486,15 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
             }));
 
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'fetch',
+                operation: '求人データ編集取得(例外)',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { jobId: id }
+            });
             console.error('Failed to fetch edit data:', error);
             toast.error('求人データの取得に失敗しました');
         } finally {
@@ -385,7 +502,132 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
         }
     };
 
+    // === 限定求人対象者数を取得 ===
+    useEffect(() => {
+        if (!admin?.facilityId) return;
+
+        const fetchTargetCounts = async () => {
+            try {
+                const counts = await getLimitedJobTargetCounts(admin.facilityId);
+                console.log('[JobForm] Limited job target counts:', counts);
+                setLimitedJobTargetCounts(counts);
+            } catch (error) {
+                console.error('[JobForm] Failed to fetch limited job target counts:', error);
+            }
+        };
+
+        fetchTargetCounts();
+    }, [admin?.facilityId]);
+
+    // === オファーテンプレートを取得（オファーモード時のみ） ===
+    useEffect(() => {
+        if (!isOfferMode || !admin?.facilityId) return;
+
+        const fetchOfferTemplates = async () => {
+            try {
+                const templates = await getOfferTemplates(admin.facilityId);
+                setOfferTemplates(templates as OfferTemplate[]);
+            } catch (error) {
+                console.error('[JobForm] Failed to fetch offer templates:', error);
+            }
+        };
+
+        fetchOfferTemplates();
+    }, [isOfferMode, admin?.facilityId]);
+
+    // オファーテンプレートの再取得
+    const refreshOfferTemplates = async () => {
+        if (!admin?.facilityId) return;
+        const templates = await getOfferTemplates(admin.facilityId);
+        setOfferTemplates(templates as OfferTemplate[]);
+    };
+
+    // オファーテンプレート作成
+    const handleCreateOfferTemplate = async () => {
+        if (!admin?.facilityId || !newOfferTemplateName.trim() || !newOfferTemplateMessage.trim()) {
+            toast.error('タイトルと内容を入力してください');
+            return;
+        }
+        try {
+            const result = await createOfferTemplate(admin.facilityId, newOfferTemplateName.trim(), newOfferTemplateMessage.trim());
+            if (result.success) {
+                toast.success('テンプレートを作成しました');
+                setNewOfferTemplateName('');
+                setNewOfferTemplateMessage('');
+                setIsCreatingOfferTemplate(false);
+                await refreshOfferTemplates();
+            } else {
+                toast.error(result.error || 'テンプレートの作成に失敗しました');
+            }
+        } catch (error) {
+            console.error('Failed to create offer template:', error);
+            toast.error('テンプレートの作成に失敗しました');
+        }
+    };
+
+    // オファーテンプレート更新
+    const handleUpdateOfferTemplate = async () => {
+        if (!admin?.facilityId || !editingOfferTemplate || !newOfferTemplateName.trim() || !newOfferTemplateMessage.trim()) {
+            toast.error('タイトルと内容を入力してください');
+            return;
+        }
+        try {
+            const result = await updateOfferTemplate(editingOfferTemplate.id, newOfferTemplateName.trim(), newOfferTemplateMessage.trim(), admin.facilityId);
+            if (result.success) {
+                toast.success('テンプレートを更新しました');
+                setEditingOfferTemplate(null);
+                setNewOfferTemplateName('');
+                setNewOfferTemplateMessage('');
+                await refreshOfferTemplates();
+            } else {
+                toast.error(result.error || 'テンプレートの更新に失敗しました');
+            }
+        } catch (error) {
+            console.error('Failed to update offer template:', error);
+            toast.error('テンプレートの更新に失敗しました');
+        }
+    };
+
+    // オファーテンプレート削除
+    const handleDeleteOfferTemplate = async (templateId: number) => {
+        if (!admin?.facilityId) return;
+        if (!confirm('このテンプレートを削除しますか？')) return;
+        try {
+            const result = await deleteOfferTemplate(templateId, admin.facilityId);
+            if (result.success) {
+                toast.success('テンプレートを削除しました');
+                await refreshOfferTemplates();
+            } else {
+                toast.error(result.error || 'テンプレートの削除に失敗しました');
+            }
+        } catch (error) {
+            console.error('Failed to delete offer template:', error);
+            toast.error('テンプレートの削除に失敗しました');
+        }
+    };
+
     // === ハンドラー ===
+
+    // 勤務日までの日数に応じて切り替え日数のデフォルト値を計算
+    const calculateDefaultSwitchDays = (workDates: string[]): number | null => {
+        if (workDates.length === 0) return null;
+
+        const now = getCurrentTime();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+        // 最も近い勤務日を取得
+        const earliestDate = workDates
+            .map(d => new Date(d))
+            .sort((a, b) => a.getTime() - b.getTime())[0];
+
+        const daysUntilWork = Math.ceil((earliestDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+        // 仕様に基づくデフォルト値
+        if (daysUntilWork >= 7) return 7;
+        if (daysUntilWork >= 3) return 3;
+        if (daysUntilWork >= 1) return 1;
+        return null; // 1日未満は切り替えなし
+    };
 
     const handleInputChange = (field: string, value: any) => {
         setFormData({ ...formData, [field]: value });
@@ -520,14 +762,62 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
         handleInputChange('existingAttachments', formData.existingAttachments.filter((_, i) => i !== index));
     };
 
+    // 切り替え日数バリデーション関数
+    // 「X日前に切り替え」とは勤務日のX日前に通常求人になるということ
+    // 例: 勤務日が3日後で「1日前に切り替え」→ 2日後に切り替わる → OK
+    // 例: 勤務日が1日後（明日）で「1日前に切り替え」→ 今日切り替わる必要がある → NG（すでに今日）
+    // したがって、switchDays < daysUntilWork である必要がある（等号なし）
+    const validateSwitchDays = (workDates: string[], switchDays: number | null): { valid: boolean; daysUntilWork: number } => {
+        if (switchDays === null || workDates.length === 0) return { valid: true, daysUntilWork: 0 };
+
+        const now = getCurrentTime();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+        // 最も近い勤務日を取得
+        const earliestDate = workDates
+            .map(d => new Date(d))
+            .sort((a, b) => a.getTime() - b.getTime())[0];
+
+        const daysUntilWork = Math.ceil((earliestDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+        // switchDays < daysUntilWork でなければならない
+        // 例: 勤務日が2日後(daysUntilWork=2)なら、1日前切り替え(switchDays=1)はOK（明日切り替わる）
+        // 例: 勤務日が1日後(daysUntilWork=1)なら、1日前切り替え(switchDays=1)はNG（今日切り替える必要がある）
+        return {
+            valid: switchDays < daysUntilWork,
+            daysUntilWork
+        };
+    };
+
     // カレンダー操作
     const handleDateClick = (dateString: string) => {
         if (mode === 'create') {
+            let newDates: string[];
             if (selectedDates.includes(dateString)) {
-                setSelectedDates(selectedDates.filter(d => d !== dateString));
+                newDates = selectedDates.filter(d => d !== dateString);
             } else {
-                setSelectedDates([...selectedDates, dateString].sort());
+                newDates = [...selectedDates, dateString].sort();
             }
+
+            // 限定求人の場合、バリデーションを行う
+            if (formData.jobType === 'LIMITED_WORKED' || formData.jobType === 'LIMITED_FAVORITE') {
+                // nullの場合はデフォルト値7を使用
+                const switchDays = formData.switchToNormalDaysBefore ?? 7;
+                const { valid, daysUntilWork } = validateSwitchDays(newDates, switchDays);
+                if (!valid && newDates.length > 0) {
+                    // より分かりやすいエラーメッセージ
+                    const requiredDays = switchDays + 1; // X日前に切り替えるには少なくともX+1日先の勤務日が必要
+                    toast.error(
+                        `「${switchDays}日前に切り替え」を選択中ですが、最短の勤務日まで${daysUntilWork}日しかありません。少なくとも${requiredDays}日以上先の日付を選択するか、切り替え設定を変更してください。`,
+                        { duration: 5000 }
+                    );
+                    // 設定箇所にスクロール
+                    switchSettingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    return; // 日付選択をキャンセル
+                }
+            }
+
+            setSelectedDates(newDates);
         } else {
             // 編集モード
             const existing = existingWorkDates.find(wd => wd.date === dateString);
@@ -568,6 +858,14 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                 toast.error('テンプレートがありません');
             }
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'fetch',
+                operation: 'システムテンプレート取得',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack
+            });
             console.error('Failed to insert template:', error);
             toast.error('テンプレート取得失敗');
         }
@@ -663,126 +961,265 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
     const handleSave = async () => {
         if (isSaving) return;
 
+        // バリデーションエラー表示を有効化
+        setShowErrors(true);
+
+        // バリデーション
+        const errors: string[] = [];
+
+        if (!formData.title?.trim()) errors.push('求人タイトルは必須です');
+        if (!formData.startTime) errors.push('開始時刻は必須です');
+        if (!formData.endTime) errors.push('終了時刻は必須です');
+        if (!formData.hourlyWage || formData.hourlyWage <= 0) errors.push('時給は必須です');
+        if (!formData.recruitmentCount || formData.recruitmentCount <= 0) errors.push('募集人数は必須です');
+        if (formData.qualifications.length === 0) errors.push('必要な資格を選択してください');
+
+        // 勤務時間（拘束時間）に応じた休憩時間チェック（労働基準法準拠）
+        if (formData.startTime && formData.endTime) {
+            const parseTimeForValidation = (time: string) => {
+                const isNextDay = time.startsWith('翌');
+                const timePart = isNextDay ? time.slice(1) : time;
+                const [hour, min] = timePart.split(':').map(Number);
+                return { hour, min, isNextDay };
+            };
+
+            const start = parseTimeForValidation(formData.startTime);
+            const end = parseTimeForValidation(formData.endTime);
+
+            const startMinutes = start.hour * 60 + start.min;
+            let endMinutes = end.hour * 60 + end.min;
+            if (end.isNextDay) {
+                endMinutes += 24 * 60;
+            }
+
+            let grossMinutes = endMinutes - startMinutes;
+            if (grossMinutes < 0) grossMinutes += 24 * 60;
+
+            // 8時間（480分）を超える勤務 → 60分以上の休憩が必要
+            if (grossMinutes > 480 && formData.breakTime < 60) {
+                errors.push('8時間を超える勤務の場合、休憩時間は60分以上必要です');
+            }
+            // 6時間（360分）を超える勤務 → 45分以上の休憩が必要
+            else if (grossMinutes > 360 && formData.breakTime < 45) {
+                errors.push('6時間を超える勤務の場合、休憩時間は45分以上必要です');
+            }
+        }
+
+        // 限定求人の対象者チェック
+        if (formData.jobType === 'LIMITED_WORKED' && limitedJobTargetCounts.workedCount === 0) {
+            errors.push('限定求人（勤務済みの方）を作成するには、過去に勤務完了したワーカーが必要です');
+        }
+        if (formData.jobType === 'LIMITED_FAVORITE' && limitedJobTargetCounts.favoriteCount === 0) {
+            errors.push('限定求人（お気に入りのみ）を作成するには、お気に入り登録しているワーカーが必要です');
+        }
+
+        // 限定求人の切り替え日数バリデーション
+        if ((formData.jobType === 'LIMITED_WORKED' || formData.jobType === 'LIMITED_FAVORITE') && formData.switchToNormalDaysBefore !== null) {
+            const now = getCurrentTime();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const workDatesToValidate = mode === 'create' ? selectedDates : existingWorkDates.map(wd => wd.date);
+
+            if (workDatesToValidate.length > 0) {
+                // 最も近い勤務日を取得
+                const earliestDate = workDatesToValidate
+                    .map(d => new Date(d))
+                    .sort((a, b) => a.getTime() - b.getTime())[0];
+
+                const daysUntilWork = Math.ceil((earliestDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+                if (formData.switchToNormalDaysBefore > daysUntilWork) {
+                    errors.push(`最短の勤務日まで${daysUntilWork}日しかないため、${formData.switchToNormalDaysBefore}日前に通常求人へ切り替えることはできません。${daysUntilWork}日以下の値を選択してください。`);
+                }
+            }
+        }
+
+        // 新規作成時は勤務日必須
+        if (mode === 'create') {
+            if (selectedDates.length === 0) errors.push('勤務日は少なくとも1つ選択してください');
+        }
+
         // 編集モードのバリデーション
         if (mode === 'edit') {
             const activeDatesCount = existingWorkDates.filter(d => !removedWorkDateIds.includes(d.id)).length + addedWorkDates.length;
-            if (activeDatesCount === 0) return toast.error('勤務日は少なくとも1つ必要です');
+            if (activeDatesCount === 0) errors.push('勤務日は少なくとも1つ必要です');
+        }
+
+        // 当日の求人は現在時刻+4時間以降の開始時刻が必要
+        // JST（日本時間）で今日の日付を取得（toISOStringはUTCなので使わない）
+        const now = getCurrentTime();
+        const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        const workDatesToCheck = mode === 'create'
+            ? selectedDates
+            : [...existingWorkDates.filter(d => !removedWorkDateIds.includes(d.id)).map(d => d.date), ...addedWorkDates];
+
+        if (workDatesToCheck.includes(todayStr) && formData.startTime) {
+            const minStartTime = new Date(now.getTime() + 4 * 60 * 60 * 1000); // 4時間後
+            const [startHour, startMinute] = formData.startTime.split(':').map(Number);
+            const startDateTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), startHour, startMinute);
+
+            if (startDateTime < minStartTime) {
+                const minHour = minStartTime.getHours().toString().padStart(2, '0');
+                const minMin = minStartTime.getMinutes().toString().padStart(2, '0');
+                errors.push(`当日の求人は${minHour}:${minMin}以降の開始時刻を設定してください（現在時刻から4時間後以降）`);
+            }
+        }
+
+        if (errors.length > 0) {
+            toast.error(
+                <div className="text-sm">
+                    <p className="font-bold mb-1">入力内容を確認してください</p>
+                    <ul className="list-disc pl-4 space-y-0.5">
+                        {errors.map((err, i) => <li key={i}>{err}</li>)}
+                    </ul>
+                </div>
+            );
+            return;
         }
 
         setIsSaving(true);
 
-        // 1. 楽観的UI更新：保存中メッセージを出して即リダイレクト
-        toast.success('保存処理を開始しました');
-        router.push('/admin/jobs');
-
-        // 2. バックグラウンド実行
-        (async () => {
-            try {
-                // 画像等のアップロード
-                const uploadFiles = async (files: File[], apiConfig: string) => {
-                    if (files.length === 0) return [];
-                    const fd = new FormData();
-                    files.forEach(f => fd.append('files', f));
-                    const res = await fetch('/api/upload', { method: 'POST', body: fd });
-                    if (!res.ok) throw new Error('Upload failed');
-                    const json = await res.json();
-                    return json.urls || [];
-                };
-
-                const newImageUrls = await uploadFiles(formData.images, '');
-                const newDressUrls = await uploadFiles(formData.dresscodeImages, '');
-                const newAttachUrls = await uploadFiles(formData.attachments, '');
-
-                const finalImages = [...formData.existingImages, ...newImageUrls];
-                const finalDress = [...formData.existingDresscodeImages, ...newDressUrls];
-                const finalAttach = [...formData.existingAttachments, ...newAttachUrls];
-
-                if (mode === 'create') {
-                    // 新規作成
-                    let workDates = selectedDates;
-
-                    const res = await createJobs({
-                        facilityId: formData.facilityId!,
-                        templateId: selectedTemplateId,
-                        title: formData.title,
-                        workDates: workDates,
-                        startTime: formData.startTime,
-                        endTime: formData.endTime,
-                        breakTime: formData.breakTime,
-                        hourlyWage: formData.hourlyWage,
-                        transportationFee: formData.transportationFee,
-                        recruitmentCount: formData.recruitmentCount,
-                        workContent: formData.workContent,
-                        jobDescription: formData.jobDescription,
-                        qualifications: formData.qualifications,
-                        skills: formData.skills,
-                        dresscode: formData.dresscode,
-                        belongings: formData.belongings,
-                        icons: formData.icons,
-                        images: finalImages,
-                        dresscodeImages: finalDress,
-                        attachments: finalAttach,
-                        recruitmentStartDay: formData.recruitmentStartDay,
-                        recruitmentStartTime: formData.recruitmentStartTime || undefined,
-                        recruitmentEndDay: formData.recruitmentEndDay,
-                        recruitmentEndTime: formData.recruitmentEndTime || undefined,
-                        weeklyFrequency: recruitmentOptions.weeklyFrequency,
-                        requiresInterview: formData.requiresInterview,
-                        prefecture: formData.prefecture,
-                        city: formData.city,
-                        addressLine: formData.addressLine,
-                        address: formData.address,
-                    });
-
-                    if (res.success) {
-                        toast.success('求人の保存が完了しました');
-                    } else {
-                        throw new Error(res.error || '作成失敗');
-                    }
-
-                } else {
-                    // 更新
-                    const res = await updateJob(parseInt(jobId!), formData.facilityId!, {
-                        title: formData.title,
-                        startTime: formData.startTime,
-                        endTime: formData.endTime,
-                        breakTime: formData.breakTime,
-                        hourlyWage: formData.hourlyWage,
-                        transportationFee: formData.transportationFee,
-                        recruitmentCount: formData.recruitmentCount,
-                        workContent: formData.workContent,
-                        jobDescription: formData.jobDescription,
-                        weeklyFrequency: recruitmentOptions.weeklyFrequency,
-                        qualifications: formData.qualifications,
-                        skills: formData.skills,
-                        dresscode: formData.dresscode,
-                        belongings: formData.belongings,
-                        icons: formData.icons,
-                        images: finalImages,
-                        dresscodeImages: finalDress,
-                        attachments: finalAttach,
-                        addWorkDates: addedWorkDates,
-                        removeWorkDateIds: removedWorkDateIds,
-                        requiresInterview: formData.requiresInterview,
-                        prefecture: formData.prefecture,
-                        city: formData.city,
-                        addressLine: formData.addressLine,
-                    });
-
-                    if (res.success) {
-                        toast.success('求人の保存が完了しました');
-                    } else {
-                        throw new Error(res.error || '更新失敗');
-                    }
+        try {
+            // 画像等のアップロード（署名付きURL方式）
+            const adminSession = localStorage.getItem('admin_session') || '';
+            const uploadWithSignedUrl = async (files: File[], type: 'job' | 'message') => {
+                if (files.length === 0) return [];
+                const results = await directUploadMultiple(files, {
+                    uploadType: type,
+                    adminSession,
+                });
+                const failed = results.filter(r => !r.success);
+                if (failed.length > 0) {
+                    throw new Error(failed[0].error || 'アップロードに失敗しました');
                 }
-            } catch (e: any) {
-                console.error(e);
-                showError('SAVE_ERROR', `保存に失敗しました: ${e.message}`);
-                // 失敗時のリカバリーは難しいが、ユーザーに通知する
-            } finally {
-                setIsSaving(false);
+                return results.filter(r => r.success && r.url).map(r => r.url!);
+            };
+
+            const newImageUrls = await uploadWithSignedUrl(formData.images, 'job');
+            const newDressUrls = await uploadWithSignedUrl(formData.dresscodeImages, 'job');
+            const newAttachUrls = await uploadWithSignedUrl(formData.attachments, 'job');
+
+            const finalImages = [...formData.existingImages, ...newImageUrls];
+            const finalDress = [...formData.existingDresscodeImages, ...newDressUrls];
+            const finalAttach = [...formData.existingAttachments, ...newAttachUrls];
+
+            if (mode === 'create') {
+                // 新規作成
+                let workDates = selectedDates;
+
+                // オファーのみ審査なし固定（限定求人は審査あり/なし選択可能）
+                const requiresInterview = formData.jobType === 'OFFER'
+                    ? false
+                    : formData.requiresInterview;
+
+                const res = await createJobs({
+                    facilityId: formData.facilityId!,
+                    templateId: selectedTemplateId,
+                    title: formData.title,
+                    workDates: workDates,
+                    startTime: formData.startTime,
+                    endTime: formData.endTime,
+                    breakTime: formData.breakTime,
+                    hourlyWage: formData.hourlyWage,
+                    transportationFee: formData.transportationFee,
+                    recruitmentCount: formData.recruitmentCount,
+                    workContent: formData.workContent,
+                    jobDescription: formData.jobDescription,
+                    qualifications: formData.qualifications,
+                    skills: formData.skills,
+                    dresscode: formData.dresscode,
+                    belongings: formData.belongings,
+                    icons: formData.icons,
+                    images: finalImages,
+                    dresscodeImages: finalDress,
+                    attachments: finalAttach,
+                    recruitmentStartDay: formData.recruitmentStartDay,
+                    recruitmentStartTime: formData.recruitmentStartTime || undefined,
+                    recruitmentEndDay: formData.recruitmentEndDay,
+                    recruitmentEndTime: formData.recruitmentEndTime || undefined,
+                    weeklyFrequency: recruitmentOptions.weeklyFrequency,
+                    requiresInterview: requiresInterview,
+                    // 新規フィールド
+                    jobType: formData.jobType,
+                    switchToNormalDaysBefore: formData.switchToNormalDaysBefore,
+                    // オファー用
+                    targetWorkerId: formData.targetWorkerId,
+                    offerMessage: formData.offerMessage || undefined,
+                    // 住所情報
+                    prefecture: formData.prefecture,
+                    city: formData.city,
+                    addressLine: formData.addressLine,
+                    address: formData.address,
+                });
+
+                if (res.success) {
+                    toast.success(isOfferMode ? 'オファーを送信しました' : '求人を作成しました');
+                    // SWRキャッシュをクリアして一覧を更新
+                    globalMutate((key) => typeof key === 'string' && key.includes('/api/admin/jobs'));
+                    router.push('/admin/jobs');
+                } else {
+                    // オファー重複エラーなど、ユーザー向けのエラーはトーストで表示
+                    toast.error(res.error || '作成に失敗しました');
+                    setIsSaving(false);
+                    return;
+                }
+
+            } else {
+                // 更新
+                const res = await updateJob(parseInt(jobId!), formData.facilityId!, {
+                    title: formData.title,
+                    startTime: formData.startTime,
+                    endTime: formData.endTime,
+                    breakTime: formData.breakTime,
+                    hourlyWage: formData.hourlyWage,
+                    transportationFee: formData.transportationFee,
+                    recruitmentCount: formData.recruitmentCount,
+                    workContent: formData.workContent,
+                    jobDescription: formData.jobDescription,
+                    weeklyFrequency: recruitmentOptions.weeklyFrequency,
+                    qualifications: formData.qualifications,
+                    skills: formData.skills,
+                    dresscode: formData.dresscode,
+                    belongings: formData.belongings,
+                    icons: formData.icons,
+                    images: finalImages,
+                    dresscodeImages: finalDress,
+                    attachments: finalAttach,
+                    addWorkDates: addedWorkDates,
+                    removeWorkDateIds: removedWorkDateIds,
+                    requiresInterview: formData.requiresInterview,
+                    prefecture: formData.prefecture,
+                    city: formData.city,
+                    addressLine: formData.addressLine,
+                    recruitmentStartDay: formData.recruitmentStartDay,
+                    recruitmentStartTime: formData.recruitmentStartTime || undefined,
+                    recruitmentEndDay: formData.recruitmentEndDay,
+                    recruitmentEndTime: formData.recruitmentEndTime || undefined,
+                });
+
+                if (res.success) {
+                    toast.success('求人を更新しました');
+                    // SWRキャッシュをクリアして一覧を更新
+                    globalMutate((key) => typeof key === 'string' && key.includes('/api/admin/jobs'));
+                    router.push('/admin/jobs');
+                } else {
+                    throw new Error(res.error || '更新失敗');
+                }
             }
-        })();
+        } catch (e: any) {
+            const debugInfo = extractDebugInfo(e);
+            showDebugError({
+                type: mode === 'create' ? 'save' : 'update',
+                operation: mode === 'create' ? '求人一括作成' : '求人更新',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { facilityId: formData.facilityId, jobId }
+            });
+            console.error(e);
+            showError('SAVE_ERROR', `保存に失敗しました: ${e.message}`);
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     // === レンダリング用ヘルパー ===
@@ -830,9 +1267,10 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                         <button
                             onClick={handleShowConfirm}
                             disabled={isSaving}
-                            className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:bg-blue-400 disabled:cursor-not-allowed"
+                            className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:bg-blue-400 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-w-[100px]"
                         >
-                            {isSaving ? '保存中...' : (mode === 'create' ? '公開する' : '更新する')}
+                            {isSaving && <LoadingSpinner size="sm" color="white" />}
+                            {isSaving ? '保存中...' : (mode === 'create' ? (isOfferMode ? 'オファーする' : '公開する') : '更新する')}
                         </button>
                     </div>
                 </div>
@@ -845,93 +1283,171 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                         <h2 className="text-lg font-bold text-gray-900 mb-4">基本</h2>
                         <div className="space-y-4">
-                            {/* 1行目：施設、求人種別、募集人数 */}
-                            <div className="grid grid-cols-3 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        施設 <span className="text-red-500">*</span>
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={facilityInfo?.facilityName || '読み込み中...'}
-                                        readOnly
-                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-gray-100"
-                                    />
-                                </div>
-
-                                {/* 勤務地住所AddressSelectorは除外 */}
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        求人種別 <span className="text-red-500">*</span>
-                                    </label>
-                                    <select
-                                        value={formData.jobType}
-                                        onChange={(e) => handleInputChange('jobType', e.target.value)}
-                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                                    >
-                                        {JOB_TYPES.map(type => (
-                                            <option key={type} value={type}>{type}</option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        募集人数 <span className="text-red-500">*</span>
-                                    </label>
-                                    <select
-                                        value={formData.recruitmentCount}
-                                        onChange={(e) => handleInputChange('recruitmentCount', Number(e.target.value))}
-                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                                    >
-                                        {Array.from({ length: 10 }, (_, i) => i + 1).map(num => (
-                                            <option key={num} value={num}>{num}人</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-
-                            {/* マッチング方法 */}
-                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                                <label className="flex items-start gap-3 cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        checked={formData.requiresInterview}
-                                        onChange={(e) => handleInputChange('requiresInterview', e.target.checked)}
-                                        className="mt-0.5 w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                    />
-                                    <div>
-                                        <span className="text-sm font-medium text-gray-900">審査してからマッチング</span>
-                                        <p className="text-xs text-gray-600 mt-1">
-                                            ワーカーからの応募後に審査・選考を行ってからマッチングを決定できます。<br />
-                                            <span className="text-red-500 font-bold">※チェックを入れない方がマッチング率は高くなります</span>
-                                        </p>
+                            {/* オファーモード：対象ワーカー表示 */}
+                            {isOfferMode && offerTargetWorker && (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                                    <div className="flex items-center gap-4">
+                                        {offerTargetWorker.profileImage ? (
+                                            <img
+                                                src={offerTargetWorker.profileImage}
+                                                alt={offerTargetWorker.name}
+                                                className="w-14 h-14 rounded-full object-cover border-2 border-blue-300"
+                                            />
+                                        ) : (
+                                            <div className="w-14 h-14 rounded-full bg-blue-200 flex items-center justify-center text-blue-600 text-xl font-bold">
+                                                {offerTargetWorker.name.charAt(0)}
+                                            </div>
+                                        )}
+                                        <div>
+                                            <p className="text-lg font-bold text-gray-900">{offerTargetWorker.name}さんへのオファー</p>
+                                            <p className="text-sm text-gray-600">このワーカー専用の求人を作成します</p>
+                                        </div>
                                     </div>
-                                </label>
+                                </div>
+                            )}
+
+                            {/* 1行目：テンプレート + 募集人数（オファーは1名固定で非表示） */}
+                            <div className="flex gap-4">
+                                <div className="flex-1">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        テンプレート（任意）
+                                    </label>
+                                    <select
+                                        value={selectedTemplateId || ''}
+                                        onChange={(e) => e.target.value && handleTemplateSelect(Number(e.target.value))}
+                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                    >
+                                        <option value="">テンプレートを選択（任意）</option>
+                                        {jobTemplates.map((template) => (
+                                            <option key={template.id} value={template.id}>
+                                                {template.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        テンプレートを選択すると、フォームに自動入力されます
+                                    </p>
+                                </div>
+
+                                {/* オファーモードでは募集人数は1名固定で非表示 */}
+                                {!isOfferMode && (
+                                    <div className="w-32">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            募集人数 <span className="text-red-500">*</span>
+                                        </label>
+                                        <select
+                                            value={formData.recruitmentCount}
+                                            onChange={(e) => handleInputChange('recruitmentCount', Number(e.target.value))}
+                                            className={`w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-600 ${showErrors && (!formData.recruitmentCount || formData.recruitmentCount <= 0) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                                        >
+                                            {Array.from({ length: 30 }, (_, i) => i + 1).map(num => (
+                                                <option key={num} value={num}>{num}人</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
                             </div>
 
-                            {/* 2行目：テンプレート選択 */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    テンプレート（任意）
-                                </label>
-                                <select
-                                    value={selectedTemplateId || ''}
-                                    onChange={(e) => e.target.value && handleTemplateSelect(Number(e.target.value))}
-                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                                >
-                                    <option value="">テンプレートを選択（任意）</option>
-                                    {jobTemplates.map((template) => (
-                                        <option key={template.id} value={template.id}>
-                                            {template.name}
-                                        </option>
-                                    ))}
-                                </select>
-                                <p className="text-xs text-gray-500 mt-1">
-                                    テンプレートを選択すると、フォームに自動入力されます
-                                </p>
-                            </div>
+                            {/* 求人種別選択 + マッチング方法（オファーモード時は非表示） - 左右2カラム */}
+                            {!isOfferMode && (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {/* 左側：求人種別選択 */}
+                                        <div className="space-y-3">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                    求人種別 <span className="text-red-500">*</span>
+                                                </label>
+                                                <select
+                                                    value={formData.jobType}
+                                                    onChange={(e) => {
+                                                        const newJobType = e.target.value as JobTypeValue;
+                                                        handleInputChange('jobType', newJobType);
+
+                                                        // 限定求人に変更した場合、切り替え日数を7日に初期化
+                                                        if (newJobType === 'LIMITED_WORKED' || newJobType === 'LIMITED_FAVORITE') {
+                                                            setFormData(prev => ({ ...prev, jobType: newJobType, switchToNormalDaysBefore: 7 }));
+                                                        }
+                                                    }}
+                                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                                                >
+                                                    {JOB_TYPE_OPTIONS.map((option) => (
+                                                        <option key={option.value} value={option.value}>
+                                                            {option.label}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                <p className="text-xs text-gray-600 mt-1">
+                                                    {JOB_TYPE_OPTIONS.find(opt => opt.value === formData.jobType)?.description || ''}
+                                                </p>
+                                            </div>
+
+                                            {/* 限定求人で対象者0人の場合の警告メッセージ */}
+                                            {formData.jobType === 'LIMITED_WORKED' && limitedJobTargetCounts.workedCount === 0 && (
+                                                <div className="bg-amber-50 border border-amber-200 rounded-lg p-2 flex items-start gap-2">
+                                                    <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                                                    <p className="text-xs text-amber-700">
+                                                        対象ワーカーがいないため選択できません
+                                                    </p>
+                                                </div>
+                                            )}
+                                            {formData.jobType === 'LIMITED_FAVORITE' && limitedJobTargetCounts.favoriteCount === 0 && (
+                                                <div className="bg-amber-50 border border-amber-200 rounded-lg p-2 flex items-start gap-2">
+                                                    <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                                                    <p className="text-xs text-amber-700">
+                                                        お気に入りワーカーがいないため選択できません
+                                                    </p>
+                                                </div>
+                                            )}
+
+                                            {/* 限定求人：通常求人への自動切り替え設定 */}
+                                            {(formData.jobType === 'LIMITED_WORKED' || formData.jobType === 'LIMITED_FAVORITE') && (
+                                                <div ref={switchSettingRef} className="bg-white border border-gray-200 rounded-lg p-2">
+                                                    <div className="flex items-center gap-1.5 flex-wrap text-xs">
+                                                        <span className="text-gray-700">勤務開始日の</span>
+                                                        <select
+                                                            value={formData.switchToNormalDaysBefore ?? 7}
+                                                            onChange={(e) => handleInputChange('switchToNormalDaysBefore', parseInt(e.target.value))}
+                                                            className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                                                        >
+                                                            {SWITCH_TO_NORMAL_OPTIONS.map((opt) => (
+                                                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                                            ))}
+                                                        </select>
+                                                        <span className="text-gray-700">に通常求人に切り替え</span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* 右側：審査してマッチング（説明会の場合はグレーアウト） */}
+                                        <div className={`flex items-start md:border-l md:border-blue-200 md:pl-4 ${formData.jobType === 'ORIENTATION' ? 'opacity-50' : ''}`}>
+                                            <label className={`flex items-start gap-3 ${formData.jobType === 'ORIENTATION' ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={formData.jobType === 'ORIENTATION' ? false : formData.requiresInterview}
+                                                    onChange={(e) => handleInputChange('requiresInterview', e.target.checked)}
+                                                    disabled={formData.jobType === 'ORIENTATION'}
+                                                    className={`mt-0.5 w-5 h-5 border-gray-300 rounded focus:ring-blue-500 ${formData.jobType === 'ORIENTATION' ? 'bg-gray-200 text-gray-400' : 'text-blue-600'}`}
+                                                />
+                                                <div>
+                                                    <span className={`text-sm font-medium ${formData.jobType === 'ORIENTATION' ? 'text-gray-400' : 'text-gray-900'}`}>審査してからマッチング</span>
+                                                    <p className={`text-xs mt-1 ${formData.jobType === 'ORIENTATION' ? 'text-gray-400' : 'text-gray-600'}`}>
+                                                        {formData.jobType === 'ORIENTATION' ? (
+                                                            '説明会では審査は行いません'
+                                                        ) : (
+                                                            <>
+                                                                応募後に審査・選考を行います<br />
+                                                                <span className="text-red-500 font-bold">※OFFの方がマッチング率UP</span>
+                                                            </>
+                                                        )}
+                                                    </p>
+                                                </div>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* 3行目：求人タイトル */}
                             <div>
@@ -942,9 +1458,12 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                                     type="text"
                                     value={formData.title}
                                     onChange={(e) => handleInputChange('title', e.target.value)}
-                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                    className={`w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-600 ${showErrors && !formData.title?.trim() ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                                     placeholder="例:デイサービス・介護スタッフ募集（日勤）"
                                 />
+                                {showErrors && !formData.title?.trim() && (
+                                    <p className="text-red-500 text-xs mt-1">求人タイトルを入力してください</p>
+                                )}
                             </div>
 
                             <div>
@@ -952,7 +1471,7 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                                     TOP画像登録（3枚まで） <span className="text-red-500">*</span>
                                 </label>
                                 <p className="text-xs text-gray-500 mb-2">推奨画像サイズ: 1200×800px（比率 3:2）</p>
-                                <p className="text-xs text-gray-500 mb-3">登録できるファイルサイズは5MBまでです</p>
+                                <p className="text-xs text-gray-500 mb-3">登録できるファイルサイズは20MBまでです</p>
                                 <div className="space-y-2">
                                     {(formData.existingImages.length + formData.images.length) < 3 && (
                                         <label
@@ -1091,7 +1610,7 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                                         };
 
                                         const { daysInMonth, startingDayOfWeek, year, month } = getDaysInMonth(currentMonth);
-                                        const today = new Date();
+                                        const today = getCurrentTime();
                                         today.setHours(0, 0, 0, 0);
                                         const days = [];
 
@@ -1156,7 +1675,7 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                                                     return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                                                 };
                                                 const { daysInMonth, year, month } = getDaysInMonth(currentMonth);
-                                                const today = new Date();
+                                                const today = getCurrentTime();
                                                 today.setHours(0, 0, 0, 0);
                                                 let selectableDates: string[] = [];
                                                 for (let day = 1; day <= daysInMonth; day++) {
@@ -1255,643 +1774,882 @@ export default function JobForm({ mode, jobId, initialData }: JobFormProps) {
                         </div>
                     </div>
 
-                {/* 勤務時間 */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
-                    <h2 className="text-lg font-bold text-gray-900 mb-4">勤務時間</h2>
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-3 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    開始時刻 <span className="text-red-500">*</span>
-                                </label>
-                                <div className="flex gap-1">
-                                    <select
-                                        value={formData.startTime.split(':')[0]}
-                                        onChange={(e) => {
-                                            const minute = formData.startTime.split(':')[1] || '00';
-                                            handleInputChange('startTime', `${e.target.value}:${minute}`);
-                                        }}
-                                        className="flex-1 px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                                    >
-                                        {HOUR_OPTIONS.map(option => (
-                                            <option key={option.value} value={option.value}>{option.label}</option>
-                                        ))}
-                                    </select>
-                                    <select
-                                        value={formData.startTime.split(':')[1] || '00'}
-                                        onChange={(e) => {
-                                            const hour = formData.startTime.split(':')[0] || '06';
-                                            handleInputChange('startTime', `${hour}:${e.target.value}`);
-                                        }}
-                                        className="flex-1 px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                                    >
-                                        {MINUTE_OPTIONS.map(option => (
-                                            <option key={option.value} value={option.value}>{option.label}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    終了時刻 <span className="text-red-500">*</span>
-                                </label>
-                                <div className="flex gap-1">
-                                    <select
-                                        value={(() => {
-                                            const isNextDay = formData.endTime.startsWith('翌');
-                                            const timePart = isNextDay ? formData.endTime.slice(1) : formData.endTime;
-                                            const hour = timePart.split(':')[0] || '15';
-                                            return isNextDay ? `翌${hour}` : hour;
-                                        })()}
-                                        onChange={(e) => {
-                                            const isNextDay = formData.endTime.startsWith('翌');
-                                            const timePart = isNextDay ? formData.endTime.slice(1) : formData.endTime;
-                                            const minute = timePart.split(':')[1] || '00';
-                                            const newIsNextDay = e.target.value.startsWith('翌');
-                                            const newHour = newIsNextDay ? e.target.value.slice(1) : e.target.value;
-                                            handleInputChange('endTime', newIsNextDay ? `翌${newHour}:${minute}` : `${newHour}:${minute}`);
-                                        }}
-                                        className="flex-1 px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                                    >
-                                        {END_HOUR_OPTIONS.map(option => (
-                                            <option key={option.value} value={option.value}>{option.label}</option>
-                                        ))}
-                                    </select>
-                                    <select
-                                        value={(() => {
-                                            const isNextDay = formData.endTime.startsWith('翌');
-                                            const timePart = isNextDay ? formData.endTime.slice(1) : formData.endTime;
-                                            return timePart.split(':')[1] || '00';
-                                        })()}
-                                        onChange={(e) => {
-                                            const isNextDay = formData.endTime.startsWith('翌');
-                                            const timePart = isNextDay ? formData.endTime.slice(1) : formData.endTime;
-                                            const hour = timePart.split(':')[0] || '15';
-                                            handleInputChange('endTime', isNextDay ? `翌${hour}:${e.target.value}` : `${hour}:${e.target.value}`);
-                                        }}
-                                        className="flex-1 px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                                    >
-                                        {MINUTE_OPTIONS.map(option => (
-                                            <option key={option.value} value={option.value}>{option.label}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    休憩時間 <span className="text-red-500">*</span>
-                                </label>
-                                <select
-                                    value={formData.breakTime}
-                                    onChange={(e) => handleInputChange('breakTime', Number(e.target.value))}
-                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                                >
-                                    {BREAK_TIME_OPTIONS.map(option => (
-                                        <option key={option.value} value={option.value}>{option.label}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-4 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    募集開始日 <span className="text-red-500">*</span>
-                                </label>
-                                <select
-                                    value={formData.recruitmentStartDay}
-                                    onChange={(e) => handleInputChange('recruitmentStartDay', Number(e.target.value))}
-                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                                >
-                                    {RECRUITMENT_START_DAY_OPTIONS.map(option => (
-                                        <option key={option.value} value={option.value}>{option.label}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    募集開始時間 <span className="text-red-500">*</span>
-                                </label>
-                                {formData.recruitmentStartDay === 0 || formData.recruitmentStartDay === -1 ? (
-                                    <input
-                                        type="text"
-                                        value="--:--"
-                                        readOnly
-                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-gray-100 text-gray-500"
-                                    />
-                                ) : (
-                                    <input
-                                        type="time"
-                                        value={formData.recruitmentStartTime}
-                                        onChange={(e) => handleInputChange('recruitmentStartTime', e.target.value)}
-                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                                    />
-                                )}
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    募集終了日 <span className="text-red-500">*</span>
-                                </label>
-                                <select
-                                    value={formData.recruitmentEndDay}
-                                    onChange={(e) => handleInputChange('recruitmentEndDay', Number(e.target.value))}
-                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                                >
-                                    {RECRUITMENT_END_DAY_OPTIONS.map(option => (
-                                        <option key={option.value} value={option.value}>{option.label}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    募集終了時間 <span className="text-red-500">*</span>
-                                </label>
-                                {formData.recruitmentEndDay === 0 || formData.recruitmentEndDay === -1 ? (
-                                    <input
-                                        type="text"
-                                        value="--:--"
-                                        readOnly
-                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-gray-100 text-gray-500"
-                                    />
-                                ) : (
-                                    <input
-                                        type="time"
-                                        value={formData.recruitmentEndTime}
-                                        onChange={(e) => handleInputChange('recruitmentEndTime', e.target.value)}
-                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                                    />
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* 給与 */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
-                    <h2 className="text-lg font-bold text-gray-900 mb-4">給与</h2>
-                    <div className="grid grid-cols-3 gap-4 mb-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                時給（円） <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                                type="number"
-                                value={formData.hourlyWage}
-                                onChange={(e) => handleInputChange('hourlyWage', Number(e.target.value))}
-                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                交通費（円） <span className="text-red-500">*</span>
-                            </label>
-                            <select
-                                value={formData.transportationFee}
-                                onChange={(e) => handleInputChange('transportationFee', Number(e.target.value))}
-                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                            >
-                                {TRANSPORTATION_FEE_OPTIONS.map(option => (
-                                    <option key={option.value} value={option.value}>{option.label}</option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                日給（総支払）
-                            </label>
-                            <input
-                                type="text"
-                                value={dailyWage.toLocaleString()}
-                                readOnly
-                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-gray-100"
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* 業務設定 */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
-                    <h2 className="text-lg font-bold text-gray-900 mb-4">業務設定</h2>
-                    <div className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                仕事内容（複数選択可） <span className="text-red-500">*</span>
-                            </label>
-                            <div className="grid grid-cols-4 gap-2 p-3 border border-gray-200 rounded">
-                                {WORK_CONTENT_OPTIONS.map(option => (
-                                    <label key={option} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
-                                        <input
-                                            type="checkbox"
-                                            checked={formData.workContent.includes(option)}
-                                            onChange={() => toggleArrayItem('workContent', option)}
-                                            className="rounded text-blue-600"
-                                        />
-                                        <span className="text-sm">{option}</span>
+                    {/* 勤務時間 */}
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
+                        <h2 className="text-lg font-bold text-gray-900 mb-4">勤務時間</h2>
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-3 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        開始時刻 <span className="text-red-500">*</span>
                                     </label>
-                                ))}
-                            </div>
-                        </div>
-
-                        {requiresGenderSpecification && (
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    性別指定 <span className="text-red-500">*</span>
-                                </label>
-                                <p className="text-xs text-gray-500 mb-2">入浴介助または排泄介助を選択した場合のみ指定が必要です</p>
-                                <select
-                                    value={formData.genderRequirement}
-                                    onChange={(e) => handleInputChange('genderRequirement', e.target.value)}
-                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                                >
-                                    <option value="">指定なし</option>
-                                    <option value="male">男性</option>
-                                    <option value="female">女性</option>
-                                </select>
-                            </div>
-                        )}
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                仕事詳細 <span className="text-red-500">*</span>
-                            </label>
-                            <select
-                                onChange={(e) => {
-                                    if (e.target.value) {
-                                        const format = JOB_DESCRIPTION_FORMATS.find(f => f.value === e.target.value);
-                                        if (format) {
-                                            handleInputChange('jobDescription', format.text);
-                                        }
-                                    }
-                                }}
-                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600 mb-2"
-                            >
-                                <option value="">フォーマットを選択</option>
-                                {JOB_DESCRIPTION_FORMATS.map(format => (
-                                    <option key={format.value} value={format.value}>{format.value}</option>
-                                ))}
-                            </select>
-                            <textarea
-                                value={formData.jobDescription}
-                                onChange={(e) => handleInputChange('jobDescription', e.target.value)}
-                                rows={9}
-                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                                placeholder="業務の詳細を入力してください"
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* 条件設定 */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
-                    <h2 className="text-lg font-bold text-gray-900 mb-4">条件設定</h2>
-                    <div className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                資格条件（複数選択可） <span className="text-red-500">*</span>
-                            </label>
-                            <div className="border border-gray-200 rounded p-4">
-                                {QUALIFICATION_GROUPS.map((group) => (
-                                    <div key={group.name} className="mb-4">
-                                        <h4 className="text-sm font-semibold text-gray-700 mb-2">{group.name}</h4>
-                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                                            {group.qualifications.map((qual) => (
-                                                <label key={qual} className="flex items-center gap-2 text-sm cursor-pointer">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={formData.qualifications.includes(qual)}
-                                                        onChange={() => toggleArrayItem('qualifications', qual)}
-                                                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                                    />
-                                                    <span>{qual}</span>
-                                                </label>
+                                    <div className="flex gap-1">
+                                        <select
+                                            value={formData.startTime.split(':')[0]}
+                                            onChange={(e) => {
+                                                const minute = formData.startTime.split(':')[1] || '00';
+                                                handleInputChange('startTime', `${e.target.value}:${minute}`);
+                                            }}
+                                            className="flex-1 px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                        >
+                                            {HOUR_OPTIONS.map(option => (
+                                                <option key={option.value} value={option.value}>{option.label}</option>
                                             ))}
-                                        </div>
+                                        </select>
+                                        <select
+                                            value={formData.startTime.split(':')[1] || '00'}
+                                            onChange={(e) => {
+                                                const hour = formData.startTime.split(':')[0] || '06';
+                                                handleInputChange('startTime', `${hour}:${e.target.value}`);
+                                            }}
+                                            className="flex-1 px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                        >
+                                            {MINUTE_OPTIONS.map(option => (
+                                                <option key={option.value} value={option.value}>{option.label}</option>
+                                            ))}
+                                        </select>
                                     </div>
-                                ))}
-
-                                {/* 無資格可オプション */}
-                                <div className="mt-4 pt-4 border-t">
-                                    <label className="flex items-center gap-2 text-sm cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={formData.qualifications.includes('無資格可')}
-                                            onChange={() => toggleArrayItem('qualifications', '無資格可')}
-                                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                        />
-                                        <span className="font-medium">無資格可</span>
-                                    </label>
                                 </div>
-                            </div>
-                        </div>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                スキル・経験（5つまで入力可能）
-                            </label>
-                            <div className="flex gap-2 mb-2">
-                                <input
-                                    type="text"
-                                    value={skillInput}
-                                    onChange={(e) => setSkillInput(e.target.value)}
-                                    onKeyPress={(e) => e.key === 'Enter' && addToArray('skills', skillInput, setSkillInput)}
-                                    disabled={formData.skills.length >= 5}
-                                    className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-gray-100"
-                                    placeholder="スキルを追加"
-                                />
-                                <button
-                                    onClick={() => addToArray('skills', skillInput, setSkillInput)}
-                                    disabled={formData.skills.length >= 5}
-                                    className="px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 disabled:bg-gray-300"
-                                >
-                                    追加
-                                </button>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                                {formData.skills.map((skill, index) => (
-                                    <span key={index} className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded flex items-center gap-2">
-                                        {skill}
-                                        <button onClick={() => removeFromArray('skills', index)} className="text-gray-500 hover:text-red-600">×</button>
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        終了時刻 <span className="text-red-500">*</span>
+                                    </label>
+                                    <div className="flex gap-1">
+                                        <select
+                                            value={(() => {
+                                                const isNextDay = formData.endTime.startsWith('翌');
+                                                const timePart = isNextDay ? formData.endTime.slice(1) : formData.endTime;
+                                                const hour = timePart.split(':')[0] || '15';
+                                                return isNextDay ? `翌${hour}` : hour;
+                                            })()}
+                                            onChange={(e) => {
+                                                const isNextDay = formData.endTime.startsWith('翌');
+                                                const timePart = isNextDay ? formData.endTime.slice(1) : formData.endTime;
+                                                const minute = timePart.split(':')[1] || '00';
+                                                const newIsNextDay = e.target.value.startsWith('翌');
+                                                const newHour = newIsNextDay ? e.target.value.slice(1) : e.target.value;
+                                                handleInputChange('endTime', newIsNextDay ? `翌${newHour}:${minute}` : `${newHour}:${minute}`);
+                                            }}
+                                            className="flex-1 px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                        >
+                                            {END_HOUR_OPTIONS.map(option => (
+                                                <option key={option.value} value={option.value}>{option.label}</option>
+                                            ))}
+                                        </select>
+                                        <select
+                                            value={(() => {
+                                                const isNextDay = formData.endTime.startsWith('翌');
+                                                const timePart = isNextDay ? formData.endTime.slice(1) : formData.endTime;
+                                                return timePart.split(':')[1] || '00';
+                                            })()}
+                                            onChange={(e) => {
+                                                const isNextDay = formData.endTime.startsWith('翌');
+                                                const timePart = isNextDay ? formData.endTime.slice(1) : formData.endTime;
+                                                const hour = timePart.split(':')[0] || '15';
+                                                handleInputChange('endTime', isNextDay ? `翌${hour}:${e.target.value}` : `${hour}:${e.target.value}`);
+                                            }}
+                                            className="flex-1 px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                        >
+                                            {MINUTE_OPTIONS.map(option => (
+                                                <option key={option.value} value={option.value}>{option.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                服装・身だしなみ（5つまで入力可能）
-                            </label>
-                            <div className="flex gap-2 mb-2">
-                                <input
-                                    type="text"
-                                    value={dresscodeInput}
-                                    onChange={(e) => setDresscodeInput(e.target.value)}
-                                    onKeyPress={(e) => e.key === 'Enter' && addToArray('dresscode', dresscodeInput, setDresscodeInput)}
-                                    disabled={formData.dresscode.length >= 5}
-                                    className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-gray-100"
-                                    placeholder="服装・身だしなみを追加"
-                                />
-                                <button
-                                    onClick={() => addToArray('dresscode', dresscodeInput, setDresscodeInput)}
-                                    disabled={formData.dresscode.length >= 5}
-                                    className="px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 disabled:bg-gray-300"
-                                >
-                                    追加
-                                </button>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                                {formData.dresscode.map((item, index) => (
-                                    <span key={index} className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded flex items-center gap-2">
-                                        {item}
-                                        <button onClick={() => removeFromArray('dresscode', index)} className="text-gray-500 hover:text-red-600">×</button>
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                服装サンプル画像（3枚まで）
-                            </label>
-                            <div className="space-y-2">
-                                {(formData.existingDresscodeImages.length + formData.dresscodeImages.length) < 3 && (
-                                    <label
-                                        className="flex items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded cursor-pointer hover:border-blue-500 transition-colors"
-                                        onDragOver={(e) => {
-                                            e.preventDefault();
-                                            e.currentTarget.classList.add('border-blue-500', 'bg-blue-50');
-                                        }}
-                                        onDragLeave={(e) => {
-                                            e.preventDefault();
-                                            e.currentTarget.classList.remove('border-blue-500', 'bg-blue-50');
-                                        }}
-                                        onDrop={(e) => {
-                                            e.preventDefault();
-                                            e.currentTarget.classList.remove('border-blue-500', 'bg-blue-50');
-                                            const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
-                                            // 簡易アップロード
-                                            if (files.length > 0) {
-                                                const dummyEvent = { target: { files: files } } as any;
-                                                handleDresscodeImageUpload(dummyEvent);
-                                            }
-                                        }}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        休憩時間 <span className="text-red-500">*</span>
+                                    </label>
+                                    <select
+                                        value={formData.breakTime}
+                                        onChange={(e) => handleInputChange('breakTime', Number(e.target.value))}
+                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
                                     >
-                                        <div className="text-center">
-                                            <Upload className="w-8 h-8 mx-auto text-gray-400 mb-2" />
-                                            <span className="text-sm text-gray-500">画像を選択 または ドラッグ&ドロップ</span>
-                                        </div>
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            multiple
-                                            onChange={handleDresscodeImageUpload}
-                                            className="hidden"
-                                        />
-                                    </label>
-                                )}
-                                <div className="grid grid-cols-3 gap-2">
-                                    {/* 既存服装画像 */}
-                                    {formData.existingDresscodeImages.map((url, index) => (
-                                        <div key={`existing-dresscode-${index}`} className="relative">
-                                            <img
-                                                src={url}
-                                                alt={`既存服装サンプル ${index + 1}`}
-                                                className="w-full h-24 object-cover rounded border-2 border-blue-200"
-                                            />
-                                            <button
-                                                onClick={() => removeExistingDresscodeImage(index)}
-                                                className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
-                                            >
-                                                <X className="w-4 h-4" />
-                                            </button>
-                                            <span className="absolute bottom-1 left-1 px-1 py-0.5 text-[10px] bg-blue-500 text-white rounded">
-                                                テンプレート
-                                            </span>
-                                        </div>
-                                    ))}
-                                    {/* 新規服装画像 */}
-                                    {formData.dresscodeImages.map((file, index) => (
-                                        <div key={`new-dresscode-${index}`} className="relative">
-                                            <img
-                                                src={URL.createObjectURL(file)}
-                                                alt={`服装サンプル ${index + 1}`}
-                                                className="w-full h-24 object-cover rounded"
-                                            />
-                                            <button
-                                                onClick={() => removeDresscodeImage(index)}
-                                                className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
-                                            >
-                                                <X className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    ))}
+                                        {BREAK_TIME_OPTIONS.map(option => (
+                                            <option key={option.value} value={option.value}>{option.label}</option>
+                                        ))}
+                                    </select>
                                 </div>
                             </div>
-                        </div>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                持ち物・その他（5つまで入力可能）
-                            </label>
-                            <div className="flex gap-2 mb-2">
-                                <input
-                                    type="text"
-                                    value={belongingInput}
-                                    onChange={(e) => setBelongingInput(e.target.value)}
-                                    onKeyPress={(e) => e.key === 'Enter' && addToArray('belongings', belongingInput, setBelongingInput)}
-                                    disabled={formData.belongings.length >= 5}
-                                    className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-gray-100"
-                                    placeholder="持ち物・その他を追加"
-                                />
-                                <button
-                                    onClick={() => addToArray('belongings', belongingInput, setBelongingInput)}
-                                    disabled={formData.belongings.length >= 5}
-                                    className="px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 disabled:bg-gray-300"
-                                >
-                                    追加
-                                </button>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                                {formData.belongings.map((item, index) => (
-                                    <span key={index} className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded flex items-center gap-2">
-                                        {item}
-                                        <button onClick={() => removeFromArray('belongings', index)} className="text-gray-500 hover:text-red-600">×</button>
+                            {/* 実働時間表示 */}
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-sm font-medium text-gray-700">実働時間</span>
+                                    <span className="text-lg font-bold text-blue-600" data-testid="working-hours-display">
+                                        {formatWorkingHours(workingHours)}
                                     </span>
-                                ))}
+                                </div>
+                                <p className="text-xs text-gray-500 mt-1">
+                                    ※ 開始時刻・終了時刻・休憩時間から自動計算されます
+                                </p>
+                            </div>
+
+                            <div className="grid grid-cols-4 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        募集開始日 <span className="text-red-500">*</span>
+                                    </label>
+                                    <select
+                                        value={formData.recruitmentStartDay}
+                                        onChange={(e) => handleInputChange('recruitmentStartDay', Number(e.target.value))}
+                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                    >
+                                        {RECRUITMENT_START_DAY_OPTIONS.map(option => (
+                                            <option key={option.value} value={option.value}>{option.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        募集開始時間 <span className="text-red-500">*</span>
+                                    </label>
+                                    {formData.recruitmentStartDay === 0 || formData.recruitmentStartDay === -1 ? (
+                                        <input
+                                            type="text"
+                                            value="--:--"
+                                            readOnly
+                                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-gray-100 text-gray-500"
+                                        />
+                                    ) : (
+                                        <input
+                                            type="time"
+                                            value={formData.recruitmentStartTime}
+                                            onChange={(e) => handleInputChange('recruitmentStartTime', e.target.value)}
+                                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                        />
+                                    )}
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        募集終了日 <span className="text-red-500">*</span>
+                                    </label>
+                                    <select
+                                        value={formData.recruitmentEndDay}
+                                        onChange={(e) => handleInputChange('recruitmentEndDay', Number(e.target.value))}
+                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                    >
+                                        {RECRUITMENT_END_DAY_OPTIONS.map(option => (
+                                            <option key={option.value} value={option.value}>{option.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        募集終了時間 <span className="text-red-500">*</span>
+                                    </label>
+                                    {formData.recruitmentEndDay === 0 || formData.recruitmentEndDay === -1 ? (
+                                        <input
+                                            type="text"
+                                            value="--:--"
+                                            readOnly
+                                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-gray-100 text-gray-500"
+                                        />
+                                    ) : (
+                                        <input
+                                            type="time"
+                                            value={formData.recruitmentEndTime}
+                                            onChange={(e) => handleInputChange('recruitmentEndTime', e.target.value)}
+                                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                        />
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                {/* その他 */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
-                    <h2 className="text-lg font-bold text-gray-900 mb-4">その他</h2>
-                    <div className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                アイコン <span className="text-red-500">*</span>
-                            </label>
-                            <p className="text-xs text-blue-600 mb-2">チェックが多いほどより多くのワーカーから応募がきます!</p>
-                            <div className="grid grid-cols-3 gap-2">
-                                {ICON_OPTIONS.map(option => (
-                                    <label key={option} className="flex items-center space-x-2">
-                                        <input
-                                            type="checkbox"
-                                            checked={formData.icons.includes(option)}
-                                            onChange={() => toggleArrayItem('icons', option)}
-                                            className="rounded text-blue-600"
-                                        />
-                                        <span className="text-sm">{option}</span>
-                                    </label>
-                                ))}
+                    {/* 給与 */}
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
+                        <h2 className="text-lg font-bold text-gray-900 mb-4">給与</h2>
+                        <div className="grid grid-cols-3 gap-4 mb-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    時給（円） <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="number"
+                                    value={formData.hourlyWage === 0 ? '' : formData.hourlyWage}
+                                    onChange={(e) => handleInputChange('hourlyWage', Number(e.target.value))}
+                                    className={`w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-600 ${showErrors && (!formData.hourlyWage || formData.hourlyWage <= 0) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                                />
+                                {formData.hourlyWage > 0 && (
+                                    <p className="text-blue-600 text-xs mt-1">¥{formData.hourlyWage.toLocaleString()}</p>
+                                )}
+                                {showErrors && (!formData.hourlyWage || formData.hourlyWage <= 0) && (
+                                    <p className="text-red-500 text-xs mt-1">時給を入力してください</p>
+                                )}
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    交通費（円） <span className="text-red-500">*</span>
+                                </label>
+                                <select
+                                    value={formData.transportationFee}
+                                    onChange={(e) => handleInputChange('transportationFee', Number(e.target.value))}
+                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                >
+                                    {TRANSPORTATION_FEE_OPTIONS.map(option => (
+                                        <option key={option.value} value={option.value}>{option.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    日給（総支払）
+                                </label>
+                                <input
+                                    type="text"
+                                    value={dailyWage.toLocaleString()}
+                                    readOnly
+                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-gray-100"
+                                />
                             </div>
                         </div>
+                    </div>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                その他添付文章（3つまで）
-                            </label>
-                            <div className="space-y-2">
-                                {(formData.existingAttachments.length + formData.attachments.length) < 3 && (
-                                    <label
-                                        className="flex items-center justify-center w-full h-24 border-2 border-dashed border-gray-300 rounded cursor-pointer hover:border-blue-500 transition-colors"
-                                        onDragOver={(e) => {
-                                            e.preventDefault();
-                                            e.currentTarget.classList.add('border-blue-500', 'bg-blue-50');
-                                        }}
-                                        onDragLeave={(e) => {
-                                            e.preventDefault();
-                                            e.currentTarget.classList.remove('border-blue-500', 'bg-blue-50');
-                                        }}
-                                        onDrop={(e) => {
-                                            e.preventDefault();
-                                            e.currentTarget.classList.remove('border-blue-500', 'bg-blue-50');
-                                            const files = Array.from(e.dataTransfer.files);
-                                            // 簡易アップロード
-                                            if (files.length > 0) {
-                                                const dummyEvent = { target: { files: files } } as any;
-                                                handleAttachmentUpload(dummyEvent);
-                                            }
-                                        }}
-                                    >
-                                        <div className="text-center">
-                                            <Upload className="w-6 h-6 mx-auto text-gray-400 mb-1" />
-                                            <span className="text-sm text-gray-500">ファイルを選択 または ドラッグ&ドロップ</span>
-                                        </div>
-                                        <input
-                                            type="file"
-                                            multiple
-                                            onChange={handleAttachmentUpload}
-                                            className="hidden"
-                                        />
+                    {/* 業務設定 */}
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
+                        <h2 className="text-lg font-bold text-gray-900 mb-4">業務設定</h2>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    仕事内容（複数選択可） <span className="text-red-500">*</span>
+                                </label>
+                                <div className="grid grid-cols-4 gap-2 p-3 border border-gray-200 rounded">
+                                    {WORK_CONTENT_OPTIONS.map(option => (
+                                        <label key={option} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                                            <input
+                                                type="checkbox"
+                                                checked={formData.workContent.includes(option)}
+                                                onChange={() => toggleArrayItem('workContent', option)}
+                                                className="rounded text-blue-600"
+                                            />
+                                            <span className="text-sm">{option}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {requiresGenderSpecification && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        性別指定 <span className="text-red-500">*</span>
                                     </label>
-                                )}
+                                    <p className="text-xs text-gray-500 mb-2">入浴介助または排泄介助を選択した場合のみ指定が必要です</p>
+                                    <select
+                                        value={formData.genderRequirement}
+                                        onChange={(e) => handleInputChange('genderRequirement', e.target.value)}
+                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                    >
+                                        <option value="">指定なし</option>
+                                        <option value="male">男性</option>
+                                        <option value="female">女性</option>
+                                    </select>
+                                </div>
+                            )}
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    仕事詳細 <span className="text-red-500">*</span>
+                                </label>
+                                <select
+                                    onChange={(e) => {
+                                        if (e.target.value) {
+                                            const format = JOB_DESCRIPTION_FORMATS.find(f => f.value === e.target.value);
+                                            if (format) {
+                                                handleInputChange('jobDescription', format.text);
+                                            }
+                                        }
+                                    }}
+                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600 mb-2"
+                                >
+                                    <option value="">フォーマットを選択</option>
+                                    {JOB_DESCRIPTION_FORMATS.map(format => (
+                                        <option key={format.value} value={format.value}>{format.value}</option>
+                                    ))}
+                                </select>
+                                <textarea
+                                    value={formData.jobDescription}
+                                    onChange={(e) => handleInputChange('jobDescription', e.target.value)}
+                                    rows={9}
+                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                    placeholder="業務の詳細を入力してください"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 条件設定 */}
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
+                        <h2 className="text-lg font-bold text-gray-900 mb-4">条件設定</h2>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    資格条件（複数選択可） <span className="text-red-500">*</span>
+                                </label>
+                                <div className={`border rounded p-4 ${showErrors && formData.qualifications.length === 0 ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}>
+                                    {showErrors && formData.qualifications.length === 0 && (
+                                        <p className="text-red-500 text-xs mb-3">少なくとも1つの資格を選択してください</p>
+                                    )}
+                                    {QUALIFICATION_GROUPS.map((group) => (
+                                        <div key={group.name} className="mb-4">
+                                            <h4 className="text-sm font-semibold text-gray-700 mb-2">{group.name}</h4>
+                                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                                {group.qualifications.map((qual) => (
+                                                    <label key={qual} className="flex items-center gap-2 text-sm cursor-pointer">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={formData.qualifications.includes(qual)}
+                                                            onChange={() => toggleArrayItem('qualifications', qual)}
+                                                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                        />
+                                                        <span>{qual}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+
+                                    {/* 無資格可オプション */}
+                                    <div className="mt-4 pt-4 border-t">
+                                        <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={formData.qualifications.includes('無資格可')}
+                                                onChange={() => toggleArrayItem('qualifications', '無資格可')}
+                                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <span className="font-medium">無資格可</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    スキル・経験（5つまで入力可能）
+                                </label>
+                                <div className="flex gap-2 mb-2">
+                                    <input
+                                        type="text"
+                                        value={skillInput}
+                                        onChange={(e) => setSkillInput(e.target.value)}
+                                        onKeyPress={(e) => e.key === 'Enter' && addToArray('skills', skillInput, setSkillInput)}
+                                        disabled={formData.skills.length >= 5}
+                                        className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-gray-100"
+                                        placeholder="スキルを追加"
+                                    />
+                                    <button
+                                        onClick={() => addToArray('skills', skillInput, setSkillInput)}
+                                        disabled={formData.skills.length >= 5}
+                                        className="px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 disabled:bg-gray-300"
+                                    >
+                                        追加
+                                    </button>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    {formData.skills.map((skill, index) => (
+                                        <span key={index} className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded flex items-center gap-2">
+                                            {skill}
+                                            <button onClick={() => removeFromArray('skills', index)} className="text-gray-500 hover:text-red-600">×</button>
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    服装・身だしなみ（5つまで入力可能）
+                                </label>
+                                <div className="flex gap-2 mb-2">
+                                    <input
+                                        type="text"
+                                        value={dresscodeInput}
+                                        onChange={(e) => setDresscodeInput(e.target.value)}
+                                        onKeyPress={(e) => e.key === 'Enter' && addToArray('dresscode', dresscodeInput, setDresscodeInput)}
+                                        disabled={formData.dresscode.length >= 5}
+                                        className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-gray-100"
+                                        placeholder="服装・身だしなみを追加"
+                                    />
+                                    <button
+                                        onClick={() => addToArray('dresscode', dresscodeInput, setDresscodeInput)}
+                                        disabled={formData.dresscode.length >= 5}
+                                        className="px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 disabled:bg-gray-300"
+                                    >
+                                        追加
+                                    </button>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    {formData.dresscode.map((item, index) => (
+                                        <span key={index} className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded flex items-center gap-2">
+                                            {item}
+                                            <button onClick={() => removeFromArray('dresscode', index)} className="text-gray-500 hover:text-red-600">×</button>
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    服装サンプル画像（3枚まで）
+                                </label>
                                 <div className="space-y-2">
-                                    {/* 既存添付ファイル */}
-                                    {formData.existingAttachments.map((url, index) => {
-                                        const fileName = url.split('/').pop() || 'ファイル';
-                                        return (
-                                            <div key={`existing-attachment-${index}`} className="flex items-center justify-between p-2 border border-gray-200 rounded">
-                                                <a
-                                                    href={url}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
-                                                >
-                                                    {fileName}
-                                                </a>
+                                    {(formData.existingDresscodeImages.length + formData.dresscodeImages.length) < 3 && (
+                                        <label
+                                            className="flex items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded cursor-pointer hover:border-blue-500 transition-colors"
+                                            onDragOver={(e) => {
+                                                e.preventDefault();
+                                                e.currentTarget.classList.add('border-blue-500', 'bg-blue-50');
+                                            }}
+                                            onDragLeave={(e) => {
+                                                e.preventDefault();
+                                                e.currentTarget.classList.remove('border-blue-500', 'bg-blue-50');
+                                            }}
+                                            onDrop={(e) => {
+                                                e.preventDefault();
+                                                e.currentTarget.classList.remove('border-blue-500', 'bg-blue-50');
+                                                const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
+                                                // 簡易アップロード
+                                                if (files.length > 0) {
+                                                    const dummyEvent = { target: { files: files } } as any;
+                                                    handleDresscodeImageUpload(dummyEvent);
+                                                }
+                                            }}
+                                        >
+                                            <div className="text-center">
+                                                <Upload className="w-8 h-8 mx-auto text-gray-400 mb-2" />
+                                                <span className="text-sm text-gray-500">画像を選択 または ドラッグ&ドロップ</span>
+                                            </div>
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                multiple
+                                                onChange={handleDresscodeImageUpload}
+                                                className="hidden"
+                                            />
+                                        </label>
+                                    )}
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {/* 既存服装画像 */}
+                                        {formData.existingDresscodeImages.map((url, index) => (
+                                            <div key={`existing-dresscode-${index}`} className="relative">
+                                                <img
+                                                    src={url}
+                                                    alt={`既存服装サンプル ${index + 1}`}
+                                                    className="w-full h-24 object-cover rounded border-2 border-blue-200"
+                                                />
                                                 <button
-                                                    onClick={() => removeExistingAttachment(index)}
+                                                    onClick={() => removeExistingDresscodeImage(index)}
+                                                    className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                                <span className="absolute bottom-1 left-1 px-1 py-0.5 text-[10px] bg-blue-500 text-white rounded">
+                                                    テンプレート
+                                                </span>
+                                            </div>
+                                        ))}
+                                        {/* 新規服装画像 */}
+                                        {formData.dresscodeImages.map((file, index) => (
+                                            <div key={`new-dresscode-${index}`} className="relative">
+                                                <img
+                                                    src={URL.createObjectURL(file)}
+                                                    alt={`服装サンプル ${index + 1}`}
+                                                    className="w-full h-24 object-cover rounded"
+                                                />
+                                                <button
+                                                    onClick={() => removeDresscodeImage(index)}
+                                                    className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    持ち物・その他（5つまで入力可能）
+                                </label>
+                                <div className="flex gap-2 mb-2">
+                                    <input
+                                        type="text"
+                                        value={belongingInput}
+                                        onChange={(e) => setBelongingInput(e.target.value)}
+                                        onKeyPress={(e) => e.key === 'Enter' && addToArray('belongings', belongingInput, setBelongingInput)}
+                                        disabled={formData.belongings.length >= 5}
+                                        className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-gray-100"
+                                        placeholder="持ち物・その他を追加"
+                                    />
+                                    <button
+                                        onClick={() => addToArray('belongings', belongingInput, setBelongingInput)}
+                                        disabled={formData.belongings.length >= 5}
+                                        className="px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 disabled:bg-gray-300"
+                                    >
+                                        追加
+                                    </button>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    {formData.belongings.map((item, index) => (
+                                        <span key={index} className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded flex items-center gap-2">
+                                            {item}
+                                            <button onClick={() => removeFromArray('belongings', index)} className="text-gray-500 hover:text-red-600">×</button>
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* その他 */}
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
+                        <h2 className="text-lg font-bold text-gray-900 mb-4">その他</h2>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    アイコン <span className="text-red-500">*</span>
+                                </label>
+                                <p className="text-xs text-blue-600 mb-2">チェックが多いほどより多くのワーカーから応募がきます!</p>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {ICON_OPTIONS.map(option => (
+                                        <label key={option} className="flex items-center space-x-2">
+                                            <input
+                                                type="checkbox"
+                                                checked={formData.icons.includes(option)}
+                                                onChange={() => toggleArrayItem('icons', option)}
+                                                className="rounded text-blue-600"
+                                            />
+                                            <span className="text-sm">{option}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    その他添付文章（3つまで）
+                                </label>
+                                <div className="space-y-2">
+                                    {(formData.existingAttachments.length + formData.attachments.length) < 3 && (
+                                        <label
+                                            className="flex items-center justify-center w-full h-24 border-2 border-dashed border-gray-300 rounded cursor-pointer hover:border-blue-500 transition-colors"
+                                            onDragOver={(e) => {
+                                                e.preventDefault();
+                                                e.currentTarget.classList.add('border-blue-500', 'bg-blue-50');
+                                            }}
+                                            onDragLeave={(e) => {
+                                                e.preventDefault();
+                                                e.currentTarget.classList.remove('border-blue-500', 'bg-blue-50');
+                                            }}
+                                            onDrop={(e) => {
+                                                e.preventDefault();
+                                                e.currentTarget.classList.remove('border-blue-500', 'bg-blue-50');
+                                                const files = Array.from(e.dataTransfer.files);
+                                                // 簡易アップロード
+                                                if (files.length > 0) {
+                                                    const dummyEvent = { target: { files: files } } as any;
+                                                    handleAttachmentUpload(dummyEvent);
+                                                }
+                                            }}
+                                        >
+                                            <div className="text-center">
+                                                <Upload className="w-6 h-6 mx-auto text-gray-400 mb-1" />
+                                                <span className="text-sm text-gray-500">ファイルを選択 または ドラッグ&ドロップ</span>
+                                            </div>
+                                            <input
+                                                type="file"
+                                                multiple
+                                                onChange={handleAttachmentUpload}
+                                                className="hidden"
+                                            />
+                                        </label>
+                                    )}
+                                    <div className="space-y-2">
+                                        {/* 既存添付ファイル */}
+                                        {formData.existingAttachments.map((url, index) => {
+                                            const fileName = url.split('/').pop() || 'ファイル';
+                                            return (
+                                                <div key={`existing-attachment-${index}`} className="flex items-center justify-between p-2 border border-gray-200 rounded">
+                                                    <a
+                                                        href={url}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                                                    >
+                                                        {fileName}
+                                                    </a>
+                                                    <button
+                                                        onClick={() => removeExistingAttachment(index)}
+                                                        className="p-1 text-red-500 hover:text-red-600"
+                                                    >
+                                                        <X className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                        {/* 新規添付ファイル */}
+                                        {formData.attachments.map((file, index) => (
+                                            <div key={`new-attachment-${index}`} className="flex items-center justify-between p-2 border border-gray-200 rounded">
+                                                <span className="text-sm">{file.name}</span>
+                                                <button
+                                                    onClick={() => removeAttachment(index)}
                                                     className="p-1 text-red-500 hover:text-red-600"
                                                 >
                                                     <X className="w-4 h-4" />
                                                 </button>
                                             </div>
-                                        );
-                                    })}
-                                    {/* 新規添付ファイル */}
-                                    {formData.attachments.map((file, index) => (
-                                        <div key={`new-attachment-${index}`} className="flex items-center justify-between p-2 border border-gray-200 rounded">
-                                            <span className="text-sm">{file.name}</span>
-                                            <button
-                                                onClick={() => removeAttachment(index)}
-                                                className="p-1 text-red-500 hover:text-red-600"
-                                            >
-                                                <X className="w-4 h-4" />
-                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    労働条件通知書 <span className="text-red-500">*</span>
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => toast('労働条件通知書の表示機能は開発中です', { icon: '🚧' })}
+                                    className="px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors mb-3"
+                                >
+                                    労働条件通知書
+                                </button>
+                                <textarea
+                                    value={formData.dismissalReasons}
+                                    onChange={(e) => handleInputChange('dismissalReasons', e.target.value)}
+                                    rows={12}
+                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600 font-mono"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* オファーメッセージ（オファーモード時のみ表示） */}
+                    {isOfferMode && (
+                        <div className="bg-white rounded-lg shadow-sm border border-blue-200 p-6 mt-6">
+                            <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                <span className="text-blue-500">✉️</span>
+                                オファーメッセージ
+                            </h2>
+                            <div className="space-y-3">
+                                <p className="text-sm text-gray-600">
+                                    {offerTargetWorker?.name}さんへのメッセージを入力してください（任意）
+                                </p>
+
+                                {/* テンプレート選択UI */}
+                                <div className="flex items-center gap-2">
+                                    <select
+                                        value={selectedOfferTemplateId || ''}
+                                        onChange={(e) => {
+                                            const templateId = e.target.value ? Number(e.target.value) : null;
+                                            setSelectedOfferTemplateId(templateId);
+                                            if (templateId) {
+                                                const template = offerTemplates.find(t => t.id === templateId);
+                                                if (template) {
+                                                    handleInputChange('offerMessage', template.message);
+                                                }
+                                            }
+                                        }}
+                                        className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    >
+                                        <option value="">テンプレートから選択</option>
+                                        {offerTemplates.map(template => (
+                                            <option key={template.id} value={template.id}>
+                                                {template.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowOfferTemplateModal(true)}
+                                        className="flex items-center gap-1 px-3 py-2 text-sm text-blue-600 border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors"
+                                    >
+                                        <FileText className="w-4 h-4" />
+                                        編集
+                                    </button>
+                                </div>
+
+                                <textarea
+                                    value={formData.offerMessage || ''}
+                                    onChange={(e) => handleInputChange('offerMessage', e.target.value)}
+                                    rows={4}
+                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    placeholder="例：いつもご勤務ありがとうございます。ぜひまたお願いしたいと思いオファーを送らせていただきました。ご検討よろしくお願いいたします。"
+                                />
+                                <p className="text-xs text-gray-500">
+                                    ※このメッセージは求人情報と一緒にワーカーへ送信されます
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* オファーテンプレート管理モーダル */}
+                    {showOfferTemplateModal && (
+                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
+                                <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+                                    <h3 className="text-lg font-bold">オファーメッセージテンプレート管理</h3>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowOfferTemplateModal(false);
+                                            setEditingOfferTemplate(null);
+                                            setIsCreatingOfferTemplate(false);
+                                            setNewOfferTemplateName('');
+                                            setNewOfferTemplateMessage('');
+                                        }}
+                                        className="p-1 hover:bg-gray-100 rounded"
+                                    >
+                                        <X className="w-5 h-5" />
+                                    </button>
+                                </div>
+                                <div className="p-4 overflow-y-auto max-h-[60vh]">
+                                    {/* 新規作成 / 編集フォーム */}
+                                    {(isCreatingOfferTemplate || editingOfferTemplate) && (
+                                        <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                                            <h4 className="font-medium mb-3">
+                                                {editingOfferTemplate ? 'テンプレートを編集' : '新規テンプレート作成'}
+                                            </h4>
+                                            <div className="space-y-3">
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                        テンプレート名
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={newOfferTemplateName}
+                                                        onChange={(e) => setNewOfferTemplateName(e.target.value)}
+                                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                        placeholder="例：リピーター向けオファー"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                        メッセージ内容
+                                                    </label>
+                                                    <textarea
+                                                        value={newOfferTemplateMessage}
+                                                        onChange={(e) => setNewOfferTemplateMessage(e.target.value)}
+                                                        rows={4}
+                                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                        placeholder="オファーメッセージの内容を入力..."
+                                                    />
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={editingOfferTemplate ? handleUpdateOfferTemplate : handleCreateOfferTemplate}
+                                                        className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                                                    >
+                                                        {editingOfferTemplate ? '更新する' : '作成する'}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setEditingOfferTemplate(null);
+                                                            setIsCreatingOfferTemplate(false);
+                                                            setNewOfferTemplateName('');
+                                                            setNewOfferTemplateMessage('');
+                                                        }}
+                                                        className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                                                    >
+                                                        キャンセル
+                                                    </button>
+                                                </div>
+                                            </div>
                                         </div>
-                                    ))}
+                                    )}
+
+                                    {/* テンプレート一覧 */}
+                                    {!isCreatingOfferTemplate && !editingOfferTemplate && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setIsCreatingOfferTemplate(true);
+                                                // 現在入力中のメッセージがあればテンプレート作成フォームにデフォルトセット
+                                                if (formData.offerMessage?.trim()) {
+                                                    setNewOfferTemplateMessage(formData.offerMessage.trim());
+                                                }
+                                            }}
+                                            className="mb-4 flex items-center gap-2 px-4 py-2 text-sm text-blue-600 border border-blue-300 rounded-lg hover:bg-blue-50"
+                                        >
+                                            <Plus className="w-4 h-4" />
+                                            新規テンプレート作成
+                                        </button>
+                                    )}
+
+                                    {offerTemplates.length === 0 && !isCreatingOfferTemplate && (
+                                        <p className="text-sm text-gray-500 text-center py-8">
+                                            テンプレートがありません。新規作成してください。
+                                        </p>
+                                    )}
+
+                                    <div className="space-y-3">
+                                        {offerTemplates.map(template => (
+                                            <div
+                                                key={template.id}
+                                                className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 transition-colors"
+                                            >
+                                                <div className="flex items-start justify-between gap-4">
+                                                    <div className="flex-1">
+                                                        <h5 className="font-medium text-gray-900">{template.name}</h5>
+                                                        <p className="mt-1 text-sm text-gray-600 line-clamp-2">
+                                                            {template.message}
+                                                        </p>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 flex-shrink-0">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setEditingOfferTemplate(template);
+                                                                setNewOfferTemplateName(template.name);
+                                                                setNewOfferTemplateMessage(template.message);
+                                                            }}
+                                                            className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded"
+                                                        >
+                                                            <Edit3 className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleDeleteOfferTemplate(template.id)}
+                                                            className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="p-4 border-t border-gray-200">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowOfferTemplateModal(false);
+                                            setEditingOfferTemplate(null);
+                                            setIsCreatingOfferTemplate(false);
+                                            setNewOfferTemplateName('');
+                                            setNewOfferTemplateMessage('');
+                                        }}
+                                        className="w-full py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                                    >
+                                        閉じる
+                                    </button>
                                 </div>
                             </div>
                         </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                労働条件通知書 <span className="text-red-500">*</span>
-                            </label>
-                            <button
-                                type="button"
-                                onClick={() => toast('労働条件通知書の表示機能は開発中です', { icon: '🚧' })}
-                                className="px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors mb-3"
-                            >
-                                労働条件通知書
-                            </button>
-                            <textarea
-                                value={formData.dismissalReasons}
-                                onChange={(e) => handleInputChange('dismissalReasons', e.target.value)}
-                                rows={12}
-                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600 font-mono"
-                            />
-                        </div>
-                    </div>
+                    )}
                 </div>
-            </div>
             </div>
 
             {/* 確認モーダル */}

@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, Mail, Phone, Clock } from 'lucide-react';
-import { BottomNav } from '@/components/layout/BottomNav';
 import { getSystemTemplates } from '@/src/lib/content-actions';
 
 export default function ContactPage() {
@@ -33,7 +32,7 @@ export default function ContactPage() {
     }, []);
 
     return (
-        <div className="min-h-screen bg-gray-50 pb-20">
+        <div className="min-h-screen bg-gray-50">
             {/* ヘッダー */}
             <div className="bg-white border-b border-gray-200">
                 <div className="flex items-center px-4 py-3">
@@ -101,8 +100,6 @@ export default function ContactPage() {
                     </p>
                 </div>
             </div>
-
-            <BottomNav />
         </div>
     );
 }

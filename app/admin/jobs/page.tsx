@@ -1,9 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+
 import { useAuth } from '@/contexts/AuthContext';
-import { getAdminJobsList, getAdminJobTemplates, getFacilityInfo, deleteJobs, updateJobsStatus } from '@/src/lib/actions';
+import { getAdminJobTemplates, getFacilityInfo, deleteJobs, updateJobsStatus } from '@/src/lib/actions';
+import { useAdminJobs, JobSortOption } from '@/hooks/useAdminJobs';
+import { JobsListSkeleton } from '@/components/admin/JobsListSkeleton';
+import { getCurrentTime } from '@/utils/debugTime';
 import {
   Plus,
   FileText,
@@ -24,6 +28,7 @@ import toast from 'react-hot-toast';
 import { Badge } from '@/components/ui/badge';
 import { Tag } from '@/components/ui/tag';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 type JobStatus = 'all' | 'recruiting' | 'paused' | 'working' | 'review' | 'completed' | 'failed';
 
@@ -37,10 +42,13 @@ interface WorkDateData {
   deadline: string;
 }
 
+type JobType = 'NORMAL' | 'LIMITED_WORKED' | 'LIMITED_FAVORITE' | 'ORIENTATION' | 'OFFER';
+
 interface JobData {
   id: number;
   title: string;
   status: string;
+  jobType: JobType;
   startTime: string;
   endTime: string;
   breakTime: string;
@@ -82,6 +90,8 @@ interface JobData {
   mealSupport: boolean;
   weeklyFrequency: number | null;
   requiresInterview: boolean;
+  targetWorkerId: number | null;
+  targetWorkerName: string | null;
 }
 
 interface TemplateData {
@@ -92,21 +102,88 @@ interface TemplateData {
 
 export default function AdminJobsList() {
   const router = useRouter();
+  const { showDebugError } = useDebugError();
   const { admin, isAdmin, isAdminLoading } = useAuth();
-  const [isLoading, setIsLoading] = useState(true);
-  const [jobs, setJobs] = useState<JobData[]>([]);
   const [jobTemplates, setJobTemplates] = useState<TemplateData[]>([]);
+  const searchParams = useSearchParams();
+  const initialStatusFilter = searchParams.get('status') as JobStatus | null;
+  const initialPage = searchParams.get('page');
+  const initialPeriodStart = searchParams.get('periodStart');
+  const initialPeriodEnd = searchParams.get('periodEnd');
+  const initialTemplate = searchParams.get('template');
+  const initialJobType = searchParams.get('jobType');
+  const initialSort = searchParams.get('sort') as JobSortOption | null;
+
   const [facilityName, setFacilityName] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<JobStatus>('all');
-  const [periodStartFilter, setPeriodStartFilter] = useState('');
-  const [periodEndFilter, setPeriodEndFilter] = useState('');
-  const [templateFilter, setTemplateFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<JobStatus>(
+    initialStatusFilter && ['all', 'recruiting', 'paused', 'working', 'review', 'completed', 'failed'].includes(initialStatusFilter)
+      ? initialStatusFilter
+      : 'all'
+  );
+  const [periodStartFilter, setPeriodStartFilter] = useState(initialPeriodStart || '');
+  const [periodEndFilter, setPeriodEndFilter] = useState(initialPeriodEnd || '');
+  const [templateFilter, setTemplateFilter] = useState(initialTemplate || 'all');
+  const [jobTypeFilter, setJobTypeFilter] = useState(initialJobType || 'all');
+  const [sortOption, setSortOption] = useState<JobSortOption>(
+    initialSort && ['created_desc', 'created_asc', 'applied_desc', 'applied_asc', 'wage_desc', 'wage_asc', 'workDate_asc'].includes(initialSort)
+      ? initialSort
+      : 'created_desc'
+  );
+
+  const updateUrlParams = (updates: {
+    status?: string;
+    page?: number;
+    periodStart?: string;
+    periodEnd?: string;
+    template?: string;
+    jobType?: string;
+    sort?: string;
+  }) => {
+    const params = new URLSearchParams(window.location.search);
+
+    if (updates.status !== undefined) {
+      if (updates.status === 'all') params.delete('status');
+      else params.set('status', updates.status);
+    }
+
+    if (updates.page !== undefined) {
+      if (updates.page === 1) params.delete('page');
+      else params.set('page', updates.page.toString());
+    }
+
+    if (updates.periodStart !== undefined) {
+      if (!updates.periodStart) params.delete('periodStart');
+      else params.set('periodStart', updates.periodStart);
+    }
+
+    if (updates.periodEnd !== undefined) {
+      if (!updates.periodEnd) params.delete('periodEnd');
+      else params.set('periodEnd', updates.periodEnd);
+    }
+
+    if (updates.template !== undefined) {
+      if (updates.template === 'all') params.delete('template');
+      else params.set('template', updates.template);
+    }
+
+    if (updates.jobType !== undefined) {
+      if (updates.jobType === 'all') params.delete('jobType');
+      else params.set('jobType', updates.jobType);
+    }
+
+    if (updates.sort !== undefined) {
+      if (updates.sort === 'created_desc') params.delete('sort');
+      else params.set('sort', updates.sort);
+    }
+
+    router.replace(`/admin/jobs?${params.toString()}`, { scroll: false });
+  };
   const [selectedJob, setSelectedJob] = useState<JobData | null>(null);
   const [selectedJobIds, setSelectedJobIds] = useState<number[]>([]);
   const [bulkActionConfirm, setBulkActionConfirm] = useState<'publish' | 'pause' | 'delete' | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(initialPage ? parseInt(initialPage) : 1);
   const itemsPerPage = 20;
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isOverviewExpanded, setIsOverviewExpanded] = useState(false);
@@ -120,34 +197,43 @@ export default function AdminJobsList() {
     }
   }, [isAdmin, admin, isAdminLoading, router]);
 
-  // データ取得
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!admin?.facilityId) return;
+  // SWRでデータ取得
+  const {
+    jobs = [],
+    pagination,
+    isLoading: isJobsLoading,
+    mutate: mutateJobs,
+  } = useAdminJobs({
+    facilityId: admin?.facilityId,
+    page: currentPage,
+    status: statusFilter,
+    query: searchQuery,
+    sort: sortOption,
+  });
 
-      setIsLoading(true);
+  // テンプレートと施設情報の取得
+  useEffect(() => {
+    const fetchTemplatesAndFacility = async () => {
+      if (!admin?.facilityId) return;
       try {
-        const [jobsData, templatesData, facilityData] = await Promise.all([
-          getAdminJobsList(admin.facilityId),
+        const [templatesData, facilityData] = await Promise.all([
           getAdminJobTemplates(admin.facilityId),
           getFacilityInfo(admin.facilityId),
         ]);
-        setJobs(jobsData);
         setJobTemplates(templatesData);
         if (facilityData) {
           setFacilityName(facilityData.facilityName);
         }
       } catch (error) {
-        console.error('Failed to fetch jobs:', error);
-      } finally {
-        setIsLoading(false);
+        console.error('Failed to fetch templates/facility:', error);
       }
     };
-
     if (isAdmin && admin) {
-      fetchData();
+      fetchTemplatesAndFacility();
     }
   }, [admin?.facilityId, isAdmin, admin]);
+
+  const isLoading = isJobsLoading;
 
   // ステータス判定関数
   const getJobStatus = (job: JobData): Exclude<JobStatus, 'all'> => {
@@ -165,98 +251,27 @@ export default function AdminJobsList() {
     return 'recruiting';
   };
 
-  // フィルタリング
+  // フィルタリング (サーバーサイドに移行、求人種別のみクライアントサイド)
   const filteredJobs = useMemo(() => {
-    // データ読み込み中は空配列を返す（クラッシュ防止）
-    if (isAdminLoading) return [];
-
-    let filtered = [...jobs];
-
-    // 検索フィルタ（求人タイトルorワーカー名）
-    if (searchQuery) {
-      filtered = filtered.filter((job) =>
-        job.title.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-
-    // ステータスフィルタ
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter((job) => getJobStatus(job) === statusFilter);
-    }
-
-    // 時期フィルタ（年月範囲指定）
-    if (periodStartFilter || periodEndFilter) {
-      filtered = filtered.filter((job) => {
-        // 勤務日がない場合は除外（通常ありえないが）
-        if (job.workDates.length === 0) return false;
-
-        // 範囲内の勤務日が1つでもあるかチェック
-        return job.workDates.some(wd => {
-          const workDate = new Date(wd.date);
-          const workYearMonth = workDate.getFullYear() * 100 + (workDate.getMonth() + 1);
-          let inRange = true;
-
-          if (periodStartFilter) {
-            const [startYear, startMonth] = periodStartFilter.split('-').map(Number);
-            const startYearMonth = startYear * 100 + startMonth;
-            inRange = inRange && workYearMonth >= startYearMonth;
-          }
-
-          if (periodEndFilter) {
-            const [endYear, endMonth] = periodEndFilter.split('-').map(Number);
-            const endYearMonth = endYear * 100 + endMonth;
-            inRange = inRange && workYearMonth <= endYearMonth;
-          }
-
-          return inRange;
-        });
-      });
-    } else {
-      // デフォルトで過去1ヶ月から未来のすべてのデータを表示
-      const today = new Date();
-      const oneMonthAgo = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
-
-      filtered = filtered.filter((job) => {
-        // 勤務日がない、または過去1ヶ月以降の勤務日を含む求人を表示
-        if (job.workDates.length === 0) return true;
-        return job.workDates.some(wd => new Date(wd.date) >= oneMonthAgo);
-      });
-    }
-
-    // テンプレートフィルタ
-    if (templateFilter !== 'all') {
-      filtered = filtered.filter(job => job.templateId?.toString() === templateFilter);
-    }
-
-    // 最新順にソート（最も近い勤務日、または作成日順）
-    filtered.sort((a, b) => {
-      // 勤務日でのソート（直近の勤務日が新しい順）
-      const dateA = a.workDates.length > 0 ? new Date(a.workDates[0].date).getTime() : 0;
-      const dateB = b.workDates.length > 0 ? new Date(b.workDates[0].date).getTime() : 0;
-      return dateB - dateA;
-    });
-
-    return filtered;
-  }, [jobs, searchQuery, statusFilter, periodStartFilter, periodEndFilter, templateFilter, isAdminLoading]);
-
-  // ページネーション
-  const totalPages = Math.ceil(filteredJobs.length / itemsPerPage);
-  const paginatedJobs = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    return filteredJobs.slice(startIndex, startIndex + itemsPerPage);
-  }, [filteredJobs, currentPage]);
+    if (jobTypeFilter === 'all') return jobs;
+    return jobs.filter(job => job.jobType === jobTypeFilter);
+  }, [jobs, jobTypeFilter]);
+  const totalPages = pagination?.totalPages || 1;
+  const paginatedJobs = filteredJobs;
 
   // ページ変更時に先頭にスクロール
   useEffect(() => {
-    setCurrentPage(1);
+    // 依存関係が変更されたときにページを1に戻す処理
+    // ただし、初期ロード時にURLから取得したページを上書きしないように注意が必要
+    // ここでは初期ロード後に発火するようにする
   }, [searchQuery, statusFilter, periodStartFilter, periodEndFilter, templateFilter]);
 
   // ステータスのラベルと色
   // バッジ用: パターン5（青ベース統一）
   // フィルターボタン用: ドットインジケーター風
   const statusConfig = {
-    recruiting: { label: '公開中', badge: 'bg-blue-600 text-white', dotColor: 'bg-green-500' },
-    paused: { label: '停止中', badge: 'bg-blue-100 text-blue-400', dotColor: 'bg-gray-400' },
+    recruiting: { label: '公開中', badge: 'bg-blue-600 text-white', dotColor: 'bg-blue-600' },
+    paused: { label: '停止中', badge: 'bg-blue-100 text-blue-400', dotColor: 'bg-blue-300' },
     working: { label: '勤務中', badge: 'bg-blue-800 text-white', dotColor: 'bg-blue-500' },
     review: { label: '評価待ち', badge: 'bg-blue-300 text-blue-900', dotColor: 'bg-amber-500' },
     completed: { label: '完了', badge: 'bg-blue-50 text-blue-300', dotColor: 'bg-gray-400' },
@@ -309,12 +324,20 @@ export default function AdminJobsList() {
           const result = await deleteJobs(selectedJobIds, admin.facilityId);
           if (result.success) {
             toast.success(result.message);
-            // 求人リストを更新
-            setJobs((prev) => prev.filter((job) => !selectedJobIds.includes(job.id)));
+            mutateJobs();
           } else {
             toast.error(result.message);
           }
         } catch (error) {
+          const debugInfo = extractDebugInfo(error);
+          showDebugError({
+            type: 'delete',
+            operation: '求人一括削除',
+            message: debugInfo.message,
+            details: debugInfo.details,
+            stack: debugInfo.stack,
+            context: { jobIds: selectedJobIds, facilityId: admin?.facilityId }
+          });
           toast.error('削除に失敗しました');
         } finally {
           setIsDeleting(false);
@@ -324,21 +347,25 @@ export default function AdminJobsList() {
         if (!admin?.facilityId) return;
 
         setIsDeleting(true);
+        const newStatus = bulkActionConfirm === 'publish' ? 'PUBLISHED' : 'STOPPED';
         try {
-          const newStatus = bulkActionConfirm === 'publish' ? 'PUBLISHED' : 'STOPPED';
           const result = await updateJobsStatus(selectedJobIds, admin.facilityId, newStatus);
           if (result.success) {
             toast.success(result.message);
-            // 求人リストのステータスを更新
-            setJobs((prev) => prev.map((job) =>
-              selectedJobIds.includes(job.id)
-                ? { ...job, status: newStatus }
-                : job
-            ));
+            mutateJobs();
           } else {
             toast.error(result.message);
           }
         } catch (error) {
+          const debugInfo = extractDebugInfo(error);
+          showDebugError({
+            type: 'update',
+            operation: '求人ステータス一括更新',
+            message: debugInfo.message,
+            details: debugInfo.details,
+            stack: debugInfo.stack,
+            context: { jobIds: selectedJobIds, facilityId: admin?.facilityId, targetStatus: newStatus }
+          });
           toast.error('ステータス更新に失敗しました');
         } finally {
           setIsDeleting(false);
@@ -363,8 +390,12 @@ export default function AdminJobsList() {
 
   if (isLoading || isAdminLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-admin-primary"></div>
+      <div className="h-full bg-gray-50 flex flex-col p-6">
+        <div className="mb-6">
+          <div className="h-8 bg-gray-200 rounded w-1/4 animate-pulse mb-2" />
+          <div className="h-4 bg-gray-200 rounded w-1/2 animate-pulse" />
+        </div>
+        <JobsListSkeleton />
       </div>
     );
   }
@@ -457,7 +488,12 @@ export default function AdminJobsList() {
             <div className="col-span-2">
               <select
                 value={templateFilter}
-                onChange={(e) => setTemplateFilter(e.target.value)}
+                onChange={(e) => {
+                  const newTemplate = e.target.value;
+                  setTemplateFilter(newTemplate);
+                  setCurrentPage(1);
+                  updateUrlParams({ template: newTemplate, page: 1 });
+                }}
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-admin-primary"
               >
                 <option value="all">すべてのテンプレート</option>
@@ -470,14 +506,19 @@ export default function AdminJobsList() {
             </div>
           </div>
 
-          {/* 2段目: 期間指定 */}
+          {/* 2段目: 期間指定 + 求人種別 */}
           <div className="flex items-center gap-3">
             <span className="text-sm text-gray-700 font-medium">期間:</span>
 
             {/* 開始年月フィルタ */}
             <select
               value={periodStartFilter}
-              onChange={(e) => setPeriodStartFilter(e.target.value)}
+              onChange={(e) => {
+                const newStart = e.target.value;
+                setPeriodStartFilter(newStart);
+                setCurrentPage(1);
+                updateUrlParams({ periodStart: newStart, page: 1 });
+              }}
               className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-admin-primary"
             >
               <option value="">開始月（未指定）</option>
@@ -493,7 +534,12 @@ export default function AdminJobsList() {
             {/* 終了年月フィルタ */}
             <select
               value={periodEndFilter}
-              onChange={(e) => setPeriodEndFilter(e.target.value)}
+              onChange={(e) => {
+                const newEnd = e.target.value;
+                setPeriodEndFilter(newEnd);
+                setCurrentPage(1);
+                updateUrlParams({ periodEnd: newEnd, page: 1 });
+              }}
               className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-admin-primary"
             >
               <option value="">終了月（未指定）</option>
@@ -503,12 +549,57 @@ export default function AdminJobsList() {
                 </option>
               ))}
             </select>
+
+            {/* 求人種別フィルタ */}
+            <span className="text-sm text-gray-700 font-medium ml-4">求人種別:</span>
+            <select
+              value={jobTypeFilter}
+              onChange={(e) => {
+                setJobTypeFilter(e.target.value);
+                setCurrentPage(1);
+                updateUrlParams({ jobType: e.target.value, page: 1 });
+              }}
+              className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-admin-primary"
+            >
+              <option value="all">すべて</option>
+              <option value="NORMAL">通常</option>
+              <option value="LIMITED_WORKED">限定（勤務実績）</option>
+              <option value="LIMITED_FAVORITE">限定（お気に入り）</option>
+              <option value="OFFER">オファー</option>
+              <option value="ORIENTATION">説明会</option>
+            </select>
+
+            {/* ソートセレクト */}
+            <span className="text-sm text-gray-700 font-medium ml-4">並び順:</span>
+            <select
+              name="sort"
+              value={sortOption}
+              onChange={(e) => {
+                const newSort = e.target.value as JobSortOption;
+                setSortOption(newSort);
+                setCurrentPage(1);
+                updateUrlParams({ sort: newSort, page: 1 });
+              }}
+              className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-admin-primary"
+            >
+              <option value="created_desc">作成日（新しい順）</option>
+              <option value="created_asc">作成日（古い順）</option>
+              <option value="applied_desc">応募数（多い順）</option>
+              <option value="applied_asc">応募数（少ない順）</option>
+              <option value="wage_desc">時給（高い順）</option>
+              <option value="wage_asc">時給（低い順）</option>
+              <option value="workDate_asc">勤務日（近い順）</option>
+            </select>
           </div>
 
           {/* ステータスボタンフィルタ */}
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setStatusFilter('all')}
+              onClick={() => {
+                setStatusFilter('all');
+                setCurrentPage(1);
+                updateUrlParams({ status: 'all', page: 1 });
+              }}
               className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${statusFilter === 'all'
                 ? 'bg-admin-primary text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -519,7 +610,11 @@ export default function AdminJobsList() {
             {(Object.keys(statusConfig) as Array<keyof typeof statusConfig>).map((status) => (
               <button
                 key={status}
-                onClick={() => setStatusFilter(status)}
+                onClick={() => {
+                  setStatusFilter(status);
+                  setCurrentPage(1);
+                  updateUrlParams({ status: status, page: 1 });
+                }}
                 className={`px-3 py-1.5 text-xs font-medium rounded transition-colors flex items-center gap-1.5 ${statusFilter === status
                   ? 'bg-gray-200 text-gray-900'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -530,6 +625,7 @@ export default function AdminJobsList() {
               </button>
             ))}
           </div>
+
         </div>
       </div>
 
@@ -567,6 +663,118 @@ export default function AdminJobsList() {
                 ? Math.round((job.totalMatched / job.totalRecruitment) * 100)
                 : 0;
 
+              // オファー求人は専用のカードデザイン
+              if (job.jobType === 'OFFER') {
+                return (
+                  <div
+                    key={job.id}
+                    onClick={() => handleCheckboxChange(job.id)}
+                    className="bg-blue-50 rounded-admin-card border-2 border-blue-200 hover:border-blue-400 hover:shadow-md transition-all p-3 flex items-center gap-3 cursor-pointer"
+                  >
+                    {/* チェックボックス */}
+                    <div className="flex-shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={selectedJobIds.includes(job.id)}
+                        onChange={() => handleCheckboxChange(job.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                    </div>
+
+                    {/* カード内容 */}
+                    <div className="flex-1 min-w-0">
+                      {/* 1行目: オファーバッジ + 対象者名 + 求人名 + 取消ボタン */}
+                      <div className="flex items-center gap-3 mb-2">
+                        {/* オファーバッジ */}
+                        <span className="px-2 py-0.5 text-xs font-bold rounded bg-blue-600 text-white">
+                          オファ
+                        </span>
+
+                        {/* オファー対象者名 */}
+                        <span className="text-sm font-medium text-blue-700">
+                          → {job.targetWorkerName || '（対象者不明）'}
+                        </span>
+
+                        {/* 求人名 */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-gray-600 truncate">{job.title}</p>
+                        </div>
+
+                        {/* プレビューボタン */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(`/jobs/${job.id}?preview=true`, '_blank');
+                          }}
+                          className="px-3 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
+                        >
+                          プレビュー
+                        </button>
+
+                        {/* 通知書ボタン */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(`/admin/jobs/${job.id}/notification`, '_blank');
+                          }}
+                          className="px-3 py-1 text-xs font-medium bg-orange-100 text-orange-700 rounded hover:bg-orange-200 transition-colors"
+                        >
+                          通知書
+                        </button>
+
+                        {/* 取消ボタン */}
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            if (!confirm(`${job.targetWorkerName || 'このワーカー'}へのオファーを取り消しますか？`)) return;
+                            if (!admin?.facilityId) return;
+                            setIsDeleting(true);
+                            try {
+                              const result = await deleteJobs([job.id], admin.facilityId);
+                              if (result.success) {
+                                toast.success('オファーを取り消しました');
+                                mutateJobs();
+                              } else {
+                                toast.error(result.message);
+                              }
+                            } catch (error) {
+                              toast.error('オファーの取り消しに失敗しました');
+                            } finally {
+                              setIsDeleting(false);
+                            }
+                          }}
+                          disabled={isDeleting}
+                          className="flex items-center gap-1 px-3 py-1 text-xs font-medium bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors disabled:opacity-50"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          取消
+                        </button>
+                      </div>
+
+                      {/* 2行目: 時給・日時のみ（応募状況はオファーなので不要） */}
+                      <div className="flex items-center gap-3">
+                        {/* 時給 */}
+                        <div className="flex-shrink-0 flex items-center gap-1 text-xs font-medium text-blue-700">
+                          <span>¥{job.hourlyWage.toLocaleString()}/時</span>
+                        </div>
+
+                        {/* 日時（勤務日と時間） */}
+                        <div className="flex-shrink-0">
+                          <div className="flex items-center gap-1 text-xs text-gray-700">
+                            <Calendar className="w-3 h-3 text-gray-400" />
+                            <span>{job.dateRange}</span>
+                            <span className="text-gray-400">•</span>
+                            <span>{job.startTime}〜{job.endTime}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
+              // 通常の求人カード
               return (
                 <div
                   key={job.id}
@@ -594,6 +802,24 @@ export default function AdminJobsList() {
                           {statusInfo.label}
                         </span>
                       </div>
+
+                      {/* 求人種別バッジ */}
+                      {job.jobType && job.jobType !== 'NORMAL' && (
+                        <div className="flex-shrink-0">
+                          <span className={`px-2 py-0.5 text-xs font-bold rounded shadow-sm ${
+                            job.jobType === 'LIMITED_WORKED' ? 'bg-purple-600 text-white' :
+                            job.jobType === 'LIMITED_FAVORITE' ? 'bg-pink-500 text-white' :
+                            job.jobType === 'ORIENTATION' ? 'bg-teal-500 text-white' :
+                            'bg-gray-100 text-gray-700'
+                          }`}>
+                            {job.jobType === 'LIMITED_WORKED' ? '限定' :
+                             job.jobType === 'LIMITED_FAVORITE' ? (
+                               <>限定<span className="text-yellow-300">★</span></>
+                             ) :
+                             job.jobType === 'ORIENTATION' ? '説明会' : ''}
+                          </span>
+                        </div>
+                      )}
 
                       {/* 審査ありバッジ */}
                       {job.requiresInterview && (
@@ -676,7 +902,7 @@ export default function AdminJobsList() {
                       <div className="flex items-start gap-1 text-xs text-gray-700 mb-1">
                         <Briefcase className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" />
                         <div className="flex flex-wrap gap-1">
-                          {job.workContent.map((content, idx) => (
+                          {job.workContent.map((content: string, idx: number) => (
                             <span key={idx} className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">
                               {content}
                             </span>
@@ -690,7 +916,7 @@ export default function AdminJobsList() {
                       <Award className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" />
                       <div className="flex flex-wrap gap-1">
                         {job.requiredQualifications && job.requiredQualifications.length > 0 ? (
-                          job.requiredQualifications.map((qual, idx) => (
+                          job.requiredQualifications.map((qual: string, idx: number) => (
                             <span key={idx} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded">
                               {qual}
                             </span>
@@ -717,7 +943,11 @@ export default function AdminJobsList() {
         {totalPages > 1 && (
           <div className="mt-6 flex items-center justify-center gap-2">
             <button
-              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+              onClick={() => {
+                const newPage = Math.max(1, currentPage - 1);
+                setCurrentPage(newPage);
+                updateUrlParams({ page: newPage });
+              }}
               disabled={currentPage === 1}
               className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
@@ -729,7 +959,11 @@ export default function AdminJobsList() {
             </span>
 
             <button
-              onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+              onClick={() => {
+                const newPage = Math.min(totalPages, currentPage + 1);
+                setCurrentPage(newPage);
+                updateUrlParams({ page: newPage });
+              }}
               disabled={currentPage === totalPages}
               className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >

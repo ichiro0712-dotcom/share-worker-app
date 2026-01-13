@@ -77,6 +77,11 @@ export interface MatchingMetrics {
     childJobsPerFacility: number;
     matchingsPerFacility: number;
     reviewsPerFacility: number;
+    // 限定求人・オファー関連指標
+    limitedJobCount: number;      // 限定求人数（LIMITED_WORKED + LIMITED_FAVORITE）
+    offerJobCount: number;        // オファー求人数
+    offerAcceptanceRate: number;  // オファー承諾率（%）
+    limitedJobApplicationRate: number; // 限定求人からの応募率（%）
 }
 
 // ========== ヘルパー関数 ==========
@@ -570,11 +575,16 @@ export async function getMatchingAnalyticsData(filter: AnalyticsFilter): Promise
         jobWorkDates,
         jobWorkDatesWithSlots,
         applications,
-        reviews
+        reviews,
+        // 限定求人・オファー用のデータ
+        limitedJobs,
+        offerJobs,
+        limitedJobApplications,
+        offerJobApplications
     ] = await Promise.all([
         prisma.job.findMany({
             where: jobWhere,
-            select: { id: true, created_at: true, requires_interview: true }
+            select: { id: true, created_at: true, requires_interview: true, job_type: true }
         }),
         prisma.jobWorkDate.findMany({
             where: {
@@ -619,7 +629,7 @@ export async function getMatchingAnalyticsData(filter: AnalyticsFilter): Promise
                 workDate: {
                     select: {
                         job: {
-                            select: { facility_id: true, created_at: true }
+                            select: { facility_id: true, created_at: true, job_type: true }
                         }
                     }
                 }
@@ -633,6 +643,49 @@ export async function getMatchingAnalyticsData(filter: AnalyticsFilter): Promise
                 facility_id: true,
                 reviewer_type: true
             }
+        }),
+        // 限定求人（LIMITED_WORKED, LIMITED_FAVORITE）
+        prisma.job.findMany({
+            where: {
+                ...jobWhere,
+                job_type: { in: ['LIMITED_WORKED', 'LIMITED_FAVORITE'] }
+            },
+            select: { id: true, created_at: true }
+        }),
+        // オファー求人
+        prisma.job.findMany({
+            where: {
+                ...jobWhere,
+                job_type: 'OFFER'
+            },
+            select: { id: true, created_at: true }
+        }),
+        // 限定求人への応募
+        prisma.application.findMany({
+            where: {
+                ...periodWhere,
+                workDate: {
+                    job: {
+                        job_type: { in: ['LIMITED_WORKED', 'LIMITED_FAVORITE'] },
+                        ...(jobWhere.facility ? { facility: jobWhere.facility } : {})
+                    }
+                }
+            },
+            select: { id: true, created_at: true }
+        }),
+        // オファー求人への応募（承諾）
+        prisma.application.findMany({
+            where: {
+                ...periodWhere,
+                status: { not: 'CANCELLED' },
+                workDate: {
+                    job: {
+                        job_type: 'OFFER',
+                        ...(jobWhere.facility ? { facility: jobWhere.facility } : {})
+                    }
+                }
+            },
+            select: { id: true, created_at: true }
         })
     ]);
 
@@ -703,6 +756,39 @@ export async function getMatchingAnalyticsData(filter: AnalyticsFilter): Promise
         const facilityReviewCount = periodReviews.filter(r => r.reviewer_type === 'WORKER').length;
         const reviewsPerFacility = facilityReviewCount / activeFacilityCount;
 
+        // 限定求人・オファー指標
+        const periodLimitedJobs = limitedJobs.filter(j =>
+            j.created_at >= periodStart && j.created_at <= periodEnd
+        );
+        const limitedJobCount = periodLimitedJobs.length;
+
+        const periodOfferJobs = offerJobs.filter(j =>
+            j.created_at >= periodStart && j.created_at <= periodEnd
+        );
+        const offerJobCount = periodOfferJobs.length;
+
+        // 限定求人への応募数
+        const periodLimitedApps = limitedJobApplications.filter(a =>
+            a.created_at >= periodStart && a.created_at <= periodEnd
+        );
+        const limitedAppCount = periodLimitedApps.length;
+
+        // オファー承諾数
+        const periodOfferApps = offerJobApplications.filter(a =>
+            a.created_at >= periodStart && a.created_at <= periodEnd
+        );
+        const offerAcceptCount = periodOfferApps.length;
+
+        // オファー承諾率 = オファー承諾数 / オファー求人数 * 100
+        const offerAcceptanceRate = offerJobCount > 0
+            ? (offerAcceptCount / offerJobCount) * 100
+            : 0;
+
+        // 限定求人からの応募率 = 限定求人応募数 / 限定求人数 * 100
+        const limitedJobApplicationRate = limitedJobCount > 0
+            ? (limitedAppCount / limitedJobCount) * 100
+            : 0;
+
         return {
             date: dateStr,
             parentJobCount,
@@ -718,7 +804,12 @@ export async function getMatchingAnalyticsData(filter: AnalyticsFilter): Promise
             parentJobsPerFacility: Math.round(parentJobsPerFacility * 100) / 100,
             childJobsPerFacility: Math.round(childJobsPerFacility * 100) / 100,
             matchingsPerFacility: Math.round(matchingsPerFacility * 100) / 100,
-            reviewsPerFacility: Math.round(reviewsPerFacility * 100) / 100
+            reviewsPerFacility: Math.round(reviewsPerFacility * 100) / 100,
+            // 限定求人・オファー指標
+            limitedJobCount,
+            offerJobCount,
+            offerAcceptanceRate: Math.round(offerAcceptanceRate * 100) / 100,
+            limitedJobApplicationRate: Math.round(limitedJobApplicationRate * 100) / 100
         };
     });
 

@@ -276,7 +276,11 @@ export default function AdminLaborDocumentDetailPage({
               </div>
               <div className="flex">
                 <span className="text-gray-600 w-32 shrink-0">諸手当（交通費）</span>
-                <span className="font-medium">{job.transportation_fee.toLocaleString()}円</span>
+                <span className="font-medium">
+                  {job.transportation_fee > 0
+                    ? `${job.transportation_fee.toLocaleString()}円`
+                    : 'なし'}
+                </span>
               </div>
               <div className="flex">
                 <span className="text-gray-600 w-32 shrink-0">時間外労働割増</span>

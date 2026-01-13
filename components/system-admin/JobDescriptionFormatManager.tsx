@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Edit2, Trash2, Loader2, Check, GripVertical } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import {
     getAllJobDescriptionFormats,
     createJobDescriptionFormat,
@@ -24,6 +25,7 @@ interface Props {
 }
 
 export function JobDescriptionFormatManager({ onFormatCreated }: Props) {
+    const { showDebugError } = useDebugError();
     const [formats, setFormats] = useState<Format[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [editingId, setEditingId] = useState<number | null>(null);
@@ -49,6 +51,14 @@ export function JobDescriptionFormatManager({ onFormatCreated }: Props) {
             const data = await getAllJobDescriptionFormats();
             setFormats(data.filter(f => f.is_active));
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'fetch',
+                operation: '求人詳細フォーマット一覧取得',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack
+            });
             toast.error('フォーマットの取得に失敗しました');
         } finally {
             setIsLoading(false);
@@ -88,6 +98,15 @@ export function JobDescriptionFormatManager({ onFormatCreated }: Props) {
                 toast.error(result.error || '作成に失敗しました');
             }
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'save',
+                operation: '求人詳細フォーマット作成',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { formData: newForm }
+            });
             toast.error('作成に失敗しました');
         } finally {
             setIsSaving(false);
@@ -122,6 +141,15 @@ export function JobDescriptionFormatManager({ onFormatCreated }: Props) {
                 toast.error(result.error || '更新に失敗しました');
             }
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'update',
+                operation: '求人詳細フォーマット更新',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { id: editingId, formData: editForm }
+            });
             toast.error('更新に失敗しました');
         } finally {
             setIsSaving(false);
@@ -141,6 +169,15 @@ export function JobDescriptionFormatManager({ onFormatCreated }: Props) {
                 toast.error(result.error || '削除に失敗しました');
             }
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'delete',
+                operation: '求人詳細フォーマット削除',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { id }
+            });
             toast.error('削除に失敗しました');
         }
     };
@@ -219,6 +256,14 @@ export function JobDescriptionFormatManager({ onFormatCreated }: Props) {
                 loadFormats(); // 失敗したら元に戻す
             }
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'update',
+                operation: '求人詳細フォーマット並び順更新',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack
+            });
             toast.error('並び順の更新に失敗しました');
             loadFormats(); // 失敗したら元に戻す
         }
@@ -318,15 +363,14 @@ export function JobDescriptionFormatManager({ onFormatCreated }: Props) {
                         onDragOver={(e) => handleDragOver(e, format.id)}
                         onDragLeave={handleDragLeave}
                         onDrop={(e) => handleDrop(e, format.id)}
-                        className={`border rounded-lg transition-all ${
-                            editingId === format.id
+                        className={`border rounded-lg transition-all ${editingId === format.id
                                 ? 'border-indigo-300 bg-indigo-50'
                                 : draggedId === format.id
                                     ? 'border-indigo-400 bg-indigo-50 opacity-50'
                                     : dragOverId === format.id
                                         ? 'border-indigo-400 bg-indigo-100 border-dashed'
                                         : 'border-gray-200 bg-white hover:border-gray-300'
-                        } ${!editingId && !isCreating ? 'cursor-move' : ''}`}
+                            } ${!editingId && !isCreating ? 'cursor-move' : ''}`}
                     >
                         {editingId === format.id ? (
                             // 編集モード

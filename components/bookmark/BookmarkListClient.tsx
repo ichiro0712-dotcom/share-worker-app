@@ -8,6 +8,7 @@ import { Bookmark, Calendar, MapPin, Clock } from 'lucide-react';
 import { removeJobBookmark } from '@/src/lib/actions';
 import toast from 'react-hot-toast';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 interface BookmarkListClientProps {
   initialBookmarks: Array<{
@@ -19,6 +20,7 @@ interface BookmarkListClientProps {
 
 export function BookmarkListClient({ initialBookmarks }: BookmarkListClientProps) {
   const router = useRouter();
+  const { showDebugError } = useDebugError();
   const [bookmarks, setBookmarks] = useState(initialBookmarks);
   const [removingId, setRemovingId] = useState<number | null>(null);
 
@@ -35,9 +37,24 @@ export function BookmarkListClient({ initialBookmarks }: BookmarkListClientProps
         setBookmarks(prev => prev.filter(b => b.bookmarkId !== bookmarkId));
         router.refresh(); // Server Componentを再取得
       } else {
+        showDebugError({
+          type: 'delete',
+          operation: 'ブックマーク削除',
+          message: result.error || '削除に失敗しました',
+          context: { bookmarkId, jobId }
+        });
         toast.error('削除に失敗しました');
       }
     } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'delete',
+        operation: 'ブックマーク削除（例外）',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { bookmarkId, jobId }
+      });
       console.error('Remove bookmark error:', error);
       toast.error('削除に失敗しました');
     } finally {

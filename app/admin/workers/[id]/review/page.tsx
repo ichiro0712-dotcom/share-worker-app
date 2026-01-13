@@ -2,10 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useSWRConfig } from 'swr';
+
 import { ChevronLeft, Star, User, Calendar, Clock } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
 import { getApplicationForFacilityReview, submitFacilityReviewForWorker } from '@/src/lib/actions';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 interface ApplicationData {
   applicationId: number;
@@ -22,6 +25,9 @@ interface ApplicationData {
 
 export default function FacilityWorkerReviewPage() {
   const router = useRouter();
+  const { mutate: globalMutate } = useSWRConfig();
+
+  const { showDebugError } = useDebugError();
   const searchParams = useSearchParams();
   const applicationId = searchParams.get('applicationId');
   const { admin, isAdmin } = useAuth();
@@ -57,6 +63,15 @@ export default function FacilityWorkerReviewPage() {
           router.push('/admin/workers');
         }
       } catch (error) {
+        const debugInfo = extractDebugInfo(error);
+        showDebugError({
+          type: 'fetch',
+          operation: '評価対象データ取得',
+          message: debugInfo.message,
+          details: debugInfo.details,
+          stack: debugInfo.stack,
+          context: { applicationId, facilityId: admin?.facilityId }
+        });
         console.error('Failed to fetch application:', error);
         toast.error('データの取得に失敗しました');
         router.push('/admin/workers');
@@ -90,11 +105,22 @@ export default function FacilityWorkerReviewPage() {
 
       if (result.success) {
         toast.success(result.message || '評価を投稿しました');
+        // SWRキャッシュをクリアして一覧を更新
+        globalMutate((key) => typeof key === 'string' && key.includes('/api/admin/workers'));
         router.push('/admin/workers');
       } else {
         toast.error(result.error || '評価の投稿に失敗しました');
       }
     } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'save',
+        operation: '施設評価投稿',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { applicationId: applicationData.applicationId, facilityId: admin.facilityId, rating }
+      });
       console.error('Failed to submit review:', error);
       toast.error('評価の投稿に失敗しました');
     } finally {
@@ -108,8 +134,60 @@ export default function FacilityWorkerReviewPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-admin-primary"></div>
+      <div className="min-h-screen bg-gray-50">
+        {/* ヘッダー Skeleton */}
+        <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+          <div className="px-4 py-3 flex items-center">
+            <div className="w-6 h-6 bg-gray-200 rounded animate-pulse" />
+            <div className="flex-1 flex justify-center">
+              <div className="h-6 bg-gray-200 rounded w-28 animate-pulse" />
+            </div>
+            <div className="w-6"></div>
+          </div>
+        </div>
+
+        <div className="p-4 space-y-4">
+          {/* ワーカー情報 Skeleton */}
+          <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-full bg-gray-200 animate-pulse flex-shrink-0" />
+              <div className="flex-1">
+                <div className="h-6 bg-gray-200 rounded w-32 mb-2 animate-pulse" />
+                <div className="flex gap-1">
+                  <div className="h-5 bg-gray-200 rounded w-16 animate-pulse" />
+                  <div className="h-5 bg-gray-200 rounded w-20 animate-pulse" />
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <div className="h-5 bg-gray-200 rounded w-48 mb-2 animate-pulse" />
+              <div className="flex gap-4">
+                <div className="h-4 bg-gray-200 rounded w-24 animate-pulse" />
+                <div className="h-4 bg-gray-200 rounded w-28 animate-pulse" />
+              </div>
+            </div>
+          </div>
+
+          {/* 評価入力 Skeleton */}
+          <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <div className="h-5 bg-gray-200 rounded w-20 mb-4 animate-pulse" />
+            <div className="flex items-center justify-center gap-2 mb-6">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="w-10 h-10 bg-gray-200 rounded animate-pulse" />
+              ))}
+            </div>
+            <div className="space-y-4">
+              <div>
+                <div className="h-4 bg-gray-200 rounded w-24 mb-2 animate-pulse" />
+                <div className="h-24 bg-gray-100 rounded-lg animate-pulse" />
+              </div>
+              <div>
+                <div className="h-4 bg-gray-200 rounded w-28 mb-2 animate-pulse" />
+                <div className="h-24 bg-gray-100 rounded-lg animate-pulse" />
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

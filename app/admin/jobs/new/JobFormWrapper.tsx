@@ -2,15 +2,21 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import JobForm from '@/components/admin/JobForm';
-import { getAdminJobTemplates, getFacilityInfo } from '@/src/lib/actions';
+import { getAdminJobTemplates, getFacilityInfo, getWorkerDetail } from '@/src/lib/actions';
 
 interface JobFormWrapperProps {
   mode: 'create' | 'edit';
   jobId?: string;
   initialFormats: { id: number; label: string; content: string }[];
   initialDismissalReasons: string;
+}
+
+interface OfferTargetWorker {
+  id: number;
+  name: string;
+  profileImage: string | null;
 }
 
 export default function JobFormWrapper({
@@ -21,10 +27,16 @@ export default function JobFormWrapper({
 }: JobFormWrapperProps) {
   const { admin, isAdmin, isAdminLoading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // オファーモード判定
+  const isOfferMode = searchParams.get('mode') === 'offer';
+  const offerWorkerId = searchParams.get('workerId');
 
   // Admin依存のデータ
   const [templates, setTemplates] = useState<any[]>([]);
   const [facilityInfo, setFacilityInfo] = useState<any>(null);
+  const [offerTargetWorker, setOfferTargetWorker] = useState<OfferTargetWorker | null>(null);
   const [isDataLoading, setIsDataLoading] = useState(true);
 
   // adminが確立されたらadmin依存のデータを即座に取得
@@ -39,13 +51,36 @@ export default function JobFormWrapper({
     const loadAdminData = async () => {
       try {
         // admin依存のデータを並列取得
-        const [templatesData, facilityData] = await Promise.all([
+        const promises: Promise<any>[] = [
           getAdminJobTemplates(admin.facilityId),
           getFacilityInfo(admin.facilityId),
-        ]);
+        ];
 
-        setTemplates(templatesData);
-        setFacilityInfo(facilityData);
+        // オファーモードの場合、対象ワーカー情報も取得
+        if (isOfferMode && offerWorkerId) {
+          promises.push(getWorkerDetail(parseInt(offerWorkerId), admin.facilityId));
+        }
+
+        const results = await Promise.all(promises);
+
+        setTemplates(results[0]);
+        setFacilityInfo(results[1]);
+
+        // オファー対象ワーカー情報をセット
+        if (isOfferMode && results[2]) {
+          const workerData = results[2];
+          // hasCompletedRatedがtrueでない場合はオファー不可
+          if (!workerData.hasCompletedRated) {
+            alert('このワーカーにはオファーを送れません（レビュー完了済みではありません）');
+            router.push('/admin/workers');
+            return;
+          }
+          setOfferTargetWorker({
+            id: workerData.id,
+            name: workerData.name,
+            profileImage: workerData.profileImage,
+          });
+        }
       } catch (error) {
         console.error('Failed to load admin data:', error);
       } finally {
@@ -54,7 +89,7 @@ export default function JobFormWrapper({
     };
 
     loadAdminData();
-  }, [admin, isAdmin, isAdminLoading, router]);
+  }, [admin, isAdmin, isAdminLoading, router, isOfferMode, offerWorkerId]);
 
   // ローディング中のスケルトン表示
   if (isAdminLoading || isDataLoading) {
@@ -87,6 +122,8 @@ export default function JobFormWrapper({
         formats: initialFormats,
         dismissalReasons: initialDismissalReasons,
       }}
+      isOfferMode={isOfferMode}
+      offerTargetWorker={offerTargetWorker}
     />
   );
 }

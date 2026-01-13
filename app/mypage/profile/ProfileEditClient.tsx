@@ -4,11 +4,16 @@ import { useState, useRef } from 'react';
 import { Upload, ArrowLeft, Plus, X, User as UserIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { updateUserProfile } from '@/src/lib/actions';
 import { validateFile, getSafeImageUrl, isValidImageUrl } from '@/utils/fileValidation';
+import { isKatakanaOnly, isKatakanaWithSpaceOnly } from '@/utils/inputValidation';
 import toast from 'react-hot-toast';
 import AddressSelector from '@/components/ui/AddressSelector';
+import { KatakanaInput, KatakanaWithSpaceInput } from '@/components/ui/KatakanaInput';
+import { PhoneNumberInput } from '@/components/ui/PhoneNumberInput';
 import { QUALIFICATION_GROUPS } from '@/constants/qualifications';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 interface UserProfile {
   id: number;
@@ -68,6 +73,8 @@ interface ProfileEditClientProps {
 export default function ProfileEditClient({ userProfile }: ProfileEditClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { showDebugError } = useDebugError();
+  const { update: updateSession } = useSession();
 
   // 戻り先URL（求人ページから来た場合）
   const returnUrl = searchParams.get('returnUrl');
@@ -166,6 +173,9 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
   });
 
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [isSaving, setIsSaving] = useState(false);
+  // バリデーションエラー表示用（送信時にtrueになる）
+  const [showErrors, setShowErrors] = useState(false);
 
   // バリデーション関数
   const validateKatakana = (value: string): boolean => {
@@ -418,97 +428,196 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // FormDataを作成
-    const form = new FormData();
-    // 基本情報
-    form.append('name', `${formData.lastName} ${formData.firstName}`);
-    form.append('email', formData.email);
-    form.append('phoneNumber', formData.phone);
-    form.append('birthDate', formData.birthDate);
-    form.append('qualifications', formData.qualifications.join(','));
-    form.append('lastNameKana', formData.lastNameKana);
-    form.append('firstNameKana', formData.firstNameKana);
-    form.append('gender', formData.gender);
-    form.append('nationality', formData.nationality);
+    // バリデーションエラー表示を有効化
+    setShowErrors(true);
 
-    // 住所
-    form.append('postalCode', formData.postalCode);
-    form.append('prefecture', formData.prefecture);
-    form.append('city', formData.city);
-    form.append('addressLine', formData.address);
-    form.append('building', formData.building);
+    // 既に保存中の場合は何もしない
+    if (isSaving) return;
 
-    // 緊急連絡先
-    form.append('emergencyName', formData.emergencyContactName);
-    form.append('emergencyRelation', formData.emergencyContactRelation);
-    form.append('emergencyPhone', formData.emergencyContactPhone);
-    form.append('emergencyAddress', formData.emergencyContactAddress);
+    // 必須フィールドのバリデーション
+    const errors: string[] = [];
 
-    // 働き方・希望
-    form.append('currentWorkStyle', formData.currentWorkStyle);
-    form.append('desiredWorkStyle', formData.desiredWorkStyle);
-    form.append('jobChangeDesire', formData.jobChangeDesire);
-    form.append('desiredWorkDaysPerWeek', formData.desiredWorkDaysPerWeek);
-    form.append('desiredWorkPeriod', formData.desiredWorkPeriod);
-    form.append('desiredWorkDays', formData.desiredWorkDays.join(','));
-    form.append('desiredStartTime', formData.desiredStartTime);
-    form.append('desiredEndTime', formData.desiredEndTime);
+    if (!formData.lastName) errors.push('姓');
+    if (!formData.firstName) errors.push('名');
+    if (!formData.lastNameKana) errors.push('姓（カナ）');
+    if (!formData.firstNameKana) errors.push('名（カナ）');
+    if (!formData.birthDate) errors.push('生年月日');
+    if (!formData.gender) errors.push('性別');
+    if (!formData.nationality) errors.push('国籍');
+    if (!formData.currentWorkStyle) errors.push('現在の働き方');
+    if (!formData.desiredWorkStyle) errors.push('希望の働き方');
+    if (!formData.jobChangeDesire) errors.push('転職意欲');
+    if (!formData.phone) errors.push('電話番号');
+    if (!formData.email) errors.push('メールアドレス');
+    if (!formData.prefecture) errors.push('都道府県');
+    if (!formData.city) errors.push('市区町村');
+    if (!formData.address) errors.push('町名・番地');
+    // 緊急連絡先は必須項目（応募時にバックエンドでもチェック）
+    if (!formData.emergencyContactName) errors.push('緊急連絡先氏名');
+    if (!formData.emergencyContactPhone) errors.push('緊急連絡先電話番号');
+    if (formData.qualifications.length === 0) errors.push('保有資格');
+    if (formData.experienceFields.length === 0) errors.push('経験分野');
+    if (!formData.bankName) errors.push('銀行名');
+    if (!formData.branchName) errors.push('支店名');
+    if (!formData.accountName) errors.push('口座名義');
+    if (!formData.accountNumber) errors.push('口座番号');
+    if (!bankBookImage) errors.push('通帳コピー');
+    if (!idDocument) errors.push('身分証明書');
 
-    // 経験
-    form.append('experienceFields', JSON.stringify(formData.experienceYears));
-    form.append('workHistories', workHistories.join('|||'));
-
-    // 自己PR
-    form.append('selfPR', formData.selfPR);
-
-    // 銀行口座
-    form.append('bankName', formData.bankName);
-    form.append('branchName', formData.branchName);
-    form.append('accountName', formData.accountName);
-    form.append('accountNumber', formData.accountNumber);
-
-    // その他
-    form.append('pensionNumber', formData.pensionNumber);
-
-    // プロフィール画像がアップロードされている場合は追加
-    if (profileImageFile) {
-      form.append('profileImage', profileImageFile);
+    // 資格証明書の確認（「その他」以外の資格は証明書必須）
+    const qualificationsNeedingCertificates = formData.qualifications.filter(qual => qual !== 'その他');
+    const missingCertificates = qualificationsNeedingCertificates.filter(qual => !qualificationCertificates[qual]);
+    if (missingCertificates.length > 0) {
+      errors.push(`資格証明書（${missingCertificates.join('、')}）`);
     }
 
-    if (idDocumentFile) {
-      form.append('idDocument', idDocumentFile);
-    }
-
-    if (bankBookImageFile) {
-      form.append('bankBookImage', bankBookImageFile);
-    }
-
-    // 資格証明書ファイルを追加（日本語キー名をBase64エンコード）
-    console.log('[ProfileEditClient] qualificationCertificateFiles:', Object.keys(qualificationCertificateFiles));
-    Object.entries(qualificationCertificateFiles).forEach(([qualification, file]) => {
-      const encodedQualification = btoa(unescape(encodeURIComponent(qualification)));
-      console.log('[ProfileEditClient] Appending certificate:', qualification, '→', encodedQualification, 'file:', file.name, file.size);
-      form.append(`qualificationCertificate_${encodedQualification}`, file);
-    });
-
-    // サーバーアクションを呼び出し
-    const result = await updateUserProfile(form);
-
-    if (result.success) {
-      toast.success(result.message || 'プロフィールを更新しました');
-      // 画像アップロード後はファイル状態をリセット
-      setProfileImageFile(null);
-      setIdDocumentFile(null);
-      setBankBookImageFile(null);
-      setQualificationCertificateFiles({});
-      // リダイレクト: returnUrlがあれば戻り先へ、なければマイページへ
-      if (returnUrl) {
-        router.push(returnUrl);
-      } else {
-        router.push('/mypage');
+    if (errors.length > 0) {
+      toast.error(`以下の項目を入力してください: ${errors.join('、')}`);
+      // 最初のエラー項目までスクロール
+      const firstErrorElement = document.querySelector('.border-red-500');
+      if (firstErrorElement) {
+        firstErrorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
-    } else {
-      toast.error(result.error || 'プロフィールの更新に失敗しました');
+      return;
+    }
+
+    // フリガナのカタカナチェック
+    if (formData.lastNameKana && !isKatakanaOnly(formData.lastNameKana)) {
+      toast.error('姓（カナ）はカタカナで入力してください');
+      return;
+    }
+    if (formData.firstNameKana && !isKatakanaOnly(formData.firstNameKana)) {
+      toast.error('名（カナ）はカタカナで入力してください');
+      return;
+    }
+    // 口座名義のカタカナチェック
+    if (formData.accountName && !isKatakanaWithSpaceOnly(formData.accountName)) {
+      toast.error('口座名義はカタカナで入力してください');
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      // FormDataを作成
+      const form = new FormData();
+      // 基本情報
+      form.append('name', `${formData.lastName} ${formData.firstName}`);
+      form.append('email', formData.email);
+      form.append('phoneNumber', formData.phone);
+      form.append('birthDate', formData.birthDate);
+      form.append('qualifications', formData.qualifications.join(','));
+      form.append('lastNameKana', formData.lastNameKana);
+      form.append('firstNameKana', formData.firstNameKana);
+      form.append('gender', formData.gender);
+      form.append('nationality', formData.nationality);
+
+      // 住所
+      form.append('postalCode', formData.postalCode);
+      form.append('prefecture', formData.prefecture);
+      form.append('city', formData.city);
+      form.append('addressLine', formData.address);
+      form.append('building', formData.building);
+
+      // 緊急連絡先
+      form.append('emergencyName', formData.emergencyContactName);
+      form.append('emergencyRelation', formData.emergencyContactRelation);
+      form.append('emergencyPhone', formData.emergencyContactPhone);
+      form.append('emergencyAddress', formData.emergencyContactAddress);
+
+      // 働き方・希望
+      form.append('currentWorkStyle', formData.currentWorkStyle);
+      form.append('desiredWorkStyle', formData.desiredWorkStyle);
+      form.append('jobChangeDesire', formData.jobChangeDesire);
+      form.append('desiredWorkDaysPerWeek', formData.desiredWorkDaysPerWeek);
+      form.append('desiredWorkPeriod', formData.desiredWorkPeriod);
+      form.append('desiredWorkDays', formData.desiredWorkDays.join(','));
+      form.append('desiredStartTime', formData.desiredStartTime);
+      form.append('desiredEndTime', formData.desiredEndTime);
+
+      // 経験
+      form.append('experienceFields', JSON.stringify(formData.experienceYears));
+      form.append('workHistories', workHistories.join('|||'));
+
+      // 自己PR
+      form.append('selfPR', formData.selfPR);
+
+      // 銀行口座
+      form.append('bankName', formData.bankName);
+      form.append('branchName', formData.branchName);
+      form.append('accountName', formData.accountName);
+      form.append('accountNumber', formData.accountNumber);
+
+      // その他
+      form.append('pensionNumber', formData.pensionNumber);
+
+      // プロフィール画像がアップロードされている場合は追加
+      if (profileImageFile) {
+        form.append('profileImage', profileImageFile);
+      }
+
+      if (idDocumentFile) {
+        form.append('idDocument', idDocumentFile);
+      }
+
+      if (bankBookImageFile) {
+        form.append('bankBookImage', bankBookImageFile);
+      }
+
+      // 資格証明書ファイルを追加（日本語キー名をBase64エンコード）
+      console.log('[ProfileEditClient] qualificationCertificateFiles:', Object.keys(qualificationCertificateFiles));
+      Object.entries(qualificationCertificateFiles).forEach(([qualification, file]) => {
+        const encodedQualification = btoa(unescape(encodeURIComponent(qualification)));
+        console.log('[ProfileEditClient] Appending certificate:', qualification, '→', encodedQualification, 'file:', file.name, file.size);
+        form.append(`qualificationCertificate_${encodedQualification}`, file);
+      });
+
+      // サーバーアクションを呼び出し
+      const result = await updateUserProfile(form);
+
+      if (result.success) {
+        toast.success(result.message || 'プロフィールを更新しました');
+        // NextAuthセッションを更新して新しい画像URLを反映
+        await updateSession();
+        // クライアントナビゲーション + サーバーコンポーネント再取得
+        const redirectUrl = returnUrl || '/mypage';
+        router.push(redirectUrl);
+        router.refresh();
+        return;
+      } else {
+        // デバッグ用エラー通知を表示
+        showDebugError({
+          type: 'save',
+          operation: 'プロフィール更新',
+          message: result.error || 'プロフィールの更新に失敗しました',
+          context: {
+            formDataKeys: Array.from(form.keys()),
+            hasProfileImage: !!profileImageFile,
+            hasIdDocument: !!idDocumentFile,
+            hasBankBookImage: !!bankBookImageFile,
+            qualificationCertificateCount: Object.keys(qualificationCertificateFiles).length,
+          }
+        });
+        toast.error(result.error || 'プロフィールの更新に失敗しました');
+      }
+    } catch (error) {
+      // 予期しないエラーの場合
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'save',
+        operation: 'プロフィール更新（例外）',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: {
+          userId: userProfile.id,
+          formDataLastName: formData.lastName,
+          formDataFirstName: formData.firstName,
+        }
+      });
+      toast.error('予期しないエラーが発生しました');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -579,8 +688,11 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 type="text"
                 value={formData.lastName}
                 onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.lastName ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
               />
+              {showErrors && !formData.lastName && (
+                <p className="text-red-500 text-xs mt-1">姓を入力してください</p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">名 <span className="text-red-500">*</span></label>
@@ -588,44 +700,43 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 type="text"
                 value={formData.firstName}
                 onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.firstName ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
               />
+              {showErrors && !formData.firstName && (
+                <p className="text-red-500 text-xs mt-1">名を入力してください</p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">姓（カナ） <span className="text-red-500">*</span></label>
-              <input
-                type="text"
+              <KatakanaInput
                 value={formData.lastNameKana}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setFormData({ ...formData, lastNameKana: value });
-                  const error = validateField('lastNameKana', value);
-                  setValidationErrors(prev => ({ ...prev, lastNameKana: error }));
-                }}
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${validationErrors.lastNameKana ? 'border-red-500' : 'border-gray-300'
-                  }`}
+                onChange={(value) => setFormData({ ...formData, lastNameKana: value })}
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.lastNameKana ? 'border-red-500 bg-red-50' : formData.lastNameKana && !isKatakanaOnly(formData.lastNameKana) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                placeholder="ヤマダ"
               />
-              {validationErrors.lastNameKana && (
-                <p className="text-red-500 text-xs mt-1">{validationErrors.lastNameKana}</p>
+              {showErrors && !formData.lastNameKana && (
+                <p className="text-red-500 text-xs mt-1">姓（カナ）を入力してください</p>
               )}
+              {formData.lastNameKana && !isKatakanaOnly(formData.lastNameKana) && (
+                <p className="text-red-500 text-xs mt-1">カタカナで入力してください</p>
+              )}
+              <p className="text-xs text-gray-500 mt-1">※カタカナで入力（ひらがなは自動変換）</p>
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">名（カナ） <span className="text-red-500">*</span></label>
-              <input
-                type="text"
+              <KatakanaInput
                 value={formData.firstNameKana}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setFormData({ ...formData, firstNameKana: value });
-                  const error = validateField('firstNameKana', value);
-                  setValidationErrors(prev => ({ ...prev, firstNameKana: error }));
-                }}
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${validationErrors.firstNameKana ? 'border-red-500' : 'border-gray-300'
-                  }`}
+                onChange={(value) => setFormData({ ...formData, firstNameKana: value })}
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.firstNameKana ? 'border-red-500 bg-red-50' : formData.firstNameKana && !isKatakanaOnly(formData.firstNameKana) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                placeholder="タロウ"
               />
-              {validationErrors.firstNameKana && (
-                <p className="text-red-500 text-xs mt-1">{validationErrors.firstNameKana}</p>
+              {showErrors && !formData.firstNameKana && (
+                <p className="text-red-500 text-xs mt-1">名（カナ）を入力してください</p>
               )}
+              {formData.firstNameKana && !isKatakanaOnly(formData.firstNameKana) && (
+                <p className="text-red-500 text-xs mt-1">カタカナで入力してください</p>
+              )}
+              <p className="text-xs text-gray-500 mt-1">※カタカナで入力（ひらがなは自動変換）</p>
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">生年月日 <span className="text-red-500">*</span></label>
@@ -633,33 +744,41 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 type="date"
                 value={formData.birthDate}
                 onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.birthDate ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
               />
+              {showErrors && !formData.birthDate && (
+                <p className="text-red-500 text-xs mt-1">生年月日を入力してください</p>
+              )}
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">性別 <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium mb-2">性別（出生時） <span className="text-red-500">*</span></label>
               <select
                 value={formData.gender}
                 onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.gender ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
               >
                 <option value="">選択してください</option>
                 <option value="男性">男性</option>
                 <option value="女性">女性</option>
-                <option value="その他">その他</option>
               </select>
+              {showErrors && !formData.gender && (
+                <p className="text-red-500 text-xs mt-1">性別を選択してください</p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">国籍 <span className="text-red-500">*</span></label>
               <select
                 value={formData.nationality}
                 onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.nationality ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
               >
                 <option value="">選択してください</option>
                 <option value="日本">日本</option>
                 <option value="その他">その他</option>
               </select>
+              {showErrors && !formData.nationality && (
+                <p className="text-red-500 text-xs mt-1">国籍を選択してください</p>
+              )}
             </div>
           </div>
         </section>
@@ -675,7 +794,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 <select
                   value={formData.currentWorkStyle}
                   onChange={(e) => setFormData({ ...formData, currentWorkStyle: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.currentWorkStyle ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                 >
                   <option value="">選択してください</option>
                   <option value="正社員">正社員</option>
@@ -684,13 +803,16 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                   <option value="契約社員">契約社員</option>
                   <option value="その他">その他</option>
                 </select>
+                {showErrors && !formData.currentWorkStyle && (
+                  <p className="text-red-500 text-xs mt-1">現在の働き方を選択してください</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">希望の働き方 <span className="text-red-500">*</span></label>
                 <select
                   value={formData.desiredWorkStyle}
                   onChange={(e) => setFormData({ ...formData, desiredWorkStyle: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.desiredWorkStyle ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                 >
                   <option value="">選択してください</option>
                   <option value="正社員">正社員</option>
@@ -699,6 +821,9 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                   <option value="契約社員">契約社員</option>
                   <option value="その他">その他</option>
                 </select>
+                {showErrors && !formData.desiredWorkStyle && (
+                  <p className="text-red-500 text-xs mt-1">希望の働き方を選択してください</p>
+                )}
               </div>
             </div>
 
@@ -707,13 +832,16 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
               <select
                 value={formData.jobChangeDesire}
                 onChange={(e) => setFormData({ ...formData, jobChangeDesire: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.jobChangeDesire ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
               >
                 <option value="">選択してください</option>
                 <option value="今はない">今はない</option>
                 <option value="いい仕事があれば">いい仕事があれば</option>
                 <option value="転職したい">転職したい</option>
               </select>
+              {showErrors && !formData.jobChangeDesire && (
+                <p className="text-red-500 text-xs mt-1">転職意欲を選択してください</p>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -724,7 +852,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                   onChange={(e) => setFormData({ ...formData, desiredWorkDaysPerWeek: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 >
-                  <option value="">選択してください</option>
+                  <option value="">特になし</option>
                   <option value="週1〜2日">週1〜2日</option>
                   <option value="週3〜4日">週3〜4日</option>
                   <option value="週5日以上">週5日以上</option>
@@ -737,7 +865,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                   onChange={(e) => setFormData({ ...formData, desiredWorkPeriod: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 >
-                  <option value="">選択してください</option>
+                  <option value="">特になし</option>
                   <option value="1週間以内">1週間以内</option>
                   <option value="3週間以内">3週間以内</option>
                   <option value="1〜2ヶ月">1〜2ヶ月</option>
@@ -773,7 +901,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                   onChange={(e) => setFormData({ ...formData, desiredStartTime: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 >
-                  <option value="">選択してください</option>
+                  <option value="">特になし</option>
                   {timeOptions.map((time) => (
                     <option key={time} value={time}>{time}</option>
                   ))}
@@ -786,7 +914,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                   onChange={(e) => setFormData({ ...formData, desiredEndTime: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 >
-                  <option value="">選択してください</option>
+                  <option value="">特になし</option>
                   {timeOptions.map((time) => (
                     <option key={time} value={time}>{time}</option>
                   ))}
@@ -803,21 +931,16 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <div>
               <label className="block text-sm font-medium mb-2">電話番号 <span className="text-red-500">*</span></label>
-              <input
-                type="tel"
+              <PhoneNumberInput
                 value={formData.phone}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setFormData({ ...formData, phone: value });
-                  const error = validateField('phone', value);
-                  setValidationErrors(prev => ({ ...prev, phone: error }));
-                }}
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${validationErrors.phone ? 'border-red-500' : 'border-gray-300'
-                  }`}
+                onChange={(value) => setFormData({ ...formData, phone: value })}
+                placeholder="090-1234-5678"
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.phone ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
               />
-              {validationErrors.phone && (
-                <p className="text-red-500 text-xs mt-1">{validationErrors.phone}</p>
+              {showErrors && !formData.phone && (
+                <p className="text-red-500 text-xs mt-1">電話番号を入力してください</p>
               )}
+              <p className="text-xs text-gray-500 mt-1">※数字のみ入力（ハイフンは自動挿入）</p>
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">メールアドレス <span className="text-red-500">*</span></label>
@@ -830,16 +953,18 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                   const error = validateField('email', value);
                   setValidationErrors(prev => ({ ...prev, email: error }));
                 }}
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${validationErrors.email ? 'border-red-500' : 'border-gray-300'
-                  }`}
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.email ? 'border-red-500 bg-red-50' : validationErrors.email ? 'border-red-500' : 'border-gray-300'}`}
               />
+              {showErrors && !formData.email && (
+                <p className="text-red-500 text-xs mt-1">メールアドレスを入力してください</p>
+              )}
               {validationErrors.email && (
                 <p className="text-red-500 text-xs mt-1">{validationErrors.email}</p>
               )}
             </div>
             {/* 住所入力（AddressSelectorを使用） */}
             <div className="md:col-span-2 mt-4 space-y-4 border-t pt-4">
-              <h3 className="font-medium text-gray-900">住所</h3>
+              <h3 className="font-medium text-gray-900">住所 <span className="text-red-500">*</span></h3>
               <AddressSelector
                 prefecture={formData.prefecture}
                 city={formData.city}
@@ -862,6 +987,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                   }
                 }}
                 required={true}
+                showErrors={showErrors}
               />
               {validationErrors.postalCode && (
                 <p className="text-red-500 text-xs mt-1">{validationErrors.postalCode}</p>
@@ -883,8 +1009,11 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 type="text"
                 value={formData.emergencyContactName}
                 onChange={(e) => setFormData({ ...formData, emergencyContactName: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.emergencyContactName ? 'border-red-500' : 'border-gray-300'}`}
               />
+              {showErrors && !formData.emergencyContactName && (
+                <p className="text-red-500 text-xs mt-1">緊急連絡先氏名は必須です</p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">続柄</label>
@@ -897,20 +1026,15 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">電話番号 <span className="text-red-500">*</span></label>
-              <input
-                type="tel"
+              <PhoneNumberInput
                 value={formData.emergencyContactPhone}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setFormData({ ...formData, emergencyContactPhone: value });
-                  const error = validateField('emergencyContactPhone', value);
-                  setValidationErrors(prev => ({ ...prev, emergencyContactPhone: error }));
-                }}
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${validationErrors.emergencyContactPhone ? 'border-red-500' : 'border-gray-300'
-                  }`}
+                onChange={(value) => setFormData({ ...formData, emergencyContactPhone: value })}
+                placeholder="090-1234-5678"
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.emergencyContactPhone ? 'border-red-500' : 'border-gray-300'}`}
               />
-              {validationErrors.emergencyContactPhone && (
-                <p className="text-red-500 text-xs mt-1">{validationErrors.emergencyContactPhone}</p>
+              <p className="text-xs text-gray-500 mt-1">※数字のみ入力（ハイフンは自動挿入）</p>
+              {showErrors && !formData.emergencyContactPhone && (
+                <p className="text-red-500 text-xs mt-1">緊急連絡先電話番号は必須です</p>
               )}
             </div>
             <div>
@@ -926,12 +1050,15 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
         </section>
 
         {/* 4. 資格 */}
-        <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
+        <section className={`bg-white rounded-lg shadow-sm p-6 mb-6 ${showErrors && formData.qualifications.length === 0 ? 'ring-2 ring-red-500' : ''}`}>
           <h2 className="text-lg font-bold mb-4 pb-3 border-b">4. 資格 <span className="text-red-500">*</span></h2>
 
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-medium mb-3">保有資格 <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium mb-1">保有資格 <span className="text-red-500">*</span></label>
+              <p className="text-sm text-gray-600 mb-3">
+                ※保有している資格にチェックを入れ、<span className="font-bold text-red-500">必ず</span>資格証明書の写真を添付してください。
+              </p>
               {QUALIFICATION_GROUPS.map((group) => (
                 <div key={group.name} className="mb-4">
                   <h4 className="text-sm font-semibold text-gray-700 mb-2">{group.name}</h4>
@@ -950,6 +1077,9 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                   </div>
                 </div>
               ))}
+              {showErrors && formData.qualifications.length === 0 && (
+                <p className="text-red-500 text-xs mt-2">少なくとも1つの資格を選択してください</p>
+              )}
             </div>
 
             {/* 資格証明書アップロード - 選択された資格（その他以外）の数だけ表示 */}
@@ -957,7 +1087,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
               <div className="space-y-4">
                 <label className="block text-sm font-medium">資格証明書アップロード <span className="text-red-500">*</span></label>
                 {formData.qualifications.filter(qual => qual !== 'その他').map((qual) => (
-                  <div key={qual} className="border border-gray-200 rounded-lg p-4">
+                  <div key={qual} className={`border rounded-lg p-4 ${showErrors && !qualificationCertificates[qual] ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}>
                     <label className="block text-sm font-medium text-gray-700 mb-3">{qual} <span className="text-red-500">*</span></label>
 
                     {/* 既存の証明書がある場合はプレビュー表示 */}
@@ -988,7 +1118,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                       </div>
                     ) : (
                       <div className="space-y-2">
-                        <label className="block w-full px-4 py-3 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors cursor-pointer text-center text-sm font-medium border-2 border-dashed border-blue-200">
+                        <label className={`block w-full px-4 py-3 rounded-lg hover:bg-blue-100 transition-colors cursor-pointer text-center text-sm font-medium border-2 border-dashed ${showErrors ? 'bg-red-50 text-red-700 border-red-300' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
                           📷 ファイルを選択
                           <input
                             type="file"
@@ -998,6 +1128,9 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                           />
                         </label>
                         <p className="text-xs text-gray-500 text-center">20MB以下 / JPG, PNG, HEIC, PDF形式（自動圧縮）</p>
+                        {showErrors && (
+                          <p className="text-red-500 text-xs text-center">資格証明書をアップロードしてください</p>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1008,12 +1141,13 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
         </section>
 
         {/* 5. 経験・職歴 */}
-        <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
+        <section className={`bg-white rounded-lg shadow-sm p-6 mb-6 ${showErrors && formData.experienceFields.length === 0 ? 'ring-2 ring-red-500' : ''}`}>
           <h2 className="text-lg font-bold mb-4 pb-3 border-b">5. 経験・職歴 <span className="text-red-500">*</span></h2>
 
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-medium mb-3">経験分野 <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium mb-2">経験分野 <span className="text-red-500">*</span></label>
+              <p className="text-xs text-gray-500 mb-3">※複数選択できます</p>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 {experienceFieldsList.map((field) => (
                   <label key={field} className="flex items-center gap-2 cursor-pointer">
@@ -1027,6 +1161,9 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                   </label>
                 ))}
               </div>
+              {showErrors && formData.experienceFields.length === 0 && (
+                <p className="text-red-500 text-xs mt-2">少なくとも1つの経験分野を選択してください</p>
+              )}
             </div>
 
             {/* 選択された経験分野の経験年数入力 */}
@@ -1124,8 +1261,11 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                   type="text"
                   value={formData.bankName}
                   onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.bankName ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                 />
+                {showErrors && !formData.bankName && (
+                  <p className="text-red-500 text-xs mt-1">銀行名を入力してください</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">支店名 <span className="text-red-500">*</span></label>
@@ -1133,17 +1273,27 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                   type="text"
                   value={formData.branchName}
                   onChange={(e) => setFormData({ ...formData, branchName: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.branchName ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                 />
+                {showErrors && !formData.branchName && (
+                  <p className="text-red-500 text-xs mt-1">支店名を入力してください</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">口座名義（カナ） <span className="text-red-500">*</span></label>
-                <input
-                  type="text"
+                <KatakanaWithSpaceInput
                   value={formData.accountName}
-                  onChange={(e) => setFormData({ ...formData, accountName: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  onChange={(value) => setFormData({ ...formData, accountName: value })}
+                  placeholder="ヤマダ タロウ"
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.accountName ? 'border-red-500 bg-red-50' : formData.accountName && !isKatakanaWithSpaceOnly(formData.accountName) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                 />
+                {showErrors && !formData.accountName && (
+                  <p className="text-red-500 text-xs mt-1">口座名義を入力してください</p>
+                )}
+                {formData.accountName && !isKatakanaWithSpaceOnly(formData.accountName) && (
+                  <p className="text-red-500 text-xs mt-1">カタカナで入力してください</p>
+                )}
+                <p className="text-xs text-gray-500 mt-1">※カタカナで入力（ひらがなは自動変換）</p>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">口座番号 <span className="text-red-500">*</span></label>
@@ -1151,8 +1301,11 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                   type="text"
                   value={formData.accountNumber}
                   onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.accountNumber ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                 />
+                {showErrors && !formData.accountNumber && (
+                  <p className="text-red-500 text-xs mt-1">口座番号を入力してください</p>
+                )}
               </div>
             </div>
 
@@ -1182,7 +1335,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <label className="block w-full px-4 py-3 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors cursor-pointer text-center text-sm font-medium border-2 border-dashed border-blue-200">
+                    <label className={`block w-full px-4 py-3 rounded-lg hover:bg-blue-100 transition-colors cursor-pointer text-center text-sm font-medium border-2 border-dashed ${showErrors ? 'bg-red-50 text-red-700 border-red-300' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
                       📷 ファイルを選択
                       <input
                         type="file"
@@ -1192,6 +1345,9 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                       />
                     </label>
                     <p className="text-xs text-gray-500 text-center">20MB以下 / JPG, PNG, HEIC, PDF形式</p>
+                    {showErrors && (
+                      <p className="text-red-500 text-xs text-center">通帳コピーをアップロードしてください</p>
+                    )}
                   </div>
                 )}
               </div>
@@ -1240,7 +1396,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <label className="block w-full px-4 py-3 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors cursor-pointer text-center text-sm font-medium border-2 border-dashed border-blue-200">
+                  <label className={`block w-full px-4 py-3 rounded-lg hover:bg-blue-100 transition-colors cursor-pointer text-center text-sm font-medium border-2 border-dashed ${showErrors ? 'bg-red-50 text-red-700 border-red-300' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
                     📷 ファイルを選択
                     <input
                       type="file"
@@ -1250,6 +1406,9 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                     />
                   </label>
                   <p className="text-xs text-gray-500 text-center">20MB以下 / JPG, PNG, HEIC, PDF形式</p>
+                  {showErrors && (
+                    <p className="text-red-500 text-xs text-center">身分証明書をアップロードしてください</p>
+                  )}
                 </div>
               )}
               <p className="text-xs text-gray-500 mt-2">運転免許証、マイナンバーカードなど</p>
@@ -1261,15 +1420,16 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
         <div className="flex gap-4">
           <Link
             href="/mypage"
-            className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-bold hover:bg-gray-50 transition-colors text-center"
+            className={`flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-bold transition-colors text-center ${isSaving ? 'opacity-50 pointer-events-none' : 'hover:bg-gray-50'}`}
           >
             キャンセル
           </Link>
           <button
             type="submit"
-            className="flex-1 px-6 py-3 bg-primary text-white rounded-lg font-bold hover:bg-primary-dark transition-colors"
+            disabled={isSaving}
+            className="flex-1 px-6 py-3 bg-primary text-white rounded-lg font-bold hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            保存する
+            {isSaving ? '保存中...' : '保存する'}
           </button>
         </div>
       </form>

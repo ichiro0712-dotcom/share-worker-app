@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { getFacilityAnalyticsData, FacilityMetrics, AnalyticsFilter } from '@/src/lib/analytics-actions';
 import AnalyticsFilters from '@/components/system-admin/analytics/AnalyticsFilters';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 const METRIC_LABELS: Record<keyof Omit<FacilityMetrics, 'date'>, string> = {
     registeredCount: '登録施設数',
@@ -19,6 +20,7 @@ const METRIC_LABELS: Record<keyof Omit<FacilityMetrics, 'date'>, string> = {
 };
 
 export default function FacilityAnalytics() {
+    const { showDebugError } = useDebugError();
     const [data, setData] = useState<FacilityMetrics[]>([]);
     const [loading, setLoading] = useState(true);
     const [viewMode, setViewMode] = useState<'daily' | 'monthly'>('daily');
@@ -42,6 +44,15 @@ export default function FacilityAnalytics() {
             const result = await getFacilityAnalyticsData(filter);
             setData(result);
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'fetch',
+                operation: '施設分析データ取得',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { viewMode, filtersToUse }
+            });
             console.error('Failed to fetch facility analytics:', error);
         } finally {
             setLoading(false);
@@ -74,8 +85,8 @@ export default function FacilityAnalytics() {
                         <button
                             onClick={() => handleViewModeChange('daily')}
                             className={`px-4 py-1.5 text-sm font-medium rounded-md transition ${viewMode === 'daily'
-                                    ? 'bg-white text-indigo-600 shadow-sm'
-                                    : 'text-slate-500 hover:text-slate-700'
+                                ? 'bg-white text-indigo-600 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700'
                                 }`}
                         >
                             日次
@@ -83,8 +94,8 @@ export default function FacilityAnalytics() {
                         <button
                             onClick={() => handleViewModeChange('monthly')}
                             className={`px-4 py-1.5 text-sm font-medium rounded-md transition ${viewMode === 'monthly'
-                                    ? 'bg-white text-indigo-600 shadow-sm'
-                                    : 'text-slate-500 hover:text-slate-700'
+                                ? 'bg-white text-indigo-600 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700'
                                 }`}
                         >
                             月次

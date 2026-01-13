@@ -8,6 +8,7 @@ import { Star, Heart, MapPin } from 'lucide-react';
 import { toggleFacilityFavorite } from '@/src/lib/actions';
 import toast from 'react-hot-toast';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 interface FavoriteListClientProps {
   initialFavorites: Array<{
@@ -19,6 +20,7 @@ interface FavoriteListClientProps {
 
 export function FavoriteListClient({ initialFavorites }: FavoriteListClientProps) {
   const router = useRouter();
+  const { showDebugError } = useDebugError();
   const [favorites, setFavorites] = useState(initialFavorites);
   const [removingId, setRemovingId] = useState<number | null>(null);
 
@@ -35,9 +37,24 @@ export function FavoriteListClient({ initialFavorites }: FavoriteListClientProps
         setFavorites(prev => prev.filter(f => f.favoriteId !== favoriteId));
         router.refresh();
       } else {
+        showDebugError({
+          type: 'delete',
+          operation: 'お気に入り削除',
+          message: result.error || '削除に失敗しました',
+          context: { favoriteId, facilityId }
+        });
         toast.error('削除に失敗しました');
       }
     } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'delete',
+        operation: 'お気に入り削除（例外）',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { favoriteId, facilityId }
+      });
       console.error('Remove favorite error:', error);
       toast.error('削除に失敗しました');
     } finally {

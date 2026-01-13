@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getAdminJobTemplates } from '@/src/lib/actions';
 import { Plus, Edit, Trash2, Copy } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 interface TemplateData {
   id: number;
@@ -29,6 +30,7 @@ interface TemplateData {
 
 export default function TemplatesPage() {
   const router = useRouter();
+  const { showDebugError } = useDebugError();
   const { admin, isAdmin, isAdminLoading } = useAuth();
   const [templates, setTemplates] = useState<TemplateData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -65,8 +67,33 @@ export default function TemplatesPage() {
 
   if (isLoading || isAdminLoading) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-gray-500">読み込み中...</div>
+      <div className="h-full flex flex-col">
+        {/* ヘッダー Skeleton */}
+        <div className="bg-white border-b border-gray-200 px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="h-6 bg-gray-200 rounded w-40 mb-2 animate-pulse" />
+              <div className="h-4 bg-gray-200 rounded w-24 animate-pulse" />
+            </div>
+            <div className="h-9 bg-gray-200 rounded w-36 animate-pulse" />
+          </div>
+        </div>
+
+        {/* テンプレート一覧 Skeleton */}
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+                <div className="h-5 bg-gray-200 rounded w-3/4 mb-3 animate-pulse" />
+                <div className="h-4 bg-gray-200 rounded w-1/2 mb-2 animate-pulse" />
+                <div className="flex justify-between items-center mt-4">
+                  <div className="h-4 bg-gray-200 rounded w-24 animate-pulse" />
+                  <div className="h-4 bg-gray-200 rounded w-20 animate-pulse" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }

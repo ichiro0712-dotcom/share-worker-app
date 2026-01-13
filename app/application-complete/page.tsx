@@ -231,7 +231,7 @@ export default function ApplicationComplete() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">性別 <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium mb-2">性別（出生時） <span className="text-red-500">*</span></label>
               <select
                 value={formData.gender}
                 onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
@@ -241,7 +241,6 @@ export default function ApplicationComplete() {
                 <option value="">選択してください</option>
                 <option value="男性">男性</option>
                 <option value="女性">女性</option>
-                <option value="その他">その他</option>
               </select>
             </div>
             <div>

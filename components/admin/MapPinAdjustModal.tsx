@@ -9,7 +9,7 @@ interface MapPinAdjustModalProps {
   currentLat: number;
   currentLng: number;
   facilityId: number;
-  onSave: (lat: number, lng: number, mapImage: string) => void;
+  onSave: (lat: number, lng: number) => void;
 }
 
 type MoveStep = 'small' | 'medium' | 'large';
@@ -26,6 +26,9 @@ const STEP_LABELS: Record<MoveStep, string> = {
   large: '大（約110m）',
 };
 
+// Google Maps Embed API キー（かいてくと同じ公開キー）
+const MAPS_EMBED_API_KEY = 'AIzaSyA2Ae19xiaciV46yWzQvTh4mG1RvfsaSi8';
+
 export default function MapPinAdjustModal({
   isOpen,
   onClose,
@@ -38,22 +41,16 @@ export default function MapPinAdjustModal({
   const [lng, setLng] = useState(currentLng);
   const [step, setStep] = useState<MoveStep>('medium');
   const [isLoading, setIsLoading] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string>('');
+  const [iframeKey, setIframeKey] = useState(0);
 
   // モーダルが開いたときに初期値をセット
   useEffect(() => {
     if (isOpen) {
       setLat(currentLat);
       setLng(currentLng);
-      generatePreviewUrl(currentLat, currentLng);
+      setIframeKey(prev => prev + 1);
     }
   }, [isOpen, currentLat, currentLng]);
-
-  // プレビュー用のGoogle Maps Static API URL生成
-  const generatePreviewUrl = (latitude: number, longitude: number) => {
-    // プレビュー用にクエリパラメータで緯度経度を渡す（APIキーはサーバーサイドで付与）
-    setPreviewUrl(`/api/maps/preview?lat=${latitude}&lng=${longitude}&t=${Date.now()}`);
-  };
 
   // 方向ボタンによる移動
   const move = (direction: 'up' | 'down' | 'left' | 'right') => {
@@ -109,27 +106,27 @@ export default function MapPinAdjustModal({
     setLng(newLng);
   };
 
-  // プレビュー更新
+  // プレビュー更新（iframeを再レンダリング）
   const handlePreview = () => {
-    generatePreviewUrl(lat, lng);
+    setIframeKey(prev => prev + 1);
   };
 
   // リセット
   const handleReset = () => {
     setLat(currentLat);
     setLng(currentLng);
-    generatePreviewUrl(currentLat, currentLng);
+    setIframeKey(prev => prev + 1);
   };
 
-  // 保存
+  // 保存（緯度経度のみ更新）
   const handleSave = async () => {
     setIsLoading(true);
     try {
-      const { updateFacilityMapImageByLatLng } = await import('@/src/lib/actions');
-      const result = await updateFacilityMapImageByLatLng(facilityId, lat, lng);
+      const { updateFacilityLatLng } = await import('@/src/lib/actions');
+      const result = await updateFacilityLatLng(facilityId, lat, lng);
 
-      if (result.success && result.mapImage) {
-        onSave(lat, lng, result.mapImage);
+      if (result.success) {
+        onSave(lat, lng);
         onClose();
       } else {
         alert(result.error || '保存に失敗しました');
@@ -143,6 +140,9 @@ export default function MapPinAdjustModal({
   };
 
   if (!isOpen) return null;
+
+  // Embed API URL
+  const embedUrl = `https://www.google.com/maps/embed/v1/place?q=${lat},${lng}&zoom=16&key=${MAPS_EMBED_API_KEY}`;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -160,22 +160,19 @@ export default function MapPinAdjustModal({
 
         {/* コンテンツ */}
         <div className="p-5 space-y-4">
-          {/* 地図プレビュー */}
+          {/* 地図プレビュー（Embed API） */}
           <div className="w-full h-48 bg-gray-100 rounded-lg border border-gray-300 overflow-hidden">
-            {previewUrl ? (
-              <img
-                src={previewUrl}
-                alt="地図プレビュー"
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
-                }}
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-gray-500 text-sm">
-                プレビューを読み込み中...
-              </div>
-            )}
+            <iframe
+              key={iframeKey}
+              src={embedUrl}
+              width="100%"
+              height="100%"
+              style={{ border: 0 }}
+              allowFullScreen
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              title="地図プレビュー"
+            />
           </div>
 
           {/* 現在の座標表示 */}
@@ -281,7 +278,7 @@ export default function MapPinAdjustModal({
               onClick={handlePreview}
               className="flex-1 px-4 py-2.5 text-sm bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
             >
-              プレビュー
+              プレビュー更新
             </button>
             <button
               onClick={handleReset}

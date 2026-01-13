@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronLeft, FileText, Download, Mail, Calendar, X, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
 import { getWorkerBasicInfo } from '@/src/lib/actions';
+import { getCurrentTime } from '@/utils/debugTime';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface WorkerInfo {
@@ -36,12 +37,12 @@ export default function WorkerLaborDocumentsPage() {
 
   // フォーム状態（デフォルト: 開始=先月の年の1/1、終了=先月末）
   const [startDate, setStartDate] = useState(() => {
-    const now = new Date();
+    const now = getCurrentTime();
     const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1); // 先月の1日
     return `${lastMonth.getFullYear()}-01-01`; // 先月が属する年の1/1
   });
   const [endDate, setEndDate] = useState(() => {
-    const now = new Date();
+    const now = getCurrentTime();
     const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0); // 先月末
     // toISOString()はUTC変換で日付がずれるため、ローカルタイムで直接フォーマット
     const year = lastMonthEnd.getFullYear();

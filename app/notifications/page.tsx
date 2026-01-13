@@ -12,13 +12,13 @@ import {
   Info,
   Check,
 } from 'lucide-react';
-import { BottomNav } from '@/components/layout/BottomNav';
 import {
   getUserNotifications,
   markNotificationAsRead,
   markAllNotificationsAsRead,
 } from '@/src/lib/actions';
 import toast from 'react-hot-toast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 interface Notification {
   id: number;
@@ -32,6 +32,7 @@ interface Notification {
 
 export default function NotificationsPage() {
   const router = useRouter();
+  const { showDebugError } = useDebugError();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -41,9 +42,22 @@ export default function NotificationsPage() {
 
   const loadNotifications = async () => {
     setLoading(true);
-    const data = await getUserNotifications();
-    setNotifications(data);
-    setLoading(false);
+    try {
+      const data = await getUserNotifications();
+      setNotifications(data);
+    } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'fetch',
+        operation: '通知一覧取得',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack
+      });
+      console.error('Failed to fetch notifications:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleNotificationClick = async (notification: Notification) => {
@@ -62,12 +76,31 @@ export default function NotificationsPage() {
   };
 
   const handleMarkAllAsRead = async () => {
-    const result = await markAllNotificationsAsRead();
-    if (result.success) {
-      setNotifications((prev) =>
-        prev.map((n) => ({ ...n, isRead: true }))
-      );
-      toast.success('すべて既読にしました');
+    try {
+      const result = await markAllNotificationsAsRead();
+      if (result.success) {
+        setNotifications((prev) =>
+          prev.map((n) => ({ ...n, isRead: true }))
+        );
+        toast.success('すべて既読にしました');
+      } else {
+        showDebugError({
+          type: 'update',
+          operation: '全通知既読化',
+          message: result.error || '失敗しました',
+        });
+        toast.error(result.error || 'エラーが発生しました');
+      }
+    } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'update',
+        operation: '全通知既読化（例外）',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack
+      });
+      toast.error('エラーが発生しました');
     }
   };
 
@@ -117,7 +150,7 @@ export default function NotificationsPage() {
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen bg-gray-50 pb-24">
       {/* ヘッダー */}
       <div className="sticky top-0 bg-white border-b border-gray-200 z-10">
         <div className="px-4 py-3 flex items-center justify-between">
@@ -160,17 +193,15 @@ export default function NotificationsPage() {
             <button
               key={notification.id}
               onClick={() => handleNotificationClick(notification)}
-              className={`w-full p-4 flex gap-3 text-left transition-colors ${
-                notification.isRead
+              className={`w-full p-4 flex gap-3 text-left transition-colors ${notification.isRead
                   ? 'bg-white'
                   : 'bg-blue-50 hover:bg-blue-100'
-              }`}
+                }`}
             >
               {/* アイコン */}
               <div
-                className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
-                  notification.isRead ? 'bg-gray-100' : 'bg-white'
-                }`}
+                className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${notification.isRead ? 'bg-gray-100' : 'bg-white'
+                  }`}
               >
                 {getNotificationIcon(notification.type)}
               </div>
@@ -179,11 +210,10 @@ export default function NotificationsPage() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between gap-2">
                   <h3
-                    className={`text-sm ${
-                      notification.isRead
+                    className={`text-sm ${notification.isRead
                         ? 'text-gray-700'
                         : 'font-semibold text-gray-900'
-                    }`}
+                      }`}
                   >
                     {notification.title}
                   </h3>
@@ -204,9 +234,6 @@ export default function NotificationsPage() {
           ))
         )}
       </div>
-
-      {/* 下部ナビゲーション */}
-      <BottomNav />
     </div>
   );
 }

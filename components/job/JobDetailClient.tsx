@@ -2,16 +2,18 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect, useMemo } from 'react';
-import { X, ChevronLeft, Heart, Clock, MapPin, ChevronRight, ChevronLeft as ChevronLeftIcon, Bookmark, VolumeX, Volume2, ExternalLink, Building2, Train, Car, Bike, Bus, Edit2, AlertTriangle } from 'lucide-react';
+import { X, ChevronLeft, Heart, Clock, MapPin, ChevronRight, ChevronLeft as ChevronLeftIcon, Bookmark, VolumeX, Volume2, ExternalLink, Building2, Train, Car, Bike, Bus, Edit2, AlertTriangle, Home, FileText } from 'lucide-react';
+import Link from 'next/link';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/tag';
 import { formatDateTime, getDeadlineText, isDeadlineUrgent } from '@/utils/date';
-import { applyForJobMultipleDates, addJobBookmark, removeJobBookmark, isJobBookmarked, toggleFacilityFavorite, isFacilityFavorited, getUserSelfPR, updateUserSelfPR } from '@/src/lib/actions';
+import { applyForJobMultipleDates, acceptOffer, addJobBookmark, removeJobBookmark, isJobBookmarked, toggleFacilityFavorite, isFacilityFavorited, getUserSelfPR, updateUserSelfPR } from '@/src/lib/actions';
 import { useBadge } from '@/contexts/BadgeContext';
 import toast from 'react-hot-toast';
 import { useErrorToast } from '@/components/ui/PersistentErrorToast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 // デフォルトのプレースホルダー画像（実在するサンプル画像を使用）
 const DEFAULT_JOB_IMAGE = '/images/samples/facility_top_1.png';
@@ -57,6 +59,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
   const router = useRouter();
   const searchParams = useSearchParams();
   const { refreshBadges } = useBadge();
+  const { showDebugError } = useDebugError();
 
   // URLパラメータからselectedを読み取る（プロフィール編集から戻った場合）
   const selectedFromUrl = searchParams.get('selected');
@@ -192,7 +195,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
     const selected = job.workDates.filter((wd: any) => wd.workDate === selectedDate);
     const other = job.workDates.filter((wd: any) => wd.workDate !== selectedDate);
 
-    // 一致するものがない場合は最初の日付を選択
+    // 一致するものがない場合は最初の日付を選択として扱う
     if (selected.length === 0) {
       return {
         selectedWorkDates: job.workDates.slice(0, 1),
@@ -324,9 +327,24 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
         setIsEditingSelfPR(false);
         toast.success('自己PRを保存しました');
       } else {
+        showDebugError({
+          type: 'save',
+          operation: '自己PR保存',
+          message: result.error || '保存に失敗しました',
+          context: { jobId: job.id, selfPRLength: editSelfPRValue.length }
+        });
         toast.error(result.error || '保存に失敗しました');
       }
-    } catch {
+    } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'save',
+        operation: '自己PR保存',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { jobId: job.id, selfPRLength: editSelfPRValue.length }
+      });
       toast.error('保存に失敗しました');
     } finally {
       setSavingSelfPR(false);
@@ -345,11 +363,16 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
     // 3. 楽観的UI更新：即座に応募済み状態にする
     setAppliedWorkDateIds(prev => [...prev, ...selectedWorkDateIds]);
     setSelectedWorkDateIds([]); // 選択をクリア
-    toast.success('応募を受け付けました');
+
+    const isOffer = job.jobType === 'OFFER';
+    toast.success(isOffer ? 'オファーを受け付けました' : '応募を受け付けました');
 
     // 4. バックグラウンドでAPI実行
     try {
-      const result = await applyForJobMultipleDates(String(job.id), selectedWorkDateIds);
+      // オファー求人の場合は acceptOffer を使用
+      const result = isOffer
+        ? await acceptOffer(String(job.id), selectedWorkDateIds[0])
+        : await applyForJobMultipleDates(String(job.id), selectedWorkDateIds);
 
       if (result.success) {
         // マッチング成立の場合は追加メッセージを表示
@@ -357,8 +380,10 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
           toast.success('マッチングが成立しました！');
         }
 
-        // メッセージバッジを更新
-        refreshBadges();
+        // メッセージバッジを更新（サーバー側の非同期メッセージ作成を待つため遅延）
+        setTimeout(() => {
+          refreshBadges();
+        }, 2000);
 
         // サーバーサイドのキャッシュを更新してからリダイレクト
         router.refresh();
@@ -375,6 +400,18 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
           setProfileMissingFields(missingFields);
           setShowProfileModal(true);
         } else {
+          // デバッグ用エラー通知
+          showDebugError({
+            type: 'save',
+            operation: '求人応募',
+            message: result.error || '応募に失敗しました',
+            context: {
+              jobId: job.id,
+              facilityId: facility.id,
+              selectedWorkDateIds: selectedWorkDateIds,
+              appliedWorkDateIds: appliedWorkDateIds,
+            }
+          });
           try {
             // エラー通知をバックグラウンドで送信
             fetch('/api/error-notification', {
@@ -398,6 +435,20 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
       console.error('Application error:', error);
       // 失敗時：ロールバック
       setAppliedWorkDateIds(previousAppliedIds);
+      // デバッグ用エラー通知
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'save',
+        operation: '求人応募（例外）',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: {
+          jobId: job.id,
+          facilityId: facility.id,
+          selectedWorkDateIds: selectedWorkDateIds,
+        }
+      });
       showError('APPLY_ERROR', '応募に失敗しました。もう一度お試しください。');
     } finally {
       setIsApplying(false);
@@ -444,7 +495,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
   };
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="min-h-screen bg-background pb-36 max-w-lg mx-auto">
       {/* ヘッダー */}
       <div className="sticky top-0 bg-white border-b border-gray-200 z-20">
         {isPreviewMode && (
@@ -453,11 +504,30 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
           </div>
         )}
         <div className="px-4 py-3 flex items-center justify-between">
-          <button onClick={() => router.back()}>
-            <ChevronLeft className="w-6 h-6" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                // 履歴がある場合は戻る、ない場合はホームへ
+                if (window.history.length > 1) {
+                  router.back();
+                } else {
+                  router.push('/');
+                }
+              }}
+              aria-label="戻る"
+            >
+              <ChevronLeft className="w-6 h-6" />
+            </button>
+            <button
+              onClick={() => router.push('/')}
+              className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+              aria-label="トップページへ"
+            >
+              <Home className="w-5 h-5 text-gray-600" />
+            </button>
+          </div>
           <div className="flex-1 text-center text-sm">
-            {formatDateTime(job.workDate, job.startTime, job.endTime)}
+            {formatDateTime(selectedDate || job.workDate, job.startTime, job.endTime)}
           </div>
           <button
             onClick={handleSaveForLater}
@@ -479,7 +549,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
             ? 'bg-red-500 text-white'
             : 'bg-gray-300 text-gray-800'
             }`}>
-            締切まで{getDeadlineText(job.deadline)}
+            {getDeadlineText(job.deadline) === '締切済み' ? '募集終了' : `締切まで${getDeadlineText(job.deadline)}`}
           </span>
           <Badge variant="red">
             募集人数 {job.appliedCount}/{job.recruitmentCount}人
@@ -488,14 +558,34 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
 
         {/* 画像カルーセル */}
         <div className="relative mb-4">
-          {/* 面接ありバッジ - overflow-hiddenの外に配置 */}
-          {job.requiresInterview && (
-            <div className="absolute top-3 left-3 z-30">
+          {/* バッジ - overflow-hiddenの外に配置（求人種別 + 審査あり） */}
+          <div className="absolute top-3 left-3 z-30 flex flex-col gap-1">
+            {job.jobType === 'OFFER' && (
+              <span className="bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded shadow-md">
+                オファ
+              </span>
+            )}
+            {job.jobType === 'LIMITED_WORKED' && (
+              <span className="bg-purple-600 text-white text-xs font-bold px-2 py-1 rounded shadow-md">
+                限定
+              </span>
+            )}
+            {job.jobType === 'LIMITED_FAVORITE' && (
+              <span className="bg-pink-500 text-white text-xs font-bold px-2 py-1 rounded shadow-md flex items-center gap-0.5">
+                限定<span className="text-yellow-300">★</span>
+              </span>
+            )}
+            {job.jobType === 'ORIENTATION' && (
+              <span className="bg-teal-500 text-white text-xs font-bold px-2 py-1 rounded shadow-md">
+                説明会
+              </span>
+            )}
+            {job.requiresInterview && (
               <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded shadow-md">
                 審査あり
               </span>
-            </div>
-          )}
+            )}
+          </div>
           <div className="relative aspect-video rounded-card overflow-hidden">
             {jobImages[currentImageIndex].startsWith('blob:') ? (
               <img
@@ -792,27 +882,8 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
         )}
       </div>
 
-      {/* 申し込みボタン（プレビューモードでは非表示） - 上部用 */}
-      {!isPreviewMode && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4">
-          <Button
-            onClick={handleApplyButtonClick}
-            size="lg"
-            className="w-full"
-            disabled={isApplying || selectedWorkDateIds.length === 0}
-          >
-            {isApplying
-              ? '応募中...'
-              : selectedWorkDateIds.length > 0
-                ? `${selectedWorkDateIds.length}件の日程に応募する`
-                : !hasAvailableDates
-                  ? '応募できる日程がありません'
-                  : '日程を選択してください'}
-          </Button>
-        </div>
-      )}
       {/* 責任者 */}
-      <div className="border-t border-gray-200 pt-4 mb-4">
+      <div className="border-t border-gray-200 pt-4 mb-4 px-4">
         <h3 className="mb-3 text-sm font-bold">責任者</h3>
         <div className="flex gap-3">
           {/* 画像パスの場合はimgタグで表示、それ以外は絵文字として表示 */}
@@ -835,8 +906,8 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
       </div>
 
       {/* 仕事概要 */}
-      <div className="mb-4">
-        <h3 className="mb-3 text-base font-bold text-primary px-4 py-3 -mx-4 border-b-2 border-primary">仕事概要</h3>
+      <div className="mb-4 px-4">
+        <h3 className="mb-3 text-base font-bold text-primary py-3 -mx-4 px-4 border-b-2 border-primary">仕事概要</h3>
         <div className="mt-3">
           <h4 className="mb-2 text-sm font-bold">仕事詳細</h4>
           {/* 仕事内容アイコン */}
@@ -863,7 +934,8 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
       </div>
 
       {/* 申込条件 */}
-      <div className="mb-4">
+      <div className="mb-4 px-4">
+        <h3 className="mb-3 text-base font-bold text-primary py-3 -mx-4 px-4 border-b-2 border-primary">申込条件</h3>
         <div className="mt-3 space-y-4">
           <div>
             <h4 className="text-sm mb-2 font-bold">必要な資格・条件</h4>
@@ -892,8 +964,8 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
       </div>
 
       {/* 事前情報 */}
-      <div id="pre-info" className="mb-4 scroll-mt-16">
-        <h3 className="mb-3 text-base font-bold text-primary px-4 py-3 -mx-4 border-b-2 border-primary">事前情報</h3>
+      <div id="pre-info" className="mb-4 scroll-mt-16 px-4">
+        <h3 className="mb-3 text-base font-bold text-primary py-3 -mx-4 px-4 border-b-2 border-primary">事前情報</h3>
         <div className="mt-3 space-y-4">
           {/* 服装など */}
           <div>
@@ -1022,23 +1094,25 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
             )}
 
             <div className="relative aspect-video overflow-hidden rounded-lg bg-gray-100 mb-2">
-              {job.mapImage && !job.mapImage.includes('map-placeholder') ? (
-                <Image
-                  src={job.mapImage}
-                  alt="地図"
-                  fill
-                  className="object-cover"
+              {facility.lat && facility.lng ? (
+                <iframe
+                  src={`https://www.google.com/maps/embed/v1/place?q=${facility.lat},${facility.lng}&zoom=16&key=AIzaSyA2Ae19xiaciV46yWzQvTh4mG1RvfsaSi8`}
+                  width="100%"
+                  height="100%"
+                  style={{ border: 0 }}
+                  allowFullScreen
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                  title="施設の地図"
                 />
               ) : (
-                <Image
-                  src={`https://maps.googleapis.com/maps/api/staticmap?center=${encodeURIComponent(job.address)}&zoom=15&size=600x400&maptype=roadmap&markers=color:red%7C${encodeURIComponent(job.address)}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''}`}
-                  alt="地図"
-                  fill
-                  className="object-cover"
-                  unoptimized
-                />
+                <div className="w-full h-full flex items-center justify-center text-gray-400">
+                  <div className="text-center">
+                    <MapPin className="w-8 h-8 mx-auto mb-2" />
+                    <p className="text-sm">地図情報がありません</p>
+                  </div>
+                </div>
               )}
-              <MapPin className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 text-red-500" />
             </div>
             <button
               onClick={() => {
@@ -1090,20 +1164,21 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
         </div>
       </div>
 
-      {/* 労働条件通知書ボタン */}
+      {/* 労働条件通知書プレビュー */}
       <div className="mb-4 px-4">
-        <button
-          onClick={() => toast('労働条件通知書のダミーデータです', { icon: '📄' })}
-          className="px-3 py-1.5 text-xs text-white bg-primary rounded hover:bg-primary/90 transition-colors"
+        <Link
+          href={`/jobs/${job.id}/labor-document`}
+          className="flex items-center gap-2 px-3 py-2 text-sm text-primary border border-primary rounded-lg hover:bg-primary/5 transition-colors"
         >
+          <FileText className="w-4 h-4" />
           労働条件通知書を確認
-        </button>
+        </Link>
       </div>
 
       {/* レビュー */}
       {facilityReviews.length > 0 && (
-        <div className="mb-4">
-          <h3 className="mb-3 text-base font-bold text-primary px-4 py-3 -mx-4 border-b-2 border-primary">レビュー ({facilityReviews.length}件)</h3>
+        <div className="mb-4 px-4">
+          <h3 className="mb-3 text-base font-bold text-primary py-3 -mx-4 px-4 border-b-2 border-primary">レビュー ({facilityReviews.length}件)</h3>
           <div className="mt-3 space-y-4">
             {/* 評価分布バー */}
             {(() => {
@@ -1219,16 +1294,22 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
         </div>
       )}
 
-      {/* 申し込みボタン（プレビューモードでは非表示） - 下部用 */}
+      {/* 申し込みボタン（プレビューモードでは非表示） - フッターナビの上に配置 */}
       {!isPreviewMode && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4">
+        <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-200 p-4 z-10" style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom))' }}>
           <Button
             onClick={handleApplyButtonClick}
             size="lg"
             className="w-full"
             disabled={isApplying || selectedWorkDateIds.length === 0}
           >
-            {isApplying ? '応募中...' : selectedWorkDateIds.length > 0 ? `${selectedWorkDateIds.length}件の日程に応募する` : !hasAvailableDates ? '応募できる日程がありません' : '日程を選択してください'}
+            {isApplying
+              ? (job.jobType === 'OFFER' ? '受諾中...' : '応募中...')
+              : selectedWorkDateIds.length > 0
+                ? (job.jobType === 'OFFER' ? 'オファーを受ける' : `${selectedWorkDateIds.length}件の日程に応募する`)
+                : !hasAvailableDates
+                  ? '応募できる日程がありません'
+                  : '日程を選択してください'}
           </Button>
         </div>
       )}
@@ -1436,7 +1517,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
                 disabled={isEditingSelfPR}
                 className="flex-1 px-4 py-2.5 bg-primary text-white font-medium rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {job.requiresInterview ? '応募する（審査あり）' : '応募する'}
+                {job.jobType === 'OFFER' ? 'オファーを受ける' : (job.requiresInterview ? '応募する（審査あり）' : '応募する')}
               </button>
             </div>
           </div>

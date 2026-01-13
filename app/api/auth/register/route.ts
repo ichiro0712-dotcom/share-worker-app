@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
+import { sendAdminNewWorkerNotification } from '@/src/lib/actions/notification';
+import { sendVerificationEmail } from '@/src/lib/auth/email-verification';
 
 export async function POST(request: NextRequest) {
   try {
@@ -79,13 +81,33 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // 認証メールを送信
+    const verificationResult = await sendVerificationEmail(
+      user.id,
+      user.email,
+      user.name
+    );
+
+    if (!verificationResult.success) {
+      console.error('Failed to send verification email:', verificationResult.error);
+      // 認証メール送信に失敗してもユーザー登録は成功とする
+    }
+
+    // 管理者に新規ワーカー登録を通知
+    await sendAdminNewWorkerNotification(
+      user.id,
+      user.name,
+      user.email
+    );
+
     return NextResponse.json({
-      message: '登録が完了しました',
+      message: '登録が完了しました。確認メールをお送りしましたので、メール内のリンクをクリックして認証を完了してください。',
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
       },
+      requiresVerification: true,
     });
   } catch (error) {
     console.error('Registration error:', error);

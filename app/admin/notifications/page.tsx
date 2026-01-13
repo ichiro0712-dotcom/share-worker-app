@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ChevronLeft,
@@ -14,28 +14,20 @@ import {
   Building2,
 } from 'lucide-react';
 import { AdminBottomNav } from '@/components/layout/AdminBottomNav';
-import {
-  getFacilityNotifications,
-  markAllFacilityNotificationsAsRead,
-} from '@/src/lib/actions';
+import { markAllFacilityNotificationsAsRead } from '@/src/lib/actions';
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
-
-interface Notification {
-  id: number;
-  type: string;
-  title: string;
-  message: string;
-  link: string | null;
-  isRead: boolean;
-  createdAt: string;
-}
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
+import { useAdminNotifications } from '@/hooks/useAdminNotifications';
 
 export default function AdminNotificationsPage() {
   const router = useRouter();
+  const { showDebugError } = useDebugError();
   const { admin, isAdmin, isAdminLoading } = useAuth();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(true);
+  const facilityId = admin?.facilityId;
+
+  // SWRによる通知データ取得
+  const { notifications, isLoading: loading, error, mutate } = useAdminNotifications(facilityId);
 
   // ログインしていない、または管理者でない場合はログインページへリダイレクト
   useEffect(() => {
@@ -45,23 +37,24 @@ export default function AdminNotificationsPage() {
     }
   }, [isAdmin, admin, isAdminLoading, router]);
 
-  const facilityId = admin?.facilityId;
-
+  // エラー時の処理
   useEffect(() => {
-    if (facilityId) {
-      loadNotifications();
+    if (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'fetch',
+        operation: '施設通知一覧取得',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { facilityId }
+      });
+      console.error('Failed to load notifications:', error);
+      toast.error('通知の読み込みに失敗しました');
     }
-  }, [facilityId]);
+  }, [error, facilityId, showDebugError]);
 
-  const loadNotifications = async () => {
-    if (!facilityId) return;
-    setLoading(true);
-    const data = await getFacilityNotifications(facilityId);
-    setNotifications(data);
-    setLoading(false);
-  };
-
-  const handleNotificationClick = (notification: Notification) => {
+  const handleNotificationClick = (notification: { link: string | null }) => {
     if (notification.link) {
       router.push(notification.link);
     }
@@ -69,12 +62,28 @@ export default function AdminNotificationsPage() {
 
   const handleMarkAllAsRead = async () => {
     if (!facilityId) return;
-    const result = await markAllFacilityNotificationsAsRead(facilityId);
-    if (result.success) {
-      setNotifications((prev) =>
-        prev.map((n) => ({ ...n, isRead: true }))
-      );
-      toast.success('すべて既読にしました');
+    try {
+      const result = await markAllFacilityNotificationsAsRead(facilityId);
+      if (result.success) {
+        // SWRキャッシュを楽観的に更新
+        mutate(
+          notifications.map((n) => ({ ...n, isRead: true })),
+          false // revalidateを無効化
+        );
+        toast.success('すべて既読にしました');
+      }
+    } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'update',
+        operation: '施設通知一括既読',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { facilityId }
+      });
+      console.error('Failed to mark all as read:', error);
+      toast.error('既読処理に失敗しました');
     }
   };
 
@@ -156,8 +165,17 @@ export default function AdminNotificationsPage() {
       {/* 通知リスト */}
       <div className="divide-y divide-gray-100">
         {loading || isAdminLoading ? (
-          <div className="p-8 text-center text-gray-500">
-            読み込み中...
+          <div className="divide-y divide-gray-100">
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="p-4 flex gap-3 bg-white">
+                <div className="w-10 h-10 bg-gray-200 rounded-full animate-pulse flex-shrink-0" />
+                <div className="flex-1">
+                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2 animate-pulse" />
+                  <div className="h-3 bg-gray-200 rounded w-full mb-2 animate-pulse" />
+                  <div className="h-3 bg-gray-200 rounded w-20 animate-pulse" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : notifications.length === 0 ? (
           <div className="p-8 text-center">

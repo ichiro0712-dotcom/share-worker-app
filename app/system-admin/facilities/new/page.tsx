@@ -7,10 +7,15 @@ import { createFacilityWithAdmin } from '@/src/lib/system-actions';
 import { SERVICE_TYPES } from '@/constants/serviceTypes';
 import { ChevronLeft, Building2, User, Lock, Mail, Phone, MapPin } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PhoneNumberInput } from '@/components/ui/PhoneNumberInput';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 export default function SystemAdminNewFacilityPage() {
+    const { showDebugError } = useDebugError();
     const router = useRouter();
     const [loading, setLoading] = useState(false);
+    // バリデーションエラー表示用
+    const [showErrors, setShowErrors] = useState(false);
     const [formData, setFormData] = useState({
         corporationName: '',
         facilityName: '',
@@ -32,14 +37,47 @@ export default function SystemAdminNewFacilityPage() {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
+    // メールアドレス形式チェック
+    const isValidEmail = (email: string): boolean => {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email);
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setShowErrors(true);
         setLoading(true);
 
         try {
-            // Basic validation
-            if (!formData.facilityName || !formData.corporationName || !formData.adminEmail || !formData.adminPassword) {
-                toast.error('必須項目を入力してください');
+            // バリデーション
+            const errors: string[] = [];
+
+            if (!formData.corporationName) errors.push('法人名は必須です');
+            if (!formData.facilityName) errors.push('施設名は必須です');
+            if (!formData.facilityType) errors.push('サービス種別は必須です');
+            if (!formData.prefecture) errors.push('都道府県は必須です');
+            if (!formData.city) errors.push('市区町村は必須です');
+            if (!formData.adminName) errors.push('管理者氏名は必須です');
+            if (!formData.adminEmail) {
+                errors.push('管理者メールアドレスは必須です');
+            } else if (!isValidEmail(formData.adminEmail)) {
+                errors.push('管理者メールアドレスの形式が正しくありません');
+            }
+            if (!formData.adminPassword) {
+                errors.push('初期パスワードは必須です');
+            } else if (formData.adminPassword.length < 8) {
+                errors.push('初期パスワードは8文字以上で入力してください');
+            }
+
+            if (errors.length > 0) {
+                toast.error(
+                    <div className="text-sm">
+                        <p className="font-bold mb-1">入力内容を確認してください</p>
+                        <ul className="list-disc pl-4 space-y-0.5">
+                            {errors.map((err, i) => <li key={i}>{err}</li>)}
+                        </ul>
+                    </div>
+                );
                 setLoading(false);
                 return;
             }
@@ -53,6 +91,15 @@ export default function SystemAdminNewFacilityPage() {
                 toast.error(result.error || '登録に失敗しました');
             }
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'save',
+                operation: 'システム管理者による施設・管理者一括登録',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { formData: { ...formData, adminPassword: '***' } }
+            });
             console.error(error);
             toast.error('エラーが発生しました');
         } finally {
@@ -89,9 +136,12 @@ export default function SystemAdminNewFacilityPage() {
                                 value={formData.corporationName}
                                 onChange={handleChange}
                                 placeholder="例: 株式会社ケアサービス"
-                                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${showErrors && !formData.corporationName ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
                                 required
                             />
+                            {showErrors && !formData.corporationName && (
+                                <p className="text-red-500 text-xs mt-1">法人名を入力してください</p>
+                            )}
                         </div>
 
                         <div className="md:col-span-2">
@@ -102,9 +152,12 @@ export default function SystemAdminNewFacilityPage() {
                                 value={formData.facilityName}
                                 onChange={handleChange}
                                 placeholder="例: ケアホームひまわり"
-                                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${showErrors && !formData.facilityName ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
                                 required
                             />
+                            {showErrors && !formData.facilityName && (
+                                <p className="text-red-500 text-xs mt-1">施設名を入力してください</p>
+                            )}
                         </div>
 
                         <div>
@@ -113,7 +166,7 @@ export default function SystemAdminNewFacilityPage() {
                                 name="facilityType"
                                 value={formData.facilityType}
                                 onChange={handleChange}
-                                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${showErrors && !formData.facilityType ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
                                 required
                             >
                                 <option value="">選択してください</option>
@@ -121,18 +174,21 @@ export default function SystemAdminNewFacilityPage() {
                                     <option key={type} value={type}>{type}</option>
                                 ))}
                             </select>
+                            {showErrors && !formData.facilityType && (
+                                <p className="text-red-500 text-xs mt-1">サービス種別を選択してください</p>
+                            )}
                         </div>
 
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">電話番号</label>
-                            <input
-                                type="tel"
+                            <PhoneNumberInput
                                 name="phoneNumber"
                                 value={formData.phoneNumber}
-                                onChange={handleChange}
+                                onChange={(value) => setFormData(prev => ({ ...prev, phoneNumber: value }))}
                                 placeholder="例: 03-1234-5678"
                                 className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                             />
+                            <p className="text-xs text-gray-500 mt-1">※数字のみ入力（ハイフンは自動挿入）</p>
                         </div>
 
                         <div className="md:col-span-2 space-y-4 pt-2 border-t border-slate-50">
@@ -157,7 +213,7 @@ export default function SystemAdminNewFacilityPage() {
                                         name="prefecture"
                                         value={formData.prefecture}
                                         onChange={handleChange}
-                                        className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${showErrors && !formData.prefecture ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
                                         required
                                     >
                                         <option value="">選択してください</option>
@@ -167,6 +223,9 @@ export default function SystemAdminNewFacilityPage() {
                                         <option value="千葉県">千葉県</option>
                                         {/* 他省略 - 追加可能 */}
                                     </select>
+                                    {showErrors && !formData.prefecture && (
+                                        <p className="text-red-500 text-xs mt-1">都道府県を選択してください</p>
+                                    )}
                                 </div>
                                 <div className="col-span-2">
                                     <label className="block text-xs font-medium text-slate-600 mb-1">市区町村 <span className="text-red-500">*</span></label>
@@ -176,9 +235,12 @@ export default function SystemAdminNewFacilityPage() {
                                         value={formData.city}
                                         onChange={handleChange}
                                         placeholder="例: 千代田区"
-                                        className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${showErrors && !formData.city ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
                                         required
                                     />
+                                    {showErrors && !formData.city && (
+                                        <p className="text-red-500 text-xs mt-1">市区町村を入力してください</p>
+                                    )}
                                 </div>
                                 <div className="col-span-2">
                                     <label className="block text-xs font-medium text-slate-600 mb-1">番地・建物名</label>
@@ -223,21 +285,24 @@ export default function SystemAdminNewFacilityPage() {
                                 value={formData.adminName}
                                 onChange={handleChange}
                                 placeholder="例: 山田 太郎"
-                                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${showErrors && !formData.adminName ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
                                 required
                             />
+                            {showErrors && !formData.adminName && (
+                                <p className="text-red-500 text-xs mt-1">管理者氏名を入力してください</p>
+                            )}
                         </div>
 
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">電話番号</label>
-                            <input
-                                type="tel"
+                            <PhoneNumberInput
                                 name="adminPhone"
                                 value={formData.adminPhone}
-                                onChange={handleChange}
+                                onChange={(value) => setFormData(prev => ({ ...prev, adminPhone: value }))}
                                 placeholder="例: 090-1234-5678"
                                 className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                             />
+                            <p className="text-xs text-gray-500 mt-1">※数字のみ入力（ハイフンは自動挿入）</p>
                         </div>
 
                         <div className="md:col-span-2">
@@ -250,10 +315,13 @@ export default function SystemAdminNewFacilityPage() {
                                     value={formData.adminEmail}
                                     onChange={handleChange}
                                     placeholder="admin@example.com"
-                                    className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${showErrors && !formData.adminEmail ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
                                     required
                                 />
                             </div>
+                            {showErrors && !formData.adminEmail && (
+                                <p className="text-red-500 text-xs mt-1">メールアドレスを入力してください</p>
+                            )}
                         </div>
 
                         <div className="md:col-span-2">
@@ -265,12 +333,17 @@ export default function SystemAdminNewFacilityPage() {
                                     name="adminPassword"
                                     value={formData.adminPassword}
                                     onChange={handleChange}
-                                    className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${showErrors && !formData.adminPassword ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
                                     required
                                     minLength={8}
+                                    placeholder="8文字以上"
                                 />
                             </div>
-                            <p className="text-xs text-slate-500 mt-1">※8文字以上で設定してください</p>
+                            {showErrors && !formData.adminPassword ? (
+                                <p className="text-red-500 text-xs mt-1">パスワードを入力してください</p>
+                            ) : (
+                                <p className="text-xs text-slate-500 mt-1">8文字以上で入力してください</p>
+                            )}
                         </div>
                     </div>
                 </div>

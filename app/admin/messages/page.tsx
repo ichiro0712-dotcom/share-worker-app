@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -16,46 +16,30 @@ import {
   Paperclip,
   X,
   FileText,
+  Check,
+  AlertCircle,
+  RotateCcw,
+  Trash2,
 } from 'lucide-react';
 import {
-  getGroupedWorkerConversations,
-  getMessagesByWorker,
   sendFacilityMessage,
 } from '@/src/lib/actions';
-import {
-  getFacilityAnnouncements,
-  markAnnouncementAsRead,
-} from '@/src/lib/system-actions';
+import { markAnnouncementAsRead } from '@/src/lib/system-actions';
 import toast from 'react-hot-toast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
+import { directUpload } from '@/utils/directUpload';
+import {
+  useAdminConversations,
+  useAdminMessagesByWorker,
+  useAdminAnnouncements,
+  type AdminMessage,
+  type AdminConversation,
+  type AdminAnnouncement,
+  type AdminMessagesResponse,
+} from '@/hooks/useAdminMessages';
+import { MessagesSkeleton, ConversationsSkeleton } from '@/components/MessagesSkeleton';
 
 type FilterType = 'all' | 'unread' | 'scheduled' | 'completed' | 'office';
-
-// サーバーアクションの型に合わせる
-interface Conversation {
-  userId: number;
-  userName: string;
-  userProfileImage: string | null;
-  applicationIds: number[];
-  lastMessage: string;
-  lastMessageTime: Date;
-  unreadCount: number;
-  jobTitle: string;
-  status: string;
-  isOffice?: boolean;  // 運営フラグ
-}
-
-interface Message {
-  id: number;
-  senderType: 'facility' | 'worker' | 'office';
-  senderName: string;
-  content: string;
-  attachments?: string[];
-  timestamp: string;
-  isRead: boolean;
-  jobTitle: string;
-  jobDate: string | null;
-  workerName?: string;  // 運営通知に関連するワーカー名
-}
 
 interface WorkerDetails {
   userId: number;
@@ -63,52 +47,71 @@ interface WorkerDetails {
   userProfileImage: string | null;
 }
 
-interface Announcement {
-  id: number;
-  title: string;
-  content: string;
-  category: string;
-  publishedAt: Date | null;
-  isRead: boolean;
-}
-
 export default function AdminMessagesPage() {
   const router = useRouter();
+  const { showDebugError: showDebug } = useDebugError();
+  const showDebugError = showDebug || ((x: any) => console.log(x));
   const searchParams = useSearchParams();
-  const initialWorkerId = searchParams.get('workerId'); // パラメータ名変更: id -> workerId
+  const initialWorkerId = searchParams.get('workerId');
+  const initialFilter = searchParams.get('filter') as FilterType | null;
   const { admin, isAdmin, isAdminLoading } = useAuth();
 
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSending, setIsSending] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [pendingAttachments, setPendingAttachments] = useState<string[]>([]);
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  // SWRでデータ取得
+  const {
+    conversations,
+    isLoading: isConversationsLoading,
+    mutate: mutateConversations
+  } = useAdminConversations(admin?.facilityId);
+
   const [selectedWorkerId, setSelectedWorkerId] = useState<number | null>(
     initialWorkerId ? parseInt(initialWorkerId) : null
   );
 
-  // ワーカー詳細情報の表示用（メッセージリスト取得時に更新）
-  const [currentWorker, setCurrentWorker] = useState<WorkerDetails | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const {
+    chatData: swrChatData,
+    isLoading: isChatLoading,
+    mutate: mutateMessages
+  } = useAdminMessagesByWorker(admin?.facilityId, selectedWorkerId);
+
+  // ローカルでのメッセージ追加用
+  const [localMessages, setLocalMessages] = useState<AdminMessage[]>([]);
+  const messages = useMemo(() => {
+    const swrMessages = swrChatData?.messages ?? [];
+    const messageIds = new Set(swrMessages.map(m => m.id));
+    const filteredLocal = localMessages.filter(m => !messageIds.has(m.id));
+    return [...swrMessages, ...filteredLocal];
+  }, [swrChatData, localMessages]);
+
+  const {
+    announcements,
+    isLoading: announcementsLoading,
+    mutate: mutateAnnouncements
+  } = useAdminAnnouncements(admin?.facilityId);
+
   const [messageText, setMessageText] = useState('');
-  const [filterType, setFilterType] = useState<FilterType>('all');
+  const [filterType, setFilterType] = useState<FilterType>(
+    initialFilter && ['all', 'unread', 'scheduled', 'completed', 'office'].includes(initialFilter)
+      ? initialFilter
+      : 'all'
+  );
   const [showVariables, setShowVariables] = useState(false);
   const [showUserInfo, setShowUserInfo] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ページネーション用state
+  const [isSending, setIsSending] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [pendingAttachments, setPendingAttachments] = useState<string[]>([]);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+  // ページネーション用
   const [cursor, setCursor] = useState<number | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
-  // お知らせ関連
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [announcementsLoading, setAnnouncementsLoading] = useState(false);
-  const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState<AdminAnnouncement | null>(null);
 
   useEffect(() => {
     if (isAdminLoading) return;
@@ -117,56 +120,36 @@ export default function AdminMessagesPage() {
     }
   }, [isAdmin, admin, isAdminLoading, router]);
 
-  // 会話一覧を読み込む
+  // 初期ロード
   useEffect(() => {
-    const loadConversations = async () => {
-      if (!admin?.facilityId) return;
+    if (initialWorkerId && !selectedWorkerId) {
+      setSelectedWorkerId(parseInt(initialWorkerId));
+    }
+  }, [initialWorkerId]);
 
-      setIsLoading(true);
-      try {
-        const data = await getGroupedWorkerConversations(admin.facilityId);
-        // Server action returns Date objects, handled correctly by Next.js serialization usually,
-        // but if passed to Client Component directly, they stay Date?
-        // Let's assume they are Dates. if string, we convert.
-        const formattedData = data.map(d => ({
-          ...d,
-          lastMessageTime: new Date(d.lastMessageTime)
-        }));
-        setConversations(formattedData);
-
-        // URLパラメータで指定されていれば選択
-        if (initialWorkerId && !selectedWorkerId) {
-          setSelectedWorkerId(parseInt(initialWorkerId));
-        }
-      } catch (error) {
-        console.error('Failed to load conversations:', error);
-        toast.error('会話一覧の読み込みに失敗しました');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadConversations();
-  }, [admin?.facilityId, initialWorkerId]);
-
-  // お知らせを読み込む
+  // selectedWorkerId が変更されたらローカル状態をリセット
   useEffect(() => {
-    const loadAnnouncements = async () => {
-      if (!admin?.facilityId) return;
+    setLocalMessages([]);
+    setExtraPastMessages([]);
+    setCursor(null);
+    setHasMore(false);
+    setIsInitialLoad(true);
+  }, [selectedWorkerId]);
 
-      setAnnouncementsLoading(true);
-      try {
-        const data = await getFacilityAnnouncements(admin.facilityId);
-        setAnnouncements(data);
-      } catch (error) {
-        console.error('Failed to load announcements:', error);
-      } finally {
-        setAnnouncementsLoading(false);
-      }
-    };
+  // SWRの初期設定
+  useEffect(() => {
+    if (swrChatData && isInitialLoad) {
+      setCursor(swrChatData.nextCursor);
+      setHasMore(swrChatData.hasMore);
+      setIsInitialLoad(false);
+    }
+  }, [swrChatData, isInitialLoad]);
 
-    loadAnnouncements();
-  }, [admin?.facilityId]);
+  const currentWorker = swrChatData ? {
+    userId: swrChatData.userId,
+    userName: swrChatData.userName,
+    userProfileImage: swrChatData.userProfileImage,
+  } : null;
 
   // 本文内のURLをクリック可能なリンクに変換する
   const renderContentWithLinks = (content: string, linkColorStyle: 'default' | 'light' = 'default') => {
@@ -197,53 +180,14 @@ export default function AdminMessagesPage() {
     });
   };
 
-  // 選択された会話（ワーカー）のメッセージを読み込む
-  useEffect(() => {
-    const loadMessages = async () => {
-      if (!admin?.facilityId || !selectedWorkerId) {
-        setMessages([]);
-        setCurrentWorker(null);
-        setCursor(null);
-        setHasMore(false);
-        setIsInitialLoad(true);
-        return;
-      }
-
-      setIsInitialLoad(true);
-      try {
-        const data = await getMessagesByWorker(admin.facilityId, selectedWorkerId, { markAsRead: true });
-        if (data) {
-          setCurrentWorker({
-            userId: data.userId,
-            userName: data.userName,
-            userProfileImage: data.userProfileImage || null,
-          });
-          setMessages(data.messages.map(m => ({
-            ...m,
-            senderType: m.senderType as 'facility' | 'worker' | 'office',
-            jobDate: m.jobDate ? new Date(m.jobDate).toISOString() : null
-          })));
-          setCursor(data.nextCursor);
-          setHasMore(data.hasMore);
-
-          // メッセージを開いたら、会話リストの未読バッジをリセット
-          // (getMessagesByWorkerでサーバー側は既読にしているが、ローカル状態も更新)
-          setConversations(prev => prev.map(conv =>
-            conv.userId === selectedWorkerId
-              ? { ...conv, unreadCount: 0 }
-              : conv
-          ));
-        }
-      } catch (error) {
-        console.error('Failed to load messages:', error);
-        toast.error('メッセージの読み込みに失敗しました');
-      } finally {
-        setIsInitialLoad(false);
-      }
-    };
-
-    loadMessages();
-  }, [admin?.facilityId, selectedWorkerId]);
+  // 過去メッセージ読み込み
+  const [extraPastMessages, setExtraPastMessages] = useState<AdminMessage[]>([]);
+  // messagesもuseMemoで拡張
+  const allMessages = useMemo(() => {
+    const combined = [...extraPastMessages, ...messages];
+    // 重複排除
+    return Array.from(new Map(combined.map(m => [m.id, m])).values());
+  }, [extraPastMessages, messages]);
 
   // 初期ロード完了時に最下部にスクロール
   useEffect(() => {
@@ -254,7 +198,7 @@ export default function AdminMessagesPage() {
 
   // 過去メッセージを読み込む
   const loadMoreMessages = async () => {
-    if (!admin?.facilityId || !selectedWorkerId || !cursor || isLoadingMore || !hasMore) return;
+    if (!selectedWorkerId || !cursor || isLoadingMore || !hasMore) return;
 
     const container = messagesContainerRef.current;
     if (!container) return;
@@ -263,18 +207,17 @@ export default function AdminMessagesPage() {
 
     setIsLoadingMore(true);
     try {
-      const data = await getMessagesByWorker(admin.facilityId, selectedWorkerId, {
-        cursor,
-        markAsRead: false,
-      });
+      const res = await fetch(`/api/admin/messages/detail?workerId=${selectedWorkerId}&cursor=${cursor}&markAsRead=false`);
+      if (!res.ok) throw new Error('Failed to load more');
+      const data: AdminMessagesResponse = await res.json();
       if (data) {
-        const newMessages = data.messages.map(m => ({
+        const newMessages: AdminMessage[] = data.messages.map(m => ({
           ...m,
           senderType: m.senderType as 'facility' | 'worker' | 'office',
           jobDate: m.jobDate ? new Date(m.jobDate).toISOString() : null
         }));
         // 過去メッセージを先頭に追加
-        setMessages(prev => [...newMessages, ...prev]);
+        setExtraPastMessages(prev => [...newMessages, ...prev]);
         setCursor(data.nextCursor);
         setHasMore(data.hasMore);
 
@@ -287,6 +230,15 @@ export default function AdminMessagesPage() {
         });
       }
     } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'fetch',
+        operation: '過去メッセージ追加取得',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { facilityId: admin?.facilityId, selectedWorkerId, cursor }
+      });
       console.error('Failed to load more messages:', error);
       toast.error('過去メッセージの読み込みに失敗しました');
     } finally {
@@ -315,75 +267,165 @@ export default function AdminMessagesPage() {
     return true;
   });
 
+  // メッセージを送信（LINEライク楽観的更新）
   const handleSendMessage = async () => {
     if ((!messageText.trim() && pendingAttachments.length === 0) || !selectedWorkerId || !admin?.facilityId) return;
 
-    // 最新の応募IDを取得
+    // 最新の応募IDを取得（conversationsから取得、なければchatDataから取得）
     const conversation = conversations.find(c => c.userId === selectedWorkerId);
-    if (!conversation || conversation.applicationIds.length === 0) {
+
+    // applicationIdsを取得（conversationsから、またはchatDataから取得）
+    let applicationIds: number[] = [];
+    let jobTitle = '';
+
+    if (conversation && conversation.applicationIds.length > 0) {
+      applicationIds = conversation.applicationIds;
+      jobTitle = conversation.jobTitle;
+    } else if (swrChatData && swrChatData.applicationIds && swrChatData.applicationIds.length > 0) {
+      // リロード後などでconversationsがまだロードされていない場合はchatDataから取得
+      applicationIds = swrChatData.applicationIds;
+      jobTitle = swrChatData.messages[0]?.jobTitle || '';
+    }
+
+    if (applicationIds.length === 0) {
       toast.error('有効な応募が見つかりません');
       return;
     }
-    // applicationIdsの最後（最新）を使用
-    // getGroupedWorkerConversations の実装で push しているので、配列の最後が最新とは限らないが、
-    // 実装的に findMany からの for loop なので、prisma の order 次第。
-    // getGroupedWorkerConversations では findMany order by created_at desc ではない（指定なし）。
-    // findMany where ... include details.
-    // しかし、通常はID昇順か作成順。
-    // 安全のため、配列の最後のIDを使うか、本来なら最新IDをConversationsに含めるべき。
-    // ここでは便宜上、配列の最後のIDを使用する（もしくは配列内の最大値）。
-    const latestApplicationId = Math.max(...conversation.applicationIds);
+    const latestApplicationId = Math.max(...applicationIds);
 
     setIsSending(true);
+    const content = messageText.trim();
+    const attachmentsToSend = [...pendingAttachments];
+    const tempId = -Date.now(); // 一時ID（負の値で本物と区別）
+
+    // 楽観的更新：即座にUIに表示（送信中状態）
+    const tempMessage: AdminMessage = {
+      id: tempId,
+      applicationId: latestApplicationId,
+      senderType: 'facility',
+      senderName: '施設',
+      content: content,
+      attachments: attachmentsToSend,
+      timestamp: new Date().toISOString(),
+      isRead: false,
+      jobTitle: jobTitle,
+      jobDate: null,
+      sendStatus: 'sending',
+      _retryData: {
+        applicationId: latestApplicationId,
+        facilityId: admin.facilityId,
+        content,
+        attachments: attachmentsToSend,
+      },
+    };
+
+    setLocalMessages((prev) => [...prev, tempMessage]);
+    setMessageText('');
+    setPendingAttachments([]);
+
     try {
-      const attachmentsToSend = [...pendingAttachments];
       const result = await sendFacilityMessage(
         latestApplicationId,
         admin.facilityId,
-        messageText,
+        content,
         attachmentsToSend
       );
 
       if (result.success && result.message) {
-        // メッセージリストに追加
-        const newMessage: Message = {
-          id: result.message.id, // result.message型が server logic と異なる場合があるため注意
-          // sendFacilityMessageの戻り値は { ...message, senderName: '施設' ... } と推測
-          // 実際は actions.ts の sendFacilityMessage を確認すると、
-          // return { success: true, message: { ... } };
-          // message: { id, senderType: 'facility', senderName, content, timestamp, isRead }
-          senderType: 'facility',
-          senderName: '施設', // result.messageにあるはず
-          content: result.message.content,
-          attachments: result.message.attachments || [],
-          timestamp: result.message.timestamp,
-          isRead: false,
-          jobTitle: conversation.jobTitle, // とりあえず会話の最新情報を継承
-          jobDate: null, // 新規メッセージには紐付かないか、resultに含めるか。
-        };
-
-        // jobTitle等はサーバーレスポンスに含まれない場合があるので、補完
-        setMessages((prev) => [...prev, newMessage]);
-        setMessageText('');
-        setPendingAttachments([]);
-
-        // 会話一覧も更新
-        setConversations((prev) =>
-          prev.map((conv) =>
-            conv.userId === selectedWorkerId
-              ? { ...conv, lastMessage: messageText, lastMessageTime: new Date() }
-              : conv
-          ).sort((a, b) => b.lastMessageTime.getTime() - a.lastMessageTime.getTime())
-        );
+        // 成功：一時メッセージを本物に置き換え
+        setLocalMessages((prev) => prev.map(m =>
+          m.id === tempId
+            ? {
+                ...m,
+                id: result.message!.id,
+                timestamp: result.message!.timestamp,
+                sendStatus: 'sent' as const,
+                _retryData: undefined,
+              }
+            : m
+        ));
+        mutateConversations();
+        mutateMessages();
       } else {
+        // 失敗：失敗状態に更新（UIに残して再送可能に）
+        console.error('[Message] Send failed:', result.error);
+        setLocalMessages((prev) => prev.map(m =>
+          m.id === tempId
+            ? { ...m, sendStatus: 'failed' as const }
+            : m
+        ));
         toast.error(result.error || 'メッセージの送信に失敗しました');
       }
     } catch (error) {
-      console.error('Failed to send message:', error);
-      toast.error('メッセージの送信に失敗しました');
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'save',
+        operation: 'メッセージ送信',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { facilityId: admin.facilityId, selectedWorkerId }
+      });
+      console.error('[Message] Send error:', error);
+      // エラー：失敗状態に更新
+      setLocalMessages((prev) => prev.map(m =>
+        m.id === tempId
+          ? { ...m, sendStatus: 'failed' as const }
+          : m
+      ));
     } finally {
       setIsSending(false);
     }
+  };
+
+  // 失敗したメッセージを再送信
+  const handleRetryMessage = async (message: AdminMessage) => {
+    if (!message._retryData || message.sendStatus !== 'failed') return;
+
+    const { applicationId, facilityId, content, attachments } = message._retryData;
+    const tempId = message.id;
+
+    // 送信中状態に更新
+    setLocalMessages((prev) => prev.map(m =>
+      m.id === tempId ? { ...m, sendStatus: 'sending' as const } : m
+    ));
+
+    try {
+      const result = await sendFacilityMessage(applicationId, facilityId, content, attachments);
+
+      if (result.success && result.message) {
+        // 成功
+        setLocalMessages((prev) => prev.map(m =>
+          m.id === tempId
+            ? {
+                ...m,
+                id: result.message!.id,
+                timestamp: result.message!.timestamp,
+                sendStatus: 'sent' as const,
+                _retryData: undefined,
+              }
+            : m
+        ));
+        mutateConversations();
+        mutateMessages();
+      } else {
+        // 失敗
+        setLocalMessages((prev) => prev.map(m =>
+          m.id === tempId ? { ...m, sendStatus: 'failed' as const } : m
+        ));
+        toast.error(result.error || '再送信に失敗しました');
+      }
+    } catch (error) {
+      console.error('[Message] Retry failed:', error);
+      setLocalMessages((prev) => prev.map(m =>
+        m.id === tempId ? { ...m, sendStatus: 'failed' as const } : m
+      ));
+    }
+  };
+
+  // 失敗したメッセージを削除
+  const handleDeleteFailedMessage = (messageId: number) => {
+    setLocalMessages((prev) => prev.filter(m => m.id !== messageId));
   };
 
   const insertVariable = (variable: string) => {
@@ -402,24 +444,36 @@ export default function AdminMessagesPage() {
 
     setIsUploading(true);
     try {
-      const formData = new FormData();
-      for (let i = 0; i < files.length; i++) {
-        formData.append('files', files[i]);
+      const adminSession = localStorage.getItem('admin_session') || '';
+      const results = await Promise.all(
+        Array.from(files).map(file => directUpload(file, {
+          uploadType: 'message',
+          adminSession,
+        }))
+      );
+
+      const failedUploads = results.filter(r => !r.success);
+      if (failedUploads.length > 0) {
+        toast.error(failedUploads[0].error || 'ファイルのアップロードに失敗しました');
       }
-      formData.append('type', 'message');
 
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
+      const uploadedUrls = results
+        .filter(r => r.success && r.url)
+        .map(r => r.url!);
 
-      const result = await response.json();
-      if (result.success && result.urls) {
-        setPendingAttachments(prev => [...prev, ...result.urls]);
-      } else {
-        toast.error(result.error || 'ファイルのアップロードに失敗しました');
+      if (uploadedUrls.length > 0) {
+        setPendingAttachments(prev => [...prev, ...uploadedUrls]);
       }
     } catch (error) {
+      const debugInfo = extractDebugInfo(error);
+      showDebugError({
+        type: 'upload',
+        operation: 'メッセージ添付ファイルアップロード',
+        message: debugInfo.message,
+        details: debugInfo.details,
+        stack: debugInfo.stack,
+        context: { facilityId: admin?.facilityId }
+      });
       console.error('Upload error:', error);
       toast.error('ファイルのアップロードに失敗しました');
     } finally {
@@ -439,13 +493,11 @@ export default function AdminMessagesPage() {
   };
 
   // お知らせを既読にする
-  const handleReadAnnouncement = async (announcement: Announcement) => {
+  const handleReadAnnouncement = async (announcement: AdminAnnouncement) => {
     setSelectedAnnouncement(announcement);
     if (!announcement.isRead && admin?.facilityId) {
       await markAnnouncementAsRead(announcement.id, 'FACILITY', admin.facilityId);
-      setAnnouncements(prev =>
-        prev.map(a => a.id === announcement.id ? { ...a, isRead: true } : a)
-      );
+      mutateAnnouncements();
     }
   };
 
@@ -454,15 +506,26 @@ export default function AdminMessagesPage() {
     setFilterType(newFilter);
     if (newFilter === 'office') {
       setSelectedWorkerId(null);
-      setCurrentWorker(null);
       setSelectedAnnouncement(null);
     } else {
       setSelectedAnnouncement(null);
     }
+    // URLパラメータを更新
+    const params = new URLSearchParams(window.location.search);
+    if (newFilter === 'all') {
+      params.delete('filter');
+    } else {
+      params.set('filter', newFilter);
+    }
+    // officeの場合はworkerIdもクリア
+    if (newFilter === 'office') {
+      params.delete('workerId');
+    }
+    router.replace(`/admin/messages?${params.toString()}`, { scroll: false });
   };
 
   // お知らせ日時をフォーマット
-  const formatAnnouncementDate = (date: Date | null | undefined) => {
+  const formatAnnouncementDate = (date: string | Date | null | undefined) => {
     if (!date) return '';
     const d = new Date(date);
     return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
@@ -494,13 +557,10 @@ export default function AdminMessagesPage() {
     return null;
   }
 
-  if (isLoading || isAdminLoading) {
+  if (isAdminLoading) {
     return (
       <div className="h-[calc(100vh-4rem)] flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto text-admin-primary" />
-          <p className="mt-2 text-gray-600">読み込み中...</p>
-        </div>
+        <Loader2 className="w-8 h-8 animate-spin text-admin-primary" />
       </div>
     );
   }
@@ -531,8 +591,16 @@ export default function AdminMessagesPage() {
           {filterType === 'office' ? (
             // 運営からのお知らせ一覧
             announcementsLoading ? (
-              <div className="flex items-center justify-center py-16">
-                <Loader2 className="w-6 h-6 animate-spin text-admin-primary" />
+              <div className="p-4 space-y-4">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="flex gap-3 animate-pulse">
+                    <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
+                    <div className="flex-1 py-1">
+                      <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                      <div className="h-3 bg-gray-100 rounded w-1/2"></div>
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : announcements.length === 0 ? (
               <div className="p-8 text-center text-gray-500">
@@ -579,74 +647,81 @@ export default function AdminMessagesPage() {
               })
             )
           ) : (
-            // 通常の会話一覧（すべての場合もお知らせは統合しない - Workerとの会話のみ）
-            // 仕様変更：LINE風にするならお知らせと混ぜてもいいが、ここでは会話のみにする
-            (() => {
-              if (filteredConversations.length === 0) {
-                return (
-                  <div className="p-8 text-center text-gray-500">
-                    <p>メッセージはありません</p>
-                  </div>
-                );
-              }
+            // 通常の会話一覧
+            isConversationsLoading ? (
+              <ConversationsSkeleton />
+            ) : (
+              (() => {
+                if (filteredConversations.length === 0) {
+                  return (
+                    <div className="p-8 text-center text-gray-500">
+                      <p>メッセージはありません</p>
+                    </div>
+                  );
+                }
 
-              return filteredConversations.map((conv) => (
-                <div
-                  key={conv.userId}
-                  onClick={() => {
-                    setSelectedAnnouncement(null);
-                    setSelectedWorkerId(conv.userId);
-                  }}
-                  className={`p-4 border-b border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors ${selectedWorkerId === conv.userId ? 'bg-admin-primary-light' : ''
-                    }`}
-                >
-                  <div className="flex items-start gap-3">
-                    {/* 運営の場合は専用アイコン */}
-                    {conv.isOffice ? (
-                      <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                        <Megaphone className="w-6 h-6 text-indigo-600" />
-                      </div>
-                    ) : (
-                      <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 flex-shrink-0 overflow-hidden">
-                        {conv.userProfileImage ? (
-                          <img
-                            src={conv.userProfileImage}
-                            alt={conv.userName}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <User className="w-6 h-6" />
-                        )}
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <h3 className="font-medium text-gray-900 truncate">
-                          {conv.userName}
-                          {conv.isOffice && (
-                            <span className="ml-2 text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full">
-                              システム通知
+                return filteredConversations.map((conv) => (
+                  <div
+                    key={conv.userId}
+                    onClick={() => {
+                      setSelectedAnnouncement(null);
+                      setSelectedWorkerId(conv.userId);
+                      // URLパラメータを更新してリロード時にも選択状態を維持
+                      const params = new URLSearchParams(window.location.search);
+                      params.set('workerId', conv.userId.toString());
+                      router.replace(`/admin/messages?${params.toString()}`, { scroll: false });
+                    }}
+                    className={`p-4 border-b border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors ${selectedWorkerId === conv.userId ? 'bg-admin-primary-light' : ''
+                      }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      {/* 運営の場合は専用アイコン */}
+                      {conv.isOffice ? (
+                        <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                          <Megaphone className="w-6 h-6 text-indigo-600" />
+                        </div>
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 flex-shrink-0 overflow-hidden">
+                          {conv.userProfileImage ? (
+                            <img
+                              src={conv.userProfileImage}
+                              alt={conv.userName}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <User className="w-6 h-6" />
+                          )}
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <h3 className="font-medium text-gray-900 truncate">
+                            {conv.userName}
+                            {conv.isOffice && (
+                              <span className="ml-2 text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full">
+                                システム通知
+                              </span>
+                            )}
+                          </h3>
+                          {conv.unreadCount > 0 && (
+                            <span className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">
+                              {conv.unreadCount}
                             </span>
                           )}
-                        </h3>
-                        {conv.unreadCount > 0 && (
-                          <span className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">
-                            {conv.unreadCount}
-                          </span>
+                        </div>
+                        {!conv.isOffice && (
+                          <p className="text-xs text-gray-500 mb-1">{conv.jobTitle}</p>
                         )}
+                        <p className="text-sm text-gray-600 truncate">{conv.lastMessage}</p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {new Date(conv.lastMessageTime).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
                       </div>
-                      {!conv.isOffice && (
-                        <p className="text-xs text-gray-500 mb-1">{conv.jobTitle}</p>
-                      )}
-                      <p className="text-sm text-gray-600 truncate">{conv.lastMessage}</p>
-                      <p className="text-xs text-gray-400 mt-1">
-                        {conv.lastMessageTime.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
-                      </p>
                     </div>
                   </div>
-                </div>
-              ));
-            })()
+                ));
+              })()
+            )
           )}
         </div>
       </div>
@@ -699,6 +774,10 @@ export default function AdminMessagesPage() {
               <Megaphone className="w-12 h-12 mx-auto mb-3 text-gray-300" />
               <p>お知らせを選択して内容を表示</p>
             </div>
+          </div>
+        ) : isChatLoading && isInitialLoad ? (
+          <div className="flex-1 overflow-hidden">
+            <MessagesSkeleton />
           </div>
         ) : currentWorker ? (
           <>
@@ -794,11 +873,36 @@ export default function AdminMessagesPage() {
                             {message.jobTitle} ({formatDate(message.jobDate)})
                           </div>
                         )}
-                        <div className={`flex ${isFacility ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`flex ${isFacility ? 'justify-end' : 'justify-start'} items-end gap-2`}>
+                          {/* 施設側：送信失敗時の再送・削除ボタン（メッセージの左側） */}
+                          {isFacility && message.sendStatus === 'failed' && (
+                            <div className="flex items-center gap-1 mb-1">
+                              <button
+                                onClick={() => handleRetryMessage(message)}
+                                className="p-1.5 bg-red-100 hover:bg-red-200 rounded-full transition-colors"
+                                title="再送信"
+                              >
+                                <RotateCcw className="w-4 h-4 text-red-600" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteFailedMessage(message.id)}
+                                className="p-1.5 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"
+                                title="削除"
+                              >
+                                <Trash2 className="w-4 h-4 text-gray-500" />
+                              </button>
+                            </div>
+                          )}
+
                           <div
-                            className={`max-w-md px-4 py-2 rounded-lg ${isFacility
-                              ? 'bg-blue-100 text-gray-900'
-                              : 'bg-white border border-gray-200 text-gray-900'
+                            className={`max-w-md px-4 py-2 rounded-lg ${
+                              isFacility
+                                ? message.sendStatus === 'failed'
+                                  ? 'bg-red-200 border-2 border-red-400 text-gray-900'
+                                  : message.sendStatus === 'sending'
+                                    ? 'bg-blue-50 text-gray-600'
+                                    : 'bg-blue-100 text-gray-900'
+                                : 'bg-white border border-gray-200 text-gray-900'
                               }`}
                           >
                             {/* 添付ファイル表示 */}
@@ -810,7 +914,9 @@ export default function AdminMessagesPage() {
                                       key={i}
                                       src={url}
                                       alt={`添付${i + 1}`}
-                                      className="w-32 h-32 object-cover rounded-lg cursor-pointer"
+                                      className={`w-32 h-32 object-cover rounded-lg cursor-pointer ${
+                                        message.sendStatus === 'sending' ? 'opacity-50' : ''
+                                      }`}
                                       onClick={() => setPreviewImage(url)}
                                     />
                                   ) : (
@@ -829,21 +935,41 @@ export default function AdminMessagesPage() {
                               </div>
                             )}
                             {message.content && (
-                              <p className="text-sm whitespace-pre-wrap">
+                              <p className={`text-sm whitespace-pre-wrap ${
+                                message.sendStatus === 'sending' ? 'opacity-70' : ''
+                              }`}>
                                 {renderContentWithLinks(message.content, 'default')}
                               </p>
                             )}
-                            <p
-                              className={`text-xs mt-1 ${isFacility
-                                ? 'text-gray-500'
-                                : 'text-gray-400'
-                                }`}
-                            >
-                              {new Date(message.timestamp).toLocaleTimeString('ja-JP', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
-                            </p>
+
+                            {/* 時刻と送信状態 */}
+                            <div className={`flex items-center gap-1.5 mt-1 ${isFacility ? 'justify-end' : ''}`}>
+                              <span className={`text-xs ${isFacility ? 'text-gray-500' : 'text-gray-400'}`}>
+                                {new Date(message.timestamp).toLocaleTimeString('ja-JP', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </span>
+
+                              {/* 送信状態インジケーター（施設のメッセージのみ） */}
+                              {isFacility && (
+                                <>
+                                  {message.sendStatus === 'sending' && (
+                                    <Loader2 className="w-3 h-3 animate-spin text-gray-400" />
+                                  )}
+                                  {message.sendStatus === 'sent' && (
+                                    <Check className="w-3 h-3 text-green-500" />
+                                  )}
+                                  {message.sendStatus === 'failed' && (
+                                    <AlertCircle className="w-3.5 h-3.5 text-red-500" />
+                                  )}
+                                  {/* sendStatusがundefined（SWRから取得した既存メッセージ）は送信済みとして扱う */}
+                                  {!message.sendStatus && (
+                                    <Check className="w-3 h-3 text-green-500" />
+                                  )}
+                                </>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -937,12 +1063,13 @@ export default function AdminMessagesPage() {
                     value={messageText}
                     onChange={(e) => setMessageText(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
+                      // Ctrl+Enter または Cmd+Enter で送信（Enterのみは改行）
+                      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                         e.preventDefault();
                         handleSendMessage();
                       }
                     }}
-                    placeholder="メッセージを入力..."
+                    placeholder="メッセージを入力...（Ctrl+Enterで送信）"
                     className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-admin-primary focus:border-transparent resize-none"
                     rows={3}
                   />

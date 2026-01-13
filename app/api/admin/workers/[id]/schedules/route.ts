@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { WorkerStatus } from '@prisma/client';
+import { DEBUG_TIME_COOKIE_NAME, parseDebugTimeCookie, getCurrentTimeFromSettings, getJSTTodayStart } from '@/utils/debugTime.server';
 
 export async function GET(
   request: NextRequest,
@@ -44,8 +45,12 @@ export async function GET(
       );
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // デバッグ時刻をCookieから取得（JST対応）
+    const debugTimeCookie = request.cookies.get(DEBUG_TIME_COOKIE_NAME);
+    const debugTimeSettings = parseDebugTimeCookie(debugTimeCookie?.value);
+    const currentTime = getCurrentTimeFromSettings(debugTimeSettings);
+    // サーバーがUTCでもJSTの今日を正しく計算
+    const today = getJSTTodayStart(currentTime);
 
     // 今後の勤務予定を取得（SCHEDULED, WORKING状態）
     const upcomingApplications = await prisma.application.findMany({

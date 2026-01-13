@@ -14,6 +14,7 @@ import { PREFECTURES } from '@/constants/job';
 import { getCitiesByPrefecture, Prefecture } from '@/constants/prefectureCities';
 import { SERVICE_TYPES } from '@/constants/serviceTypes';
 import toast from 'react-hot-toast';
+import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 interface Facility {
     id: number;
@@ -33,6 +34,7 @@ interface Facility {
 }
 
 export default function SystemAdminFacilitiesPage() {
+    const { showDebugError } = useDebugError();
     const { admin } = useSystemAuth();
     const [facilities, setFacilities] = useState<Facility[]>([]);
     const [loading, setLoading] = useState(true);
@@ -116,9 +118,27 @@ export default function SystemAdminFacilitiesPage() {
                 // マスカレードして施設管理画面へ
                 window.open(`/admin/masquerade?token=${result.token}&redirect=/admin/facility`, '_blank');
             } else {
+                const debugInfo = extractDebugInfo(result.error);
+                showDebugError({
+                    type: 'save',
+                    operation: '仮登録施設作成',
+                    message: debugInfo.message,
+                    details: debugInfo.details,
+                    stack: debugInfo.stack,
+                    context: { email: newFacilityForm.email }
+                });
                 toast.error(result.error || '施設の作成に失敗しました');
             }
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'save',
+                operation: '仮登録施設作成',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { email: newFacilityForm.email }
+            });
             console.error('Create facility error:', error);
             toast.error('施設の作成に失敗しました');
         } finally {
@@ -143,9 +163,27 @@ export default function SystemAdminFacilitiesPage() {
                 toast.success('施設を削除しました');
                 fetchFacilities();
             } else {
+                const debugInfo = extractDebugInfo(result.error);
+                showDebugError({
+                    type: 'delete',
+                    operation: '仮登録施設削除',
+                    message: debugInfo.message,
+                    details: debugInfo.details,
+                    stack: debugInfo.stack,
+                    context: { facilityId }
+                });
                 toast.error(result.error || '削除に失敗しました');
             }
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'delete',
+                operation: '仮登録施設削除',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { facilityId }
+            });
             console.error('Delete facility error:', error);
             toast.error('削除に失敗しました');
         }
@@ -179,6 +217,15 @@ export default function SystemAdminFacilitiesPage() {
             setTotalCount(data.total);
             setTotalPages(data.totalPages);
         } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'fetch',
+                operation: 'システム管理施設一覧取得',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { page, search, serviceType, prefecture, city }
+            });
             console.error(error);
             toast.error('データの取得に失敗しました');
         } finally {
@@ -236,6 +283,15 @@ export default function SystemAdminFacilitiesPage() {
                     return;
                 }
             } catch (e) {
+                const debugInfo = extractDebugInfo(e);
+                showDebugError({
+                    type: 'other',
+                    operation: 'ジオコーディング(施設検索)',
+                    message: debugInfo.message,
+                    details: debugInfo.details,
+                    stack: debugInfo.stack,
+                    context: { address: addressFilter }
+                });
                 toast.error('ジオコーディングエラー');
                 setGeoLoading(false);
                 return;
@@ -266,6 +322,15 @@ export default function SystemAdminFacilitiesPage() {
                 window.open(`/admin/masquerade?token=${token}`, '_blank');
             }
         } catch (e) {
+            const debugInfo = extractDebugInfo(e);
+            showDebugError({
+                type: 'other',
+                operation: 'マスカレードトークン生成(施設検索)',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { facilityId }
+            });
             toast.error('ログイン準備に失敗しました');
         }
     };
