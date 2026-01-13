@@ -415,37 +415,6 @@ export async function updateFacilityBasicInfo(facilityId: number, data: any) {
 }
 
 /**
- * 施設の地図画像を取得・保存
- */
-export async function updateFacilityMapImage(facilityId: number, address: string) {
-    try {
-        const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-        if (!apiKey) return { success: false, error: 'Google Maps APIキーが設定されていません' };
-
-        const mapUrl = new URL('https://maps.googleapis.com/maps/api/staticmap');
-        mapUrl.searchParams.set('center', address);
-        mapUrl.searchParams.set('zoom', '16');
-        mapUrl.searchParams.set('size', '600x300');
-        mapUrl.searchParams.set('scale', '2');
-        mapUrl.searchParams.set('markers', `color:red|${address}`);
-        mapUrl.searchParams.set('key', apiKey);
-
-        const response = await fetch(mapUrl.toString());
-        if (!response.ok) return { success: false, error: '地図画像の取得に失敗しました' };
-
-        const imageBuffer = await response.arrayBuffer();
-        const fileName = `maps/facility-${facilityId}-${Date.now()}.png`;
-
-        const result = await uploadFile(STORAGE_BUCKETS.UPLOADS, fileName, Buffer.from(imageBuffer), 'image/png');
-        if ('error' in result) return { success: false, error: '地図画像の保存に失敗しました' };
-
-        return { success: true, mapImage: result.url };
-    } catch (error) {
-        return { success: false, error: 'Failed to update map image' };
-    }
-}
-
-/**
  * 施設の緯度経度を更新
  */
 export async function updateFacilityLatLng(facilityId: number, lat: number, lng: number) {
@@ -484,68 +453,6 @@ export async function updateFacilityLatLng(facilityId: number, lat: number, lng:
         }).catch(() => {});
 
         return { success: false, error: '緯度経度の更新に失敗しました' };
-    }
-}
-
-/**
- * 緯度経度から地図画像を更新
- */
-export async function updateFacilityMapImageByLatLng(facilityId: number, lat: number, lng: number) {
-    try {
-        const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-        if (!apiKey) return { success: false, error: 'Google Maps APIキーが設定されていません' };
-
-        const mapUrl = new URL('https://maps.googleapis.com/maps/api/staticmap');
-        mapUrl.searchParams.set('center', `${lat},${lng}`);
-        mapUrl.searchParams.set('zoom', '16');
-        mapUrl.searchParams.set('size', '600x300');
-        mapUrl.searchParams.set('scale', '2');
-        mapUrl.searchParams.set('markers', `color:red|${lat},${lng}`);
-        mapUrl.searchParams.set('key', apiKey);
-
-        const response = await fetch(mapUrl.toString());
-        if (!response.ok) return { success: false, error: '地図画像の取得に失敗しました' };
-
-        const imageBuffer = await response.arrayBuffer();
-        const fileName = `maps/facility-${facilityId}-${Date.now()}.png`;
-
-        const result = await uploadFile(STORAGE_BUCKETS.UPLOADS, fileName, Buffer.from(imageBuffer), 'image/png');
-        if ('error' in result) return { success: false, error: '地図画像の保存に失敗しました' };
-
-        await prisma.facility.update({ where: { id: facilityId }, data: { map_image: result.url, lat, lng } });
-        revalidatePath('/admin/facility');
-
-        // ログ記録
-        logActivity({
-            userType: 'FACILITY',
-            action: 'FACILITY_UPDATE',
-            targetType: 'Facility',
-            targetId: facilityId,
-            requestData: {
-                field: 'map_image_lat_lng',
-                lat,
-                lng,
-            },
-            result: 'SUCCESS',
-        }).catch(() => {});
-
-        return { success: true, mapImage: result.url };
-    } catch (error) {
-        // エラーログ記録
-        logActivity({
-            userType: 'FACILITY',
-            action: 'FACILITY_UPDATE',
-            targetType: 'Facility',
-            targetId: facilityId,
-            requestData: {
-                field: 'map_image_lat_lng',
-            },
-            result: 'ERROR',
-            errorMessage: getErrorMessage(error),
-            errorStack: getErrorStack(error),
-        }).catch(() => {});
-
-        return { success: false, error: '地図画像の更新に失敗しました' };
     }
 }
 

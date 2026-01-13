@@ -8,7 +8,6 @@ import toast from 'react-hot-toast';
 import {
   getFacilityInfo,
   updateFacilityBasicInfo,
-  updateFacilityMapImage,
   getFacilityAccounts,
   addFacilityAccount,
   updateFacilityAccount,
@@ -30,7 +29,6 @@ export default function FacilityPage() {
   const { showDebugError } = useDebugError();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [isUpdatingMap, setIsUpdatingMap] = useState(false);
   // 住所変更検知用：ロード時の住所を保存
   const [originalAddress, setOriginalAddress] = useState('');
   // バリデーションエラー表示用
@@ -894,24 +892,6 @@ export default function FacilityPage() {
         facilityAddress.addressLine,
       ].filter(Boolean).join('');
 
-      const addressChanged = fullAddress !== originalAddress;
-      const noMapImage = !accessInfo.mapImage || accessInfo.mapImage.trim() === '';
-
-      let mapImageUrl = accessInfo.mapImage;
-
-      if (fullAddress && (addressChanged || noMapImage)) {
-        try {
-          const mapResult = await updateFacilityMapImage(admin.facilityId, fullAddress);
-          if (mapResult.success && mapResult.mapImage) {
-            mapImageUrl = mapResult.mapImage;
-            setAccessInfo(prev => ({ ...prev, mapImage: mapResult.mapImage! }));
-          }
-        } catch (mapError) {
-          console.error('Failed to generate map image:', mapError);
-          // マップ生成失敗でも保存は継続する（警告を表示してもいいが）
-        }
-      }
-
       const result = await updateFacilityBasicInfo(admin.facilityId, {
         // 基本情報
         corporationName: corporateInfo.name,
@@ -962,7 +942,7 @@ export default function FacilityPage() {
         transportation: accessInfo.transportation,
         parking: accessInfo.parking,
         transportationNote: accessInfo.transportationNote,
-        mapImage: mapImageUrl,
+        mapImage: accessInfo.mapImage,
 
         // 服装情報（画像アップロード処理が別途必要）
         dresscodeItems: dresscodeInfo.items,
@@ -1038,53 +1018,6 @@ export default function FacilityPage() {
     }
   };
 
-  // 地図画像を更新
-  const handleUpdateMap = async () => {
-    if (isUpdatingMap) return;
-
-    if (!admin?.facilityId) {
-      toast.error('施設IDが取得できません');
-      return;
-    }
-
-    // 施設住所を使用
-    const fullAddress = [
-      facilityAddress.prefecture,
-      facilityAddress.city,
-      facilityAddress.addressLine,
-    ].filter(Boolean).join('');
-
-    if (!fullAddress) {
-      toast.error('施設住所を入力してください');
-      return;
-    }
-
-    setIsUpdatingMap(true);
-    try {
-      const result = await updateFacilityMapImage(admin.facilityId, fullAddress);
-
-      if (result.success && result.mapImage) {
-        setAccessInfo(prev => ({ ...prev, mapImage: result.mapImage! }));
-        toast.success('地図画像を更新しました');
-      } else {
-        toast.error(result.error || '地図画像の取得に失敗しました');
-      }
-    } catch (error) {
-      const debugInfo = extractDebugInfo(error);
-      showDebugError({
-        type: 'update',
-        operation: '地図画像更新',
-        message: debugInfo.message,
-        details: debugInfo.details,
-        stack: debugInfo.stack,
-        context: { facilityId: admin?.facilityId, address: fullAddress }
-      });
-      console.error('Failed to update map:', error);
-      toast.error('地図画像の更新に失敗しました');
-    } finally {
-      setIsUpdatingMap(false);
-    }
-  };
 
   // ローディング中
   if (isLoading || isAdminLoading) {
@@ -1893,32 +1826,21 @@ export default function FacilityPage() {
                 </label>
                 <div className="space-y-2">
                   <div className="w-full h-64 bg-gray-100 rounded-lg border border-gray-300 flex items-center justify-center overflow-hidden">
-                    {accessInfo.mapImage ? (
-                      <img
-                        src={accessInfo.mapImage}
-                        alt="施設周辺地図"
-                        className="w-full h-full object-cover"
+                    {accessInfo.mapLat && accessInfo.mapLng ? (
+                      <iframe
+                        src={`https://www.google.com/maps/embed/v1/place?q=${accessInfo.mapLat},${accessInfo.mapLng}&zoom=16&key=AIzaSyA2Ae19xiaciV46yWzQvTh4mG1RvfsaSi8`}
+                        width="100%"
+                        height="100%"
+                        style={{ border: 0 }}
+                        allowFullScreen
+                        loading="lazy"
+                        referrerPolicy="no-referrer-when-downgrade"
                       />
                     ) : (
                       <div className="text-center text-gray-500">
-                        <p className="text-sm mb-2">地図画像がありません</p>
-                        <p className="text-xs">住所を登録後、「地図画像を更新」ボタンで取得できます</p>
+                        <p className="text-sm mb-2">地図を表示するには住所を登録してください</p>
                       </div>
                     )}
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleUpdateMap}
-                      disabled={isUpdatingMap}
-                      className="px-3 py-1.5 text-sm bg-admin-primary text-white rounded-lg hover:bg-admin-primary-dark disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
-                    >
-                      {isUpdatingMap ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <MapPin className="w-4 h-4" />
-                      )}
-                      {isUpdatingMap ? '取得中...' : '地図画像を更新'}
-                    </button>
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
                     ※ ピン位置の微調整が必要な場合は、運営サポートまでお問い合わせください
