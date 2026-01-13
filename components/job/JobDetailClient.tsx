@@ -1096,7 +1096,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
             <div className="relative aspect-video overflow-hidden rounded-lg bg-gray-100 mb-2">
               {facility.lat && facility.lng ? (
                 <iframe
-                  src={`https://www.google.com/maps/embed/v1/place?q=${facility.lat},${facility.lng}&zoom=16&key=AIzaSyA2Ae19xiaciV46yWzQvTh4mG1RvfsaSi8`}
+                  src={`https://www.google.com/maps/embed/v1/place?q=${facility.lat},${facility.lng}&zoom=16&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`}
                   width="100%"
                   height="100%"
                   style={{ border: 0 }}
