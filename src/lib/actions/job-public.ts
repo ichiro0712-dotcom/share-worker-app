@@ -32,6 +32,8 @@ export async function getPublicJobById(id: string) {
                 select: {
                     id: true,
                     facility_name: true,
+                    corporation_name: true,
+                    facility_type: true,
                     prefecture: true,
                     city: true,
                     address: true,
@@ -40,6 +42,23 @@ export async function getPublicJobById(id: string) {
                     images: true,
                     lat: true,
                     lng: true,
+                    phone_number: true,
+                    rating: true,
+                    review_count: true,
+                    stations: true,
+                    access_description: true,
+                    transportation: true,
+                    parking: true,
+                    transportation_note: true,
+                    map_image: true,
+                    // 担当者情報
+                    staff_same_as_manager: true,
+                    manager_last_name: true,
+                    manager_first_name: true,
+                    staff_last_name: true,
+                    staff_first_name: true,
+                    staff_greeting: true,
+                    staff_photo: true,
                 },
             },
             workDates: {
@@ -89,24 +108,70 @@ export async function getPublicJobById(id: string) {
     const totalMatchedCount = futureWorkDates.reduce((sum, wd) => sum + wd.matched_count, 0);
     const remainingSlots = totalRecruitmentCount - totalMatchedCount;
 
+    // DBのBooleanから特徴タグ配列を生成
+    const featureTags = [
+        job.inexperienced_ok && '未経験者歓迎',
+        job.blank_ok && 'ブランク歓迎',
+        job.hair_style_free && '髪型・髪色自由',
+        job.nail_ok && 'ネイルOK',
+        job.uniform_provided && '制服貸与',
+        job.allow_car && '車通勤OK',
+        job.meal_support && '食事補助',
+    ].filter(Boolean) as string[];
+
     return {
         id: job.id,
+        status: job.status.toLowerCase(),
         title: job.title,
         description: job.overview,
-        qualifications: job.required_qualifications,
+        overview: job.overview,
         work_content: job.work_content,
+        qualifications: job.required_qualifications,
+        required_qualifications: job.required_qualifications,
+        required_experience: job.required_experience,
         hourly_wage: job.hourly_wage,
+        wage: job.wage,
         transportation_fee: job.transportation_fee,
         start_time: job.start_time,
         end_time: job.end_time,
         break_time: job.break_time,
         images: job.images,
         requires_interview: job.requires_interview,
+        job_type: job.job_type,
+
+        // アドレス情報
+        address: job.address,
+        prefecture: job.prefecture,
+        city: job.city,
+        address_line: job.address_line,
+        access: job.access,
+
+        // ドレスコード
+        dresscode: job.dresscode,
+        dresscode_images: job.dresscode_images,
+        belongings: job.belongings,
+
+        // 担当者情報
+        manager_name: job.manager_name,
+        manager_message: job.manager_message,
+        manager_avatar: job.manager_avatar,
+
+        // 特徴タグ
+        feature_tags: featureTags,
+        tags: job.tags,
+
+        // 添付ファイル
+        attachments: job.attachments,
+
+        // 募集条件
+        weekly_frequency: job.weekly_frequency,
+        allow_car: job.allow_car,
 
         // 日程関連
         work_date: nearestWorkDate.work_date.toISOString(),
         deadline: nearestWorkDate.deadline.toISOString(),
         recruitment_count: totalRecruitmentCount,
+        matched_count: totalMatchedCount,
         remaining_slots: remainingSlots > 0 ? remainingSlots : 0,
 
         // 勤務日一覧
@@ -123,6 +188,9 @@ export async function getPublicJobById(id: string) {
         facility: {
             id: job.facility.id,
             name: job.facility.facility_name,
+            facility_name: job.facility.facility_name,
+            corporation_name: job.facility.corporation_name,
+            facility_type: job.facility.facility_type,
             prefecture: job.facility.prefecture,
             city: job.facility.city,
             address: job.facility.address,
@@ -131,6 +199,23 @@ export async function getPublicJobById(id: string) {
             images: job.facility.images,
             lat: job.facility.lat,
             lng: job.facility.lng,
+            phone_number: job.facility.phone_number,
+            rating: job.facility.rating,
+            review_count: job.facility.review_count,
+            stations: job.facility.stations,
+            access_description: job.facility.access_description,
+            transportation: job.facility.transportation,
+            parking: job.facility.parking,
+            transportation_note: job.facility.transportation_note,
+            map_image: job.facility.map_image,
+            // 担当者情報
+            staff_same_as_manager: job.facility.staff_same_as_manager,
+            manager_last_name: job.facility.manager_last_name,
+            manager_first_name: job.facility.manager_first_name,
+            staff_last_name: job.facility.staff_last_name,
+            staff_first_name: job.facility.staff_first_name,
+            staff_greeting: job.facility.staff_greeting,
+            staff_photo: job.facility.staff_photo,
         },
 
         created_at: job.created_at.toISOString(),
