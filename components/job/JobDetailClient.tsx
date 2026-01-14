@@ -508,33 +508,39 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
           </div>
         )}
         <div className="px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                // 履歴がある場合は戻る、ない場合はホームへ
-                if (window.history.length > 1) {
-                  router.back();
-                } else {
-                  router.push('/');
-                }
-              }}
-              aria-label="戻る"
-            >
-              <ChevronLeft className="w-6 h-6" />
-            </button>
-            <button
-              onClick={() => router.push('/')}
-              className="p-1 hover:bg-gray-100 rounded-full transition-colors"
-              aria-label="トップページへ"
-            >
-              <Home className="w-5 h-5 text-gray-600" />
-            </button>
-          </div>
+          {/* 公開版ではナビゲーションボタンを非表示 */}
+          {!isPublic ? (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  // 履歴がある場合は戻る、ない場合はホームへ
+                  if (window.history.length > 1) {
+                    router.back();
+                  } else {
+                    router.push('/');
+                  }
+                }}
+                aria-label="戻る"
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+              <button
+                onClick={() => router.push('/')}
+                className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                aria-label="トップページへ"
+              >
+                <Home className="w-5 h-5 text-gray-600" />
+              </button>
+            </div>
+          ) : (
+            /* 左側のスペーサー */
+            <div className="w-16" />
+          )}
           <div className="flex-1 text-center text-sm">
             {formatDateTime(selectedDate || job.workDate, job.startTime, job.endTime)}
           </div>
           {/* 公開版では「あとで見る」ボタンを非表示 */}
-          {!isPublic && (
+          {!isPublic ? (
             <button
               onClick={handleSaveForLater}
               className="flex items-center gap-1 text-xs"
@@ -544,6 +550,9 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
                 {savedForLater ? '保存済み' : 'あとで見る'}
               </span>
             </button>
+          ) : (
+            /* 右側のスペーサー */
+            <div className="w-16" />
           )}
         </div>
       </div>
@@ -1187,7 +1196,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
       {/* 労働条件通知書プレビュー */}
       <div className="mb-4 px-4">
         <Link
-          href={`/jobs/${job.id}/labor-document`}
+          href={isPublic ? `/public/jobs/${job.id}/labor-document` : `/jobs/${job.id}/labor-document`}
           className="flex items-center gap-2 px-3 py-2 text-sm text-primary border border-primary rounded-lg hover:bg-primary/5 transition-colors"
         >
           <FileText className="w-4 h-4" />
@@ -1314,39 +1323,24 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
         </div>
       )}
 
-      {/* 申し込みボタン（プレビューモードでは非表示） */}
-      {!isPreviewMode && (
-        isPublic ? (
-          // 公開版: CTAボタン（フッターナビがないのでbottom-0）
-          <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-10 safe-area-bottom">
-            <Link href="/login">
-              <Button size="lg" className="w-full">
-                ログインして応募する
-              </Button>
-            </Link>
-            <p className="text-center text-xs text-gray-500 mt-2">
-              アカウントをお持ちでない方は<Link href="/register" className="text-primary underline">新規登録</Link>
-            </p>
-          </div>
-        ) : (
-          // ログイン版: 応募ボタン（フッターナビの上に配置）
-          <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-200 p-4 z-10" style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom))' }}>
-            <Button
-              onClick={handleApplyButtonClick}
-              size="lg"
-              className="w-full"
-              disabled={isApplying || selectedWorkDateIds.length === 0}
-            >
-              {isApplying
-                ? (job.jobType === 'OFFER' ? '受諾中...' : '応募中...')
-                : selectedWorkDateIds.length > 0
-                  ? (job.jobType === 'OFFER' ? 'オファーを受ける' : `${selectedWorkDateIds.length}件の日程に応募する`)
-                  : !hasAvailableDates
-                    ? '応募できる日程がありません'
-                    : '日程を選択してください'}
-            </Button>
-          </div>
-        )
+      {/* 申し込みボタン（プレビューモードと公開版では非表示、公開版はレイアウトのフッターを使用） */}
+      {!isPreviewMode && !isPublic && (
+        <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-200 p-4 z-10" style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom))' }}>
+          <Button
+            onClick={handleApplyButtonClick}
+            size="lg"
+            className="w-full"
+            disabled={isApplying || selectedWorkDateIds.length === 0}
+          >
+            {isApplying
+              ? (job.jobType === 'OFFER' ? '受諾中...' : '応募中...')
+              : selectedWorkDateIds.length > 0
+                ? (job.jobType === 'OFFER' ? 'オファーを受ける' : `${selectedWorkDateIds.length}件の日程に応募する`)
+                : !hasAvailableDates
+                  ? '応募できる日程がありません'
+                  : '日程を選択してください'}
+          </Button>
+        </div>
       )}
 
       {/* プロフィール未完了モーダル */}
