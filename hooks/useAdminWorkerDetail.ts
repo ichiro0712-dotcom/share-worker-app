@@ -1,6 +1,7 @@
 'use client';
 
 import useSWR from 'swr';
+import { adminFetcher } from '@/lib/admin-api-fetcher';
 
 export interface WorkerDetailData {
     id: number;
@@ -88,8 +89,30 @@ export interface WorkerDetailData {
     hasCompletedRated: boolean;
 }
 
-const fetcher = async (url: string): Promise<WorkerDetailData | null> => {
+// 認証エラーハンドリング付きフェッチャー (404はnullで返す)
+const workerDetailFetcher = async (url: string): Promise<WorkerDetailData | null> => {
     const res = await fetch(url);
+
+    if (res.status === 401) {
+        const { dispatchAdminAuthError } = await import('@/lib/admin-api-fetcher');
+        const data = await res.json().catch(() => ({}));
+        dispatchAdminAuthError({
+            code: 'UNAUTHORIZED',
+            message: data.error || '認証が必要です',
+        });
+        throw new Error('UNAUTHORIZED');
+    }
+
+    if (res.status === 403) {
+        const { dispatchAdminAuthError } = await import('@/lib/admin-api-fetcher');
+        const data = await res.json().catch(() => ({}));
+        dispatchAdminAuthError({
+            code: 'FORBIDDEN',
+            message: data.error || 'アクセス権限がありません',
+        });
+        throw new Error('FORBIDDEN');
+    }
+
     if (!res.ok) {
         if (res.status === 404) return null;
         throw new Error('Failed to fetch');
@@ -108,7 +131,7 @@ export function useAdminWorkerDetail(workerId?: number, facilityId?: number) {
 
     const { data, error, isLoading, mutate } = useSWR<WorkerDetailData | null>(
         url,
-        fetcher,
+        workerDetailFetcher,
         {
             revalidateOnFocus: true, // タブ復帰時に再取得
             revalidateOnReconnect: true, // ネットワーク復帰時に再取得

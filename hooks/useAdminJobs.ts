@@ -2,6 +2,7 @@
 
 import useSWR from 'swr';
 import { useMemo } from 'react';
+import { adminFetcher } from '@/lib/admin-api-fetcher';
 
 interface WorkDateData {
     id: number;
@@ -92,11 +93,7 @@ interface AdminJobsResponse {
     };
 }
 
-const fetcher = async (url: string): Promise<AdminJobsResponse> => {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('Failed to fetch');
-    return res.json();
-};
+// 認証エラーハンドリング付きフェッチャーを使用
 
 const buildUrl = (params: AdminJobsParams): string | null => {
     if (!params.facilityId) return null; // facilityIdがない場合はフェッチしない
@@ -118,7 +115,7 @@ export function useAdminJobs(params: AdminJobsParams) {
 
     const { data, error, isLoading, mutate } = useSWR<AdminJobsResponse>(
         url,
-        fetcher,
+        adminFetcher,
         {
             revalidateOnFocus: true, // タブ復帰時に再取得
             revalidateOnMount: true, // ページに戻った時に必ず再取得
