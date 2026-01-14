@@ -2,6 +2,7 @@
 
 import useSWR from 'swr';
 import { useMemo } from 'react';
+import { adminFetcher } from '@/lib/admin-api-fetcher';
 
 export interface Shift {
     applicationId: number;
@@ -28,11 +29,7 @@ interface AdminShiftsParams {
     endDate: string; // ISO string
 }
 
-const fetcher = async (url: string): Promise<Shift[]> => {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('Failed to fetch');
-    return res.json();
-};
+// 認証エラーハンドリング付きフェッチャーを使用
 
 const buildUrl = (params: AdminShiftsParams): string | null => {
     if (!params.facilityId) return null;
@@ -56,7 +53,7 @@ export function useAdminShifts(params: AdminShiftsParams) {
 
     const { data, error, isLoading, mutate } = useSWR<Shift[]>(
         url,
-        fetcher,
+        adminFetcher,
         {
             revalidateOnFocus: true, // タブ復帰時に再取得
             revalidateOnReconnect: true, // ネットワーク復帰時に再取得

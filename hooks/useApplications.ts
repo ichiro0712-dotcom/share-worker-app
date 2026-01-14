@@ -2,6 +2,7 @@
 
 import useSWR from 'swr';
 import { useMemo } from 'react';
+import { adminFetcher } from '@/lib/admin-api-fetcher';
 
 // 型定義
 interface PaginationData {
@@ -129,14 +130,7 @@ interface ApplicationsByWorkerParams {
   query?: string;
 }
 
-// SWR fetcher
-const fetcher = async <T>(url: string): Promise<T> => {
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error('Failed to fetch');
-  }
-  return res.json();
-};
+// 認証エラーハンドリング付きフェッチャーを使用
 
 // URL生成関数
 const buildJobsUrl = (params: ApplicationsByJobParams): string | null => {
@@ -167,7 +161,7 @@ export function useApplicationsByJob(params: ApplicationsByJobParams) {
 
   const { data, error, isLoading, isValidating, mutate } = useSWR<JobsApplicationsResponse>(
     url,
-    fetcher,
+    adminFetcher,
     {
       revalidateOnFocus: true,
       dedupingInterval: 2000,
@@ -192,7 +186,7 @@ export function useApplicationsByWorker(params: ApplicationsByWorkerParams) {
 
   const { data, error, isLoading, isValidating, mutate } = useSWR<WorkersApplicationsResponse>(
     url,
-    fetcher,
+    adminFetcher,
     {
       revalidateOnFocus: true,
       dedupingInterval: 2000,
