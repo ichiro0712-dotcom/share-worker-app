@@ -30,13 +30,19 @@ export const authOptions: NextAuthOptions = {
           throw new Error('EMAIL_NOT_VERIFIED');
         }
 
-        // テストユーザーログイン用の特別パスワード（開発環境のみ）
-        // パスワードがこの値の場合はハッシュチェックをスキップ
-        const MAGIC_PASSWORD = process.env.NODE_ENV === 'production'
-          ? 'THIS_SHOULD_NEVER_MATCH_IN_PRODUCTION'
-          : 'SKIP_PASSWORD_CHECK_FOR_TEST_USER';
-
-        const isValid = credentials.password === MAGIC_PASSWORD || await bcrypt.compare(credentials.password, user.password_hash);
+        // テストユーザーログイン用の特別パスワード（開発環境 + 環境変数フラグ必須）
+        // 本番環境では完全に無効化
+        let isValid = false;
+        if (
+          process.env.NODE_ENV !== 'production' &&
+          process.env.ENABLE_TEST_LOGIN === 'true' &&
+          credentials.password === 'SKIP_PASSWORD_CHECK_FOR_TEST_USER'
+        ) {
+          console.warn('[AUTH] Using magic password for test login - development only');
+          isValid = true;
+        } else {
+          isValid = await bcrypt.compare(credentials.password, user.password_hash);
+        }
 
 
         if (!isValid) {
