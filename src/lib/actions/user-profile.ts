@@ -6,6 +6,7 @@ import { getAuthenticatedUser, FileBlob } from './helpers';
 import { geocodeAddress } from '@/src/lib/geocoding';
 import { uploadFile, STORAGE_BUCKETS } from '@/lib/supabase';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
+import { generateBankAccountName } from '@/lib/string-utils';
 
 /**
  * プロフィールの完成状態をチェックする
@@ -133,7 +134,9 @@ export async function getUserProfile() {
             // 自己PR
             self_pr: user.self_pr,
             // 銀行口座
+            bank_code: user.bank_code,
             bank_name: user.bank_name,
+            branch_code: user.branch_code,
             branch_name: user.branch_name,
             account_name: user.account_name,
             account_number: user.account_number,
@@ -184,8 +187,10 @@ export async function updateUserSelfPR(selfPR: string): Promise<{ success: boole
 }
 
 export async function updateUserProfile(formData: FormData) {
+    console.log('[updateUserProfile] Function called');
     try {
         // テスト運用中の認証済みユーザーを取得
+        console.log('[updateUserProfile] Getting authenticated user...');
         const user = await getAuthenticatedUser();
         console.log('[updateUserProfile] Updating profile for user:', user.id);
 
@@ -234,7 +239,9 @@ export async function updateUserProfile(formData: FormData) {
         const selfPR = formData.get('selfPR') as string | null;
 
         // 銀行口座
+        const bankCode = formData.get('bankCode') as string | null;
         const bankName = formData.get('bankName') as string | null;
+        const branchCode = formData.get('branchCode') as string | null;
         const branchName = formData.get('branchName') as string | null;
         const accountName = formData.get('accountName') as string | null;
         const accountNumber = formData.get('accountNumber') as string | null;
@@ -445,9 +452,12 @@ export async function updateUserProfile(formData: FormData) {
                 experience_fields: experienceFields || undefined,
                 work_histories: workHistories,
                 self_pr: selfPR || null,
+                bank_code: bankCode || null,
                 bank_name: bankName || null,
+                branch_code: branchCode || null,
                 branch_name: branchName || null,
-                account_name: accountName || null,
+                // 口座名義は姓名カナから自動生成（小文字カタカナは大文字に変換）
+                account_name: generateBankAccountName(lastNameKana || '', firstNameKana || '') || null,
                 account_number: accountNumber || null,
                 pension_number: pensionNumber || null,
                 id_document: idDocumentPath,
@@ -490,18 +500,27 @@ export async function updateUserProfile(formData: FormData) {
             message: 'プロフィールを更新しました',
         };
     } catch (error) {
-        console.error('[updateUserProfile] Error:', error);
+        console.error('[updateUserProfile] Error caught:', error);
+        console.error('[updateUserProfile] Error type:', typeof error);
+        console.error('[updateUserProfile] Error name:', error instanceof Error ? error.name : 'Not an Error instance');
+        console.error('[updateUserProfile] Error message:', error instanceof Error ? error.message : String(error));
+
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
-        // プロフィール更新失敗をログ記録
-        logActivity({
-            userType: 'WORKER',
-            action: 'PROFILE_UPDATE_FAILED',
-            result: 'ERROR',
-            errorMessage: getErrorMessage(error),
-            errorStack: getErrorStack(error),
-        }).catch(() => {});
+        // プロフィール更新失敗をログ記録（非同期、エラーは無視）
+        try {
+            logActivity({
+                userType: 'WORKER',
+                action: 'PROFILE_UPDATE_FAILED',
+                result: 'ERROR',
+                errorMessage: getErrorMessage(error),
+                errorStack: getErrorStack(error),
+            }).catch(() => {});
+        } catch {
+            // ログ記録自体のエラーは無視
+        }
 
+        console.log('[updateUserProfile] Returning error response');
         return {
             success: false,
             error: `プロフィールの更新に失敗しました: ${errorMessage}`,

@@ -1,6 +1,7 @@
 'use client';
 
 import useSWR from 'swr';
+import { adminFetcher } from '@/lib/admin-api-fetcher';
 
 export interface AdminNotification {
     id: number;
@@ -12,11 +13,7 @@ export interface AdminNotification {
     createdAt: string;
 }
 
-const fetcher = async (url: string): Promise<AdminNotification[]> => {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('Failed to fetch');
-    return res.json();
-};
+// 認証エラーハンドリング付きフェッチャーを使用
 
 /**
  * 施設通知一覧取得フック
@@ -27,7 +24,7 @@ export function useAdminNotifications(facilityId?: number) {
 
     const { data, error, isLoading, mutate } = useSWR<AdminNotification[]>(
         url,
-        fetcher,
+        adminFetcher,
         {
             revalidateOnFocus: true, // タブ復帰時に再取得
             revalidateOnReconnect: true, // ネットワーク復帰時に再取得

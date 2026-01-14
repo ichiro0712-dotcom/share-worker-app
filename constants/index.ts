@@ -7,3 +7,4 @@ export * from './time';
 export * from './salary';
 export * from './templates';
 export * from './employment';
+export * from './features';

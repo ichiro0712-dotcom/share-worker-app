@@ -26,8 +26,8 @@ const STEP_LABELS: Record<MoveStep, string> = {
   large: '大（約110m）',
 };
 
-// Google Maps Embed API キー（かいてくと同じ公開キー）
-const MAPS_EMBED_API_KEY = 'AIzaSyA2Ae19xiaciV46yWzQvTh4mG1RvfsaSi8';
+// Google Maps Embed API キー
+const MAPS_EMBED_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
 export default function MapPinAdjustModal({
   isOpen,

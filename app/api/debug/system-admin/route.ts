@@ -4,7 +4,23 @@ import bcrypt from 'bcryptjs';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * 本番環境でのアクセスを拒否
+ */
+function rejectInProduction(): NextResponse | null {
+    if (process.env.NODE_ENV === 'production') {
+        return NextResponse.json(
+            { error: 'Debug API is disabled in production' },
+            { status: 403 }
+        );
+    }
+    return null;
+}
+
 export async function GET() {
+    const rejected = rejectInProduction();
+    if (rejected) return rejected;
+
     try {
         // システム管理者テーブルの確認
         const admins = await prisma.systemAdmin.findMany({
@@ -34,6 +50,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+    const rejected = rejectInProduction();
+    if (rejected) return rejected;
+
     try {
         const { email, password } = await request.json();
 

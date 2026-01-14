@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { logActivity, logTrace, getErrorMessage, getErrorStack } from '@/lib/logger';
 import { Resend } from 'resend';
+import { createFacilityAdminSession, clearFacilityAdminSession } from '@/lib/admin-session-server';
 
 // Resend設定
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -63,6 +64,22 @@ export async function authenticateFacilityAdmin(email: string, password: string)
             targetId: admin.facility_id,
             result: 'SUCCESS',
         }).catch(() => {});
+
+        // サーバーサイドセッションを作成（iron-session）
+        // API認証用のhttpOnly Cookieを設定
+        try {
+            await createFacilityAdminSession({
+                adminId: admin.id,
+                facilityId: admin.facility_id,
+                name: admin.name,
+                email: admin.email,
+                role: 'admin',
+            });
+        } catch (sessionError) {
+            console.error('[authenticateFacilityAdmin] Failed to create server session:', sessionError);
+            // セッション作成に失敗しても、認証自体は成功として扱う（互換性維持）
+            // クライアント側のlocalStorageセッションで動作を継続
+        }
 
         return {
             success: true,
@@ -527,5 +544,20 @@ export async function getTestAdmins() {
     } catch (error) {
         console.error('Failed to fetch test admins:', error);
         return [];
+    }
+}
+
+/**
+ * 施設管理者ログアウト
+ * サーバーサイドセッション（iron-session）をクリア
+ */
+export async function logoutFacilityAdmin(): Promise<{ success: boolean }> {
+    try {
+        await clearFacilityAdminSession();
+        return { success: true };
+    } catch (error) {
+        console.error('[logoutFacilityAdmin] Error:', error);
+        // エラーでも成功を返す（クライアント側のセッションクリアは続行させる）
+        return { success: true };
     }
 }

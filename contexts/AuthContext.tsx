@@ -4,7 +4,7 @@ import { createContext, useContext, ReactNode, useState, useEffect, useCallback 
 import { SessionProvider, useSession, signIn, signOut } from 'next-auth/react';
 import { Session } from 'next-auth';
 import { FacilityAdmin } from '@/types/admin';
-import { authenticateFacilityAdmin } from '@/src/lib/actions';
+import { authenticateFacilityAdmin, logoutFacilityAdmin } from '@/src/lib/actions';
 import {
   createAdminSession,
   getAdminSession,
@@ -12,6 +12,7 @@ import {
   extendAdminSession,
   getSessionRemainingMinutes,
 } from '@/lib/admin-session';
+import { ADMIN_AUTH_ERROR_EVENT, AdminAuthErrorDetail } from '@/lib/admin-api-fetcher';
 
 interface AuthContextType {
   // ワーカー認証（NextAuth）
@@ -25,7 +26,7 @@ interface AuthContextType {
   isAdmin: boolean;
   isAdminLoading: boolean;
   adminLogin: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  adminLogout: () => void;
+  adminLogout: () => Promise<void>;
   // セッション管理
   sessionRemainingMinutes: number;
   extendSession: () => void;
@@ -192,15 +193,55 @@ function AuthContextProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const adminLogout = useCallback(() => {
+  const adminLogout = useCallback(async () => {
+    // クライアント側の状態をクリア
     setAdmin(null);
     clearAdminSession();
+
+    // サーバー側のセッションもクリア（エラーは無視）
+    try {
+      await logoutFacilityAdmin();
+    } catch (error) {
+      console.error('[AuthContext] Server logout failed:', error);
+      // クライアント側は既にクリアしているので、エラーは無視
+    }
   }, []);
 
   const extendSession = useCallback(() => {
     extendAdminSession();
     setSessionRemainingMinutes(getSessionRemainingMinutes());
   }, []);
+
+  // 認証エラーイベントをリッスン（API呼び出しで401/403が返された場合）
+  useEffect(() => {
+    const handleAuthError = async (event: Event) => {
+      const customEvent = event as CustomEvent<AdminAuthErrorDetail>;
+      console.log('[AuthContext] Auth error received:', customEvent.detail);
+
+      if (customEvent.detail.code === 'UNAUTHORIZED') {
+        // 未認証：セッション切れまたは無効なセッション
+        console.log('[AuthContext] Session expired or invalid, logging out...');
+        await adminLogout();
+        // ログインページへリダイレクト
+        if (typeof window !== 'undefined') {
+          window.location.href = '/admin/login?expired=true';
+        }
+      } else if (customEvent.detail.code === 'FORBIDDEN') {
+        // 権限なし：他施設のデータにアクセスしようとした
+        console.log('[AuthContext] Access forbidden');
+        // アラートを表示してダッシュボードへリダイレクト
+        if (typeof window !== 'undefined') {
+          alert('アクセス権限がありません');
+          window.location.href = '/admin/dashboard';
+        }
+      }
+    };
+
+    window.addEventListener(ADMIN_AUTH_ERROR_EVENT, handleAuthError);
+    return () => {
+      window.removeEventListener(ADMIN_AUTH_ERROR_EVENT, handleAuthError);
+    };
+  }, [adminLogout]);
 
   return (
     <AuthContext.Provider

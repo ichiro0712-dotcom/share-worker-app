@@ -14,6 +14,9 @@ import { KatakanaInput, KatakanaWithSpaceInput } from '@/components/ui/KatakanaI
 import { PhoneNumberInput } from '@/components/ui/PhoneNumberInput';
 import { QUALIFICATION_GROUPS } from '@/constants/qualifications';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
+import BankSelector from '@/components/ui/BankSelector';
+import BranchSelector from '@/components/ui/BranchSelector';
+import { generateBankAccountName } from '@/lib/string-utils';
 
 interface UserProfile {
   id: number;
@@ -54,7 +57,9 @@ interface UserProfile {
   // 自己PR
   self_pr: string | null;
   // 銀行口座
+  bank_code: string | null;
   bank_name: string | null;
+  branch_code: string | null;
   branch_name: string | null;
   account_name: string | null;
   account_number: string | null;
@@ -163,9 +168,15 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
     selfPR: userProfile.self_pr || '',
 
     // 6. 銀行口座情報
+    bankCode: userProfile.bank_code || '',
     bankName: userProfile.bank_name || '',
+    branchCode: userProfile.branch_code || '',
     branchName: userProfile.branch_name || '',
-    accountName: userProfile.account_name || '',
+    // 口座名義は姓名カナから自動生成（既存データがあれば維持）
+    accountName: userProfile.account_name || generateBankAccountName(
+      userProfile.last_name_kana || '',
+      userProfile.first_name_kana || ''
+    ),
     accountNumber: userProfile.account_number || '',
 
     // 7. その他
@@ -543,7 +554,9 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
       form.append('selfPR', formData.selfPR);
 
       // 銀行口座
+      form.append('bankCode', formData.bankCode);
       form.append('bankName', formData.bankName);
+      form.append('branchCode', formData.branchCode);
       form.append('branchName', formData.branchName);
       form.append('accountName', formData.accountName);
       form.append('accountNumber', formData.accountNumber);
@@ -574,6 +587,24 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
 
       // サーバーアクションを呼び出し
       const result = await updateUserProfile(form);
+
+      // resultがundefinedの場合のエラーハンドリング
+      if (!result) {
+        showDebugError({
+          type: 'save',
+          operation: 'プロフィール更新',
+          message: 'サーバーからの応答がありませんでした。認証セッションが切れている可能性があります。',
+          context: {
+            formDataKeys: Array.from(form.keys()),
+            hasProfileImage: !!profileImageFile,
+            hasIdDocument: !!idDocumentFile,
+            hasBankBookImage: !!bankBookImageFile,
+            qualificationCertificateCount: Object.keys(qualificationCertificateFiles).length,
+          }
+        });
+        toast.error('セッションが切れた可能性があります。再度ログインしてください。');
+        return;
+      }
 
       if (result.success) {
         toast.success(result.message || 'プロフィールを更新しました');
@@ -710,7 +741,12 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
               <label className="block text-sm font-medium mb-2">姓（カナ） <span className="text-red-500">*</span></label>
               <KatakanaInput
                 value={formData.lastNameKana}
-                onChange={(value) => setFormData({ ...formData, lastNameKana: value })}
+                onChange={(value) => setFormData({
+                  ...formData,
+                  lastNameKana: value,
+                  // 口座名義を自動更新
+                  accountName: generateBankAccountName(value, formData.firstNameKana)
+                })}
                 className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.lastNameKana ? 'border-red-500 bg-red-50' : formData.lastNameKana && !isKatakanaOnly(formData.lastNameKana) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                 placeholder="ヤマダ"
               />
@@ -726,7 +762,12 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
               <label className="block text-sm font-medium mb-2">名（カナ） <span className="text-red-500">*</span></label>
               <KatakanaInput
                 value={formData.firstNameKana}
-                onChange={(value) => setFormData({ ...formData, firstNameKana: value })}
+                onChange={(value) => setFormData({
+                  ...formData,
+                  firstNameKana: value,
+                  // 口座名義を自動更新
+                  accountName: generateBankAccountName(formData.lastNameKana, value)
+                })}
                 className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.firstNameKana ? 'border-red-500 bg-red-50' : formData.firstNameKana && !isKatakanaOnly(formData.firstNameKana) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                 placeholder="タロウ"
               />
@@ -1254,58 +1295,99 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
           <h2 className="text-lg font-bold mb-4 pb-3 border-b">7. 銀行口座情報 <span className="text-red-500">*</span></h2>
 
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* 銀行検索UI */}
+            <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-2">銀行名 <span className="text-red-500">*</span></label>
-                <input
-                  type="text"
-                  value={formData.bankName}
-                  onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.bankName ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                <BankSelector
+                  value={formData.bankCode ? { code: formData.bankCode, name: formData.bankName } : null}
+                  onChange={(bank) => {
+                    if (bank) {
+                      setFormData({
+                        ...formData,
+                        bankCode: bank.code,
+                        bankName: bank.name,
+                        // 銀行変更時は支店をリセット
+                        branchCode: '',
+                        branchName: ''
+                      });
+                    } else {
+                      setFormData({
+                        ...formData,
+                        bankCode: '',
+                        bankName: '',
+                        branchCode: '',
+                        branchName: ''
+                      });
+                    }
+                  }}
+                  required
+                  showErrors={showErrors}
+                  legacyName={!formData.bankCode ? formData.bankName : ''}
                 />
-                {showErrors && !formData.bankName && (
-                  <p className="text-red-500 text-xs mt-1">銀行名を入力してください</p>
-                )}
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">支店名 <span className="text-red-500">*</span></label>
-                <input
-                  type="text"
-                  value={formData.branchName}
-                  onChange={(e) => setFormData({ ...formData, branchName: e.target.value })}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.branchName ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                <BranchSelector
+                  bankCode={formData.bankCode || null}
+                  value={formData.branchCode ? { code: formData.branchCode, name: formData.branchName } : null}
+                  onChange={(branch) => {
+                    if (branch) {
+                      setFormData({
+                        ...formData,
+                        branchCode: branch.code,
+                        branchName: branch.name
+                      });
+                    } else {
+                      setFormData({
+                        ...formData,
+                        branchCode: '',
+                        branchName: ''
+                      });
+                    }
+                  }}
+                  required
+                  showErrors={showErrors}
+                  legacyName={!formData.branchCode ? formData.branchName : ''}
                 />
-                {showErrors && !formData.branchName && (
-                  <p className="text-red-500 text-xs mt-1">支店名を入力してください</p>
-                )}
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">口座名義（カナ） <span className="text-red-500">*</span></label>
-                <KatakanaWithSpaceInput
-                  value={formData.accountName}
-                  onChange={(value) => setFormData({ ...formData, accountName: value })}
-                  placeholder="ヤマダ タロウ"
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.accountName ? 'border-red-500 bg-red-50' : formData.accountName && !isKatakanaWithSpaceOnly(formData.accountName) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
-                />
-                {showErrors && !formData.accountName && (
-                  <p className="text-red-500 text-xs mt-1">口座名義を入力してください</p>
-                )}
-                {formData.accountName && !isKatakanaWithSpaceOnly(formData.accountName) && (
-                  <p className="text-red-500 text-xs mt-1">カタカナで入力してください</p>
-                )}
-                <p className="text-xs text-gray-500 mt-1">※カタカナで入力（ひらがなは自動変換）</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">口座番号 <span className="text-red-500">*</span></label>
-                <input
-                  type="text"
-                  value={formData.accountNumber}
-                  onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.accountNumber ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
-                />
-                {showErrors && !formData.accountNumber && (
-                  <p className="text-red-500 text-xs mt-1">口座番号を入力してください</p>
-                )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">口座名義（カナ） <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    value={formData.accountName}
+                    readOnly
+                    className="w-full px-3 py-2 border rounded-lg bg-gray-100 text-gray-700 border-gray-300 cursor-not-allowed"
+                    placeholder="姓名（カナ）を入力すると自動生成されます"
+                  />
+                  {showErrors && !formData.accountName && (
+                    <p className="text-red-500 text-xs mt-1">口座名義を生成するには姓名（カナ）を入力してください</p>
+                  )}
+                  <p className="text-xs text-gray-500 mt-1">※姓名（カナ）から自動生成されます</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">口座番号 <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={formData.accountNumber}
+                    onChange={(e) => {
+                      // 数字のみ許可（全角数字は半角に変換）
+                      const value = e.target.value
+                        .replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
+                        .replace(/[^0-9]/g, '');
+                      setFormData({ ...formData, accountNumber: value });
+                    }}
+                    maxLength={8}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.accountNumber ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                    placeholder="1234567"
+                  />
+                  {showErrors && !formData.accountNumber && (
+                    <p className="text-red-500 text-xs mt-1">口座番号を入力してください</p>
+                  )}
+                  <p className="text-xs text-gray-500 mt-1">※半角数字で入力（7〜8桁）</p>
+                </div>
               </div>
             </div>
 

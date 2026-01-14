@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { randomBytes } from 'crypto';
+import { validateFacilityAccess } from '@/lib/admin-session-server';
 
 /**
  * POST /api/admin/labor-documents/request
@@ -10,7 +11,6 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const {
-      adminId,
       facilityId,
       workerId,
       startDate,
@@ -20,14 +20,31 @@ export async function POST(request: NextRequest) {
     } = body;
 
     // バリデーション
-    if (!adminId || !facilityId || !workerId || !startDate || !endDate || !email) {
+    if (!facilityId || !workerId || !startDate || !endDate || !email) {
       return NextResponse.json(
         { error: '必須パラメータが不足しています' },
         { status: 400 }
       );
     }
 
-    // 管理者の検証（施設情報も取得）
+    // セッション認証チェック
+    const { valid, session, error } = await validateFacilityAccess(facilityId);
+    if (!valid || !session) {
+      if (error === 'unauthorized') {
+        return NextResponse.json(
+          { error: '認証が必要です', code: 'UNAUTHORIZED' },
+          { status: 401 }
+        );
+      }
+      return NextResponse.json(
+        { error: '権限がありません', code: 'FORBIDDEN' },
+        { status: 403 }
+      );
+    }
+
+    const adminId = session.adminId!;
+
+    // 管理者情報を取得（施設名取得用）
     const admin = await prisma.facilityAdmin.findUnique({
       where: { id: adminId },
       include: {
@@ -39,10 +56,10 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    if (!admin || admin.facility_id !== facilityId) {
+    if (!admin) {
       return NextResponse.json(
-        { error: '権限がありません' },
-        { status: 403 }
+        { error: '管理者情報が見つかりません' },
+        { status: 404 }
       );
     }
 

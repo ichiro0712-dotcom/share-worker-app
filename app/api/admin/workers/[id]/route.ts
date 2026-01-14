@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getWorkerDetail } from '@/src/lib/actions';
+import { withFacilityAuth } from '@/lib/api-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,7 +9,7 @@ export async function GET(
     { params }: { params: { id: string } }
 ) {
     const { searchParams } = new URL(request.url);
-    const facilityIdParam = searchParams.get('facilityId');
+    const facilityId = parseInt(searchParams.get('facilityId') || '0');
     const workerId = parseInt(params.id, 10);
 
     if (isNaN(workerId)) {
@@ -18,41 +19,13 @@ export async function GET(
         );
     }
 
-    if (!facilityIdParam) {
-        return NextResponse.json(
-            { error: 'facilityId is required' },
-            { status: 400 }
-        );
-    }
-
-    const facilityId = parseInt(facilityIdParam, 10);
-    if (isNaN(facilityId)) {
-        return NextResponse.json(
-            { error: 'facilityId must be a number' },
-            { status: 400 }
-        );
-    }
-
-    try {
-        const workerDetail = await getWorkerDetail(workerId, facilityId);
+    return withFacilityAuth(facilityId, async (validatedFacilityId) => {
+        const workerDetail = await getWorkerDetail(workerId, validatedFacilityId);
 
         if (!workerDetail) {
-            return NextResponse.json(
-                { error: 'Worker not found' },
-                { status: 404 }
-            );
+            throw new Error('Worker not found');
         }
 
-        return NextResponse.json(workerDetail, {
-            headers: {
-                'Cache-Control': 'no-store, max-age=0',
-            },
-        });
-    } catch (error) {
-        console.error('[GET /api/admin/workers/[id]] Error:', error);
-        return NextResponse.json(
-            { error: 'Failed to fetch worker detail' },
-            { status: 500 }
-        );
-    }
+        return workerDetail;
+    });
 }
