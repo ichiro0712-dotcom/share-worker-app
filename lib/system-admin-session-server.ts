@@ -15,24 +15,48 @@ export interface SystemAdminSessionData {
 }
 
 /**
- * セッション設定
+ * セッション用パスワードを取得（本番環境では環境変数必須）
  */
-const sessionOptions: SessionOptions = {
-  password: process.env.SYSTEM_ADMIN_SESSION_SECRET || 'complex_password_at_least_32_characters_long_for_system_admin',
-  cookieName: 'system_admin_session',
-  cookieOptions: {
-    secure: process.env.NODE_ENV === 'production',
-    httpOnly: true,
-    sameSite: 'lax',
-    maxAge: 8 * 60 * 60, // 8時間
-  },
-};
+function getSessionPassword(): string {
+  const secret = process.env.SYSTEM_ADMIN_SESSION_SECRET;
+
+  if (process.env.NODE_ENV === 'production') {
+    if (!secret || secret.length < 32) {
+      throw new Error(
+        'SYSTEM_ADMIN_SESSION_SECRET environment variable is required in production and must be at least 32 characters'
+      );
+    }
+    return secret;
+  }
+
+  // 開発環境ではデフォルト値を許容（警告付き）
+  if (!secret) {
+    console.warn('[WARNING] SYSTEM_ADMIN_SESSION_SECRET is not set. Using default value for development only.');
+  }
+  return secret || 'complex_password_at_least_32_characters_long_for_system_admin_dev_only';
+}
+
+/**
+ * セッション設定を取得（遅延評価でビルド時エラーを回避）
+ */
+function getSessionOptions(): SessionOptions {
+  return {
+    password: getSessionPassword(),
+    cookieName: 'system_admin_session',
+    cookieOptions: {
+      secure: process.env.NODE_ENV === 'production',
+      httpOnly: true,
+      sameSite: 'lax',
+      maxAge: 8 * 60 * 60, // 8時間
+    },
+  };
+}
 
 /**
  * セッションを取得
  */
 export async function getSystemAdminServerSession() {
-  const session = await getIronSession<SystemAdminSessionData>(await cookies(), sessionOptions);
+  const session = await getIronSession<SystemAdminSessionData>(await cookies(), getSessionOptions());
   return session;
 }
 
