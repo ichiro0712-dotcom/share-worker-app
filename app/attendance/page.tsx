@@ -11,7 +11,7 @@ type ScanStatus = 'idle' | 'scanning' | 'success' | 'error';
 type AttendanceType = 'check_in' | 'check_out';
 
 export default function AttendanceScanPage() {
-  const { user, isLoggedIn } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
   const [scanStatus, setScanStatus] = useState<ScanStatus>('idle');
   const [scanResult, setScanResult] = useState<string>('');
@@ -21,7 +21,9 @@ export default function AttendanceScanPage() {
   const [cameraPermission, setCameraPermission] = useState<'granted' | 'denied' | 'prompt'>('prompt');
 
   useEffect(() => {
-    if (!isLoggedIn) {
+    if (isLoading) return;
+
+    if (!isAuthenticated) {
       router.push('/login');
       return;
     }
@@ -38,7 +40,7 @@ export default function AttendanceScanPage() {
         scannerRef.current.stop().catch(console.error);
       }
     };
-  }, [isLoggedIn, router, isScanning]);
+  }, [isAuthenticated, isLoading, router, isScanning]);
 
   const startScanning = async () => {
     try {
@@ -162,7 +164,15 @@ export default function AttendanceScanPage() {
     }
   };
 
-  if (!isLoggedIn || !user) {
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-gray-500">読み込み中...</div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated || !user) {
     return null;
   }
 

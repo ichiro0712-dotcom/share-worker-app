@@ -4,16 +4,19 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import QRCode from 'qrcode';
-import { Printer, Download } from 'lucide-react';
 
-export default function AttendanceQRPage() {
-  const { admin, isAdminLoggedIn } = useAuth();
+export default function AttendanceQRPrintPage() {
+  const { admin, isAdmin, isAdminLoading } = useAuth();
   const router = useRouter();
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
+  const [contactQrDataUrl, setContactQrDataUrl] = useState<string>('');
   const [facilityName, setFacilityName] = useState<string>('');
+  const [showEmergencyNumber, setShowEmergencyNumber] = useState<boolean>(false);
 
   useEffect(() => {
-    if (!isAdminLoggedIn) {
+    if (isAdminLoading) return;
+
+    if (!isAdmin) {
       router.push('/admin/login');
       return;
     }
@@ -22,145 +25,311 @@ export default function AttendanceQRPage() {
       return;
     }
 
-    // 施設情報を取得（ここでは仮で施設IDを使用）
-    setFacilityName(`施設 ${admin.facilityId}`);
+    // 施設情報を取得
+    const fetchFacility = async () => {
+      try {
+        const response = await fetch(`/api/admin/facility?facilityId=${admin.facilityId}`);
+        if (response.ok) {
+          const facility = await response.json();
+          setFacilityName(facility.facility_name || `施設 ${admin.facilityId}`);
+        } else {
+          setFacilityName(`施設 ${admin.facilityId}`);
+        }
+      } catch (error) {
+        console.error('Failed to fetch facility:', error);
+        setFacilityName(`施設 ${admin.facilityId}`);
+      }
+    };
 
-    // QRコードのデータを生成
-    // 形式: attendance:{facilityId}:{timestamp}
+    fetchFacility();
+
+    // 出退勤用QRコードを生成
     const timestamp = Date.now();
     const qrData = `attendance:${admin.facilityId}:${timestamp}`;
 
-    // QRコードを生成
     QRCode.toDataURL(qrData, {
-      width: 400,
+      width: 200,
       margin: 2,
       color: {
         dark: '#000000',
         light: '#FFFFFF',
       },
     }).then(setQrDataUrl);
-  }, [admin, isAdminLoggedIn, router]);
+
+    // お問い合わせQRコードを生成
+    QRCode.toDataURL('https://s-work.netlify.app/contact', {
+      width: 100,
+      margin: 2,
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF',
+      },
+    }).then(setContactQrDataUrl);
+  }, [admin, isAdmin, isAdminLoading, router]);
 
   const handlePrint = () => {
     window.print();
   };
 
-  const handleDownload = () => {
-    const link = document.createElement('a');
-    link.href = qrDataUrl;
-    link.download = `attendance-qr-facility-${admin?.facilityId}.png`;
-    link.click();
+  const handleReissue = () => {
+    // 見た目だけの機能（将来の実装用）
+    alert('この機能は現在準備中です');
   };
 
-  if (!isAdminLoggedIn || !admin) {
+  if (isAdminLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-gray-500">読み込み中...</div>
+      </div>
+    );
+  }
+
+  if (!isAdmin || !admin) {
     return null;
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      {/* 画面表示用 */}
-      <div className="print:hidden">
-        <h1 className="text-2xl font-bold text-gray-800 mb-6">
-          出退勤QRコード
-        </h1>
+    <div className="min-h-screen bg-gray-100 print:bg-white print:min-h-0">
+      {/* 印刷可能エリア */}
+      <div id="print-area" className="print-area bg-white max-w-4xl mx-auto print:max-w-none print:m-0">
+        {/* 施設名ヘッダー + ロゴ */}
+        <div className="relative py-4 border-b-2 border-[#66cc99]">
+          {/* 右上ロゴ（印刷時のみ表示） */}
+          <div className="hidden print:block absolute top-2 right-4">
+            <span className="text-xl font-bold text-[#66cc99]">+TASTAS</span>
+          </div>
+          {/* 施設名（中央） */}
+          <h1 className="text-2xl font-bold text-[#66cc99] text-center">{facilityName}</h1>
+        </div>
 
-        <div className="bg-white rounded-xl shadow-sm p-8">
-          <div className="flex flex-col items-center">
-            <p className="text-gray-600 mb-4">
-              ワーカーはこのQRコードをスキャンして出退勤を記録します
-            </p>
+        {/* メインコンテンツ - 2カラム */}
+        <div className="grid grid-cols-2 gap-0 border-b">
+          {/* 左側: QRコード */}
+          <div className="p-6 border-r flex flex-col items-center">
+            <h2 className="text-xl font-bold text-gray-800 mb-4">出退勤QRコード</h2>
 
             {qrDataUrl && (
-              <div className="bg-white p-6 rounded-xl border-2 border-gray-200 inline-block mb-6">
+              <div className="border-4 border-[#e6b422] p-4 mb-4">
                 <img
                   src={qrDataUrl}
                   alt="出退勤QRコード"
-                  className="w-96 h-96"
+                  className="w-48 h-48"
                 />
               </div>
             )}
 
-            <div className="bg-gray-50 rounded-lg p-4 mb-6 w-full max-w-md">
-              <p className="text-sm text-gray-500 mb-1">施設名</p>
-              <p className="text-lg font-medium text-gray-800">
-                {facilityName}
-              </p>
+            <p className="text-sm text-gray-600 mb-2">
+              緊急時出退勤番号：<span className="font-bold">{showEmergencyNumber ? '----' : ''}</span>
+            </p>
+
+            {/* トグル（見た目のみ） */}
+            <div className="flex items-center gap-2 mb-4">
+              <button
+                onClick={() => setShowEmergencyNumber(!showEmergencyNumber)}
+                className={`relative w-10 h-5 rounded-full transition-colors ${
+                  showEmergencyNumber ? 'bg-[#66cc99]' : 'bg-gray-300'
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                    showEmergencyNumber ? 'translate-x-5' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
+              <span className="text-xs text-gray-600">出退勤番号を印刷する</span>
             </div>
 
-            <div className="flex gap-4">
-              <button
-                onClick={handlePrint}
-                className="flex items-center gap-2 px-6 py-3 bg-[#66cc99] hover:bg-[#55bb88] text-white font-medium rounded-lg transition-colors"
-              >
-                <Printer className="w-5 h-5" />
-                印刷する
-              </button>
-              <button
-                onClick={handleDownload}
-                className="flex items-center gap-2 px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-lg transition-colors"
-              >
-                <Download className="w-5 h-5" />
-                ダウンロード
-              </button>
+            {/* 再発行ボタン（見た目のみ） */}
+            <button
+              onClick={handleReissue}
+              className="print:hidden text-sm text-[#e6b422] border border-[#e6b422] rounded px-4 py-2 hover:bg-[#e6b422] hover:text-white transition-colors"
+            >
+              QRコードと緊急時出退勤番号を再発行
+            </button>
+          </div>
+
+          {/* 右側: 出退勤方法 */}
+          <div className="p-6 bg-[#fff8e6]">
+            <h2 className="text-lg font-bold text-gray-800 mb-4">出退勤方法（+TASTASアプリ）</h2>
+
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <span className="flex-shrink-0 w-6 h-6 bg-[#e6b422] text-white rounded-full flex items-center justify-center text-sm font-bold">1</span>
+                <div>
+                  <p className="font-bold text-gray-800">ログイン</p>
+                  <p className="text-sm text-gray-600">+TASTASアプリからログイン</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <span className="flex-shrink-0 w-6 h-6 bg-[#e6b422] text-white rounded-full flex items-center justify-center text-sm font-bold">2</span>
+                <div>
+                  <p className="font-bold text-gray-800">仕事管理画面</p>
+                  <p className="text-sm text-gray-600">画面下部のメニューから選択</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <span className="flex-shrink-0 w-6 h-6 bg-[#e6b422] text-white rounded-full flex items-center justify-center text-sm font-bold">3</span>
+                <div>
+                  <p className="font-bold text-gray-800">出勤/退勤</p>
+                  <p className="text-sm text-gray-600">画面右上の「出勤or退勤」をタップ</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <span className="flex-shrink-0 w-6 h-6 bg-[#e6b422] text-white rounded-full flex items-center justify-center text-sm font-bold">4</span>
+                <div>
+                  <p className="font-bold text-gray-800">QRコード読取</p>
+                  <p className="text-sm text-gray-600">カメラ起動後に左のQRコードを読取</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="mt-6 bg-blue-50 rounded-lg p-4">
-          <h3 className="font-bold text-blue-800 mb-2">使い方</h3>
-          <ol className="text-sm text-blue-700 space-y-1 list-decimal list-inside">
-            <li>このQRコードを印刷または保存してください</li>
-            <li>施設の受付や休憩室など、ワーカーが見やすい場所に掲示してください</li>
-            <li>ワーカーは出勤時・退勤時にスマートフォンでQRコードをスキャンします</li>
-            <li>出退勤記録は自動的に保存されます</li>
-          </ol>
+        {/* 勤怠変更申請の説明 */}
+        <div className="p-6 border-b">
+          <p className="font-bold text-gray-800 mb-1">下記の場合必ず勤怠変更申請が必要です</p>
+          <p className="text-sm text-gray-600 mb-4">退勤後に画面の案内にしたがって勤怠変更申請を提出してください</p>
+
+          <div className="grid grid-cols-2 gap-6">
+            {/* 左側: テーブル */}
+            <div>
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr>
+                    <th className="border-b-2 border-gray-300 py-2 text-left"></th>
+                    <th className="border-b-2 border-gray-300 py-2 text-center">QRコードの読み取り</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b">
+                    <td className="py-2 text-gray-700">遅刻・早退</td>
+                    <td className="py-2 text-center font-bold">必要</td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="py-2 text-gray-700">前残業・後残業・時間変更</td>
+                    <td className="py-2 text-center font-bold">必要</td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="py-2 text-gray-700">読み取りエラー</td>
+                    <td className="py-2 text-center">不要</td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="py-2 text-gray-700">携帯が利用できない</td>
+                    <td className="py-2 text-center">不要</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 text-gray-700">番号での出退勤</td>
+                    <td className="py-2 text-center">不要</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* 右側: 説明 */}
+            <div className="space-y-4 text-sm">
+              <div>
+                <p className="font-bold text-gray-800">遅刻・早退</p>
+                <p className="text-gray-600">実際に出勤or退勤された時間に読み取り</p>
+              </div>
+              <div>
+                <p className="font-bold text-gray-800">前残業・後残業・時間変更</p>
+                <p className="text-gray-600">残業後、退勤された時間で読み取り</p>
+              </div>
+              <div>
+                <p className="font-bold text-gray-800">読み取りエラー・携帯が利用できない場合</p>
+                <p className="text-gray-600">後ほど利用できる環境で勤怠変更申請を提出</p>
+              </div>
+              <div>
+                <p className="font-bold text-gray-800">読み取り忘れ</p>
+                <p className="text-gray-600">出勤時：気付いたタイミングで読み取り<br />退勤時：後ほど勤怠変更申請を提出</p>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
 
-      {/* 印刷用 */}
-      <div className="hidden print:block">
-        <div className="flex flex-col items-center justify-center min-h-screen">
-          <h1 className="text-3xl font-bold text-gray-800 mb-4">
-            出退勤QRコード
-          </h1>
-          <p className="text-xl text-gray-600 mb-8">{facilityName}</p>
-
-          {qrDataUrl && (
-            <div className="border-4 border-gray-300 p-8">
+        {/* フッター */}
+        <div className="p-6 bg-[#3a3a4a] text-white flex justify-between items-start">
+          <div>
+            <h3 className="text-lg font-bold text-[#66cc99] mb-2">+TASTASよりワーカーの皆様へ</h3>
+            <p className="text-sm mb-2">本日はご勤務くださり誠にありがとうございます</p>
+            <p className="text-sm">
+              ご不明な点がありましたら、+TASTASアプリのマイページもしくは右のQRコードから「お問い合わせ」をご覧ください
+            </p>
+          </div>
+          <div className="text-right flex-shrink-0 ml-4">
+            <p className="text-sm mb-2">お問い合わせ</p>
+            {contactQrDataUrl && (
               <img
-                src={qrDataUrl}
-                alt="出退勤QRコード"
-                className="w-[500px] h-[500px]"
+                src={contactQrDataUrl}
+                alt="お問い合わせQRコード"
+                className="w-20 h-20 bg-white p-1"
               />
-            </div>
-          )}
-
-          <div className="mt-8 text-center">
-            <p className="text-lg text-gray-700 font-medium">
-              スマートフォンでQRコードをスキャンして
-            </p>
-            <p className="text-lg text-gray-700 font-medium">
-              出退勤を記録してください
-            </p>
+            )}
           </div>
+        </div>
+
+        {/* 印刷ボタン（印刷時は非表示） */}
+        <div className="print:hidden p-6 flex justify-center bg-gray-100">
+          <button
+            onClick={handlePrint}
+            className="px-12 py-3 bg-[#3a7bbf] hover:bg-[#2a6baf] text-white font-medium rounded transition-colors"
+          >
+            印刷
+          </button>
         </div>
       </div>
 
       {/* 印刷用スタイル */}
       <style jsx global>{`
         @media print {
+          /* 印刷時は全ての要素を非表示にする */
           body * {
             visibility: hidden;
           }
-          .print\\:block * {
+
+          /* print-areaとその子要素のみ表示 */
+          #print-area,
+          #print-area * {
             visibility: visible;
           }
-          .print\\:block {
+
+          /* print-areaを印刷ページの先頭に配置 */
+          #print-area {
             position: absolute;
             left: 0;
             top: 0;
             width: 100%;
+            max-width: none;
+            margin: 0;
+            padding: 0;
+            box-shadow: none;
           }
+
+          /* 背景色を印刷 */
+          body {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+            background: white !important;
+          }
+
+          #print-area,
+          #print-area * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+
+          /* print:hidden クラスは非表示 */
+          .print\\:hidden {
+            display: none !important;
+            visibility: hidden !important;
+          }
+        }
+        @page {
+          size: A4;
+          margin: 10mm;
         }
       `}</style>
     </div>
