@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     const minWage = searchParams.get('minWage') ? parseInt(searchParams.get('minWage')!, 10) : undefined;
     const page = searchParams.get('page') ? parseInt(searchParams.get('page')!, 10) : 1;
     const dateIndex = searchParams.get('dateIndex') ? parseInt(searchParams.get('dateIndex')!, 10) : 0;
-    const sort = (searchParams.get('sort') as 'distance' | 'wage' | 'deadline') || undefined;
+    let sort = (searchParams.get('sort') as 'distance' | 'wage' | 'deadline') || undefined;
 
     // 配列パラメータ
     const serviceTypes = searchParams.getAll('serviceType');
@@ -40,19 +40,19 @@ export async function GET(request: NextRequest) {
     const distanceLat = searchParams.get('distanceLat') ? parseFloat(searchParams.get('distanceLat')!) : undefined;
     const distanceLng = searchParams.get('distanceLng') ? parseFloat(searchParams.get('distanceLng')!) : undefined;
 
-    // 距離ソート時のパラメータ検証とデフォルト値設定
+    // 距離ソート時のパラメータ検証とフォールバック
     let effectiveDistanceKm = distanceKm;
     if (sort === 'distance') {
       if (distanceLat === undefined || distanceLng === undefined) {
-        return NextResponse.json(
-          { error: '距離ソートには distanceLat と distanceLng パラメータが必要です' },
-          { status: 400 }
-        );
-      }
-      // distanceKm が未指定の場合はデフォルト50kmを使用
-      if (effectiveDistanceKm === undefined) {
-        effectiveDistanceKm = 50;
-        console.info('[API /api/jobs] distanceKm not specified for distance sort, using default 50km');
+        // 緯度経度がない場合は締切順にフォールバック（400エラーではなく）
+        console.info('[API /api/jobs] distance sort requested but lat/lng not provided, falling back to deadline sort');
+        sort = 'deadline';
+      } else {
+        // distanceKm が未指定の場合はデフォルト50kmを使用
+        if (effectiveDistanceKm === undefined) {
+          effectiveDistanceKm = 50;
+          console.info('[API /api/jobs] distanceKm not specified for distance sort, using default 50km');
+        }
       }
     }
 
