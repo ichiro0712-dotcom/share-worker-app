@@ -20,13 +20,15 @@ export default async function JobListPage() {
     const targetDate = dates[0]; // 今日
 
     // サーバーサイドで求人データを事前取得
+    // 注意: SSRでは位置情報が取得できないため、距離ソートは使用しない
+    // クライアント側で位置情報取得後に距離ソートが適用される
     const { jobs: jobsData, pagination } = await getJobsListWithPagination(
       { listType: 'all' },
       {
         page: 1,
         limit: 20,
         targetDate,
-        sort: 'distance',
+        sort: undefined, // SSRでは距離ソート不可（位置情報なし）
         currentTime,
       }
     );
