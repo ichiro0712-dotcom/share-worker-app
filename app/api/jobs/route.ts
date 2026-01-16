@@ -40,6 +40,22 @@ export async function GET(request: NextRequest) {
     const distanceLat = searchParams.get('distanceLat') ? parseFloat(searchParams.get('distanceLat')!) : undefined;
     const distanceLng = searchParams.get('distanceLng') ? parseFloat(searchParams.get('distanceLng')!) : undefined;
 
+    // 距離ソート時のパラメータ検証とデフォルト値設定
+    let effectiveDistanceKm = distanceKm;
+    if (sort === 'distance') {
+      if (distanceLat === undefined || distanceLng === undefined) {
+        return NextResponse.json(
+          { error: '距離ソートには distanceLat と distanceLng パラメータが必要です' },
+          { status: 400 }
+        );
+      }
+      // distanceKm が未指定の場合はデフォルト50kmを使用
+      if (effectiveDistanceKm === undefined) {
+        effectiveDistanceKm = 50;
+        console.info('[API /api/jobs] distanceKm not specified for distance sort, using default 50km');
+      }
+    }
+
     // 求人リストタイプ（限定求人・オファー対応）
     const listType = (searchParams.get('listType') as 'all' | 'limited' | 'offer') || 'all';
 
@@ -59,7 +75,7 @@ export async function GET(request: NextRequest) {
       workTimeTypes: workTimeTypes.length > 0 ? workTimeTypes : undefined,
       timeRangeFrom,
       timeRangeTo,
-      distanceKm,
+      distanceKm: effectiveDistanceKm,
       distanceLat,
       distanceLng,
       listType,
