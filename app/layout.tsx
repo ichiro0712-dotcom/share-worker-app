@@ -8,20 +8,20 @@ import { ErrorToastProvider } from '@/components/ui/PersistentErrorToast';
 import { DebugErrorProvider } from '@/components/debug/DebugErrorBanner';
 import { WorkerLayout } from '@/components/layout/WorkerLayout';
 
-// Viewport設定（iOS safe-area対応）
+// Viewport設定（iOS safe-area対応 + themeColor）
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
   viewportFit: 'cover', // iPhoneのノッチ/Dynamic Island対応
+  themeColor: '#6366f1', // Next.js 14+ではviewport exportに移動が必要
 };
 
 export const metadata: Metadata = {
   title: "+TASTAS - 看護師・介護士のための求人マッチング",
   description: "看護師・介護士のための求人マッチングWebサービス",
   manifest: '/manifest.json',
-  themeColor: '#6366f1',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',

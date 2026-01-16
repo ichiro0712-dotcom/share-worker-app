@@ -1,7 +1,9 @@
 import { PrismaClient } from '@prisma/client';
 
 // PrismaClient設定
-// prepared statementの問題を回避するため、datasources経由で接続設定を行う
+// Vercel Postgres (PgBouncer) 環境でのprepared statementエラー対策:
+// DATABASE_URLに ?pgbouncer=true&connection_limit=1 を追加する必要あり
+// または DIRECT_URL を使用（マイグレーション用）
 const prismaClientSingleton = () => {
   return new PrismaClient({
     log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
