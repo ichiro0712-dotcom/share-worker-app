@@ -16,7 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 | 環境 | URL | ブランチ | 用途 |
 |------|-----|----------|------|
-| 本番 | https://share-worker-app.vercel.app | main | 本番環境 |
+| 本番 | https://tastas.work | main | 本番環境 |
 | ステージング | https://stg-share-worker.vercel.app | develop | 検証環境 |
 | 開発 | http://localhost:3000 | - | ローカル開発 |
 
