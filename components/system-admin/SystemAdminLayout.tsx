@@ -107,7 +107,7 @@ export default function SystemAdminLayout({ children }: SystemAdminLayoutProps) 
         {
             title: 'システム設定',
             icon: <Settings className="w-5 h-5" />,
-            href: '/system-admin/settings',
+            href: '/system-admin/settings/system',
             active: pathname?.startsWith('/system-admin/settings'),
             divider: true,
         },
