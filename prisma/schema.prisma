@@ -1114,6 +1114,26 @@ model ErrorMessageSetting {
   @@map("error_message_settings")
 }
 
+// ========== システム設定 ==========
+
+/// システム全体の設定（キーバリュー形式）
+model SystemSetting {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique // 設定キー
+  value       String   @db.Text // 設定値（JSON形式も可）
+  description String?  // 設定の説明
+
+  created_at  DateTime @default(now()) @map("created_at")
+  updated_at  DateTime @updatedAt @map("updated_at")
+
+  /// 更新者種別 ("SYSTEM_ADMIN")
+  updated_by_type  String?  @map("updated_by_type")
+  /// 更新者ID
+  updated_by_id    Int?     @map("updated_by_id")
+
+  @@map("system_settings")
+}
+
 // ========== デバッグチェックリスト ==========
 
 /// デバッグチェック進捗（A〜Jさんの10人固定）

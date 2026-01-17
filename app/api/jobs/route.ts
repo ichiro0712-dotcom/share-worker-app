@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getJobsListWithPagination } from '@/src/lib/actions';
 import { generateDatesFromBase } from '@/utils/date';
 import { DEBUG_TIME_COOKIE_NAME, parseDebugTimeCookie, getCurrentTimeFromSettings } from '@/utils/debugTime.server';
+import { getSystemSettingBoolean, getSystemSettingNumber } from '@/src/lib/actions/systemSettings';
+import { SYSTEM_SETTING_KEYS } from '@/src/lib/constants/systemSettings';
 
 // キャッシュ設定
 export const dynamic = 'force-dynamic';
@@ -40,6 +42,14 @@ export async function GET(request: NextRequest) {
     const distanceLat = searchParams.get('distanceLat') ? parseFloat(searchParams.get('distanceLat')!) : undefined;
     const distanceLng = searchParams.get('distanceLng') ? parseFloat(searchParams.get('distanceLng')!) : undefined;
 
+    // システム設定を取得
+    const distanceSortFilterEnabled = await getSystemSettingBoolean(
+      SYSTEM_SETTING_KEYS.DISTANCE_SORT_FILTER_ENABLED
+    );
+    const defaultDistanceKm = await getSystemSettingNumber(
+      SYSTEM_SETTING_KEYS.DISTANCE_SORT_DEFAULT_KM
+    ) ?? 50;
+
     // 距離ソート時のパラメータ検証とフォールバック
     let effectiveDistanceKm = distanceKm;
     if (sort === 'distance') {
@@ -47,12 +57,16 @@ export async function GET(request: NextRequest) {
         // 緯度経度がない場合は締切順にフォールバック（400エラーではなく）
         console.info('[API /api/jobs] distance sort requested but lat/lng not provided, falling back to deadline sort');
         sort = 'deadline';
-      } else {
-        // distanceKm が未指定の場合はデフォルト50kmを使用
+      } else if (distanceSortFilterEnabled) {
+        // 距離フィルターが有効な場合のみ、distanceKm を設定
         if (effectiveDistanceKm === undefined) {
-          effectiveDistanceKm = 50;
-          console.info('[API /api/jobs] distanceKm not specified for distance sort, using default 50km');
+          effectiveDistanceKm = defaultDistanceKm;
+          console.info(`[API /api/jobs] distanceKm not specified, using system default ${defaultDistanceKm}km`);
         }
+      } else {
+        // 距離フィルターが無効な場合、distanceKm を使用しない（ソートのみ）
+        effectiveDistanceKm = undefined;
+        console.info('[API /api/jobs] distance sort filter disabled, sorting by distance without range filter');
       }
     }
 

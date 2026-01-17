@@ -29,6 +29,7 @@ const ignoredPaths = [
   '/api/debug', // デバッグ用API
   '/api/dev', // 開発用API（テストメール送信など）
   '/api/error-messages', // エラーメッセージ設定（認証不要）
+  '/api/jobs', // 求人一覧API（ログイン前でも表示が必要）
   '/rogo', // ロゴ画像
   '/images', // 画像ファイル
   '/icons', // アイコン
