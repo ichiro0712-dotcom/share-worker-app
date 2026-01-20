@@ -89,6 +89,10 @@ export default function FacilityPage() {
     serviceType: '',
   });
 
+  // 施設画像
+  const [facilityImages, setFacilityImages] = useState<File[]>([]);
+  const [existingFacilityImages, setExistingFacilityImages] = useState<string[]>([]);
+
   // 責任者情報
   const [managerInfo, setManagerInfo] = useState({
     lastName: '',
@@ -343,6 +347,10 @@ export default function FacilityPage() {
             serviceType: data.facilityType || '',
           });
 
+          // 施設画像をセット
+          setExistingFacilityImages(data.images || []);
+          setFacilityImages([]);
+
           // 責任者情報をセット
           setManagerInfo((prev) => ({
             ...prev,
@@ -544,6 +552,61 @@ export default function FacilityPage() {
         photo: file,
         photoPreview: URL.createObjectURL(file),
       });
+    }
+  };
+
+  // 施設画像アップロード処理
+  const handleFacilityImageUpload = (files: File[]) => {
+    const maxImages = 5;
+    const currentCount = existingFacilityImages.length + facilityImages.length;
+    const remainingSlots = maxImages - currentCount;
+
+    if (remainingSlots <= 0) {
+      toast.error('画像は最大5枚までです');
+      return;
+    }
+
+    const filesToAdd = files.slice(0, remainingSlots);
+    const validFiles: File[] = [];
+
+    for (const file of filesToAdd) {
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error(`「${file.name}」のサイズが大きすぎます（${formatFileSize(file.size)}）。20MB以下の画像をお使いください。`);
+        continue;
+      }
+      const result = validateFile(file, 'image');
+      if (!result.isValid) {
+        toast.error(`「${file.name}」: ${result.error}`);
+        continue;
+      }
+      validFiles.push(file);
+    }
+
+    if (validFiles.length > 0) {
+      setFacilityImages(prev => [...prev, ...validFiles]);
+    }
+
+    if (files.length > remainingSlots) {
+      toast.error(`${files.length - remainingSlots}枚の画像がスキップされました（最大5枚まで）`);
+    }
+  };
+
+  // 施設画像のアップロード処理（署名付きURL方式）
+  const uploadFacilityImage = async (file: File): Promise<string | null> => {
+    try {
+      const adminSession = localStorage.getItem('admin_session') || '';
+      const result = await directUpload(file, {
+        uploadType: 'facility',
+        adminSession,
+      });
+      if (result.success && result.url) {
+        return result.url;
+      }
+      console.error('Facility image upload failed:', result.error);
+      return null;
+    } catch (error) {
+      console.error('Facility image upload error:', error);
+      return null;
     }
   };
 
@@ -887,6 +950,29 @@ export default function FacilityPage() {
         return;
       }
 
+      // 施設画像のアップロード処理
+      let finalFacilityImages = [...existingFacilityImages];
+      if (facilityImages.length > 0) {
+        toast.loading('施設画像をアップロード中...', { id: 'facility-images-upload' });
+        for (const file of facilityImages) {
+          try {
+            const uploadedUrl = await uploadFacilityImage(file);
+            if (uploadedUrl) {
+              finalFacilityImages.push(uploadedUrl);
+            } else {
+              toast.error(`画像「${file.name}」のアップロードに失敗しました`);
+            }
+          } catch (uploadError: any) {
+            console.error('Facility image upload failed:', uploadError);
+            toast.error(`画像「${file.name}」のアップロードに失敗しました`);
+          }
+        }
+        toast.dismiss('facility-images-upload');
+        // アップロード成功後、stateを更新
+        setExistingFacilityImages(finalFacilityImages);
+        setFacilityImages([]);
+      }
+
       // 地図画像を更新するかの判定（施設住所を使用）
       const fullAddress = [
         facilityAddress.prefecture,
@@ -963,6 +1049,9 @@ export default function FacilityPage() {
         parking: accessInfo.parking,
         transportationNote: accessInfo.transportationNote,
         mapImage: mapImageUrl,
+
+        // 施設画像
+        images: finalFacilityImages,
 
         // 服装情報（画像アップロード処理が別途必要）
         dresscodeItems: dresscodeInfo.items,
@@ -1669,6 +1758,105 @@ export default function FacilityPage() {
                     />
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 施設画像 */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            <div className="bg-gray-50 px-5 py-3 border-b border-gray-200">
+              <h2 className="text-base font-bold text-gray-900">施設画像</h2>
+              <p className="text-xs text-gray-500 mt-1">※施設詳細ページに表示されます（最大5枚）</p>
+            </div>
+            <div className="p-5">
+              <div className="space-y-4">
+                {/* 既存画像の表示 */}
+                {(existingFacilityImages.length > 0 || facilityImages.length > 0) && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                    {existingFacilityImages.map((url, index) => (
+                      <div key={`existing-${index}`} className="relative aspect-video rounded-lg overflow-hidden border border-gray-200">
+                        <img
+                          src={url}
+                          alt={`施設画像 ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setExistingFacilityImages(prev => prev.filter((_, i) => i !== index));
+                          }}
+                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                    {facilityImages.map((file, index) => (
+                      <div key={`new-${index}`} className="relative aspect-video rounded-lg overflow-hidden border border-gray-200">
+                        <img
+                          src={URL.createObjectURL(file)}
+                          alt={`新規画像 ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFacilityImages(prev => prev.filter((_, i) => i !== index));
+                          }}
+                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                        <span className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-blue-500 text-white text-xs rounded">
+                          新規
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* アップロードエリア */}
+                {(existingFacilityImages.length + facilityImages.length) < 5 && (
+                  <label
+                    className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-admin-primary transition-colors"
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.currentTarget.classList.add('border-admin-primary', 'bg-admin-light');
+                    }}
+                    onDragLeave={(e) => {
+                      e.currentTarget.classList.remove('border-admin-primary', 'bg-admin-light');
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.currentTarget.classList.remove('border-admin-primary', 'bg-admin-light');
+                      const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
+                      handleFacilityImageUpload(files);
+                    }}
+                  >
+                    <div className="text-center">
+                      <Upload className="w-8 h-8 mx-auto text-gray-400 mb-2" />
+                      <span className="text-sm text-gray-500">画像を選択 または ドラッグ&ドロップ</span>
+                      <p className="text-xs text-gray-400 mt-1">20MB以下 / JPG, PNG, HEIC形式</p>
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files || []);
+                        handleFacilityImageUpload(files);
+                        e.target.value = '';
+                      }}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+
+                {existingFacilityImages.length === 0 && facilityImages.length === 0 && (
+                  <p className="text-sm text-gray-500">
+                    施設の外観や内装など、施設の雰囲気が伝わる画像をアップロードしてください。
+                  </p>
+                )}
               </div>
             </div>
           </div>

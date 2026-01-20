@@ -372,6 +372,7 @@ export async function updateFacilityBasicInfo(facilityId: number, data: any) {
                 parking: data.parking,
                 transportation_note: data.transportationNote,
                 map_image: data.mapImage,
+                images: data.images,
                 dresscode_items: data.dresscodeItems,
                 dresscode_images: data.dresscodeImages,
                 smoking_measure: data.smokingMeasure,
