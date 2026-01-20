@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
+import { getFacilityAdminSessionData } from '@/lib/admin-session-server';
 
 /**
  * 管理者用: 施設に属する全ての求人テンプレートを取得
@@ -108,6 +109,8 @@ export async function createJobTemplate(
         attachments?: string[];
     }
 ) {
+    const session = await getFacilityAdminSessionData();
+
     try {
         const template = await prisma.jobTemplate.create({
             data: {
@@ -141,6 +144,8 @@ export async function createJobTemplate(
         // ログ記録
         logActivity({
             userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
             action: 'JOB_TEMPLATE_CREATE',
             targetType: 'JobTemplate',
             targetId: template.id,
@@ -162,6 +167,8 @@ export async function createJobTemplate(
         // エラーログ記録
         logActivity({
             userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
             action: 'JOB_TEMPLATE_CREATE',
             requestData: {
                 facilityId,
@@ -207,6 +214,8 @@ export async function updateJobTemplate(
         attachments?: string[];
     }
 ) {
+    const session = await getFacilityAdminSessionData();
+
     try {
         // 権限確認
         const existingTemplate = await prisma.jobTemplate.findFirst({
@@ -255,6 +264,8 @@ export async function updateJobTemplate(
         // ログ記録
         logActivity({
             userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
             action: 'JOB_TEMPLATE_UPDATE',
             targetType: 'JobTemplate',
             targetId: templateId,
@@ -275,6 +286,8 @@ export async function updateJobTemplate(
         // エラーログ記録
         logActivity({
             userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
             action: 'JOB_TEMPLATE_UPDATE',
             targetType: 'JobTemplate',
             targetId: templateId,

@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
+import { getFacilityAdminSessionData } from '@/lib/admin-session-server';
 
 /**
  * 施設のオファーテンプレート一覧を取得
@@ -33,6 +34,7 @@ export async function createOfferTemplate(
   name: string,
   message: string
 ): Promise<{ success: boolean; error?: string }> {
+  const session = await getFacilityAdminSessionData();
   try {
     // 件数チェック
     const count = await prisma.offerTemplate.count({
@@ -65,6 +67,8 @@ export async function createOfferTemplate(
     // ログ記録
     logActivity({
       userType: 'FACILITY',
+      userId: session?.adminId,
+      userEmail: session?.email,
       action: 'OFFER_TEMPLATE_CREATE',
       targetType: 'OfferTemplate',
       targetId: template.id,
@@ -82,6 +86,8 @@ export async function createOfferTemplate(
     // エラーログ記録
     logActivity({
       userType: 'FACILITY',
+      userId: session?.adminId,
+      userEmail: session?.email,
       action: 'OFFER_TEMPLATE_CREATE',
       requestData: {
         facilityId,
@@ -105,6 +111,7 @@ export async function updateOfferTemplate(
   message: string,
   facilityId: number
 ): Promise<{ success: boolean; error?: string }> {
+  const session = await getFacilityAdminSessionData();
   try {
     // 認可チェック: 対象テンプレートが自施設のものか確認
     const existing = await prisma.offerTemplate.findUnique({
@@ -127,6 +134,8 @@ export async function updateOfferTemplate(
     // ログ記録
     logActivity({
       userType: 'FACILITY',
+      userId: session?.adminId,
+      userEmail: session?.email,
       action: 'OFFER_TEMPLATE_UPDATE',
       targetType: 'OfferTemplate',
       targetId: templateId,
@@ -144,6 +153,8 @@ export async function updateOfferTemplate(
     // エラーログ記録
     logActivity({
       userType: 'FACILITY',
+      userId: session?.adminId,
+      userEmail: session?.email,
       action: 'OFFER_TEMPLATE_UPDATE',
       targetType: 'OfferTemplate',
       targetId: templateId,
@@ -167,6 +178,7 @@ export async function deleteOfferTemplate(
   templateId: number,
   facilityId: number
 ): Promise<{ success: boolean; error?: string }> {
+  const session = await getFacilityAdminSessionData();
   try {
     // 認可チェック: 対象テンプレートが自施設のものか確認
     const existing = await prisma.offerTemplate.findUnique({
@@ -188,6 +200,8 @@ export async function deleteOfferTemplate(
     // ログ記録
     logActivity({
       userType: 'FACILITY',
+      userId: session?.adminId,
+      userEmail: session?.email,
       action: 'OFFER_TEMPLATE_DELETE',
       targetType: 'OfferTemplate',
       targetId: templateId,
@@ -204,6 +218,8 @@ export async function deleteOfferTemplate(
     // エラーログ記録
     logActivity({
       userType: 'FACILITY',
+      userId: session?.adminId,
+      userEmail: session?.email,
       action: 'OFFER_TEMPLATE_DELETE',
       targetType: 'OfferTemplate',
       targetId: templateId,

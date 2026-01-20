@@ -340,15 +340,29 @@ export async function applyForJob(jobId: string, workDateId?: number) {
     } catch (error) {
         console.error('[applyForJob] Error details:', error);
 
-        // 応募失敗をログ記録
-        logActivity({
-            userType: 'WORKER',
-            action: 'JOB_APPLY_FAILED',
-            requestData: { jobId },
-            result: 'ERROR',
-            errorMessage: getErrorMessage(error),
-            errorStack: getErrorStack(error),
-        }).catch(() => {});
+        // 応募失敗をログ記録（ユーザー情報取得を試みる）
+        getAuthenticatedUser().then(user => {
+            logActivity({
+                userType: 'WORKER',
+                userId: user.id,
+                userEmail: user.email,
+                action: 'JOB_APPLY_FAILED',
+                requestData: { jobId },
+                result: 'ERROR',
+                errorMessage: getErrorMessage(error),
+                errorStack: getErrorStack(error),
+            }).catch(() => {});
+        }).catch(() => {
+            // ユーザー情報が取得できない場合はユーザー情報なしでログ
+            logActivity({
+                userType: 'WORKER',
+                action: 'JOB_APPLY_FAILED',
+                requestData: { jobId },
+                result: 'ERROR',
+                errorMessage: getErrorMessage(error),
+                errorStack: getErrorStack(error),
+            }).catch(() => {});
+        });
 
         return { success: false, error: '応募に失敗しました。もう一度お試しください。' };
     }
@@ -826,15 +840,29 @@ export async function cancelApplicationByWorker(applicationId: number) {
     } catch (error) {
         console.error('[cancelApplicationByWorker] Error:', error);
 
-        // キャンセル失敗をログ記録
-        logActivity({
-            userType: 'WORKER',
-            action: 'JOB_CANCEL_FAILED',
-            requestData: { applicationId },
-            result: 'ERROR',
-            errorMessage: getErrorMessage(error),
-            errorStack: getErrorStack(error),
-        }).catch(() => {});
+        // キャンセル失敗をログ記録（ユーザー情報取得を試みる）
+        getAuthenticatedUser().then(user => {
+            logActivity({
+                userType: 'WORKER',
+                userId: user.id,
+                userEmail: user.email,
+                action: 'JOB_CANCEL_FAILED',
+                requestData: { applicationId },
+                result: 'ERROR',
+                errorMessage: getErrorMessage(error),
+                errorStack: getErrorStack(error),
+            }).catch(() => {});
+        }).catch(() => {
+            // ユーザー情報が取得できない場合はユーザー情報なしでログ
+            logActivity({
+                userType: 'WORKER',
+                action: 'JOB_CANCEL_FAILED',
+                requestData: { applicationId },
+                result: 'ERROR',
+                errorMessage: getErrorMessage(error),
+                errorStack: getErrorStack(error),
+            }).catch(() => {});
+        });
 
         return { success: false, error: 'キャンセルに失敗しました' };
     }

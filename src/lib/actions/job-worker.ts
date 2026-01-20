@@ -1378,8 +1378,20 @@ export async function addJobBookmark(jobId: string, type: 'FAVORITE' | 'WATCH_LA
     } catch (error) {
         console.error('[addJobBookmark] Error:', error);
 
-        // エラーログ記録
+        // エラーログ記録（userが取得できていれば使用）
+        let errorUserId: number | undefined;
+        let errorUserEmail: string | undefined;
+        try {
+            const errorUser = await getAuthenticatedUser();
+            errorUserId = errorUser.id;
+            errorUserEmail = errorUser.email || undefined;
+        } catch {
+            // ユーザー取得失敗は無視
+        }
+
         logActivity({
+            userId: errorUserId,
+            userEmail: errorUserEmail,
             userType: 'WORKER',
             action: 'BOOKMARK_CREATE',
             requestData: {
@@ -1445,8 +1457,20 @@ export async function removeJobBookmark(jobId: string, type: 'FAVORITE' | 'WATCH
     } catch (error) {
         console.error('[removeJobBookmark] Error:', error);
 
-        // エラーログ記録
+        // エラーログ記録（userが取得できていれば使用）
+        let errorUserId: number | undefined;
+        let errorUserEmail: string | undefined;
+        try {
+            const errorUser = await getAuthenticatedUser();
+            errorUserId = errorUser.id;
+            errorUserEmail = errorUser.email || undefined;
+        } catch {
+            // ユーザー取得失敗は無視
+        }
+
         logActivity({
+            userId: errorUserId,
+            userEmail: errorUserEmail,
             userType: 'WORKER',
             action: 'BOOKMARK_DELETE',
             requestData: {
