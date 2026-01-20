@@ -1445,34 +1445,44 @@ export default function FacilityPage() {
                   <span className="text-xs text-gray-500 font-normal ml-2">※求人情報・地図表示に使用されます</span>
                 </h3>
 
-                {/* 法人住所と同じチェックボックス */}
+                {/* 法人住所と同じチェックボックス ID-16修正 */}
                 <div className="mb-3">
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={facilityAddress.sameAsCorp}
-                      onChange={(e) => {
-                        const checked = e.target.checked;
-                        if (checked) {
-                          // 法人住所をコピー
-                          setFacilityAddress({
-                            postalCode: corporateInfo.corpPostalCode,
-                            prefecture: corporateInfo.corpPrefecture,
-                            city: corporateInfo.corpCity,
-                            addressLine: corporateInfo.corpAddressLine,
-                            sameAsCorp: true,
-                          });
-                        } else {
-                          setFacilityAddress(prev => ({
-                            ...prev,
-                            sameAsCorp: false,
-                          }));
-                        }
-                      }}
-                      className="rounded border-gray-300 text-admin-primary focus:ring-admin-primary"
-                    />
-                    <span className="text-sm text-gray-700">法人住所と同じ</span>
-                  </label>
+                  {(() => {
+                    // 法人住所が完全に入力されているかチェック
+                    const isCorpAddressComplete = corporateInfo.corpPrefecture && corporateInfo.corpCity && corporateInfo.corpAddressLine;
+                    return (
+                      <label className={`flex items-center gap-2 ${!isCorpAddressComplete ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                        <input
+                          type="checkbox"
+                          checked={facilityAddress.sameAsCorp}
+                          disabled={!isCorpAddressComplete}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            if (checked) {
+                              // 法人住所をコピー
+                              setFacilityAddress({
+                                postalCode: corporateInfo.corpPostalCode,
+                                prefecture: corporateInfo.corpPrefecture,
+                                city: corporateInfo.corpCity,
+                                addressLine: corporateInfo.corpAddressLine,
+                                sameAsCorp: true,
+                              });
+                            } else {
+                              setFacilityAddress(prev => ({
+                                ...prev,
+                                sameAsCorp: false,
+                              }));
+                            }
+                          }}
+                          className="rounded border-gray-300 text-admin-primary focus:ring-admin-primary disabled:opacity-50"
+                        />
+                        <span className="text-sm text-gray-700">法人住所と同じ</span>
+                        {!isCorpAddressComplete && (
+                          <span className="text-xs text-amber-600">（法人住所を先に入力してください）</span>
+                        )}
+                      </label>
+                    );
+                  })()}
                 </div>
 
                 {!facilityAddress.sameAsCorp && (
