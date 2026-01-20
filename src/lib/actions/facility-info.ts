@@ -248,7 +248,7 @@ export async function getFacilityInfo(facilityId: number) {
         staffPhone: facility.staff_phone,
         staffEmail: facility.staff_email,
         staffEmails: facility.staff_emails,
-        staffPhoto: facility.staff_photo,
+        staffPhoto: null, // 担当者顔写真は廃止（ID-13）
         staffGreeting: facility.staff_greeting,
         emergencyContact: facility.emergency_contact,
         stations: facility.stations as { name: string; minutes: number }[] | null,
@@ -363,7 +363,7 @@ export async function updateFacilityBasicInfo(facilityId: number, data: any) {
                 staff_phone: data.staffPhone,
                 staff_email: data.staffEmail,
                 staff_emails: data.staffEmails,
-                staff_photo: data.staffPhoto,
+                // staff_photo は廃止（ID-13）
                 staff_greeting: data.staffGreeting,
                 emergency_contact: data.emergencyContact,
                 stations: data.stations,
