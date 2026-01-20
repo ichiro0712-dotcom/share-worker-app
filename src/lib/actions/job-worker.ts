@@ -1137,7 +1137,8 @@ export async function getJobsListWithPagination(
             .map((job) => {
                 const facilityLat = job.facility.lat;
                 const facilityLng = job.facility.lng;
-                if (facilityLat === null || facilityLng === null) {
+                // null または デフォルト値(0,0) の場合は無効な座標として扱う
+                if (facilityLat === null || facilityLng === null || (facilityLat === 0 && facilityLng === 0)) {
                     return { ...job, _distance: Infinity };
                 }
                 const distance = calculateDistanceKm(
@@ -1158,7 +1159,8 @@ export async function getJobsListWithPagination(
             filteredJobsWithDistance = filteredJobsWithDistance.map((job) => {
                 const facilityLat = job.facility.lat;
                 const facilityLng = job.facility.lng;
-                if (facilityLat === null || facilityLng === null) {
+                // null または デフォルト値(0,0) の場合は無効な座標として扱う
+                if (facilityLat === null || facilityLng === null || (facilityLat === 0 && facilityLng === 0)) {
                     return { ...job, _distance: Infinity };
                 }
                 const distance = calculateDistanceKm(
