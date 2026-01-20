@@ -251,7 +251,7 @@ export async function getFacilityInfo(facilityId: number) {
         staffPhoto: null, // 担当者顔写真は廃止（ID-13）
         staffGreeting: facility.staff_greeting,
         emergencyContact: facility.emergency_contact,
-        stations: facility.stations as { name: string; minutes: number }[] | null,
+        stations: null, // 最寄駅は廃止（ID-12）
         accessDescription: facility.access_description,
         transportation: facility.transportation,
         parking: facility.parking,
@@ -366,7 +366,7 @@ export async function updateFacilityBasicInfo(facilityId: number, data: any) {
                 // staff_photo は廃止（ID-13）
                 staff_greeting: data.staffGreeting,
                 emergency_contact: data.emergencyContact,
-                stations: data.stations,
+                // stations は廃止（ID-12）
                 access_description: data.accessDescription,
                 transportation: data.transportation,
                 parking: data.parking,
