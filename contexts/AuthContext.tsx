@@ -3,6 +3,7 @@
 import { createContext, useContext, ReactNode, useState, useEffect, useCallback } from 'react';
 import { SessionProvider, useSession, signIn, signOut } from 'next-auth/react';
 import { Session } from 'next-auth';
+import { mutate } from 'swr';
 import { FacilityAdmin } from '@/types/admin';
 import { authenticateFacilityAdmin, logoutFacilityAdmin } from '@/src/lib/actions';
 import {
@@ -197,6 +198,14 @@ function AuthContextProvider({ children }: { children: ReactNode }) {
     // クライアント側の状態をクリア
     setAdmin(null);
     clearAdminSession();
+
+    // SWRキャッシュをすべてクリア（施設切り替え時の古いデータ残存を防止）
+    // ID-93: 新規施設登録後にメッセージが残る問題の修正
+    await mutate(
+      () => true, // すべてのキーにマッチ
+      undefined,  // データをundefinedに設定
+      { revalidate: false } // 再取得しない
+    );
 
     // サーバー側のセッションもクリア（エラーは無視）
     try {
