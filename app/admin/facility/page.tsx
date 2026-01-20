@@ -127,11 +127,8 @@ export default function FacilityPage() {
     '髪型自由', '髪色自由', 'ネイルOK', 'ピアスOK', '髭OK', 'タトゥーOK（隠せる範囲）',
   ];
 
-  // アクセス情報
+  // アクセス情報（ID-12: 最寄駅フィールド削除）
   const [accessInfo, setAccessInfo] = useState({
-    stations: [
-      { name: '', minutes: 0 },
-    ] as { name: string; minutes: number }[],
     accessDescription: '',
     transportation: [] as string[],
     parking: '',
@@ -293,7 +290,6 @@ export default function FacilityPage() {
             });
             // アクセス情報のデフォルト値を空にリセット
             setAccessInfo({
-              stations: [{ name: '', minutes: 0 }],
               accessDescription: '',
               transportation: [],
               parking: '',
@@ -384,11 +380,8 @@ export default function FacilityPage() {
             emergencyContact: data.emergencyContact || '',
           });
 
-          // アクセス情報をセット
+          // アクセス情報をセット（ID-12: 最寄駅フィールド削除）
           setAccessInfo({
-            stations: data.stations && data.stations.length > 0
-              ? data.stations
-              : [{ name: '', minutes: 0 }],
             accessDescription: data.accessDescription || '',
             transportation: data.transportation || [],
             parking: data.parking || '',
@@ -695,32 +688,7 @@ export default function FacilityPage() {
     }
   };
 
-  const addStation = () => {
-    if (accessInfo.stations.length < 3) {
-      setAccessInfo({
-        ...accessInfo,
-        stations: [...accessInfo.stations, { name: '', minutes: 0 }],
-      });
-    }
-  };
-
-  const updateStation = (index: number, field: 'name' | 'minutes', value: string | number) => {
-    const newStations = [...accessInfo.stations];
-    newStations[index] = { ...newStations[index], [field]: value };
-    setAccessInfo({
-      ...accessInfo,
-      stations: newStations,
-    });
-  };
-
-  const removeStation = (index: number) => {
-    if (accessInfo.stations.length > 1) {
-      setAccessInfo({
-        ...accessInfo,
-        stations: accessInfo.stations.filter((_, i) => i !== index),
-      });
-    }
-  };
+  // ID-12: addStation, updateStation, removeStation関数を削除
 
   const previewWelcomeMessage = () => {
     return welcomeMessage.text
@@ -774,8 +742,7 @@ export default function FacilityPage() {
     }
 
     // アクセス
-    const validStations = accessInfo.stations.filter(s => s.name?.trim() && (s.minutes || s.minutes === 0));
-    if (validStations.length === 0) errors.push('最寄駅は少なくとも1つ入力してください（駅名と所要時間）');
+    // ID-12: 最寄駅バリデーション削除
 
     if (!accessInfo.accessDescription?.trim()) errors.push('アクセスの説明は必須です');
     if (accessInfo.accessDescription && accessInfo.accessDescription.length > 40) errors.push('アクセスの説明は40文字以内で入力してください');
@@ -920,8 +887,7 @@ export default function FacilityPage() {
         staffGreeting: staffInfo.greeting,
         emergencyContact: staffInfo.emergencyContact,
 
-        // アクセス情報
-        stations: accessInfo.stations,
+        // アクセス情報（ID-12: 最寄駅フィールド削除）
         accessDescription: accessInfo.accessDescription,
         transportation: accessInfo.transportation,
         parking: accessInfo.parking,
@@ -1778,54 +1744,7 @@ export default function FacilityPage() {
               <p className="text-xs text-gray-500 mt-1">※求人詳細ページに表示されます</p>
             </div>
             <div className="p-5 space-y-3">
-              {/* 最寄駅 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  最寄駅 <span className="text-red-500">*</span> <span className="text-gray-500 text-xs">(最大3つまで / 分も必須)</span>
-                </label>
-                <div className="space-y-2">
-                  {accessInfo.stations.map((station, index) => (
-                    <div key={index} className="flex gap-2 items-center">
-                      <input
-                        type="text"
-                        value={station.name}
-                        onChange={(e) => updateStation(index, 'name', e.target.value)}
-                        placeholder="駅名を入力"
-                        className={`flex-1 max-w-xs px-2 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent ${showErrors && index === 0 && !station.name?.trim() ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
-                      />
-                      <span className="text-sm text-gray-600">から</span>
-                      <input
-                        type="number"
-                        value={station.minutes || ''}
-                        onChange={(e) => updateStation(index, 'minutes', parseInt(e.target.value) || 0)}
-                        placeholder="0"
-                        min="0"
-                        className={`w-20 px-2 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent ${showErrors && index === 0 && (!station.minutes && station.minutes !== 0) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
-                      />
-                      <span className="text-sm text-gray-600">分</span>
-                      {accessInfo.stations.length > 1 && (
-                        <button
-                          onClick={() => removeStation(index)}
-                          className="px-2 py-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  {showErrors && !accessInfo.stations.some(s => s.name?.trim() && (s.minutes || s.minutes === 0)) && (
-                    <p className="text-red-500 text-xs">最寄駅を少なくとも1つ入力してください（駅名と所要時間）</p>
-                  )}
-                  {accessInfo.stations.length < 3 && (
-                    <button
-                      onClick={addStation}
-                      className="text-sm text-admin-primary hover:text-admin-primary-dark"
-                    >
-                      + 駅を追加
-                    </button>
-                  )}
-                </div>
-              </div>
+              {/* ID-12: 最寄駅フィールド削除 */}
 
               {/* アクセス説明 */}
               <div>
