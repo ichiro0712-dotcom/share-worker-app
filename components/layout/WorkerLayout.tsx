@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import { BottomNav } from './BottomNav';
+import { WorkerNotificationPrompt } from '@/components/pwa/WorkerNotificationPrompt';
 
 interface WorkerLayoutProps {
   children: React.ReactNode;
@@ -44,6 +45,8 @@ export function WorkerLayout({ children }: WorkerLayoutProps) {
         {children}
       </div>
       <BottomNav />
+      {/* プッシュ通知許可プロンプト（ログイン済みワーカーのみ） */}
+      <WorkerNotificationPrompt />
     </>
   );
 }
