@@ -433,7 +433,7 @@ export async function getFacilityInterviewPassRate(
                 lte: endDate,
             },
             status: {
-                in: ['SCHEDULED', 'WORKING', 'COMPLETED_UNRATED', 'COMPLETED_RATED'],
+                in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'],
             },
         },
         _count: {
