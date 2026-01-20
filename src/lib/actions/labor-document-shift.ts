@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { getAuthenticatedUser } from './helpers';
 import { sendNotification } from '../notification-service';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
+import { getFacilityAdminSessionData } from '@/lib/admin-session-server';
 
 /**
  * 労働条件通知書データを取得
@@ -413,6 +414,8 @@ export async function getShiftsForFacility(
 export async function cancelShift(applicationId: number): Promise<{ success: boolean; error?: string }> {
     'use server';
 
+    const session = await getFacilityAdminSessionData();
+
     try {
         const application = await prisma.application.findUnique({
             where: { id: applicationId },
@@ -475,6 +478,8 @@ export async function cancelShift(applicationId: number): Promise<{ success: boo
         // ログ記録
         logActivity({
             userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
             action: 'FACILITY_CANCEL',
             targetType: 'Application',
             targetId: applicationId,
@@ -494,6 +499,8 @@ export async function cancelShift(applicationId: number): Promise<{ success: boo
         // エラーログ記録
         logActivity({
             userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
             action: 'FACILITY_CANCEL',
             targetType: 'Application',
             targetId: applicationId,

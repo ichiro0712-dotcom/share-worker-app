@@ -8,6 +8,7 @@ import { sendNearbyJobNotifications } from '../notification-service';
 import { CreateJobInput } from './helpers';
 import { sendFavoriteNewJobNotification } from './notification';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
+import { getFacilityAdminSessionData } from '@/lib/admin-session-server';
 
 /**
  * ローカル用の日付フォーマット関数 (M/D形式)
@@ -304,6 +305,9 @@ export async function getAdminJobsList(facilityId: number) {
 export async function createJobs(input: CreateJobInput) {
     console.log('[createJobs] Input:', JSON.stringify(input, null, 2));
 
+    // セッションからユーザー情報を取得
+    const session = await getFacilityAdminSessionData();
+
     const facility = await prisma.facility.findUnique({
         where: { id: input.facilityId },
     });
@@ -595,6 +599,8 @@ export async function createJobs(input: CreateJobInput) {
     // 求人作成をログ記録
     logActivity({
         userType: 'FACILITY',
+        userId: session?.adminId,
+        userEmail: session?.email,
         action: 'JOB_CREATE',
         targetType: 'Job',
         targetId: job.id,
@@ -617,6 +623,9 @@ export async function createJobs(input: CreateJobInput) {
  * 求人を削除
  */
 export async function deleteJobs(jobIds: number[], facilityId: number): Promise<{ success: boolean; message: string; deletedCount?: number }> {
+    // セッションからユーザー情報を取得
+    const session = await getFacilityAdminSessionData();
+
     try {
         // オファー求人の場合はワーカーへ通知が必要なので、詳細情報も取得
         const jobsToDelete = await prisma.job.findMany({
@@ -685,6 +694,8 @@ export async function deleteJobs(jobIds: number[], facilityId: number): Promise<
         // 求人削除をログ記録
         logActivity({
             userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
             action: 'JOB_DELETE',
             requestData: {
                 facilityId,
@@ -704,6 +715,8 @@ export async function deleteJobs(jobIds: number[], facilityId: number): Promise<
 
         logActivity({
             userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
             action: 'JOB_DELETE',
             requestData: { facilityId, jobIds },
             result: 'ERROR',
@@ -723,6 +736,9 @@ export async function updateJobsStatus(
     facilityId: number,
     status: 'PUBLISHED' | 'STOPPED'
 ): Promise<{ success: boolean; message: string; updatedCount?: number }> {
+    // セッションからユーザー情報を取得
+    const session = await getFacilityAdminSessionData();
+
     try {
         // オファー求人の場合は詳細情報も取得（停止時に通知が必要）
         const jobsToUpdate = await prisma.job.findMany({
@@ -798,6 +814,8 @@ export async function updateJobsStatus(
         const action = status === 'PUBLISHED' ? 'JOB_PUBLISH' : 'JOB_STOP';
         logActivity({
             userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
             action,
             requestData: {
                 facilityId,
@@ -818,6 +836,8 @@ export async function updateJobsStatus(
 
         logActivity({
             userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
             action: status === 'PUBLISHED' ? 'JOB_PUBLISH' : 'JOB_STOP',
             requestData: { facilityId, jobIds, status },
             result: 'ERROR',
@@ -867,6 +887,9 @@ export async function updateJob(
         recruitmentEndTime?: string;
     }
 ): Promise<{ success: boolean; error?: string }> {
+    // セッションからユーザー情報を取得
+    const session = await getFacilityAdminSessionData();
+
     try {
         const existingJob = await prisma.job.findFirst({
             where: { id: jobId, facility_id: facilityId },
@@ -1058,6 +1081,8 @@ export async function updateJob(
         // 求人更新をログ記録
         logActivity({
             userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
             action: 'JOB_UPDATE',
             targetType: 'Job',
             targetId: jobId,
@@ -1078,6 +1103,8 @@ export async function updateJob(
 
         logActivity({
             userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
             action: 'JOB_UPDATE',
             targetType: 'Job',
             targetId: jobId,

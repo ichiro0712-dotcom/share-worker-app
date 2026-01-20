@@ -8,6 +8,7 @@ import { revalidatePath } from 'next/cache';
 
 import { sendMessageNotificationToWorker, sendMessageNotificationToFacility } from './notification';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
+import { getFacilityAdminSessionData } from '@/lib/admin-session-server';
 
 export async function getConversations() {
   try {
@@ -265,8 +266,20 @@ export async function sendMessage(applicationId: number, content: string) {
     console.error('[sendMessage] Error:', error);
 
     // メッセージ送信失敗をログ記録
+    // エラー時もユーザー情報を取得してログに含める
+    let failedUserId: number | undefined;
+    let failedUserEmail: string | undefined;
+    try {
+      const failedUser = await getAuthenticatedUser();
+      failedUserId = failedUser.id;
+      failedUserEmail = failedUser.email;
+    } catch {
+      // ユーザー取得失敗は無視
+    }
     logActivity({
       userType: 'WORKER',
+      userId: failedUserId,
+      userEmail: failedUserEmail,
       action: 'MESSAGE_SEND_FAILED',
       requestData: { applicationId },
       result: 'ERROR',
@@ -542,8 +555,12 @@ export async function sendFacilityMessage(
     revalidatePath('/admin/messages');
 
     // 施設からのメッセージ送信成功をログ記録
+    // 施設管理者セッション情報を取得
+    const facilitySession = await getFacilityAdminSessionData();
     logActivity({
       userType: 'FACILITY',
+      userId: facilitySession?.adminId,
+      userEmail: facilitySession?.email,
       action: 'MESSAGE_SEND',
       targetType: 'Message',
       targetId: message.id,
@@ -573,8 +590,20 @@ export async function sendFacilityMessage(
     console.error('[sendFacilityMessage] Error:', error);
 
     // 施設からのメッセージ送信失敗をログ記録
+    // エラー時も施設管理者セッション情報を取得してログに含める
+    let failedAdminId: number | undefined;
+    let failedAdminEmail: string | undefined;
+    try {
+      const failedSession = await getFacilityAdminSessionData();
+      failedAdminId = failedSession?.adminId;
+      failedAdminEmail = failedSession?.email;
+    } catch {
+      // セッション取得失敗は無視
+    }
     logActivity({
       userType: 'FACILITY',
+      userId: failedAdminId,
+      userEmail: failedAdminEmail,
       action: 'MESSAGE_SEND_FAILED',
       requestData: { applicationId, facilityId },
       result: 'ERROR',

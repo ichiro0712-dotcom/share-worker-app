@@ -16,6 +16,7 @@ import { getAuthenticatedUser } from './helpers';
 import { updateApplicationStatuses } from '../status-updater';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 import { normalizeToJSTDayStart } from '@/utils/debugTime.server';
+import { getFacilityAdminSessionData } from '@/lib/admin-session-server';
 
 /**
  * 施設管理用: 施設に届いた応募一覧を取得
@@ -104,6 +105,7 @@ export async function updateApplicationStatus(
     newStatus: 'APPLIED' | 'SCHEDULED' | 'WORKING' | 'CANCELLED' | 'COMPLETED_PENDING',
     facilityId: number
 ) {
+    const session = await getFacilityAdminSessionData();
     try {
         console.log('[updateApplicationStatus] Updating application:', applicationId, 'to:', newStatus);
 
@@ -367,6 +369,8 @@ export async function updateApplicationStatus(
 
         logActivity({
             userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
             action,
             targetType: 'Application',
             targetId: applicationId,
@@ -389,6 +393,8 @@ export async function updateApplicationStatus(
 
         logActivity({
             userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
             action: 'APPLICATION_APPROVE',
             targetType: 'Application',
             targetId: applicationId,
