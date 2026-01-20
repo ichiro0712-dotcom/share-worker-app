@@ -10,8 +10,47 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' },
+        autoLoginToken: { label: 'Auto Login Token', type: 'text' },
       },
       async authorize(credentials) {
+        // 自動ログインモード（メール認証後）
+        if (credentials?.autoLoginToken && credentials?.email) {
+          const user = await prisma.user.findUnique({
+            where: { email: credentials.email },
+          });
+
+          if (!user) {
+            throw new Error('ユーザーが見つかりません');
+          }
+
+          // 自動ログイントークンの検証
+          if (
+            user.auto_login_token !== credentials.autoLoginToken ||
+            !user.auto_login_token_expires ||
+            user.auto_login_token_expires < new Date()
+          ) {
+            throw new Error('自動ログイントークンが無効または期限切れです');
+          }
+
+          // トークンを無効化（一度だけ使用可能）
+          await prisma.user.update({
+            where: { id: user.id },
+            data: {
+              auto_login_token: null,
+              auto_login_token_expires: null,
+            },
+          });
+
+          console.log('[AUTH] Auto login successful for user:', user.id);
+          return {
+            id: String(user.id),
+            email: user.email,
+            name: user.name,
+            image: user.profile_image,
+          };
+        }
+
+        // 通常ログインモード
         if (!credentials?.email || !credentials?.password) {
           throw new Error('メールアドレスとパスワードを入力してください');
         }
