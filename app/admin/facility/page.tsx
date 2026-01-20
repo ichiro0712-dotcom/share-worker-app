@@ -911,6 +911,11 @@ export default function FacilityPage() {
       if (result.success) {
         toast.success('保存しました');
 
+        // ジオコーディング失敗時の警告表示（Issue #173）
+        if (result.warning) {
+          toast.error(result.warning, { duration: 5000 });
+        }
+
         // 新しい住所を「元の住所」として保存（次回の変更検知用）
         setOriginalAddress(fullAddress);
 
