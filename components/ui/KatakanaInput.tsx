@@ -20,10 +20,13 @@ interface KatakanaInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>,
  * 2. onBlur時にも変換を適用（ライブ変換の取りこぼし対策）
  * 3. useEffectで外部値との同期（レンダリング中の状態更新を回避）
  * 4. 変換後の値が同じ場合はonChangeを呼ばない（無限ループ防止）
+ * 5. compositionEnd直後のchangeイベントをスキップ（ID-94: 文字重複問題の修正）
  */
 export function KatakanaInput({ value, onChange, onBlur, ...props }: KatakanaInputProps) {
   // IME入力中かどうかを追跡
   const isComposingRef = useRef(false);
+  // compositionEnd直後かどうか（changeイベントスキップ用）
+  const justComposedRef = useRef(false);
   // ローカルの入力値（IME入力中は変換せずに保持）
   const [localValue, setLocalValue] = useState(value);
   // 最後にonChangeに渡した値（重複呼び出し防止）
@@ -39,10 +42,13 @@ export function KatakanaInput({ value, onChange, onBlur, ...props }: KatakanaInp
 
   const handleCompositionStart = useCallback(() => {
     isComposingRef.current = true;
+    justComposedRef.current = false;
   }, []);
 
   const handleCompositionEnd = useCallback((e: React.CompositionEvent<HTMLInputElement>) => {
     isComposingRef.current = false;
+    justComposedRef.current = true;
+
     // IME入力確定時にカタカナ変換を適用
     const rawValue = e.currentTarget.value;
     const convertedValue = formatKatakana(rawValue);
@@ -53,9 +59,20 @@ export function KatakanaInput({ value, onChange, onBlur, ...props }: KatakanaInp
       lastNotifiedValueRef.current = convertedValue;
       onChange(convertedValue);
     }
+
+    // 次のchangeイベントをスキップするためのフラグをリセット（非同期）
+    // Chromeなどではcompositionend後にchangeが発火するため
+    requestAnimationFrame(() => {
+      justComposedRef.current = false;
+    });
   }, [onChange]);
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    // compositionEnd直後のchangeイベントはスキップ（重複防止）
+    if (justComposedRef.current) {
+      return;
+    }
+
     const newValue = e.target.value;
 
     if (isComposingRef.current) {
@@ -113,6 +130,8 @@ export function KatakanaInput({ value, onChange, onBlur, ...props }: KatakanaInp
  */
 export function KatakanaWithSpaceInput({ value, onChange, onBlur, ...props }: KatakanaInputProps) {
   const isComposingRef = useRef(false);
+  // compositionEnd直後かどうか（changeイベントスキップ用）
+  const justComposedRef = useRef(false);
   const [localValue, setLocalValue] = useState(value);
   const lastNotifiedValueRef = useRef(value);
 
@@ -126,10 +145,13 @@ export function KatakanaWithSpaceInput({ value, onChange, onBlur, ...props }: Ka
 
   const handleCompositionStart = useCallback(() => {
     isComposingRef.current = true;
+    justComposedRef.current = false;
   }, []);
 
   const handleCompositionEnd = useCallback((e: React.CompositionEvent<HTMLInputElement>) => {
     isComposingRef.current = false;
+    justComposedRef.current = true;
+
     const rawValue = e.currentTarget.value;
     const convertedValue = formatKatakanaWithSpace(rawValue);
     setLocalValue(convertedValue);
@@ -138,9 +160,19 @@ export function KatakanaWithSpaceInput({ value, onChange, onBlur, ...props }: Ka
       lastNotifiedValueRef.current = convertedValue;
       onChange(convertedValue);
     }
+
+    // 次のchangeイベントをスキップするためのフラグをリセット（非同期）
+    requestAnimationFrame(() => {
+      justComposedRef.current = false;
+    });
   }, [onChange]);
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    // compositionEnd直後のchangeイベントはスキップ（重複防止）
+    if (justComposedRef.current) {
+      return;
+    }
+
     const newValue = e.target.value;
 
     if (isComposingRef.current) {
