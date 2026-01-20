@@ -5,6 +5,7 @@ import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache';
 import { getAuthenticatedUser } from './helpers';
 import { uploadFile, STORAGE_BUCKETS } from '@/lib/supabase';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
+import { geocodeAddress } from '@/src/lib/geocoding';
 
 /**
  * 施設IDから施設情報を取得
@@ -330,6 +331,31 @@ export async function getFacilityStaffName(facilityId: number) {
  */
 export async function updateFacilityBasicInfo(facilityId: number, data: any) {
     try {
+        // 現在の施設データを取得（住所比較用）
+        const currentFacility = await prisma.facility.findUnique({
+            where: { id: facilityId },
+            select: { prefecture: true, city: true, address_line: true }
+        });
+
+        // 住所が変更された場合、座標を再計算（Issue #173）
+        let lat: number | undefined;
+        let lng: number | undefined;
+        let geocodeWarning: string | undefined;
+
+        const oldAddress = `${currentFacility?.prefecture || ''}${currentFacility?.city || ''}${currentFacility?.address_line || ''}`;
+        const newAddress = `${data.prefecture || ''}${data.city || ''}${data.addressLine || ''}`;
+
+        if (oldAddress !== newAddress && newAddress.trim() !== '') {
+            const location = await geocodeAddress(newAddress);
+            if (location) {
+                lat = location.lat;
+                lng = location.lng;
+            } else {
+                // ジオコーディング失敗時の警告メッセージ
+                geocodeWarning = '住所から座標を取得できませんでした。距離検索に表示されない可能性があります。';
+            }
+        }
+
         await prisma.facility.update({
             where: { id: facilityId },
             data: {
@@ -378,6 +404,8 @@ export async function updateFacilityBasicInfo(facilityId: number, data: any) {
                 smoking_measure: data.smokingMeasure,
                 work_in_smoking_area: data.workInSmokingArea,
                 is_pending: false,
+                // 座標更新（住所変更時のみ）Issue #173
+                ...(lat !== undefined && lng !== undefined ? { lat, lng } : {}),
             },
         });
         revalidateTag(`facility-${facilityId}`);
@@ -395,7 +423,7 @@ export async function updateFacilityBasicInfo(facilityId: number, data: any) {
             result: 'SUCCESS',
         }).catch(() => {});
 
-        return { success: true, isPendingCleared: true };
+        return { success: true, isPendingCleared: true, warning: geocodeWarning };
     } catch (error) {
         // エラーログ記録
         logActivity({
