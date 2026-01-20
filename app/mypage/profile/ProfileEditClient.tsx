@@ -1290,9 +1290,9 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
           />
         </section>
 
-        {/* 7. 銀行口座情報 */}
+        {/* 7. 銀行口座情報・身分証明書 (ID-5: 身分証明書を必須セクションに移動) */}
         <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <h2 className="text-lg font-bold mb-4 pb-3 border-b">7. 銀行口座情報 <span className="text-red-500">*</span></h2>
+          <h2 className="text-lg font-bold mb-4 pb-3 border-b">7. 銀行口座情報・身分証明書 <span className="text-red-500">*</span></h2>
 
           <div className="space-y-4">
             {/* 銀行検索UI */}
@@ -1434,25 +1434,8 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 )}
               </div>
             </div>
-          </div>
-        </section>
 
-        {/* 8. その他 */}
-        <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <h2 className="text-lg font-bold mb-4 pb-3 border-b">8. その他（任意）</h2>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">年金番号</label>
-              <input
-                type="text"
-                value={formData.pensionNumber}
-                onChange={(e) => setFormData({ ...formData, pensionNumber: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                placeholder="1234-567890"
-              />
-            </div>
-
+            {/* 身分証明書 - ID-5: 必須セクション内に移動 */}
             <div>
               <label className="block text-sm font-medium mb-2">身分証明書アップロード <span className="text-red-500">*</span></label>
               {idDocument ? (
@@ -1494,6 +1477,24 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 </div>
               )}
               <p className="text-xs text-gray-500 mt-2">運転免許証、マイナンバーカードなど</p>
+            </div>
+          </div>
+        </section>
+
+        {/* 8. その他（任意） - ID-5: 身分証明書を上のセクションに移動したため、年金番号のみ */}
+        <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
+          <h2 className="text-lg font-bold mb-4 pb-3 border-b">8. その他（任意）</h2>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">年金番号</label>
+              <input
+                type="text"
+                value={formData.pensionNumber}
+                onChange={(e) => setFormData({ ...formData, pensionNumber: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                placeholder="1234-567890"
+              />
             </div>
           </div>
         </section>
