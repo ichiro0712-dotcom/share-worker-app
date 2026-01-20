@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/tag';
 import { formatDateTime, getDeadlineText, isDeadlineUrgent } from '@/utils/date';
-import { applyForJobMultipleDates, acceptOffer, addJobBookmark, removeJobBookmark, isJobBookmarked, toggleFacilityFavorite, isFacilityFavorited, getUserSelfPR, updateUserSelfPR } from '@/src/lib/actions';
+import { applyForJobMultipleDates, acceptOffer, addJobBookmark, removeJobBookmark, isJobBookmarked, toggleFacilityFavorite, isFacilityFavorited, getUserSelfPR, updateUserSelfPR, getFacilityInterviewPassRate } from '@/src/lib/actions';
 import { useBadge } from '@/contexts/BadgeContext';
 import toast from 'react-hot-toast';
 import { useErrorToast } from '@/components/ui/PersistentErrorToast';
@@ -26,6 +26,13 @@ interface ScheduledJob {
   workDateId: number;
 }
 
+interface InterviewPassRateData {
+  passRate: number | null;
+  appliedCount: number;
+  matchedCount: number;
+  period: string;
+}
+
 interface JobDetailClientProps {
   job: any;
   facility: any;
@@ -37,6 +44,7 @@ interface JobDetailClientProps {
   isPreviewMode?: boolean;
   scheduledJobs?: ScheduledJob[]; // ユーザーのスケジュール済み仕事（時間重複判定用）
   isPublic?: boolean; // 公開版（未ログイン）表示モード
+  interviewPassRate?: InterviewPassRateData | null; // 面接通過率データ（審査あり求人用）
 }
 
 /**
@@ -56,7 +64,7 @@ function isTimeOverlapping(start1: string, end1: string, start2: string, end2: s
   return e1 > s2 && e2 > s1;
 }
 
-export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, facilityReviews, initialHasApplied: _initialHasApplied, initialAppliedWorkDateIds = [], selectedDate, isPreviewMode = false, scheduledJobs = [], isPublic = false }: JobDetailClientProps) {
+export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, facilityReviews, initialHasApplied: _initialHasApplied, initialAppliedWorkDateIds = [], selectedDate, isPreviewMode = false, scheduledJobs = [], isPublic = false, interviewPassRate = null }: JobDetailClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { refreshBadges } = useBadge();
@@ -91,6 +99,11 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
   const [isEditingSelfPR, setIsEditingSelfPR] = useState(false);
   const [editSelfPRValue, setEditSelfPRValue] = useState('');
   const [savingSelfPR, setSavingSelfPR] = useState(false);
+
+  // 面接通過率（期間選択対応）
+  const [passRateData, setPassRateData] = useState<InterviewPassRateData | null>(interviewPassRate);
+  const [passRatePeriod, setPassRatePeriod] = useState<'current' | 'last' | 'two_months_ago'>('current');
+  const [passRateLoading, setPassRateLoading] = useState(false);
 
   // 画像配列を安全に取得（空配列の場合はプレースホルダーを使用）
   const jobImages = job.images && job.images.length > 0 ? job.images : [DEFAULT_JOB_IMAGE];
@@ -277,6 +290,23 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
       }
     } finally {
       setIsSaveForLaterProcessing(false);
+    }
+  };
+
+  // 面接通過率の期間変更
+  const handlePassRatePeriodChange = async (period: 'current' | 'last' | 'two_months_ago') => {
+    if (passRatePeriod === period || passRateLoading) return;
+
+    setPassRatePeriod(period);
+    setPassRateLoading(true);
+
+    try {
+      const data = await getFacilityInterviewPassRate(facility.id, period);
+      setPassRateData(data);
+    } catch (error) {
+      console.error('Failed to fetch pass rate:', error);
+    } finally {
+      setPassRateLoading(false);
     }
   };
 
@@ -1203,6 +1233,72 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
           労働条件通知書を確認
         </Link>
       </div>
+
+      {/* 面接通過率（審査あり求人のみ表示） */}
+      {job.requiresInterview && passRateData && (
+        <div className="mb-4 px-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-blue-800 flex items-center gap-2">
+                <span>📊</span>
+                <span>面接通過率</span>
+              </h3>
+              {/* 期間選択ボタン */}
+              <div className="flex gap-1">
+                {[
+                  { key: 'current' as const, label: '今月' },
+                  { key: 'last' as const, label: '先月' },
+                  { key: 'two_months_ago' as const, label: '先々月' },
+                ].map(({ key, label }) => (
+                  <button
+                    key={key}
+                    onClick={() => handlePassRatePeriodChange(key)}
+                    disabled={passRateLoading}
+                    className={`px-2 py-1 text-xs rounded transition-colors ${
+                      passRatePeriod === key
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-white text-blue-600 border border-blue-300 hover:bg-blue-50'
+                    } ${passRateLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {passRateLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <div className="animate-spin h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+              </div>
+            ) : passRateData.passRate !== null ? (
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-2xl font-bold text-blue-600">
+                      {passRateData.passRate}%
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      （{passRateData.matchedCount}/{passRateData.appliedCount}人）
+                    </span>
+                  </div>
+                  <div className="mt-2 bg-gray-200 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-blue-500 h-full transition-all"
+                      style={{ width: `${passRateData.passRate}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">
+                この期間の応募データはまだありません
+              </p>
+            )}
+            <p className="mt-2 text-xs text-gray-500">
+              ※この施設の審査あり求人における面接通過率です
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* レビュー */}
       {facilityReviews.length > 0 && (
