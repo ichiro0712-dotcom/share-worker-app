@@ -1164,6 +1164,7 @@ export default function FacilityPage() {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200">
             <div className="bg-gray-50 px-5 py-3 border-b border-gray-200">
               <h2 className="text-base font-bold text-gray-900">法人情報</h2>
+              <p className="text-xs text-gray-500 mt-1">※ワーカーには表示されません（管理用情報）</p>
             </div>
             <div className="p-5 space-y-3">
               {/* 法人名と法人番号を一列に */}
@@ -1309,6 +1310,7 @@ export default function FacilityPage() {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200">
             <div className="bg-gray-50 px-5 py-3 border-b border-gray-200">
               <h2 className="text-base font-bold text-gray-900">施設情報・担当者</h2>
+              <p className="text-xs text-gray-500 mt-1">※施設名・サービス種別・住所・担当者情報は求人詳細に表示されます</p>
             </div>
             <div className="p-5 space-y-3">
               {/* 施設名とサービス種別を一列に */}
@@ -1413,7 +1415,7 @@ export default function FacilityPage() {
 
               {/* 責任者情報 */}
               <div className="border-t border-gray-200 pt-3 mt-3">
-                <h3 className="text-sm font-bold text-gray-900 mb-3">責任者</h3>
+                <h3 className="text-sm font-bold text-gray-900 mb-3">責任者 <span className="text-xs text-gray-500 font-normal">※ワーカーには表示されません</span></h3>
 
                 <div className="space-y-3">
                   <div>
@@ -1476,7 +1478,7 @@ export default function FacilityPage() {
 
               {/* 担当者情報 */}
               <div className="border-t border-gray-200 pt-3 mt-3">
-                <h3 className="text-sm font-bold text-gray-900 mb-3">担当者</h3>
+                <h3 className="text-sm font-bold text-gray-900 mb-3">担当者 <span className="text-xs text-gray-500 font-normal">※氏名・写真・挨拶文は求人詳細に表示されます</span></h3>
 
                 <div className="space-y-3">
                   <div>
@@ -1601,7 +1603,7 @@ export default function FacilityPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      連絡先電話番号 <span className="text-red-500">*</span>
+                      連絡先電話番号 <span className="text-red-500">*</span> <span className="text-xs text-gray-500 font-normal">※ワーカーには表示されません</span>
                     </label>
                     <PhoneNumberInput
                       value={staffInfo.phone}
@@ -1617,7 +1619,7 @@ export default function FacilityPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      通知先メールアドレス <span className="text-red-500">*</span>
+                      通知先メールアドレス <span className="text-red-500">*</span> <span className="text-xs text-gray-500 font-normal">※ワーカーには表示されません</span>
                     </label>
                     <p className="text-xs text-gray-500 mb-2">1件目は必須です。複数のアドレスに通知を送信できます。</p>
                     <div className="space-y-2">
@@ -1674,7 +1676,10 @@ export default function FacilityPage() {
           {/* アカウント管理 */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200">
             <div className="bg-gray-50 px-5 py-3 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-base font-bold text-gray-900">アカウント管理</h2>
+              <div>
+                <h2 className="text-base font-bold text-gray-900">アカウント管理</h2>
+                <p className="text-xs text-gray-500 mt-1">※ワーカーには表示されません（管理用情報）</p>
+              </div>
               {accounts.length < 5 && (
                 <button
                   onClick={() => setShowAddAccountModal(true)}
@@ -1747,6 +1752,7 @@ export default function FacilityPage() {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200">
             <div className="bg-gray-50 px-5 py-3 border-b border-gray-200">
               <h2 className="text-base font-bold text-gray-900">アクセス</h2>
+              <p className="text-xs text-gray-500 mt-1">※求人詳細ページに表示されます</p>
             </div>
             <div className="p-5 space-y-3">
               {/* 最寄駅 */}
@@ -1938,7 +1944,7 @@ export default function FacilityPage() {
 
               {/* 受動喫煙防止対策 */}
               <div className="border-b border-gray-200 pb-3">
-                <h3 className="text-sm font-bold text-gray-900 mb-3">受動喫煙防止対策</h3>
+                <h3 className="text-sm font-bold text-gray-900 mb-3">受動喫煙防止対策 <span className="text-xs text-gray-500 font-normal">※労働条件通知書に表示されます</span></h3>
                 <div className="space-y-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1997,7 +2003,7 @@ export default function FacilityPage() {
 
               {/* 初回自動送信メッセージ */}
               <div>
-                <h3 className="text-sm font-bold text-gray-900 mb-3">初回自動送信メッセージ</h3>
+                <h3 className="text-sm font-bold text-gray-900 mb-3">初回自動送信メッセージ <span className="text-xs text-gray-500 font-normal">※初回応募時に自動送信されます</span></h3>
                 <div className="space-y-3">
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-900">
                     <p className="mb-1.5">
