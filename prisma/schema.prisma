@@ -78,6 +78,10 @@ model User {
   verification_token        String?        @map("verification_token")
   /// 認証トークンの有効期限
   verification_token_expires DateTime?     @map("verification_token_expires")
+  /// 自動ログイン用一時トークン（メール認証後5分間有効）
+  auto_login_token          String?        @map("auto_login_token")
+  /// 自動ログイントークンの有効期限
+  auto_login_token_expires  DateTime?      @map("auto_login_token_expires")
 
   is_suspended           Boolean        @default(false) @map("is_suspended")
   suspended_at           DateTime?      @map("suspended_at")
