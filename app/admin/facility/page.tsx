@@ -1275,10 +1275,14 @@ export default function FacilityPage() {
                   </label>
                   <input
                     type="text"
+                    inputMode="numeric"
                     value={corporateInfo.corporationNumber}
                     onChange={(e) => {
-                      // 数字のみ、13桁まで
-                      const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 13);
+                      // 全角数字を半角に変換してから数字のみ、13桁まで
+                      const halfWidth = e.target.value.replace(/[０-９]/g, (char) =>
+                        String.fromCharCode(char.charCodeAt(0) - 0xFEE0)
+                      );
+                      const value = halfWidth.replace(/[^0-9]/g, '').slice(0, 13);
                       setCorporateInfo({ ...corporateInfo, corporationNumber: value });
                     }}
                     placeholder="1234567890123"

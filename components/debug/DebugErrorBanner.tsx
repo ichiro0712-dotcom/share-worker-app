@@ -3,8 +3,8 @@
 import React, { createContext, useContext, useState, ReactNode, useCallback } from 'react';
 import { X, Bug, ChevronDown, ChevronUp, Copy, Check } from 'lucide-react';
 
-// デバッグモードフラグ - 本番リリース前にfalseに変更
-const DEBUG_MODE = true;
+// デバッグモードフラグ - 開発環境でのみ有効
+const DEBUG_MODE = process.env.NODE_ENV === 'development';
 
 interface DebugError {
   id: string;

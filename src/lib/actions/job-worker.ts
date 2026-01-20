@@ -872,12 +872,17 @@ export async function getJobsListWithPagination(
     let maxDistanceKm = 0;
 
     if (searchParams?.distanceLat && searchParams?.distanceLng) {
-        distanceCenter = { lat: searchParams.distanceLat, lng: searchParams.distanceLng };
+        // URLパラメータから渡される場合に備えて明示的に数値変換
+        distanceCenter = {
+            lat: Number(searchParams.distanceLat),
+            lng: Number(searchParams.distanceLng)
+        };
     }
 
     if (searchParams?.distanceKm && distanceCenter) {
         distanceFilterEnabled = true;
-        maxDistanceKm = searchParams.distanceKm;
+        // URLパラメータから渡される場合に備えて明示的に数値変換
+        maxDistanceKm = Number(searchParams.distanceKm);
 
         const latDelta = maxDistanceKm / 111;
         const lngDelta = maxDistanceKm / (111 * Math.cos((distanceCenter.lat * Math.PI) / 180));
