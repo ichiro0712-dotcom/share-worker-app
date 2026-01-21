@@ -194,6 +194,13 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
   const menuItems = [
     {
+      title: 'タスク',
+      icon: <ClipboardCheck className="w-5 h-5" />,
+      href: '/admin/tasks/attendance',
+      active: pathname?.startsWith('/admin/tasks'),
+      badge: badges.pendingAttendanceModifications,
+    },
+    {
       title: '求人管理',
       icon: <Briefcase className="w-5 h-5" />,
       href: '/admin/jobs',
@@ -257,13 +264,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       icon: <QrCode className="w-5 h-5" />,
       href: '/admin/attendance',
       active: pathname === '/admin/attendance',
-    },
-    {
-      title: 'タスク',
-      icon: <ClipboardCheck className="w-5 h-5" />,
-      href: '/admin/tasks/attendance',
-      active: pathname?.startsWith('/admin/tasks'),
-      badge: badges.pendingAttendanceModifications,
     },
     {
       title: 'ご利用ガイド・FAQ',
