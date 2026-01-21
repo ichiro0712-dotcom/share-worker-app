@@ -2,7 +2,14 @@ import { prisma } from '@/lib/prisma';
 import { Resend } from 'resend';
 import crypto from 'crypto';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Resend設定（遅延初期化 - APIキーがない場合はnull）
+let resend: Resend | null = null;
+function getResendClient(): Resend | null {
+    if (!resend && process.env.RESEND_API_KEY) {
+        resend = new Resend(process.env.RESEND_API_KEY);
+    }
+    return resend;
+}
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'noreply@tastas.site';
 const APP_URL = process.env.NEXTAUTH_URL || 'https://tastas.jp';
 
@@ -54,7 +61,13 @@ export async function sendVerificationEmail(
     }
 
     // メール送信
-    const { error } = await resend.emails.send({
+    const client = getResendClient();
+    if (!client) {
+      console.log('[Email Verification] Resend API key not configured, skipping email');
+      return { success: true };
+    }
+
+    const { error } = await client.emails.send({
       from: `+TASTAS <${FROM_EMAIL}>`,
       to: [email],
       subject: '【+TASTAS】メールアドレスの確認',

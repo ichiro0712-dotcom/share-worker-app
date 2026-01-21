@@ -19,6 +19,7 @@ import {
     Code2,
     ChevronLeft,
     ChevronRight,
+    Clock,
 } from 'lucide-react';
 
 interface SystemAdminLayoutProps {
@@ -97,7 +98,12 @@ export default function SystemAdminLayout({ children }: SystemAdminLayoutProps) 
             href: '/system-admin/jobs',
             active: pathname?.startsWith('/system-admin/jobs'),
         },
-
+        {
+            title: '勤怠管理',
+            icon: <Clock className="w-5 h-5" />,
+            href: '/system-admin/attendance',
+            active: pathname?.startsWith('/system-admin/attendance'),
+        },
         {
             title: 'コンテンツ管理',
             icon: <FileEdit className="w-5 h-5" />,

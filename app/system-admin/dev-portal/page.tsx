@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import Link from 'next/link';
 import { MemoPad } from './MemoPad';
-import { Smartphone, Layout, Hash, Shield, Book, Users, Building2, Settings, ExternalLink, Image as ImageIcon, BellRing, ListChecks, Clock, Bug, Activity, AlertTriangle } from 'lucide-react';
+import { Smartphone, Layout, Hash, Shield, Book, Users, Building2, Settings, ExternalLink, Image as ImageIcon, BellRing, ListChecks, Clock, Bug, Activity, AlertTriangle, Calculator } from 'lucide-react';
 
 // サイトマップ定義（ツリー構造）
 interface SiteMapNode {
@@ -180,6 +180,7 @@ const SYSTEM_ADMIN_TREE: SiteMapNode[] = [
             { name: 'logs', title: 'バグ調査ダッシュボード', href: '/system-admin/dev-portal/logs' },
             { name: 'sample-images', title: 'サンプル画像', href: '/system-admin/dev-portal/sample-images' },
             { name: 'notification-logs', title: '通知ログ', href: '/system-admin/dev-portal/notification-logs' },
+            { name: 'formulas', title: '計算式・指標一覧', href: '/system-admin/dev-portal/formulas' },
         ]
     },
     {
@@ -311,7 +312,7 @@ export default function DevPortalPage() {
                 </header>
 
                 {/* クイックステータス */}
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
                     <Link href="/system-admin/dev-portal/logs" className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 hover:border-red-300 hover:shadow-md transition-all group">
                         <div className="flex items-center justify-between">
                             <div>
@@ -346,6 +347,15 @@ export default function DevPortalPage() {
                                 <p className="text-lg font-bold text-indigo-600 group-hover:text-indigo-700">時刻変更</p>
                             </div>
                             <Clock className="w-8 h-8 text-indigo-200 group-hover:text-indigo-300" />
+                        </div>
+                    </Link>
+                    <Link href="/system-admin/dev-portal/formulas" className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 hover:border-purple-300 hover:shadow-md transition-all group">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-xs font-medium text-gray-500">計算式一覧</p>
+                                <p className="text-lg font-bold text-purple-600 group-hover:text-purple-700">指標・計算式</p>
+                            </div>
+                            <Calculator className="w-8 h-8 text-purple-200 group-hover:text-purple-300" />
                         </div>
                     </Link>
                 </div>

@@ -60,8 +60,8 @@ export const METRIC_DEFINITIONS = {
             {
                 key: 'lastMinuteCancelRate',
                 label: '直前キャンセル率',
-                definition: '勤務日24時間以内にキャンセルした割合',
-                calculation: '直前キャンセル数 ÷ ワーカーキャンセル総数 × 100',
+                definition: '勤務前日以降にキャンセルした割合（全応募数に対する比率）',
+                calculation: '勤務前日以降のキャンセル数 ÷ 全応募数 × 100',
                 usedIn: ['ワーカー分析']
             }
         ]

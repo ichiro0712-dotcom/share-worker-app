@@ -71,6 +71,8 @@ model User {
   offeredJobs            Job[]          @relation("OfferTargetWorker")
   /// メッセージスレッド
   messageThreads         MessageThread[]
+  /// 出退勤記録
+  attendances            Attendance[]
 
   /// メール認証済みフラグ
   email_verified            Boolean        @default(false) @map("email_verified")
@@ -196,6 +198,11 @@ model Facility {
   smoking_measure            String?   @map("smoking_measure")
   work_in_smoking_area       String?   @map("work_in_smoking_area")
 
+  // 勤怠関連
+  emergency_attendance_code  String?   @map("emergency_attendance_code") // 4桁の緊急時出退勤番号
+  qr_secret_token           String?   @map("qr_secret_token")           // QRコード検証用トークン
+  qr_generated_at           DateTime? @map("qr_generated_at")          // QRコード生成日時
+
   // ========== 追加ここまで ==========
   bookmarks        Bookmark[]       @relation("FacilityOwners")
   bookmarkedBy     Bookmark[]       @relation("BookmarkedFacilities")
@@ -210,6 +217,8 @@ model Facility {
   messageThreads   MessageThread[]
   /// オファーテンプレート
   offerTemplates   OfferTemplate[]
+  /// 出退勤記録
+  attendances      Attendance[]
   /// 退会日時（nullなら退会していない）
   deleted_at       DateTime?        @map("deleted_at")
   /// 退会理由
@@ -344,6 +353,8 @@ model Job {
   messages                Message[]
   reviews                 Review[]
   systemNotifications     SystemNotification[]
+  /// 出退勤記録
+  attendances             Attendance[]
 
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
   updated_by_type         String?       @map("updated_by_type")
@@ -413,6 +424,8 @@ model Application {
   reviews                Review[]
   laborDocument          LaborDocument?
   systemNotifications    SystemNotification[]
+  /// 出退勤記録
+  attendances            Attendance[]
 
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
   updated_by_type        String?        @map("updated_by_type")
@@ -1093,6 +1106,100 @@ model NearbyNotificationLog {
 
   @@index([user_id, notification_key, sent_at])
   @@map("nearby_notification_logs")
+}
+
+/// 出退勤記録
+model Attendance {
+  id              Int       @id @default(autoincrement())
+  user_id         Int       @map("user_id")
+  facility_id     Int       @map("facility_id")
+  application_id  Int?      @map("application_id")
+  job_id          Int?      @map("job_id")
+
+  // 打刻時間
+  check_in_time   DateTime  @map("check_in_time")
+  check_out_time  DateTime? @map("check_out_time")
+
+  // 位置情報
+  check_in_lat    Float?    @map("check_in_lat")
+  check_in_lng    Float?    @map("check_in_lng")
+  check_out_lat   Float?    @map("check_out_lat")
+  check_out_lng   Float?    @map("check_out_lng")
+
+  // 打刻方法
+  check_in_method   String    @default("QR") @map("check_in_method")   // "QR" | "EMERGENCY_CODE"
+  check_out_method  String?   @map("check_out_method")                 // "QR" | "EMERGENCY_CODE"
+
+  // 退勤タイプ
+  check_out_type    String?   @map("check_out_type")  // "ON_TIME" | "MODIFICATION_REQUIRED"
+
+  // ステータス
+  status          String    @default("CHECKED_IN") // "CHECKED_IN" | "CHECKED_OUT"
+
+  // 実績時間（承認後に設定）
+  actual_start_time DateTime? @map("actual_start_time")
+  actual_end_time   DateTime? @map("actual_end_time")
+  actual_break_time Int?      @map("actual_break_time")  // 分単位
+
+  // 給与計算結果（承認後に設定）
+  calculated_wage   Int?      @map("calculated_wage")
+
+  created_at      DateTime  @default(now()) @map("created_at")
+  updated_at      DateTime  @updatedAt @map("updated_at")
+
+  // リレーション
+  user            User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  facility        Facility    @relation(fields: [facility_id], references: [id], onDelete: Cascade)
+  application     Application? @relation(fields: [application_id], references: [id], onDelete: SetNull)
+  job             Job?        @relation(fields: [job_id], references: [id], onDelete: SetNull)
+  modificationRequest AttendanceModificationRequest?
+
+  @@index([user_id, created_at])
+  @@index([facility_id, created_at])
+  @@index([application_id])
+  @@index([status])
+  @@map("attendances")
+}
+
+/// 勤怠変更申請
+model AttendanceModificationRequest {
+  id                    Int       @id @default(autoincrement())
+  attendance_id         Int       @unique @map("attendance_id")
+
+  // 申請内容
+  requested_start_time  DateTime  @map("requested_start_time")
+  requested_end_time    DateTime  @map("requested_end_time")
+  requested_break_time  Int       @default(0) @map("requested_break_time") // 分単位
+  worker_comment        String    @db.Text @map("worker_comment")
+
+  // ステータス
+  // PENDING: 申請中
+  // APPROVED: 承認済み
+  // REJECTED: 却下済み
+  // RESUBMITTED: 再申請
+  status                String    @default("PENDING")
+
+  // 承認情報
+  admin_comment         String?   @db.Text @map("admin_comment")
+  reviewed_by           Int?      @map("reviewed_by")
+  reviewed_at           DateTime? @map("reviewed_at")
+
+  // 金額計算
+  original_amount       Int       @map("original_amount")    // 定刻での金額
+  requested_amount      Int       @map("requested_amount")   // 申請での金額
+
+  // 再申請回数
+  resubmit_count        Int       @default(0) @map("resubmit_count")
+
+  created_at            DateTime  @default(now()) @map("created_at")
+  updated_at            DateTime  @updatedAt @map("updated_at")
+
+  // リレーション
+  attendance            Attendance @relation(fields: [attendance_id], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([created_at])
+  @@map("attendance_modification_requests")
 }
 
 model ErrorMessageSetting {

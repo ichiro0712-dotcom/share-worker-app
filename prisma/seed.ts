@@ -972,6 +972,7 @@ async function main() {
       phone_number: '090-1234-5678',
       profile_image: null, // テスト用ダミー画像は使用しない
       qualifications: ['介護福祉士', '実務者研修'],
+      email_verified: true, // テストユーザーはメール認証済みとする
       last_name_kana: 'ヤマダ',
       first_name_kana: 'タロウ',
       gender: '男性',
@@ -1004,6 +1005,7 @@ async function main() {
       phone_number: '090-2345-6789',
       profile_image: '/images/users/user2.svg',
       qualifications: ['正看護師', 'ケアマネージャー'],
+      email_verified: true,
     },
     {
       email: 'suzuki@example.com',
@@ -1013,6 +1015,7 @@ async function main() {
       phone_number: '090-3456-7890',
       profile_image: '/images/users/user3.svg',
       qualifications: ['介護福祉士'],
+      email_verified: true,
     },
     // プロフィール一部空白のユーザー
     {
@@ -1023,6 +1026,7 @@ async function main() {
       phone_number: '090-4567-8901',
       profile_image: null,
       qualifications: ['初任者研修'],
+      email_verified: true,
     },
     {
       email: 'tanaka@example.com',
@@ -1035,6 +1039,7 @@ async function main() {
       last_name_kana: 'タナカ',
       first_name_kana: 'ケンタ',
       experience_fields: { "特別養護老人ホーム": "1年未満" },
+      email_verified: true,
     },
     // 資格なし新人ユーザー
     {
@@ -1045,6 +1050,7 @@ async function main() {
       phone_number: '090-6789-0123',
       profile_image: '/images/samples/20s_female_1.png',
       qualifications: [],
+      email_verified: true,
     },
     // 経験豊富なベテラン
     {
@@ -1055,6 +1061,7 @@ async function main() {
       phone_number: '090-7890-1234',
       profile_image: '/images/samples/40s_male_1.png',
       qualifications: ['介護福祉士', 'ケアマネージャー', '社会福祉士'],
+      email_verified: true,
     },
     {
       email: 'yamamoto@example.com',
@@ -1064,6 +1071,7 @@ async function main() {
       phone_number: '090-8901-2345',
       profile_image: '/images/samples/40s_female_1.png',
       qualifications: ['准看護師', '実務者研修'],
+      email_verified: true,
     },
     {
       email: 'nakamura@example.com',
@@ -1073,6 +1081,7 @@ async function main() {
       phone_number: '090-9012-3456',
       profile_image: null,
       qualifications: ['初任者研修'],
+      email_verified: true,
     },
     {
       email: 'kobayashi@example.com',
@@ -1082,6 +1091,7 @@ async function main() {
       phone_number: '090-0123-4567',
       profile_image: '/images/samples/40s_female_2.png',
       qualifications: ['介護福祉士', '正看護師'],
+      email_verified: true,
     },
   ];
 

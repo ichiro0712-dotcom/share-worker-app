@@ -16,6 +16,7 @@ import {
 import { UserCard, LogoutButton } from './MyPageContent';
 
 // 静的メニュー項目（ログアウト以外）
+// 出退勤記録は仕事管理画面の右上ボタンからアクセスするため削除
 const menuItems = [
   { icon: 'calendar', label: '仕事管理', href: '/my-jobs' },
   { icon: 'messageSquare', label: 'レビュー', href: '/mypage/reviews' },

@@ -1,8 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'noreply@tastas.site';
+
+// Lazy initialization to avoid build errors when API key is not set
+let resendClient: Resend | null = null;
+function getResendClient(): Resend | null {
+    if (!process.env.RESEND_API_KEY) {
+        return null;
+    }
+    if (!resendClient) {
+        resendClient = new Resend(process.env.RESEND_API_KEY);
+    }
+    return resendClient;
+}
 
 /**
  * メール送信テスト用APIエンドポイント
@@ -28,6 +39,14 @@ export async function POST(request: NextRequest) {
             return NextResponse.json(
                 { error: 'to is required' },
                 { status: 400 }
+            );
+        }
+
+        const resend = getResendClient();
+        if (!resend) {
+            return NextResponse.json(
+                { error: 'Resend API key is not configured' },
+                { status: 500 }
             );
         }
 
