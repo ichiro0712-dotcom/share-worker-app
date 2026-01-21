@@ -29,6 +29,7 @@ import {
   ChevronLeft,
   ChevronRight,
   QrCode,
+  ClipboardCheck,
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -61,6 +62,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     pendingApplications: 0,
     unreadAnnouncements: 0,
     pendingReviews: 0,
+    pendingAttendanceModifications: 0,
   });
 
   // 折りたたみ状態をlocalStorageから復元
@@ -255,6 +257,13 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       icon: <QrCode className="w-5 h-5" />,
       href: '/admin/attendance',
       active: pathname === '/admin/attendance',
+    },
+    {
+      title: 'タスク',
+      icon: <ClipboardCheck className="w-5 h-5" />,
+      href: '/admin/tasks/attendance',
+      active: pathname?.startsWith('/admin/tasks'),
+      badge: badges.pendingAttendanceModifications,
     },
     {
       title: 'ご利用ガイド・FAQ',

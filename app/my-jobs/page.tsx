@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { MyJobsContent } from './MyJobsContent';
+import { AttendanceButton } from './AttendanceButton';
 
 // タブ定義
 const tabs = [
@@ -26,12 +27,16 @@ export default async function MyJobsPage({ searchParams }: MyJobsPageProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* 静的ヘッダー - Server Component（即座にHTML表示） */}
+      {/* ヘッダー: タイトル + 出勤/退勤ボタン */}
       <div className="bg-white border-b border-gray-200 px-4 py-4">
-        <h1 className="text-xl font-bold text-gray-900">仕事管理</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-bold text-gray-900">仕事管理</h1>
+          {/* 勤務当日のみ表示される出勤/退勤ボタン */}
+          <AttendanceButton />
+        </div>
       </div>
 
-      {/* 静的タブ - Server Component（即座にHTML表示） */}
+      {/* タブナビゲーション */}
       <div className="bg-white border-b border-gray-200 overflow-x-auto">
         <div className="flex">
           {tabs.map((tab) => (

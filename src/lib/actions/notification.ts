@@ -838,9 +838,10 @@ export async function getFacilitySidebarBadges(facilityId: number): Promise<{
     pendingApplications: number;
     unreadAnnouncements: number;
     pendingReviews: number;
+    pendingAttendanceModifications: number;
 }> {
     try {
-        const [unreadMessages, unviewedCount, unreadAnnouncementsCount, pendingReviewCount] = await Promise.all([
+        const [unreadMessages, unviewedCount, unreadAnnouncementsCount, pendingReviewCount, pendingAttendanceModificationsCount] = await Promise.all([
             getFacilityUnreadMessageCount(facilityId),
             prisma.application.count({
                 where: {
@@ -871,6 +872,15 @@ export async function getFacilitySidebarBadges(facilityId: number): Promise<{
                     status: 'COMPLETED_PENDING',
                 },
             }),
+            // 承認待ち勤怠変更申請の件数
+            prisma.attendanceModificationRequest.count({
+                where: {
+                    attendance: {
+                        facility_id: facilityId,
+                    },
+                    status: { in: ['PENDING', 'RESUBMITTED'] },
+                },
+            }),
         ]);
 
         return {
@@ -878,6 +888,7 @@ export async function getFacilitySidebarBadges(facilityId: number): Promise<{
             pendingApplications: unviewedCount,
             unreadAnnouncements: unreadAnnouncementsCount,
             pendingReviews: pendingReviewCount,
+            pendingAttendanceModifications: pendingAttendanceModificationsCount,
         };
     } catch (error) {
         console.error('[getFacilitySidebarBadges] Error:', error);
@@ -886,6 +897,7 @@ export async function getFacilitySidebarBadges(facilityId: number): Promise<{
             pendingApplications: 0,
             unreadAnnouncements: 0,
             pendingReviews: 0,
+            pendingAttendanceModifications: 0,
         };
     }
 }
