@@ -3,8 +3,14 @@ import webPush from 'web-push';
 import { Resend } from 'resend';
 import { getTodayStart } from '@/utils/debugTime';
 
-// Resend設定
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Resend設定（遅延初期化 - APIキーがない場合はnull）
+let resend: Resend | null = null;
+function getResendClient(): Resend | null {
+    if (!resend && process.env.RESEND_API_KEY) {
+        resend = new Resend(process.env.RESEND_API_KEY);
+    }
+    return resend;
+}
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'noreply@tastas.site';
 
 // VAPID設定
@@ -238,7 +244,29 @@ async function sendEmailNotification(params: {
 
     try {
         // Resendでメール送信
-        const { data, error } = await resend.emails.send({
+        const client = getResendClient();
+        if (!client) {
+            console.log('[Email] Resend API key not configured, skipping email');
+            await prisma.notificationLog.create({
+                data: {
+                    notification_key: notificationKey,
+                    channel: 'EMAIL',
+                    target_type: targetType,
+                    recipient_id: recipientId,
+                    recipient_name: recipientName,
+                    recipient_email: recipientEmail,
+                    from_address: FROM_EMAIL,
+                    to_addresses: toAddresses,
+                    subject,
+                    body,
+                    status: 'SKIPPED',
+                    error_message: 'Resend API key not configured',
+                },
+            });
+            return;
+        }
+
+        const { data, error } = await client.emails.send({
             from: `+TASTAS <${FROM_EMAIL}>`,
             to: toAddresses,
             subject: subject,

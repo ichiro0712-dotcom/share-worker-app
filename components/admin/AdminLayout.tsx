@@ -28,6 +28,9 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  QrCode,
+  ClipboardCheck,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { NotificationPermissionPrompt } from '@/components/pwa/NotificationPermissionPrompt';
 
@@ -61,6 +64,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     pendingApplications: 0,
     unreadAnnouncements: 0,
     pendingReviews: 0,
+    pendingAttendanceModifications: 0,
   });
 
   // 折りたたみ状態をlocalStorageから復元
@@ -192,6 +196,13 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
   const menuItems = [
     {
+      title: 'タスク',
+      icon: <ClipboardCheck className="w-5 h-5" />,
+      href: '/admin/tasks/attendance',
+      active: pathname?.startsWith('/admin/tasks'),
+      badge: badges.pendingAttendanceModifications,
+    },
+    {
       title: '求人管理',
       icon: <Briefcase className="w-5 h-5" />,
       href: '/admin/jobs',
@@ -249,6 +260,18 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       icon: <Star className="w-5 h-5" />,
       href: '/admin/reviews',
       active: pathname === '/admin/reviews',
+    },
+    {
+      title: '出退勤QRコード',
+      icon: <QrCode className="w-5 h-5" />,
+      href: '/admin/attendance',
+      active: pathname === '/admin/attendance',
+    },
+    {
+      title: '利用明細',
+      icon: <FileSpreadsheet className="w-5 h-5" />,
+      href: '/admin/reports/usage',
+      active: pathname?.startsWith('/admin/reports'),
     },
     {
       title: 'ご利用ガイド・FAQ',
