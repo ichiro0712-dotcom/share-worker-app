@@ -1,0 +1,134 @@
+# DB Schema Sync Workflow
+# mainブランチへのマージ時に、本番DBとPrismaスキーマを同期
+#
+# 動作:
+# - 追加・変更のみ: 自動適用
+# - 削除あり: ブロック + Slack/Issue通知
+
+name: DB Schema Sync
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'prisma/schema.prisma'
+
+jobs:
+  check-and-sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check schema diff
+        id: diff
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.PRODUCTION_DIRECT_URL }}
+        run: |
+          echo "Checking schema diff..."
+
+          # 差分をSQL形式で取得
+          DIFF_SQL=$(npx prisma migrate diff \
+            --from-url "$DIRECT_URL" \
+            --to-schema-datamodel prisma/schema.prisma \
+            --script 2>&1) || true
+
+          echo "Diff output:"
+          echo "$DIFF_SQL"
+
+          # 差分がない場合
+          if [ -z "$DIFF_SQL" ] || echo "$DIFF_SQL" | grep -q "No difference detected"; then
+            echo "has_diff=false" >> $GITHUB_OUTPUT
+            echo "has_destructive=false" >> $GITHUB_OUTPUT
+            echo "✅ No schema diff detected"
+            exit 0
+          fi
+
+          echo "has_diff=true" >> $GITHUB_OUTPUT
+
+          # 破壊的変更（DROP）の検出
+          if echo "$DIFF_SQL" | grep -iE "DROP (TABLE|COLUMN|INDEX|CONSTRAINT)"; then
+            echo "has_destructive=true" >> $GITHUB_OUTPUT
+            echo "diff_sql<<EOF" >> $GITHUB_OUTPUT
+            echo "$DIFF_SQL" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            echo "⚠️ Destructive changes detected!"
+          else
+            echo "has_destructive=false" >> $GITHUB_OUTPUT
+            echo "diff_sql<<EOF" >> $GITHUB_OUTPUT
+            echo "$DIFF_SQL" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            echo "✅ Only additive changes detected"
+          fi
+
+      - name: Block on destructive changes
+        if: steps.diff.outputs.has_destructive == 'true'
+        run: |
+          echo "::error::破壊的変更（DROP）が検出されました。手動での確認が必要です。"
+          echo ""
+          echo "検出された差分:"
+          echo "${{ steps.diff.outputs.diff_sql }}"
+          echo ""
+          echo "手動で適用する場合は以下を実行してください:"
+          echo "  npx prisma db push"
+          exit 1
+
+      - name: Apply safe changes
+        if: steps.diff.outputs.has_diff == 'true' && steps.diff.outputs.has_destructive == 'false'
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.PRODUCTION_DIRECT_URL }}
+        run: |
+          echo "Applying schema changes to production DB..."
+          npx prisma db push --accept-data-loss=false
+          echo "✅ Schema changes applied successfully"
+
+      - name: Create issue on failure
+        if: failure() && steps.diff.outputs.has_destructive == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const diffSql = `${{ steps.diff.outputs.diff_sql }}`;
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '⚠️ DB Schema: 破壊的変更の手動確認が必要',
+              body: `## 概要
+
+            mainブランチへのマージで、破壊的なスキーマ変更（DROP）が検出されました。
+            自動適用はブロックされています。
+
+            ## 検出された差分
+
+            \`\`\`sql
+            ${diffSql}
+            \`\`\`
+
+            ## 対応方法
+
+            1. 差分の内容を確認
+            2. データ損失の影響を評価
+            3. 問題なければ手動で適用:
+               \`\`\`bash
+               npx prisma db push
+               \`\`\`
+
+            ## 関連コミット
+
+            ${context.sha}
+            `,
+              labels: ['database', 'needs-review']
+            });
