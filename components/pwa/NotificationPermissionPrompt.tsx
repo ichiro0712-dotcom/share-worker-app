@@ -85,7 +85,7 @@ export function NotificationPermissionPrompt({ userType }: Props) {
                     localStorage.removeItem(STORAGE_KEYS.PROMPT_COUNT);
                     localStorage.removeItem(STORAGE_KEYS.DISMISSED_AT);
                 } else {
-                    toast.error('通知の登録に失敗しました');
+                    toast.error('通知の登録に失敗しました。後でもう一度お試しください。');
                 }
             } else {
                 toast.error('通知が許可されませんでした');
@@ -93,9 +93,11 @@ export function NotificationPermissionPrompt({ userType }: Props) {
         } catch (error) {
             console.error('Notification enable error:', error);
             toast.error('エラーが発生しました');
+        } finally {
+            // エラー時も含め、必ずローディング解除とモーダル閉じる
+            setIsLoading(false);
+            setIsVisible(false);
         }
-        setIsLoading(false);
-        setIsVisible(false);
     };
 
     // 「後で」ボタン

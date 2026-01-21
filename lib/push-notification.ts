@@ -18,7 +18,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
     return outputArray;
 }
 
-// Service Workerの登録状態を取得
+// Service Workerの登録状態を取得（タイムアウト付き）
 export async function getServiceWorkerRegistration(): Promise<ServiceWorkerRegistration | null> {
     if (!('serviceWorker' in navigator)) {
         console.log('Service Worker not supported');
@@ -26,7 +26,39 @@ export async function getServiceWorkerRegistration(): Promise<ServiceWorkerRegis
     }
 
     try {
-        const registration = await navigator.serviceWorker.ready;
+        // 既に登録済みのService Workerがあるか確認
+        const existingRegistration = await navigator.serviceWorker.getRegistration();
+
+        if (!existingRegistration) {
+            console.log('No Service Worker registered, attempting to register...');
+            // Service Workerが登録されていない場合は登録を試みる
+            try {
+                await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+                console.log('Service Worker registered successfully');
+            } catch (regError) {
+                console.error('Service Worker registration failed:', regError);
+                return null;
+            }
+        }
+
+        // タイムアウト付きでreadyを待機（10秒）
+        const timeoutPromise = new Promise<null>((resolve) => {
+            setTimeout(() => {
+                console.error('Service Worker ready timeout - took too long to activate');
+                resolve(null);
+            }, 10000);
+        });
+
+        const registration = await Promise.race([
+            navigator.serviceWorker.ready,
+            timeoutPromise
+        ]);
+
+        if (!registration) {
+            console.error('Service Worker did not become ready in time');
+            return null;
+        }
+
         return registration;
     } catch (error) {
         console.error('Service Worker registration error:', error);
