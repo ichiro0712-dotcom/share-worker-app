@@ -11,14 +11,13 @@ import {
   VolumeX,
   MessageCircle,
   Shield,
-  QrCode,
 } from 'lucide-react';
 import { UserCard, LogoutButton } from './MyPageContent';
 
 // 静的メニュー項目（ログアウト以外）
+// 出退勤記録は仕事管理画面の右上ボタンからアクセスするため削除
 const menuItems = [
   { icon: 'calendar', label: '仕事管理', href: '/my-jobs' },
-  { icon: 'qrCode', label: '出退勤記録', href: '/attendance' },
   { icon: 'messageSquare', label: 'レビュー', href: '/mypage/reviews' },
   { icon: 'heart', label: 'お気に入り施設', href: '/favorites' },
   { icon: 'star', label: 'ブックマーク求人', href: '/bookmarks' },
@@ -33,7 +32,6 @@ const menuItems = [
 // アイコンコンポーネントのマッピング
 const IconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   calendar: Calendar,
-  qrCode: QrCode,
   messageSquare: MessageSquare,
   heart: Heart,
   star: Star,

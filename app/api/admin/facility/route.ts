@@ -20,6 +20,9 @@ export async function GET(request: NextRequest) {
         corporation_name: true,
         address: true,
         phone_number: true,
+        emergency_attendance_code: true,
+        qr_secret_token: true,
+        qr_generated_at: true,
       },
     });
 

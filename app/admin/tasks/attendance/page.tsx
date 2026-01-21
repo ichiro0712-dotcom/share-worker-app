@@ -26,9 +26,8 @@ export default function AttendanceApprovalListPage() {
     if (!admin?.facilityId) return;
     setIsLoading(true);
     try {
-      const status = statusFilter === 'all' ? undefined : statusFilter;
       const result = await getPendingModificationRequests(admin.facilityId, {
-        status: status || (statusFilter === 'all' ? 'all' : statusFilter),
+        status: statusFilter,
         limit: 50,
       });
       setItems(result.items);

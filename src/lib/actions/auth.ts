@@ -6,8 +6,14 @@ import { authOptions } from '@/lib/auth';
 import { logActivity, logTrace, getErrorMessage, getErrorStack } from '@/lib/logger';
 import { Resend } from 'resend';
 
-// Resend設定
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Resend設定（遅延初期化 - APIキーがない場合はnull）
+let resend: Resend | null = null;
+function getResendClient(): Resend | null {
+    if (!resend && process.env.RESEND_API_KEY) {
+        resend = new Resend(process.env.RESEND_API_KEY);
+    }
+    return resend;
+}
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'noreply@tastas.site';
 
 /**
@@ -197,7 +203,13 @@ async function sendPasswordResetEmail(
     }
 
     try {
-        const { error } = await resend.emails.send({
+        const client = getResendClient();
+        if (!client) {
+            console.log('[Password Reset Email] Resend API key not configured, skipping email');
+            return { success: true };
+        }
+
+        const { error } = await client.emails.send({
             from: `+TASTAS <${FROM_EMAIL}>`,
             to: [email],
             subject: '【+TASTAS】パスワードリセットのご案内',

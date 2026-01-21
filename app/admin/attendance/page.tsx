@@ -1,9 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import QRCode from 'qrcode';
+import { regenerateQRCode } from '@/src/lib/actions/attendance-admin';
+
+interface FacilityData {
+  id: number;
+  facility_name: string;
+  emergency_attendance_code: string | null;
+  qr_secret_token: string | null;
+  qr_generated_at: string | null;
+}
 
 export default function AttendanceQRPrintPage() {
   const { admin, isAdmin, isAdminLoading } = useAuth();
@@ -11,7 +20,25 @@ export default function AttendanceQRPrintPage() {
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [contactQrDataUrl, setContactQrDataUrl] = useState<string>('');
   const [facilityName, setFacilityName] = useState<string>('');
+  const [emergencyCode, setEmergencyCode] = useState<string>('');
   const [showEmergencyNumber, setShowEmergencyNumber] = useState<boolean>(false);
+  const [isReissuing, setIsReissuing] = useState<boolean>(false);
+
+  // QRコードを生成する関数
+  const generateQR = useCallback(async (facilityId: number, token: string) => {
+    // QRコードデータ: facility:{施設ID}:{トークン}
+    const qrData = `attendance:${facilityId}:${token}`;
+
+    const dataUrl = await QRCode.toDataURL(qrData, {
+      width: 200,
+      margin: 2,
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF',
+      },
+    });
+    setQrDataUrl(dataUrl);
+  }, []);
 
   useEffect(() => {
     if (isAdminLoading) return;
@@ -30,34 +57,42 @@ export default function AttendanceQRPrintPage() {
       try {
         const response = await fetch(`/api/admin/facility?facilityId=${admin.facilityId}`);
         if (response.ok) {
-          const facility = await response.json();
+          const facility: FacilityData = await response.json();
           setFacilityName(facility.facility_name || `施設 ${admin.facilityId}`);
+          setEmergencyCode(facility.emergency_attendance_code || '----');
+
+          // QRコードを生成
+          if (facility.qr_secret_token) {
+            await generateQR(admin.facilityId, facility.qr_secret_token);
+          } else {
+            // トークンがない場合は施設IDのみでQRコードを生成（後方互換性）
+            const timestamp = Date.now();
+            const qrData = `attendance:${admin.facilityId}:${timestamp}`;
+            const dataUrl = await QRCode.toDataURL(qrData, {
+              width: 200,
+              margin: 2,
+              color: {
+                dark: '#000000',
+                light: '#FFFFFF',
+              },
+            });
+            setQrDataUrl(dataUrl);
+          }
         } else {
           setFacilityName(`施設 ${admin.facilityId}`);
+          setEmergencyCode('----');
         }
       } catch (error) {
         console.error('Failed to fetch facility:', error);
         setFacilityName(`施設 ${admin.facilityId}`);
+        setEmergencyCode('----');
       }
     };
 
     fetchFacility();
 
-    // 出退勤用QRコードを生成
-    const timestamp = Date.now();
-    const qrData = `attendance:${admin.facilityId}:${timestamp}`;
-
-    QRCode.toDataURL(qrData, {
-      width: 200,
-      margin: 2,
-      color: {
-        dark: '#000000',
-        light: '#FFFFFF',
-      },
-    }).then(setQrDataUrl);
-
     // お問い合わせQRコードを生成
-    QRCode.toDataURL('https://s-work.netlify.app/contact', {
+    QRCode.toDataURL('https://share-worker-app.vercel.app/contact', {
       width: 100,
       margin: 2,
       color: {
@@ -65,15 +100,37 @@ export default function AttendanceQRPrintPage() {
         light: '#FFFFFF',
       },
     }).then(setContactQrDataUrl);
-  }, [admin, isAdmin, isAdminLoading, router]);
+  }, [admin, isAdmin, isAdminLoading, router, generateQR]);
 
   const handlePrint = () => {
     window.print();
   };
 
-  const handleReissue = () => {
-    // 見た目だけの機能（将来の実装用）
-    alert('この機能は現在準備中です');
+  const handleReissue = async () => {
+    if (!admin?.facilityId || isReissuing) return;
+
+    const confirmed = window.confirm(
+      'QRコードを再発行しますか？\n\n※緊急時出退勤番号は変更されません。\n※再発行すると、古いQRコードは使用できなくなります。'
+    );
+
+    if (!confirmed) return;
+
+    setIsReissuing(true);
+    try {
+      const result = await regenerateQRCode(admin.facilityId);
+
+      if (result.success && result.qrToken) {
+        await generateQR(admin.facilityId, result.qrToken);
+        alert('QRコードを再発行しました');
+      } else {
+        alert(result.message || 'QRコードの再発行に失敗しました');
+      }
+    } catch (error) {
+      console.error('Failed to reissue QR code:', error);
+      alert('QRコードの再発行に失敗しました');
+    } finally {
+      setIsReissuing(false);
+    }
   };
 
   if (isAdminLoading) {
@@ -119,10 +176,10 @@ export default function AttendanceQRPrintPage() {
             )}
 
             <p className="text-sm text-gray-600 mb-2">
-              緊急時出退勤番号：<span className="font-bold">{showEmergencyNumber ? '----' : ''}</span>
+              緊急時出退勤番号：<span className="font-bold">{showEmergencyNumber ? emergencyCode : '****'}</span>
             </p>
 
-            {/* トグル（見た目のみ） */}
+            {/* トグル */}
             <div className="flex items-center gap-2 mb-4">
               <button
                 onClick={() => setShowEmergencyNumber(!showEmergencyNumber)}
@@ -139,13 +196,18 @@ export default function AttendanceQRPrintPage() {
               <span className="text-xs text-gray-600">出退勤番号を印刷する</span>
             </div>
 
-            {/* 再発行ボタン（見た目のみ） */}
+            {/* 再発行ボタン */}
             <button
               onClick={handleReissue}
-              className="print:hidden text-sm text-[#e6b422] border border-[#e6b422] rounded px-4 py-2 hover:bg-[#e6b422] hover:text-white transition-colors"
+              disabled={isReissuing}
+              className="print:hidden text-sm text-[#e6b422] border border-[#e6b422] rounded px-4 py-2 hover:bg-[#e6b422] hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              QRコードと緊急時出退勤番号を再発行
+              {isReissuing ? '再発行中...' : 'QRコードを再発行'}
             </button>
+
+            <p className="print:hidden text-xs text-gray-500 mt-2 text-center">
+              ※緊急時出退勤番号は<br />変更されません
+            </p>
           </div>
 
           {/* 右側: 出退勤方法 */}

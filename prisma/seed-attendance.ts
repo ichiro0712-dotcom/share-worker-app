@@ -189,6 +189,12 @@ async function main() {
   const facilityId = facilities[0].id;
 
   // アプリケーションが少ない場合でも、ユーザーと施設を使って勤怠データを作成
+  // job_idは必ず設定（jobがない場合はスキップ）
+  if (!job) {
+    console.log('  ⚠️ 求人が見つからないため、勤怠テストデータの作成をスキップします。');
+    return;
+  }
+  const defaultJobId = job.id;
 
   // --- パターン1: 出勤中（退勤前） ---
   {
@@ -201,7 +207,7 @@ async function main() {
         user_id: user.id,
         facility_id: facilityId,
         application_id: app?.id ?? null,
-        job_id: app?.workDate.job.id ?? null,
+        job_id: app?.workDate.job.id ?? defaultJobId,
         check_in_time: checkInTime,
         check_in_method: 'QR',
         check_in_lat: 35.6762,
@@ -210,7 +216,7 @@ async function main() {
       },
     });
     attendances.push({ id: attendance.id, type: '出勤中' });
-    console.log(`  ✅ 勤怠記録（出勤中）: ID ${attendance.id} - ${user.name}`);
+    console.log(`  ✅ 勤怠記録（出勤中）: ID ${attendance.id} - ${user.name} (求人ID: ${app?.workDate.job.id ?? defaultJobId})`);
   }
 
   // --- パターン2: 退勤済み（定刻） ---
@@ -226,7 +232,7 @@ async function main() {
         user_id: user.id,
         facility_id: facilityId,
         application_id: app?.id ?? null,
-        job_id: app?.workDate.job.id ?? null,
+        job_id: app?.workDate.job.id ?? defaultJobId,
         check_in_time: checkInTime,
         check_out_time: checkOutTime,
         check_in_method: 'QR',
@@ -244,7 +250,7 @@ async function main() {
       },
     });
     attendances.push({ id: attendance.id, type: '退勤済み（定刻）' });
-    console.log(`  ✅ 勤怠記録（退勤済み・定刻）: ID ${attendance.id} - ${user.name}`);
+    console.log(`  ✅ 勤怠記録（退勤済み・定刻）: ID ${attendance.id} - ${user.name} (求人ID: ${app?.workDate.job.id ?? defaultJobId})`);
   }
 
   // --- パターン3: 退勤済み（変更申請・承認待ち） ---
@@ -260,7 +266,7 @@ async function main() {
         user_id: user.id,
         facility_id: facilityId,
         application_id: app?.id ?? null,
-        job_id: app?.workDate.job.id ?? null,
+        job_id: app?.workDate.job.id ?? defaultJobId,
         check_in_time: checkInTime,
         check_out_time: checkOutTime,
         check_in_method: 'EMERGENCY_CODE',
@@ -274,7 +280,7 @@ async function main() {
       },
     });
     attendances.push({ id: attendance.id, type: '退勤済み（変更申請・承認待ち）' });
-    console.log(`  ✅ 勤怠記録（退勤済み・変更申請・承認待ち）: ID ${attendance.id} - ${user.name}`);
+    console.log(`  ✅ 勤怠記録（退勤済み・変更申請・承認待ち）: ID ${attendance.id} - ${user.name} (求人ID: ${app?.workDate.job.id ?? defaultJobId})`);
 
     // --- 勤怠変更申請（承認待ち）を作成 ---
     const modificationRequest = await prisma.attendanceModificationRequest.create({
@@ -295,7 +301,6 @@ async function main() {
   // --- パターン4: 退勤済み + 変更申請承認済み ---
   {
     const user = users[0]; // 同じユーザーの別の勤怠として使用
-    const app = pastApplications.find(a => a.user_id === user.id);
     const threeDaysAgo = addDays(new Date(), -3);
     const checkInTime = setTime(threeDaysAgo, 9, 0);
     const checkOutTime = setTime(threeDaysAgo, 19, 0);
@@ -305,7 +310,7 @@ async function main() {
         user_id: user.id,
         facility_id: facilityId,
         application_id: null, // 別の勤怠なのでapplication_idはnull
-        job_id: app?.workDate.job.id ?? null,
+        job_id: defaultJobId,
         check_in_time: checkInTime,
         check_out_time: checkOutTime,
         check_in_method: 'QR',
@@ -323,7 +328,7 @@ async function main() {
       },
     });
     attendances.push({ id: attendance.id, type: '退勤済み（変更申請承認済み）' });
-    console.log(`  ✅ 勤怠記録（退勤済み・変更申請承認済み）: ID ${attendance.id} - ${user.name}`);
+    console.log(`  ✅ 勤怠記録（退勤済み・変更申請承認済み）: ID ${attendance.id} - ${user.name} (求人ID: ${defaultJobId})`);
 
     // 施設管理者を取得
     const facilityAdmin = await prisma.facilityAdmin.findFirst({
@@ -361,7 +366,7 @@ async function main() {
         user_id: user.id,
         facility_id: facilityId,
         application_id: null,
-        job_id: null,
+        job_id: defaultJobId,
         check_in_time: checkInTime,
         check_out_time: checkOutTime,
         check_in_method: 'QR',
@@ -375,7 +380,7 @@ async function main() {
       },
     });
     attendances.push({ id: attendance.id, type: '退勤済み（変更申請却下）' });
-    console.log(`  ✅ 勤怠記録（退勤済み・変更申請却下）: ID ${attendance.id} - ${user.name}`);
+    console.log(`  ✅ 勤怠記録（退勤済み・変更申請却下）: ID ${attendance.id} - ${user.name} (求人ID: ${defaultJobId})`);
 
     // 施設管理者を取得
     const facilityAdmin = await prisma.facilityAdmin.findFirst({
@@ -433,6 +438,7 @@ async function main() {
       data: {
         user_id: user.id,
         facility_id: facilityId,
+        job_id: defaultJobId,
         check_in_time: checkInTime,
         check_out_time: checkOutTime,
         check_in_method: 'QR',
@@ -458,7 +464,7 @@ async function main() {
         requested_amount: Math.round(workHours * 1500),
       },
     });
-    console.log(`  ✅ 未承認（PENDING）${i + 1}: ${user.name} - ${pendingComments[i].comment.substring(0, 20)}...`);
+    console.log(`  ✅ 未承認（PENDING）${i + 1}: ${user.name} - ${pendingComments[i].comment.substring(0, 20)}... (求人ID: ${defaultJobId})`);
   }
 
   // --- 再申請（RESUBMITTED）データ: 3件 ---
@@ -490,6 +496,7 @@ async function main() {
       data: {
         user_id: user.id,
         facility_id: facilityId,
+        job_id: defaultJobId,
         check_in_time: checkInTime,
         check_out_time: checkOutTime,
         check_in_method: 'QR',
@@ -536,6 +543,7 @@ async function main() {
       data: {
         user_id: user.id,
         facility_id: facilityId,
+        job_id: defaultJobId,
         check_in_time: checkInTime,
         check_out_time: checkOutTime,
         check_in_method: 'QR',
@@ -564,7 +572,7 @@ async function main() {
         requested_amount: Math.round((7 + 0.5 * (i + 1)) * 1500),
       },
     });
-    console.log(`  ✅ 承認済み（APPROVED）${i + 1}: ${user.name} - ${approvedComments[i].worker.substring(0, 20)}...`);
+    console.log(`  ✅ 承認済み（APPROVED）${i + 1}: ${user.name} - ${approvedComments[i].worker.substring(0, 20)}... (求人ID: ${defaultJobId})`);
   }
 
   // --- 追加の却下（REJECTED）データ: 3件 ---
@@ -584,6 +592,7 @@ async function main() {
       data: {
         user_id: user.id,
         facility_id: facilityId,
+        job_id: defaultJobId,
         check_in_time: checkInTime,
         check_out_time: checkOutTime,
         check_in_method: 'QR',
@@ -609,7 +618,7 @@ async function main() {
         resubmit_count: 0,
       },
     });
-    console.log(`  ✅ 却下（REJECTED）${i + 1}: ${user.name} - ${rejectedComments[i].worker.substring(0, 20)}...`);
+    console.log(`  ✅ 却下（REJECTED）${i + 1}: ${user.name} - ${rejectedComments[i].worker.substring(0, 20)}... (求人ID: ${defaultJobId})`);
   }
 
   // ========================================

@@ -217,9 +217,12 @@ export interface PendingModificationItem {
   attendanceId: number;
   workerName: string;
   workerId: number;
+  applicationId: number | null;
   jobId: number;
   jobTitle: string;
   workDate: Date;
+  scheduledStartTime: string;
+  scheduledEndTime: string;
   status: ModificationStatus;
   requestedStartTime: Date;
   requestedEndTime: Date;
@@ -229,6 +232,7 @@ export interface PendingModificationItem {
   workerComment: string;
   createdAt: Date;
   resubmitCount: number;
+  facilityName: string;
 }
 
 // ================== QRコード関連 ==================

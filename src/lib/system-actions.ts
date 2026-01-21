@@ -8,6 +8,7 @@ import { generateLaborDocumentPdf } from '@/src/lib/laborDocumentPdf';
 import { requireSystemAdminAuth } from '@/lib/system-admin-session-server';
 import { geocodeAddress } from '@/src/lib/geocoding';
 import { sendAdminNewFacilityNotification, sendAdminNewWorkerNotification, sendAdminHighCancelRateNotification, sendAdminLowRatingStreakNotification } from '@/src/lib/actions/notification';
+import { generateUniqueEmergencyCode, generateQRSecretToken } from '@/src/lib/emergency-code-utils';
 export { geocodeAddress };
 
 
@@ -1268,6 +1269,10 @@ export async function createFacilityWithAdmin(data: {
     // パスワードハッシュ化
     const passwordHash = await bcrypt.hash(data.adminPassword, 10);
 
+    // 緊急時出退勤番号とQRトークンを生成
+    const emergencyCode = await generateUniqueEmergencyCode();
+    const qrSecretToken = generateQRSecretToken();
+
     try {
         const result = await prisma.$transaction(async (tx) => {
             const facility = await tx.facility.create({
@@ -1286,6 +1291,10 @@ export async function createFacilityWithAdmin(data: {
                     // 通知先メールアドレスに管理者のメールアドレスを初期設定
                     staff_email: data.adminEmail,
                     staff_emails: [data.adminEmail],
+                    // 勤怠管理用
+                    emergency_attendance_code: emergencyCode,
+                    qr_secret_token: qrSecretToken,
+                    qr_generated_at: new Date(),
                 }
             });
 
