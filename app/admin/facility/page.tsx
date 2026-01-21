@@ -1515,11 +1515,8 @@ export default function FacilityPage() {
                             if (!file) return;
 
                             // ファイルバリデーション
-                            const validationResult = validateFile(file, {
-                              maxSize: MAX_FILE_SIZE,
-                              allowedTypes: ['image/jpeg', 'image/png', 'image/webp'],
-                            });
-                            if (!validationResult.valid) {
+                            const validationResult = validateFile(file, 'image');
+                            if (!validationResult.isValid) {
                               toast.error(validationResult.error || 'ファイルが無効です');
                               return;
                             }
@@ -1529,7 +1526,7 @@ export default function FacilityPage() {
 
                             try {
                               // 直接アップロード
-                              const result = await directUpload(file, 'staff-photos');
+                              const result = await directUpload(file, { uploadType: 'facility' });
                               if (result.success && result.url) {
                                 setStaffInfo({ ...staffInfo, photo: result.url });
                                 toast.success('顔写真をアップロードしました');
