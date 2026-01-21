@@ -5,6 +5,8 @@ import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache';
 import { getAuthenticatedUser } from './helpers';
 import { uploadFile, STORAGE_BUCKETS } from '@/lib/supabase';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
+import { geocodeAddress } from '@/src/lib/geocoding';
+import { getFacilityAdminSessionData } from '@/lib/admin-session-server';
 
 /**
  * 施設IDから施設情報を取得
@@ -123,9 +125,22 @@ export async function toggleFacilityFavorite(facilityId: string) {
     } catch (error) {
         console.error('[toggleFacilityFavorite] Error:', error);
 
+        // エラー時もユーザー情報を取得試行
+        let errorUserId: number | undefined;
+        let errorUserEmail: string | undefined;
+        try {
+            const errorUser = await getAuthenticatedUser();
+            errorUserId = errorUser.id;
+            errorUserEmail = errorUser.email || undefined;
+        } catch {
+            // ユーザー取得失敗は無視
+        }
+
         // エラーログ記録
         logActivity({
             userType: 'WORKER',
+            userId: errorUserId,
+            userEmail: errorUserEmail,
             action: 'BOOKMARK_CREATE',
             requestData: {
                 facilityId,
@@ -248,10 +263,10 @@ export async function getFacilityInfo(facilityId: number) {
         staffPhone: facility.staff_phone,
         staffEmail: facility.staff_email,
         staffEmails: facility.staff_emails,
-        staffPhoto: facility.staff_photo,
+        staffPhoto: null, // 担当者顔写真は廃止（ID-13）
         staffGreeting: facility.staff_greeting,
         emergencyContact: facility.emergency_contact,
-        stations: facility.stations as { name: string; minutes: number }[] | null,
+        stations: null, // 最寄駅は廃止（ID-12）
         accessDescription: facility.access_description,
         transportation: facility.transportation,
         parking: facility.parking,
@@ -267,6 +282,9 @@ export async function getFacilityInfo(facilityId: number) {
  * 施設の初回メッセージを更新
  */
 export async function updateFacilityInitialMessage(facilityId: number, initialMessage: string) {
+    // セッションからユーザー情報を取得
+    const session = await getFacilityAdminSessionData();
+
     try {
         await prisma.facility.update({
             where: { id: facilityId },
@@ -278,6 +296,8 @@ export async function updateFacilityInitialMessage(facilityId: number, initialMe
         // ログ記録
         logActivity({
             userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
             action: 'FACILITY_UPDATE',
             targetType: 'Facility',
             targetId: facilityId,
@@ -292,6 +312,8 @@ export async function updateFacilityInitialMessage(facilityId: number, initialMe
         // エラーログ記録
         logActivity({
             userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
             action: 'FACILITY_UPDATE',
             targetType: 'Facility',
             targetId: facilityId,
@@ -329,7 +351,35 @@ export async function getFacilityStaffName(facilityId: number) {
  * 施設情報を更新
  */
 export async function updateFacilityBasicInfo(facilityId: number, data: any) {
+    // セッションからユーザー情報を取得
+    const session = await getFacilityAdminSessionData();
+
     try {
+        // 現在の施設データを取得（住所比較用）
+        const currentFacility = await prisma.facility.findUnique({
+            where: { id: facilityId },
+            select: { prefecture: true, city: true, address_line: true }
+        });
+
+        // 住所が変更された場合、座標を再計算（Issue #173）
+        let lat: number | undefined;
+        let lng: number | undefined;
+        let geocodeWarning: string | undefined;
+
+        const oldAddress = `${currentFacility?.prefecture || ''}${currentFacility?.city || ''}${currentFacility?.address_line || ''}`;
+        const newAddress = `${data.prefecture || ''}${data.city || ''}${data.addressLine || ''}`;
+
+        if (oldAddress !== newAddress && newAddress.trim() !== '') {
+            const location = await geocodeAddress(newAddress);
+            if (location) {
+                lat = location.lat;
+                lng = location.lng;
+            } else {
+                // ジオコーディング失敗時の警告メッセージ
+                geocodeWarning = '住所から座標を取得できませんでした。距離検索に表示されない可能性があります。';
+            }
+        }
+
         await prisma.facility.update({
             where: { id: facilityId },
             data: {
@@ -363,10 +413,10 @@ export async function updateFacilityBasicInfo(facilityId: number, data: any) {
                 staff_phone: data.staffPhone,
                 staff_email: data.staffEmail,
                 staff_emails: data.staffEmails,
-                staff_photo: data.staffPhoto,
+                // staff_photo は廃止（ID-13）
                 staff_greeting: data.staffGreeting,
                 emergency_contact: data.emergencyContact,
-                stations: data.stations,
+                // stations は廃止（ID-12）
                 access_description: data.accessDescription,
                 transportation: data.transportation,
                 parking: data.parking,
@@ -378,6 +428,8 @@ export async function updateFacilityBasicInfo(facilityId: number, data: any) {
                 smoking_measure: data.smokingMeasure,
                 work_in_smoking_area: data.workInSmokingArea,
                 is_pending: false,
+                // 座標更新（住所変更時のみ）Issue #173
+                ...(lat !== undefined && lng !== undefined ? { lat, lng } : {}),
             },
         });
         revalidateTag(`facility-${facilityId}`);
@@ -385,6 +437,8 @@ export async function updateFacilityBasicInfo(facilityId: number, data: any) {
         // ログ記録
         logActivity({
             userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
             action: 'FACILITY_UPDATE',
             targetType: 'Facility',
             targetId: facilityId,
@@ -395,11 +449,13 @@ export async function updateFacilityBasicInfo(facilityId: number, data: any) {
             result: 'SUCCESS',
         }).catch(() => {});
 
-        return { success: true, isPendingCleared: true };
+        return { success: true, isPendingCleared: true, warning: geocodeWarning };
     } catch (error) {
         // エラーログ記録
         logActivity({
             userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
             action: 'FACILITY_UPDATE',
             targetType: 'Facility',
             targetId: facilityId,
@@ -450,6 +506,9 @@ export async function updateFacilityMapImage(facilityId: number, address: string
  * 施設の緯度経度を更新
  */
 export async function updateFacilityLatLng(facilityId: number, lat: number, lng: number) {
+    // セッションからユーザー情報を取得
+    const session = await getFacilityAdminSessionData();
+
     try {
         await prisma.facility.update({ where: { id: facilityId }, data: { lat, lng } });
         revalidatePath('/admin/facility');
@@ -457,6 +516,8 @@ export async function updateFacilityLatLng(facilityId: number, lat: number, lng:
         // ログ記録
         logActivity({
             userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
             action: 'FACILITY_UPDATE',
             targetType: 'Facility',
             targetId: facilityId,
@@ -473,6 +534,8 @@ export async function updateFacilityLatLng(facilityId: number, lat: number, lng:
         // エラーログ記録
         logActivity({
             userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
             action: 'FACILITY_UPDATE',
             targetType: 'Facility',
             targetId: facilityId,
@@ -492,6 +555,9 @@ export async function updateFacilityLatLng(facilityId: number, lat: number, lng:
  * 緯度経度から地図画像を更新
  */
 export async function updateFacilityMapImageByLatLng(facilityId: number, lat: number, lng: number) {
+    // セッションからユーザー情報を取得
+    const session = await getFacilityAdminSessionData();
+
     try {
         const apiKey = process.env.GOOGLE_MAPS_API_KEY;
         if (!apiKey) return { success: false, error: 'Google Maps APIキーが設定されていません' };
@@ -519,6 +585,8 @@ export async function updateFacilityMapImageByLatLng(facilityId: number, lat: nu
         // ログ記録
         logActivity({
             userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
             action: 'FACILITY_UPDATE',
             targetType: 'Facility',
             targetId: facilityId,
@@ -535,6 +603,8 @@ export async function updateFacilityMapImageByLatLng(facilityId: number, lat: nu
         // エラーログ記録
         logActivity({
             userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
             action: 'FACILITY_UPDATE',
             targetType: 'Facility',
             targetId: facilityId,

@@ -341,3 +341,116 @@ export async function getPublicJobsForSitemap() {
         lastModified: job.updated_at,
     }));
 }
+
+/**
+ * 施設の面接通過率を取得（審査あり求人用）
+ * @param facilityId 施設ID
+ * @param period 期間フィルター: 'current' (当月), 'last' (先月), 'two_months_ago' (先々月)
+ * @returns 面接通過率データ
+ */
+export async function getFacilityInterviewPassRate(
+    facilityId: number,
+    period: 'current' | 'last' | 'two_months_ago' = 'current'
+): Promise<{
+    passRate: number | null;
+    appliedCount: number;
+    matchedCount: number;
+    period: string;
+}> {
+    // 期間の開始日と終了日を計算（JST基準）
+    const now = new Date();
+    const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000); // UTC to JST
+
+    let startDate: Date;
+    let endDate: Date;
+    let periodLabel: string;
+
+    const jstYear = jstNow.getUTCFullYear();
+    const jstMonth = jstNow.getUTCMonth();
+
+    switch (period) {
+        case 'current':
+            // 当月の1日から今日まで
+            startDate = new Date(Date.UTC(jstYear, jstMonth, 1, 0, 0, 0, 0));
+            startDate = new Date(startDate.getTime() - 9 * 60 * 60 * 1000); // JST to UTC
+            endDate = now;
+            periodLabel = `${jstMonth + 1}月`;
+            break;
+        case 'last':
+            // 先月の1日から末日まで
+            startDate = new Date(Date.UTC(jstYear, jstMonth - 1, 1, 0, 0, 0, 0));
+            startDate = new Date(startDate.getTime() - 9 * 60 * 60 * 1000);
+            endDate = new Date(Date.UTC(jstYear, jstMonth, 1, 0, 0, 0, 0));
+            endDate = new Date(endDate.getTime() - 9 * 60 * 60 * 1000 - 1); // 1ms前
+            const lastMonth = jstMonth === 0 ? 12 : jstMonth;
+            periodLabel = `${lastMonth}月`;
+            break;
+        case 'two_months_ago':
+            // 先々月の1日から末日まで
+            startDate = new Date(Date.UTC(jstYear, jstMonth - 2, 1, 0, 0, 0, 0));
+            startDate = new Date(startDate.getTime() - 9 * 60 * 60 * 1000);
+            endDate = new Date(Date.UTC(jstYear, jstMonth - 1, 1, 0, 0, 0, 0));
+            endDate = new Date(endDate.getTime() - 9 * 60 * 60 * 1000 - 1);
+            const twoMonthsAgo = jstMonth <= 1 ? jstMonth + 11 : jstMonth - 1;
+            periodLabel = `${twoMonthsAgo}月`;
+            break;
+    }
+
+    // 施設の審査あり求人の応募データを集計
+    const result = await prisma.application.aggregate({
+        where: {
+            workDate: {
+                job: {
+                    facility_id: facilityId,
+                    requires_interview: true, // 審査あり求人のみ
+                },
+            },
+            created_at: {
+                gte: startDate,
+                lte: endDate,
+            },
+            // キャンセルされていない応募のみ
+            status: {
+                not: 'CANCELLED',
+            },
+        },
+        _count: {
+            id: true,
+        },
+    });
+
+    // マッチング成立数（SCHEDULED以上のステータス）
+    const matchedResult = await prisma.application.aggregate({
+        where: {
+            workDate: {
+                job: {
+                    facility_id: facilityId,
+                    requires_interview: true,
+                },
+            },
+            created_at: {
+                gte: startDate,
+                lte: endDate,
+            },
+            status: {
+                in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'],
+            },
+        },
+        _count: {
+            id: true,
+        },
+    });
+
+    const appliedCount = result._count.id;
+    const matchedCount = matchedResult._count.id;
+
+    // 通過率を計算（応募数が0の場合はnull）
+    const passRate = appliedCount > 0 ? Math.round((matchedCount / appliedCount) * 100) : null;
+
+    return {
+        passRate,
+        appliedCount,
+        matchedCount,
+        period: periodLabel,
+    };
+}

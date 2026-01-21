@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
+import { getFacilityAdminSessionData } from '@/lib/admin-session-server';
 
 /**
  * 施設のアカウント一覧を取得
@@ -37,6 +38,7 @@ export async function addFacilityAccount(
     facilityId: number,
     data: { name: string; email: string; password: string }
 ) {
+    const session = await getFacilityAdminSessionData();
     try {
         const count = await prisma.facilityAdmin.count({
             where: { facility_id: facilityId },
@@ -76,6 +78,8 @@ export async function addFacilityAccount(
         // ログ記録
         logActivity({
             userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
             action: 'FACILITY_ACCOUNT_CREATE',
             targetType: 'FacilityAdmin',
             targetId: account.id,
@@ -94,6 +98,8 @@ export async function addFacilityAccount(
         // エラーログ記録
         logActivity({
             userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
             action: 'FACILITY_ACCOUNT_CREATE',
             requestData: {
                 facilityId,
@@ -116,6 +122,7 @@ export async function updateFacilityAccount(
     facilityId: number,
     data: { name?: string; email?: string }
 ) {
+    const session = await getFacilityAdminSessionData();
     try {
         const account = await prisma.facilityAdmin.findFirst({
             where: { id: accountId, facility_id: facilityId },
@@ -152,6 +159,8 @@ export async function updateFacilityAccount(
         // ログ記録
         logActivity({
             userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
             action: 'FACILITY_ACCOUNT_UPDATE',
             targetType: 'FacilityAdmin',
             targetId: accountId,
@@ -170,6 +179,8 @@ export async function updateFacilityAccount(
         // エラーログ記録
         logActivity({
             userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
             action: 'FACILITY_ACCOUNT_UPDATE',
             targetType: 'FacilityAdmin',
             targetId: accountId,
@@ -193,6 +204,7 @@ export async function updateFacilityAccountPassword(
     facilityId: number,
     newPassword: string
 ) {
+    const session = await getFacilityAdminSessionData();
     try {
         const account = await prisma.facilityAdmin.findFirst({
             where: { id: accountId, facility_id: facilityId },
@@ -212,6 +224,8 @@ export async function updateFacilityAccountPassword(
         // ログ記録（パスワードは記録しない）
         logActivity({
             userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
             action: 'FACILITY_ACCOUNT_UPDATE',
             targetType: 'FacilityAdmin',
             targetId: accountId,
@@ -229,6 +243,8 @@ export async function updateFacilityAccountPassword(
         // エラーログ記録
         logActivity({
             userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
             action: 'FACILITY_ACCOUNT_UPDATE',
             targetType: 'FacilityAdmin',
             targetId: accountId,
@@ -249,6 +265,7 @@ export async function updateFacilityAccountPassword(
  * アカウントを削除（初期アカウントは削除不可）
  */
 export async function deleteFacilityAccount(accountId: number, facilityId: number) {
+    const session = await getFacilityAdminSessionData();
     try {
         const account = await prisma.facilityAdmin.findFirst({
             where: { id: accountId, facility_id: facilityId },
@@ -269,6 +286,8 @@ export async function deleteFacilityAccount(accountId: number, facilityId: numbe
         // ログ記録
         logActivity({
             userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
             action: 'FACILITY_ACCOUNT_DELETE',
             targetType: 'FacilityAdmin',
             targetId: accountId,
@@ -286,6 +305,8 @@ export async function deleteFacilityAccount(accountId: number, facilityId: numbe
         // エラーログ記録
         logActivity({
             userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
             action: 'FACILITY_ACCOUNT_DELETE',
             targetType: 'FacilityAdmin',
             targetId: accountId,

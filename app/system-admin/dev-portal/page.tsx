@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import Link from 'next/link';
 import { MemoPad } from './MemoPad';
-import { Smartphone, Layout, Hash, Shield, Book, Users, Building2, Settings, ExternalLink, Image as ImageIcon, BellRing, ListChecks, Clock } from 'lucide-react';
+import { Smartphone, Layout, Hash, Shield, Book, Users, Building2, Settings, ExternalLink, Image as ImageIcon, BellRing, ListChecks, Clock, Bug, Activity, AlertTriangle } from 'lucide-react';
 
 // サイトマップ定義（ツリー構造）
 interface SiteMapNode {
@@ -177,6 +177,7 @@ const SYSTEM_ADMIN_TREE: SiteMapNode[] = [
     },
     {
         name: 'dev-portal', title: '開発ポータル', href: '/system-admin/dev-portal', children: [
+            { name: 'logs', title: 'バグ調査ダッシュボード', href: '/system-admin/dev-portal/logs' },
             { name: 'sample-images', title: 'サンプル画像', href: '/system-admin/dev-portal/sample-images' },
             { name: 'notification-logs', title: '通知ログ', href: '/system-admin/dev-portal/notification-logs' },
         ]
@@ -298,25 +299,58 @@ export default function DevPortalPage() {
         <div className="min-h-screen bg-gray-50 p-6 font-sans">
             <div className="max-w-[900px] mx-auto space-y-6">
 
-                {/* Header */}
-                <header className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex items-center justify-between">
-                    <div>
-                        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 mb-1">
-                            <div className="bg-blue-600 p-2 rounded-lg">
-                                <Hash className="w-6 h-6 text-white" />
-                            </div>
-                            開発ポータル
-                        </h1>
-                        <p className="text-sm text-gray-500">+TASTAS Development Hub</p>
-                    </div>
-                    <div className="flex gap-3">
-                        <Link href="/system-admin" className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
-                            システム管理へ戻る
-                        </Link>
-                    </div>
+                {/* ヘッダー */}
+                <header className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                    <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 mb-2">
+                        <div className="bg-blue-600 p-2 rounded-lg">
+                            <Hash className="w-6 h-6 text-white" />
+                        </div>
+                        開発ポータル ダッシュボード
+                    </h1>
+                    <p className="text-sm text-gray-500">+TASTAS Development Hub - クイックアクセス＆デバッグツール</p>
                 </header>
 
-                {/* Quick Links */}
+                {/* クイックステータス */}
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                    <Link href="/system-admin/dev-portal/logs" className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 hover:border-red-300 hover:shadow-md transition-all group">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-xs font-medium text-gray-500">バグ調査</p>
+                                <p className="text-lg font-bold text-red-600 group-hover:text-red-700">エラーログ確認</p>
+                            </div>
+                            <Bug className="w-8 h-8 text-red-200 group-hover:text-red-300" />
+                        </div>
+                    </Link>
+                    <Link href="/system-admin/dev-portal/notification-logs" className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 hover:border-orange-300 hover:shadow-md transition-all group">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-xs font-medium text-gray-500">通知ログ</p>
+                                <p className="text-lg font-bold text-orange-600 group-hover:text-orange-700">送信履歴</p>
+                            </div>
+                            <BellRing className="w-8 h-8 text-orange-200 group-hover:text-orange-300" />
+                        </div>
+                    </Link>
+                    <Link href="/system-admin/dev-portal/debug-checklist" className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 hover:border-blue-300 hover:shadow-md transition-all group">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-xs font-medium text-gray-500">デバッグ項目</p>
+                                <p className="text-lg font-bold text-blue-600 group-hover:text-blue-700">チェックリスト</p>
+                            </div>
+                            <ListChecks className="w-8 h-8 text-blue-200 group-hover:text-blue-300" />
+                        </div>
+                    </Link>
+                    <Link href="/system-admin/dev-portal/debug-time" className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 hover:border-indigo-300 hover:shadow-md transition-all group">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-xs font-medium text-gray-500">デバッグ時刻</p>
+                                <p className="text-lg font-bold text-indigo-600 group-hover:text-indigo-700">時刻変更</p>
+                            </div>
+                            <Clock className="w-8 h-8 text-indigo-200 group-hover:text-indigo-300" />
+                        </div>
+                    </Link>
+                </div>
+
+                {/* クイックリンク */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
                     <h2 className="text-md font-bold text-gray-900 mb-4 flex items-center gap-2 border-b pb-3">
                         <Layout className="w-4 h-4 text-blue-600" />
@@ -358,32 +392,11 @@ export default function DevPortalPage() {
                             </div>
                             <p className="text-xs text-gray-500">モック用画像素材集</p>
                         </Link>
-                        <Link href="/system-admin/dev-portal/notification-logs" target="_blank" rel="noopener noreferrer" className="block w-full text-left p-3 rounded-lg border border-gray-200 hover:border-orange-300 hover:shadow-md transition-all group bg-white">
-                            <div className="flex items-center justify-between mb-1">
-                                <div className="font-bold text-gray-800 group-hover:text-orange-600">通知ログ</div>
-                                <BellRing className="w-4 h-4 text-gray-400 group-hover:text-orange-500" />
-                            </div>
-                            <p className="text-xs text-gray-500">送信済み通知の確認</p>
-                        </Link>
-                        <Link href="/system-admin/dev-portal/debug-checklist" target="_blank" rel="noopener noreferrer" className="block w-full text-left p-3 rounded-lg border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all group bg-white">
-                            <div className="flex items-center justify-between mb-1">
-                                <div className="font-bold text-gray-800 group-hover:text-blue-600">デバッグ項目</div>
-                                <ListChecks className="w-4 h-4 text-gray-400 group-hover:text-blue-500" />
-                            </div>
-                            <p className="text-xs text-gray-500">機能検証チェックリスト</p>
-                        </Link>
-                        <Link href="/system-admin/dev-portal/debug-time" target="_blank" rel="noopener noreferrer" className="block w-full text-left p-3 rounded-lg border border-gray-200 hover:border-indigo-400 hover:shadow-md transition-all group bg-white">
-                            <div className="flex items-center justify-between mb-1">
-                                <div className="font-bold text-gray-800 group-hover:text-indigo-600">デバッグ時刻</div>
-                                <Clock className="w-4 h-4 text-gray-400 group-hover:text-indigo-500" />
-                            </div>
-                            <p className="text-xs text-gray-500">システム時刻の変更</p>
-                        </Link>
                     </div>
                 </div>
 
                 {/* Site Maps - 3 sections */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+                <div id="sitemap" className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
                     <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2 border-b pb-3">
                         <Settings className="w-5 h-5 text-orange-600" />
                         サイトマップ
@@ -437,7 +450,7 @@ export default function DevPortalPage() {
                 </div>
 
                 {/* Docs */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div id="docs" className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
                         <h2 className="text-md font-bold text-gray-900 mb-4 flex items-center gap-2 border-b pb-3">
                             <Book className="w-4 h-4 text-green-600" />

@@ -85,8 +85,10 @@ export async function getFacilityUnreadNotificationCount(_facilityId: number) {
  * 通知を既読にする
  */
 export async function markNotificationAsRead(notificationId: number) {
+    let authenticatedUser: { id: number; email: string } | null = null;
     try {
         const user = await getAuthenticatedUser();
+        authenticatedUser = { id: user.id, email: user.email };
 
         // ユーザーの通知であることを確認
         const notification = await prisma.notification.findFirst({
@@ -111,6 +113,7 @@ export async function markNotificationAsRead(notificationId: number) {
         logActivity({
             userType: 'WORKER',
             userId: user.id,
+            userEmail: user.email,
             action: 'NOTIFICATION_READ',
             targetType: 'Notification',
             targetId: notificationId,
@@ -124,6 +127,8 @@ export async function markNotificationAsRead(notificationId: number) {
         // エラーログ記録
         logActivity({
             userType: 'WORKER',
+            userId: authenticatedUser?.id,
+            userEmail: authenticatedUser?.email,
             action: 'NOTIFICATION_READ',
             targetType: 'Notification',
             targetId: notificationId,
@@ -140,8 +145,10 @@ export async function markNotificationAsRead(notificationId: number) {
  * ユーザーの全通知を既読にする
  */
 export async function markAllNotificationsAsRead() {
+    let authenticatedUser: { id: number; email: string } | null = null;
     try {
         const user = await getAuthenticatedUser();
+        authenticatedUser = { id: user.id, email: user.email };
 
         const result = await prisma.notification.updateMany({
             where: {
@@ -159,6 +166,7 @@ export async function markAllNotificationsAsRead() {
         logActivity({
             userType: 'WORKER',
             userId: user.id,
+            userEmail: user.email,
             action: 'NOTIFICATION_READ',
             targetType: 'Notification',
             requestData: {
@@ -175,6 +183,8 @@ export async function markAllNotificationsAsRead() {
         // エラーログ記録
         logActivity({
             userType: 'WORKER',
+            userId: authenticatedUser?.id,
+            userEmail: authenticatedUser?.email,
             action: 'NOTIFICATION_READ',
             requestData: {
                 action: 'mark_all_read',

@@ -188,10 +188,12 @@ export async function updateUserSelfPR(selfPR: string): Promise<{ success: boole
 
 export async function updateUserProfile(formData: FormData) {
     console.log('[updateUserProfile] Function called');
+    let authenticatedUser: { id: number; email: string } | null = null;
     try {
         // テスト運用中の認証済みユーザーを取得
         console.log('[updateUserProfile] Getting authenticated user...');
         const user = await getAuthenticatedUser();
+        authenticatedUser = { id: user.id, email: user.email };
         console.log('[updateUserProfile] Updating profile for user:', user.id);
 
         // FormDataから値を取得
@@ -511,6 +513,8 @@ export async function updateUserProfile(formData: FormData) {
         try {
             logActivity({
                 userType: 'WORKER',
+                userId: authenticatedUser?.id,
+                userEmail: authenticatedUser?.email,
                 action: 'PROFILE_UPDATE_FAILED',
                 result: 'ERROR',
                 errorMessage: getErrorMessage(error),

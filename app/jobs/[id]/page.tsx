@@ -1,4 +1,4 @@
-import { getJobById, getJobs, hasUserAppliedForJob, getFacilityReviews, getUserApplicationStatuses, getUserScheduledJobs } from '@/src/lib/actions';
+import { getJobById, getJobs, hasUserAppliedForJob, getFacilityReviews, getUserApplicationStatuses, getUserScheduledJobs, getFacilityInterviewPassRate } from '@/src/lib/actions';
 import { JobDetailClient } from '@/components/job/JobDetailClient';
 import { notFound } from 'next/navigation';
 import { cookies } from 'next/headers';
@@ -169,6 +169,12 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
   // 施設のレビューを取得
   const facilityReviews = await getFacilityReviews(jobData.facility_id);
 
+  // 審査あり求人の場合、面接通過率を取得（当月）
+  let interviewPassRate = null;
+  if (jobData.requires_interview) {
+    interviewPassRate = await getFacilityInterviewPassRate(jobData.facility_id, 'current');
+  }
+
   return (
     <JobDetailClient
       job={job}
@@ -180,6 +186,7 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
       selectedDate={selectedDate}
       isPreviewMode={isPreviewMode}
       scheduledJobs={scheduledJobs}
+      interviewPassRate={interviewPassRate}
     />
   );
 }
