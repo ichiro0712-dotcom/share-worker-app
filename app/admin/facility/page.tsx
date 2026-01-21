@@ -110,7 +110,11 @@ export default function FacilityPage() {
     emails: [''],
     greeting: '',
     emergencyContact: '',
+    photo: '' as string, // 担当者顔写真URL（任意項目）
   });
+  // 担当者顔写真の新規アップロード用
+  const [staffPhotoFile, setStaffPhotoFile] = useState<File | null>(null);
+  const [isUploadingStaffPhoto, setIsUploadingStaffPhoto] = useState(false);
 
   // 服装情報
   const [dresscodeInfo, setDresscodeInfo] = useState({
@@ -287,6 +291,7 @@ export default function FacilityPage() {
               emails: pendingEmails,
               greeting: '',
               emergencyContact: '',
+              photo: '',
             });
             // アクセス情報のデフォルト値を空にリセット
             setAccessInfo({
@@ -378,6 +383,7 @@ export default function FacilityPage() {
             emails: allEmails,
             greeting: data.staffGreeting || '',
             emergencyContact: data.emergencyContact || '',
+            photo: data.staffPhoto || '',
           });
 
           // アクセス情報をセット（ID-12: 最寄駅フィールド削除）
@@ -886,6 +892,7 @@ export default function FacilityPage() {
         staffEmails: staffInfo.emails.filter(e => e.trim() !== ''),
         staffGreeting: staffInfo.greeting,
         emergencyContact: staffInfo.emergencyContact,
+        staffPhoto: staffInfo.photo || null, // 担当者顔写真（任意項目）
 
         // アクセス情報（ID-12: 最寄駅フィールド削除）
         accessDescription: accessInfo.accessDescription,
@@ -1471,6 +1478,107 @@ export default function FacilityPage() {
                       )}
                     </div>
                   )}
+
+                  {/* 担当者顔写真（任意） */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      顔写真 <span className="text-xs text-gray-500 font-normal">（任意）</span>
+                    </label>
+                    <p className="text-xs text-gray-500 mb-2">メッセージ画面でアバターとして表示されます</p>
+                    <div className="flex items-start gap-4">
+                      {/* 現在の画像またはプレビュー */}
+                      <div className="w-20 h-20 rounded-full border-2 border-gray-200 overflow-hidden bg-gray-100 flex items-center justify-center">
+                        {staffPhotoFile ? (
+                          <img
+                            src={URL.createObjectURL(staffPhotoFile)}
+                            alt="担当者顔写真プレビュー"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : staffInfo.photo ? (
+                          <img
+                            src={staffInfo.photo}
+                            alt="担当者顔写真"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <User className="w-8 h-8 text-gray-400" />
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          className="hidden"
+                          id="staff-photo-input"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+
+                            // ファイルバリデーション
+                            const validationResult = validateFile(file, {
+                              maxSize: MAX_FILE_SIZE,
+                              allowedTypes: ['image/jpeg', 'image/png', 'image/webp'],
+                            });
+                            if (!validationResult.valid) {
+                              toast.error(validationResult.error || 'ファイルが無効です');
+                              return;
+                            }
+
+                            setStaffPhotoFile(file);
+                            setIsUploadingStaffPhoto(true);
+
+                            try {
+                              // 直接アップロード
+                              const result = await directUpload(file, 'staff-photos');
+                              if (result.success && result.url) {
+                                setStaffInfo({ ...staffInfo, photo: result.url });
+                                toast.success('顔写真をアップロードしました');
+                              } else {
+                                toast.error(result.error || 'アップロードに失敗しました');
+                                setStaffPhotoFile(null);
+                              }
+                            } catch (error) {
+                              console.error('Staff photo upload error:', error);
+                              toast.error('アップロードに失敗しました');
+                              setStaffPhotoFile(null);
+                            } finally {
+                              setIsUploadingStaffPhoto(false);
+                            }
+                          }}
+                        />
+                        <label
+                          htmlFor="staff-photo-input"
+                          className="inline-flex items-center gap-1 px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"
+                        >
+                          {isUploadingStaffPhoto ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              アップロード中...
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="w-4 h-4" />
+                              写真を選択
+                            </>
+                          )}
+                        </label>
+                        {staffInfo.photo && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setStaffInfo({ ...staffInfo, photo: '' });
+                              setStaffPhotoFile(null);
+                            }}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 border border-red-200 rounded-lg"
+                          >
+                            <X className="w-4 h-4" />
+                            削除
+                          </button>
+                        )}
+                        <p className="text-xs text-gray-500">JPEG, PNG, WebP（{formatFileSize(MAX_FILE_SIZE)}まで）</p>
+                      </div>
+                    </div>
+                  </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
