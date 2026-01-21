@@ -30,6 +30,7 @@ import {
   ChevronRight,
   QrCode,
   ClipboardCheck,
+  FileSpreadsheet,
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -264,6 +265,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       icon: <QrCode className="w-5 h-5" />,
       href: '/admin/attendance',
       active: pathname === '/admin/attendance',
+    },
+    {
+      title: '利用明細',
+      icon: <FileSpreadsheet className="w-5 h-5" />,
+      href: '/admin/reports/usage',
+      active: pathname?.startsWith('/admin/reports'),
     },
     {
       title: 'ご利用ガイド・FAQ',

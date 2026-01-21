@@ -62,10 +62,13 @@ export async function getPendingModificationRequests(
     };
 
     // ステータスフィルター
-    if (options?.status && options.status !== 'all') {
+    if (options?.status === 'all') {
+      // 'all'の場合はステータス条件を設定しない（全て表示）
+    } else if (options?.status) {
+      // 特定ステータスが指定された場合
       whereClause.status = options.status;
     } else {
-      // デフォルトは承認待ち（PENDING, RESUBMITTED）
+      // デフォルト（statusが未指定）は承認待ち（PENDING, RESUBMITTED）
       whereClause.status = { in: ['PENDING', 'RESUBMITTED'] };
     }
 
@@ -81,16 +84,26 @@ export async function getPendingModificationRequests(
                   name: true,
                 },
               },
+              facility: {
+                select: {
+                  id: true,
+                  facility_name: true,
+                },
+              },
+              // 直接jobリレーションを取得
+              job: {
+                select: {
+                  id: true,
+                  title: true,
+                  start_time: true,
+                  end_time: true,
+                },
+              },
               application: {
                 include: {
                   workDate: {
-                    include: {
-                      job: {
-                        select: {
-                          id: true,
-                          title: true,
-                        },
-                      },
+                    select: {
+                      work_date: true,
                     },
                   },
                 },
@@ -115,9 +128,13 @@ export async function getPendingModificationRequests(
         attendanceId: req.attendance_id,
         workerName: req.attendance.user.name,
         workerId: req.attendance.user.id,
-        jobId: req.attendance.application?.workDate.job.id ?? 0,
-        jobTitle: req.attendance.application?.workDate.job.title ?? '不明',
+        applicationId: req.attendance.application_id,
+        // 直接job_idとjobリレーションから取得
+        jobId: req.attendance.job_id ?? 0,
+        jobTitle: req.attendance.job?.title ?? '不明',
         workDate: req.attendance.application?.workDate.work_date ?? req.created_at,
+        scheduledStartTime: req.attendance.job?.start_time ?? '',
+        scheduledEndTime: req.attendance.job?.end_time ?? '',
         status: req.status as any,
         requestedStartTime: req.requested_start_time,
         requestedEndTime: req.requested_end_time,
@@ -127,6 +144,7 @@ export async function getPendingModificationRequests(
         workerComment: req.worker_comment,
         createdAt: req.created_at,
         resubmitCount: req.resubmit_count,
+        facilityName: req.attendance.facility.facility_name,
       })),
       total,
     };
@@ -590,6 +608,274 @@ export async function getFacilityAttendanceSettings(facilityId: number): Promise
   } catch (error) {
     console.error('[getFacilityAttendanceSettings] Error:', error);
     return null;
+  }
+}
+
+// ================== 利用明細 ==================
+
+/** 手数料率（施設が支払うプラットフォーム手数料） */
+const PLATFORM_FEE_RATE = 0.30; // 30%
+
+/** 消費税率 */
+const TAX_RATE = 0.10; // 10%
+
+/** 利用明細アイテム（カイテク仕様準拠） */
+export interface UsageDetailItem {
+  id: number;
+  jobId: number;
+  workDate: Date;
+  workDateTime: string; // 日時（例: 2025/10/23 (木)17:00 〜 18:00）
+  facilityName: string;
+  workerName: string;
+  workerId: number;
+  jobTitle: string;
+  checkInTime: Date | null;
+  checkOutTime: Date | null;
+  scheduledStartTime: string;
+  scheduledEndTime: string;
+  scheduledBreakTime: number;
+  actualStartTime: Date | null;
+  actualEndTime: Date | null;
+  actualBreakTime: number | null;
+  calculatedWage: number | null;
+  transportationFee: number;
+  platformFee: number;        // 手数料（給与×手数料率）
+  tax: number;                // 税額（手数料×消費税率）
+  totalAmount: number;        // 合計（給与+交通費+手数料+税額）
+  hourlyWage: number;
+  modificationStatus: string | null;
+  attendanceStatus: string;
+}
+
+/**
+ * 利用明細一覧を取得
+ */
+export async function getUsageDetails(
+  facilityId: number,
+  options?: {
+    year?: number;
+    month?: number;
+    limit?: number;
+    offset?: number;
+  }
+): Promise<{ items: UsageDetailItem[]; total: number }> {
+  try {
+    await getFacilityById(facilityId);
+
+    // 年月の指定がない場合は当月
+    const now = getCurrentTime();
+    const year = options?.year ?? now.getFullYear();
+    const month = options?.month ?? now.getMonth() + 1;
+
+    // 月の開始日と終了日
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0, 23, 59, 59, 999);
+
+    const whereClause: any = {
+      facility_id: facilityId,
+      status: 'CHECKED_OUT', // 退勤済みのみ
+      check_in_time: {
+        gte: startDate,
+        lte: endDate,
+      },
+    };
+
+    const [items, total] = await Promise.all([
+      prisma.attendance.findMany({
+        where: whereClause,
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          facility: {
+            select: {
+              id: true,
+              facility_name: true,
+            },
+          },
+          job: {
+            select: {
+              id: true,
+              title: true,
+              start_time: true,
+              end_time: true,
+              break_time: true,
+              hourly_wage: true,
+              transportation_fee: true,
+            },
+          },
+          application: {
+            select: {
+              id: true,
+              workDate: {
+                select: {
+                  work_date: true,
+                },
+              },
+            },
+          },
+          modificationRequest: {
+            select: {
+              status: true,
+            },
+          },
+        },
+        orderBy: {
+          check_in_time: 'desc',
+        },
+        take: options?.limit ?? 100,
+        skip: options?.offset ?? 0,
+      }),
+      prisma.attendance.count({
+        where: whereClause,
+      }),
+    ]);
+
+    return {
+      items: items.map((att) => {
+        const wage = att.calculated_wage ?? 0;
+        const transportationFee = att.job?.transportation_fee ?? 0;
+        const platformFee = Math.floor(wage * PLATFORM_FEE_RATE);
+        const tax = Math.floor(platformFee * TAX_RATE);
+        const totalAmount = wage + transportationFee + platformFee + tax;
+
+        // 勤務日時を「2025/10/23 (木)17:00 〜 18:00」形式で生成
+        const workDate = att.application?.workDate.work_date ?? att.check_in_time;
+        const dateObj = new Date(workDate);
+        const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+        const weekday = weekdays[dateObj.getDay()];
+        const dateStr = dateObj.toLocaleDateString('ja-JP');
+        const startTime = att.job?.start_time ?? '';
+        const endTime = att.job?.end_time ?? '';
+        const workDateTime = `${dateStr} (${weekday})${startTime} 〜 ${endTime}`;
+
+        return {
+          id: att.id,
+          jobId: att.job_id ?? 0,
+          workDate,
+          workDateTime,
+          facilityName: att.facility.facility_name,
+          workerName: att.user.name,
+          workerId: att.user.id,
+          jobTitle: att.job?.title ?? '不明',
+          checkInTime: att.check_in_time,
+          checkOutTime: att.check_out_time,
+          scheduledStartTime: startTime,
+          scheduledEndTime: endTime,
+          scheduledBreakTime: parseInt(att.job?.break_time ?? '0', 10),
+          actualStartTime: att.actual_start_time,
+          actualEndTime: att.actual_end_time,
+          actualBreakTime: att.actual_break_time,
+          calculatedWage: wage,
+          transportationFee,
+          platformFee,
+          tax,
+          totalAmount,
+          hourlyWage: att.job?.hourly_wage ?? 0,
+          modificationStatus: att.modificationRequest?.status ?? null,
+          attendanceStatus: att.status,
+        };
+      }),
+      total,
+    };
+  } catch (error) {
+    console.error('[getUsageDetails] Error:', error);
+    return { items: [], total: 0 };
+  }
+}
+
+/**
+ * 利用明細をCSV形式で取得（カイテク仕様準拠）
+ */
+export async function getUsageDetailsCSV(
+  facilityId: number,
+  options?: {
+    year?: number;
+    month?: number;
+  }
+): Promise<string> {
+  try {
+    const { items } = await getUsageDetails(facilityId, {
+      ...options,
+      limit: 10000, // CSVは全件取得
+    });
+
+    // CSVヘッダー（カイテク仕様）
+    const headers = [
+      '案件ID',
+      '日時',
+      '事業所',
+      'ワーカー',
+      '出勤時刻',
+      '退勤時刻',
+      '休憩時間',
+      '給与',
+      '交通費',
+      '手数料',
+      '税額',
+      '合計',
+    ];
+
+    // CSV行を生成
+    const rows = items.map((item) => {
+      const checkIn = item.actualStartTime
+        ? new Date(item.actualStartTime).toLocaleString('ja-JP', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+          })
+        : '';
+      const checkOut = item.actualEndTime
+        ? new Date(item.actualEndTime).toLocaleString('ja-JP', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+          })
+        : '';
+
+      return [
+        item.jobId,
+        item.workDateTime,
+        item.facilityName,
+        item.workerName,
+        checkIn,
+        checkOut,
+        item.actualBreakTime ?? 0,
+        item.calculatedWage ?? 0,
+        item.transportationFee,
+        item.platformFee,
+        item.tax,
+        item.totalAmount,
+      ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',');
+    });
+
+    return [headers.join(','), ...rows].join('\n');
+  } catch (error) {
+    console.error('[getUsageDetailsCSV] Error:', error);
+    return '';
+  }
+}
+
+/** ステータスラベル変換 */
+function getModificationStatusLabel(status: string | null): string {
+  switch (status) {
+    case 'PENDING':
+      return '申請中';
+    case 'RESUBMITTED':
+      return '再申請';
+    case 'APPROVED':
+      return '承認済';
+    case 'REJECTED':
+      return '却下';
+    default:
+      return '確定';
   }
 }
 
