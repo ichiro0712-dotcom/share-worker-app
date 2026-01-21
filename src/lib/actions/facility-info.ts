@@ -263,7 +263,7 @@ export async function getFacilityInfo(facilityId: number) {
         staffPhone: facility.staff_phone,
         staffEmail: facility.staff_email,
         staffEmails: facility.staff_emails,
-        staffPhoto: null, // 担当者顔写真は廃止（ID-13）
+        staffPhoto: facility.staff_photo, // 担当者顔写真（任意項目、メッセージ画面で使用）
         staffGreeting: facility.staff_greeting,
         emergencyContact: facility.emergency_contact,
         stations: null, // 最寄駅は廃止（ID-12）
@@ -413,7 +413,7 @@ export async function updateFacilityBasicInfo(facilityId: number, data: any) {
                 staff_phone: data.staffPhone,
                 staff_email: data.staffEmail,
                 staff_emails: data.staffEmails,
-                // staff_photo は廃止（ID-13）
+                staff_photo: data.staffPhoto, // 担当者顔写真（任意項目）
                 staff_greeting: data.staffGreeting,
                 emergency_contact: data.emergencyContact,
                 // stations は廃止（ID-12）
