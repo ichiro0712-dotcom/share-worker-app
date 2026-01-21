@@ -349,14 +349,14 @@ export async function getWorkerAnalyticsData(filter: AnalyticsFilter): Promise<W
         const workerCancels = periodApps.filter(a => a.cancelled_by === 'WORKER').length;
         const cancelRate = totalApps > 0 ? (workerCancels / totalApps) * 100 : 0;
 
-        // 直前キャンセル率（勤務日24時間以内のキャンセル）
+        // 直前キャンセル率（勤務前日以降のキャンセル / 全応募数）
         const lastMinuteCancels = periodApps.filter(a => {
             if (a.cancelled_by !== 'WORKER' || !a.workDate?.work_date) return false;
             const hoursBeforeWork = differenceInHours(a.workDate.work_date, a.updated_at);
             return hoursBeforeWork >= 0 && hoursBeforeWork <= 24;
         }).length;
-        const lastMinuteCancelRate = workerCancels > 0
-            ? (lastMinuteCancels / workerCancels) * 100
+        const lastMinuteCancelRate = totalApps > 0
+            ? (lastMinuteCancels / totalApps) * 100
             : 0;
 
         // 退会率（期間開始時の登録数に対する退会率）
