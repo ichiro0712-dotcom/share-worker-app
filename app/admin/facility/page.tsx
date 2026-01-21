@@ -1526,7 +1526,7 @@ export default function FacilityPage() {
 
                             try {
                               // 直接アップロード
-                              const result = await directUpload(file, 'staff-photos');
+                              const result = await directUpload(file, { uploadType: 'facility' });
                               if (result.success && result.url) {
                                 setStaffInfo({ ...staffInfo, photo: result.url });
                                 toast.success('顔写真をアップロードしました');
