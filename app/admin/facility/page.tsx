@@ -89,6 +89,10 @@ export default function FacilityPage() {
     serviceType: '',
   });
 
+  // 施設画像
+  const [facilityImages, setFacilityImages] = useState<File[]>([]);
+  const [existingFacilityImages, setExistingFacilityImages] = useState<string[]>([]);
+
   // 責任者情報
   const [managerInfo, setManagerInfo] = useState({
     lastName: '',
@@ -104,11 +108,13 @@ export default function FacilityPage() {
     firstName: '',
     phone: '',
     emails: [''],
-    photo: null as File | null,
-    photoPreview: '',
     greeting: '',
     emergencyContact: '',
+    photo: '' as string, // 担当者顔写真URL（任意項目）
   });
+  // 担当者顔写真の新規アップロード用
+  const [staffPhotoFile, setStaffPhotoFile] = useState<File | null>(null);
+  const [isUploadingStaffPhoto, setIsUploadingStaffPhoto] = useState(false);
 
   // 服装情報
   const [dresscodeInfo, setDresscodeInfo] = useState({
@@ -125,11 +131,8 @@ export default function FacilityPage() {
     '髪型自由', '髪色自由', 'ネイルOK', 'ピアスOK', '髭OK', 'タトゥーOK（隠せる範囲）',
   ];
 
-  // アクセス情報
+  // アクセス情報（ID-12: 最寄駅フィールド削除）
   const [accessInfo, setAccessInfo] = useState({
-    stations: [
-      { name: '', minutes: 0 },
-    ] as { name: string; minutes: number }[],
     accessDescription: '',
     transportation: [] as string[],
     parking: '',
@@ -286,14 +289,12 @@ export default function FacilityPage() {
               firstName: '',
               phone: '',
               emails: pendingEmails,
-              photo: null,
-              photoPreview: '',
               greeting: '',
               emergencyContact: '',
+              photo: '',
             });
             // アクセス情報のデフォルト値を空にリセット
             setAccessInfo({
-              stations: [{ name: '', minutes: 0 }],
               accessDescription: '',
               transportation: [],
               parking: '',
@@ -343,6 +344,10 @@ export default function FacilityPage() {
             serviceType: data.facilityType || '',
           });
 
+          // 施設画像をセット
+          setExistingFacilityImages(data.images || []);
+          setFacilityImages([]);
+
           // 責任者情報をセット
           setManagerInfo((prev) => ({
             ...prev,
@@ -353,10 +358,6 @@ export default function FacilityPage() {
           }));
 
           // 担当者情報をセット
-          const validPhotoPath = data.staffPhoto && !data.staffPhoto.startsWith('blob:')
-            ? data.staffPhoto
-            : '';
-
           // staffEmail と staffEmails を統合
           const allEmails: string[] = [];
           if (data.staffEmail) {
@@ -380,17 +381,13 @@ export default function FacilityPage() {
             firstName: data.staffFirstName || '',
             phone: data.staffPhone || '',
             emails: allEmails,
-            photo: null,
-            photoPreview: validPhotoPath,
             greeting: data.staffGreeting || '',
             emergencyContact: data.emergencyContact || '',
+            photo: data.staffPhoto || '',
           });
 
-          // アクセス情報をセット
+          // アクセス情報をセット（ID-12: 最寄駅フィールド削除）
           setAccessInfo({
-            stations: data.stations && data.stations.length > 0
-              ? data.stations
-              : [{ name: '', minutes: 0 }],
             accessDescription: data.accessDescription || '',
             transportation: data.transportation || [],
             parking: data.parking || '',
@@ -497,53 +494,58 @@ export default function FacilityPage() {
     }
   }, [staffInfo.sameAsManager, managerInfo]);
 
-  const handleStaffPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // 20MB制限チェック
+  // 施設画像アップロード処理
+  const handleFacilityImageUpload = (files: File[]) => {
+    const maxImages = 5;
+    const currentCount = existingFacilityImages.length + facilityImages.length;
+    const remainingSlots = maxImages - currentCount;
+
+    if (remainingSlots <= 0) {
+      toast.error('画像は最大5枚までです');
+      return;
+    }
+
+    const filesToAdd = files.slice(0, remainingSlots);
+    const validFiles: File[] = [];
+
+    for (const file of filesToAdd) {
       if (file.size > MAX_FILE_SIZE) {
-        toast.error(`ファイルサイズが大きすぎます（${formatFileSize(file.size)}）。20MB以下の画像をお使いください。`);
-        return;
+        toast.error(`「${file.name}」のサイズが大きすぎます（${formatFileSize(file.size)}）。20MB以下の画像をお使いください。`);
+        continue;
       }
       const result = validateFile(file, 'image');
       if (!result.isValid) {
-        toast.error(result.error!);
-        return;
+        toast.error(`「${file.name}」: ${result.error}`);
+        continue;
       }
-      setStaffInfo({
-        ...staffInfo,
-        photo: file,
-        photoPreview: URL.createObjectURL(file),
-      });
+      validFiles.push(file);
+    }
+
+    if (validFiles.length > 0) {
+      setFacilityImages(prev => [...prev, ...validFiles]);
+    }
+
+    if (files.length > remainingSlots) {
+      toast.error(`${files.length - remainingSlots}枚の画像がスキップされました（最大5枚まで）`);
     }
   };
 
-  const handleStaffPhotoDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
-
-  const handleStaffPhotoDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
-    if (files.length > 0) {
-      const file = files[0];
-      // 20MB制限チェック
-      if (file.size > MAX_FILE_SIZE) {
-        toast.error(`ファイルサイズが大きすぎます（${formatFileSize(file.size)}）。20MB以下の画像をお使いください。`);
-        return;
-      }
-      const result = validateFile(file, 'image');
-      if (!result.isValid) {
-        toast.error(result.error!);
-        return;
-      }
-      setStaffInfo({
-        ...staffInfo,
-        photo: file,
-        photoPreview: URL.createObjectURL(file),
+  // 施設画像のアップロード処理（署名付きURL方式）
+  const uploadFacilityImage = async (file: File): Promise<string | null> => {
+    try {
+      const adminSession = localStorage.getItem('admin_session') || '';
+      const result = await directUpload(file, {
+        uploadType: 'facility',
+        adminSession,
       });
+      if (result.success && result.url) {
+        return result.url;
+      }
+      console.error('Facility image upload failed:', result.error);
+      return null;
+    } catch (error) {
+      console.error('Facility image upload error:', error);
+      return null;
     }
   };
 
@@ -692,67 +694,13 @@ export default function FacilityPage() {
     }
   };
 
-  const addStation = () => {
-    if (accessInfo.stations.length < 3) {
-      setAccessInfo({
-        ...accessInfo,
-        stations: [...accessInfo.stations, { name: '', minutes: 0 }],
-      });
-    }
-  };
-
-  const updateStation = (index: number, field: 'name' | 'minutes', value: string | number) => {
-    const newStations = [...accessInfo.stations];
-    newStations[index] = { ...newStations[index], [field]: value };
-    setAccessInfo({
-      ...accessInfo,
-      stations: newStations,
-    });
-  };
-
-  const removeStation = (index: number) => {
-    if (accessInfo.stations.length > 1) {
-      setAccessInfo({
-        ...accessInfo,
-        stations: accessInfo.stations.filter((_, i) => i !== index),
-      });
-    }
-  };
+  // ID-12: addStation, updateStation, removeStation関数を削除
 
   const previewWelcomeMessage = () => {
     return welcomeMessage.text
       .replace(/\[ワーカー名字\]/g, '田中')
       .replace(/\[施設責任者名字\]/g, managerInfo.lastName)
       .replace(/\[施設名\]/g, facilityInfo.name);
-  };
-
-  // 担当者画像のアップロード処理（署名付きURL方式で直接Supabaseにアップロード）
-  const uploadStaffPhoto = async (file: File): Promise<string | null> => {
-    try {
-      const adminSession = localStorage.getItem('admin_session') || '';
-      const result = await directUpload(file, {
-        uploadType: 'facility',
-        adminSession,
-      });
-
-      if (!result.success) {
-        throw new Error(result.error || 'アップロードに失敗しました');
-      }
-
-      return result.url || null;
-    } catch (error) {
-      const debugInfo = extractDebugInfo(error);
-      showDebugError({
-        type: 'upload',
-        operation: '施設担当者写真アップロード',
-        message: debugInfo.message,
-        details: debugInfo.details,
-        stack: debugInfo.stack,
-        context: { facilityId: admin?.facilityId }
-      });
-      console.error('Staff photo upload error:', error);
-      throw error;
-    }
   };
 
   const handleSave = async () => {
@@ -789,8 +737,6 @@ export default function FacilityPage() {
     if (!staffInfo.sameAsManager) {
       if (!staffInfo.lastName || !staffInfo.firstName) errors.push('担当者の氏名は必須です');
     }
-    const hasValidPhoto = staffInfo.photo || (staffInfo.photoPreview && !staffInfo.photoPreview.startsWith('blob:'));
-    if (!hasValidPhoto) errors.push('担当者の顔写真は必須です');
     if (!staffInfo.greeting?.trim()) errors.push('担当者の挨拶文は必須です');
     if (!staffInfo.phone) errors.push('担当者の連絡先番号は必須です');
 
@@ -802,8 +748,7 @@ export default function FacilityPage() {
     }
 
     // アクセス
-    const validStations = accessInfo.stations.filter(s => s.name?.trim() && (s.minutes || s.minutes === 0));
-    if (validStations.length === 0) errors.push('最寄駅は少なくとも1つ入力してください（駅名と所要時間）');
+    // ID-12: 最寄駅バリデーション削除
 
     if (!accessInfo.accessDescription?.trim()) errors.push('アクセスの説明は必須です');
     if (accessInfo.accessDescription && accessInfo.accessDescription.length > 40) errors.push('アクセスの説明は40文字以内で入力してください');
@@ -857,34 +802,27 @@ export default function FacilityPage() {
 
     setIsSaving(true);
     try {
-      // 担当者画像のアップロード処理
-      let staffPhotoUrl = staffInfo.photoPreview;
-
-      // 新しいファイルが選択されている場合（Fileオブジェクトがある場合）はアップロード
-      if (staffInfo.photo) {
-        try {
-          const uploadedUrl = await uploadStaffPhoto(staffInfo.photo);
-          if (uploadedUrl) {
-            staffPhotoUrl = uploadedUrl;
-            // アップロード成功後、stateも更新
-            setStaffInfo(prev => ({
-              ...prev,
-              photo: null,
-              photoPreview: uploadedUrl,
-            }));
+      // 施設画像のアップロード処理
+      let finalFacilityImages = [...existingFacilityImages];
+      if (facilityImages.length > 0) {
+        toast.loading('施設画像をアップロード中...', { id: 'facility-images-upload' });
+        for (const file of facilityImages) {
+          try {
+            const uploadedUrl = await uploadFacilityImage(file);
+            if (uploadedUrl) {
+              finalFacilityImages.push(uploadedUrl);
+            } else {
+              toast.error(`画像「${file.name}」のアップロードに失敗しました`);
+            }
+          } catch (uploadError: any) {
+            console.error('Facility image upload failed:', uploadError);
+            toast.error(`画像「${file.name}」のアップロードに失敗しました`);
           }
-        } catch (uploadError: any) {
-          console.error('Staff photo upload failed:', uploadError);
-          toast.error(uploadError.message || '担当者の顔写真のアップロードに失敗しました');
-          setIsSaving(false);
-          return;
         }
-      }
-
-      if (staffPhotoUrl && staffPhotoUrl.startsWith('blob:')) {
-        toast.error('担当者の顔写真を再度選択してください');
-        setIsSaving(false);
-        return;
+        toast.dismiss('facility-images-upload');
+        // アップロード成功後、stateを更新
+        setExistingFacilityImages(finalFacilityImages);
+        setFacilityImages([]);
       }
 
       // 地図画像を更新するかの判定（施設住所を使用）
@@ -952,17 +890,19 @@ export default function FacilityPage() {
         staffPhone: staffInfo.phone,
         staffEmail: staffInfo.emails[0] || '', // 後方互換性のため1件目を保存
         staffEmails: staffInfo.emails.filter(e => e.trim() !== ''),
-        staffPhoto: staffPhotoUrl,
         staffGreeting: staffInfo.greeting,
         emergencyContact: staffInfo.emergencyContact,
+        staffPhoto: staffInfo.photo || null, // 担当者顔写真（任意項目）
 
-        // アクセス情報
-        stations: accessInfo.stations,
+        // アクセス情報（ID-12: 最寄駅フィールド削除）
         accessDescription: accessInfo.accessDescription,
         transportation: accessInfo.transportation,
         parking: accessInfo.parking,
         transportationNote: accessInfo.transportationNote,
         mapImage: mapImageUrl,
+
+        // 施設画像
+        images: finalFacilityImages,
 
         // 服装情報（画像アップロード処理が別途必要）
         dresscodeItems: dresscodeInfo.items,
@@ -977,6 +917,11 @@ export default function FacilityPage() {
 
       if (result.success) {
         toast.success('保存しました');
+
+        // ジオコーディング失敗時の警告表示（Issue #173）
+        if (result.warning) {
+          toast.error(result.warning, { duration: 5000 });
+        }
 
         // 新しい住所を「元の住所」として保存（次回の変更検知用）
         setOriginalAddress(fullAddress);
@@ -1164,6 +1109,7 @@ export default function FacilityPage() {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200">
             <div className="bg-gray-50 px-5 py-3 border-b border-gray-200">
               <h2 className="text-base font-bold text-gray-900">法人情報</h2>
+              <p className="text-xs text-gray-500 mt-1">※ワーカーには表示されません（管理用情報）</p>
             </div>
             <div className="p-5 space-y-3">
               {/* 法人名と法人番号を一列に */}
@@ -1185,10 +1131,14 @@ export default function FacilityPage() {
                   </label>
                   <input
                     type="text"
+                    inputMode="numeric"
                     value={corporateInfo.corporationNumber}
                     onChange={(e) => {
-                      // 数字のみ、13桁まで
-                      const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 13);
+                      // 全角数字を半角に変換してから数字のみ、13桁まで
+                      const halfWidth = e.target.value.replace(/[０-９]/g, (char) =>
+                        String.fromCharCode(char.charCodeAt(0) - 0xFEE0)
+                      );
+                      const value = halfWidth.replace(/[^0-9]/g, '').slice(0, 13);
                       setCorporateInfo({ ...corporateInfo, corporationNumber: value });
                     }}
                     placeholder="1234567890123"
@@ -1309,6 +1259,7 @@ export default function FacilityPage() {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200">
             <div className="bg-gray-50 px-5 py-3 border-b border-gray-200">
               <h2 className="text-base font-bold text-gray-900">施設情報・担当者</h2>
+              <p className="text-xs text-gray-500 mt-1">※施設名・サービス種別・住所・担当者情報は求人詳細に表示されます</p>
             </div>
             <div className="p-5 space-y-3">
               {/* 施設名とサービス種別を一列に */}
@@ -1350,34 +1301,44 @@ export default function FacilityPage() {
                   <span className="text-xs text-gray-500 font-normal ml-2">※求人情報・地図表示に使用されます</span>
                 </h3>
 
-                {/* 法人住所と同じチェックボックス */}
+                {/* 法人住所と同じチェックボックス ID-16修正 */}
                 <div className="mb-3">
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={facilityAddress.sameAsCorp}
-                      onChange={(e) => {
-                        const checked = e.target.checked;
-                        if (checked) {
-                          // 法人住所をコピー
-                          setFacilityAddress({
-                            postalCode: corporateInfo.corpPostalCode,
-                            prefecture: corporateInfo.corpPrefecture,
-                            city: corporateInfo.corpCity,
-                            addressLine: corporateInfo.corpAddressLine,
-                            sameAsCorp: true,
-                          });
-                        } else {
-                          setFacilityAddress(prev => ({
-                            ...prev,
-                            sameAsCorp: false,
-                          }));
-                        }
-                      }}
-                      className="rounded border-gray-300 text-admin-primary focus:ring-admin-primary"
-                    />
-                    <span className="text-sm text-gray-700">法人住所と同じ</span>
-                  </label>
+                  {(() => {
+                    // 法人住所が完全に入力されているかチェック
+                    const isCorpAddressComplete = corporateInfo.corpPrefecture && corporateInfo.corpCity && corporateInfo.corpAddressLine;
+                    return (
+                      <label className={`flex items-center gap-2 ${!isCorpAddressComplete ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                        <input
+                          type="checkbox"
+                          checked={facilityAddress.sameAsCorp}
+                          disabled={!isCorpAddressComplete}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            if (checked) {
+                              // 法人住所をコピー
+                              setFacilityAddress({
+                                postalCode: corporateInfo.corpPostalCode,
+                                prefecture: corporateInfo.corpPrefecture,
+                                city: corporateInfo.corpCity,
+                                addressLine: corporateInfo.corpAddressLine,
+                                sameAsCorp: true,
+                              });
+                            } else {
+                              setFacilityAddress(prev => ({
+                                ...prev,
+                                sameAsCorp: false,
+                              }));
+                            }
+                          }}
+                          className="rounded border-gray-300 text-admin-primary focus:ring-admin-primary disabled:opacity-50"
+                        />
+                        <span className="text-sm text-gray-700">法人住所と同じ</span>
+                        {!isCorpAddressComplete && (
+                          <span className="text-xs text-amber-600">（法人住所を先に入力してください）</span>
+                        )}
+                      </label>
+                    );
+                  })()}
                 </div>
 
                 {!facilityAddress.sameAsCorp && (
@@ -1413,7 +1374,7 @@ export default function FacilityPage() {
 
               {/* 責任者情報 */}
               <div className="border-t border-gray-200 pt-3 mt-3">
-                <h3 className="text-sm font-bold text-gray-900 mb-3">責任者</h3>
+                <h3 className="text-sm font-bold text-gray-900 mb-3">責任者 <span className="text-xs text-gray-500 font-normal">※ワーカーには表示されません</span></h3>
 
                 <div className="space-y-3">
                   <div>
@@ -1476,7 +1437,7 @@ export default function FacilityPage() {
 
               {/* 担当者情報 */}
               <div className="border-t border-gray-200 pt-3 mt-3">
-                <h3 className="text-sm font-bold text-gray-900 mb-3">担当者</h3>
+                <h3 className="text-sm font-bold text-gray-900 mb-3">担当者 <span className="text-xs text-gray-500 font-normal">※氏名・挨拶文は求人詳細に表示されます</span></h3>
 
                 <div className="space-y-3">
                   <div>
@@ -1518,61 +1479,102 @@ export default function FacilityPage() {
                     </div>
                   )}
 
+                  {/* 担当者顔写真（任意） */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      顔写真 <span className="text-red-500">*</span>
+                      顔写真 <span className="text-xs text-gray-500 font-normal">（任意）</span>
                     </label>
-                    <div className="flex items-center gap-4">
-                      {/* 円形の写真プレビュー */}
-                      <div className="relative">
-                        <div className={`w-24 h-24 rounded-full overflow-hidden border-2 bg-gray-100 flex items-center justify-center ${showErrors && !staffInfo.photoPreview ? 'border-red-500' : 'border-gray-200'}`}>
-                          {staffInfo.photoPreview ? (
-                            <img
-                              src={staffInfo.photoPreview}
-                              alt="担当者写真"
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <User className="w-12 h-12 text-gray-400" />
-                          )}
-                        </div>
-                        {staffInfo.photoPreview && (
-                          <button
-                            onClick={() => setStaffInfo({ ...staffInfo, photo: null, photoPreview: '' })}
-                            className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
+                    <p className="text-xs text-gray-500 mb-2">メッセージ画面でアバターとして表示されます</p>
+                    <div className="flex items-start gap-4">
+                      {/* 現在の画像またはプレビュー */}
+                      <div className="w-20 h-20 rounded-full border-2 border-gray-200 overflow-hidden bg-gray-100 flex items-center justify-center">
+                        {staffPhotoFile ? (
+                          <img
+                            src={URL.createObjectURL(staffPhotoFile)}
+                            alt="担当者顔写真プレビュー"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : staffInfo.photo ? (
+                          <img
+                            src={staffInfo.photo}
+                            alt="担当者顔写真"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <User className="w-8 h-8 text-gray-400" />
                         )}
                       </div>
+                      <div className="flex flex-col gap-2">
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          className="hidden"
+                          id="staff-photo-input"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
 
-                      {/* 小さなドラッグ&ドロップエリア */}
-                      <div
-                        onDragOver={handleStaffPhotoDragOver}
-                        onDrop={handleStaffPhotoDrop}
-                        className={`flex-1 max-w-xs border-2 border-dashed rounded-lg p-4 text-center hover:border-primary transition-colors cursor-pointer ${showErrors && !staffInfo.photoPreview ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
-                      >
-                        <Upload className="w-6 h-6 mx-auto mb-2 text-gray-400" />
-                        <p className="text-xs text-gray-600 mb-1">
-                          画像をドラッグ&ドロップ
-                        </p>
-                        <p className="text-xs text-gray-500 mb-2">または</p>
-                        <label className="cursor-pointer inline-flex items-center gap-1.5 bg-white border border-gray-300 rounded-lg px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
-                          <Upload className="w-3 h-3" />
-                          ファイルを選択
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={handleStaffPhotoUpload}
-                            className="hidden"
-                          />
+                            // ファイルバリデーション
+                            const validationResult = validateFile(file, 'image');
+                            if (!validationResult.isValid) {
+                              toast.error(validationResult.error || 'ファイルが無効です');
+                              return;
+                            }
+
+                            setStaffPhotoFile(file);
+                            setIsUploadingStaffPhoto(true);
+
+                            try {
+                              // 直接アップロード
+                              const result = await directUpload(file, { uploadType: 'facility' });
+                              if (result.success && result.url) {
+                                setStaffInfo({ ...staffInfo, photo: result.url });
+                                toast.success('顔写真をアップロードしました');
+                              } else {
+                                toast.error(result.error || 'アップロードに失敗しました');
+                                setStaffPhotoFile(null);
+                              }
+                            } catch (error) {
+                              console.error('Staff photo upload error:', error);
+                              toast.error('アップロードに失敗しました');
+                              setStaffPhotoFile(null);
+                            } finally {
+                              setIsUploadingStaffPhoto(false);
+                            }
+                          }}
+                        />
+                        <label
+                          htmlFor="staff-photo-input"
+                          className="inline-flex items-center gap-1 px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"
+                        >
+                          {isUploadingStaffPhoto ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              アップロード中...
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="w-4 h-4" />
+                              写真を選択
+                            </>
+                          )}
                         </label>
-                        <p className="text-xs text-gray-500 mt-2">5MB以下 / JPG, PNG, HEIC形式</p>
+                        {staffInfo.photo && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setStaffInfo({ ...staffInfo, photo: '' });
+                              setStaffPhotoFile(null);
+                            }}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 border border-red-200 rounded-lg"
+                          >
+                            <X className="w-4 h-4" />
+                            削除
+                          </button>
+                        )}
+                        <p className="text-xs text-gray-500">JPEG, PNG, WebP（{formatFileSize(MAX_FILE_SIZE)}まで）</p>
                       </div>
                     </div>
-                    {showErrors && !staffInfo.photoPreview && (
-                      <p className="text-red-500 text-xs mt-1">担当者の顔写真をアップロードしてください</p>
-                    )}
                   </div>
 
                   <div>
@@ -1601,7 +1603,7 @@ export default function FacilityPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      連絡先電話番号 <span className="text-red-500">*</span>
+                      連絡先電話番号 <span className="text-red-500">*</span> <span className="text-xs text-gray-500 font-normal">※ワーカーには表示されません</span>
                     </label>
                     <PhoneNumberInput
                       value={staffInfo.phone}
@@ -1617,7 +1619,7 @@ export default function FacilityPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      通知先メールアドレス <span className="text-red-500">*</span>
+                      通知先メールアドレス <span className="text-red-500">*</span> <span className="text-xs text-gray-500 font-normal">※ワーカーには表示されません</span>
                     </label>
                     <p className="text-xs text-gray-500 mb-2">1件目は必須です。複数のアドレスに通知を送信できます。</p>
                     <div className="space-y-2">
@@ -1671,10 +1673,112 @@ export default function FacilityPage() {
             </div>
           </div>
 
+          {/* 施設画像 */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            <div className="bg-gray-50 px-5 py-3 border-b border-gray-200">
+              <h2 className="text-base font-bold text-gray-900">施設画像</h2>
+              <p className="text-xs text-gray-500 mt-1">※施設詳細ページに表示されます（最大5枚）</p>
+            </div>
+            <div className="p-5">
+              <div className="space-y-4">
+                {/* 既存画像の表示 */}
+                {(existingFacilityImages.length > 0 || facilityImages.length > 0) && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                    {existingFacilityImages.map((url, index) => (
+                      <div key={`existing-${index}`} className="relative aspect-video rounded-lg overflow-hidden border border-gray-200">
+                        <img
+                          src={url}
+                          alt={`施設画像 ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setExistingFacilityImages(prev => prev.filter((_, i) => i !== index));
+                          }}
+                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                    {facilityImages.map((file, index) => (
+                      <div key={`new-${index}`} className="relative aspect-video rounded-lg overflow-hidden border border-gray-200">
+                        <img
+                          src={URL.createObjectURL(file)}
+                          alt={`新規画像 ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFacilityImages(prev => prev.filter((_, i) => i !== index));
+                          }}
+                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                        <span className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-blue-500 text-white text-xs rounded">
+                          新規
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* アップロードエリア */}
+                {(existingFacilityImages.length + facilityImages.length) < 5 && (
+                  <label
+                    className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-admin-primary transition-colors"
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.currentTarget.classList.add('border-admin-primary', 'bg-admin-light');
+                    }}
+                    onDragLeave={(e) => {
+                      e.currentTarget.classList.remove('border-admin-primary', 'bg-admin-light');
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.currentTarget.classList.remove('border-admin-primary', 'bg-admin-light');
+                      const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
+                      handleFacilityImageUpload(files);
+                    }}
+                  >
+                    <div className="text-center">
+                      <Upload className="w-8 h-8 mx-auto text-gray-400 mb-2" />
+                      <span className="text-sm text-gray-500">画像を選択 または ドラッグ&ドロップ</span>
+                      <p className="text-xs text-gray-400 mt-1">20MB以下 / JPG, PNG, HEIC形式</p>
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files || []);
+                        handleFacilityImageUpload(files);
+                        e.target.value = '';
+                      }}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+
+                {existingFacilityImages.length === 0 && facilityImages.length === 0 && (
+                  <p className="text-sm text-gray-500">
+                    施設の外観や内装など、施設の雰囲気が伝わる画像をアップロードしてください。
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* アカウント管理 */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200">
             <div className="bg-gray-50 px-5 py-3 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-base font-bold text-gray-900">アカウント管理</h2>
+              <div>
+                <h2 className="text-base font-bold text-gray-900">アカウント管理</h2>
+                <p className="text-xs text-gray-500 mt-1">※ワーカーには表示されません（管理用情報）</p>
+              </div>
               {accounts.length < 5 && (
                 <button
                   onClick={() => setShowAddAccountModal(true)}
@@ -1747,56 +1851,10 @@ export default function FacilityPage() {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200">
             <div className="bg-gray-50 px-5 py-3 border-b border-gray-200">
               <h2 className="text-base font-bold text-gray-900">アクセス</h2>
+              <p className="text-xs text-gray-500 mt-1">※求人詳細ページに表示されます</p>
             </div>
             <div className="p-5 space-y-3">
-              {/* 最寄駅 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  最寄駅 <span className="text-red-500">*</span> <span className="text-gray-500 text-xs">(最大3つまで / 分も必須)</span>
-                </label>
-                <div className="space-y-2">
-                  {accessInfo.stations.map((station, index) => (
-                    <div key={index} className="flex gap-2 items-center">
-                      <input
-                        type="text"
-                        value={station.name}
-                        onChange={(e) => updateStation(index, 'name', e.target.value)}
-                        placeholder="駅名を入力"
-                        className={`flex-1 max-w-xs px-2 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent ${showErrors && index === 0 && !station.name?.trim() ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
-                      />
-                      <span className="text-sm text-gray-600">から</span>
-                      <input
-                        type="number"
-                        value={station.minutes || ''}
-                        onChange={(e) => updateStation(index, 'minutes', parseInt(e.target.value) || 0)}
-                        placeholder="0"
-                        min="0"
-                        className={`w-20 px-2 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent ${showErrors && index === 0 && (!station.minutes && station.minutes !== 0) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
-                      />
-                      <span className="text-sm text-gray-600">分</span>
-                      {accessInfo.stations.length > 1 && (
-                        <button
-                          onClick={() => removeStation(index)}
-                          className="px-2 py-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  {showErrors && !accessInfo.stations.some(s => s.name?.trim() && (s.minutes || s.minutes === 0)) && (
-                    <p className="text-red-500 text-xs">最寄駅を少なくとも1つ入力してください（駅名と所要時間）</p>
-                  )}
-                  {accessInfo.stations.length < 3 && (
-                    <button
-                      onClick={addStation}
-                      className="text-sm text-admin-primary hover:text-admin-primary-dark"
-                    >
-                      + 駅を追加
-                    </button>
-                  )}
-                </div>
-              </div>
+              {/* ID-12: 最寄駅フィールド削除 */}
 
               {/* アクセス説明 */}
               <div>
@@ -1938,7 +1996,7 @@ export default function FacilityPage() {
 
               {/* 受動喫煙防止対策 */}
               <div className="border-b border-gray-200 pb-3">
-                <h3 className="text-sm font-bold text-gray-900 mb-3">受動喫煙防止対策</h3>
+                <h3 className="text-sm font-bold text-gray-900 mb-3">受動喫煙防止対策 <span className="text-xs text-gray-500 font-normal">※労働条件通知書に表示されます</span></h3>
                 <div className="space-y-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1997,7 +2055,7 @@ export default function FacilityPage() {
 
               {/* 初回自動送信メッセージ */}
               <div>
-                <h3 className="text-sm font-bold text-gray-900 mb-3">初回自動送信メッセージ</h3>
+                <h3 className="text-sm font-bold text-gray-900 mb-3">初回自動送信メッセージ <span className="text-xs text-gray-500 font-normal">※初回応募時に自動送信されます</span></h3>
                 <div className="space-y-3">
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-900">
                     <p className="mb-1.5">

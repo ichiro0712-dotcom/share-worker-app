@@ -106,3 +106,44 @@ export function getJSTTodayString(baseTime?: Date): string {
 
   return `${year}-${month}-${day}`;
 }
+
+/**
+ * 日付の時刻をJST基準で設定する
+ * 入力日付のJSTでの日付部分を維持したまま、指定した時刻（JST）を設定
+ *
+ * 例: 2026-01-20 (どのタイムゾーンでも) に 9:00 JST を設定
+ *     → 2026-01-20 00:00:00 UTC (= 2026-01-20 09:00:00 JST)
+ *
+ * @param date 基準となる日付
+ * @param hours JST時刻の時（0-23）
+ * @param minutes JST時刻の分（0-59）、デフォルト0
+ * @param seconds JST時刻の秒（0-59）、デフォルト0
+ * @param milliseconds JST時刻のミリ秒（0-999）、デフォルト0
+ * @returns 指定したJST時刻に対応するUTC Date
+ */
+export function setJSTHours(
+  date: Date,
+  hours: number,
+  minutes: number = 0,
+  seconds: number = 0,
+  milliseconds: number = 0
+): Date {
+  const JST_OFFSET = 9 * 60;
+
+  // 入力日付をJSTに変換して日付部分を取得
+  const jstTime = new Date(date.getTime() + JST_OFFSET * 60 * 1000);
+
+  // JSTでの指定時刻を計算
+  const jstTarget = new Date(Date.UTC(
+    jstTime.getUTCFullYear(),
+    jstTime.getUTCMonth(),
+    jstTime.getUTCDate(),
+    hours,
+    minutes,
+    seconds,
+    milliseconds
+  ));
+
+  // JSTの時刻をUTCに戻す（-9時間）
+  return new Date(jstTarget.getTime() - JST_OFFSET * 60 * 1000);
+}

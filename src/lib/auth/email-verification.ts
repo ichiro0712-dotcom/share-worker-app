@@ -16,6 +16,9 @@ const APP_URL = process.env.NEXTAUTH_URL || 'https://tastas.jp';
 // トークン有効期限（24時間）
 const TOKEN_EXPIRY_HOURS = 24;
 
+// 再送信制限（分）
+const RESEND_COOLDOWN_MINUTES = 5;
+
 /**
  * セキュアな認証トークンを生成
  */
@@ -87,10 +90,11 @@ export async function sendVerificationEmail(
 
 /**
  * 認証トークンを検証し、ユーザーを認証済みに更新
+ * 自動ログイン用の一時トークンも生成
  */
 export async function verifyEmailToken(
   token: string
-): Promise<{ success: boolean; error?: string; userId?: number }> {
+): Promise<{ success: boolean; error?: string; userId?: number; email?: string; autoLoginToken?: string }> {
   try {
     // トークンでユーザーを検索
     const user = await prisma.user.findFirst({
@@ -109,18 +113,29 @@ export async function verifyEmailToken(
       return { success: false, error: '認証リンクの有効期限が切れています。再送信してください。' };
     }
 
-    // 認証済みに更新
+    // 自動ログイン用の一時トークンを生成（5分有効）
+    const autoLoginToken = crypto.randomBytes(32).toString('hex');
+    const autoLoginExpires = new Date(Date.now() + 5 * 60 * 1000); // 5分
+
+    // 認証済みに更新 + 自動ログイントークンを保存
     await prisma.user.update({
       where: { id: user.id },
       data: {
         email_verified: true,
         verification_token: null,
         verification_token_expires: null,
+        auto_login_token: autoLoginToken,
+        auto_login_token_expires: autoLoginExpires,
       },
     });
 
-    console.log('[Email Verification] User verified:', user.id);
-    return { success: true, userId: user.id };
+    console.log('[Email Verification] User verified with auto-login token:', user.id);
+    return {
+      success: true,
+      userId: user.id,
+      email: user.email,
+      autoLoginToken
+    };
   } catch (error: any) {
     console.error('[Email Verification] Verification error:', error);
     return { success: false, error: 'システムエラーが発生しました。' };
@@ -146,6 +161,27 @@ export async function resendVerificationEmail(
 
     if (user.email_verified) {
       return { success: false, error: 'このメールアドレスは既に認証済みです。' };
+    }
+
+    // Rate Limiting: 前回のトークン発行から5分以内は再送信不可
+    if (user.verification_token_expires) {
+      // verification_token_expiresから24時間を引くと、トークン発行時刻がわかる
+      const tokenCreatedAt = new Date(
+        user.verification_token_expires.getTime() - TOKEN_EXPIRY_HOURS * 60 * 60 * 1000
+      );
+      const cooldownEnd = new Date(
+        tokenCreatedAt.getTime() + RESEND_COOLDOWN_MINUTES * 60 * 1000
+      );
+
+      if (new Date() < cooldownEnd) {
+        const remainingSeconds = Math.ceil((cooldownEnd.getTime() - Date.now()) / 1000);
+        const remainingMinutes = Math.ceil(remainingSeconds / 60);
+        console.log(`[Email Verification] Rate limited: ${email}, remaining: ${remainingSeconds}s`);
+        return {
+          success: false,
+          error: `メール送信は${RESEND_COOLDOWN_MINUTES}分に1回までです。あと${remainingMinutes}分お待ちください。`
+        };
+      }
     }
 
     // 再送信

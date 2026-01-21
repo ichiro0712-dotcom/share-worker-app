@@ -1,21 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { WorkerStatus } from '@prisma/client';
 import { DEBUG_TIME_COOKIE_NAME, parseDebugTimeCookie, getCurrentTimeFromSettings, getJSTTodayStart } from '@/utils/debugTime.server';
+import { getFacilityAdminSessionData } from '@/lib/admin-session-server';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    // 施設管理者の認証チェック
-    const cookieStore = cookies();
-    const adminCookie = cookieStore.get('admin_session');
+    // 施設管理者の認証チェック（iron-session）
+    const session = await getFacilityAdminSessionData();
 
-    if (!adminCookie) {
+    if (!session || !session.isLoggedIn) {
       return NextResponse.json(
-        { error: '認証が必要です' },
+        { error: '認証が必要です', code: 'UNAUTHORIZED' },
         { status: 401 }
       );
     }

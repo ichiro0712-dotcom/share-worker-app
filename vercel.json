@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/notifications",
       "schedule": "0 23 * * *"
+    },
+    {
+      "path": "/api/cron/update-bank-data",
+      "schedule": "0 18 * * 0"
     }
   ]
 }

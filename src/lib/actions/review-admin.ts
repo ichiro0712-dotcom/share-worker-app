@@ -5,6 +5,7 @@ import { unstable_noStore, revalidatePath } from 'next/cache';
 import { getCurrentTime, getTodayStart, type WorkerListItem, type WorkerListSearchParams, type WorkerListStatus } from './helpers';
 import { sendReviewReceivedNotificationToWorker, sendAdminLowRatingStreakNotification } from './notification';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
+import { getFacilityAdminSessionData } from '@/lib/admin-session-server';
 import { getJSTTodayStart, normalizeToJSTDayStart } from '@/utils/debugTime.server';
 
 /**
@@ -350,6 +351,7 @@ export async function submitWorkerReview(data: {
   comment: string;
   action?: 'favorite' | 'block';
 }) {
+  const session = await getFacilityAdminSessionData();
   try {
     const application = await prisma.application.findUnique({
       where: { id: data.applicationId },
@@ -437,6 +439,8 @@ export async function submitWorkerReview(data: {
     // ログ記録
     logActivity({
       userType: 'FACILITY',
+      userId: session?.adminId,
+      userEmail: session?.email,
       action: 'REVIEW_CREATE',
       targetType: 'Review',
       requestData: {
@@ -457,6 +461,8 @@ export async function submitWorkerReview(data: {
     // エラーログ記録
     logActivity({
       userType: 'FACILITY',
+      userId: session?.adminId,
+      userEmail: session?.email,
       action: 'REVIEW_CREATE',
       requestData: {
         facilityId: data.facilityId,
@@ -484,6 +490,7 @@ export async function submitWorkerReviewByJob(data: {
   comment: string;
   action?: 'favorite' | 'block';
 }) {
+  const session = await getFacilityAdminSessionData();
   try {
     console.log('[submitWorkerReviewByJob] Submitting review for job:', data.jobId, 'user:', data.userId);
 
@@ -614,6 +621,8 @@ export async function submitWorkerReviewByJob(data: {
     // ログ記録
     logActivity({
       userType: 'FACILITY',
+      userId: session?.adminId,
+      userEmail: session?.email,
       action: 'REVIEW_CREATE',
       targetType: 'Review',
       requestData: {
@@ -634,6 +643,8 @@ export async function submitWorkerReviewByJob(data: {
     // エラーログ記録
     logActivity({
       userType: 'FACILITY',
+      userId: session?.adminId,
+      userEmail: session?.email,
       action: 'REVIEW_CREATE',
       requestData: {
         facilityId: data.facilityId,
@@ -700,6 +711,7 @@ export async function getReviewTemplates(facilityId: number) {
 }
 
 export async function createReviewTemplate(facilityId: number, name: string, content: string) {
+  const session = await getFacilityAdminSessionData();
   try {
     const template = await prisma.reviewTemplate.create({
       data: {
@@ -714,6 +726,8 @@ export async function createReviewTemplate(facilityId: number, name: string, con
     // ログ記録
     logActivity({
       userType: 'FACILITY',
+      userId: session?.adminId,
+      userEmail: session?.email,
       action: 'REVIEW_TEMPLATE_CREATE',
       targetType: 'ReviewTemplate',
       targetId: template.id,
@@ -731,6 +745,8 @@ export async function createReviewTemplate(facilityId: number, name: string, con
     // エラーログ記録
     logActivity({
       userType: 'FACILITY',
+      userId: session?.adminId,
+      userEmail: session?.email,
       action: 'REVIEW_TEMPLATE_CREATE',
       requestData: {
         facilityId,
@@ -746,6 +762,7 @@ export async function createReviewTemplate(facilityId: number, name: string, con
 }
 
 export async function updateReviewTemplate(templateId: number, name: string, content: string, facilityId: number) {
+  const session = await getFacilityAdminSessionData();
   try {
     // 認可チェック: 対象テンプレートが自施設のものか確認
     const existing = await prisma.reviewTemplate.findUnique({
@@ -766,6 +783,8 @@ export async function updateReviewTemplate(templateId: number, name: string, con
     // ログ記録
     logActivity({
       userType: 'FACILITY',
+      userId: session?.adminId,
+      userEmail: session?.email,
       action: 'REVIEW_TEMPLATE_UPDATE',
       targetType: 'ReviewTemplate',
       targetId: templateId,
@@ -783,6 +802,8 @@ export async function updateReviewTemplate(templateId: number, name: string, con
     // エラーログ記録
     logActivity({
       userType: 'FACILITY',
+      userId: session?.adminId,
+      userEmail: session?.email,
       action: 'REVIEW_TEMPLATE_UPDATE',
       targetType: 'ReviewTemplate',
       targetId: templateId,
@@ -800,6 +821,7 @@ export async function updateReviewTemplate(templateId: number, name: string, con
 }
 
 export async function deleteReviewTemplate(templateId: number, facilityId: number) {
+  const session = await getFacilityAdminSessionData();
   try {
     // 認可チェック: 対象テンプレートが自施設のものか確認
     const existing = await prisma.reviewTemplate.findUnique({
@@ -819,6 +841,8 @@ export async function deleteReviewTemplate(templateId: number, facilityId: numbe
     // ログ記録
     logActivity({
       userType: 'FACILITY',
+      userId: session?.adminId,
+      userEmail: session?.email,
       action: 'REVIEW_TEMPLATE_DELETE',
       targetType: 'ReviewTemplate',
       targetId: templateId,
@@ -835,6 +859,8 @@ export async function deleteReviewTemplate(templateId: number, facilityId: numbe
     // エラーログ記録
     logActivity({
       userType: 'FACILITY',
+      userId: session?.adminId,
+      userEmail: session?.email,
       action: 'REVIEW_TEMPLATE_DELETE',
       targetType: 'ReviewTemplate',
       targetId: templateId,
@@ -854,6 +880,7 @@ export async function deleteReviewTemplate(templateId: number, facilityId: numbe
  * ワーカーのお気に入りをトグル
  */
 export async function toggleWorkerFavorite(workerId: number, facilityId: number): Promise<{ success: boolean; isFavorite?: boolean; error?: string }> {
+  const session = await getFacilityAdminSessionData();
   try {
     const existing = await prisma.bookmark.findFirst({
       where: {
@@ -871,6 +898,8 @@ export async function toggleWorkerFavorite(workerId: number, facilityId: number)
       // ログ記録
       logActivity({
         userType: 'FACILITY',
+        userId: session?.adminId,
+        userEmail: session?.email,
         action: 'BOOKMARK_DELETE',
         targetType: 'Bookmark',
         targetId: existing.id,
@@ -895,6 +924,8 @@ export async function toggleWorkerFavorite(workerId: number, facilityId: number)
       // ログ記録
       logActivity({
         userType: 'FACILITY',
+        userId: session?.adminId,
+        userEmail: session?.email,
         action: 'BOOKMARK_CREATE',
         targetType: 'Bookmark',
         targetId: bookmark.id,
@@ -914,6 +945,8 @@ export async function toggleWorkerFavorite(workerId: number, facilityId: number)
     // エラーログ記録
     logActivity({
       userType: 'FACILITY',
+      userId: session?.adminId,
+      userEmail: session?.email,
       action: 'BOOKMARK_CREATE',
       requestData: {
         facilityId,
@@ -933,6 +966,7 @@ export async function toggleWorkerFavorite(workerId: number, facilityId: number)
  * ワーカーのブロックをトグル（WATCH_LATERをブロック扱いとして使用）
  */
 export async function toggleWorkerBlock(workerId: number, facilityId: number): Promise<{ success: boolean; isBlocked?: boolean; error?: string }> {
+  const session = await getFacilityAdminSessionData();
   try {
     const existing = await prisma.bookmark.findFirst({
       where: {
@@ -950,6 +984,8 @@ export async function toggleWorkerBlock(workerId: number, facilityId: number): P
       // ログ記録
       logActivity({
         userType: 'FACILITY',
+        userId: session?.adminId,
+        userEmail: session?.email,
         action: 'BOOKMARK_DELETE',
         targetType: 'Bookmark',
         targetId: existing.id,
@@ -974,6 +1010,8 @@ export async function toggleWorkerBlock(workerId: number, facilityId: number): P
       // ログ記録
       logActivity({
         userType: 'FACILITY',
+        userId: session?.adminId,
+        userEmail: session?.email,
         action: 'BOOKMARK_CREATE',
         targetType: 'Bookmark',
         targetId: bookmark.id,
@@ -993,6 +1031,8 @@ export async function toggleWorkerBlock(workerId: number, facilityId: number): P
     // エラーログ記録
     logActivity({
       userType: 'FACILITY',
+      userId: session?.adminId,
+      userEmail: session?.email,
       action: 'BOOKMARK_CREATE',
       requestData: {
         facilityId,
@@ -1170,6 +1210,7 @@ export async function submitFacilityReviewForWorker(
     improvements?: string;
   }
 ) {
+  const session = await getFacilityAdminSessionData();
   try {
     console.log('[submitFacilityReviewForWorker] Submitting review for application:', applicationId);
 
@@ -1280,6 +1321,8 @@ export async function submitFacilityReviewForWorker(
     // ログ記録
     logActivity({
       userType: 'FACILITY',
+      userId: session?.adminId,
+      userEmail: session?.email,
       action: 'REVIEW_CREATE',
       targetType: 'Review',
       requestData: {
@@ -1301,6 +1344,8 @@ export async function submitFacilityReviewForWorker(
     // エラーログ記録
     logActivity({
       userType: 'FACILITY',
+      userId: session?.adminId,
+      userEmail: session?.email,
       action: 'REVIEW_CREATE',
       requestData: {
         facilityId,

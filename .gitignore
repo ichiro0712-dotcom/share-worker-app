@@ -41,3 +41,10 @@ _AUDIT_PLAN.md
 *.backup
 *.sql
 .serena/
+
+# PWA generated files (built by next-pwa, different on each build)
+public/sw.js
+public/sw.js.map
+public/workbox-*.js
+public/workbox-*.js.map
+public/worker-*.js

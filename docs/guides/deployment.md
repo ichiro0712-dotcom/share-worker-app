@@ -1,16 +1,30 @@
 # デプロイガイド
 
-> **更新日**: 2025-01-07
+> **更新日**: 2026-01-17
 
 ---
 
 ## 1. 環境構成
 
+### 1.1 Webサーバー
+
 | 環境 | URL | ブランチ | 用途 |
 |------|-----|----------|------|
-| 本番 | https://share-worker-app.vercel.app | main | 本番環境 |
+| 本番 | https://tastas.work | main | 本番環境 |
 | ステージング | https://stg-share-worker.vercel.app | develop | 検証環境 |
 | 開発 | http://localhost:3000 | - | ローカル開発 |
+
+### 1.2 Supabaseプロジェクト（DB/Storage）
+
+| プロジェクトID | 用途 | 備考 |
+|---------------|------|------|
+| `ryvyuxomiqcgkspmpltk` | **本番** | .env.production で使用 |
+| `qcovuuqxyihbpjlgccxz` | **ステージング** | .env.local で使用 |
+| `ziaunavcbawzorrwwnos` | **ステージングDB/Storage（旧）** | 既存画像データが参照中のため維持 |
+
+**注意:**
+- 本番DBの画像URLは複数のSupabaseプロジェクトを参照している（移行履歴による）
+- 新規アップロードは環境変数 `NEXT_PUBLIC_SUPABASE_URL` で指定されたプロジェクトに保存される
 
 ---
 
@@ -72,24 +86,29 @@ npx prisma db push
 ### 4.1 必須設定
 
 ```env
-# Database
-DATABASE_URL="postgresql://..."
-DIRECT_URL="postgresql://..."
+# Database (Supabase)
+DATABASE_URL="postgresql://postgres.[project-id]:[password]@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true"
+DIRECT_URL="postgresql://postgres.[project-id]:[password]@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres"
+
+# Supabase Storage
+NEXT_PUBLIC_SUPABASE_URL="https://[project-id].supabase.co"
+SUPABASE_SERVICE_ROLE_KEY="xxx"
+SUPABASE_S3_ACCESS_KEY_ID="xxx"
+SUPABASE_S3_SECRET_ACCESS_KEY="xxx"
 
 # NextAuth
 NEXTAUTH_SECRET="production-secret"
-NEXTAUTH_URL="https://share-worker-app.vercel.app"
+NEXTAUTH_URL="https://tastas.work"
+NEXT_PUBLIC_APP_URL="https://tastas.work"
 
 # System Admin
 SYSTEM_ADMIN_SESSION_SECRET="32文字以上のランダム文字列"
 
-# AWS S3
-AWS_ACCESS_KEY_ID="xxx"
-AWS_SECRET_ACCESS_KEY="xxx"
-AWS_REGION="ap-northeast-1"
-AWS_S3_BUCKET_NAME="xxx"
+# メール送信 (Resend)
+RESEND_API_KEY="xxx"
+RESEND_FROM_EMAIL="noreply@tastas.jp"
 
-# VAPID
+# VAPID (プッシュ通知)
 NEXT_PUBLIC_VAPID_PUBLIC_KEY="xxx"
 VAPID_PRIVATE_KEY="xxx"
 VAPID_SUBJECT="mailto:support@tastas.jp"
@@ -146,7 +165,7 @@ git push origin main
 
 - **mainブランチへの直接push禁止**
 - **developを経由せずmainへのPR作成禁止**
-- **Netlify/Supabaseは使用禁止**
+- **Netlifyは使用禁止**（Vercelのみ使用）
 
 ### 7.2 推奨事項
 

@@ -36,27 +36,53 @@ export function isKatakanaWithSpaceOnly(value: string): boolean {
   return /^[ァ-ヶー・　 ]+$/.test(value);
 }
 
+// 全角数字を半角に変換
+export function toHalfWidthNumbers(value: string): string {
+  return value.replace(/[０-９]/g, (char) => {
+    return String.fromCharCode(char.charCodeAt(0) - 0xFEE0);
+  });
+}
+
 // 電話番号フォーマット（ハイフン自動挿入）
+// 日本の電話番号パターンに対応:
+// - 携帯電話 (070/080/090/050): 3桁-4桁-4桁 (例: 090-1234-5678)
+// - 東京/大阪 (03/06): 2桁-4桁-4桁 (例: 03-1234-5678)
+// - 3桁市外局番: 3桁-3桁-4桁 (例: 045-123-4567)
+// - フリーダイヤル (0120/0800): 4桁-3桁-3桁 (例: 0120-123-456)
 export function formatPhoneNumber(value: string): string {
-  // 数字以外を除去
-  const digitsOnly = value.replace(/\D/g, '');
+  // 全角数字を半角に変換してから数字以外を除去
+  const digitsOnly = toHalfWidthNumbers(value).replace(/\D/g, '');
 
   // 最大11桁に制限
   const limited = digitsOnly.slice(0, 11);
 
-  // ハイフン自動挿入
-  if (limited.length <= 3) {
-    return limited;
-  } else if (limited.length <= 7) {
-    // 固定電話パターン: 03-1234 or 090-1234
-    return `${limited.slice(0, 3)}-${limited.slice(3)}`;
-  } else if (limited.length <= 10) {
-    // 固定電話パターン: 03-1234-5678
-    return `${limited.slice(0, 3)}-${limited.slice(3, 7)}-${limited.slice(7)}`;
-  } else {
-    // 携帯電話パターン: 090-1234-5678
+  if (limited.length === 0) return '';
+
+  // 携帯電話パターン (070/080/090/050): 3桁-4桁-4桁
+  if (/^0[5789]0/.test(limited)) {
+    if (limited.length <= 3) return limited;
+    if (limited.length <= 7) return `${limited.slice(0, 3)}-${limited.slice(3)}`;
     return `${limited.slice(0, 3)}-${limited.slice(3, 7)}-${limited.slice(7)}`;
   }
+
+  // フリーダイヤル (0120/0800): 4桁-3桁-3桁
+  if (/^0120|^0800/.test(limited)) {
+    if (limited.length <= 4) return limited;
+    if (limited.length <= 7) return `${limited.slice(0, 4)}-${limited.slice(4)}`;
+    return `${limited.slice(0, 4)}-${limited.slice(4, 7)}-${limited.slice(7)}`;
+  }
+
+  // 2桁市外局番 (03/04/06): 2桁-4桁-4桁
+  if (/^0[346]/.test(limited) && limited.length >= 2) {
+    if (limited.length <= 2) return limited;
+    if (limited.length <= 6) return `${limited.slice(0, 2)}-${limited.slice(2)}`;
+    return `${limited.slice(0, 2)}-${limited.slice(2, 6)}-${limited.slice(6)}`;
+  }
+
+  // その他の固定電話（3桁市外局番として扱う）: 3桁-3桁-4桁
+  if (limited.length <= 3) return limited;
+  if (limited.length <= 6) return `${limited.slice(0, 3)}-${limited.slice(3)}`;
+  return `${limited.slice(0, 3)}-${limited.slice(3, 6)}-${limited.slice(6)}`;
 }
 
 // 電話番号バリデーション（10桁または11桁）

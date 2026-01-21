@@ -11,6 +11,7 @@ import {
   VolumeX,
   MessageCircle,
   Shield,
+  Bell,
 } from 'lucide-react';
 import { UserCard, LogoutButton } from './MyPageContent';
 
@@ -22,6 +23,7 @@ const menuItems = [
   { icon: 'heart', label: 'お気に入り施設', href: '/favorites' },
   { icon: 'star', label: 'ブックマーク求人', href: '/bookmarks' },
   { icon: 'user', label: 'プロフィール編集', href: '/mypage/profile' },
+  { icon: 'bell', label: '通知設定', href: '/mypage/notifications' },
   { icon: 'helpCircle', label: 'よくある質問', href: '/faq' },
   { icon: 'messageCircle', label: 'お問い合わせ', href: '/contact' },
   { icon: 'fileText', label: '利用規約', href: '/terms' },
@@ -36,6 +38,7 @@ const IconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   heart: Heart,
   star: Star,
   user: UserIcon,
+  bell: Bell,
   helpCircle: HelpCircle,
   messageCircle: MessageCircle,
   fileText: FileText,

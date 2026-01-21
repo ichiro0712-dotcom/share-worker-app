@@ -1,6 +1,7 @@
 'use client';
 
 import useSWR from 'swr';
+import { adminFetcher } from '@/lib/admin-api-fetcher';
 
 export interface AdminReview {
     id: number;
@@ -25,11 +26,7 @@ interface AdminReviewsResponse {
     stats: AdminReviewStats;
 }
 
-const fetcher = async (url: string): Promise<AdminReviewsResponse> => {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('Failed to fetch');
-    return res.json();
-};
+// 認証エラーハンドリング付きフェッチャーを使用
 
 /**
  * 施設レビュー一覧と統計情報取得フック
@@ -40,7 +37,7 @@ export function useAdminReviews(facilityId?: number) {
 
     const { data, error, isLoading, mutate } = useSWR<AdminReviewsResponse>(
         url,
-        fetcher,
+        adminFetcher,
         {
             revalidateOnFocus: true, // タブ復帰時に再取得
             revalidateOnReconnect: true, // ネットワーク復帰時に再取得

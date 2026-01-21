@@ -2,6 +2,36 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 
+// Basic認証チェック（本番環境のみ）
+function checkBasicAuth(request: NextRequest): NextResponse | null {
+  const basicAuthUser = process.env.BASIC_AUTH_USER;
+  const basicAuthPassword = process.env.BASIC_AUTH_PASSWORD;
+
+  // 環境変数が設定されていない場合はBasic認証をスキップ
+  if (!basicAuthUser || !basicAuthPassword) {
+    return null;
+  }
+
+  const authHeader = request.headers.get('authorization');
+
+  if (authHeader) {
+    const authValue = authHeader.split(' ')[1];
+    const [user, password] = atob(authValue).split(':');
+
+    if (user === basicAuthUser && password === basicAuthPassword) {
+      return null; // 認証成功
+    }
+  }
+
+  // 認証失敗 - 401を返す
+  return new NextResponse('Authentication required', {
+    status: 401,
+    headers: {
+      'WWW-Authenticate': 'Basic realm="Secure Area"',
+    },
+  });
+}
+
 // 認証不要なパス
 const publicPaths = [
   '/login',
@@ -29,6 +59,7 @@ const ignoredPaths = [
   '/api/debug', // デバッグ用API
   '/api/dev', // 開発用API（テストメール送信など）
   '/api/error-messages', // エラーメッセージ設定（認証不要）
+  '/api/jobs', // 求人一覧API（ログイン前でも表示が必要）
   '/rogo', // ロゴ画像
   '/images', // 画像ファイル
   '/icons', // アイコン
@@ -45,6 +76,12 @@ export async function middleware(request: NextRequest) {
   // 静的ファイルや認証APIは無視
   if (ignoredPaths.some((path) => pathname.startsWith(path))) {
     return NextResponse.next();
+  }
+
+  // Basic認証チェック（環境変数が設定されている場合のみ）
+  const basicAuthResponse = checkBasicAuth(request);
+  if (basicAuthResponse) {
+    return basicAuthResponse;
   }
 
   // 管理者ページは別の認証システム（localStorage）を使用しているためスキップ

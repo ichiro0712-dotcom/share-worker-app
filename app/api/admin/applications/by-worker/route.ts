@@ -1,44 +1,22 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { getApplicationsByWorker } from '@/src/lib/actions';
+import { withFacilityAuth } from '@/lib/api-auth';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
-  try {
-    // クエリパラメータ解析
-    const { searchParams } = new URL(request.url);
-    const facilityIdParam = searchParams.get('facilityId');
+  const { searchParams } = new URL(request.url);
+  const facilityId = parseInt(searchParams.get('facilityId') || '0');
 
-    if (!facilityIdParam) {
-      return NextResponse.json({ error: 'Facility ID is required' }, { status: 400 });
-    }
-
-    const facilityId = parseInt(facilityIdParam);
-    if (isNaN(facilityId)) {
-      return NextResponse.json({ error: 'Invalid facility ID' }, { status: 400 });
-    }
-
+  return withFacilityAuth(facilityId, async (validatedFacilityId) => {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '10');
     const query = searchParams.get('query') || undefined;
 
-    // データ取得
-    const result = await getApplicationsByWorker(facilityId, {
+    return await getApplicationsByWorker(validatedFacilityId, {
       page,
       limit,
       query,
     });
-
-    return NextResponse.json(result, {
-      headers: {
-        'Cache-Control': 'no-store, max-age=0',
-      },
-    });
-  } catch (error) {
-    console.error('[API /api/admin/applications/by-worker] Error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch applications by worker' },
-      { status: 500 }
-    );
-  }
+  });
 }

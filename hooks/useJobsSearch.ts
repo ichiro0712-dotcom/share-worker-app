@@ -90,10 +90,10 @@ export function useJobsSearch(params: JobSearchParams, initialData?: JobsRespons
     }
   );
 
-  // 日付リスト（90日分）- クライアントサイドでマウント後に再計算
-  const [dates, setDates] = useState<Date[]>(() => generateDates(90));
+  // 日付リスト（90日分）- クライアントサイドでのみ計算（ハイドレーションエラー防止）
+  const [dates, setDates] = useState<Date[]>([]);
 
-  // クライアントサイドでマウント後に日付を再計算（SSRとのずれを解消）
+  // クライアントサイドでマウント後に日付を計算
   useEffect(() => {
     setDates(generateDates(90));
   }, []);

@@ -1,6 +1,7 @@
 'use client';
 
 import useSWR from 'swr';
+import { adminFetcher } from '@/lib/admin-api-fetcher';
 
 export interface AdminConversation {
     userId: number;
@@ -58,11 +59,7 @@ export interface AdminMessagesResponse {
     hasMore: boolean;
 }
 
-const fetcher = async (url: string) => {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('Failed to fetch');
-    return res.json();
-};
+// 認証エラーハンドリング付きフェッチャーを使用
 
 /**
  * 施設メッセージ会話一覧取得
@@ -73,7 +70,7 @@ export function useAdminConversations(facilityId?: number, initialData?: AdminCo
 
     const { data, error, isLoading, mutate } = useSWR<AdminConversation[]>(
         url,
-        fetcher,
+        adminFetcher,
         {
             fallbackData: initialData,
             revalidateOnFocus: false, // フォーカス時の再取得を無効化
@@ -102,7 +99,7 @@ export function useAdminMessagesByWorker(facilityId: number | undefined, workerI
 
     const { data, error, isLoading, mutate } = useSWR<AdminMessagesResponse>(
         url,
-        fetcher,
+        adminFetcher,
         {
             revalidateOnFocus: false, // フォーカス時の再取得を無効化
             revalidateOnReconnect: true,
@@ -128,7 +125,7 @@ export function useAdminAnnouncements(facilityId?: number) {
 
     const { data, error, isLoading, mutate } = useSWR<AdminAnnouncement[]>(
         url,
-        fetcher,
+        adminFetcher,
         {
             revalidateOnFocus: false,
             revalidateOnReconnect: true,

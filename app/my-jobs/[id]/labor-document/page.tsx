@@ -47,7 +47,7 @@ export default async function LaborDocumentPage({ params }: Props) {
             </Link>
             <h1 className="text-lg font-bold">労働条件通知書</h1>
           </div>
-          <PrintButton />
+          <PrintButton workerName={user.name} workDate={application.work_date} />
         </div>
       </div>
 

@@ -1,6 +1,6 @@
 # +TASTAS ドキュメント
 
-> **更新日**: 2025-01-07
+> **更新日**: 2026-01-17
 
 +TASTAS（看護師・介護士向け求人マッチングサービス）の技術ドキュメント集。
 
@@ -41,8 +41,7 @@ docs/
 
 | ドキュメント | 説明 |
 |--------------|------|
-| [求人マッチング](./features/job-matching.md) | 求人検索・応募・マッチング |
-| [メッセージ](./features/messaging.md) | チャット機能 |
+| [求人マッチング](./features/job-matching.md) | 求人検索・応募・マッチング || [メッセージ](./features/messaging.md) | チャット機能 |
 | [通知](./features/notifications.md) | プッシュ通知・メール・チャット通知 |
 | [レビュー](./features/reviews.md) | 相互評価機能 |
 | [アナリティクス](./features/analytics.md) | 分析ダッシュボード |
@@ -98,10 +97,18 @@ docs/
 
 ### 環境
 
-| 環境 | URL |
-|------|-----|
-| 本番 | https://share-worker-app.vercel.app |
-| ステージング | https://stg-share-worker.vercel.app |
+| 環境 | URL | 用途 |
+|------|-----|------|
+| 本番 | https://tastas.work | 本番環境 |
+| ステージング | https://stg-share-worker.vercel.app | 検証環境 |
+
+### インフラ構成
+
+| サービス | 用途 | 備考 |
+|---------|------|------|
+| **Vercel** | Webホスティング | 自動デプロイ |
+| **Supabase** | DB/Storage | PostgreSQL + S3互換ストレージ |
+| **Resend** | メール送信 | トランザクションメール |
 
 ### よく使うコマンド
 
@@ -118,5 +125,6 @@ npx playwright test   # E2Eテスト
 
 | 日付 | 内容 |
 |------|------|
+| 2026-01-17 | 本番URL更新（tastas.work）、インフラ構成追記 |
 | 2025-01-07 | ドキュメント構造を整理、マニュアル追加 |
 | 2024-12-04 | 初版作成 |

@@ -872,12 +872,17 @@ export async function getJobsListWithPagination(
     let maxDistanceKm = 0;
 
     if (searchParams?.distanceLat && searchParams?.distanceLng) {
-        distanceCenter = { lat: searchParams.distanceLat, lng: searchParams.distanceLng };
+        // URLパラメータから渡される場合に備えて明示的に数値変換
+        distanceCenter = {
+            lat: Number(searchParams.distanceLat),
+            lng: Number(searchParams.distanceLng)
+        };
     }
 
     if (searchParams?.distanceKm && distanceCenter) {
         distanceFilterEnabled = true;
-        maxDistanceKm = searchParams.distanceKm;
+        // URLパラメータから渡される場合に備えて明示的に数値変換
+        maxDistanceKm = Number(searchParams.distanceKm);
 
         const latDelta = maxDistanceKm / 111;
         const lngDelta = maxDistanceKm / (111 * Math.cos((distanceCenter.lat * Math.PI) / 180));
@@ -1132,7 +1137,8 @@ export async function getJobsListWithPagination(
             .map((job) => {
                 const facilityLat = job.facility.lat;
                 const facilityLng = job.facility.lng;
-                if (facilityLat === null || facilityLng === null) {
+                // null または デフォルト値(0,0) の場合は無効な座標として扱う
+                if (facilityLat === null || facilityLng === null || (facilityLat === 0 && facilityLng === 0)) {
                     return { ...job, _distance: Infinity };
                 }
                 const distance = calculateDistanceKm(
@@ -1153,7 +1159,8 @@ export async function getJobsListWithPagination(
             filteredJobsWithDistance = filteredJobsWithDistance.map((job) => {
                 const facilityLat = job.facility.lat;
                 const facilityLng = job.facility.lng;
-                if (facilityLat === null || facilityLng === null) {
+                // null または デフォルト値(0,0) の場合は無効な座標として扱う
+                if (facilityLat === null || facilityLng === null || (facilityLat === 0 && facilityLng === 0)) {
                     return { ...job, _distance: Infinity };
                 }
                 const distance = calculateDistanceKm(
@@ -1371,8 +1378,20 @@ export async function addJobBookmark(jobId: string, type: 'FAVORITE' | 'WATCH_LA
     } catch (error) {
         console.error('[addJobBookmark] Error:', error);
 
-        // エラーログ記録
+        // エラーログ記録（userが取得できていれば使用）
+        let errorUserId: number | undefined;
+        let errorUserEmail: string | undefined;
+        try {
+            const errorUser = await getAuthenticatedUser();
+            errorUserId = errorUser.id;
+            errorUserEmail = errorUser.email || undefined;
+        } catch {
+            // ユーザー取得失敗は無視
+        }
+
         logActivity({
+            userId: errorUserId,
+            userEmail: errorUserEmail,
             userType: 'WORKER',
             action: 'BOOKMARK_CREATE',
             requestData: {
@@ -1438,8 +1457,20 @@ export async function removeJobBookmark(jobId: string, type: 'FAVORITE' | 'WATCH
     } catch (error) {
         console.error('[removeJobBookmark] Error:', error);
 
-        // エラーログ記録
+        // エラーログ記録（userが取得できていれば使用）
+        let errorUserId: number | undefined;
+        let errorUserEmail: string | undefined;
+        try {
+            const errorUser = await getAuthenticatedUser();
+            errorUserId = errorUser.id;
+            errorUserEmail = errorUser.email || undefined;
+        } catch {
+            // ユーザー取得失敗は無視
+        }
+
         logActivity({
+            userId: errorUserId,
+            userEmail: errorUserEmail,
             userType: 'WORKER',
             action: 'BOOKMARK_DELETE',
             requestData: {

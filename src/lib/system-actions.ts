@@ -918,11 +918,17 @@ export async function getSystemFacilitiesExtended(
                     { id: parseInt(searchTerm, 10) },
                     { facility_name: { contains: searchTerm, mode: 'insensitive' } },
                     { corporation_name: { contains: searchTerm, mode: 'insensitive' } },
+                    { prefecture: { contains: searchTerm, mode: 'insensitive' } },
+                    { city: { contains: searchTerm, mode: 'insensitive' } },
+                    { address_line: { contains: searchTerm, mode: 'insensitive' } },
                 ];
             } else {
                 where.OR = [
                     { facility_name: { contains: searchTerm, mode: 'insensitive' } },
                     { corporation_name: { contains: searchTerm, mode: 'insensitive' } },
+                    { prefecture: { contains: searchTerm, mode: 'insensitive' } },
+                    { city: { contains: searchTerm, mode: 'insensitive' } },
+                    { address_line: { contains: searchTerm, mode: 'insensitive' } },
                 ];
             }
         }

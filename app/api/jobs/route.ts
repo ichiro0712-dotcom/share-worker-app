@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getJobsListWithPagination } from '@/src/lib/actions';
 import { generateDatesFromBase } from '@/utils/date';
 import { DEBUG_TIME_COOKIE_NAME, parseDebugTimeCookie, getCurrentTimeFromSettings } from '@/utils/debugTime.server';
+import { getSystemSettingBoolean, getSystemSettingNumber } from '@/src/lib/actions/systemSettings';
+import { SYSTEM_SETTING_KEYS } from '@/src/lib/constants/systemSettings';
 
 // キャッシュ設定
 export const dynamic = 'force-dynamic';
@@ -22,7 +24,7 @@ export async function GET(request: NextRequest) {
     const minWage = searchParams.get('minWage') ? parseInt(searchParams.get('minWage')!, 10) : undefined;
     const page = searchParams.get('page') ? parseInt(searchParams.get('page')!, 10) : 1;
     const dateIndex = searchParams.get('dateIndex') ? parseInt(searchParams.get('dateIndex')!, 10) : 0;
-    const sort = (searchParams.get('sort') as 'distance' | 'wage' | 'deadline') || undefined;
+    let sort = (searchParams.get('sort') as 'distance' | 'wage' | 'deadline') || undefined;
 
     // 配列パラメータ
     const serviceTypes = searchParams.getAll('serviceType');
@@ -39,6 +41,34 @@ export async function GET(request: NextRequest) {
     const distanceKm = searchParams.get('distanceKm') ? parseFloat(searchParams.get('distanceKm')!) : undefined;
     const distanceLat = searchParams.get('distanceLat') ? parseFloat(searchParams.get('distanceLat')!) : undefined;
     const distanceLng = searchParams.get('distanceLng') ? parseFloat(searchParams.get('distanceLng')!) : undefined;
+
+    // システム設定を取得
+    const distanceSortFilterEnabled = await getSystemSettingBoolean(
+      SYSTEM_SETTING_KEYS.DISTANCE_SORT_FILTER_ENABLED
+    );
+    const defaultDistanceKm = await getSystemSettingNumber(
+      SYSTEM_SETTING_KEYS.DISTANCE_SORT_DEFAULT_KM
+    ) ?? 50;
+
+    // 距離ソート時のパラメータ検証とフォールバック
+    let effectiveDistanceKm = distanceKm;
+    if (sort === 'distance') {
+      if (distanceLat === undefined || distanceLng === undefined) {
+        // 緯度経度がない場合は締切順にフォールバック（400エラーではなく）
+        console.info('[API /api/jobs] distance sort requested but lat/lng not provided, falling back to deadline sort');
+        sort = 'deadline';
+      } else if (distanceSortFilterEnabled) {
+        // 距離フィルターが有効な場合のみ、distanceKm を設定
+        if (effectiveDistanceKm === undefined) {
+          effectiveDistanceKm = defaultDistanceKm;
+          console.info(`[API /api/jobs] distanceKm not specified, using system default ${defaultDistanceKm}km`);
+        }
+      } else {
+        // 距離フィルターが無効な場合、distanceKm を使用しない（ソートのみ）
+        effectiveDistanceKm = undefined;
+        console.info('[API /api/jobs] distance sort filter disabled, sorting by distance without range filter');
+      }
+    }
 
     // 求人リストタイプ（限定求人・オファー対応）
     const listType = (searchParams.get('listType') as 'all' | 'limited' | 'offer') || 'all';
@@ -59,7 +89,7 @@ export async function GET(request: NextRequest) {
       workTimeTypes: workTimeTypes.length > 0 ? workTimeTypes : undefined,
       timeRangeFrom,
       timeRangeTo,
-      distanceKm,
+      distanceKm: effectiveDistanceKm,
       distanceLat,
       distanceLng,
       listType,

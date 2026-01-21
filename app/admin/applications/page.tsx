@@ -22,6 +22,7 @@ import toast from 'react-hot-toast';
 import { useErrorToast } from '@/components/ui/PersistentErrorToast';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import JobApplicationModal from '@/components/admin/JobApplicationModal';
+import { CancelConfirmationModal } from '@/components/admin/CancelConfirmationModal';
 import { MonthlyShiftView } from '@/components/admin/MonthlyShiftView';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -249,6 +250,14 @@ function ApplicationsContent() {
   const [selectedWorker, setSelectedWorker] = useState<WorkerWithApplications | null>(null);
   const [expandedDates, setExpandedDates] = useState<Set<number>>(new Set());
 
+  // キャンセル確認モーダル状態
+  const [cancelModalData, setCancelModalData] = useState<{
+    applicationId: number;
+    workerName: string;
+    jobTitle: string;
+    workDate: string;
+  } | null>(null);
+
   // ワーカーの状態管理（お気に入り・ブロック）
   const [workerStates, setWorkerStates] = useState<Record<number, { isFavorite: boolean; isBlocked: boolean }>>({});
 
@@ -350,12 +359,68 @@ function ApplicationsContent() {
   }, [workers]);
 
   // ステータス更新処理
-  // ステータス更新処理
   const { showError } = useErrorToast();
 
+  // キャンセル確認モーダルからの実行
+  const executeCancelConfirmed = async () => {
+    if (!cancelModalData) return;
+    setCancelModalData(null); // モーダルを閉じる
+    await executeStatusUpdate(cancelModalData.applicationId, 'CANCELLED');
+  };
+
+  // ステータス更新のエントリポイント
   const handleStatusUpdate = async (applicationId: number, newStatus: string, confirmMessage?: string) => {
     if (!admin?.facilityId) return;
+
+    // キャンセル操作の場合はモーダルで確認
+    if (newStatus === 'CANCELLED' && confirmMessage) {
+      // 応募情報からワーカー名・求人名・勤務日を取得
+      let workerName = 'ワーカー';
+      let jobTitle = '求人';
+      let workDate = '';
+
+      // selectedJobから検索
+      if (selectedJob) {
+        for (const wd of selectedJob.workDates) {
+          const app = wd.applications.find(a => a.id === applicationId);
+          if (app) {
+            workerName = app.worker.name;
+            jobTitle = selectedJob.title;
+            workDate = wd.formattedDate;
+            break;
+          }
+        }
+      }
+
+      // selectedWorkerから検索
+      if (selectedWorker) {
+        const app = selectedWorker.applications.find(a => a.id === applicationId);
+        if (app) {
+          workerName = selectedWorker.worker.name;
+          jobTitle = app.job.title;
+          workDate = app.job.workDate;
+        }
+      }
+
+      // モーダルを表示
+      setCancelModalData({
+        applicationId,
+        workerName,
+        jobTitle,
+        workDate,
+      });
+      return;
+    }
+
+    // 通常の確認ダイアログ（キャンセル以外）
     if (confirmMessage && !confirm(confirmMessage)) return;
+
+    await executeStatusUpdate(applicationId, newStatus);
+  };
+
+  // 実際のステータス更新処理
+  const executeStatusUpdate = async (applicationId: number, newStatus: string) => {
+    if (!admin?.facilityId) return;
 
     // スナップショット保存
     const prevJobs = jobs;
@@ -1342,6 +1407,17 @@ function ApplicationsContent() {
           />
         )
       }
+
+      {/* キャンセル確認モーダル（ペナルティ警告付き） */}
+      <CancelConfirmationModal
+        isOpen={!!cancelModalData}
+        onClose={() => setCancelModalData(null)}
+        onConfirm={executeCancelConfirmed}
+        workerName={cancelModalData?.workerName || ''}
+        jobTitle={cancelModalData?.jobTitle || ''}
+        workDate={cancelModalData?.workDate || ''}
+        isLoading={isUpdating === cancelModalData?.applicationId}
+      />
 
       {/* ワーカー詳細モーダル - カレンダー形式に統一 */}
       {

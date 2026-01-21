@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/tag';
 import { formatDateTime, getDeadlineText, isDeadlineUrgent } from '@/utils/date';
-import { applyForJobMultipleDates, acceptOffer, addJobBookmark, removeJobBookmark, isJobBookmarked, toggleFacilityFavorite, isFacilityFavorited, getUserSelfPR, updateUserSelfPR } from '@/src/lib/actions';
+import { applyForJobMultipleDates, acceptOffer, addJobBookmark, removeJobBookmark, isJobBookmarked, toggleFacilityFavorite, isFacilityFavorited, getUserSelfPR, updateUserSelfPR, getFacilityInterviewPassRate } from '@/src/lib/actions';
 import { useBadge } from '@/contexts/BadgeContext';
 import toast from 'react-hot-toast';
 import { useErrorToast } from '@/components/ui/PersistentErrorToast';
@@ -26,6 +26,13 @@ interface ScheduledJob {
   workDateId: number;
 }
 
+interface InterviewPassRateData {
+  passRate: number | null;
+  appliedCount: number;
+  matchedCount: number;
+  period: string;
+}
+
 interface JobDetailClientProps {
   job: any;
   facility: any;
@@ -36,6 +43,8 @@ interface JobDetailClientProps {
   selectedDate?: string; // YYYY-MM-DD形式の選択された日付
   isPreviewMode?: boolean;
   scheduledJobs?: ScheduledJob[]; // ユーザーのスケジュール済み仕事（時間重複判定用）
+  isPublic?: boolean; // 公開版（未ログイン）表示モード
+  interviewPassRate?: InterviewPassRateData | null; // 面接通過率データ（審査あり求人用）
 }
 
 /**
@@ -55,7 +64,7 @@ function isTimeOverlapping(start1: string, end1: string, start2: string, end2: s
   return e1 > s2 && e2 > s1;
 }
 
-export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, facilityReviews, initialHasApplied: _initialHasApplied, initialAppliedWorkDateIds = [], selectedDate, isPreviewMode = false, scheduledJobs = [] }: JobDetailClientProps) {
+export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, facilityReviews, initialHasApplied: _initialHasApplied, initialAppliedWorkDateIds = [], selectedDate, isPreviewMode = false, scheduledJobs = [], isPublic = false, interviewPassRate = null }: JobDetailClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { refreshBadges } = useBadge();
@@ -91,10 +100,18 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
   const [editSelfPRValue, setEditSelfPRValue] = useState('');
   const [savingSelfPR, setSavingSelfPR] = useState(false);
 
+  // 面接通過率（期間選択対応）
+  const [passRateData, setPassRateData] = useState<InterviewPassRateData | null>(interviewPassRate);
+  const [passRatePeriod, setPassRatePeriod] = useState<'current' | 'last' | 'two_months_ago'>('current');
+  const [passRateLoading, setPassRateLoading] = useState(false);
+
   // 画像配列を安全に取得（空配列の場合はプレースホルダーを使用）
   const jobImages = job.images && job.images.length > 0 ? job.images : [DEFAULT_JOB_IMAGE];
 
   useEffect(() => {
+    // 公開版では認証が必要な機能をスキップ
+    if (isPublic) return;
+
     // ブックマーク状態を取得
     isFacilityFavorited(String(facility.id)).then(setIsFavorite);
     isJobBookmarked(String(job.id), 'WATCH_LATER').then(setSavedForLater);
@@ -104,7 +121,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
     const mutedFacilities = JSON.parse(localStorage.getItem('mutedFacilities') || '[]');
     const isFacilityMuted = mutedFacilities.some((f: any) => f.facilityId === facility.id);
     setIsMuted(isFacilityMuted);
-  }, [job.id, facility.id]);
+  }, [job.id, facility.id, isPublic]);
 
   // 選択状態の初期化（URLパラメータ、selectedDate、またはデフォルト）
   useEffect(() => {
@@ -273,6 +290,23 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
       }
     } finally {
       setIsSaveForLaterProcessing(false);
+    }
+  };
+
+  // 面接通過率の期間変更
+  const handlePassRatePeriodChange = async (period: 'current' | 'last' | 'two_months_ago') => {
+    if (passRatePeriod === period || passRateLoading) return;
+
+    setPassRatePeriod(period);
+    setPassRateLoading(true);
+
+    try {
+      const data = await getFacilityInterviewPassRate(facility.id, period);
+      setPassRateData(data);
+    } catch (error) {
+      console.error('Failed to fetch pass rate:', error);
+    } finally {
+      setPassRateLoading(false);
     }
   };
 
@@ -495,7 +529,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
   };
 
   return (
-    <div className="min-h-screen bg-background pb-36 max-w-lg mx-auto">
+    <div className={`min-h-screen bg-background max-w-lg mx-auto ${isPublic ? 'pb-32' : 'pb-36'}`}>
       {/* ヘッダー */}
       <div className="sticky top-0 bg-white border-b border-gray-200 z-20">
         {isPreviewMode && (
@@ -504,40 +538,52 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
           </div>
         )}
         <div className="px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                // 履歴がある場合は戻る、ない場合はホームへ
-                if (window.history.length > 1) {
-                  router.back();
-                } else {
-                  router.push('/');
-                }
-              }}
-              aria-label="戻る"
-            >
-              <ChevronLeft className="w-6 h-6" />
-            </button>
-            <button
-              onClick={() => router.push('/')}
-              className="p-1 hover:bg-gray-100 rounded-full transition-colors"
-              aria-label="トップページへ"
-            >
-              <Home className="w-5 h-5 text-gray-600" />
-            </button>
-          </div>
+          {/* 公開版ではナビゲーションボタンを非表示 */}
+          {!isPublic ? (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  // 履歴がある場合は戻る、ない場合はホームへ
+                  if (window.history.length > 1) {
+                    router.back();
+                  } else {
+                    router.push('/');
+                  }
+                }}
+                aria-label="戻る"
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+              <button
+                onClick={() => router.push('/')}
+                className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                aria-label="トップページへ"
+              >
+                <Home className="w-5 h-5 text-gray-600" />
+              </button>
+            </div>
+          ) : (
+            /* 左側のスペーサー */
+            <div className="w-16" />
+          )}
           <div className="flex-1 text-center text-sm">
             {formatDateTime(selectedDate || job.workDate, job.startTime, job.endTime)}
           </div>
-          <button
-            onClick={handleSaveForLater}
-            className="flex items-center gap-1 text-xs"
-          >
-            <Clock className={`w-5 h-5 ${savedForLater ? 'text-primary' : 'text-gray-400'}`} />
-            <span className={savedForLater ? 'text-primary' : 'text-gray-600'}>
-              {savedForLater ? '保存済み' : 'あとで見る'}
-            </span>
-          </button>
+          {/* 公開版では「あとで見る」ボタンを非表示 */}
+          {!isPublic ? (
+            <button
+              onClick={handleSaveForLater}
+              className="flex items-center gap-1 text-xs"
+            >
+              <Clock className={`w-5 h-5 ${savedForLater ? 'text-primary' : 'text-gray-400'}`} />
+              <span className={savedForLater ? 'text-primary' : 'text-gray-600'}>
+                {savedForLater ? '保存済み' : 'あとで見る'}
+              </span>
+            </button>
+          ) : (
+            /* 右側のスペーサー */
+            <div className="w-16" />
+          )}
         </div>
       </div>
 
@@ -668,24 +714,27 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
                 : job.address}
             </span>
           </div>
-          <div className="flex gap-4">
-            <button onClick={handleJobBookmark} className="flex items-center gap-1 text-sm">
-              <Bookmark
-                className={`w-5 h-5 ${isJobBookmarkedState ? 'fill-primary text-primary' : 'text-gray-400'}`}
-              />
-              <span className={isJobBookmarkedState ? 'text-primary' : 'text-gray-600'}>求人ブックマーク</span>
-            </button>
-            <button onClick={handleFavorite} className="flex items-center gap-1 text-sm">
-              <Heart
-                className={`w-5 h-5 ${isFavorite ? 'fill-red-500 text-red-500' : 'text-gray-400'}`}
-              />
-              <span className={isFavorite ? 'text-red-500' : 'text-gray-600'}>お気に入り施設</span>
-            </button>
-            <button onClick={handleMute} className={`flex items-center gap-1 text-sm ${isMuted ? 'text-orange-500' : 'text-gray-600'}`}>
-              {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-              <span>{isMuted ? 'ミュート中' : 'ミュート'}</span>
-            </button>
-          </div>
+          {/* 公開版ではお気に入り・ブックマーク・ミュートボタンを非表示 */}
+          {!isPublic && (
+            <div className="flex gap-4">
+              <button onClick={handleJobBookmark} className="flex items-center gap-1 text-sm">
+                <Bookmark
+                  className={`w-5 h-5 ${isJobBookmarkedState ? 'fill-primary text-primary' : 'text-gray-400'}`}
+                />
+                <span className={isJobBookmarkedState ? 'text-primary' : 'text-gray-600'}>求人ブックマーク</span>
+              </button>
+              <button onClick={handleFavorite} className="flex items-center gap-1 text-sm">
+                <Heart
+                  className={`w-5 h-5 ${isFavorite ? 'fill-red-500 text-red-500' : 'text-gray-400'}`}
+                />
+                <span className={isFavorite ? 'text-red-500' : 'text-gray-600'}>お気に入り施設</span>
+              </button>
+              <button onClick={handleMute} className={`flex items-center gap-1 text-sm ${isMuted ? 'text-orange-500' : 'text-gray-600'}`}>
+                {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                <span>{isMuted ? 'ミュート中' : 'ミュート'}</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* 選択された勤務日 */}
@@ -718,16 +767,18 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
               return (
                 <div
                   key={wd.id || index}
-                  onClick={() => !isDisabled && toggleWorkDateSelection(wd.id)}
-                  className={`p-4 border-2 rounded-card transition-colors relative ${isDisabled
-                    ? 'border-gray-300 bg-gray-200 cursor-not-allowed opacity-60'
-                    : selectedWorkDateIds.includes(wd.id)
-                      ? 'border-primary bg-primary-light/30 cursor-pointer'
-                      : 'border-gray-200 hover:border-primary cursor-pointer'
+                  onClick={() => !isPublic && !isDisabled && toggleWorkDateSelection(wd.id)}
+                  className={`p-4 border-2 rounded-card transition-colors relative ${isPublic
+                    ? 'border-gray-200 bg-white'
+                    : isDisabled
+                      ? 'border-gray-300 bg-gray-200 cursor-not-allowed opacity-60'
+                      : selectedWorkDateIds.includes(wd.id)
+                        ? 'border-primary bg-primary-light/30 cursor-pointer'
+                        : 'border-gray-200 hover:border-primary cursor-pointer'
                     }`}
                 >
-                  {/* 応募不可オーバーレイ */}
-                  {isDisabled && unavailableReason && (
+                  {/* 応募不可オーバーレイ（公開版では非表示） */}
+                  {!isPublic && isDisabled && unavailableReason && (
                     <div className="absolute inset-0 flex items-center justify-center bg-gray-900/20 rounded-card">
                       <span className="bg-gray-800 text-white text-xs font-bold px-3 py-1.5 rounded">
                         {unavailableReason}
@@ -735,14 +786,17 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
                     </div>
                   )}
                   <div className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={selectedWorkDateIds.includes(wd.id)}
-                      onChange={() => !isDisabled && toggleWorkDateSelection(wd.id)}
-                      onClick={(e) => e.stopPropagation()}
-                      disabled={isDisabled}
-                      className="w-5 h-5 text-primary flex-shrink-0 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-                    />
+                    {/* 公開版ではチェックボックス非表示 */}
+                    {!isPublic && (
+                      <input
+                        type="checkbox"
+                        checked={selectedWorkDateIds.includes(wd.id)}
+                        onChange={() => !isDisabled && toggleWorkDateSelection(wd.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        disabled={isDisabled}
+                        className="w-5 h-5 text-primary flex-shrink-0 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                      />
+                    )}
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <div className={`text-sm font-bold ${isDisabled ? 'text-gray-500' : ''}`}>
@@ -813,30 +867,35 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
                   return (
                     <div
                       key={wd.id || index}
-                      onClick={() => !isDisabled && toggleWorkDateSelection(wd.id)}
-                      className={`flex items-center gap-3 p-3 border rounded-card transition-colors relative ${isDisabled
-                        ? 'border-gray-300 bg-gray-200 cursor-not-allowed opacity-60'
-                        : selectedWorkDateIds.includes(wd.id)
-                          ? 'border-primary bg-primary-light/20 cursor-pointer'
-                          : 'border-gray-200 hover:border-primary cursor-pointer'
+                      onClick={() => !isPublic && !isDisabled && toggleWorkDateSelection(wd.id)}
+                      className={`flex items-center gap-3 p-3 border rounded-card transition-colors relative ${isPublic
+                        ? 'border-gray-200 bg-white'
+                        : isDisabled
+                          ? 'border-gray-300 bg-gray-200 cursor-not-allowed opacity-60'
+                          : selectedWorkDateIds.includes(wd.id)
+                            ? 'border-primary bg-primary-light/20 cursor-pointer'
+                            : 'border-gray-200 hover:border-primary cursor-pointer'
                         }`}
                     >
-                      {/* 応募不可オーバーレイ */}
-                      {isDisabled && unavailableReason && (
+                      {/* 応募不可オーバーレイ（公開版では非表示） */}
+                      {!isPublic && isDisabled && unavailableReason && (
                         <div className="absolute inset-0 flex items-center justify-center bg-gray-900/20 rounded-card">
                           <span className="bg-gray-800 text-white text-xs font-bold px-3 py-1.5 rounded">
                             {unavailableReason}
                           </span>
                         </div>
                       )}
-                      <input
-                        type="checkbox"
-                        checked={selectedWorkDateIds.includes(wd.id)}
-                        onChange={() => !isDisabled && toggleWorkDateSelection(wd.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        disabled={isDisabled}
-                        className="w-5 h-5 text-primary flex-shrink-0 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-                      />
+                      {/* 公開版ではチェックボックス非表示 */}
+                      {!isPublic && (
+                        <input
+                          type="checkbox"
+                          checked={selectedWorkDateIds.includes(wd.id)}
+                          onChange={() => !isDisabled && toggleWorkDateSelection(wd.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          disabled={isDisabled}
+                          className="w-5 h-5 text-primary flex-shrink-0 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                        />
+                      )}
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <div className={`text-sm font-bold ${isDisabled ? 'text-gray-500' : ''}`}>
@@ -1094,9 +1153,10 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
             )}
 
             <div className="relative aspect-video overflow-hidden rounded-lg bg-gray-100 mb-2">
-              {facility.lat && facility.lng ? (
+              {/* 地図は常に住所ベースで表示（lat/lngは信頼性が低いため）ID-7 */}
+              {job.address ? (
                 <iframe
-                  src={`https://www.google.com/maps/embed/v1/place?q=${facility.lat},${facility.lng}&zoom=16&key=AIzaSyA2Ae19xiaciV46yWzQvTh4mG1RvfsaSi8`}
+                  src={`https://www.google.com/maps/embed/v1/place?q=${encodeURIComponent(job.address)}&zoom=16&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`}
                   width="100%"
                   height="100%"
                   style={{ border: 0 }}
@@ -1167,13 +1227,79 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
       {/* 労働条件通知書プレビュー */}
       <div className="mb-4 px-4">
         <Link
-          href={`/jobs/${job.id}/labor-document`}
+          href={isPublic ? `/public/jobs/${job.id}/labor-document` : `/jobs/${job.id}/labor-document`}
           className="flex items-center gap-2 px-3 py-2 text-sm text-primary border border-primary rounded-lg hover:bg-primary/5 transition-colors"
         >
           <FileText className="w-4 h-4" />
           労働条件通知書を確認
         </Link>
       </div>
+
+      {/* 面接通過率（審査あり求人のみ表示） */}
+      {job.requiresInterview && passRateData && (
+        <div className="mb-4 px-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-blue-800 flex items-center gap-2">
+                <span>📊</span>
+                <span>面接通過率</span>
+              </h3>
+              {/* 期間選択ボタン */}
+              <div className="flex gap-1">
+                {[
+                  { key: 'current' as const, label: '今月' },
+                  { key: 'last' as const, label: '先月' },
+                  { key: 'two_months_ago' as const, label: '先々月' },
+                ].map(({ key, label }) => (
+                  <button
+                    key={key}
+                    onClick={() => handlePassRatePeriodChange(key)}
+                    disabled={passRateLoading}
+                    className={`px-2 py-1 text-xs rounded transition-colors ${
+                      passRatePeriod === key
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-white text-blue-600 border border-blue-300 hover:bg-blue-50'
+                    } ${passRateLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {passRateLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <div className="animate-spin h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+              </div>
+            ) : passRateData.passRate !== null ? (
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-2xl font-bold text-blue-600">
+                      {passRateData.passRate}%
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      （{passRateData.matchedCount}/{passRateData.appliedCount}人）
+                    </span>
+                  </div>
+                  <div className="mt-2 bg-gray-200 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-blue-500 h-full transition-all"
+                      style={{ width: `${passRateData.passRate}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">
+                この期間の応募データはまだありません
+              </p>
+            )}
+            <p className="mt-2 text-xs text-gray-500">
+              ※この施設の審査あり求人における面接通過率です
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* レビュー */}
       {facilityReviews.length > 0 && (
@@ -1294,8 +1420,8 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
         </div>
       )}
 
-      {/* 申し込みボタン（プレビューモードでは非表示） - フッターナビの上に配置 */}
-      {!isPreviewMode && (
+      {/* 申し込みボタン（プレビューモードと公開版では非表示、公開版はレイアウトのフッターを使用） */}
+      {!isPreviewMode && !isPublic && (
         <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-200 p-4 z-10" style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom))' }}>
           <Button
             onClick={handleApplyButtonClick}

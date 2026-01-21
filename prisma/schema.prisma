@@ -48,7 +48,9 @@ model User {
   experience_fields      Json?          @map("experience_fields")
   work_histories         String[]       @default([]) @map("work_histories")
   self_pr                String?        @map("self_pr")
+  bank_code              String?        @map("bank_code") @db.VarChar(4)
   bank_name              String?        @map("bank_name")
+  branch_code            String?        @map("branch_code") @db.VarChar(3)
   branch_name            String?        @map("branch_name")
   account_name           String?        @map("account_name")
   account_number         String?        @map("account_number")
@@ -78,6 +80,10 @@ model User {
   verification_token        String?        @map("verification_token")
   /// 認証トークンの有効期限
   verification_token_expires DateTime?     @map("verification_token_expires")
+  /// 自動ログイン用一時トークン（メール認証後5分間有効）
+  auto_login_token          String?        @map("auto_login_token")
+  /// 自動ログイントークンの有効期限
+  auto_login_token_expires  DateTime?      @map("auto_login_token_expires")
 
   is_suspended           Boolean        @default(false) @map("is_suspended")
   suspended_at           DateTime?      @map("suspended_at")
@@ -90,6 +96,9 @@ model User {
   updated_by_type        String?        @map("updated_by_type")
   /// 更新者ID
   updated_by_id          Int?           @map("updated_by_id")
+
+  /// 銀行口座情報（構造化データ）
+  bankAccount            BankAccount?
 
   @@map("users")
 }
@@ -1216,6 +1225,26 @@ model ErrorMessageSetting {
   @@map("error_message_settings")
 }
 
+// ========== システム設定 ==========
+
+/// システム全体の設定（キーバリュー形式）
+model SystemSetting {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique // 設定キー
+  value       String   @db.Text // 設定値（JSON形式も可）
+  description String?  // 設定の説明
+
+  created_at  DateTime @default(now()) @map("created_at")
+  updated_at  DateTime @updatedAt @map("updated_at")
+
+  /// 更新者種別 ("SYSTEM_ADMIN")
+  updated_by_type  String?  @map("updated_by_type")
+  /// 更新者ID
+  updated_by_id    Int?     @map("updated_by_id")
+
+  @@map("system_settings")
+}
+
 // ========== デバッグチェックリスト ==========
 
 /// デバッグチェック進捗（A〜Jさんの10人固定）
@@ -1319,4 +1348,72 @@ model UserActivityLog {
   @@index([result])
   @@index([created_at])
   @@map("user_activity_logs")
+}
+
+/// 銀行マスタ（zengin-codeから定期取得）
+model Bank {
+  code      String   @id @db.VarChar(4)
+  name      String   @db.VarChar(100)
+  kana      String   @db.VarChar(100)
+  hira      String   @db.VarChar(100)
+  roma      String?  @db.VarChar(100)
+  branches  Branch[]
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([name])
+  @@index([hira])
+  @@index([kana])
+  @@map("banks")
+}
+
+/// 支店マスタ（zengin-codeから定期取得）
+model Branch {
+  id        String   @id @default(cuid())
+  bankCode  String   @map("bank_code") @db.VarChar(4)
+  code      String   @db.VarChar(3)
+  name      String   @db.VarChar(100)
+  kana      String   @db.VarChar(100)
+  hira      String   @db.VarChar(100)
+  roma      String?  @db.VarChar(100)
+  bank      Bank     @relation(fields: [bankCode], references: [code], onDelete: Cascade)
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([bankCode, code])
+  @@index([bankCode])
+  @@index([name])
+  @@index([hira])
+  @@map("branches")
+}
+
+/// ワーカー銀行口座情報（構造化データ）
+model BankAccount {
+  id                String      @id @default(cuid())
+  userId            Int         @unique @map("user_id")
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  bankCode          String      @map("bank_code") @db.VarChar(4)
+  bankName          String      @map("bank_name") @db.VarChar(100)
+  branchCode        String      @map("branch_code") @db.VarChar(3)
+  branchName        String      @map("branch_name") @db.VarChar(100)
+  accountType       AccountType @default(ORDINARY) @map("account_type")
+  accountNumber     String      @map("account_number") @db.VarChar(7)
+  accountHolderName String      @map("account_holder_name") @db.VarChar(100)
+
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+
+  /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
+  updatedByType     String?     @map("updated_by_type")
+  /// 更新者ID
+  updatedById       Int?        @map("updated_by_id")
+
+  @@map("bank_accounts")
+}
+
+/// 口座種別
+enum AccountType {
+  ORDINARY  // 普通
+  CURRENT   // 当座
+
+  @@map("account_type")
 }

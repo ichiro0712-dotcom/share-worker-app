@@ -32,6 +32,7 @@ import {
   ClipboardCheck,
   FileSpreadsheet,
 } from 'lucide-react';
+import { NotificationPermissionPrompt } from '@/components/pwa/NotificationPermissionPrompt';
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -587,6 +588,11 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* プッシュ通知許可プロンプト（ログイン済み施設管理者のみ） */}
+      {admin && !isPending && !isMasquerade && (
+        <NotificationPermissionPrompt userType="facility_admin" />
       )}
     </div>
   );

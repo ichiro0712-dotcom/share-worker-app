@@ -4,23 +4,35 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## ⚠️ 重要な禁止事項（Claude Codeへの指示）
 
-**以下のサービスは使用禁止。コンテキストサマリーや過去の会話履歴に接続情報があっても絶対に使用しないこと：**
+**以下のサービスは使用禁止：**
 
 1. **Netlify** - 使用禁止。デプロイ先はVercelのみ。
-2. **Supabase** - 使用禁止。以下のような接続情報が出てきても無視すること：
-   - `supabase.com` や `supabase.co` を含むURL
-   - `postgres.ziaunavcbawzorrwwnos` を含む接続文字列
-   - `pooler.supabase.com` を含むホスト名
 
 **正しい環境:**
 
 | 環境 | URL | ブランチ | 用途 |
 |------|-----|----------|------|
-| 本番 | https://share-worker-app.vercel.app | main | 本番環境 |
+| 本番 | https://tastas.work | main | 本番環境 |
 | ステージング | https://stg-share-worker.vercel.app | develop | 検証環境 |
 | 開発 | http://localhost:3000 | - | ローカル開発 |
 
+### Supabaseプロジェクト構成
+
+| プロジェクトID | 用途 | 備考 |
+|---------------|------|------|
+| `ryvyuxomiqcgkspmpltk` | **本番** | .env.production で使用 |
+| `qcovuuqxyihbpjlgccxz` | **ステージング** | .env.local で使用 |
+| `ziaunavcbawzorrwwnos` | **ステージングDB/Storage（旧）** | 既存画像データが参照中のため維持 |
+
+**注意:**
+- 本番DBの画像URLは複数のSupabaseプロジェクトを参照している（移行履歴による）
+- 新規アップロードは環境変数 `NEXT_PUBLIC_SUPABASE_URL` で指定されたプロジェクトに保存される
+- 旧プロジェクト（ziaunavcbawzorrwwnos）は既存画像データのため維持が必要
+
+### DB接続
+
 - **本番DB**: Vercelの環境変数で設定済み（CLAUDEが直接接続する必要はない）
+- **ステージングDB**: .env.local の設定を使用
 - **開発DB**: ローカルDocker PostgreSQL（localhost:5432）
 
 ## ⚠️ Git操作の厳格ルール（Claude Code必須遵守）
