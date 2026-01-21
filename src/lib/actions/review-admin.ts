@@ -1466,7 +1466,7 @@ export async function getWorkerListForFacility(
     // 5. 詳細データ取得 (paginatedIds に対してのみ) - 並列実行
     const userIds = paginatedIds;
 
-    const [ourApplications, otherApplications, bookmarks, reviews] = await Promise.all([
+    const [ourApplications, otherApplications, allApplicationsForCancel, bookmarks, reviews] = await Promise.all([
       // 自社での勤務データ
       prisma.application.findMany({
         where: {
@@ -1521,6 +1521,26 @@ export async function getWorkerListForFacility(
           },
         },
         include: {
+          workDate: {
+            select: {
+              work_date: true,
+            },
+          },
+        },
+      }),
+      // 全施設での応募データ（キャンセル率計算用）
+      prisma.application.findMany({
+        where: {
+          user_id: { in: userIds },
+          status: {
+            in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED', 'CANCELLED'],
+          },
+        },
+        select: {
+          user_id: true,
+          status: true,
+          cancelled_by: true,
+          updated_at: true,
           workDate: {
             select: {
               work_date: true,
@@ -1660,6 +1680,42 @@ export async function getWorkerListForFacility(
       }
     }
 
+    // 全施設でのキャンセル率を集計
+    const cancelRateMap = new Map<number, {
+      totalApplications: number;
+      cancelledCount: number;
+      lastMinuteCancelCount: number;
+    }>();
+    for (const app of allApplicationsForCancel) {
+      const existing = cancelRateMap.get(app.user_id);
+      const isWorkerCancelled = app.status === 'CANCELLED' && app.cancelled_by === 'WORKER';
+
+      // 直前キャンセル判定（勤務日の前日以降にキャンセル）
+      let isLastMinuteCancel = false;
+      if (isWorkerCancelled) {
+        const workDateNormalized = normalizeToJSTDayStart(new Date(app.workDate.work_date));
+        const updatedAt = new Date(app.updated_at);
+        const dayBefore = new Date(workDateNormalized.getTime() - 24 * 60 * 60 * 1000);
+        isLastMinuteCancel = updatedAt >= dayBefore;
+      }
+
+      if (existing) {
+        existing.totalApplications++;
+        if (isWorkerCancelled) {
+          existing.cancelledCount++;
+        }
+        if (isLastMinuteCancel) {
+          existing.lastMinuteCancelCount++;
+        }
+      } else {
+        cancelRateMap.set(app.user_id, {
+          totalApplications: 1,
+          cancelledCount: isWorkerCancelled ? 1 : 0,
+          lastMinuteCancelCount: isLastMinuteCancel ? 1 : 0,
+        });
+      }
+    }
+
     // 結果を構築（paginatedIdsの順序を保持）
     let workers: WorkerListItem[] = [];
 
@@ -1746,9 +1802,15 @@ export async function getWorkerListForFacility(
       const otherWorkCount = otherData?.completedDates.length || 0;
       const totalWorkCount = ourWorkCount + otherWorkCount;
 
-      // キャンセル率（自社）
-      const cancelRate = data.totalApplications > 0
-        ? (data.cancelledCount / data.totalApplications) * 100
+      // キャンセル率（全施設での応募ベース）
+      const cancelData = cancelRateMap.get(userId);
+      const cancelRate = cancelData && cancelData.totalApplications > 0
+        ? (cancelData.cancelledCount / cancelData.totalApplications) * 100
+        : 0;
+
+      // 直前キャンセル率（全施設での応募ベース）
+      const lastMinuteCancelRate = cancelData && cancelData.totalApplications > 0
+        ? (cancelData.lastMinuteCancelCount / cancelData.totalApplications) * 100
         : 0;
 
       // 経験分野
@@ -1774,7 +1836,7 @@ export async function getWorkerListForFacility(
         lastWorkFacilityType,
         scheduledDates: scheduledDatesWithTime, // 勤務予定（自社のみ、時間情報付き）
         cancelRate,
-        lastMinuteCancelRate: 0,
+        lastMinuteCancelRate,
         experienceFields,
         avgRating: reviewData ? reviewData.totalRating / reviewData.count : null,
         reviewCount: reviewData?.count || 0,
