@@ -1088,10 +1088,18 @@ model NotificationLog {
 
   status              String   @default("SENT") // "SENT" | "FAILED"
   error_message       String?  @map("error_message")
+
+  // バージョン情報（デバッグ用）
+  /// Git Commit SHA（短縮7桁）- コード特定用
+  app_version         String?  @map("app_version") @db.VarChar(40)
+  /// Vercel Deployment ID - デプロイ特定用
+  deployment_id       String?  @map("deployment_id") @db.VarChar(50)
+
   created_at          DateTime @default(now()) @map("created_at")
 
   @@index([target_type, created_at])
   @@index([notification_key])
+  @@index([app_version])
   @@map("notification_logs")
 }
 
@@ -1341,12 +1349,19 @@ model UserActivityLog {
   user_agent    String?  @map("user_agent")
   ip_address    String?  @map("ip_address")
 
+  // バージョン情報（デバッグ用）
+  /// Git Commit SHA（短縮7桁）- コード特定用
+  app_version   String?  @map("app_version") @db.VarChar(40)
+  /// Vercel Deployment ID - デプロイ特定用
+  deployment_id String?  @map("deployment_id") @db.VarChar(50)
+
   created_at    DateTime @default(now()) @map("created_at")
 
   @@index([user_type, user_id])
   @@index([action])
   @@index([result])
   @@index([created_at])
+  @@index([app_version])
   @@map("user_activity_logs")
 }
 

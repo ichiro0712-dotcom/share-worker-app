@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import webPush from 'web-push';
 import { Resend } from 'resend';
 import { getTodayStart } from '@/utils/debugTime';
+import { getVersionForLog } from '@/lib/version';
 
 // Resend設定（遅延初期化 - APIキーがない場合はnull）
 let resend: Resend | null = null;
@@ -176,7 +177,8 @@ async function sendChatNotification(params: {
             },
         });
 
-        // ログ記録
+        // ログ記録（バージョン情報付き）
+        const versionInfo = getVersionForLog();
         await prisma.notificationLog.create({
             data: {
                 notification_key: notificationKey,
@@ -187,10 +189,13 @@ async function sendChatNotification(params: {
                 chat_application_id: applicationId,
                 chat_message: message,
                 status: 'SENT',
+                app_version: versionInfo.app_version,
+                deployment_id: versionInfo.deployment_id,
             },
         });
     } catch (error: any) {
         console.error('System notification creation failed:', error);
+        const versionInfo = getVersionForLog();
         await prisma.notificationLog.create({
             data: {
                 notification_key: notificationKey,
@@ -202,6 +207,8 @@ async function sendChatNotification(params: {
                 chat_message: message,
                 status: 'FAILED',
                 error_message: error.message,
+                app_version: versionInfo.app_version,
+                deployment_id: versionInfo.deployment_id,
             },
         });
     }
@@ -220,6 +227,9 @@ async function sendEmailNotification(params: {
 }): Promise<void> {
     const { notificationKey, targetType, recipientId, recipientName, recipientEmail, toAddresses, subject, body } = params;
 
+    // バージョン情報を取得
+    const versionInfo = getVersionForLog();
+
     // メール送信が無効化されている場合はスキップ
     if (process.env.DISABLE_EMAIL_SENDING === 'true') {
         console.log('[Email] Sending disabled, logging only:', { to: toAddresses, subject });
@@ -237,6 +247,8 @@ async function sendEmailNotification(params: {
                 body,
                 status: 'SKIPPED',
                 error_message: 'Email sending disabled',
+                app_version: versionInfo.app_version,
+                deployment_id: versionInfo.deployment_id,
             },
         });
         return;
@@ -261,6 +273,8 @@ async function sendEmailNotification(params: {
                     body,
                     status: 'SKIPPED',
                     error_message: 'Resend API key not configured',
+                    app_version: versionInfo.app_version,
+                    deployment_id: versionInfo.deployment_id,
                 },
             });
             return;
@@ -294,6 +308,8 @@ async function sendEmailNotification(params: {
                 subject,
                 body,
                 status: 'SENT',
+                app_version: versionInfo.app_version,
+                deployment_id: versionInfo.deployment_id,
             },
         });
     } catch (error: any) {
@@ -312,6 +328,8 @@ async function sendEmailNotification(params: {
                 body,
                 status: 'FAILED',
                 error_message: error.message,
+                app_version: versionInfo.app_version,
+                deployment_id: versionInfo.deployment_id,
             },
         });
     }
@@ -386,7 +404,8 @@ async function sendPushNotification(params: {
             }
         }
 
-        // ログ記録
+        // ログ記録（バージョン情報付き）
+        const versionInfo = getVersionForLog();
         await prisma.notificationLog.create({
             data: {
                 notification_key: notificationKey,
@@ -398,10 +417,13 @@ async function sendPushNotification(params: {
                 push_body: body,
                 push_url: url,
                 status: 'SENT',
+                app_version: versionInfo.app_version,
+                deployment_id: versionInfo.deployment_id,
             },
         });
     } catch (error: any) {
         console.error('Push notification failed:', error);
+        const versionInfo = getVersionForLog();
         await prisma.notificationLog.create({
             data: {
                 notification_key: notificationKey,
@@ -414,6 +436,8 @@ async function sendPushNotification(params: {
                 push_url: url,
                 status: 'FAILED',
                 error_message: error.message,
+                app_version: versionInfo.app_version,
+                deployment_id: versionInfo.deployment_id,
             },
         });
     }
