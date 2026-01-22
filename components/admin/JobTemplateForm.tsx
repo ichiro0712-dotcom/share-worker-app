@@ -340,14 +340,17 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
             let grossMinutes = endMinutes - startMinutes;
             if (grossMinutes < 0) grossMinutes += 24 * 60;
 
-            // 8時間（480分）を超える勤務 → 60分以上の休憩が必要
-            if (grossMinutes > 480 && formData.breakTime < 60) {
-                toast.error('8時間を超える勤務の場合、休憩時間は60分以上必要です');
+            // 実働時間 = 拘束時間 - 休憩時間
+            const workMinutes = grossMinutes - formData.breakTime;
+
+            // 実働8時間（480分）を超える場合 → 60分以上の休憩が必要
+            if (workMinutes > 480 && formData.breakTime < 60) {
+                toast.error('実働8時間を超える場合、休憩時間は60分以上必要です');
                 return;
             }
-            // 6時間（360分）を超える勤務 → 45分以上の休憩が必要
-            else if (grossMinutes > 360 && formData.breakTime < 45) {
-                toast.error('6時間を超える勤務の場合、休憩時間は45分以上必要です');
+            // 実働6時間（360分）を超える場合 → 45分以上の休憩が必要
+            else if (workMinutes > 360 && formData.breakTime < 45) {
+                toast.error('実働6時間を超える場合、休憩時間は45分以上必要です');
                 return;
             }
         }
