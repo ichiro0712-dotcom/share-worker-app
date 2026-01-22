@@ -13,7 +13,6 @@ export default function AdminLogin() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [testAdmins, setTestAdmins] = useState<{ id: number; email: string; name: string; facilityName: string }[]>([]);
 
   // すでにログイン済みの場合は管理者ダッシュボードへリダイレクト
   useEffect(() => {
@@ -21,13 +20,6 @@ export default function AdminLogin() {
       router.push('/admin');
     }
   }, [isAdmin, router]);
-
-  // テスト管理者をDBから取得
-  useEffect(() => {
-    import('@/src/lib/actions').then(({ getTestAdmins }) => {
-      getTestAdmins().then(setTestAdmins);
-    });
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,11 +43,6 @@ export default function AdminLogin() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleTestLogin = (testEmail: string) => {
-    setEmail(testEmail);
-    setPassword('password123');
   };
 
   return (
@@ -137,32 +124,6 @@ export default function AdminLogin() {
               {isLoading ? 'ログイン中...' : '管理者としてログイン'}
             </button>
           </form>
-        </div>
-
-        {/* テスト管理者 */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="font-semibold text-sm text-blue-800 mb-3">
-            テスト管理者でログイン
-          </h3>
-          <div className="space-y-2">
-            {testAdmins.length > 0 ? (
-              testAdmins.map((admin) => (
-                <button
-                  key={admin.id}
-                  onClick={() => handleTestLogin(admin.email)}
-                  className="w-full text-left px-3 py-2 bg-white border border-blue-300 rounded text-sm hover:bg-blue-50 transition-colors"
-                >
-                  <div className="font-medium">{admin.facilityName}</div>
-                  <div className="text-xs text-gray-600">{admin.email}</div>
-                </button>
-              ))
-            ) : (
-              <p className="text-sm text-gray-500">テスト管理者を読み込み中...</p>
-            )}
-          </div>
-          <p className="text-xs text-blue-700 mt-3">
-            ※ クリックで自動入力されます。「管理者としてログイン」ボタンを押してください。
-          </p>
         </div>
       </div>
     </div>
