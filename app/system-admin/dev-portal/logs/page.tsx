@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ja } from 'date-fns/locale';
+import { toZonedTime } from 'date-fns-tz';
 
 // ========== 型定義 ==========
 
@@ -523,7 +524,7 @@ export default function LogViewerPage() {
                                     activityLogs.map(log => (
                                         <tr key={log.id} className={`hover:bg-slate-50/50 ${log.result === 'ERROR' ? 'bg-red-50/30' : ''}`}>
                                             <td className="px-6 py-4 text-slate-600 whitespace-nowrap">
-                                                {format(new Date(log.created_at), 'MM/dd HH:mm:ss', { locale: ja })}
+                                                {format(toZonedTime(new Date(log.created_at), 'Asia/Tokyo'), 'MM/dd HH:mm:ss', { locale: ja })}
                                             </td>
                                             <td className="px-6 py-4">
                                                 {getUserTypeBadge(log.user_type)}
@@ -632,7 +633,7 @@ export default function LogViewerPage() {
                                     notificationLogs.map(log => (
                                         <tr key={log.id} className={`hover:bg-slate-50/50 ${log.status === 'FAILED' ? 'bg-red-50/30' : ''}`}>
                                             <td className="px-6 py-4 text-slate-600 whitespace-nowrap">
-                                                {format(new Date(log.created_at), 'MM/dd HH:mm', { locale: ja })}
+                                                {format(toZonedTime(new Date(log.created_at), 'Asia/Tokyo'), 'MM/dd HH:mm', { locale: ja })}
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-2">
@@ -727,7 +728,7 @@ export default function LogViewerPage() {
                                 <div>
                                     <label className="text-xs font-medium text-slate-500">日時</label>
                                     <p className="text-sm text-slate-800">
-                                        {format(new Date(selectedActivityLog.created_at), 'yyyy/MM/dd HH:mm:ss', { locale: ja })}
+                                        {format(toZonedTime(new Date(selectedActivityLog.created_at), 'Asia/Tokyo'), 'yyyy/MM/dd HH:mm:ss', { locale: ja })}
                                     </p>
                                 </div>
                                 <div>
@@ -906,7 +907,7 @@ export default function LogViewerPage() {
                                 <div>
                                     <label className="text-xs font-medium text-slate-500">日時</label>
                                     <p className="text-sm text-slate-800">
-                                        {format(new Date(selectedNotificationLog.created_at), 'yyyy/MM/dd HH:mm:ss', { locale: ja })}
+                                        {format(toZonedTime(new Date(selectedNotificationLog.created_at), 'Asia/Tokyo'), 'yyyy/MM/dd HH:mm:ss', { locale: ja })}
                                     </p>
                                 </div>
                                 <div>
