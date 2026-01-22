@@ -7,16 +7,8 @@ import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getCsrfToken } from 'next-auth/react';
 import toast from 'react-hot-toast';
-import { getTestUsers } from '@/src/lib/actions';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-
-type TestUser = {
-  id: number;
-  email: string;
-  name: string;
-  profileImage: string | null;
-};
 
 export default function WorkerLogin() {
   const router = useRouter();
@@ -28,7 +20,6 @@ export default function WorkerLogin() {
   const [error, setError] = useState('');
   const [isEmailNotVerified, setIsEmailNotVerified] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [testUsers, setTestUsers] = useState<TestUser[]>([]);
   const [csrfReady, setCsrfReady] = useState(false);
 
   // CSRFトークンを事前取得（1回目ログイン失敗問題の対策）
@@ -37,11 +28,6 @@ export default function WorkerLogin() {
       console.log('[Login] CSRF token ready');
       setCsrfReady(true);
     });
-  }, []);
-
-  // テストユーザーをDBから取得
-  useEffect(() => {
-    getTestUsers().then(setTestUsers);
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -92,11 +78,6 @@ export default function WorkerLogin() {
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const handleTestLogin = (testEmail: string, testPassword: string) => {
-    setEmail(testEmail);
-    setPassword(testPassword);
   };
 
   return (
@@ -216,41 +197,6 @@ export default function WorkerLogin() {
               新規登録はこちら
             </Link>
           </div>
-        </div>
-
-        {/* テストワーカー */}
-        <div className="bg-primary-light border border-primary/20 rounded-2xl p-4">
-          <h3 className="font-semibold text-sm text-primary mb-3">
-            テストワーカーでログイン
-          </h3>
-          <div className="space-y-2">
-            {testUsers.length > 0 ? (
-              testUsers.map((user, index) => (
-                <button
-                  key={user.id}
-                  onClick={() => handleTestLogin(user.email, 'password123')}
-                  className="w-full text-left px-3 py-2 bg-white border border-primary/30 rounded-lg text-sm hover:bg-primary/5 hover:border-primary/50 transition-colors flex items-center gap-3"
-                >
-                  <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden flex-shrink-0">
-                    {user.profileImage ? (
-                      <img src={user.profileImage} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <img src={`/images/users/user${(index % 2) + 2}.svg`} alt="" className="w-full h-full object-cover" />
-                    )}
-                  </div>
-                  <div>
-                    <div className="font-medium text-gray-800">{user.name}</div>
-                    <div className="text-xs text-gray-500">{user.email}</div>
-                  </div>
-                </button>
-              ))
-            ) : (
-              <p className="text-sm text-gray-500">テストユーザーを読み込み中...</p>
-            )}
-          </div>
-          <p className="text-xs text-primary/70 mt-3">
-            ※ クリックで自動入力されます。「ログイン」ボタンを押してください。
-          </p>
         </div>
 
         {/* TOPに戻るリンク */}
