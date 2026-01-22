@@ -78,16 +78,17 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // 管理者ページは別の認証システム（localStorage）を使用しているためスキップ
+  // Basic認証も適用しない（/admin, /system-admin は独自のログイン画面を持つ）
+  if (pathname.startsWith('/admin') || pathname.startsWith('/system-admin') || pathname.startsWith('/api/system-admin')) {
+    return NextResponse.next();
+  }
+
   // Basic認証チェック（環境変数が設定されている場合のみ）
+  // ※ /admin, /system-admin は上で除外済み
   const basicAuthResponse = checkBasicAuth(request);
   if (basicAuthResponse) {
     return basicAuthResponse;
-  }
-
-  // 管理者ページは別の認証システム（localStorage）を使用しているためスキップ
-  // ただし/admin/loginは公開ページ
-  if (pathname.startsWith('/admin') || pathname.startsWith('/system-admin') || pathname.startsWith('/api/system-admin')) {
-    return NextResponse.next();
   }
 
   // 公開ページはそのまま通す
