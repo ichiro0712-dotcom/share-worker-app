@@ -187,6 +187,103 @@ export async function createJobTemplate(
 }
 
 /**
+ * 管理者用: 求人テンプレートを複製
+ */
+export async function duplicateJobTemplate(templateId: number, facilityId: number) {
+    const session = await getFacilityAdminSessionData();
+
+    try {
+        // 元のテンプレートを取得
+        const original = await prisma.jobTemplate.findFirst({
+            where: {
+                id: templateId,
+                facility_id: facilityId,
+            },
+        });
+
+        if (!original) {
+            return {
+                success: false,
+                error: 'テンプレートが見つかりません',
+            };
+        }
+
+        // 新しいテンプレートを作成（名前に「(コピー)」を追加）
+        const newTemplate = await prisma.jobTemplate.create({
+            data: {
+                facility_id: facilityId,
+                name: `${original.name}（コピー）`,
+                title: original.title,
+                start_time: original.start_time,
+                end_time: original.end_time,
+                break_time: original.break_time,
+                hourly_wage: original.hourly_wage,
+                transportation_fee: original.transportation_fee,
+                recruitment_count: original.recruitment_count,
+                qualifications: original.qualifications,
+                work_content: original.work_content || [],
+                description: original.description,
+                skills: original.skills,
+                dresscode: original.dresscode,
+                belongings: original.belongings,
+                tags: original.tags,
+                notes: original.notes,
+                images: original.images || [],
+                dresscode_images: original.dresscode_images || [],
+                attachments: original.attachments || [],
+            },
+        });
+
+        console.log('[duplicateJobTemplate] Template duplicated:', templateId, '->', newTemplate.id);
+
+        revalidatePath('/admin/jobs/templates');
+
+        // ログ記録
+        logActivity({
+            userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
+            action: 'JOB_TEMPLATE_DUPLICATE',
+            targetType: 'JobTemplate',
+            targetId: newTemplate.id,
+            requestData: {
+                originalTemplateId: templateId,
+                facilityId,
+                newName: newTemplate.name,
+            },
+            result: 'SUCCESS',
+        }).catch(() => {});
+
+        return {
+            success: true,
+            templateId: newTemplate.id,
+        };
+    } catch (error) {
+        console.error('[duplicateJobTemplate] Error:', error);
+
+        // エラーログ記録
+        logActivity({
+            userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
+            action: 'JOB_TEMPLATE_DUPLICATE',
+            requestData: {
+                originalTemplateId: templateId,
+                facilityId,
+            },
+            result: 'ERROR',
+            errorMessage: getErrorMessage(error),
+            errorStack: getErrorStack(error),
+        }).catch(() => {});
+
+        return {
+            success: false,
+            error: 'テンプレートの複製に失敗しました',
+        };
+    }
+}
+
+/**
  * 管理者用: 求人テンプレートを更新
  */
 export async function updateJobTemplate(

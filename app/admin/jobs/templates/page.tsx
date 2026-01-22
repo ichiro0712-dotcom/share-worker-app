@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { getAdminJobTemplates } from '@/src/lib/actions';
+import { getAdminJobTemplates, duplicateJobTemplate } from '@/src/lib/actions';
 import { Plus, Edit, Trash2, Copy } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
@@ -156,9 +156,17 @@ export default function TemplatesPage() {
                         <Edit className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => {
-                          // 複製機能（ダミー）
-                          toast.success('テンプレートを複製しました');
+                        onClick={async () => {
+                          if (!admin?.facilityId) return;
+                          const result = await duplicateJobTemplate(template.id, admin.facilityId);
+                          if (result.success) {
+                            toast.success('テンプレートを複製しました');
+                            // テンプレート一覧を再取得
+                            const data = await getAdminJobTemplates(admin.facilityId);
+                            setTemplates(data);
+                          } else {
+                            toast.error(result.error || 'テンプレートの複製に失敗しました');
+                          }
                         }}
                         className="p-2 text-gray-600 hover:bg-gray-100 rounded transition-colors"
                         title="複製"
