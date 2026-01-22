@@ -51,15 +51,16 @@ export async function GET(request: NextRequest) {
             ];
         }
 
-        // 日付範囲フィルタ
+        // 日付範囲フィルタ（JSTとして解釈）
         if (dateFrom || dateTo) {
             where.created_at = {};
             if (dateFrom) {
-                where.created_at.gte = new Date(dateFrom);
+                // JSTの00:00:00として解釈（UTC+9）
+                where.created_at.gte = new Date(`${dateFrom}T00:00:00+09:00`);
             }
             if (dateTo) {
-                // dateTo の終わりまでを含めるために翌日の0時に設定
-                const endDate = new Date(dateTo);
+                // JSTの翌日00:00:00として解釈（終了日を含めるため）
+                const endDate = new Date(`${dateTo}T00:00:00+09:00`);
                 endDate.setDate(endDate.getDate() + 1);
                 where.created_at.lt = endDate;
             }
