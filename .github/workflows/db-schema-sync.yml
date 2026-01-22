@@ -4,6 +4,10 @@
 # 動作:
 # - 追加・変更のみ: 自動適用
 # - 削除あり: ブロック + Slack/Issue通知
+# - 接続エラー: スキップ（Supabaseネットワーク制限対応）
+#
+# 注意: Supabaseの直接接続（ポート5432）はGitHub ActionsのIPからはブロックされる場合があります。
+# その場合、手動で `npx prisma db push` を実行してください。
 
 name: DB Schema Sync
 
@@ -13,6 +17,7 @@ on:
       - main
     paths:
       - 'prisma/schema.prisma'
+  workflow_dispatch:  # 手動実行を許可
 
 jobs:
   check-and-sync:
@@ -31,8 +36,26 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Test database connection
+        id: connection
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.PRODUCTION_DIRECT_URL }}
+        run: |
+          echo "Testing database connection..."
+          # 接続テスト（タイムアウト10秒）
+          timeout 10 npx prisma db execute --stdin <<< "SELECT 1;" 2>&1 || {
+            echo "connection_failed=true" >> $GITHUB_OUTPUT
+            echo "::warning::データベースへの接続に失敗しました。Supabaseのネットワーク制限の可能性があります。"
+            echo "::warning::手動で npx prisma db push を実行してください。"
+            exit 0
+          }
+          echo "connection_failed=false" >> $GITHUB_OUTPUT
+          echo "✅ Database connection successful"
+
       - name: Check schema diff
         id: diff
+        if: steps.connection.outputs.connection_failed != 'true'
         env:
           DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
           DIRECT_URL: ${{ secrets.PRODUCTION_DIRECT_URL }}
@@ -47,6 +70,15 @@ jobs:
 
           echo "Diff output:"
           echo "$DIFF_SQL"
+
+          # 接続エラーの場合はスキップ
+          if echo "$DIFF_SQL" | grep -q "P1001\|Can't reach database"; then
+            echo "has_diff=false" >> $GITHUB_OUTPUT
+            echo "has_destructive=false" >> $GITHUB_OUTPUT
+            echo "connection_error=true" >> $GITHUB_OUTPUT
+            echo "::warning::データベースへの接続に失敗しました。スキップします。"
+            exit 0
+          fi
 
           # 差分がない場合
           if [ -z "$DIFF_SQL" ] || echo "$DIFF_SQL" | grep -q "No difference detected"; then
