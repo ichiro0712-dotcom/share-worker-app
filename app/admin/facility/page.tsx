@@ -1665,7 +1665,7 @@ export default function FacilityPage() {
                       onChange={(e) => setStaffInfo({ ...staffInfo, emergencyContact: e.target.value })}
                       rows={3}
                       className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
-                      placeholder="担当不在の場合は、電話口の者に伝言をお願いいたします。&#10;誰も出ない場合は、下記番号にお電話くださいませ。&#10;大東（ダイトウ）：080-7441-7699"
+                      placeholder="担当不在の場合は、電話口の者に伝言をお願いいたします。&#10;誰も出ない場合は、下記番号にお電話くださいませ。&#10;山田（ヤマダ）：090-0000-0000"
                     />
                   </div>
                 </div>
