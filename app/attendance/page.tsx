@@ -99,57 +99,86 @@ export default function AttendanceScanPage() {
     };
   }, [isAuthenticated, isLoading, router, isScanning, fetchCheckInStatus]);
 
-  // QRコードスキャン開始
-  const startScanning = async () => {
-    try {
-      setIsScanning(true);
-      setScanStatus('scanning');
+  // QRコードスキャン開始（状態を変更してDOMを準備）
+  const startScanning = () => {
+    setIsScanning(true);
+    setScanStatus('scanning');
+  };
 
-      const scanner = new Html5Qrcode('qr-reader');
-      scannerRef.current = scanner;
+  // DOMが準備された後にスキャナーを初期化
+  useEffect(() => {
+    if (scanStatus !== 'scanning' || !isScanning) return;
 
-      await scanner.start(
-        { facingMode: 'environment' },
-        {
-          fps: 10,
-          qrbox: { width: 250, height: 250 },
-        },
-        async (decodedText) => {
-          if (scannerRef.current) {
-            await scannerRef.current.stop();
-            setIsScanning(false);
-          }
+    // DOM要素が確実に存在するまで待機
+    const initScanner = async () => {
+      // 次のフレームまで待機してDOMの更新を確実にする
+      await new Promise(resolve => requestAnimationFrame(resolve));
 
-          // QRコードデータを検証: attendance:{facilityId}:{secretToken}
-          if (decodedText.startsWith('attendance:')) {
-            const parts = decodedText.split(':');
-            if (parts.length >= 2) {
-              const facilityId = parseInt(parts[1]);
-              const qrToken = parts[2] || undefined;
+      const readerElement = document.getElementById('qr-reader');
+      if (!readerElement) {
+        console.error('QRリーダー要素が見つかりません');
+        toast.error('スキャナーの初期化に失敗しました');
+        setScanStatus('error');
+        setIsScanning(false);
+        return;
+      }
 
-              await handleQRScan(facilityId, qrToken);
+      try {
+        const scanner = new Html5Qrcode('qr-reader');
+        scannerRef.current = scanner;
+
+        await scanner.start(
+          { facingMode: 'environment' },
+          {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+          },
+          async (decodedText) => {
+            if (scannerRef.current) {
+              await scannerRef.current.stop();
+              setIsScanning(false);
+            }
+
+            // QRコードデータを検証: attendance:{facilityId}:{secretToken}
+            if (decodedText.startsWith('attendance:')) {
+              const parts = decodedText.split(':');
+              if (parts.length >= 2) {
+                const facilityId = parseInt(parts[1]);
+                const qrToken = parts[2] || undefined;
+
+                await handleQRScan(facilityId, qrToken);
+              } else {
+                setScanStatus('error');
+                toast.error('無効なQRコードです');
+                setTimeout(() => setScanStatus('idle'), 3000);
+              }
             } else {
               setScanStatus('error');
               toast.error('無効なQRコードです');
               setTimeout(() => setScanStatus('idle'), 3000);
             }
-          } else {
-            setScanStatus('error');
-            toast.error('無効なQRコードです');
-            setTimeout(() => setScanStatus('idle'), 3000);
+          },
+          (errorMessage) => {
+            console.debug('QR scan error:', errorMessage);
           }
-        },
-        (errorMessage) => {
-          console.debug('QR scan error:', errorMessage);
-        }
-      );
-    } catch (error) {
-      console.error('カメラ起動エラー:', error);
-      toast.error('カメラの起動に失敗しました');
-      setScanStatus('error');
-      setIsScanning(false);
-    }
-  };
+        );
+      } catch (error) {
+        console.error('カメラ起動エラー:', error);
+        toast.error('カメラの起動に失敗しました');
+        setScanStatus('error');
+        setIsScanning(false);
+      }
+    };
+
+    initScanner();
+
+    // クリーンアップ
+    return () => {
+      if (scannerRef.current) {
+        scannerRef.current.stop().catch(console.error);
+      }
+    };
+  }, [scanStatus, isScanning]);
 
   // スキャン停止
   const stopScanning = async () => {

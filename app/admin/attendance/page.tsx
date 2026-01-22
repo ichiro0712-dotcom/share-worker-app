@@ -21,7 +21,7 @@ export default function AttendanceQRPrintPage() {
   const [contactQrDataUrl, setContactQrDataUrl] = useState<string>('');
   const [facilityName, setFacilityName] = useState<string>('');
   const [emergencyCode, setEmergencyCode] = useState<string>('');
-  const [showEmergencyNumber, setShowEmergencyNumber] = useState<boolean>(false);
+  const [showEmergencyNumber, setShowEmergencyNumber] = useState<boolean>(true);
   const [isReissuing, setIsReissuing] = useState<boolean>(false);
 
   // QRコードを生成する関数
@@ -55,9 +55,13 @@ export default function AttendanceQRPrintPage() {
     // 施設情報を取得
     const fetchFacility = async () => {
       try {
+        console.log('[AttendanceQR] Fetching facility, adminFacilityId:', admin.facilityId);
         const response = await fetch(`/api/admin/facility?facilityId=${admin.facilityId}`);
+        console.log('[AttendanceQR] Response status:', response.status);
         if (response.ok) {
           const facility: FacilityData = await response.json();
+          console.log('[AttendanceQR] Facility data:', facility);
+          console.log('[AttendanceQR] Emergency code from API:', facility.emergency_attendance_code);
           setFacilityName(facility.facility_name || `施設 ${admin.facilityId}`);
           setEmergencyCode(facility.emergency_attendance_code || '----');
 
@@ -180,20 +184,20 @@ export default function AttendanceQRPrintPage() {
             </p>
 
             {/* トグル */}
-            <div className="flex items-center gap-2 mb-4">
+            <div className="flex items-center gap-3 mb-4">
               <button
                 onClick={() => setShowEmergencyNumber(!showEmergencyNumber)}
-                className={`relative w-10 h-5 rounded-full transition-colors ${
+                className={`relative flex-shrink-0 w-11 h-6 rounded-full transition-colors ${
                   showEmergencyNumber ? 'bg-[#66cc99]' : 'bg-gray-300'
                 }`}
               >
                 <span
-                  className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                    showEmergencyNumber ? 'translate-x-5' : 'translate-x-0.5'
+                  className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                    showEmergencyNumber ? 'translate-x-5' : 'translate-x-0'
                   }`}
                 />
               </button>
-              <span className="text-xs text-gray-600">出退勤番号を印刷する</span>
+              <span className="text-xs text-gray-600 whitespace-nowrap">出退勤番号を印刷する</span>
             </div>
 
             {/* 再発行ボタン */}
