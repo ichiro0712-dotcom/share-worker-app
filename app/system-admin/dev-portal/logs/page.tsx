@@ -21,6 +21,8 @@ import {
     AlertTriangle,
     Filter,
     Calendar,
+    GitCommit,
+    ExternalLink,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ja } from 'date-fns/locale';
@@ -43,6 +45,8 @@ interface ActivityLog {
     url: string | null;
     user_agent: string | null;
     ip_address: string | null;
+    app_version: string | null;
+    deployment_id: string | null;
     created_at: string;
 }
 
@@ -60,6 +64,8 @@ interface NotificationLog {
     push_body: string | null;
     status: 'SENT' | 'FAILED';
     error_message: string | null;
+    app_version: string | null;
+    deployment_id: string | null;
     created_at: string;
 }
 
@@ -818,6 +824,43 @@ export default function LogViewerPage() {
                                     </div>
                                 </div>
                             </div>
+
+                            {/* バージョン情報 */}
+                            {(selectedActivityLog.app_version || selectedActivityLog.deployment_id) && (
+                                <div className="border-t border-slate-200 pt-4">
+                                    <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+                                        <GitCommit className="w-4 h-4" />
+                                        バージョン情報
+                                    </h3>
+                                    <div className="bg-slate-50 rounded-lg p-4 space-y-3">
+                                        {selectedActivityLog.app_version && (
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-slate-500 text-xs w-24">Commit:</span>
+                                                <code className="bg-slate-200 text-slate-800 px-2 py-0.5 rounded text-xs font-mono">
+                                                    {selectedActivityLog.app_version}
+                                                </code>
+                                                <a
+                                                    href={`https://github.com/ichiro0712-dotcom/share-worker-app/commit/${selectedActivityLog.app_version}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-indigo-600 hover:text-indigo-800 transition-colors flex items-center gap-1 text-xs"
+                                                >
+                                                    <ExternalLink className="w-3 h-3" />
+                                                    GitHub で見る
+                                                </a>
+                                            </div>
+                                        )}
+                                        {selectedActivityLog.deployment_id && (
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-slate-500 text-xs w-24">Deploy ID:</span>
+                                                <code className="bg-slate-200 text-slate-800 px-2 py-0.5 rounded text-xs font-mono">
+                                                    {selectedActivityLog.deployment_id}
+                                                </code>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div className="p-6 border-t border-slate-200 bg-slate-50 flex gap-3">
@@ -950,6 +993,43 @@ export default function LogViewerPage() {
                                     )}
                                 </div>
                             </div>
+
+                            {/* バージョン情報 */}
+                            {(selectedNotificationLog.app_version || selectedNotificationLog.deployment_id) && (
+                                <div className="border-t border-slate-200 pt-4">
+                                    <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+                                        <GitCommit className="w-4 h-4" />
+                                        バージョン情報
+                                    </h3>
+                                    <div className="bg-slate-50 rounded-lg p-4 space-y-3">
+                                        {selectedNotificationLog.app_version && (
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-slate-500 text-xs w-24">Commit:</span>
+                                                <code className="bg-slate-200 text-slate-800 px-2 py-0.5 rounded text-xs font-mono">
+                                                    {selectedNotificationLog.app_version}
+                                                </code>
+                                                <a
+                                                    href={`https://github.com/ichiro0712-dotcom/share-worker-app/commit/${selectedNotificationLog.app_version}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-indigo-600 hover:text-indigo-800 transition-colors flex items-center gap-1 text-xs"
+                                                >
+                                                    <ExternalLink className="w-3 h-3" />
+                                                    GitHub で見る
+                                                </a>
+                                            </div>
+                                        )}
+                                        {selectedNotificationLog.deployment_id && (
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-slate-500 text-xs w-24">Deploy ID:</span>
+                                                <code className="bg-slate-200 text-slate-800 px-2 py-0.5 rounded text-xs font-mono">
+                                                    {selectedNotificationLog.deployment_id}
+                                                </code>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div className="p-6 border-t border-slate-200 bg-slate-50">

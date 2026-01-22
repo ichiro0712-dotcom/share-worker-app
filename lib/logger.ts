@@ -4,10 +4,15 @@
  * 2種類のログ記録:
  * - logTrace(): Vercel Logsのみ（全操作用、3日で消える）
  * - logActivity(): Vercel Logs + DB保存（重要操作用、長期保存）
+ *
+ * バージョン情報:
+ * - 各ログにGit Commit SHAとDeployment IDを自動付与
+ * - デバッグ時にどのバージョンで問題が発生したか特定可能
  */
 
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
+import { getVersionForLog } from '@/lib/version'
 
 // ========== 型定義 ==========
 
@@ -184,6 +189,9 @@ export async function logActivity(params: ActivityLogParams): Promise<void> {
 
   // 2. DB に保存（長期保存用）
   try {
+    // バージョン情報を取得
+    const versionInfo = getVersionForLog()
+
     await prisma.userActivityLog.create({
       data: {
         user_type: params.userType,
@@ -200,6 +208,9 @@ export async function logActivity(params: ActivityLogParams): Promise<void> {
         url: params.url,
         user_agent: params.userAgent,
         ip_address: params.ipAddress,
+        // バージョン情報を自動付与
+        app_version: versionInfo.app_version,
+        deployment_id: versionInfo.deployment_id,
       },
     })
   } catch (dbError) {
