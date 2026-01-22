@@ -31,9 +31,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### DB接続
 
-- **本番DB**: Vercelの環境変数で設定済み（CLAUDEが直接接続する必要はない）
+- **本番DB**: Vercelの環境変数（Production）で設定済み
+  - 接続情報の確認: `vercel env pull --environment=production`
+  - 取得した情報は `.env.production.local` に保存される
+  - プロジェクトID: `ryvyuxomiqcgkspmpltk`
+  - 直接接続が必要な場合は、Vercelダッシュボードまたは上記コマンドで取得
 - **ステージングDB**: .env.local の設定を使用
+  - プロジェクトID: `qcovuuqxyihbpjlgccxz`
 - **開発DB**: ローカルDocker PostgreSQL（localhost:5432）
+
+**重要**: 本番DBの接続情報はVercelのproduction環境変数に保存されています。
+ローカルでprisma db pushなどを本番に実行する際は、一時的に環境変数を取得して使用してください。
 
 ## ⚠️ Git操作の厳格ルール（Claude Code必須遵守）
 
