@@ -995,13 +995,16 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
             let grossMinutes = endMinutes - startMinutes;
             if (grossMinutes < 0) grossMinutes += 24 * 60;
 
-            // 8時間（480分）を超える勤務 → 60分以上の休憩が必要
-            if (grossMinutes > 480 && formData.breakTime < 60) {
-                errors.push('8時間を超える勤務の場合、休憩時間は60分以上必要です');
+            // 実働時間 = 拘束時間 - 休憩時間
+            const workMinutes = grossMinutes - formData.breakTime;
+
+            // 実働8時間（480分）を超える場合 → 60分以上の休憩が必要
+            if (workMinutes > 480 && formData.breakTime < 60) {
+                errors.push('実働8時間を超える場合、休憩時間は60分以上必要です');
             }
-            // 6時間（360分）を超える勤務 → 45分以上の休憩が必要
-            else if (grossMinutes > 360 && formData.breakTime < 45) {
-                errors.push('6時間を超える勤務の場合、休憩時間は45分以上必要です');
+            // 実働6時間（360分）を超える場合 → 45分以上の休憩が必要
+            else if (workMinutes > 360 && formData.breakTime < 45) {
+                errors.push('実働6時間を超える場合、休憩時間は45分以上必要です');
             }
         }
 
@@ -1973,9 +1976,12 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
                                 </label>
                                 <input
                                     type="number"
+                                    step="50"
+                                    min="0"
                                     value={formData.hourlyWage === 0 ? '' : formData.hourlyWage}
                                     onChange={(e) => handleInputChange('hourlyWage', Number(e.target.value))}
                                     className={`w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-600 ${showErrors && (!formData.hourlyWage || formData.hourlyWage <= 0) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                                    placeholder="例: 1200"
                                 />
                                 {formData.hourlyWage > 0 && (
                                     <p className="text-blue-600 text-xs mt-1">¥{formData.hourlyWage.toLocaleString()}</p>
