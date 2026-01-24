@@ -167,7 +167,11 @@ export async function GET(request: NextRequest) {
       workDate: a.workDate.work_date.toISOString(),
       facilityId: a.workDate.job.facility.id,
       facilityName: a.workDate.job.facility.facility_name,
-      emergencyCode: a.workDate.job.facility.emergency_attendance_code
+      emergencyCode: a.workDate.job.facility.emergency_attendance_code,
+      jobId: a.workDate.job.id,
+      jobTitle: a.workDate.job.title,
+      jobStartTime: a.workDate.job.start_time,
+      jobEndTime: a.workDate.job.end_time,
     })),
     // 最新の勤怠レコード（application_idの有無を確認用）
     recentAttendances: recentAttendances.map(a => ({
