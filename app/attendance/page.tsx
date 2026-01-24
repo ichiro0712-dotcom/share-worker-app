@@ -5,9 +5,39 @@
  * QRコードスキャン + 緊急時番号入力対応
  */
 
-import { Suspense, useEffect, useState, useRef, useCallback } from 'react';
+import { Suspense, useEffect, useState, useRef, useCallback, Component, ReactNode } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, useSearchParams } from 'next/navigation';
+
+// Error Boundary for iOS Safari routing issues
+class AttendanceErrorBoundary extends Component<
+  { children: ReactNode; fallback: ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: ReactNode; fallback: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error) {
+    console.error('AttendanceErrorBoundary caught error:', error);
+    // parallelRoutes エラーの場合はリロードで回復
+    if (error.message?.includes('parallelRoutes')) {
+      window.location.reload();
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback;
+    }
+    return this.props.children;
+  }
+}
 import { Html5Qrcode } from 'html5-qrcode';
 import {
   CheckCircle,
@@ -286,14 +316,15 @@ function AttendanceScanPageContent() {
         setEmergencyErrorCount(0);
 
         // 退勤で勤怠変更申請が必要な場合
+        // iOS Safari対策: router.pushではなくwindow.location.hrefを使用
         if (params.type === 'check_out' && response.requiresModification) {
           setTimeout(() => {
-            router.push(`/attendance/modify?attendanceId=${response.attendanceId}`);
+            window.location.href = `/attendance/modify?attendanceId=${response.attendanceId}`;
           }, 2000);
         } else {
           setTimeout(() => {
             setScanStatus('idle');
-            router.push('/mypage/applications');
+            window.location.href = '/mypage/applications';
           }, 2000);
         }
       } else {
@@ -491,17 +522,19 @@ function AttendanceScanPageContent() {
   );
 }
 
-// Suspenseでラップしてエクスポート（useSearchParams対応）
+// Suspense + ErrorBoundary でラップしてエクスポート
 export default function AttendanceScanPage() {
+  const fallback = (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-gray-500">読み込み中...</div>
+    </div>
+  );
+
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-gray-500">読み込み中...</div>
-        </div>
-      }
-    >
-      <AttendanceScanPageContent />
-    </Suspense>
+    <AttendanceErrorBoundary fallback={fallback}>
+      <Suspense fallback={fallback}>
+        <AttendanceScanPageContent />
+      </Suspense>
+    </AttendanceErrorBoundary>
   );
 }
