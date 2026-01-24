@@ -60,7 +60,7 @@ import type {
 } from '@/src/types/attendance';
 import { EMERGENCY_CODE_MAX_ERRORS } from '@/src/constants/attendance-errors';
 
-type ScanStatus = 'idle' | 'scanning' | 'success' | 'error' | 'checkout_select';
+type ScanStatus = 'idle' | 'scanning' | 'success' | 'error' | 'checkout_select' | 'processing';
 type AttendanceType = 'check_in' | 'check_out';
 
 function AttendanceScanPageContent() {
@@ -277,23 +277,31 @@ function AttendanceScanPageContent() {
   const processAttendance = async (
     params: Partial<AttendanceRecordRequest> & { type: 'check_in' | 'check_out' }
   ) => {
+    // 処理中状態を表示
+    setScanStatus('processing');
+
     try {
       // 位置情報を取得
       let latitude: number | undefined;
       let longitude: number | undefined;
 
+      // 位置情報取得（タイムアウト3秒に短縮、iOS Safariでの許可待ちを考慮）
       if (navigator.geolocation) {
-        await new Promise<void>((resolve) => {
-          navigator.geolocation.getCurrentPosition(
-            (position) => {
-              latitude = position.coords.latitude;
-              longitude = position.coords.longitude;
-              resolve();
-            },
-            () => resolve(),
-            { timeout: 5000 }
-          );
-        });
+        try {
+          await new Promise<void>((resolve) => {
+            navigator.geolocation.getCurrentPosition(
+              (position) => {
+                latitude = position.coords.latitude;
+                longitude = position.coords.longitude;
+                resolve();
+              },
+              () => resolve(), // エラー時も続行
+              { timeout: 3000, maximumAge: 60000 } // 3秒タイムアウト、1分以内のキャッシュを許可
+            );
+          });
+        } catch {
+          // 位置情報取得失敗時も続行
+        }
       }
 
       const response = await recordAttendance({
@@ -439,16 +447,24 @@ function AttendanceScanPageContent() {
             </div>
           )}
 
-          {scanStatus === 'checkout_select' && checkInStatus && (
+          {scanStatus === 'checkout_select' && (
             <CheckOutSelector
-              isLate={checkInStatus.isLate || false}
+              isLate={checkInStatus?.isLate || false}
               usedEmergencyCode={
-                checkInStatus.usedEmergencyCode ||
+                checkInStatus?.usedEmergencyCode ||
                 pendingQrData?.method === 'EMERGENCY_CODE'
               }
               onSelect={handleCheckOutTypeSelect}
               scheduledTime={scheduledTime || undefined}
             />
+          )}
+
+          {scanStatus === 'processing' && (
+            <div className="text-center py-8">
+              <div className="w-16 h-16 mx-auto mb-4 border-4 border-[#66cc99] border-t-transparent rounded-full animate-spin" />
+              <p className="text-lg font-medium text-gray-800">処理中...</p>
+              <p className="text-sm text-gray-500 mt-2">位置情報を取得しています</p>
+            </div>
           )}
 
           {scanStatus === 'success' && (
