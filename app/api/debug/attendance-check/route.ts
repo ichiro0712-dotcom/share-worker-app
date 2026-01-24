@@ -76,6 +76,21 @@ export async function GET(request: NextRequest) {
     take: 5
   });
 
+  // 最新の退勤済みレコードも確認（application_id の有無を確認）
+  const recentAttendances = await prisma.attendance.findMany({
+    where: {
+      user_id: userId,
+    },
+    orderBy: {
+      check_in_time: 'desc'
+    },
+    take: 5,
+    include: {
+      facility: { select: { facility_name: true } },
+      application: { select: { id: true, status: true } }
+    }
+  });
+
   return NextResponse.json({
     debug: {
       serverTime: now.toISOString(),
@@ -112,6 +127,17 @@ export async function GET(request: NextRequest) {
       id: a.id,
       status: a.status,
       workDate: a.workDate.work_date.toISOString()
+    })),
+    // 最新の勤怠レコード（application_idの有無を確認用）
+    recentAttendances: recentAttendances.map(a => ({
+      id: a.id,
+      status: a.status,
+      checkInTime: a.check_in_time.toISOString(),
+      checkOutTime: a.check_out_time?.toISOString() || null,
+      facilityName: a.facility.facility_name,
+      applicationId: a.application_id,
+      applicationStatus: a.application?.status || null,
+      hasApplication: !!a.application,  // 重要: これがfalseだと勤怠修正申請不可
     }))
   });
 }
