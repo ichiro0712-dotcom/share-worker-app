@@ -752,12 +752,11 @@ export async function getMyModificationRequests(): Promise<ModificationRequestDe
 /**
  * 特定の勤怠記録を取得
  */
-export async function getAttendanceById(
-  attendanceId: number
-): Promise<{
+// Server Action戻り値の型（DateはISOString形式で返す）
+export interface AttendanceByIdResponse {
   id: number;
-  checkInTime: Date;
-  checkOutTime: Date | null;
+  checkInTime: string; // ISO string
+  checkOutTime: string | null; // ISO string
   facility: {
     id: number;
     facility_name: string;
@@ -765,7 +764,7 @@ export async function getAttendanceById(
   application: {
     id: number;
     workDate: {
-      workDate: Date;
+      workDate: string; // ISO string
       job: {
         id: number;
         title: string;
@@ -781,12 +780,16 @@ export async function getAttendanceById(
     id: number;
     status: string;
     admin_comment: string | null;
-    reviewed_at: Date | null;
-    requested_start_time: Date;
-    requested_end_time: Date;
+    reviewed_at: string | null; // ISO string
+    requested_start_time: string; // ISO string
+    requested_end_time: string; // ISO string
     requested_break_time: number;
   } | null;
-} | null> {
+}
+
+export async function getAttendanceById(
+  attendanceId: number
+): Promise<AttendanceByIdResponse | null> {
   try {
     const user = await getAuthenticatedUser();
 
@@ -811,11 +814,11 @@ export async function getAttendanceById(
       return null;
     }
 
-    // フロントエンドの期待する形式にマッピング
+    // フロントエンドの期待する形式にマッピング（日付はISO文字列で返す）
     return {
       id: attendance.id,
-      checkInTime: attendance.check_in_time,
-      checkOutTime: attendance.check_out_time,
+      checkInTime: attendance.check_in_time.toISOString(),
+      checkOutTime: attendance.check_out_time?.toISOString() ?? null,
       facility: {
         id: attendance.facility.id,
         facility_name: attendance.facility.facility_name,
@@ -824,7 +827,7 @@ export async function getAttendanceById(
         ? {
             id: attendance.application.id,
             workDate: {
-              workDate: attendance.application.workDate.work_date,
+              workDate: attendance.application.workDate.work_date.toISOString(),
               job: {
                 id: attendance.application.workDate.job.id,
                 title: attendance.application.workDate.job.title,
@@ -842,9 +845,9 @@ export async function getAttendanceById(
             id: attendance.modificationRequest.id,
             status: attendance.modificationRequest.status,
             admin_comment: attendance.modificationRequest.admin_comment,
-            reviewed_at: attendance.modificationRequest.reviewed_at,
-            requested_start_time: attendance.modificationRequest.requested_start_time,
-            requested_end_time: attendance.modificationRequest.requested_end_time,
+            reviewed_at: attendance.modificationRequest.reviewed_at?.toISOString() ?? null,
+            requested_start_time: attendance.modificationRequest.requested_start_time.toISOString(),
+            requested_end_time: attendance.modificationRequest.requested_end_time.toISOString(),
             requested_break_time: attendance.modificationRequest.requested_break_time,
           }
         : null,

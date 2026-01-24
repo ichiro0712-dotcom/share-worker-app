@@ -20,10 +20,46 @@ import { calculateSalary } from '@/src/lib/salary-calculator';
 
 type PageStep = 'form' | 'confirm';
 
+// Server Actionから返される形式（ISO文字列）
+interface AttendanceDataFromServer {
+  id: number;
+  checkInTime: string;
+  checkOutTime: string | null;
+  facility: {
+    id: number;
+    facility_name: string;
+  };
+  application: {
+    id: number;
+    workDate: {
+      workDate: string;
+      job: {
+        id: number;
+        title: string;
+        startTime: string;
+        endTime: string;
+        breakTime: string;
+        hourly_wage: number;
+        transportation_fee: number;
+      };
+    };
+  } | null;
+  modificationRequest: {
+    id: number;
+    status: string;
+    admin_comment: string | null;
+    reviewed_at: string | null;
+    requested_start_time: string;
+    requested_end_time: string;
+    requested_break_time: number;
+  } | null;
+}
+
+// クライアント側で使用する形式（Dateに変換済み）
 interface AttendanceData {
   id: number;
   checkInTime: Date;
-  checkOutTime: Date;
+  checkOutTime: Date | null;
   facility: {
     id: number;
     facility_name: string;
@@ -52,6 +88,38 @@ interface AttendanceData {
     requested_end_time: Date;
     requested_break_time: number;
   } | null;
+}
+
+// Server Actionのレスポンスをクライアント形式に変換
+function convertToClientFormat(data: AttendanceDataFromServer): AttendanceData {
+  return {
+    id: data.id,
+    checkInTime: new Date(data.checkInTime),
+    checkOutTime: data.checkOutTime ? new Date(data.checkOutTime) : null,
+    facility: data.facility,
+    application: data.application
+      ? {
+          id: data.application.id,
+          workDate: {
+            workDate: new Date(data.application.workDate.workDate),
+            job: data.application.workDate.job,
+          },
+        }
+      : null,
+    modificationRequest: data.modificationRequest
+      ? {
+          id: data.modificationRequest.id,
+          status: data.modificationRequest.status,
+          admin_comment: data.modificationRequest.admin_comment,
+          reviewed_at: data.modificationRequest.reviewed_at
+            ? new Date(data.modificationRequest.reviewed_at)
+            : null,
+          requested_start_time: new Date(data.modificationRequest.requested_start_time),
+          requested_end_time: new Date(data.modificationRequest.requested_end_time),
+          requested_break_time: data.modificationRequest.requested_break_time,
+        }
+      : null,
+  };
 }
 
 // ローディングコンポーネント
@@ -97,13 +165,15 @@ function ModificationContent() {
       }
 
       try {
-        const data = await getAttendanceById(id);
-        if (!data) {
+        const serverData = await getAttendanceById(id);
+        if (!serverData) {
           toast.error('勤怠記録が見つかりません');
           router.push('/mypage/applications');
           return;
         }
 
+        // ISO文字列からDateオブジェクトに変換
+        const data = convertToClientFormat(serverData);
         setAttendance(data);
 
         // 規定金額の計算
