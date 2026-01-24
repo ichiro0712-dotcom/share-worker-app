@@ -36,12 +36,33 @@ export async function GET(request: NextRequest) {
     }
   });
 
-  // 出勤中レコードを確認
+  // 出勤中レコードを確認（最新1件）
   const attendance = await prisma.attendance.findFirst({
     where: {
       user_id: userId,
       status: 'CHECKED_IN',
       check_out_time: null
+    },
+    orderBy: {
+      check_in_time: 'desc'
+    },
+    include: {
+      facility: { select: { facility_name: true } }
+    }
+  });
+
+  // 全ての出勤中レコードを確認（複数存在の確認用）
+  const allCheckedInAttendances = await prisma.attendance.findMany({
+    where: {
+      user_id: userId,
+      status: 'CHECKED_IN',
+      check_out_time: null
+    },
+    orderBy: {
+      check_in_time: 'desc'
+    },
+    include: {
+      facility: { select: { facility_name: true } }
     }
   });
 
@@ -77,8 +98,16 @@ export async function GET(request: NextRequest) {
     attendance: attendance ? {
       id: attendance.id,
       status: attendance.status,
-      checkInTime: attendance.check_in_time.toISOString()
+      checkInTime: attendance.check_in_time.toISOString(),
+      facilityName: attendance.facility.facility_name
     } : null,
+    allCheckedInAttendances: allCheckedInAttendances.map(a => ({
+      id: a.id,
+      status: a.status,
+      checkInTime: a.check_in_time.toISOString(),
+      facilityName: a.facility.facility_name
+    })),
+    checkedInCount: allCheckedInAttendances.length,
     allScheduledApplications: allScheduled.map(a => ({
       id: a.id,
       status: a.status,
