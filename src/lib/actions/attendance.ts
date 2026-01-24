@@ -563,10 +563,12 @@ export async function getCheckInStatus(): Promise<CheckInStatusResponse> {
     const todayEnd = new Date(todayStart);
     todayEnd.setDate(todayEnd.getDate() + 1);
 
+    // SCHEDULED または WORKING ステータスの応募を検索
+    // ※ status-updater により勤務開始時刻を過ぎると SCHEDULED → WORKING に自動更新される
     const todayApplication = await prisma.application.findFirst({
       where: {
         user_id: user.id,
-        status: 'SCHEDULED',
+        status: { in: ['SCHEDULED', 'WORKING'] },
         workDate: {
           work_date: {
             gte: todayStart,
@@ -861,10 +863,12 @@ async function findTodayApplication(
   const todayEnd = new Date(todayStart);
   todayEnd.setDate(todayEnd.getDate() + 1);
 
+  // SCHEDULED または WORKING ステータスの応募を検索
+  // ※ status-updater により勤務開始時刻を過ぎると SCHEDULED → WORKING に自動更新される
   const application = await prisma.application.findFirst({
     where: {
       user_id: userId,
-      status: 'SCHEDULED',
+      status: { in: ['SCHEDULED', 'WORKING'] },
       workDate: {
         job: {
           facility_id: facilityId,

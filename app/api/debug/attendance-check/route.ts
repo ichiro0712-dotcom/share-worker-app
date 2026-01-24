@@ -18,11 +18,11 @@ export async function GET(request: NextRequest) {
   const todayEnd = new Date(todayStart);
   todayEnd.setDate(todayEnd.getDate() + 1);
 
-  // 本日の勤務予定を確認
+  // 本日の勤務予定を確認（SCHEDULED または WORKING）
   const todayApplication = await prisma.application.findFirst({
     where: {
       user_id: userId,
-      status: 'SCHEDULED',
+      status: { in: ['SCHEDULED', 'WORKING'] },
       workDate: {
         work_date: {
           gte: todayStart,
