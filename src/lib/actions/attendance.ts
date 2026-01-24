@@ -754,7 +754,39 @@ export async function getMyModificationRequests(): Promise<ModificationRequestDe
  */
 export async function getAttendanceById(
   attendanceId: number
-): Promise<any | null> {
+): Promise<{
+  id: number;
+  checkInTime: Date;
+  checkOutTime: Date | null;
+  facility: {
+    id: number;
+    facility_name: string;
+  };
+  application: {
+    id: number;
+    workDate: {
+      workDate: Date;
+      job: {
+        id: number;
+        title: string;
+        startTime: string;
+        endTime: string;
+        breakTime: string;
+        hourly_wage: number;
+        transportation_fee: number;
+      };
+    };
+  } | null;
+  modificationRequest: {
+    id: number;
+    status: string;
+    admin_comment: string | null;
+    reviewed_at: Date | null;
+    requested_start_time: Date;
+    requested_end_time: Date;
+    requested_break_time: number;
+  } | null;
+} | null> {
   try {
     const user = await getAuthenticatedUser();
 
@@ -779,7 +811,44 @@ export async function getAttendanceById(
       return null;
     }
 
-    return attendance;
+    // フロントエンドの期待する形式にマッピング
+    return {
+      id: attendance.id,
+      checkInTime: attendance.check_in_time,
+      checkOutTime: attendance.check_out_time,
+      facility: {
+        id: attendance.facility.id,
+        facility_name: attendance.facility.facility_name,
+      },
+      application: attendance.application
+        ? {
+            id: attendance.application.id,
+            workDate: {
+              workDate: attendance.application.workDate.work_date,
+              job: {
+                id: attendance.application.workDate.job.id,
+                title: attendance.application.workDate.job.title,
+                startTime: attendance.application.workDate.job.start_time,
+                endTime: attendance.application.workDate.job.end_time,
+                breakTime: attendance.application.workDate.job.break_time,
+                hourly_wage: attendance.application.workDate.job.hourly_wage,
+                transportation_fee: attendance.application.workDate.job.transportation_fee,
+              },
+            },
+          }
+        : null,
+      modificationRequest: attendance.modificationRequest
+        ? {
+            id: attendance.modificationRequest.id,
+            status: attendance.modificationRequest.status,
+            admin_comment: attendance.modificationRequest.admin_comment,
+            reviewed_at: attendance.modificationRequest.reviewed_at,
+            requested_start_time: attendance.modificationRequest.requested_start_time,
+            requested_end_time: attendance.modificationRequest.requested_end_time,
+            requested_break_time: attendance.modificationRequest.requested_break_time,
+          }
+        : null,
+    };
   } catch (error) {
     console.error('[getAttendanceById] Error:', error);
     return null;
