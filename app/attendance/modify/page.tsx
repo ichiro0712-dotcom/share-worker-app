@@ -4,7 +4,7 @@
  * 勤怠変更申請ページ
  */
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { ArrowLeft, Building2, Calendar, Clock } from 'lucide-react';
@@ -54,7 +54,17 @@ interface AttendanceData {
   } | null;
 }
 
-export default function ModificationPage() {
+// ローディングコンポーネント
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-gray-500">読み込み中...</div>
+    </div>
+  );
+}
+
+// メインコンテンツコンポーネント（useSearchParamsを使用）
+function ModificationContent() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -222,11 +232,7 @@ export default function ModificationPage() {
   };
 
   if (authLoading || isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-gray-500">読み込み中...</div>
-      </div>
-    );
+    return <LoadingFallback />;
   }
 
   if (!isAuthenticated || !user) {
@@ -344,5 +350,14 @@ export default function ModificationPage() {
         )}
       </div>
     </div>
+  );
+}
+
+// メインエクスポート（Suspense境界でラップ）
+export default function ModificationPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <ModificationContent />
+    </Suspense>
   );
 }
