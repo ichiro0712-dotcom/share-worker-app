@@ -166,6 +166,7 @@ function ModificationContent() {
 
       try {
         const serverData = await getAttendanceById(id);
+        console.log('[ModifyPage] serverData:', JSON.stringify(serverData, null, 2));
         if (!serverData) {
           toast.error('勤怠記録が見つかりません');
           router.push('/mypage/applications');
@@ -174,12 +175,26 @@ function ModificationContent() {
 
         // ISO文字列からDateオブジェクトに変換
         const data = convertToClientFormat(serverData);
+        console.log('[ModifyPage] converted data:', {
+          id: data.id,
+          hasApplication: !!data.application,
+          job: data.application?.workDate?.job,
+        });
         setAttendance(data);
 
         // 規定金額の計算
         if (data.application) {
           const job = data.application.workDate.job;
+          console.log('[ModifyPage] job:', job);
           const workDate = data.application.workDate.workDate;
+
+          // nullチェックを追加
+          if (!job.startTime || !job.endTime) {
+            console.error('[ModifyPage] job.startTime or job.endTime is undefined', job);
+            toast.error('求人データが不完全です');
+            return;
+          }
+
           const [startHour, startMinute] = job.startTime.split(':').map(Number);
           const [endHour, endMinute] = job.endTime.split(':').map(Number);
           const breakTimeMinutes = parseInt(job.breakTime, 10);
