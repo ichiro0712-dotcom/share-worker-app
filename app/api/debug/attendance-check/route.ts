@@ -6,14 +6,15 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getTodayStart } from '@/utils/debugTime';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const userId = parseInt(searchParams.get('userId') || '1', 10);
 
   const now = new Date();
-  const todayStart = new Date(now);
-  todayStart.setHours(0, 0, 0, 0);
+  // 修正版のgetTodayStart()を使用（日本時間ベース）
+  const todayStart = getTodayStart();
   const todayEnd = new Date(todayStart);
   todayEnd.setDate(todayEnd.getDate() + 1);
 
