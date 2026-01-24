@@ -66,13 +66,43 @@ export async function GET(request: NextRequest) {
     }
   });
 
-  // 全SCHEDULED応募
+  // 全SCHEDULED応募（施設情報含む）
   const allScheduled = await prisma.application.findMany({
     where: {
       user_id: userId,
       status: 'SCHEDULED'
     },
-    include: { workDate: true },
+    include: {
+      workDate: {
+        include: {
+          job: {
+            include: {
+              facility: { select: { id: true, facility_name: true, emergency_attendance_code: true } }
+            }
+          }
+        }
+      }
+    },
+    take: 5
+  });
+
+  // 全応募（ステータス関係なく、最近のもの）
+  const allRecentApplications = await prisma.application.findMany({
+    where: {
+      user_id: userId,
+    },
+    include: {
+      workDate: {
+        include: {
+          job: {
+            include: {
+              facility: { select: { id: true, facility_name: true, emergency_attendance_code: true } }
+            }
+          }
+        }
+      }
+    },
+    orderBy: { created_at: 'desc' },
     take: 5
   });
 
@@ -126,7 +156,18 @@ export async function GET(request: NextRequest) {
     allScheduledApplications: allScheduled.map(a => ({
       id: a.id,
       status: a.status,
-      workDate: a.workDate.work_date.toISOString()
+      workDate: a.workDate.work_date.toISOString(),
+      facilityId: a.workDate.job.facility.id,
+      facilityName: a.workDate.job.facility.facility_name,
+      emergencyCode: a.workDate.job.facility.emergency_attendance_code
+    })),
+    allRecentApplications: allRecentApplications.map(a => ({
+      id: a.id,
+      status: a.status,
+      workDate: a.workDate.work_date.toISOString(),
+      facilityId: a.workDate.job.facility.id,
+      facilityName: a.workDate.job.facility.facility_name,
+      emergencyCode: a.workDate.job.facility.emergency_attendance_code
     })),
     // 最新の勤怠レコード（application_idの有無を確認用）
     recentAttendances: recentAttendances.map(a => ({
