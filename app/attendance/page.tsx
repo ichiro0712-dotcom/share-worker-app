@@ -5,7 +5,7 @@
  * QRコードスキャン + 緊急時番号入力対応
  */
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { Suspense, useEffect, useState, useRef, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -33,7 +33,7 @@ import { EMERGENCY_CODE_MAX_ERRORS } from '@/src/constants/attendance-errors';
 type ScanStatus = 'idle' | 'scanning' | 'success' | 'error' | 'checkout_select';
 type AttendanceType = 'check_in' | 'check_out';
 
-export default function AttendanceScanPage() {
+function AttendanceScanPageContent() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -488,5 +488,20 @@ export default function AttendanceScanPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Suspenseでラップしてエクスポート（useSearchParams対応）
+export default function AttendanceScanPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-gray-500">読み込み中...</div>
+        </div>
+      }
+    >
+      <AttendanceScanPageContent />
+    </Suspense>
   );
 }
