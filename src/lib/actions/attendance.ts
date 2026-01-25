@@ -563,10 +563,12 @@ export async function getCheckInStatus(): Promise<CheckInStatusResponse> {
     const todayEnd = new Date(todayStart);
     todayEnd.setDate(todayEnd.getDate() + 1);
 
+    // SCHEDULED または WORKING ステータスの応募を検索
+    // ※ status-updater により勤務開始時刻を過ぎると SCHEDULED → WORKING に自動更新される
     const todayApplication = await prisma.application.findFirst({
       where: {
         user_id: user.id,
-        status: 'SCHEDULED',
+        status: { in: ['SCHEDULED', 'WORKING'] },
         workDate: {
           work_date: {
             gte: todayStart,
@@ -750,9 +752,44 @@ export async function getMyModificationRequests(): Promise<ModificationRequestDe
 /**
  * 特定の勤怠記録を取得
  */
+// Server Action戻り値の型（DateはISOString形式で返す）
+export interface AttendanceByIdResponse {
+  id: number;
+  checkInTime: string; // ISO string
+  checkOutTime: string | null; // ISO string
+  facility: {
+    id: number;
+    facility_name: string;
+  };
+  application: {
+    id: number;
+    workDate: {
+      workDate: string; // ISO string
+      job: {
+        id: number;
+        title: string;
+        startTime: string;
+        endTime: string;
+        breakTime: string;
+        hourly_wage: number;
+        transportation_fee: number;
+      };
+    };
+  } | null;
+  modificationRequest: {
+    id: number;
+    status: string;
+    admin_comment: string | null;
+    reviewed_at: string | null; // ISO string
+    requested_start_time: string; // ISO string
+    requested_end_time: string; // ISO string
+    requested_break_time: number;
+  } | null;
+}
+
 export async function getAttendanceById(
   attendanceId: number
-): Promise<any | null> {
+): Promise<AttendanceByIdResponse | null> {
   try {
     const user = await getAuthenticatedUser();
 
@@ -777,7 +814,44 @@ export async function getAttendanceById(
       return null;
     }
 
-    return attendance;
+    // フロントエンドの期待する形式にマッピング（日付はISO文字列で返す）
+    return {
+      id: attendance.id,
+      checkInTime: attendance.check_in_time.toISOString(),
+      checkOutTime: attendance.check_out_time?.toISOString() ?? null,
+      facility: {
+        id: attendance.facility.id,
+        facility_name: attendance.facility.facility_name,
+      },
+      application: attendance.application
+        ? {
+            id: attendance.application.id,
+            workDate: {
+              workDate: attendance.application.workDate.work_date.toISOString(),
+              job: {
+                id: attendance.application.workDate.job.id,
+                title: attendance.application.workDate.job.title,
+                startTime: attendance.application.workDate.job.start_time,
+                endTime: attendance.application.workDate.job.end_time,
+                breakTime: attendance.application.workDate.job.break_time,
+                hourly_wage: attendance.application.workDate.job.hourly_wage,
+                transportation_fee: attendance.application.workDate.job.transportation_fee,
+              },
+            },
+          }
+        : null,
+      modificationRequest: attendance.modificationRequest
+        ? {
+            id: attendance.modificationRequest.id,
+            status: attendance.modificationRequest.status,
+            admin_comment: attendance.modificationRequest.admin_comment,
+            reviewed_at: attendance.modificationRequest.reviewed_at?.toISOString() ?? null,
+            requested_start_time: attendance.modificationRequest.requested_start_time.toISOString(),
+            requested_end_time: attendance.modificationRequest.requested_end_time.toISOString(),
+            requested_break_time: attendance.modificationRequest.requested_break_time,
+          }
+        : null,
+    };
   } catch (error) {
     console.error('[getAttendanceById] Error:', error);
     return null;
@@ -861,10 +935,12 @@ async function findTodayApplication(
   const todayEnd = new Date(todayStart);
   todayEnd.setDate(todayEnd.getDate() + 1);
 
+  // SCHEDULED または WORKING ステータスの応募を検索
+  // ※ status-updater により勤務開始時刻を過ぎると SCHEDULED → WORKING に自動更新される
   const application = await prisma.application.findFirst({
     where: {
       user_id: userId,
-      status: 'SCHEDULED',
+      status: { in: ['SCHEDULED', 'WORKING'] },
       workDate: {
         job: {
           facility_id: facilityId,

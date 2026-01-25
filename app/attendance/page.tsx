@@ -5,9 +5,39 @@
  * QRコードスキャン + 緊急時番号入力対応
  */
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { Suspense, useEffect, useState, useRef, useCallback, Component, ReactNode } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, useSearchParams } from 'next/navigation';
+
+// Error Boundary for iOS Safari routing issues
+class AttendanceErrorBoundary extends Component<
+  { children: ReactNode; fallback: ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: ReactNode; fallback: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error) {
+    console.error('AttendanceErrorBoundary caught error:', error);
+    // parallelRoutes エラーの場合はリロードで回復
+    if (error.message?.includes('parallelRoutes')) {
+      window.location.reload();
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback;
+    }
+    return this.props.children;
+  }
+}
 import { Html5Qrcode } from 'html5-qrcode';
 import {
   CheckCircle,
@@ -30,10 +60,10 @@ import type {
 } from '@/src/types/attendance';
 import { EMERGENCY_CODE_MAX_ERRORS } from '@/src/constants/attendance-errors';
 
-type ScanStatus = 'idle' | 'scanning' | 'success' | 'error' | 'checkout_select';
+type ScanStatus = 'idle' | 'scanning' | 'success' | 'error' | 'checkout_select' | 'processing';
 type AttendanceType = 'check_in' | 'check_out';
 
-export default function AttendanceScanPage() {
+function AttendanceScanPageContent() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -133,11 +163,15 @@ export default function AttendanceScanPage() {
             fps: 10,
             qrbox: { width: 250, height: 250 },
           },
-          async (decodedText) => {
+          (decodedText) => {
+            console.log('[Attendance] QR code scanned:', decodedText);
+
+            // スキャナーを停止（非同期で実行、完了を待たない）
             if (scannerRef.current) {
-              await scannerRef.current.stop();
-              setIsScanning(false);
+              scannerRef.current.stop().catch(console.error);
+              scannerRef.current = null;
             }
+            setIsScanning(false);
 
             // QRコードデータを検証: attendance:{facilityId}:{secretToken}
             if (decodedText.startsWith('attendance:')) {
@@ -146,7 +180,14 @@ export default function AttendanceScanPage() {
                 const facilityId = parseInt(parts[1]);
                 const qrToken = parts[2] || undefined;
 
-                await handleQRScan(facilityId, qrToken);
+                console.log('[Attendance] Valid QR, calling handleQRScan');
+                // 非同期処理を開始（コールバックをブロックしない）
+                handleQRScan(facilityId, qrToken).catch((error) => {
+                  console.error('[Attendance] handleQRScan error:', error);
+                  setScanStatus('error');
+                  toast.error('出退勤の記録に失敗しました');
+                  setTimeout(() => setScanStatus('idle'), 3000);
+                });
               } else {
                 setScanStatus('error');
                 toast.error('無効なQRコードです');
@@ -159,7 +200,10 @@ export default function AttendanceScanPage() {
             }
           },
           (errorMessage) => {
-            console.debug('QR scan error:', errorMessage);
+            // スキャン中の一時的なエラーはデバッグログのみ
+            if (!errorMessage.includes('No MultiFormat Readers')) {
+              console.debug('QR scan error:', errorMessage);
+            }
           }
         );
       } catch (error) {
@@ -195,8 +239,11 @@ export default function AttendanceScanPage() {
 
   // QRコードスキャン処理
   const handleQRScan = async (facilityId: number, qrToken?: string) => {
+    console.log('[Attendance] handleQRScan called', { facilityId, attendanceType });
+
     if (attendanceType === 'check_in') {
       // 出勤処理
+      console.log('[Attendance] Processing check_in');
       await processAttendance({
         type: 'check_in',
         method: 'QR',
@@ -205,13 +252,10 @@ export default function AttendanceScanPage() {
       });
     } else {
       // 退勤の場合は選択画面を表示
+      console.log('[Attendance] Setting checkout_select status');
       setPendingQrData({ facilityId, qrToken, method: 'QR' });
       setScanStatus('checkout_select');
-
-      // 予定時間を設定（checkInStatusから取得）
-      if (checkInStatus?.isCheckedIn) {
-        // 実際の予定時間はサーバーから取得済み
-      }
+      console.log('[Attendance] checkout_select status set');
     }
   };
 
@@ -247,25 +291,36 @@ export default function AttendanceScanPage() {
   const processAttendance = async (
     params: Partial<AttendanceRecordRequest> & { type: 'check_in' | 'check_out' }
   ) => {
+    console.log('[Attendance] processAttendance called', params);
+    // 処理中状態を表示
+    setScanStatus('processing');
+    console.log('[Attendance] Status set to processing');
+
     try {
       // 位置情報を取得
       let latitude: number | undefined;
       let longitude: number | undefined;
 
+      // 位置情報取得（タイムアウト3秒に短縮、iOS Safariでの許可待ちを考慮）
       if (navigator.geolocation) {
-        await new Promise<void>((resolve) => {
-          navigator.geolocation.getCurrentPosition(
-            (position) => {
-              latitude = position.coords.latitude;
-              longitude = position.coords.longitude;
-              resolve();
-            },
-            () => resolve(),
-            { timeout: 5000 }
-          );
-        });
+        try {
+          await new Promise<void>((resolve) => {
+            navigator.geolocation.getCurrentPosition(
+              (position) => {
+                latitude = position.coords.latitude;
+                longitude = position.coords.longitude;
+                resolve();
+              },
+              () => resolve(), // エラー時も続行
+              { timeout: 3000, maximumAge: 60000 } // 3秒タイムアウト、1分以内のキャッシュを許可
+            );
+          });
+        } catch {
+          // 位置情報取得失敗時も続行
+        }
       }
 
+      console.log('[Attendance] Calling recordAttendance API...');
       const response = await recordAttendance({
         type: params.type,
         method: params.method || 'QR',
@@ -276,6 +331,7 @@ export default function AttendanceScanPage() {
         longitude,
         checkOutType: params.checkOutType,
       });
+      console.log('[Attendance] recordAttendance response:', response);
 
       if (response.success) {
         setScanStatus('success');
@@ -286,14 +342,15 @@ export default function AttendanceScanPage() {
         setEmergencyErrorCount(0);
 
         // 退勤で勤怠変更申請が必要な場合
+        // iOS Safari対策: router.pushではなくwindow.location.hrefを使用
         if (params.type === 'check_out' && response.requiresModification) {
           setTimeout(() => {
-            router.push(`/attendance/modify?attendanceId=${response.attendanceId}`);
+            window.location.href = `/attendance/modify?attendanceId=${response.attendanceId}`;
           }, 2000);
         } else {
           setTimeout(() => {
             setScanStatus('idle');
-            router.push('/mypage/applications');
+            window.location.href = '/mypage/applications';
           }, 2000);
         }
       } else {
@@ -326,7 +383,7 @@ export default function AttendanceScanPage() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-gray-500">読み込み中...</div>
+        <div className="text-gray-500">認証情報を確認中...</div>
       </div>
     );
   }
@@ -408,16 +465,24 @@ export default function AttendanceScanPage() {
             </div>
           )}
 
-          {scanStatus === 'checkout_select' && checkInStatus && (
+          {scanStatus === 'checkout_select' && (
             <CheckOutSelector
-              isLate={checkInStatus.isLate || false}
+              isLate={checkInStatus?.isLate || false}
               usedEmergencyCode={
-                checkInStatus.usedEmergencyCode ||
+                checkInStatus?.usedEmergencyCode ||
                 pendingQrData?.method === 'EMERGENCY_CODE'
               }
               onSelect={handleCheckOutTypeSelect}
               scheduledTime={scheduledTime || undefined}
             />
+          )}
+
+          {scanStatus === 'processing' && (
+            <div className="text-center py-8">
+              <div className="w-16 h-16 mx-auto mb-4 border-4 border-[#66cc99] border-t-transparent rounded-full animate-spin" />
+              <p className="text-lg font-medium text-gray-800">処理中...</p>
+              <p className="text-sm text-gray-500 mt-2">位置情報を取得しています</p>
+            </div>
           )}
 
           {scanStatus === 'success' && (
@@ -488,5 +553,34 @@ export default function AttendanceScanPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Suspense + ErrorBoundary でラップしてエクスポート
+export default function AttendanceScanPage() {
+  const suspenseFallback = (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-gray-500">ページを読み込み中...</div>
+    </div>
+  );
+
+  const errorFallback = (
+    <div className="min-h-screen flex items-center justify-center flex-col gap-4">
+      <div className="text-red-500">エラーが発生しました</div>
+      <button
+        onClick={() => window.location.reload()}
+        className="px-4 py-2 bg-[#66cc99] text-white rounded-lg"
+      >
+        再読み込み
+      </button>
+    </div>
+  );
+
+  return (
+    <AttendanceErrorBoundary fallback={errorFallback}>
+      <Suspense fallback={suspenseFallback}>
+        <AttendanceScanPageContent />
+      </Suspense>
+    </AttendanceErrorBoundary>
   );
 }

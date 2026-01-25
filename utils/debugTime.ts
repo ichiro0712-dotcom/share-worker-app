@@ -94,15 +94,25 @@ export function getTodayString(): string {
 }
 
 /**
- * 今日の日付の開始時刻を取得（デバッグ時刻対応）
+ * 今日の日付の開始時刻を取得（デバッグ時刻対応、日本時間ベース）
  *
- * @returns 今日の0時0分0秒のDateオブジェクト
+ * 注意: サーバー（Vercel）はUTCで動作するため、明示的に日本時間（JST）で計算します。
+ * これにより、サーバーのタイムゾーンに関係なく、日本時間の0時を基準にした日付が得られます。
+ *
+ * @returns 今日の0時0分0秒のDateオブジェクト（日本時間ベース、UTCで表現）
  */
 export function getTodayStart(): Date {
   const now = getCurrentTime();
-  const todayStart = new Date(now);
-  todayStart.setHours(0, 0, 0, 0);
-  return todayStart;
+
+  // 日本時間（JST = UTC+9）の日付を取得
+  const jstYear = now.toLocaleString('en-US', { timeZone: 'Asia/Tokyo', year: 'numeric' });
+  const jstMonth = now.toLocaleString('en-US', { timeZone: 'Asia/Tokyo', month: '2-digit' });
+  const jstDay = now.toLocaleString('en-US', { timeZone: 'Asia/Tokyo', day: '2-digit' });
+
+  // 日本時間の0時をUTCで表現（JST 00:00 = UTC 15:00 前日）
+  const todayStartJST = new Date(`${jstYear}-${jstMonth}-${jstDay}T00:00:00+09:00`);
+
+  return todayStartJST;
 }
 
 /**

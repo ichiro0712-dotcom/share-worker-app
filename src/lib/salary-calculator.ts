@@ -286,13 +286,13 @@ export function calculateSalary(input: SalaryCalculationInput): SalaryCalculatio
   const hourlyRatePerMinute = hourlyRate / 60;
 
   // ① ベース給与（全実働時間に対する基本給）
-  const basePay = Math.round(workedMinutes * hourlyRatePerMinute);
+  const basePay = Math.ceil(workedMinutes * hourlyRatePerMinute);
 
   // ② 残業手当（残業時間 × 0.25）
-  const overtimePay = Math.round(totalOvertimeMinutes * hourlyRatePerMinute * 0.25);
+  const overtimePay = Math.ceil(totalOvertimeMinutes * hourlyRatePerMinute * 0.25);
 
   // ③ 深夜手当（深夜時間 × 0.25）
-  const nightPay = Math.round(totalNightMinutes * hourlyRatePerMinute * 0.25);
+  const nightPay = Math.ceil(totalNightMinutes * hourlyRatePerMinute * 0.25);
 
   // 合計
   const totalPay = basePay + overtimePay + nightPay;
@@ -308,7 +308,7 @@ export function calculateSalary(input: SalaryCalculationInput): SalaryCalculatio
       hours: adjustedNormalMinutes / 60,
       type: 'normal',
       rate: 1.0,
-      amount: Math.round(adjustedNormalMinutes * hourlyRatePerMinute)
+      amount: Math.ceil(adjustedNormalMinutes * hourlyRatePerMinute)
     });
   }
 
@@ -320,7 +320,7 @@ export function calculateSalary(input: SalaryCalculationInput): SalaryCalculatio
       hours: adjustedNightMinutes / 60,
       type: 'night',
       rate: 1.25,
-      amount: Math.round(adjustedNightMinutes * hourlyRatePerMinute * 1.25)
+      amount: Math.ceil(adjustedNightMinutes * hourlyRatePerMinute * 1.25)
     });
   }
 
@@ -332,7 +332,7 @@ export function calculateSalary(input: SalaryCalculationInput): SalaryCalculatio
       hours: adjustedOvertimeMinutes / 60,
       type: 'overtime',
       rate: 1.25,
-      amount: Math.round(adjustedOvertimeMinutes * hourlyRatePerMinute * 1.25)
+      amount: Math.ceil(adjustedOvertimeMinutes * hourlyRatePerMinute * 1.25)
     });
   }
 
@@ -344,7 +344,7 @@ export function calculateSalary(input: SalaryCalculationInput): SalaryCalculatio
       hours: adjustedNightOvertimeMinutes / 60,
       type: 'night_overtime',
       rate: 1.5,
-      amount: Math.round(adjustedNightOvertimeMinutes * hourlyRatePerMinute * 1.5)
+      amount: Math.ceil(adjustedNightOvertimeMinutes * hourlyRatePerMinute * 1.5)
     });
   }
 

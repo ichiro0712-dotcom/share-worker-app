@@ -151,6 +151,9 @@ export function ModificationForm({
             {formatTime(attendance.checkInTime)} 〜 {formatTime(attendance.checkOutTime)}
           </span>
         </div>
+        <div className="mt-2 text-sm text-gray-500">
+          定刻: {scheduledTime.startTime} 〜 {scheduledTime.endTime}（休憩{scheduledTime.breakTime}分）
+        </div>
       </div>
 
       {/* 勤務時間入力 */}

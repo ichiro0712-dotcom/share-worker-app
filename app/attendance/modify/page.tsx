@@ -4,7 +4,7 @@
  * 勤怠変更申請ページ
  */
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { ArrowLeft, Building2, Calendar, Clock } from 'lucide-react';
@@ -20,10 +20,46 @@ import { calculateSalary } from '@/src/lib/salary-calculator';
 
 type PageStep = 'form' | 'confirm';
 
+// Server Actionから返される形式（ISO文字列）
+interface AttendanceDataFromServer {
+  id: number;
+  checkInTime: string;
+  checkOutTime: string | null;
+  facility: {
+    id: number;
+    facility_name: string;
+  };
+  application: {
+    id: number;
+    workDate: {
+      workDate: string;
+      job: {
+        id: number;
+        title: string;
+        startTime: string;
+        endTime: string;
+        breakTime: string;
+        hourly_wage: number;
+        transportation_fee: number;
+      };
+    };
+  } | null;
+  modificationRequest: {
+    id: number;
+    status: string;
+    admin_comment: string | null;
+    reviewed_at: string | null;
+    requested_start_time: string;
+    requested_end_time: string;
+    requested_break_time: number;
+  } | null;
+}
+
+// クライアント側で使用する形式（Dateに変換済み）
 interface AttendanceData {
   id: number;
   checkInTime: Date;
-  checkOutTime: Date;
+  checkOutTime: Date | null;
   facility: {
     id: number;
     facility_name: string;
@@ -54,7 +90,49 @@ interface AttendanceData {
   } | null;
 }
 
-export default function ModificationPage() {
+// Server Actionのレスポンスをクライアント形式に変換
+function convertToClientFormat(data: AttendanceDataFromServer): AttendanceData {
+  return {
+    id: data.id,
+    checkInTime: new Date(data.checkInTime),
+    checkOutTime: data.checkOutTime ? new Date(data.checkOutTime) : null,
+    facility: data.facility,
+    application: data.application
+      ? {
+          id: data.application.id,
+          workDate: {
+            workDate: new Date(data.application.workDate.workDate),
+            job: data.application.workDate.job,
+          },
+        }
+      : null,
+    modificationRequest: data.modificationRequest
+      ? {
+          id: data.modificationRequest.id,
+          status: data.modificationRequest.status,
+          admin_comment: data.modificationRequest.admin_comment,
+          reviewed_at: data.modificationRequest.reviewed_at
+            ? new Date(data.modificationRequest.reviewed_at)
+            : null,
+          requested_start_time: new Date(data.modificationRequest.requested_start_time),
+          requested_end_time: new Date(data.modificationRequest.requested_end_time),
+          requested_break_time: data.modificationRequest.requested_break_time,
+        }
+      : null,
+  };
+}
+
+// ローディングコンポーネント
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-gray-500">読み込み中...</div>
+    </div>
+  );
+}
+
+// メインコンテンツコンポーネント（useSearchParamsを使用）
+function ModificationContent() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -87,19 +165,36 @@ export default function ModificationPage() {
       }
 
       try {
-        const data = await getAttendanceById(id);
-        if (!data) {
+        const serverData = await getAttendanceById(id);
+        console.log('[ModifyPage] serverData:', JSON.stringify(serverData, null, 2));
+        if (!serverData) {
           toast.error('勤怠記録が見つかりません');
           router.push('/mypage/applications');
           return;
         }
 
+        // ISO文字列からDateオブジェクトに変換
+        const data = convertToClientFormat(serverData);
+        console.log('[ModifyPage] converted data:', {
+          id: data.id,
+          hasApplication: !!data.application,
+          job: data.application?.workDate?.job,
+        });
         setAttendance(data);
 
         // 規定金額の計算
         if (data.application) {
           const job = data.application.workDate.job;
+          console.log('[ModifyPage] job:', job);
           const workDate = data.application.workDate.workDate;
+
+          // nullチェックを追加
+          if (!job.startTime || !job.endTime) {
+            console.error('[ModifyPage] job.startTime or job.endTime is undefined', job);
+            toast.error('求人データが不完全です');
+            return;
+          }
+
           const [startHour, startMinute] = job.startTime.split(':').map(Number);
           const [endHour, endMinute] = job.endTime.split(':').map(Number);
           const breakTimeMinutes = parseInt(job.breakTime, 10);
@@ -222,11 +317,7 @@ export default function ModificationPage() {
   };
 
   if (authLoading || isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-gray-500">読み込み中...</div>
-      </div>
-    );
+    return <LoadingFallback />;
   }
 
   if (!isAuthenticated || !user) {
@@ -284,8 +375,7 @@ export default function ModificationPage() {
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4" />
               <span>
-                定刻: {job.startTime} 〜 {job.endTime}
-                {parseInt(job.breakTime) > 0 && ` （休憩${job.breakTime}分）`}
+                定刻: {job.startTime} 〜 {job.endTime}（休憩{job.breakTime}分）
               </span>
             </div>
           </div>
@@ -344,5 +434,14 @@ export default function ModificationPage() {
         )}
       </div>
     </div>
+  );
+}
+
+// メインエクスポート（Suspense境界でラップ）
+export default function ModificationPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <ModificationContent />
+    </Suspense>
   );
 }
