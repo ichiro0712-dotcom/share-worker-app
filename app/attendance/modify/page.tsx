@@ -375,8 +375,7 @@ function ModificationContent() {
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4" />
               <span>
-                定刻: {job.startTime} 〜 {job.endTime}
-                {parseInt(job.breakTime) > 0 && ` （休憩${job.breakTime}分）`}
+                定刻: {job.startTime} 〜 {job.endTime}（休憩{job.breakTime}分）
               </span>
             </div>
           </div>
