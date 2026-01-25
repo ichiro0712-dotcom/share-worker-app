@@ -6,6 +6,7 @@ import bcrypt from 'bcryptjs';
 import { JobStatus } from '@prisma/client';
 import { generateLaborDocumentPdf } from '@/src/lib/laborDocumentPdf';
 import { requireSystemAdminAuth } from '@/lib/system-admin-session-server';
+import { createFacilityAdminSession } from '@/lib/admin-session-server';
 import { geocodeAddress } from '@/src/lib/geocoding';
 import { sendAdminNewFacilityNotification, sendAdminNewWorkerNotification, sendAdminHighCancelRateNotification, sendAdminLowRatingStreakNotification } from '@/src/lib/actions/notification';
 import { generateUniqueEmergencyCode, generateQRSecretToken } from '@/src/lib/emergency-code-utils';
@@ -869,6 +870,16 @@ export async function verifyMasqueradeToken(token: string) {
     if (!facilityAdmin) {
         return { success: false, error: '施設管理者が存在しません' };
     }
+
+    // サーバーサイドセッション（iron-session）を作成
+    // これにより、API認証（withFacilityAuth）が正常に動作する
+    await createFacilityAdminSession({
+        adminId: facilityAdmin.id,
+        facilityId: facilityAdmin.facility_id,
+        name: facilityAdmin.name,
+        email: facilityAdmin.email,
+        role: 'admin',
+    });
 
     return {
         success: true,

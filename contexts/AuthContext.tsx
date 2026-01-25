@@ -238,10 +238,10 @@ function AuthContextProvider({ children }: { children: ReactNode }) {
       } else if (customEvent.detail.code === 'FORBIDDEN') {
         // 権限なし：他施設のデータにアクセスしようとした
         console.log('[AuthContext] Access forbidden');
-        // アラートを表示してダッシュボードへリダイレクト
+        // アラートを表示してトップへリダイレクト
         if (typeof window !== 'undefined') {
           alert('アクセス権限がありません');
-          window.location.href = '/admin/dashboard';
+          window.location.href = '/admin';
         }
       }
     };
