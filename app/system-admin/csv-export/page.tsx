@@ -21,7 +21,7 @@ const TABS = [
   { id: 'job' as const, label: '案件情報(代理)', icon: Briefcase, ready: true },
   { id: 'shift' as const, label: '案件シフト表(代理)', icon: Calendar, ready: true },
   { id: 'staff' as const, label: 'プールスタッフ情報', icon: Users, ready: true },
-  { id: 'attendance' as const, label: '勤怠情報', icon: Clock, ready: false },
+  { id: 'attendance' as const, label: '勤怠情報', icon: Clock, ready: true },
 ] as const;
 
 export default function CsvExportPage() {

@@ -11,6 +11,7 @@ import { generateClientInfoCsv } from '@/src/lib/csv-export/client-info-csv';
 import { generateJobInfoCsv } from '@/src/lib/csv-export/job-info-csv';
 import { generateShiftInfoCsv } from '@/src/lib/csv-export/shift-info-csv';
 import { generateStaffInfoCsv } from '@/src/lib/csv-export/staff-info-csv';
+import { generateAttendanceInfoCsv } from '@/src/lib/csv-export/attendance-info-csv';
 import type {
   ClientInfoFilter,
   ClientInfoItem,
@@ -39,6 +40,13 @@ import type {
   GetStaffInfoListResult,
   StaffWithBankAccount,
 } from '@/app/system-admin/csv-export/staff-info/types';
+import type {
+  AttendanceInfoFilter,
+  AttendanceInfoItem,
+  GetAttendanceInfoListParams,
+  GetAttendanceInfoListResult,
+  AttendanceWithDetails,
+} from '@/app/system-admin/csv-export/attendance-info/types';
 
 /**
  * 取引先情報フィルター用のWHERE条件を構築
@@ -663,6 +671,174 @@ export async function exportStaffInfoCsv(
     return { success: true, csvData, count: users.length };
   } catch (error) {
     console.error('スタッフ情報CSV出力エラー:', error);
+    return { success: false, error: 'CSV出力に失敗しました' };
+  }
+}
+
+// ============================================
+// 勤怠情報出力
+// ============================================
+
+function buildAttendanceInfoWhere(filters: AttendanceInfoFilter) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const where: any = {};
+
+  if (filters.search) {
+    where.OR = [
+      { user: { name: { contains: filters.search, mode: 'insensitive' } } },
+      { facility: { facility_name: { contains: filters.search, mode: 'insensitive' } } },
+      { job: { title: { contains: filters.search, mode: 'insensitive' } } },
+    ];
+  }
+
+  if (filters.userName) {
+    where.user = { name: { contains: filters.userName, mode: 'insensitive' } };
+  }
+
+  if (filters.facilityName) {
+    where.facility = { facility_name: { contains: filters.facilityName, mode: 'insensitive' } };
+  }
+
+  if (filters.workDateFrom) {
+    where.check_in_time = { ...where.check_in_time, gte: new Date(filters.workDateFrom) };
+  }
+
+  if (filters.workDateTo) {
+    where.check_in_time = { ...where.check_in_time, lte: new Date(filters.workDateTo + 'T23:59:59') };
+  }
+
+  if (filters.status) {
+    where.status = filters.status;
+  }
+
+  return where;
+}
+
+export async function getAttendanceInfoList(
+  params: GetAttendanceInfoListParams
+): Promise<GetAttendanceInfoListResult> {
+  await requireSystemAdminAuth();
+
+  const { page, limit, filters } = params;
+  const skip = (page - 1) * limit;
+  const where = buildAttendanceInfoWhere(filters);
+
+  const [attendances, total] = await Promise.all([
+    prisma.attendance.findMany({
+      where,
+      select: {
+        id: true,
+        user_id: true,
+        check_in_time: true,
+        check_out_time: true,
+        status: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        job: {
+          select: {
+            title: true,
+          },
+        },
+        facility: {
+          select: {
+            facility_name: true,
+          },
+        },
+      },
+      orderBy: { check_in_time: 'desc' },
+      skip,
+      take: limit,
+    }),
+    prisma.attendance.count({ where }),
+  ]);
+
+  const items: AttendanceInfoItem[] = attendances.map((att) => ({
+    id: att.id,
+    workDate: att.check_in_time,
+    userName: att.user.name,
+    userId: att.user_id,
+    facilityName: att.facility.facility_name,
+    jobTitle: att.job?.title || '',
+    checkInTime: att.check_in_time,
+    checkOutTime: att.check_out_time,
+    status: att.status,
+  }));
+
+  return { items, total };
+}
+
+export async function exportAttendanceInfoCsv(
+  filters: AttendanceInfoFilter
+): Promise<ExportCsvResult> {
+  await requireSystemAdminAuth();
+
+  try {
+    const where = buildAttendanceInfoWhere(filters);
+
+    const attendances = await prisma.attendance.findMany({
+      where,
+      select: {
+        id: true,
+        user_id: true,
+        check_in_time: true,
+        check_out_time: true,
+        actual_start_time: true,
+        actual_end_time: true,
+        actual_break_time: true,
+        status: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        job: {
+          select: {
+            id: true,
+            title: true,
+            start_time: true,
+            end_time: true,
+            break_time: true,
+            transportation_fee: true,
+          },
+        },
+        facility: {
+          select: {
+            id: true,
+            facility_name: true,
+          },
+        },
+      },
+      orderBy: { check_in_time: 'desc' },
+      take: 10000,
+    });
+
+    if (attendances.length === 0) {
+      return { success: false, error: '出力対象のデータがありません' };
+    }
+
+    const attendanceList: AttendanceWithDetails[] = attendances.map((att) => ({
+      id: att.id,
+      user_id: att.user_id,
+      check_in_time: att.check_in_time,
+      check_out_time: att.check_out_time,
+      actual_start_time: att.actual_start_time,
+      actual_end_time: att.actual_end_time,
+      actual_break_time: att.actual_break_time,
+      status: att.status,
+      user: att.user,
+      job: att.job,
+      facility: att.facility,
+    }));
+
+    const csvData = generateAttendanceInfoCsv(attendanceList);
+    return { success: true, csvData, count: attendances.length };
+  } catch (error) {
+    console.error('勤怠情報CSV出力エラー:', error);
     return { success: false, error: 'CSV出力に失敗しました' };
   }
 }
