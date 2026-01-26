@@ -376,21 +376,21 @@ export async function approveModificationRequest(
       recipientEmail: modification.attendance.user.email,
       applicationId: applicationId,
       variables: {
-        workDate: modification.attendance.application?.workDate.work_date
+        work_date: modification.attendance.application?.workDate.work_date
           ? new Date(modification.attendance.application.workDate.work_date).toLocaleDateString('ja-JP')
           : '',
-        facilityName: modification.attendance.facility.facility_name,
-        approvedStartTime: modification.requested_start_time.toLocaleTimeString('ja-JP', {
+        facility_name: modification.attendance.facility.facility_name,
+        approved_start_time: modification.requested_start_time.toLocaleTimeString('ja-JP', {
           hour: '2-digit',
           minute: '2-digit',
         }),
-        approvedEndTime: modification.requested_end_time.toLocaleTimeString('ja-JP', {
+        approved_end_time: modification.requested_end_time.toLocaleTimeString('ja-JP', {
           hour: '2-digit',
           minute: '2-digit',
         }),
-        approvedBreakTime: String(modification.requested_break_time),
-        confirmedWage: String(modification.requested_amount),
-        adminComment: request.adminComment,
+        approved_break_time: String(modification.requested_break_time),
+        confirmed_wage: String(modification.requested_amount),
+        admin_comment: request.adminComment,
         worker_name: modification.attendance.user.name,
       },
       chatMessageData: applicationId ? {
@@ -482,12 +482,12 @@ export async function rejectModificationRequest(
       recipientEmail: modification.attendance.user.email,
       applicationId: applicationId,
       variables: {
-        workDate: modification.attendance.application?.workDate.work_date
+        work_date: modification.attendance.application?.workDate.work_date
           ? new Date(modification.attendance.application.workDate.work_date).toLocaleDateString('ja-JP')
           : '',
-        facilityName: modification.attendance.facility.facility_name,
-        adminComment: request.adminComment,
-        resubmitUrl: `${process.env.NEXTAUTH_URL}/attendance/modify?resubmit=${modificationId}`,
+        facility_name: modification.attendance.facility.facility_name,
+        admin_comment: request.adminComment,
+        resubmit_url: `${process.env.NEXTAUTH_URL}/attendance/modify?resubmit=${modificationId}`,
         worker_name: modification.attendance.user.name,
       },
       chatMessageData: applicationId ? {
