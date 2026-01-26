@@ -80,8 +80,9 @@ async function processCheckIn(
     const workDate = application.workDate.work_date;
     const [startHour, startMinute] = job.start_time.split(':').map(Number);
 
-    scheduledStartTime = new Date(workDate);
-    scheduledStartTime.setHours(startHour, startMinute, 0, 0);
+    // workDateのミリ秒値を基準に時刻を加算（タイムゾーン非依存）
+    const workDateMs = new Date(workDate).getTime();
+    scheduledStartTime = new Date(workDateMs + (startHour * 60 + startMinute) * 60 * 1000);
 
     const now = getCurrentTime();
     isLate = now > scheduledStartTime;
@@ -160,8 +161,9 @@ async function processCheckOut(
     const workDate = attendance.application.workDate.work_date;
     const [startHour, startMinute] = job.start_time.split(':').map(Number);
 
-    const scheduledStartTime = new Date(workDate);
-    scheduledStartTime.setHours(startHour, startMinute, 0, 0);
+    // workDateのミリ秒値を基準に時刻を加算（タイムゾーン非依存）
+    const workDateMs = new Date(workDate).getTime();
+    const scheduledStartTime = new Date(workDateMs + (startHour * 60 + startMinute) * 60 * 1000);
 
     isLate = new Date(attendance.check_in_time) > scheduledStartTime;
   }
@@ -190,14 +192,14 @@ async function processCheckOut(
     const [endHour, endMinute] = job.end_time.split(':').map(Number);
     const breakTimeMinutes = parseInt(job.break_time, 10);
 
-    actualStartTime = new Date(workDate);
-    actualStartTime.setHours(startHour, startMinute, 0, 0);
+    // workDateのミリ秒値を基準に時刻を加算（タイムゾーン非依存）
+    const workDateMs = new Date(workDate).getTime();
+    actualStartTime = new Date(workDateMs + (startHour * 60 + startMinute) * 60 * 1000);
+    actualEndTime = new Date(workDateMs + (endHour * 60 + endMinute) * 60 * 1000);
 
-    actualEndTime = new Date(workDate);
-    actualEndTime.setHours(endHour, endMinute, 0, 0);
     // 終了時刻が開始時刻より前の場合は翌日
     if (actualEndTime <= actualStartTime) {
-      actualEndTime.setDate(actualEndTime.getDate() + 1);
+      actualEndTime = new Date(actualEndTime.getTime() + 24 * 60 * 60 * 1000);
     }
 
     actualBreakTime = breakTimeMinutes;
@@ -307,13 +309,24 @@ export async function createModificationRequest(
       const [endHour, endMinute] = job.end_time.split(':').map(Number);
       const breakTimeMinutes = parseInt(job.break_time, 10);
 
-      const scheduledStart = new Date(workDate);
-      scheduledStart.setHours(startHour, startMinute, 0, 0);
+      // workDateはDBにUTCで保存されているが、実際はJSTの日付の0時を表している
+      // 例: UTC 2026-01-25T15:00:00.000Z = JST 2026/1/26 00:00:00
+      // job.start_time/end_timeはJSTの時刻文字列（例: "06:00", "15:00"）
+      //
+      // 給与計算では実際のタイムスタンプは重要ではなく、勤務時間の長さが重要
+      // そのため、workDateを基準として時刻を加算する方式で計算する
+      // これにより、サーバーのタイムゾーンに依存しない一貫した計算が可能
 
-      const scheduledEnd = new Date(workDate);
-      scheduledEnd.setHours(endHour, endMinute, 0, 0);
+      const workDateMs = new Date(workDate).getTime();
+
+      // workDateからの経過ミリ秒として開始・終了時刻を計算
+      // workDateはJST 00:00を表すので、JST時刻をそのまま加算すればよい
+      const scheduledStart = new Date(workDateMs + (startHour * 60 + startMinute) * 60 * 1000);
+      let scheduledEnd = new Date(workDateMs + (endHour * 60 + endMinute) * 60 * 1000);
+
+      // 終了時刻が開始時刻以前の場合は翌日とみなす
       if (scheduledEnd <= scheduledStart) {
-        scheduledEnd.setDate(scheduledEnd.getDate() + 1);
+        scheduledEnd = new Date(scheduledEnd.getTime() + 24 * 60 * 60 * 1000);
       }
 
       const originalResult = calculateSalary({
@@ -591,8 +604,9 @@ export async function getCheckInStatus(): Promise<CheckInStatusResponse> {
       const workDate = attendance.application.workDate.work_date;
       const [startHour, startMinute] = job.start_time.split(':').map(Number);
 
-      const scheduledStartTime = new Date(workDate);
-      scheduledStartTime.setHours(startHour, startMinute, 0, 0);
+      // workDateのミリ秒値を基準に時刻を加算（タイムゾーン非依存）
+      const workDateMs = new Date(workDate).getTime();
+      const scheduledStartTime = new Date(workDateMs + (startHour * 60 + startMinute) * 60 * 1000);
 
       isLate = new Date(attendance.check_in_time) > scheduledStartTime;
     }
