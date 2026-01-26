@@ -413,7 +413,19 @@ export function MyJobsContent({ initialTab }: MyJobsContentProps) {
                           {getModificationStatusBadge(app.modificationRequest.status)!.text}
                         </span>
                       )}
-                      {!app.modificationRequest && (
+                      {/* 勤怠詳細ボタン */}
+                      {app.attendanceId && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(`/mypage/attendance/${app.attendanceId}`);
+                          }}
+                          className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
+                        >
+                          勤怠詳細
+                        </button>
+                      )}
+                      {!app.modificationRequest && !app.attendanceId && (
                         <span className="text-xs text-gray-500">評価済み</span>
                       )}
                     </div>

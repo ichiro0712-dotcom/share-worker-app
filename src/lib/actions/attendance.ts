@@ -764,6 +764,168 @@ export async function getMyModificationRequests(): Promise<ModificationRequestDe
 }
 
 /**
+ * 勤怠詳細（ワーカー向け）を取得
+ * - 勤務情報、打刻情報、勤怠変更申請の詳細を含む
+ */
+export interface AttendanceDetailForWorkerResponse {
+  success: boolean;
+  attendance?: {
+    id: number;
+    checkInTime: string;
+    checkOutTime: string | null;
+    checkInMethod: string;
+    checkOutMethod: string | null;
+    calculatedWage: number | null;
+    facility: {
+      id: number;
+      name: string;
+    };
+    application: {
+      id: number;
+      workDate: string;
+      job: {
+        id: number;
+        title: string;
+        startTime: string;
+        endTime: string;
+        breakTime: string;
+        hourlyWage: number;
+        transportationFee: number;
+        wage: number;
+      };
+    } | null;
+    modificationRequest: {
+      id: number;
+      status: string;
+      requestedStartTime: string;
+      requestedEndTime: string;
+      requestedBreakTime: number;
+      workerComment: string;
+      adminComment: string | null;
+      originalAmount: number;
+      requestedAmount: number;
+      resubmitCount: number;
+      createdAt: string;
+      reviewedAt: string | null;
+    } | null;
+    isLate: boolean;
+  };
+  message?: string;
+}
+
+export async function getAttendanceDetailForWorker(
+  attendanceId: number
+): Promise<AttendanceDetailForWorkerResponse> {
+  try {
+    const user = await getAuthenticatedUser();
+
+    const attendance = await prisma.attendance.findUnique({
+      where: { id: attendanceId },
+      include: {
+        facility: {
+          select: {
+            id: true,
+            facility_name: true,
+          },
+        },
+        application: {
+          include: {
+            workDate: {
+              include: {
+                job: {
+                  select: {
+                    id: true,
+                    title: true,
+                    start_time: true,
+                    end_time: true,
+                    break_time: true,
+                    hourly_wage: true,
+                    transportation_fee: true,
+                    wage: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        modificationRequest: true,
+      },
+    });
+
+    if (!attendance) {
+      return { success: false, message: '勤怠記録が見つかりません' };
+    }
+
+    if (attendance.user_id !== user.id) {
+      return { success: false, message: 'この勤怠記録にアクセスする権限がありません' };
+    }
+
+    // 遅刻判定
+    let isLate = false;
+    if (attendance.application) {
+      const job = attendance.application.workDate.job;
+      const workDate = attendance.application.workDate.work_date;
+      const [startHour, startMinute] = job.start_time.split(':').map(Number);
+      const workDateMs = new Date(workDate).getTime();
+      const scheduledStartTime = new Date(workDateMs + (startHour * 60 + startMinute) * 60 * 1000);
+      isLate = new Date(attendance.check_in_time) > scheduledStartTime;
+    }
+
+    return {
+      success: true,
+      attendance: {
+        id: attendance.id,
+        checkInTime: attendance.check_in_time.toISOString(),
+        checkOutTime: attendance.check_out_time?.toISOString() ?? null,
+        checkInMethod: attendance.check_in_method,
+        checkOutMethod: attendance.check_out_method,
+        calculatedWage: attendance.calculated_wage,
+        facility: {
+          id: attendance.facility.id,
+          name: attendance.facility.facility_name,
+        },
+        application: attendance.application
+          ? {
+              id: attendance.application.id,
+              workDate: attendance.application.workDate.work_date.toISOString(),
+              job: {
+                id: attendance.application.workDate.job.id,
+                title: attendance.application.workDate.job.title,
+                startTime: attendance.application.workDate.job.start_time,
+                endTime: attendance.application.workDate.job.end_time,
+                breakTime: attendance.application.workDate.job.break_time,
+                hourlyWage: attendance.application.workDate.job.hourly_wage,
+                transportationFee: attendance.application.workDate.job.transportation_fee,
+                wage: attendance.application.workDate.job.wage,
+              },
+            }
+          : null,
+        modificationRequest: attendance.modificationRequest
+          ? {
+              id: attendance.modificationRequest.id,
+              status: attendance.modificationRequest.status,
+              requestedStartTime: attendance.modificationRequest.requested_start_time.toISOString(),
+              requestedEndTime: attendance.modificationRequest.requested_end_time.toISOString(),
+              requestedBreakTime: attendance.modificationRequest.requested_break_time,
+              workerComment: attendance.modificationRequest.worker_comment,
+              adminComment: attendance.modificationRequest.admin_comment,
+              originalAmount: attendance.modificationRequest.original_amount,
+              requestedAmount: attendance.modificationRequest.requested_amount,
+              resubmitCount: attendance.modificationRequest.resubmit_count,
+              createdAt: attendance.modificationRequest.created_at.toISOString(),
+              reviewedAt: attendance.modificationRequest.reviewed_at?.toISOString() ?? null,
+            }
+          : null,
+        isLate,
+      },
+    };
+  } catch (error) {
+    console.error('[getAttendanceDetailForWorker] Error:', error);
+    return { success: false, message: '勤怠詳細の取得に失敗しました' };
+  }
+}
+
+/**
  * 特定の勤怠記録を取得
  */
 // Server Action戻り値の型（DateはISOString形式で返す）
