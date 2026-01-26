@@ -56,8 +56,8 @@ export const calculateDailyWage = (
   // 時間に変換
   const hours = totalMinutes / 60;
 
-  // 日給 = (時給 × 実働時間) + 交通費
-  return Math.floor(hours * hourlyWage + transportationFee);
+  // 日給 = (時給 × 実働時間) + 交通費（端数切り上げ）
+  return Math.ceil(hours * hourlyWage + transportationFee);
 };
 
 /**
@@ -72,7 +72,7 @@ export const estimateMonthlySalary = (
   hoursPerDay: number,
   daysPerMonth: number
 ): number => {
-  return Math.floor(hourlyWage * hoursPerDay * daysPerMonth);
+  return Math.ceil(hourlyWage * hoursPerDay * daysPerMonth);
 };
 
 /**
