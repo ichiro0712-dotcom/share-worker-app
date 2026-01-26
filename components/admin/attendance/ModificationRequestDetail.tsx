@@ -13,6 +13,7 @@ import {
   CheckCircle,
   XCircle,
   AlertTriangle,
+  RefreshCw,
 } from 'lucide-react';
 import { formatCurrency, formatMinutesToHoursAndMinutes } from '@/src/lib/salary-calculator';
 import type { ModificationRequestDetail as ModificationRequestDetailType } from '@/src/types/attendance';
@@ -83,6 +84,21 @@ export function ModificationRequestDetail({
 
   return (
     <div className="space-y-6">
+      {/* 再申請バナー */}
+      {request.resubmitCount > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+          <div className="flex items-center gap-2">
+            <RefreshCw className="w-5 h-5 text-amber-600" />
+            <span className="font-medium text-amber-800">
+              この申請は再申請です（{request.resubmitCount}回目）
+            </span>
+          </div>
+          <p className="text-sm text-amber-700 mt-1">
+            ワーカーが前回の却下を受けて再度申請しています。
+          </p>
+        </div>
+      )}
+
       {/* ワーカー情報 */}
       <div className="bg-white rounded-lg shadow-sm p-4">
         <div className="flex items-center gap-3">

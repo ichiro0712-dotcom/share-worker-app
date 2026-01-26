@@ -65,6 +65,25 @@ export async function getMyApplications(options?: { limit?: number; offset?: num
                         },
                     },
                 },
+                // 勤怠レコードと勤怠変更申請を含める
+                attendances: {
+                    include: {
+                        modificationRequest: {
+                            select: {
+                                id: true,
+                                status: true,
+                                admin_comment: true,
+                                resubmit_count: true,
+                                original_amount: true,
+                                requested_amount: true,
+                            },
+                        },
+                    },
+                    orderBy: {
+                        check_in_time: 'desc',
+                    },
+                    take: 1, // 最新の勤怠レコードのみ
+                },
             },
             orderBy: {
                 created_at: 'desc',
@@ -78,6 +97,9 @@ export async function getMyApplications(options?: { limit?: number; offset?: num
         return applications.map((app) => {
             const job = app.workDate.job;
             const workDate = app.workDate;
+            // 最新の勤怠レコードとその勤怠変更申請を取得
+            const latestAttendance = app.attendances?.[0];
+            const modificationRequest = latestAttendance?.modificationRequest;
 
             return {
                 id: app.id,
@@ -148,6 +170,16 @@ export async function getMyApplications(options?: { limit?: number; offset?: num
                         updated_at: job.facility.updated_at.toISOString(),
                     },
                 },
+                // 勤怠変更申請情報を追加
+                attendanceId: latestAttendance?.id ?? null,
+                modificationRequest: modificationRequest ? {
+                    id: modificationRequest.id,
+                    status: modificationRequest.status as 'PENDING' | 'APPROVED' | 'REJECTED' | 'RESUBMITTED',
+                    adminComment: modificationRequest.admin_comment,
+                    resubmitCount: modificationRequest.resubmit_count,
+                    originalAmount: modificationRequest.original_amount,
+                    requestedAmount: modificationRequest.requested_amount,
+                } : null,
             };
         });
     } catch (error) {

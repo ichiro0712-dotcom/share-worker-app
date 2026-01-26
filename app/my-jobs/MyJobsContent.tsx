@@ -1,14 +1,25 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { MapPin, Calendar, Clock, Star, X, AlertTriangle } from 'lucide-react';
+import { MapPin, Calendar, Clock, Star, X, AlertTriangle, RefreshCw, CheckCircle, XCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { getMyApplications, cancelApplicationByWorker, cancelAppliedApplication } from '@/src/lib/actions';
 import toast from 'react-hot-toast';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 type ApplicationStatus = 'APPLIED' | 'SCHEDULED' | 'WORKING' | 'COMPLETED_PENDING' | 'COMPLETED_RATED' | 'CANCELLED';
 type JobType = 'NORMAL' | 'LIMITED_WORKED' | 'LIMITED_FAVORITE' | 'ORIENTATION' | 'OFFER';
+type ModificationStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'RESUBMITTED';
+
+interface ModificationRequest {
+  id: number;
+  status: ModificationStatus;
+  adminComment: string | null;
+  resubmitCount: number;
+  originalAmount: number;
+  requestedAmount: number;
+}
 
 interface Application {
   id: number;
@@ -17,6 +28,8 @@ interface Application {
   created_at: string;
   worker_review_status: 'PENDING' | 'COMPLETED' | null;
   facility_review_status: 'PENDING' | 'COMPLETED' | null;
+  attendanceId?: number | null;
+  modificationRequest?: ModificationRequest | null;
   job: {
     id: number;
     title: string;
@@ -120,6 +133,18 @@ export function MyJobsContent({ initialTab }: MyJobsContentProps) {
       ORIENTATION: { text: '説明会', color: 'bg-teal-500 text-white' },
     };
     return badges[jobType as Exclude<JobType, 'NORMAL'>] || null;
+  };
+
+  // 勤怠変更申請ステータスバッジを取得
+  const getModificationStatusBadge = (status?: ModificationStatus) => {
+    if (!status) return null;
+    const badges: Record<ModificationStatus, { text: string; color: string; icon: typeof Clock }> = {
+      PENDING: { text: '申請中', color: 'bg-yellow-100 text-yellow-700', icon: Clock },
+      RESUBMITTED: { text: '再申請中', color: 'bg-yellow-100 text-yellow-700', icon: RefreshCw },
+      APPROVED: { text: '承認済', color: 'bg-green-100 text-green-700', icon: CheckCircle },
+      REJECTED: { text: '却下', color: 'bg-red-100 text-red-700', icon: XCircle },
+    };
+    return badges[status];
   };
 
   const handleCancelApplied = async () => {
@@ -375,8 +400,34 @@ export function MyJobsContent({ initialTab }: MyJobsContentProps) {
                   )}
 
                   {activeTab === 'completed_rated' && (
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs text-gray-500">評価済み</span>
+                    <div className="flex items-center gap-2">
+                      {/* 勤怠変更申請ステータスバッジ */}
+                      {app.modificationRequest && getModificationStatusBadge(app.modificationRequest.status) && (
+                        <span
+                          className={`flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded ${getModificationStatusBadge(app.modificationRequest.status)!.color}`}
+                        >
+                          {(() => {
+                            const Icon = getModificationStatusBadge(app.modificationRequest.status)!.icon;
+                            return <Icon className="w-3 h-3" />;
+                          })()}
+                          {getModificationStatusBadge(app.modificationRequest.status)!.text}
+                        </span>
+                      )}
+                      {/* 勤怠詳細ボタン */}
+                      {app.attendanceId && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(`/mypage/attendance/${app.attendanceId}`);
+                          }}
+                          className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
+                        >
+                          勤怠詳細
+                        </button>
+                      )}
+                      {!app.modificationRequest && !app.attendanceId && (
+                        <span className="text-xs text-gray-500">評価済み</span>
+                      )}
                     </div>
                   )}
                 </div>
@@ -387,6 +438,33 @@ export function MyJobsContent({ initialTab }: MyJobsContentProps) {
                     <p className="text-xs text-orange-600 flex items-center gap-1">
                       <span>※勤務終了までにレビューをお願いします</span>
                     </p>
+                  </div>
+                )}
+
+                {/* 勤怠変更申請が却下された場合の再申請案内 */}
+                {activeTab === 'completed_rated' && app.modificationRequest?.status === 'REJECTED' && (
+                  <div className="mt-2 pt-2 border-t border-gray-100">
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-2">
+                      <div className="flex items-start gap-2">
+                        <XCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                          <p className="text-xs font-bold text-red-800 mb-1">勤怠変更申請が却下されました</p>
+                          {app.modificationRequest.adminComment && (
+                            <p className="text-xs text-red-700 mb-2">
+                              却下理由: {app.modificationRequest.adminComment}
+                            </p>
+                          )}
+                          <Link
+                            href={`/attendance/modify?resubmit=${app.modificationRequest.id}&attendanceId=${app.attendanceId}`}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-primary text-white rounded hover:bg-primary/90 transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <RefreshCw className="w-3 h-3" />
+                            再申請する
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>

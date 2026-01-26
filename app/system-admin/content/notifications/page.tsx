@@ -76,6 +76,18 @@ const AVAILABLE_VARIABLES = [
     { key: '{{deadline}}', description: '締切日時' },
     { key: '{{review_url}}', description: 'レビュー投稿URL' },
     { key: '{{job_url}}', description: '求人詳細URL' },
+    // 勤怠変更申請関連
+    { key: '{{requested_start_time}}', description: '申請出勤時間' },
+    { key: '{{requested_end_time}}', description: '申請退勤時間' },
+    { key: '{{requested_break_time}}', description: '申請休憩時間' },
+    { key: '{{approved_start_time}}', description: '承認出勤時間' },
+    { key: '{{approved_end_time}}', description: '承認退勤時間' },
+    { key: '{{approved_break_time}}', description: '承認休憩時間' },
+    { key: '{{confirmed_wage}}', description: '確定報酬' },
+    { key: '{{admin_comment}}', description: '施設コメント' },
+    { key: '{{worker_comment}}', description: 'ワーカーコメント' },
+    { key: '{{approval_url}}', description: '承認URL' },
+    { key: '{{resubmit_url}}', description: '再申請URL' },
     // Alert keys
     { key: '{{user_name}}', description: 'ユーザー名' },
     { key: '{{user_id}}', description: 'ユーザーID' },
