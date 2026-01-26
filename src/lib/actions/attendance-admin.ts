@@ -367,12 +367,14 @@ export async function approveModificationRequest(
     });
 
     // 3. ワーカーへの通知
+    const applicationId = modification.attendance.application?.id;
     await sendNotification({
       notificationKey: 'ATTENDANCE_MODIFICATION_APPROVED',
       targetType: 'WORKER',
       recipientId: modification.attendance.user.id,
       recipientName: modification.attendance.user.name,
       recipientEmail: modification.attendance.user.email,
+      applicationId: applicationId,
       variables: {
         workDate: modification.attendance.application?.workDate.work_date
           ? new Date(modification.attendance.application.workDate.work_date).toLocaleDateString('ja-JP')
@@ -389,7 +391,13 @@ export async function approveModificationRequest(
         approvedBreakTime: String(modification.requested_break_time),
         confirmedWage: String(modification.requested_amount),
         adminComment: request.adminComment,
+        worker_name: modification.attendance.user.name,
       },
+      chatMessageData: applicationId ? {
+        jobId: modification.attendance.application!.workDate.job_id,
+        fromFacilityId: modification.attendance.facility_id,
+        toUserId: modification.attendance.user.id,
+      } : undefined,
     });
 
     return {
@@ -465,12 +473,14 @@ export async function rejectModificationRequest(
     });
 
     // 3. ワーカーへの通知
+    const applicationId = modification.attendance.application?.id;
     await sendNotification({
       notificationKey: 'ATTENDANCE_MODIFICATION_REJECTED',
       targetType: 'WORKER',
       recipientId: modification.attendance.user.id,
       recipientName: modification.attendance.user.name,
       recipientEmail: modification.attendance.user.email,
+      applicationId: applicationId,
       variables: {
         workDate: modification.attendance.application?.workDate.work_date
           ? new Date(modification.attendance.application.workDate.work_date).toLocaleDateString('ja-JP')
@@ -478,7 +488,13 @@ export async function rejectModificationRequest(
         facilityName: modification.attendance.facility.facility_name,
         adminComment: request.adminComment,
         resubmitUrl: `${process.env.NEXTAUTH_URL}/attendance/modify?resubmit=${modificationId}`,
+        worker_name: modification.attendance.user.name,
       },
+      chatMessageData: applicationId ? {
+        jobId: modification.attendance.application!.workDate.job_id,
+        fromFacilityId: modification.attendance.facility_id,
+        toUserId: modification.attendance.user.id,
+      } : undefined,
     });
 
     return {
