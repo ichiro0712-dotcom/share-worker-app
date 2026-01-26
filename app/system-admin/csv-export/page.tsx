@@ -19,7 +19,7 @@ type ExportTab = 'client' | 'job' | 'shift' | 'staff' | 'attendance';
 const TABS = [
   { id: 'client' as const, label: '取引先情報', icon: Building2, ready: true },
   { id: 'job' as const, label: '案件情報(代理)', icon: Briefcase, ready: true },
-  { id: 'shift' as const, label: '案件シフト表(代理)', icon: Calendar, ready: false },
+  { id: 'shift' as const, label: '案件シフト表(代理)', icon: Calendar, ready: true },
   { id: 'staff' as const, label: 'プールスタッフ情報', icon: Users, ready: false },
   { id: 'attendance' as const, label: '勤怠情報', icon: Clock, ready: false },
 ] as const;

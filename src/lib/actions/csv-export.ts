@@ -9,6 +9,7 @@ import { prisma } from '@/lib/prisma';
 import { requireSystemAdminAuth } from '@/lib/system-admin-session-server';
 import { generateClientInfoCsv } from '@/src/lib/csv-export/client-info-csv';
 import { generateJobInfoCsv } from '@/src/lib/csv-export/job-info-csv';
+import { generateShiftInfoCsv } from '@/src/lib/csv-export/shift-info-csv';
 import type {
   ClientInfoFilter,
   ClientInfoItem,
@@ -23,6 +24,13 @@ import type {
   GetJobInfoListResult,
   JobWithFacility,
 } from '@/app/system-admin/csv-export/job-info/types';
+import type {
+  ShiftInfoFilter,
+  ShiftInfoItem,
+  GetShiftInfoListParams,
+  GetShiftInfoListResult,
+  ShiftWithJobAndFacility,
+} from '@/app/system-admin/csv-export/shift-info/types';
 
 /**
  * 取引先情報フィルター用のWHERE条件を構築
@@ -168,7 +176,6 @@ function buildJobInfoWhere(filters: JobInfoFilter) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const where: any = {};
 
-  // 検索（案件名 OR 施設名 OR 法人名）
   if (filters.search) {
     where.OR = [
       { title: { contains: filters.search, mode: 'insensitive' } },
@@ -177,12 +184,10 @@ function buildJobInfoWhere(filters: JobInfoFilter) {
     ];
   }
 
-  // 案件名
   if (filters.jobTitle) {
     where.title = { contains: filters.jobTitle, mode: 'insensitive' };
   }
 
-  // 施設名
   if (filters.facilityName) {
     where.facility = {
       ...where.facility,
@@ -190,7 +195,6 @@ function buildJobInfoWhere(filters: JobInfoFilter) {
     };
   }
 
-  // 法人名
   if (filters.corporationName) {
     where.facility = {
       ...where.facility,
@@ -198,17 +202,14 @@ function buildJobInfoWhere(filters: JobInfoFilter) {
     };
   }
 
-  // 登録日（開始）
   if (filters.dateFrom) {
     where.created_at = { ...where.created_at, gte: new Date(filters.dateFrom) };
   }
 
-  // 登録日（終了）
   if (filters.dateTo) {
     where.created_at = { ...where.created_at, lte: new Date(filters.dateTo + 'T23:59:59') };
   }
 
-  // ステータス
   if (filters.status) {
     where.status = filters.status;
   }
@@ -216,11 +217,6 @@ function buildJobInfoWhere(filters: JobInfoFilter) {
   return where;
 }
 
-/**
- * 案件情報一覧取得
- * @param params ページ、件数、フィルター条件
- * @returns 案件一覧と総件数
- */
 export async function getJobInfoList(
   params: GetJobInfoListParams
 ): Promise<GetJobInfoListResult> {
@@ -228,7 +224,6 @@ export async function getJobInfoList(
 
   const { page, limit, filters } = params;
   const skip = (page - 1) * limit;
-
   const where = buildJobInfoWhere(filters);
 
   const [jobs, total] = await Promise.all([
@@ -269,11 +264,6 @@ export async function getJobInfoList(
   return { items, total };
 }
 
-/**
- * 案件情報CSV出力
- * @param filters フィルター条件
- * @returns CSV出力結果
- */
 export async function exportJobInfoCsv(
   filters: JobInfoFilter
 ): Promise<ExportCsvResult> {
@@ -282,7 +272,6 @@ export async function exportJobInfoCsv(
   try {
     const where = buildJobInfoWhere(filters);
 
-    // 全データ取得（CSV出力用、上限10000件）
     const jobs = await prisma.job.findMany({
       where,
       include: {
@@ -313,13 +302,9 @@ export async function exportJobInfoCsv(
     });
 
     if (jobs.length === 0) {
-      return {
-        success: false,
-        error: '出力対象のデータがありません',
-      };
+      return { success: false, error: '出力対象のデータがありません' };
     }
 
-    // JobWithFacility型に変換
     const jobsWithFacility: JobWithFacility[] = jobs.map((j) => ({
       id: j.id,
       created_at: j.created_at,
@@ -335,19 +320,162 @@ export async function exportJobInfoCsv(
       facility: j.facility,
     }));
 
-    // CSV生成
     const csvData = generateJobInfoCsv(jobsWithFacility);
-
-    return {
-      success: true,
-      csvData,
-      count: jobs.length,
-    };
+    return { success: true, csvData, count: jobs.length };
   } catch (error) {
     console.error('案件情報CSV出力エラー:', error);
-    return {
-      success: false,
-      error: 'CSV出力に失敗しました',
+    return { success: false, error: 'CSV出力に失敗しました' };
+  }
+}
+
+// ============================================
+// 案件シフト表(代理)出力
+// ============================================
+
+function buildShiftInfoWhere(filters: ShiftInfoFilter) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const where: any = {};
+
+  if (filters.search) {
+    where.OR = [
+      { job: { title: { contains: filters.search, mode: 'insensitive' } } },
+      { job: { facility: { facility_name: { contains: filters.search, mode: 'insensitive' } } } },
+    ];
+  }
+
+  if (filters.jobTitle) {
+    where.job = { ...where.job, title: { contains: filters.jobTitle, mode: 'insensitive' } };
+  }
+
+  if (filters.facilityName) {
+    where.job = {
+      ...where.job,
+      facility: { facility_name: { contains: filters.facilityName, mode: 'insensitive' } },
     };
+  }
+
+  if (filters.workDateFrom) {
+    where.work_date = { ...where.work_date, gte: new Date(filters.workDateFrom) };
+  }
+
+  if (filters.workDateTo) {
+    where.work_date = { ...where.work_date, lte: new Date(filters.workDateTo + 'T23:59:59') };
+  }
+
+  if (filters.dateFrom) {
+    where.created_at = { ...where.created_at, gte: new Date(filters.dateFrom) };
+  }
+
+  if (filters.dateTo) {
+    where.created_at = { ...where.created_at, lte: new Date(filters.dateTo + 'T23:59:59') };
+  }
+
+  return where;
+}
+
+export async function getShiftInfoList(
+  params: GetShiftInfoListParams
+): Promise<GetShiftInfoListResult> {
+  await requireSystemAdminAuth();
+
+  const { page, limit, filters } = params;
+  const skip = (page - 1) * limit;
+  const where = buildShiftInfoWhere(filters);
+
+  const [workDates, total] = await Promise.all([
+    prisma.jobWorkDate.findMany({
+      where,
+      select: {
+        id: true,
+        created_at: true,
+        work_date: true,
+        recruitment_count: true,
+        job: {
+          select: {
+            id: true,
+            title: true,
+            start_time: true,
+            end_time: true,
+            facility: {
+              select: {
+                facility_name: true,
+                corporation_name: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { work_date: 'desc' },
+      skip,
+      take: limit,
+    }),
+    prisma.jobWorkDate.count({ where }),
+  ]);
+
+  const items: ShiftInfoItem[] = workDates.map((wd) => ({
+    id: wd.id,
+    createdAt: wd.created_at,
+    workDate: wd.work_date,
+    jobId: wd.job.id,
+    jobTitle: wd.job.title,
+    facilityName: wd.job.facility.facility_name,
+    corporationName: wd.job.facility.corporation_name,
+    recruitmentCount: wd.recruitment_count,
+    startTime: wd.job.start_time,
+    endTime: wd.job.end_time,
+  }));
+
+  return { items, total };
+}
+
+export async function exportShiftInfoCsv(
+  filters: ShiftInfoFilter
+): Promise<ExportCsvResult> {
+  await requireSystemAdminAuth();
+
+  try {
+    const where = buildShiftInfoWhere(filters);
+
+    const workDates = await prisma.jobWorkDate.findMany({
+      where,
+      include: {
+        job: {
+          select: {
+            id: true,
+            title: true,
+            start_time: true,
+            end_time: true,
+            break_time: true,
+            facility: {
+              select: {
+                id: true,
+                facility_name: true,
+                corporation_name: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { work_date: 'desc' },
+      take: 10000,
+    });
+
+    if (workDates.length === 0) {
+      return { success: false, error: '出力対象のデータがありません' };
+    }
+
+    const shifts: ShiftWithJobAndFacility[] = workDates.map((wd) => ({
+      id: wd.id,
+      created_at: wd.created_at,
+      work_date: wd.work_date,
+      recruitment_count: wd.recruitment_count,
+      job: wd.job,
+    }));
+
+    const csvData = generateShiftInfoCsv(shifts);
+    return { success: true, csvData, count: workDates.length };
+  } catch (error) {
+    console.error('シフト情報CSV出力エラー:', error);
+    return { success: false, error: 'CSV出力に失敗しました' };
   }
 }
