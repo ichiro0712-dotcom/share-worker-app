@@ -558,6 +558,113 @@ const notificationSettings = [
     push_title: '新着メッセージ',
     push_body: '{{facility_name}}からメッセージが届きました',
   },
+  // 勤怠変更申請承認（ワーカー向け）
+  {
+    notification_key: 'ATTENDANCE_MODIFICATION_APPROVED',
+    name: '勤怠変更申請承認',
+    description: '勤怠変更申請が施設に承認された時に送信',
+    target_type: 'WORKER',
+    chat_enabled: true,
+    email_enabled: true,
+    push_enabled: true,
+    dashboard_enabled: false,
+    chat_message: `【勤怠変更申請が承認されました】
+
+勤務日: {{work_date}}
+施設: {{facility_name}}
+
+承認内容:
+- 出勤時間: {{approved_start_time}}
+- 退勤時間: {{approved_end_time}}
+- 休憩時間: {{approved_break_time}}分
+- 確定報酬: {{confirmed_wage}}円
+
+施設コメント:
+{{admin_comment}}`,
+    email_subject: '【+TASTAS】勤怠変更申請が承認されました',
+    email_body: `{{worker_name}}様
+
+勤怠変更申請が承認されました。
+
+━━━━━━━━━━━━━━━━━━━━━━
+■ 勤務情報
+━━━━━━━━━━━━━━━━━━━━━━
+勤務日: {{work_date}}
+施設: {{facility_name}}
+
+━━━━━━━━━━━━━━━━━━━━━━
+■ 承認内容
+━━━━━━━━━━━━━━━━━━━━━━
+出勤時間: {{approved_start_time}}
+退勤時間: {{approved_end_time}}
+休憩時間: {{approved_break_time}}分
+確定報酬: {{confirmed_wage}}円
+
+━━━━━━━━━━━━━━━━━━━━━━
+■ 施設コメント
+━━━━━━━━━━━━━━━━━━━━━━
+{{admin_comment}}
+
+給与は承認されたタイミングで給与管理に反映されます。
+
+──────────────────────────
++TASTAS 運営
+──────────────────────────`,
+    push_title: '勤怠変更申請が承認されました',
+    push_body: '{{facility_name}}の勤怠変更申請が承認されました',
+  },
+  // 勤怠変更申請却下（ワーカー向け）
+  {
+    notification_key: 'ATTENDANCE_MODIFICATION_REJECTED',
+    name: '勤怠変更申請却下',
+    description: '勤怠変更申請が施設に却下された時に送信',
+    target_type: 'WORKER',
+    chat_enabled: true,
+    email_enabled: true,
+    push_enabled: true,
+    dashboard_enabled: false,
+    chat_message: `【勤怠変更申請が却下されました】
+
+勤務日: {{work_date}}
+施設: {{facility_name}}
+
+却下理由:
+{{admin_comment}}
+
+内容を修正して再申請してください。
+{{resubmit_url}}`,
+    email_subject: '【+TASTAS】勤怠変更申請が却下されました',
+    email_body: `{{worker_name}}様
+
+勤怠変更申請が却下されました。
+
+━━━━━━━━━━━━━━━━━━━━━━
+■ 勤務情報
+━━━━━━━━━━━━━━━━━━━━━━
+勤務日: {{work_date}}
+施設: {{facility_name}}
+
+━━━━━━━━━━━━━━━━━━━━━━
+■ 却下理由
+━━━━━━━━━━━━━━━━━━━━━━
+{{admin_comment}}
+
+━━━━━━━━━━━━━━━━━━━━━━
+■ 再申請について
+━━━━━━━━━━━━━━━━━━━━━━
+内容を修正して再申請することができます。
+以下のURLから再申請してください。
+
+{{resubmit_url}}
+
+ご不明点があれば、施設にメッセージでお問い合わせください。
+
+──────────────────────────
++TASTAS 運営
+──────────────────────────`,
+    push_title: '勤怠変更申請が却下されました',
+    push_body: '{{facility_name}}の勤怠変更申請が却下されました。再申請してください。',
+  },
 
   // 施設向け
   {
@@ -778,6 +885,52 @@ const notificationSettings = [
 ──────────────────────────`,
     push_title: '新着メッセージ',
     push_body: '{{worker_name}}さんからメッセージが届きました',
+  },
+  // 勤怠変更申請（施設向け）
+  {
+    notification_key: 'ATTENDANCE_MODIFICATION_REQUESTED',
+    name: '勤怠変更申請',
+    description: 'ワーカーから勤怠変更申請があった時に送信',
+    target_type: 'FACILITY',
+    chat_enabled: false,
+    email_enabled: true,
+    push_enabled: true,
+    dashboard_enabled: true,
+    chat_message: null,
+    email_subject: '【+TASTAS】勤怠変更申請がありました',
+    email_body: `{{facility_name}}様
+
+{{worker_name}}様から勤怠変更申請がありました。
+
+━━━━━━━━━━━━━━━━━━━━━━
+■ 勤務情報
+━━━━━━━━━━━━━━━━━━━━━━
+勤務日: {{work_date}}
+ワーカー: {{worker_name}}
+
+━━━━━━━━━━━━━━━━━━━━━━
+■ 申請内容
+━━━━━━━━━━━━━━━━━━━━━━
+出勤時間: {{requested_start_time}}
+退勤時間: {{requested_end_time}}
+休憩時間: {{requested_break_time}}分
+
+━━━━━━━━━━━━━━━━━━━━━━
+■ ワーカーコメント
+━━━━━━━━━━━━━━━━━━━━━━
+{{worker_comment}}
+
+━━━━━━━━━━━━━━━━━━━━━━
+■ 承認・却下
+━━━━━━━━━━━━━━━━━━━━━━
+以下のURLから確認・承認してください。
+{{approval_url}}
+
+──────────────────────────
++TASTAS 運営
+──────────────────────────`,
+    push_title: '勤怠変更申請',
+    push_body: '{{worker_name}}様から勤怠変更申請がありました',
   },
   {
     notification_key: 'FACILITY_DEADLINE_WARNING',
