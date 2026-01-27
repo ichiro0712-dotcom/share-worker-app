@@ -8,6 +8,7 @@ import { prisma } from '@/lib/prisma';
 import { getAuthenticatedUser, getCurrentTime, getTodayStart } from './helpers';
 import { calculateSalary } from '@/src/lib/salary-calculator';
 import { sendNotification } from '@/src/lib/notification-service';
+import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 import {
   ATTENDANCE_ERROR_CODES,
   createAttendanceError,
@@ -34,16 +35,31 @@ import type {
 export async function recordAttendance(
   request: AttendanceRecordRequest
 ): Promise<AttendanceRecordResponse> {
+  let user: { id: number; email: string; name: string } | null = null;
   try {
-    const user = await getAuthenticatedUser();
+    user = await getAuthenticatedUser();
 
     if (request.type === 'check_in') {
-      return await processCheckIn(user.id, request);
+      return await processCheckIn(user.id, user.email, request);
     } else {
-      return await processCheckOut(user.id, request);
+      return await processCheckOut(user.id, user.email, request);
     }
   } catch (error) {
     console.error('[recordAttendance] Error:', error);
+
+    // エラーログ記録
+    logActivity({
+      userType: 'WORKER',
+      userId: user?.id,
+      userEmail: user?.email,
+      action: request.type === 'check_in' ? 'ATTENDANCE_CHECK_IN_FAILED' : 'ATTENDANCE_CHECK_OUT_FAILED',
+      targetType: 'Attendance',
+      requestData: { method: request.method, facilityId: request.facilityId },
+      result: 'ERROR',
+      errorMessage: getErrorMessage(error),
+      errorStack: getErrorStack(error),
+    }).catch(() => {});
+
     return {
       success: false,
       message: error instanceof Error ? error.message : '出退勤の記録に失敗しました',
@@ -56,11 +72,24 @@ export async function recordAttendance(
  */
 async function processCheckIn(
   userId: number,
+  userEmail: string,
   request: AttendanceRecordRequest
 ): Promise<AttendanceRecordResponse> {
   // 1. 施設の検証（QRコードまたは緊急番号）
   const facility = await validateAttendanceMethod(request);
   if (!facility) {
+    // 検証失敗をログ記録
+    logActivity({
+      userType: 'WORKER',
+      userId,
+      userEmail,
+      action: 'ATTENDANCE_CHECK_IN_FAILED',
+      targetType: 'Facility',
+      requestData: { method: request.method, facilityId: request.facilityId },
+      result: 'ERROR',
+      errorMessage: request.method === 'QR' ? 'QRコードが無効です' : '緊急番号が無効です',
+    }).catch(() => {});
+
     return createAttendanceError(
       request.method === 'QR'
         ? ATTENDANCE_ERROR_CODES.ATT001
@@ -103,6 +132,24 @@ async function processCheckIn(
     },
   });
 
+  // 出勤成功をログ記録
+  logActivity({
+    userType: 'WORKER',
+    userId,
+    userEmail,
+    action: 'ATTENDANCE_CHECK_IN',
+    targetType: 'Attendance',
+    targetId: attendance.id,
+    requestData: {
+      method: request.method,
+      facilityId: facility.id,
+      facilityName: facility.facility_name,
+      applicationId: application?.id,
+      isLate,
+    },
+    result: 'SUCCESS',
+  }).catch(() => {});
+
   return {
     success: true,
     attendanceId: attendance.id,
@@ -125,6 +172,7 @@ async function processCheckIn(
  */
 async function processCheckOut(
   userId: number,
+  userEmail: string,
   request: AttendanceRecordRequest
 ): Promise<AttendanceRecordResponse> {
   // 1. 出勤記録の取得
@@ -151,6 +199,18 @@ async function processCheckOut(
   });
 
   if (!attendance) {
+    // 出勤記録なしをログ記録
+    logActivity({
+      userType: 'WORKER',
+      userId,
+      userEmail,
+      action: 'ATTENDANCE_CHECK_OUT_FAILED',
+      targetType: 'Attendance',
+      requestData: { method: request.method },
+      result: 'ERROR',
+      errorMessage: '出勤記録が見つかりません',
+    }).catch(() => {});
+
     return createAttendanceError(ATTENDANCE_ERROR_CODES.ATT003) as unknown as AttendanceRecordResponse;
   }
 
@@ -235,6 +295,24 @@ async function processCheckOut(
         : {}),
     },
   });
+
+  // 退勤成功をログ記録
+  logActivity({
+    userType: 'WORKER',
+    userId,
+    userEmail,
+    action: 'ATTENDANCE_CHECK_OUT',
+    targetType: 'Attendance',
+    targetId: attendance.id,
+    requestData: {
+      method: request.method,
+      isLate,
+      usedEmergencyCode,
+      requiresModification,
+      calculatedWage,
+    },
+    result: 'SUCCESS',
+  }).catch(() => {});
 
   return {
     success: true,
@@ -391,6 +469,24 @@ export async function createModificationRequest(
       });
     }
 
+    // 成功をログ記録
+    logActivity({
+      userType: 'WORKER',
+      userId: user.id,
+      userEmail: user.email,
+      action: 'ATTENDANCE_MODIFY_CREATE',
+      targetType: 'AttendanceModificationRequest',
+      targetId: modification.id,
+      requestData: {
+        attendanceId: request.attendanceId,
+        facilityId: attendance.facility_id,
+        originalAmount,
+        requestedAmount,
+        difference: requestedAmount - originalAmount,
+      },
+      result: 'SUCCESS',
+    }).catch(() => {});
+
     return {
       success: true,
       modificationId: modification.id,
@@ -401,6 +497,18 @@ export async function createModificationRequest(
     };
   } catch (error) {
     console.error('[createModificationRequest] Error:', error);
+
+    // エラーをログ記録
+    logActivity({
+      userType: 'WORKER',
+      action: 'ATTENDANCE_MODIFY_CREATE_FAILED',
+      targetType: 'AttendanceModificationRequest',
+      requestData: { attendanceId: request.attendanceId },
+      result: 'ERROR',
+      errorMessage: getErrorMessage(error),
+      errorStack: getErrorStack(error),
+    }).catch(() => {});
+
     return {
       success: false,
       message: error instanceof Error ? error.message : '勤怠変更申請の作成に失敗しました',
@@ -517,6 +625,22 @@ export async function resubmitModificationRequest(
       });
     }
 
+    // 成功をログ記録
+    logActivity({
+      userType: 'WORKER',
+      userId: user.id,
+      userEmail: user.email,
+      action: 'ATTENDANCE_MODIFY_RESUBMIT',
+      targetType: 'AttendanceModificationRequest',
+      targetId: modificationId,
+      requestData: {
+        attendanceId: modification.attendance_id,
+        resubmitCount: modification.resubmit_count + 1,
+        requestedAmount,
+      },
+      result: 'SUCCESS',
+    }).catch(() => {});
+
     return {
       success: true,
       modificationId,
@@ -527,6 +651,18 @@ export async function resubmitModificationRequest(
     };
   } catch (error) {
     console.error('[resubmitModificationRequest] Error:', error);
+
+    // エラーをログ記録
+    logActivity({
+      userType: 'WORKER',
+      action: 'ATTENDANCE_MODIFY_RESUBMIT_FAILED',
+      targetType: 'AttendanceModificationRequest',
+      targetId: modificationId,
+      result: 'ERROR',
+      errorMessage: getErrorMessage(error),
+      errorStack: getErrorStack(error),
+    }).catch(() => {});
+
     return {
       success: false,
       message: error instanceof Error ? error.message : '再申請に失敗しました',
