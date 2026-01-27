@@ -1152,6 +1152,10 @@ model Attendance {
   // 給与計算結果（承認後に設定）
   calculated_wage   Int?      @map("calculated_wage")
 
+  // 監査情報
+  created_by      Int?      @map("created_by")   // 作成者のユーザーID
+  updated_by      Int?      @map("updated_by")   // 更新者のユーザーID
+
   created_at      DateTime  @default(now()) @map("created_at")
   updated_at      DateTime  @updatedAt @map("updated_at")
 
@@ -1198,6 +1202,10 @@ model AttendanceModificationRequest {
 
   // 再申請回数
   resubmit_count        Int       @default(0) @map("resubmit_count")
+
+  // 監査情報
+  created_by            Int?      @map("created_by")   // 作成者のユーザーID
+  updated_by            Int?      @map("updated_by")   // 更新者のユーザーID
 
   created_at            DateTime  @default(now()) @map("created_at")
   updated_at            DateTime  @updatedAt @map("updated_at")

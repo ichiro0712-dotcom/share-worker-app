@@ -351,6 +351,7 @@ export async function approveModificationRequest(
           admin_comment: request.adminComment,
           reviewed_by: facilityId,
           reviewed_at: getCurrentTime(),
+          updated_by: -facilityId, // 負の値 = 施設管理者による更新
         },
       });
 
@@ -362,6 +363,7 @@ export async function approveModificationRequest(
           actual_end_time: modification.requested_end_time,
           actual_break_time: modification.requested_break_time,
           calculated_wage: modification.requested_amount,
+          updated_by: -facilityId, // 負の値 = 施設管理者による更新
         },
       });
     });
@@ -469,6 +471,7 @@ export async function rejectModificationRequest(
         admin_comment: request.adminComment,
         reviewed_by: facilityId,
         reviewed_at: getCurrentTime(),
+        updated_by: -facilityId, // 負の値 = 施設管理者による更新
       },
     });
 

@@ -129,6 +129,7 @@ async function processCheckIn(
       check_in_lat: request.latitude ?? null,
       check_in_lng: request.longitude ?? null,
       status: 'CHECKED_IN',
+      created_by: userId,
     },
   });
 
@@ -284,6 +285,7 @@ async function processCheckOut(
       check_out_lat: request.latitude ?? null,
       check_out_lng: request.longitude ?? null,
       status: 'CHECKED_OUT',
+      updated_by: userId,
       // 定刻退勤の場合のみ実績を設定
       ...(actualStartTime && !requiresModification
         ? {
@@ -438,6 +440,7 @@ export async function createModificationRequest(
         status: 'PENDING',
         original_amount: originalAmount,
         requested_amount: requestedAmount,
+        created_by: user.id,
       },
     });
 
@@ -594,6 +597,7 @@ export async function resubmitModificationRequest(
         admin_comment: null,
         reviewed_by: null,
         reviewed_at: null,
+        updated_by: user.id,
       },
     });
 
