@@ -95,6 +95,26 @@ export type ActivityAction =
   | 'USER_SUSPEND'             // ユーザー停止
   | 'USER_UNSUSPEND'           // ユーザー停止解除
   | 'FACILITY_SUSPEND'         // 施設停止
+  // ========== 勤怠管理系 ==========
+  | 'ATTENDANCE_CHECK_IN'            // 出勤打刻
+  | 'ATTENDANCE_CHECK_IN_FAILED'     // 出勤打刻失敗
+  | 'ATTENDANCE_CHECK_OUT'           // 退勤打刻
+  | 'ATTENDANCE_CHECK_OUT_FAILED'    // 退勤打刻失敗
+  | 'ATTENDANCE_MODIFY_CREATE'       // 勤怠変更申請作成
+  | 'ATTENDANCE_MODIFY_CREATE_FAILED'// 勤怠変更申請作成失敗
+  | 'ATTENDANCE_MODIFY_RESUBMIT'     // 勤怠変更申請再提出
+  | 'ATTENDANCE_MODIFY_RESUBMIT_FAILED' // 勤怠変更申請再提出失敗
+  // ========== CSV出力系 ==========
+  | 'CSV_EXPORT_CLIENT'        // 取引先情報CSV出力
+  | 'CSV_EXPORT_CLIENT_FAILED' // 取引先情報CSV出力失敗
+  | 'CSV_EXPORT_JOB'           // 案件情報CSV出力
+  | 'CSV_EXPORT_JOB_FAILED'    // 案件情報CSV出力失敗
+  | 'CSV_EXPORT_SHIFT'         // シフト情報CSV出力
+  | 'CSV_EXPORT_SHIFT_FAILED'  // シフト情報CSV出力失敗
+  | 'CSV_EXPORT_STAFF'         // スタッフ情報CSV出力
+  | 'CSV_EXPORT_STAFF_FAILED'  // スタッフ情報CSV出力失敗
+  | 'CSV_EXPORT_ATTENDANCE'    // 勤怠情報CSV出力
+  | 'CSV_EXPORT_ATTENDANCE_FAILED' // 勤怠情報CSV出力失敗
   // ========== トレース用（DBには保存しない） ==========
   | 'PAGE_VIEW'                // ページ閲覧
   | 'SEARCH'                   // 検索実行

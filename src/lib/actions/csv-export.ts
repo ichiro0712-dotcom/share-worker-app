@@ -6,7 +6,8 @@
  */
 
 import { prisma } from '@/lib/prisma';
-import { requireSystemAdminAuth } from '@/lib/system-admin-session-server';
+import { requireSystemAdminAuth, getSystemAdminSessionData } from '@/lib/system-admin-session-server';
+import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 import { generateClientInfoCsv } from '@/src/lib/csv-export/client-info-csv';
 import { generateJobInfoCsv } from '@/src/lib/csv-export/job-info-csv';
 import { generateShiftInfoCsv } from '@/src/lib/csv-export/shift-info-csv';
@@ -146,6 +147,7 @@ export async function exportClientInfoCsv(
   filters: ClientInfoFilter
 ): Promise<ExportCsvResult> {
   await requireSystemAdminAuth();
+  const session = await getSystemAdminSessionData();
 
   try {
     const where = buildClientInfoWhere(filters);
@@ -167,6 +169,16 @@ export async function exportClientInfoCsv(
     // CSV生成
     const csvData = generateClientInfoCsv(facilities);
 
+    // 成功をログ記録
+    logActivity({
+      userType: 'FACILITY', // システム管理者として記録
+      userEmail: session?.email,
+      action: 'CSV_EXPORT_CLIENT',
+      targetType: 'Facility',
+      requestData: { filters, count: facilities.length },
+      result: 'SUCCESS',
+    }).catch(() => {});
+
     return {
       success: true,
       csvData,
@@ -174,6 +186,19 @@ export async function exportClientInfoCsv(
     };
   } catch (error) {
     console.error('CSV出力エラー:', error);
+
+    // エラーをログ記録
+    logActivity({
+      userType: 'FACILITY',
+      userEmail: session?.email,
+      action: 'CSV_EXPORT_CLIENT_FAILED',
+      targetType: 'Facility',
+      requestData: { filters },
+      result: 'ERROR',
+      errorMessage: getErrorMessage(error),
+      errorStack: getErrorStack(error),
+    }).catch(() => {});
+
     return {
       success: false,
       error: 'CSV出力に失敗しました',
@@ -284,6 +309,7 @@ export async function exportJobInfoCsv(
   filters: JobInfoFilter
 ): Promise<ExportCsvResult> {
   await requireSystemAdminAuth();
+  const session = await getSystemAdminSessionData();
 
   try {
     const where = buildJobInfoWhere(filters);
@@ -337,9 +363,33 @@ export async function exportJobInfoCsv(
     }));
 
     const csvData = generateJobInfoCsv(jobsWithFacility);
+
+    // 成功をログ記録
+    logActivity({
+      userType: 'FACILITY',
+      userEmail: session?.email,
+      action: 'CSV_EXPORT_JOB',
+      targetType: 'Job',
+      requestData: { filters, count: jobs.length },
+      result: 'SUCCESS',
+    }).catch(() => {});
+
     return { success: true, csvData, count: jobs.length };
   } catch (error) {
     console.error('案件情報CSV出力エラー:', error);
+
+    // エラーをログ記録
+    logActivity({
+      userType: 'FACILITY',
+      userEmail: session?.email,
+      action: 'CSV_EXPORT_JOB_FAILED',
+      targetType: 'Job',
+      requestData: { filters },
+      result: 'ERROR',
+      errorMessage: getErrorMessage(error),
+      errorStack: getErrorStack(error),
+    }).catch(() => {});
+
     return { success: false, error: 'CSV出力に失敗しました' };
   }
 }
@@ -448,6 +498,7 @@ export async function exportShiftInfoCsv(
   filters: ShiftInfoFilter
 ): Promise<ExportCsvResult> {
   await requireSystemAdminAuth();
+  const session = await getSystemAdminSessionData();
 
   try {
     const where = buildShiftInfoWhere(filters);
@@ -489,9 +540,33 @@ export async function exportShiftInfoCsv(
     }));
 
     const csvData = generateShiftInfoCsv(shifts);
+
+    // 成功をログ記録
+    logActivity({
+      userType: 'FACILITY',
+      userEmail: session?.email,
+      action: 'CSV_EXPORT_SHIFT',
+      targetType: 'JobWorkDate',
+      requestData: { filters, count: workDates.length },
+      result: 'SUCCESS',
+    }).catch(() => {});
+
     return { success: true, csvData, count: workDates.length };
   } catch (error) {
     console.error('シフト情報CSV出力エラー:', error);
+
+    // エラーをログ記録
+    logActivity({
+      userType: 'FACILITY',
+      userEmail: session?.email,
+      action: 'CSV_EXPORT_SHIFT_FAILED',
+      targetType: 'JobWorkDate',
+      requestData: { filters },
+      result: 'ERROR',
+      errorMessage: getErrorMessage(error),
+      errorStack: getErrorStack(error),
+    }).catch(() => {});
+
     return { success: false, error: 'CSV出力に失敗しました' };
   }
 }
@@ -668,9 +743,35 @@ export async function exportStaffInfoCsv(
     });
 
     const csvData = generateStaffInfoCsv(staffList);
+
+    // 成功をログ記録
+    const session = await getSystemAdminSessionData();
+    logActivity({
+      userType: 'FACILITY',
+      userEmail: session?.email,
+      action: 'CSV_EXPORT_STAFF',
+      targetType: 'User',
+      requestData: { filters, count: users.length },
+      result: 'SUCCESS',
+    }).catch(() => {});
+
     return { success: true, csvData, count: users.length };
   } catch (error) {
     console.error('スタッフ情報CSV出力エラー:', error);
+
+    // エラーをログ記録
+    const session = await getSystemAdminSessionData();
+    logActivity({
+      userType: 'FACILITY',
+      userEmail: session?.email,
+      action: 'CSV_EXPORT_STAFF_FAILED',
+      targetType: 'User',
+      requestData: { filters },
+      result: 'ERROR',
+      errorMessage: getErrorMessage(error),
+      errorStack: getErrorStack(error),
+    }).catch(() => {});
+
     return { success: false, error: 'CSV出力に失敗しました' };
   }
 }
@@ -775,6 +876,7 @@ export async function exportAttendanceInfoCsv(
   filters: AttendanceInfoFilter
 ): Promise<ExportCsvResult> {
   await requireSystemAdminAuth();
+  const session = await getSystemAdminSessionData();
 
   try {
     const where = buildAttendanceInfoWhere(filters);
@@ -836,9 +938,33 @@ export async function exportAttendanceInfoCsv(
     }));
 
     const csvData = generateAttendanceInfoCsv(attendanceList);
+
+    // 成功をログ記録
+    logActivity({
+      userType: 'FACILITY',
+      userEmail: session?.email,
+      action: 'CSV_EXPORT_ATTENDANCE',
+      targetType: 'Attendance',
+      requestData: { filters, count: attendances.length },
+      result: 'SUCCESS',
+    }).catch(() => {});
+
     return { success: true, csvData, count: attendances.length };
   } catch (error) {
     console.error('勤怠情報CSV出力エラー:', error);
+
+    // エラーをログ記録
+    logActivity({
+      userType: 'FACILITY',
+      userEmail: session?.email,
+      action: 'CSV_EXPORT_ATTENDANCE_FAILED',
+      targetType: 'Attendance',
+      requestData: { filters },
+      result: 'ERROR',
+      errorMessage: getErrorMessage(error),
+      errorStack: getErrorStack(error),
+    }).catch(() => {});
+
     return { success: false, error: 'CSV出力に失敗しました' };
   }
 }
