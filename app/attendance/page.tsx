@@ -122,12 +122,34 @@ function AttendanceScanPageContent() {
 
     fetchCheckInStatus();
 
-    return () => {
-      if (scannerRef.current && isScanning) {
-        scannerRef.current.stop().catch(console.error);
+    // ブラウザの戻るボタン対策: ページ離脱時にカメラを停止
+    const handleBeforeUnload = () => {
+      if (scannerRef.current) {
+        scannerRef.current.stop().catch(() => {});
       }
     };
-  }, [isAuthenticated, isLoading, router, isScanning, fetchCheckInStatus]);
+
+    // popstateイベント（ブラウザの戻る/進むボタン）対策
+    const handlePopState = () => {
+      if (scannerRef.current) {
+        scannerRef.current.stop().catch(() => {});
+        scannerRef.current = null;
+      }
+      setIsScanning(false);
+      setScanStatus('idle');
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('popstate', handlePopState);
+      if (scannerRef.current) {
+        scannerRef.current.stop().catch(() => {});
+      }
+    };
+  }, [isAuthenticated, isLoading, router, fetchCheckInStatus]);
 
   // QRコードスキャン開始（状態を変更してDOMを準備）
   const startScanning = () => {
