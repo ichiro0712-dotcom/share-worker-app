@@ -65,6 +65,25 @@ export async function getMyApplications(options?: { limit?: number; offset?: num
                         },
                     },
                 },
+                // 勤怠レコードと勤怠変更申請を含める
+                attendances: {
+                    include: {
+                        modificationRequest: {
+                            select: {
+                                id: true,
+                                status: true,
+                                admin_comment: true,
+                                resubmit_count: true,
+                                original_amount: true,
+                                requested_amount: true,
+                            },
+                        },
+                    },
+                    orderBy: {
+                        check_in_time: 'desc',
+                    },
+                    take: 1, // 最新の勤怠レコードのみ
+                },
             },
             orderBy: {
                 created_at: 'desc',
@@ -78,6 +97,9 @@ export async function getMyApplications(options?: { limit?: number; offset?: num
         return applications.map((app) => {
             const job = app.workDate.job;
             const workDate = app.workDate;
+            // 最新の勤怠レコードとその勤怠変更申請を取得
+            const latestAttendance = app.attendances?.[0];
+            const modificationRequest = latestAttendance?.modificationRequest;
 
             return {
                 id: app.id,
@@ -148,6 +170,16 @@ export async function getMyApplications(options?: { limit?: number; offset?: num
                         updated_at: job.facility.updated_at.toISOString(),
                     },
                 },
+                // 勤怠変更申請情報を追加
+                attendanceId: latestAttendance?.id ?? null,
+                modificationRequest: modificationRequest ? {
+                    id: modificationRequest.id,
+                    status: modificationRequest.status as 'PENDING' | 'APPROVED' | 'REJECTED' | 'RESUBMITTED',
+                    adminComment: modificationRequest.admin_comment,
+                    resubmitCount: modificationRequest.resubmit_count,
+                    originalAmount: modificationRequest.original_amount,
+                    requestedAmount: modificationRequest.requested_amount,
+                } : null,
             };
         });
     } catch (error) {
@@ -745,8 +777,9 @@ export async function cancelApplicationByWorker(applicationId: number) {
         const workDate = application.workDate.work_date;
         const startTime = application.workDate.job.start_time;
         const [hours, minutes] = startTime.split(':').map(Number);
-        const workStartDateTime = new Date(workDate);
-        workStartDateTime.setHours(hours, minutes, 0, 0);
+        // workDateのミリ秒値を基準に時刻を加算（タイムゾーン非依存）
+        const workDateMs = new Date(workDate).getTime();
+        const workStartDateTime = new Date(workDateMs + (hours * 60 + minutes) * 60 * 1000);
 
         const now = getCurrentTime();
         if (now >= workStartDateTime) return { success: false, error: '勤務開始時刻を過ぎているためキャンセルできません' };

@@ -80,8 +80,9 @@ async function processCheckIn(
     const workDate = application.workDate.work_date;
     const [startHour, startMinute] = job.start_time.split(':').map(Number);
 
-    scheduledStartTime = new Date(workDate);
-    scheduledStartTime.setHours(startHour, startMinute, 0, 0);
+    // workDateのミリ秒値を基準に時刻を加算（タイムゾーン非依存）
+    const workDateMs = new Date(workDate).getTime();
+    scheduledStartTime = new Date(workDateMs + (startHour * 60 + startMinute) * 60 * 1000);
 
     const now = getCurrentTime();
     isLate = now > scheduledStartTime;
@@ -160,8 +161,9 @@ async function processCheckOut(
     const workDate = attendance.application.workDate.work_date;
     const [startHour, startMinute] = job.start_time.split(':').map(Number);
 
-    const scheduledStartTime = new Date(workDate);
-    scheduledStartTime.setHours(startHour, startMinute, 0, 0);
+    // workDateのミリ秒値を基準に時刻を加算（タイムゾーン非依存）
+    const workDateMs = new Date(workDate).getTime();
+    const scheduledStartTime = new Date(workDateMs + (startHour * 60 + startMinute) * 60 * 1000);
 
     isLate = new Date(attendance.check_in_time) > scheduledStartTime;
   }
@@ -190,14 +192,14 @@ async function processCheckOut(
     const [endHour, endMinute] = job.end_time.split(':').map(Number);
     const breakTimeMinutes = parseInt(job.break_time, 10);
 
-    actualStartTime = new Date(workDate);
-    actualStartTime.setHours(startHour, startMinute, 0, 0);
+    // workDateのミリ秒値を基準に時刻を加算（タイムゾーン非依存）
+    const workDateMs = new Date(workDate).getTime();
+    actualStartTime = new Date(workDateMs + (startHour * 60 + startMinute) * 60 * 1000);
+    actualEndTime = new Date(workDateMs + (endHour * 60 + endMinute) * 60 * 1000);
 
-    actualEndTime = new Date(workDate);
-    actualEndTime.setHours(endHour, endMinute, 0, 0);
     // 終了時刻が開始時刻より前の場合は翌日
     if (actualEndTime <= actualStartTime) {
-      actualEndTime.setDate(actualEndTime.getDate() + 1);
+      actualEndTime = new Date(actualEndTime.getTime() + 24 * 60 * 60 * 1000);
     }
 
     actualBreakTime = breakTimeMinutes;
@@ -307,13 +309,24 @@ export async function createModificationRequest(
       const [endHour, endMinute] = job.end_time.split(':').map(Number);
       const breakTimeMinutes = parseInt(job.break_time, 10);
 
-      const scheduledStart = new Date(workDate);
-      scheduledStart.setHours(startHour, startMinute, 0, 0);
+      // workDateはDBにUTCで保存されているが、実際はJSTの日付の0時を表している
+      // 例: UTC 2026-01-25T15:00:00.000Z = JST 2026/1/26 00:00:00
+      // job.start_time/end_timeはJSTの時刻文字列（例: "06:00", "15:00"）
+      //
+      // 給与計算では実際のタイムスタンプは重要ではなく、勤務時間の長さが重要
+      // そのため、workDateを基準として時刻を加算する方式で計算する
+      // これにより、サーバーのタイムゾーンに依存しない一貫した計算が可能
 
-      const scheduledEnd = new Date(workDate);
-      scheduledEnd.setHours(endHour, endMinute, 0, 0);
+      const workDateMs = new Date(workDate).getTime();
+
+      // workDateからの経過ミリ秒として開始・終了時刻を計算
+      // workDateはJST 00:00を表すので、JST時刻をそのまま加算すればよい
+      const scheduledStart = new Date(workDateMs + (startHour * 60 + startMinute) * 60 * 1000);
+      let scheduledEnd = new Date(workDateMs + (endHour * 60 + endMinute) * 60 * 1000);
+
+      // 終了時刻が開始時刻以前の場合は翌日とみなす
       if (scheduledEnd <= scheduledStart) {
-        scheduledEnd.setDate(scheduledEnd.getDate() + 1);
+        scheduledEnd = new Date(scheduledEnd.getTime() + 24 * 60 * 60 * 1000);
       }
 
       const originalResult = calculateSalary({
@@ -591,8 +604,9 @@ export async function getCheckInStatus(): Promise<CheckInStatusResponse> {
       const workDate = attendance.application.workDate.work_date;
       const [startHour, startMinute] = job.start_time.split(':').map(Number);
 
-      const scheduledStartTime = new Date(workDate);
-      scheduledStartTime.setHours(startHour, startMinute, 0, 0);
+      // workDateのミリ秒値を基準に時刻を加算（タイムゾーン非依存）
+      const workDateMs = new Date(workDate).getTime();
+      const scheduledStartTime = new Date(workDateMs + (startHour * 60 + startMinute) * 60 * 1000);
 
       isLate = new Date(attendance.check_in_time) > scheduledStartTime;
     }
@@ -746,6 +760,168 @@ export async function getMyModificationRequests(): Promise<ModificationRequestDe
   } catch (error) {
     console.error('[getMyModificationRequests] Error:', error);
     return [];
+  }
+}
+
+/**
+ * 勤怠詳細（ワーカー向け）を取得
+ * - 勤務情報、打刻情報、勤怠変更申請の詳細を含む
+ */
+export interface AttendanceDetailForWorkerResponse {
+  success: boolean;
+  attendance?: {
+    id: number;
+    checkInTime: string;
+    checkOutTime: string | null;
+    checkInMethod: string;
+    checkOutMethod: string | null;
+    calculatedWage: number | null;
+    facility: {
+      id: number;
+      name: string;
+    };
+    application: {
+      id: number;
+      workDate: string;
+      job: {
+        id: number;
+        title: string;
+        startTime: string;
+        endTime: string;
+        breakTime: string;
+        hourlyWage: number;
+        transportationFee: number;
+        wage: number;
+      };
+    } | null;
+    modificationRequest: {
+      id: number;
+      status: string;
+      requestedStartTime: string;
+      requestedEndTime: string;
+      requestedBreakTime: number;
+      workerComment: string;
+      adminComment: string | null;
+      originalAmount: number;
+      requestedAmount: number;
+      resubmitCount: number;
+      createdAt: string;
+      reviewedAt: string | null;
+    } | null;
+    isLate: boolean;
+  };
+  message?: string;
+}
+
+export async function getAttendanceDetailForWorker(
+  attendanceId: number
+): Promise<AttendanceDetailForWorkerResponse> {
+  try {
+    const user = await getAuthenticatedUser();
+
+    const attendance = await prisma.attendance.findUnique({
+      where: { id: attendanceId },
+      include: {
+        facility: {
+          select: {
+            id: true,
+            facility_name: true,
+          },
+        },
+        application: {
+          include: {
+            workDate: {
+              include: {
+                job: {
+                  select: {
+                    id: true,
+                    title: true,
+                    start_time: true,
+                    end_time: true,
+                    break_time: true,
+                    hourly_wage: true,
+                    transportation_fee: true,
+                    wage: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        modificationRequest: true,
+      },
+    });
+
+    if (!attendance) {
+      return { success: false, message: '勤怠記録が見つかりません' };
+    }
+
+    if (attendance.user_id !== user.id) {
+      return { success: false, message: 'この勤怠記録にアクセスする権限がありません' };
+    }
+
+    // 遅刻判定
+    let isLate = false;
+    if (attendance.application) {
+      const job = attendance.application.workDate.job;
+      const workDate = attendance.application.workDate.work_date;
+      const [startHour, startMinute] = job.start_time.split(':').map(Number);
+      const workDateMs = new Date(workDate).getTime();
+      const scheduledStartTime = new Date(workDateMs + (startHour * 60 + startMinute) * 60 * 1000);
+      isLate = new Date(attendance.check_in_time) > scheduledStartTime;
+    }
+
+    return {
+      success: true,
+      attendance: {
+        id: attendance.id,
+        checkInTime: attendance.check_in_time.toISOString(),
+        checkOutTime: attendance.check_out_time?.toISOString() ?? null,
+        checkInMethod: attendance.check_in_method,
+        checkOutMethod: attendance.check_out_method,
+        calculatedWage: attendance.calculated_wage,
+        facility: {
+          id: attendance.facility.id,
+          name: attendance.facility.facility_name,
+        },
+        application: attendance.application
+          ? {
+              id: attendance.application.id,
+              workDate: attendance.application.workDate.work_date.toISOString(),
+              job: {
+                id: attendance.application.workDate.job.id,
+                title: attendance.application.workDate.job.title,
+                startTime: attendance.application.workDate.job.start_time,
+                endTime: attendance.application.workDate.job.end_time,
+                breakTime: attendance.application.workDate.job.break_time,
+                hourlyWage: attendance.application.workDate.job.hourly_wage,
+                transportationFee: attendance.application.workDate.job.transportation_fee,
+                wage: attendance.application.workDate.job.wage,
+              },
+            }
+          : null,
+        modificationRequest: attendance.modificationRequest
+          ? {
+              id: attendance.modificationRequest.id,
+              status: attendance.modificationRequest.status,
+              requestedStartTime: attendance.modificationRequest.requested_start_time.toISOString(),
+              requestedEndTime: attendance.modificationRequest.requested_end_time.toISOString(),
+              requestedBreakTime: attendance.modificationRequest.requested_break_time,
+              workerComment: attendance.modificationRequest.worker_comment,
+              adminComment: attendance.modificationRequest.admin_comment,
+              originalAmount: attendance.modificationRequest.original_amount,
+              requestedAmount: attendance.modificationRequest.requested_amount,
+              resubmitCount: attendance.modificationRequest.resubmit_count,
+              createdAt: attendance.modificationRequest.created_at.toISOString(),
+              reviewedAt: attendance.modificationRequest.reviewed_at?.toISOString() ?? null,
+            }
+          : null,
+        isLate,
+      },
+    };
+  } catch (error) {
+    console.error('[getAttendanceDetailForWorker] Error:', error);
+    return { success: false, message: '勤怠詳細の取得に失敗しました' };
   }
 }
 

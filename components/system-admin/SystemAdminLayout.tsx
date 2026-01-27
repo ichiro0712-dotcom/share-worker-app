@@ -20,6 +20,7 @@ import {
     ChevronLeft,
     ChevronRight,
     Clock,
+    FileSpreadsheet,
 } from 'lucide-react';
 
 interface SystemAdminLayoutProps {
@@ -103,6 +104,12 @@ export default function SystemAdminLayout({ children }: SystemAdminLayoutProps) 
             icon: <Clock className="w-5 h-5" />,
             href: '/system-admin/attendance',
             active: pathname?.startsWith('/system-admin/attendance'),
+        },
+        {
+            title: 'CSV出力',
+            icon: <FileSpreadsheet className="w-5 h-5" />,
+            href: '/system-admin/csv-export',
+            active: pathname?.startsWith('/system-admin/csv-export'),
         },
         {
             title: 'コンテンツ管理',

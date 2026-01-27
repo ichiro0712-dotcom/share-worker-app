@@ -22,6 +22,10 @@ export const metadata: Metadata = {
   title: "+TASTAS - 看護師・介護士のための求人マッチング",
   description: "看護師・介護士のための求人マッチングWebサービス",
   manifest: '/manifest.json',
+  icons: {
+    icon: '/favicon.ico',
+    apple: '/apple-touch-icon.png',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
