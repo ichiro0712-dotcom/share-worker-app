@@ -393,7 +393,7 @@ function AttendanceScanPageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen bg-gray-50 pb-24">
       <div className="bg-[#66cc99] text-white p-6">
         <h1 className="text-2xl font-bold mb-2">出退勤記録</h1>
         <p className="text-sm opacity-90">QRコードをスキャンしてください</p>
@@ -454,7 +454,7 @@ function AttendanceScanPageContent() {
               <div
                 id="qr-reader"
                 className="rounded-lg overflow-hidden mb-4"
-                style={{ width: '100%' }}
+                style={{ width: '100%', maxHeight: '300px' }}
               />
               <button
                 onClick={stopScanning}
