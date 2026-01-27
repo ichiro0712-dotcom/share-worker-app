@@ -36,18 +36,31 @@ export interface SalaryCalculationResult {
   breakdown: TimeBlock[];  // 時間帯別内訳
 }
 
-// 深夜時間帯の定義（22:00〜05:00）
+// 深夜時間帯の定義（22:00〜05:00）JST
 const NIGHT_START_HOUR = 22;
 const NIGHT_END_HOUR = 5;
 
 // 残業開始時間（8時間 = 480分）
 const OVERTIME_THRESHOLD_MINUTES = 8 * 60;
 
+// JSTオフセット（+9時間 = 540分 = 32400000ミリ秒）
+const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
+
 /**
- * 指定した時刻が深夜時間帯かどうかを判定
+ * DateオブジェクトからJSTの時間（0-23）を取得
+ * サーバーのタイムゾーンに依存しない
+ */
+function getJSTHour(date: Date): number {
+  // UTCタイムスタンプにJSTオフセットを加算してからUTC時間を取得
+  const jstTime = new Date(date.getTime() + JST_OFFSET_MS);
+  return jstTime.getUTCHours();
+}
+
+/**
+ * 指定した時刻が深夜時間帯かどうかを判定（JST基準）
  */
 function isNightTime(date: Date): boolean {
-  const hour = date.getHours();
+  const hour = getJSTHour(date);
   return hour >= NIGHT_START_HOUR || hour < NIGHT_END_HOUR;
 }
 
@@ -59,15 +72,28 @@ function getMinutesBetween(start: Date, end: Date): number {
 }
 
 /**
- * 日付を指定した時間に設定（同日または翌日）
+ * 日付を指定したJST時間に設定（同日または翌日）
+ * サーバーのタイムゾーンに依存しない
  */
-function setTimeOnDate(baseDate: Date, hour: number, isNextDay: boolean = false): Date {
-  const result = new Date(baseDate);
+function setTimeOnDate(baseDate: Date, jstHour: number, isNextDay: boolean = false): Date {
+  // baseDateのJST日付の0時0分を計算
+  const baseJstTime = new Date(baseDate.getTime() + JST_OFFSET_MS);
+  const baseJstYear = baseJstTime.getUTCFullYear();
+  const baseJstMonth = baseJstTime.getUTCMonth();
+  const baseJstDate = baseJstTime.getUTCDate();
+
+  // JST 00:00:00 のUTCタイムスタンプを計算
+  const jstMidnightUTC = Date.UTC(baseJstYear, baseJstMonth, baseJstDate, 0, 0, 0) - JST_OFFSET_MS;
+
+  // 指定したJST時間を加算
+  let resultMs = jstMidnightUTC + jstHour * 60 * 60 * 1000;
+
+  // 翌日の場合は24時間を加算
   if (isNextDay) {
-    result.setDate(result.getDate() + 1);
+    resultMs += 24 * 60 * 60 * 1000;
   }
-  result.setHours(hour, 0, 0, 0);
-  return result;
+
+  return new Date(resultMs);
 }
 
 /**
