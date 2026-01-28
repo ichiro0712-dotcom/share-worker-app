@@ -12,11 +12,11 @@ import { useRouter, useSearchParams } from 'next/navigation';
 // Error Boundary for iOS Safari routing issues
 class AttendanceErrorBoundary extends Component<
   { children: ReactNode; fallback: ReactNode },
-  { hasError: boolean }
+  { hasError: boolean; errorCount: number }
 > {
   constructor(props: { children: ReactNode; fallback: ReactNode }) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, errorCount: 0 };
   }
 
   static getDerivedStateFromError() {
@@ -25,9 +25,21 @@ class AttendanceErrorBoundary extends Component<
 
   componentDidCatch(error: Error) {
     console.error('AttendanceErrorBoundary caught error:', error);
-    // parallelRoutes エラーの場合はリロードで回復
+
+    // parallelRoutes エラーの場合
     if (error.message?.includes('parallelRoutes')) {
-      window.location.reload();
+      // 連続エラーを防ぐため、カウントを増やす
+      this.setState((prev) => ({ errorCount: prev.errorCount + 1 }));
+
+      // 3回以上エラーが発生したらリロード
+      if (this.state.errorCount >= 2) {
+        window.location.reload();
+      } else {
+        // 最初は状態リセットを試みる
+        setTimeout(() => {
+          this.setState({ hasError: false });
+        }, 100);
+      }
     }
   }
 
@@ -126,33 +138,79 @@ function AttendanceScanPageContent() {
     const handleBeforeUnload = () => {
       if (scannerRef.current) {
         scannerRef.current.stop().catch(() => {});
+        scannerRef.current = null;
       }
     };
 
     // popstateイベント（ブラウザの戻る/進むボタン）対策
-    const handlePopState = () => {
+    const handlePopState = (event: PopStateEvent) => {
+      // カメラが起動中の場合のみ処理
+      if (scannerRef.current || isScanning) {
+        // イベントをキャンセルして状態を復元
+        event.preventDefault();
+
+        // カメラを停止
+        if (scannerRef.current) {
+          try {
+            scannerRef.current.stop().catch(() => {});
+          } catch {
+            // エラーは無視
+          }
+          scannerRef.current = null;
+        }
+
+        // 状態をリセット
+        setIsScanning(false);
+        setScanStatus('idle');
+
+        // 履歴を元に戻す（戻るボタンの効果を打ち消す）
+        window.history.pushState(null, '', window.location.href);
+      }
+    };
+
+    // pagehideイベント（iOS Safari対策）
+    const handlePageHide = () => {
       if (scannerRef.current) {
-        scannerRef.current.stop().catch(() => {});
+        try {
+          scannerRef.current.stop().catch(() => {});
+        } catch {
+          // エラーは無視
+        }
         scannerRef.current = null;
       }
-      setIsScanning(false);
-      setScanStatus('idle');
+    };
+
+    // visibilitychangeイベント（タブ切り替え対策）
+    const handleVisibilityChange = () => {
+      if (document.hidden && scannerRef.current) {
+        scannerRef.current.stop().catch(() => {});
+        scannerRef.current = null;
+        setIsScanning(false);
+        setScanStatus('idle');
+      }
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     window.addEventListener('popstate', handlePopState);
+    window.addEventListener('pagehide', handlePageHide);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('pagehide', handlePageHide);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (scannerRef.current) {
         scannerRef.current.stop().catch(() => {});
+        scannerRef.current = null;
       }
     };
-  }, [isAuthenticated, isLoading, router, fetchCheckInStatus]);
+  }, [isAuthenticated, isLoading, router, fetchCheckInStatus, isScanning]);
 
   // QRコードスキャン開始（状態を変更してDOMを準備）
   const startScanning = () => {
+    // 履歴に状態を追加（戻るボタンでカメラを閉じるため）
+    window.history.pushState({ scanning: true }, '', window.location.href);
     setIsScanning(true);
     setScanStatus('scanning');
   };
@@ -248,15 +306,21 @@ function AttendanceScanPageContent() {
 
   // スキャン停止
   const stopScanning = async () => {
-    if (scannerRef.current && isScanning) {
+    // 履歴を戻す（pushStateで追加した分）
+    if (window.history.state?.scanning) {
+      window.history.back();
+    }
+
+    if (scannerRef.current) {
       try {
         await scannerRef.current.stop();
-        setIsScanning(false);
-        setScanStatus('idle');
       } catch (error) {
         console.error('スキャン停止エラー:', error);
       }
+      scannerRef.current = null;
     }
+    setIsScanning(false);
+    setScanStatus('idle');
   };
 
   // QRコードスキャン処理
