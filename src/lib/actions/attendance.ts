@@ -441,9 +441,9 @@ export async function createModificationRequest(
       },
     });
 
-    // 4. 施設への通知
+    // 4. 施設への通知（非同期で実行 - レスポンス遅延を防ぐため）
     if (attendance.facility) {
-      await sendNotification({
+      sendNotification({
         notificationKey: 'ATTENDANCE_MODIFICATION_REQUESTED',
         targetType: 'FACILITY',
         recipientId: attendance.facility.id,
@@ -466,7 +466,7 @@ export async function createModificationRequest(
           workerComment: request.workerComment,
           approvalUrl: `${process.env.NEXTAUTH_URL}/admin/tasks/attendance/${modification.id}`,
         },
-      });
+      }).catch((err) => console.error('[createModificationRequest] Notification error:', err));
     }
 
     // 成功をログ記録
@@ -597,9 +597,9 @@ export async function resubmitModificationRequest(
       },
     });
 
-    // 4. 施設への通知
+    // 4. 施設への通知（非同期で実行 - レスポンス遅延を防ぐため）
     if (modification.attendance.facility) {
-      await sendNotification({
+      sendNotification({
         notificationKey: 'ATTENDANCE_MODIFICATION_REQUESTED',
         targetType: 'FACILITY',
         recipientId: modification.attendance.facility.id,
@@ -622,7 +622,7 @@ export async function resubmitModificationRequest(
           workerComment: request.workerComment,
           approvalUrl: `${process.env.NEXTAUTH_URL}/admin/tasks/attendance/${modificationId}`,
         },
-      });
+      }).catch((err) => console.error('[resubmitModificationRequest] Notification error:', err));
     }
 
     // 成功をログ記録
