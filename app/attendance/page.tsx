@@ -486,8 +486,8 @@ function AttendanceScanPageContent() {
       </div>
 
       <div className="max-w-lg mx-auto p-6">
-        {/* 出勤状態表示 */}
-        {checkInStatus && <AttendanceStatus status={checkInStatus} />}
+        {/* 出勤状態表示（スキャン中は非表示にしてカメラ領域を確保） */}
+        {checkInStatus && !isScanning && <AttendanceStatus status={checkInStatus} />}
 
         {/* 出勤/退勤 切り替え */}
         <div className="bg-white rounded-xl shadow-sm p-4 mb-6">
@@ -594,8 +594,8 @@ function AttendanceScanPageContent() {
           )}
         </div>
 
-        {/* 緊急時番号入力 */}
-        {(scanStatus === 'idle' || scanStatus === 'scanning') && (
+        {/* 緊急時番号入力（スキャン中は非表示） */}
+        {scanStatus === 'idle' && (
           <div className="bg-white rounded-xl shadow-sm overflow-hidden mb-6">
             <button
               onClick={() => setShowEmergencyInput(!showEmergencyInput)}
@@ -627,16 +627,18 @@ function AttendanceScanPageContent() {
           </div>
         )}
 
-        {/* 使い方 */}
-        <div className="bg-blue-50 rounded-lg p-4">
-          <h3 className="font-bold text-blue-800 mb-2">使い方</h3>
-          <ol className="text-sm text-blue-700 space-y-1 list-decimal list-inside">
-            <li>「出勤」または「退勤」を選択してください</li>
-            <li>「QRコードをスキャン」ボタンをタップ</li>
-            <li>施設に掲示されているQRコードをカメラでスキャン</li>
-            <li>自動的に出退勤が記録されます</li>
-          </ol>
-        </div>
+        {/* 使い方（スキャン中は非表示） */}
+        {!isScanning && (
+          <div className="bg-blue-50 rounded-lg p-4">
+            <h3 className="font-bold text-blue-800 mb-2">使い方</h3>
+            <ol className="text-sm text-blue-700 space-y-1 list-decimal list-inside">
+              <li>「出勤」または「退勤」を選択してください</li>
+              <li>「QRコードをスキャン」ボタンをタップ</li>
+              <li>施設に掲示されているQRコードをカメラでスキャン</li>
+              <li>自動的に出退勤が記録されます</li>
+            </ol>
+          </div>
+        )}
       </div>
     </div>
   );
