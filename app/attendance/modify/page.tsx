@@ -280,8 +280,12 @@ function ModificationContent() {
 
       let response;
 
-      // 再申請の場合
-      if (resubmitIdParam && attendance.modificationRequest) {
+      // 再申請の場合（URLパラメータがある場合、または却下済み申請がある場合）
+      const shouldResubmit =
+        (resubmitIdParam && attendance.modificationRequest) ||
+        (attendance.modificationRequest?.status === 'REJECTED');
+
+      if (shouldResubmit && attendance.modificationRequest) {
         response = await resubmitModificationRequest(
           attendance.modificationRequest.id,
           {
@@ -334,7 +338,8 @@ function ModificationContent() {
 
   const job = attendance.application.workDate.job;
   const workDate = new Date(attendance.application.workDate.workDate);
-  const isResubmit = !!resubmitIdParam && attendance.modificationRequest?.status === 'REJECTED';
+  // 再申請モード: URLパラメータがある場合、または却下済み申請がある場合
+  const isResubmit = attendance.modificationRequest?.status === 'REJECTED';
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
