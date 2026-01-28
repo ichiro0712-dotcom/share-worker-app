@@ -340,10 +340,16 @@ async function processCheckOut(
 export async function createModificationRequest(
   request: CreateModificationRequest
 ): Promise<CreateModificationResponse> {
+  const startTime = Date.now();
+  console.log('[createModificationRequest] Start');
+
   try {
+    const t1 = Date.now();
     const user = await getAuthenticatedUser();
+    console.log(`[createModificationRequest] getAuthenticatedUser: ${Date.now() - t1}ms`);
 
     // 1. 勤怠記録の取得と権限確認
+    const t2 = Date.now();
     const attendance = await prisma.attendance.findUnique({
       where: { id: request.attendanceId },
       include: {
@@ -360,6 +366,7 @@ export async function createModificationRequest(
         modificationRequest: true,
       },
     });
+    console.log(`[createModificationRequest] findUnique: ${Date.now() - t2}ms`);
 
     if (!attendance) {
       return createAttendanceError(ATTENDANCE_ERROR_CODES.ATT003) as unknown as CreateModificationResponse;
@@ -428,6 +435,7 @@ export async function createModificationRequest(
     const requestedAmount = requestedResult.totalPay + transportationFee;
 
     // 3. 勤怠変更申請を作成
+    const t3 = Date.now();
     const modification = await prisma.attendanceModificationRequest.create({
       data: {
         attendance_id: request.attendanceId,
@@ -440,6 +448,7 @@ export async function createModificationRequest(
         requested_amount: requestedAmount,
       },
     });
+    console.log(`[createModificationRequest] create: ${Date.now() - t3}ms`);
 
     // 4. 施設への通知（非同期で実行 - レスポンス遅延を防ぐため）
     if (attendance.facility) {
@@ -487,6 +496,8 @@ export async function createModificationRequest(
       result: 'SUCCESS',
     }).catch(() => {});
 
+    console.log(`[createModificationRequest] Total: ${Date.now() - startTime}ms`);
+
     return {
       success: true,
       modificationId: modification.id,
@@ -496,7 +507,7 @@ export async function createModificationRequest(
       message: '勤怠変更申請を提出しました。',
     };
   } catch (error) {
-    console.error('[createModificationRequest] Error:', error);
+    console.error(`[createModificationRequest] Error after ${Date.now() - startTime}ms:`, error);
 
     // エラーをログ記録
     logActivity({
@@ -523,10 +534,16 @@ export async function resubmitModificationRequest(
   modificationId: number,
   request: UpdateModificationRequest
 ): Promise<CreateModificationResponse> {
+  const startTime = Date.now();
+  console.log('[resubmitModificationRequest] Start');
+
   try {
+    const t1 = Date.now();
     const user = await getAuthenticatedUser();
+    console.log(`[resubmitModificationRequest] getAuthenticatedUser: ${Date.now() - t1}ms`);
 
     // 1. 申請の取得と権限確認
+    const t2 = Date.now();
     const modification = await prisma.attendanceModificationRequest.findUnique({
       where: { id: modificationId },
       include: {
@@ -546,6 +563,7 @@ export async function resubmitModificationRequest(
         },
       },
     });
+    console.log(`[resubmitModificationRequest] findUnique: ${Date.now() - t2}ms`);
 
     if (!modification) {
       return { success: false, message: '勤怠変更申請が見つかりません' };
@@ -557,6 +575,7 @@ export async function resubmitModificationRequest(
 
     // 却下済み以外は再申請不可
     if (modification.status !== 'REJECTED') {
+      console.log(`[resubmitModificationRequest] Not REJECTED status: ${modification.status}`);
       return { success: false, message: '却下された申請のみ再申請できます' };
     }
 
@@ -581,6 +600,7 @@ export async function resubmitModificationRequest(
     const requestedAmount = requestedResult.totalPay + transportationFee;
 
     // 3. 再申請として更新
+    const t3 = Date.now();
     await prisma.attendanceModificationRequest.update({
       where: { id: modificationId },
       data: {
@@ -596,6 +616,7 @@ export async function resubmitModificationRequest(
         reviewed_at: null,
       },
     });
+    console.log(`[resubmitModificationRequest] update: ${Date.now() - t3}ms`);
 
     // 4. 施設への通知（非同期で実行 - レスポンス遅延を防ぐため）
     if (modification.attendance.facility) {
@@ -641,6 +662,8 @@ export async function resubmitModificationRequest(
       result: 'SUCCESS',
     }).catch(() => {});
 
+    console.log(`[resubmitModificationRequest] Total: ${Date.now() - startTime}ms`);
+
     return {
       success: true,
       modificationId,
@@ -650,7 +673,7 @@ export async function resubmitModificationRequest(
       message: '勤怠変更申請を再提出しました。',
     };
   } catch (error) {
-    console.error('[resubmitModificationRequest] Error:', error);
+    console.error(`[resubmitModificationRequest] Error after ${Date.now() - startTime}ms:`, error);
 
     // エラーをログ記録
     logActivity({
