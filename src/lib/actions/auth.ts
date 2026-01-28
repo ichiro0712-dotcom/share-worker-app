@@ -354,7 +354,7 @@ export async function requestPasswordReset(email: string): Promise<{ success: bo
         // 本番環境ではメールを送信、開発環境ではトークンを返す
         const isProduction = process.env.NODE_ENV === 'production';
         const APP_URL = process.env.NEXTAUTH_URL || 'https://tastas.jp';
-        const resetUrl = `${APP_URL}/password-reset/reset?token=${token}`;
+        const resetUrl = `${APP_URL}/password-reset/${token}`;
 
         if (isProduction || process.env.ENABLE_PASSWORD_RESET_EMAIL === 'true') {
             // メール送信
