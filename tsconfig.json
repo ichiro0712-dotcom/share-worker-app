@@ -37,6 +37,7 @@
     "node_modules",
     "UIbuckup_251123",
     "prisma/scripts",
+    "prisma/*.ts",
     "tests",
     "★buckup_2025_1209"
   ]
