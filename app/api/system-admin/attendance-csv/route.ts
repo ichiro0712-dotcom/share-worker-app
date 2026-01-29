@@ -240,13 +240,6 @@ export async function GET(request: NextRequest) {
 
   const encoder = new TextEncoder();
 
-  // デバッグ: DB接続先とwhere条件をログ出力
-  const dbUrl = process.env.DATABASE_URL || 'NOT SET';
-  const dbHost = dbUrl.includes('@') ? dbUrl.split('@')[1]?.split('/')[0] : 'unknown';
-  console.log('[attendance-csv] DB Host:', dbHost);
-  console.log('[attendance-csv] Request params:', { status, dateFrom, dateTo, facilityName, corporationName, workerSearch });
-  console.log('[attendance-csv] Where condition:', JSON.stringify(where, null, 2));
-
   const stream = new ReadableStream({
     async start(controller) {
       try {
@@ -255,7 +248,6 @@ export async function GET(request: NextRequest) {
 
         // 総件数を取得してバッチ処理
         const totalCount = await prisma.attendance.count({ where });
-        console.log('[attendance-csv] Total count:', totalCount);
         let processed = 0;
 
         while (processed < totalCount) {
@@ -302,21 +294,12 @@ export async function GET(request: NextRequest) {
             take: BATCH_SIZE,
           });
 
-          console.log(`[attendance-csv] Batch ${processed}: fetched ${batch.length} records`);
           if (batch.length === 0) break;
 
           // バッチ内の各行を即座に送信
-          for (let i = 0; i < batch.length; i++) {
-            const att = batch[i];
-            try {
-              const row = attendanceToRow(att);
-              const csvLine = formatRow(row);
-              controller.enqueue(encoder.encode(csvLine));
-              console.log(`[attendance-csv] Row ${i}: user_id=${att.user_id}, email=${att.user?.email}`);
-            } catch (rowError) {
-              console.error(`[attendance-csv] Row ${i} error:`, rowError);
-              console.error(`[attendance-csv] Row ${i} data:`, JSON.stringify(att, null, 2).slice(0, 500));
-            }
+          for (const att of batch) {
+            const row = attendanceToRow(att);
+            controller.enqueue(encoder.encode(formatRow(row)));
           }
 
           processed += batch.length;
