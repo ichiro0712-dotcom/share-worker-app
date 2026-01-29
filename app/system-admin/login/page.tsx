@@ -3,13 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSystemAuth } from '@/contexts/SystemAuthContext';
-import { Mail, Lock, Eye, EyeOff, Shield, UserCog } from 'lucide-react';
-
-// テスト用システム管理者
-const TEST_ADMINS = [
-    { email: 'admin@tastas.jp', password: 'password123', name: 'システム管理者', role: 'super_admin' },
-    { email: 'editor@tastas.jp', password: 'password123', name: '編集者', role: 'editor' },
-];
+import { Mail, Lock, Eye, EyeOff, Shield } from 'lucide-react';
 
 export default function SystemAdminLoginPage() {
     const router = useRouter();
@@ -19,11 +13,6 @@ export default function SystemAdminLoginPage() {
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-
-    const handleTestLogin = (testEmail: string, testPassword: string) => {
-        setEmail(testEmail);
-        setPassword(testPassword);
-    };
 
     // If already logged in, redirect
     if (isAdmin) {
@@ -134,34 +123,6 @@ export default function SystemAdminLoginPage() {
                             {isLoading ? 'ログイン中...' : 'ログイン'}
                         </button>
                     </form>
-                </div>
-
-                {/* テストシステム管理者 */}
-                <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
-                    <h3 className="font-semibold text-sm text-indigo-800 mb-3 flex items-center gap-2">
-                        <UserCog className="w-4 h-4" />
-                        テストシステム管理者でログイン
-                    </h3>
-                    <div className="space-y-2">
-                        {TEST_ADMINS.map((admin) => (
-                            <button
-                                key={admin.email}
-                                onClick={() => handleTestLogin(admin.email, admin.password)}
-                                className="w-full text-left px-3 py-2 bg-white border border-indigo-300 rounded text-sm hover:bg-indigo-50 transition-colors flex items-center gap-3"
-                            >
-                                <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0">
-                                    <Shield className="w-4 h-4 text-indigo-400" />
-                                </div>
-                                <div>
-                                    <div className="font-medium text-slate-700">{admin.name}</div>
-                                    <div className="text-xs text-slate-500">{admin.email} / {admin.role}</div>
-                                </div>
-                            </button>
-                        ))}
-                    </div>
-                    <p className="text-xs text-indigo-700 mt-3">
-                        ※ クリックで自動入力されます。「ログイン」ボタンを押してください。
-                    </p>
                 </div>
             </div>
         </div>
