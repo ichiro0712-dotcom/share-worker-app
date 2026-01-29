@@ -5,7 +5,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { getFacilityStaffName, getFacilitySidebarBadges, getFacilityInfo } from '@/src/lib/actions';
+import { getFacilityStaffName, getFacilitySidebarBadges, getFacilityInfo, getTermsAgreementStatus, agreeToTerms } from '@/src/lib/actions';
+import { FACILITY_TERMS_OF_SERVICE, TERMS_LAST_UPDATED } from '@/constants/terms';
 import toast from 'react-hot-toast';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import {
@@ -46,6 +47,10 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const { showDebugError } = useDebugError();
   const { admin, adminLogout } = useAuth();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  // 利用規約同意モーダル
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [isAgreeing, setIsAgreeing] = useState(false);
+  const [termsChecked, setTermsChecked] = useState(false);
 
   // サイドバー折りたたみ状態
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -128,6 +133,44 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     };
     fetchFacilityData();
   }, [admin?.facilityId]);
+
+  // 利用規約同意状態をチェック
+  useEffect(() => {
+    const checkTermsAgreement = async () => {
+      if (admin?.adminId && !isMasquerade && !isPending) {
+        try {
+          const result = await getTermsAgreementStatus(admin.adminId);
+          if (result.success && !result.hasAgreed) {
+            setShowTermsModal(true);
+          }
+        } catch (error) {
+          console.error('Failed to check terms agreement status:', error);
+        }
+      }
+    };
+    checkTermsAgreement();
+  }, [admin?.adminId, isMasquerade, isPending]);
+
+  // 利用規約同意処理
+  const handleAgreeToTerms = async () => {
+    if (!admin?.adminId || !termsChecked) return;
+
+    setIsAgreeing(true);
+    try {
+      const result = await agreeToTerms(admin.adminId);
+      if (result.success) {
+        setShowTermsModal(false);
+        toast.success('利用規約に同意しました');
+      } else {
+        toast.error(result.error || '同意の処理に失敗しました');
+      }
+    } catch (error) {
+      console.error('Failed to agree to terms:', error);
+      toast.error('同意の処理に失敗しました');
+    } finally {
+      setIsAgreeing(false);
+    }
+  };
 
   // 通知バッジを取得
   const fetchBadges = useCallback(async () => {
@@ -593,6 +636,49 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       {/* プッシュ通知許可プロンプト（ログイン済み施設管理者のみ） */}
       {admin && !isPending && !isMasquerade && (
         <NotificationPermissionPrompt userType="facility_admin" />
+      )}
+
+      {/* 利用規約同意モーダル */}
+      {showTermsModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/60"></div>
+          <div className="relative bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-900">利用規約への同意</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                サービスをご利用いただくには、利用規約に同意していただく必要があります。
+              </p>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 max-h-[50vh] overflow-y-auto">
+                <pre className="whitespace-pre-wrap text-sm text-gray-700 font-sans leading-relaxed">
+                  {FACILITY_TERMS_OF_SERVICE}
+                </pre>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">最終更新日: {TERMS_LAST_UPDATED}</p>
+            </div>
+            <div className="p-6 border-t border-gray-200">
+              <label className="flex items-start gap-3 mb-4">
+                <input
+                  type="checkbox"
+                  checked={termsChecked}
+                  onChange={(e) => setTermsChecked(e.target.checked)}
+                  className="mt-0.5 w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">
+                  上記の利用規約を確認し、同意します
+                </span>
+              </label>
+              <button
+                onClick={handleAgreeToTerms}
+                disabled={!termsChecked || isAgreeing}
+                className="w-full px-4 py-3 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {isAgreeing ? '処理中...' : '同意して利用を開始する'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

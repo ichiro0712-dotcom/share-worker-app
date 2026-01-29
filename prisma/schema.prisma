@@ -122,6 +122,9 @@ model FacilityAdmin {
   /// 更新者ID
   updated_by_id    Int?     @map("updated_by_id")
 
+  /// 利用規約同意日時
+  terms_agreed_at  DateTime?  @map("terms_agreed_at")
+
   @@map("facility_admins")
 }
 
