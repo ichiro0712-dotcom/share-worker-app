@@ -53,8 +53,8 @@ export default function VerifyEmailPage() {
           });
 
           if (signInResult?.ok) {
-            // ログイン成功 - ダッシュボードへリダイレクト
-            router.push('/jobs');
+            // ログイン成功 - 求人一覧ページへリダイレクト
+            router.push('/');
             return;
           }
 
