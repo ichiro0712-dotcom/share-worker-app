@@ -101,18 +101,18 @@ export async function GET(request: NextRequest) {
 
   if (search) {
     where.OR = [
-      { corporation_name: { contains: search } },
-      { facility_name: { contains: search } },
+      { corporation_name: { contains: search, mode: 'insensitive' } },
+      { facility_name: { contains: search, mode: 'insensitive' } },
     ];
   }
   if (corporationNumber) {
     where.corporation_number = { contains: corporationNumber };
   }
   if (corporationName) {
-    where.corporation_name = { contains: corporationName };
+    where.corporation_name = { contains: corporationName, mode: 'insensitive' };
   }
   if (facilityName) {
-    where.facility_name = { contains: facilityName };
+    where.facility_name = { contains: facilityName, mode: 'insensitive' };
   }
   if (dateFrom || dateTo) {
     where.created_at = {};

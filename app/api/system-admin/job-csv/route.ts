@@ -146,13 +146,13 @@ export async function GET(request: NextRequest) {
   const where: any = {};
   if (search) {
     where.OR = [
-      { title: { contains: search } },
-      { facility: { facility_name: { contains: search } } },
+      { title: { contains: search, mode: 'insensitive' } },
+      { facility: { facility_name: { contains: search, mode: 'insensitive' } } },
     ];
   }
-  if (jobTitle) where.title = { contains: jobTitle };
-  if (facilityName) where.facility = { ...where.facility, facility_name: { contains: facilityName } };
-  if (corporationName) where.facility = { ...where.facility, corporation_name: { contains: corporationName } };
+  if (jobTitle) where.title = { contains: jobTitle, mode: 'insensitive' };
+  if (facilityName) where.facility = { ...where.facility, facility_name: { contains: facilityName, mode: 'insensitive' } };
+  if (corporationName) where.facility = { ...where.facility, corporation_name: { contains: corporationName, mode: 'insensitive' } };
   if (dateFrom || dateTo) {
     where.created_at = {};
     if (dateFrom) where.created_at.gte = new Date(dateFrom);

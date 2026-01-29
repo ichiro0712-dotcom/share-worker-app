@@ -83,12 +83,12 @@ export async function GET(request: NextRequest) {
   const where: any = {};
   if (search) {
     where.OR = [
-      { job: { title: { contains: search } } },
-      { job: { facility: { facility_name: { contains: search } } } },
+      { job: { title: { contains: search, mode: 'insensitive' } } },
+      { job: { facility: { facility_name: { contains: search, mode: 'insensitive' } } } },
     ];
   }
-  if (jobTitle) where.job = { ...where.job, title: { contains: jobTitle } };
-  if (facilityName) where.job = { ...where.job, facility: { facility_name: { contains: facilityName } } };
+  if (jobTitle) where.job = { ...where.job, title: { contains: jobTitle, mode: 'insensitive' } };
+  if (facilityName) where.job = { ...where.job, facility: { facility_name: { contains: facilityName, mode: 'insensitive' } } };
   if (workDateFrom || workDateTo) {
     where.work_date = {};
     if (workDateFrom) where.work_date.gte = new Date(workDateFrom);

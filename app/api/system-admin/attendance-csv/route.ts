@@ -217,17 +217,23 @@ export async function GET(request: NextRequest) {
     if (dateTo) where.check_in_time.lte = new Date(dateTo);
   }
   if (facilityName) {
-    where.facility = { facility_name: { contains: facilityName } };
+    where.facility = {
+      ...where.facility,
+      facility_name: { contains: facilityName, mode: 'insensitive' },
+    };
   }
   if (corporationName) {
     where.facility = {
       ...where.facility,
-      corporation: { name: { contains: corporationName } },
+      corporation_name: { contains: corporationName, mode: 'insensitive' },
     };
   }
   if (workerSearch) {
     where.user = {
-      OR: [{ name: { contains: workerSearch } }, { email: { contains: workerSearch } }],
+      OR: [
+        { name: { contains: workerSearch, mode: 'insensitive' } },
+        { email: { contains: workerSearch, mode: 'insensitive' } },
+      ],
     };
   }
 

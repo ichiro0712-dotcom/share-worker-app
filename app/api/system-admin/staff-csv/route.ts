@@ -159,15 +159,15 @@ export async function GET(request: NextRequest) {
   const where: any = { role: 'worker' };
   if (search) {
     where.OR = [
-      { name: { contains: search } },
-      { email: { contains: search } },
+      { name: { contains: search, mode: 'insensitive' } },
+      { email: { contains: search, mode: 'insensitive' } },
       { phone_number: { contains: search } },
     ];
   }
   if (staffId) where.id = parseInt(staffId, 10) || 0;
-  if (name) where.name = { contains: name };
+  if (name) where.name = { contains: name, mode: 'insensitive' };
   if (phoneNumber) where.phone_number = { contains: phoneNumber };
-  if (email) where.email = { contains: email };
+  if (email) where.email = { contains: email, mode: 'insensitive' };
   if (dateFrom || dateTo) {
     where.created_at = {};
     if (dateFrom) where.created_at.gte = new Date(dateFrom);
