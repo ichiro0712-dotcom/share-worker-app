@@ -2,11 +2,13 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { BadgeProvider } from "@/contexts/BadgeContext";
+import { NetworkStatusProvider } from "@/contexts/NetworkStatusContext";
 import { Toaster } from "react-hot-toast";
 import MasqueradeBanner from "@/components/MasqueradeBanner";
 import { ErrorToastProvider } from '@/components/ui/PersistentErrorToast';
 import { DebugErrorProvider } from '@/components/debug/DebugErrorBanner';
 import { WorkerLayout } from '@/components/layout/WorkerLayout';
+import { OfflineBanner } from '@/components/ui/OfflineBanner';
 
 // Viewport設定（iOS safe-area対応 + themeColor）
 export const viewport: Viewport = {
@@ -41,19 +43,22 @@ export default function RootLayout({
   return (
     <html lang="ja">
       <body>
-        <DebugErrorProvider>
-          <ErrorToastProvider>
-            <AuthProvider>
-              <BadgeProvider>
-                <MasqueradeBanner />
-                <WorkerLayout>
-                  {children}
-                </WorkerLayout>
-              </BadgeProvider>
-            </AuthProvider>
-            <Toaster position="bottom-center" />
-          </ErrorToastProvider>
-        </DebugErrorProvider>
+        <NetworkStatusProvider>
+          <OfflineBanner />
+          <DebugErrorProvider>
+            <ErrorToastProvider>
+              <AuthProvider>
+                <BadgeProvider>
+                  <MasqueradeBanner />
+                  <WorkerLayout>
+                    {children}
+                  </WorkerLayout>
+                </BadgeProvider>
+              </AuthProvider>
+              <Toaster position="bottom-center" />
+            </ErrorToastProvider>
+          </DebugErrorProvider>
+        </NetworkStatusProvider>
       </body>
     </html>
   );

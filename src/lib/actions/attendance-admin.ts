@@ -364,6 +364,14 @@ export async function approveModificationRequest(
           calculated_wage: modification.requested_amount,
         },
       });
+
+      // ApplicationのステータスをCOMPLETED_RATEDに更新
+      if (modification.attendance.application_id) {
+        await tx.application.update({
+          where: { id: modification.attendance.application_id },
+          data: { status: 'COMPLETED_RATED' },
+        });
+      }
     });
 
     // 3. ワーカーへの通知
@@ -461,15 +469,25 @@ export async function rejectModificationRequest(
       return { success: false, message: 'この申請は既に処理済みです' };
     }
 
-    // 2. 申請を却下
-    await prisma.attendanceModificationRequest.update({
-      where: { id: modificationId },
-      data: {
-        status: 'REJECTED',
-        admin_comment: request.adminComment,
-        reviewed_by: facilityId,
-        reviewed_at: getCurrentTime(),
-      },
+    // 2. 申請を却下 & ApplicationステータスをCOMPLETED_RATEDに更新
+    await prisma.$transaction(async (tx) => {
+      await tx.attendanceModificationRequest.update({
+        where: { id: modificationId },
+        data: {
+          status: 'REJECTED',
+          admin_comment: request.adminComment,
+          reviewed_by: facilityId,
+          reviewed_at: getCurrentTime(),
+        },
+      });
+
+      // ApplicationのステータスをCOMPLETED_RATEDに更新（仕事管理の完了タブに表示するため）
+      if (modification.attendance.application_id) {
+        await tx.application.update({
+          where: { id: modification.attendance.application_id },
+          data: { status: 'COMPLETED_RATED' },
+        });
+      }
     });
 
     // 3. ワーカーへの通知
@@ -487,7 +505,7 @@ export async function rejectModificationRequest(
           : '',
         facility_name: modification.attendance.facility.facility_name,
         admin_comment: request.adminComment,
-        resubmit_url: `${process.env.NEXTAUTH_URL}/attendance/modify?resubmit=${modificationId}`,
+        resubmit_url: `${process.env.NEXTAUTH_URL}/attendance/modify?attendanceId=${modification.attendance.id}&resubmit=${modificationId}`,
         worker_name: modification.attendance.user.name,
       },
       chatMessageData: applicationId ? {

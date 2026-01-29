@@ -1,7 +1,7 @@
 'use client';
 
 import useSWR from 'swr';
-import { useMemo } from 'react';
+import { swrFetcher } from '@/lib/swr-fetcher';
 
 export interface Conversation {
     facilityId: number;
@@ -57,18 +57,13 @@ export interface MessagesResponse {
     hasMore: boolean;
 }
 
-const fetcher = async (url: string) => {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('Failed to fetch');
-    return res.json();
-};
-
 export function useConversations(fallbackData?: Conversation[]) {
     const { data, error, isLoading, mutate } = useSWR<Conversation[]>(
         '/api/messages/conversations',
-        fetcher,
+        swrFetcher,
         {
             revalidateOnFocus: true,
+            revalidateOnReconnect: true, // オンライン復帰時に再取得
             refreshInterval: 30000, // 30秒ごとに更新
             dedupingInterval: 5000, // 5秒間は重複リクエストを防止
             keepPreviousData: true, // 再検証中も前のデータを表示
@@ -87,9 +82,10 @@ export function useConversations(fallbackData?: Conversation[]) {
 export function useMessagesByFacility(facilityId: number | null) {
     const { data, error, isLoading, mutate } = useSWR<MessagesResponse>(
         facilityId ? `/api/messages/detail?facilityId=${facilityId}&markAsRead=true` : null,
-        fetcher,
+        swrFetcher,
         {
             revalidateOnFocus: true,
+            revalidateOnReconnect: true, // オンライン復帰時に再取得
             refreshInterval: 10000, // メッセージ画面表示中は10秒ごとに更新
             dedupingInterval: 3000, // 3秒間は重複リクエストを防止（詳細画面は頻繁に切り替わるため短め）
             keepPreviousData: true, // 再検証中も前のデータを表示（ちらつき防止）
@@ -107,9 +103,10 @@ export function useMessagesByFacility(facilityId: number | null) {
 export function useAnnouncements() {
     const { data, error, isLoading, mutate } = useSWR<Announcement[]>(
         '/api/messages/announcements',
-        fetcher,
+        swrFetcher,
         {
             revalidateOnFocus: true,
+            revalidateOnReconnect: true, // オンライン復帰時に再取得
             refreshInterval: 60000,
         }
     );

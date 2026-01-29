@@ -138,7 +138,7 @@ export async function sendNotification(params: SendNotificationParams): Promise<
             recipientName,
             title: replaceVariables(setting.push_title, variables),
             body: replaceVariables(setting.push_body, variables),
-            url: variables.job_url || variables.review_url || '/',
+            url: variables.job_url || variables.review_url || variables.resubmit_url || variables.message_url || '/',
         });
     }
 }
