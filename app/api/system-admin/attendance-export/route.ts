@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { generateAttendanceInfoCsv } from '@/src/lib/csv-export/attendance-info-csv';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,7 +12,11 @@ export async function POST(request: NextRequest) {
 }
 
 async function handleExport(request: NextRequest, method: string) {
+  // ステップごとにエラーを捕捉
+  let currentStep = 'init';
+
   try {
+    currentStep = 'parse-params';
     let dateFrom: string | null = null;
     let dateTo: string | null = null;
     let facilityId: number | null = null;
@@ -24,14 +26,14 @@ async function handleExport(request: NextRequest, method: string) {
     let status: string | null = null;
 
     if (method === 'GET') {
-      const { searchParams } = new URL(request.url);
-      dateFrom = searchParams.get('dateFrom');
-      dateTo = searchParams.get('dateTo');
-      facilityId = searchParams.get('facilityId') ? parseInt(searchParams.get('facilityId')!) : null;
-      facilityName = searchParams.get('facilityName');
-      corporationName = searchParams.get('corporationName');
-      workerSearch = searchParams.get('workerSearch');
-      status = searchParams.get('status');
+      const url = new URL(request.url);
+      dateFrom = url.searchParams.get('dateFrom');
+      dateTo = url.searchParams.get('dateTo');
+      facilityId = url.searchParams.get('facilityId') ? parseInt(url.searchParams.get('facilityId')!) : null;
+      facilityName = url.searchParams.get('facilityName');
+      corporationName = url.searchParams.get('corporationName');
+      workerSearch = url.searchParams.get('workerSearch');
+      status = url.searchParams.get('status');
     } else {
       const body = await request.json();
       dateFrom = body.dateFrom;
@@ -43,6 +45,10 @@ async function handleExport(request: NextRequest, method: string) {
       status = body.status;
     }
 
+    currentStep = 'import-prisma';
+    const { prisma } = await import('@/lib/prisma');
+
+    currentStep = 'build-where';
     const whereClause: any = {};
 
     // 期間フィルター
@@ -89,6 +95,7 @@ async function handleExport(request: NextRequest, method: string) {
       };
     }
 
+    currentStep = 'query-db';
     const attendances = await prisma.attendance.findMany({
       where: whereClause,
       include: {
@@ -129,6 +136,7 @@ async function handleExport(request: NextRequest, method: string) {
       },
     });
 
+    currentStep = 'transform-data';
     // CROSSNAVI連携用データ形式に変換
     const attendanceData = attendances.map((att) => ({
       id: att.id,
@@ -158,7 +166,10 @@ async function handleExport(request: NextRequest, method: string) {
       },
     }));
 
-    // CSV生成
+    currentStep = 'import-csv-generator';
+    const { generateAttendanceInfoCsv } = await import('@/src/lib/csv-export/attendance-info-csv');
+
+    currentStep = 'generate-csv';
     const csvData = generateAttendanceInfoCsv(attendanceData);
 
     return NextResponse.json({
@@ -167,11 +178,13 @@ async function handleExport(request: NextRequest, method: string) {
       count: attendances.length,
     });
   } catch (error) {
-    console.error('[attendance-export] Error:', error);
+    console.error(`[attendance-export] Error at step "${currentStep}":`, error);
     return NextResponse.json(
       {
         success: false,
         error: error instanceof Error ? error.message : 'エクスポートに失敗しました',
+        step: currentStep,
+        stack: error instanceof Error ? error.stack : undefined,
       },
       { status: 500 }
     );
