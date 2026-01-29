@@ -336,6 +336,7 @@ export async function exportAttendancesCsv(options: {
                     end_time: true,
                     break_time: true,
                     transportation_fee: true,
+                    hourly_wage: true,  // 時給（深夜・残業計算に必要）
                   },
                 },
               },
@@ -369,6 +370,7 @@ export async function exportAttendancesCsv(options: {
         end_time: att.application.workDate.job.end_time,
         break_time: att.application.workDate.job.break_time,
         transportation_fee: att.application.workDate.job.transportation_fee,
+        hourly_wage: att.application.workDate.job.hourly_wage,  // 時給追加
       } : null,
       facility: {
         id: att.facility.id,

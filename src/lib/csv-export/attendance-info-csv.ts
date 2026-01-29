@@ -1,9 +1,11 @@
 /**
  * 勤怠情報CSV生成
  * CROSSNAVI仕様（35項目）に準拠
+ * 深夜勤務（22:00-05:00）、時間外勤務（8h超）の計算対応
  */
 
-import { generateCsv, formatDateForCsv, formatTimeForCsv, calculateWorkingHours } from './utils';
+import { generateCsv, formatDateForCsv, formatTimeForCsv, calculateWorkingHours, formatMinutesToTime } from './utils';
+import { calculateSalary } from '@/src/lib/salary-calculator';
 import type { AttendanceWithDetails } from '@/app/system-admin/csv-export/attendance-info/types';
 
 /**
@@ -119,7 +121,7 @@ export function generateAttendanceInfoCsv(attendances: AttendanceWithDetails[]):
     const actualEnd = att.actual_end_time || att.check_out_time;
     const actualStartTime = formatDateTimeToTime(actualStart);
     const actualEndTime = formatDateTimeToTime(actualEnd);
-    const actualBreak = att.actual_break_time || breakMinutes;
+    const actualBreak = att.actual_break_time ?? breakMinutes;
 
     // 実働時間
     const actualHours = actualStartTime && actualEndTime
@@ -129,6 +131,31 @@ export function generateAttendanceInfoCsv(attendances: AttendanceWithDetails[]):
     // 遅刻・早退
     const lateTime = calculateLateTime(startTime, actualStart);
     const earlyLeaveTime = calculateEarlyLeaveTime(endTime, actualEnd);
+
+    // 深夜・残業時間の計算（時給情報が必要）
+    let overtimeMinutes = 0;
+    let nightMinutes = 0;
+    let normalMinutes = 0;
+    let hasOvertime = false;
+
+    // 実績がある場合のみ深夜・残業計算
+    if (actualStart && actualEnd && job?.hourly_wage) {
+      try {
+        const salaryResult = calculateSalary({
+          startTime: new Date(actualStart),
+          endTime: new Date(actualEnd),
+          breakMinutes: actualBreak,
+          hourlyRate: job.hourly_wage,
+        });
+        overtimeMinutes = salaryResult.overtimeMinutes;
+        nightMinutes = salaryResult.nightMinutes;
+        normalMinutes = salaryResult.workedMinutes - overtimeMinutes;
+        hasOvertime = overtimeMinutes > 0;
+      } catch (error) {
+        // 計算エラー時は0で出力
+        console.error('[generateAttendanceInfoCsv] Salary calculation error:', error);
+      }
+    }
 
     return [
       String(att.user_id), // 1. 就業者ID
@@ -143,7 +170,7 @@ export function generateAttendanceInfoCsv(attendances: AttendanceWithDetails[]):
       '0', // 10. 所定休憩(所定外)
       '0', // 11. 所定休憩(所定内深夜)
       '0', // 12. 所定休憩(所定外深夜)
-      '0', // 13. 時間外有無
+      hasOvertime ? '1' : '0', // 13. 時間外有無
       '0', // 14. 時間外単位区分
       '0:00', // 15. 時間外単位
       actualStartTime, // 16. 開始時間（実績）
@@ -154,10 +181,10 @@ export function generateAttendanceInfoCsv(attendances: AttendanceWithDetails[]):
       '0', // 21. 休憩(所定内深夜)
       '0', // 22. 休憩(所定外深夜)
       actualHours, // 23. 実働時間数
-      actualHours, // 24. 所定内勤務時間（実働と同じ）
-      '0:00', // 25. 所定外勤務時間
-      '0:00', // 26. 深夜勤務時間
-      '0:00', // 27. 所定外深夜勤務時間
+      formatMinutesToTime(normalMinutes), // 24. 所定内勤務時間
+      formatMinutesToTime(overtimeMinutes), // 25. 所定外勤務時間
+      formatMinutesToTime(nightMinutes), // 26. 深夜勤務時間
+      '0:00', // 27. 所定外深夜勤務時間（深夜残業は26に含む）
       '0:00', // 28. 45時間超え
       '0:00', // 29. 60時間超え
       '0:00', // 30. 45時間超え深夜
