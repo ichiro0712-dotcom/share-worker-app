@@ -110,7 +110,8 @@ function calculateEarlyLeaveTime(scheduledEnd: string, actualEnd: Date | null): 
  * 1件の勤怠データを CSV 行に変換
  */
 function attendanceToRow(att: any): (string | number)[] {
-  const job = att.application?.workDate?.job;
+  // job_idが直接設定されている場合はそちらを優先、なければapplication経由で取得
+  const job = att.job || att.application?.workDate?.job;
   const startTime = job ? formatTimeForCsv(job.start_time) : '';
   const endTime = job ? formatTimeForCsv(job.end_time) : '';
   const breakMinutes = job?.break_time ? parseInt(job.break_time, 10) || 0 : 0;
@@ -239,6 +240,10 @@ export async function GET(request: NextRequest) {
 
   const encoder = new TextEncoder();
 
+  // デバッグ: where条件をログ出力
+  console.log('[attendance-csv] Request params:', { status, dateFrom, dateTo, facilityName, corporationName, workerSearch });
+  console.log('[attendance-csv] Where condition:', JSON.stringify(where, null, 2));
+
   const stream = new ReadableStream({
     async start(controller) {
       try {
@@ -247,6 +252,7 @@ export async function GET(request: NextRequest) {
 
         // 総件数を取得してバッチ処理
         const totalCount = await prisma.attendance.count({ where });
+        console.log('[attendance-csv] Total count:', totalCount);
         let processed = 0;
 
         while (processed < totalCount) {
@@ -255,6 +261,19 @@ export async function GET(request: NextRequest) {
             include: {
               user: { select: { id: true, name: true, email: true } },
               facility: { select: { id: true, facility_name: true } },
+              // 直接紐づくjob（job_idがある場合）
+              job: {
+                select: {
+                  id: true,
+                  title: true,
+                  start_time: true,
+                  end_time: true,
+                  break_time: true,
+                  transportation_fee: true,
+                  hourly_wage: true,
+                },
+              },
+              // application経由のjob（job_idがnullの場合のフォールバック用）
               application: {
                 include: {
                   workDate: {
@@ -280,6 +299,7 @@ export async function GET(request: NextRequest) {
             take: BATCH_SIZE,
           });
 
+          console.log(`[attendance-csv] Batch ${processed}: fetched ${batch.length} records`);
           if (batch.length === 0) break;
 
           // バッチ内の各行を即座に送信
@@ -291,10 +311,17 @@ export async function GET(request: NextRequest) {
           processed += batch.length;
         }
 
+        console.log(`[attendance-csv] Completed: ${processed} records exported`);
         controller.close();
       } catch (error) {
         console.error('[attendance-csv] Stream error:', error);
-        controller.error(error);
+        console.error('[attendance-csv] Error details:', error instanceof Error ? error.stack : String(error));
+        // エラー時もストリームを閉じる
+        try {
+          controller.close();
+        } catch {
+          // already closed
+        }
       }
     },
   });
