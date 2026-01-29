@@ -171,15 +171,27 @@ export async function getAllAttendances(options?: {
           : 0;
 
         // 遅刻・早退・残業フラグの計算
+        // JST（日本時間）で比較するため、UTCからJSTに変換
         let isLate = false;
         let isEarlyLeave = false;
         let isOvertime = false;
 
+        // DateをJST時刻（時:分）に変換するヘルパー
+        const getJSTHoursMinutes = (date: Date): { hours: number; minutes: number } => {
+          // JSTはUTC+9
+          const jstOffset = 9 * 60; // 分
+          const utcMinutes = date.getUTCHours() * 60 + date.getUTCMinutes();
+          const jstMinutes = (utcMinutes + jstOffset) % (24 * 60);
+          return {
+            hours: Math.floor(jstMinutes / 60),
+            minutes: jstMinutes % 60,
+          };
+        };
+
         if (scheduledStartTime && att.actual_start_time) {
           const [schedH, schedM] = scheduledStartTime.split(':').map(Number);
           const actualStart = new Date(att.actual_start_time);
-          const actualH = actualStart.getHours();
-          const actualM = actualStart.getMinutes();
+          const { hours: actualH, minutes: actualM } = getJSTHoursMinutes(actualStart);
           // 実績開始が定刻より遅い場合は遅刻
           if (actualH * 60 + actualM > schedH * 60 + schedM) {
             isLate = true;
@@ -189,8 +201,7 @@ export async function getAllAttendances(options?: {
         if (scheduledEndTime && att.actual_end_time) {
           const [schedH, schedM] = scheduledEndTime.split(':').map(Number);
           const actualEnd = new Date(att.actual_end_time);
-          const actualH = actualEnd.getHours();
-          const actualM = actualEnd.getMinutes();
+          const { hours: actualH, minutes: actualM } = getJSTHoursMinutes(actualEnd);
           // 実績終了が定刻より早い場合は早退
           if (actualH * 60 + actualM < schedH * 60 + schedM) {
             isEarlyLeave = true;
