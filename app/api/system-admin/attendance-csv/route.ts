@@ -306,9 +306,17 @@ export async function GET(request: NextRequest) {
           if (batch.length === 0) break;
 
           // バッチ内の各行を即座に送信
-          for (const att of batch) {
-            const row = attendanceToRow(att);
-            controller.enqueue(encoder.encode(formatRow(row)));
+          for (let i = 0; i < batch.length; i++) {
+            const att = batch[i];
+            try {
+              const row = attendanceToRow(att);
+              const csvLine = formatRow(row);
+              controller.enqueue(encoder.encode(csvLine));
+              console.log(`[attendance-csv] Row ${i}: user_id=${att.user_id}, email=${att.user?.email}`);
+            } catch (rowError) {
+              console.error(`[attendance-csv] Row ${i} error:`, rowError);
+              console.error(`[attendance-csv] Row ${i} data:`, JSON.stringify(att, null, 2).slice(0, 500));
+            }
           }
 
           processed += batch.length;
