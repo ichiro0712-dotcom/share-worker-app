@@ -72,6 +72,32 @@ export async function getAllAttendances(options?: {
       }
     }
 
+    // 施設名で絞り込み（部分一致）
+    if (filter?.facilityName) {
+      whereClause.facility = {
+        ...whereClause.facility,
+        facility_name: { contains: filter.facilityName, mode: 'insensitive' },
+      };
+    }
+
+    // 法人名で絞り込み（部分一致）
+    if (filter?.corporationName) {
+      whereClause.facility = {
+        ...whereClause.facility,
+        corporation_name: { contains: filter.corporationName, mode: 'insensitive' },
+      };
+    }
+
+    // ワーカー名またはメールで絞り込み（部分一致）
+    if (filter?.workerSearch) {
+      whereClause.user = {
+        OR: [
+          { name: { contains: filter.workerSearch, mode: 'insensitive' } },
+          { email: { contains: filter.workerSearch, mode: 'insensitive' } },
+        ],
+      };
+    }
+
     // ソート
     const orderBy: any = {};
     if (options?.sort) {
@@ -96,6 +122,7 @@ export async function getAllAttendances(options?: {
             select: {
               id: true,
               facility_name: true,
+              corporation_name: true,
             },
           },
           application: {
@@ -136,33 +163,75 @@ export async function getAllAttendances(options?: {
     ]);
 
     return {
-      items: items.map((att) => ({
-        id: att.id,
-        userId: att.user_id,
-        userName: att.user.name,
-        userEmail: att.user.email,
-        facilityId: att.facility_id,
-        facilityName: att.facility.facility_name,
-        jobId: att.application?.workDate.job.id,
-        jobTitle: att.application?.workDate.job.title ?? '不明',
-        workDate: att.application?.workDate.work_date ?? att.check_in_time,
-        checkInTime: att.check_in_time,
-        checkOutTime: att.check_out_time,
-        checkInMethod: att.check_in_method,
-        checkOutMethod: att.check_out_method,
-        status: att.status,
-        actualStartTime: att.actual_start_time,
-        actualEndTime: att.actual_end_time,
-        actualBreakTime: att.actual_break_time,
-        calculatedWage: att.calculated_wage,
-        scheduledStartTime: att.application?.workDate.job.start_time,
-        scheduledEndTime: att.application?.workDate.job.end_time,
-        scheduledBreakTime: att.application?.workDate.job.break_time
+      items: items.map((att) => {
+        const scheduledStartTime = att.application?.workDate.job.start_time;
+        const scheduledEndTime = att.application?.workDate.job.end_time;
+        const scheduledBreakTime = att.application?.workDate.job.break_time
           ? parseInt(att.application.workDate.job.break_time)
-          : 0,
-        hasModificationRequest: !!att.modificationRequest,
-        modificationStatus: att.modificationRequest?.status,
-      })),
+          : 0;
+
+        // 遅刻・早退・残業フラグの計算
+        let isLate = false;
+        let isEarlyLeave = false;
+        let isOvertime = false;
+
+        if (scheduledStartTime && att.actual_start_time) {
+          const [schedH, schedM] = scheduledStartTime.split(':').map(Number);
+          const actualStart = new Date(att.actual_start_time);
+          const actualH = actualStart.getHours();
+          const actualM = actualStart.getMinutes();
+          // 実績開始が定刻より遅い場合は遅刻
+          if (actualH * 60 + actualM > schedH * 60 + schedM) {
+            isLate = true;
+          }
+        }
+
+        if (scheduledEndTime && att.actual_end_time) {
+          const [schedH, schedM] = scheduledEndTime.split(':').map(Number);
+          const actualEnd = new Date(att.actual_end_time);
+          const actualH = actualEnd.getHours();
+          const actualM = actualEnd.getMinutes();
+          // 実績終了が定刻より早い場合は早退
+          if (actualH * 60 + actualM < schedH * 60 + schedM) {
+            isEarlyLeave = true;
+          }
+          // 実績終了が定刻より遅い場合は残業
+          if (actualH * 60 + actualM > schedH * 60 + schedM) {
+            isOvertime = true;
+          }
+        }
+
+        return {
+          id: att.id,
+          userId: att.user_id,
+          userName: att.user.name,
+          userEmail: att.user.email,
+          facilityId: att.facility_id,
+          facilityName: att.facility.facility_name,
+          corporationName: att.facility.corporation_name,
+          jobId: att.application?.workDate.job.id,
+          jobTitle: att.application?.workDate.job.title ?? '不明',
+          workDate: att.application?.workDate.work_date ?? att.check_in_time,
+          checkInTime: att.check_in_time,
+          checkOutTime: att.check_out_time,
+          checkInMethod: att.check_in_method,
+          checkOutMethod: att.check_out_method,
+          status: att.status,
+          actualStartTime: att.actual_start_time,
+          actualEndTime: att.actual_end_time,
+          actualBreakTime: att.actual_break_time,
+          calculatedWage: att.calculated_wage,
+          scheduledStartTime,
+          scheduledEndTime,
+          scheduledBreakTime,
+          hasModificationRequest: !!att.modificationRequest,
+          modificationStatus: att.modificationRequest?.status,
+          // 遅刻・早退・残業フラグ
+          isLate,
+          isEarlyLeave,
+          isOvertime,
+        };
+      }),
       total,
     };
   } catch (error) {
