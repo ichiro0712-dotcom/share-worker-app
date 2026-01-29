@@ -232,6 +232,9 @@ export async function getAllAttendances(options?: {
           actualEndTime: att.actual_end_time,
           actualBreakTime: att.actual_break_time,
           calculatedWage: att.calculated_wage,
+          // 交通費と時給
+          transportationFee: att.application?.workDate.job.transportation_fee ?? 0,
+          hourlyWage: att.application?.workDate.job.hourly_wage ?? 0,
           scheduledStartTime,
           scheduledEndTime,
           scheduledBreakTime,
