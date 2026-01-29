@@ -134,29 +134,16 @@ export default function SystemAdminAttendancePage() {
       if (workerSearchFilter.trim()) params.set('workerSearch', workerSearchFilter.trim());
       if (statusFilter !== 'all') params.set('status', statusFilter);
 
+      // ストリーミングレスポンスを直接ダウンロード
       const url = `/api/system-admin/attendance-csv?${params.toString()}`;
-      const response = await fetch(url);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = ''; // サーバーからのContent-Dispositionヘッダーを使用
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
 
-      const result = await response.json();
-
-      if (result.success && result.csvData) {
-        // CSVダウンロード
-        const blob = new Blob(['\uFEFF' + result.csvData], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        const now = new Date();
-        const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
-        const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '');
-        link.download = `勤怠情報_${dateStr}_${timeStr}.csv`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-        toast.success(`${result.count}件のデータをCSV出力しました`);
-      } else {
-        toast.error(result.error || 'エクスポートに失敗しました');
-      }
+      toast.success(`CSVエクスポートを開始しました`);
     } catch (error) {
       console.error('エクスポートエラー:', error);
       toast.error('エクスポートに失敗しました');
