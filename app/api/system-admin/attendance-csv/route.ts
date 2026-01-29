@@ -199,7 +199,7 @@ function attendanceToRow(att: any): (string | number)[] {
  */
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
-  const status = url.searchParams.get('status') || 'CHECKED_OUT';
+  const status = url.searchParams.get('status'); // 未指定の場合は全件
   const dateFrom = url.searchParams.get('dateFrom');
   const dateTo = url.searchParams.get('dateTo');
   const facilityName = url.searchParams.get('facilityName');
@@ -207,7 +207,10 @@ export async function GET(request: NextRequest) {
   const workerSearch = url.searchParams.get('workerSearch');
 
   // WHERE 条件を構築
-  const where: any = { status };
+  const where: any = {};
+  if (status) {
+    where.status = status;
+  }
   if (dateFrom || dateTo) {
     where.check_in_time = {};
     if (dateFrom) where.check_in_time.gte = new Date(dateFrom);
