@@ -71,32 +71,26 @@ export default function ClientInfoExport() {
     setPage(1);
   };
 
-  // CSV出力
+  // CSV出力（ストリーミングAPI経由）
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      const result = await exportClientInfoCsv(filters);
+      const params = new URLSearchParams();
+      if (filters.search) params.set('search', filters.search);
+      if (filters.corporationNumber) params.set('corporationNumber', filters.corporationNumber);
+      if (filters.corporationName) params.set('corporationName', filters.corporationName);
+      if (filters.facilityName) params.set('facilityName', filters.facilityName);
+      if (filters.dateFrom) params.set('dateFrom', new Date(filters.dateFrom).toISOString());
+      if (filters.dateTo) params.set('dateTo', new Date(filters.dateTo + 'T23:59:59').toISOString());
 
-      if (result.success && result.csvData) {
-        // BOM付きUTF-8でダウンロード
-        const blob = new Blob(['\uFEFF' + result.csvData], {
-          type: 'text/csv;charset=utf-8;'
-        });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        const now = new Date();
-        const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
-        const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '');
-        link.download = `取引先情報_${dateStr}_${timeStr}.csv`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-        toast.success(`${result.count}件のデータをCSV出力しました`);
-      } else {
-        toast.error(result.error || 'CSV出力に失敗しました');
-      }
+      const link = document.createElement('a');
+      link.href = `/api/system-admin/client-csv?${params.toString()}`;
+      link.download = '';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast.success('CSVエクスポートを開始しました');
     } catch (error) {
       console.error('CSV出力エラー:', error);
       toast.error('CSV出力に失敗しました');

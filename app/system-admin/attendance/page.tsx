@@ -9,7 +9,6 @@ import { Download, Filter, RefreshCw, Calendar, Users, Clock, CircleDollarSign }
 import toast from 'react-hot-toast';
 import {
   getAllAttendances,
-  exportAttendancesCsv,
   getAttendanceStats,
 } from '@/src/lib/actions/attendance-system-admin';
 import { formatCurrency } from '@/src/lib/salary-calculator';
@@ -126,33 +125,25 @@ export default function SystemAdminAttendancePage() {
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      const result = await exportAttendancesCsv({
-        dateFrom: dateFrom ? new Date(dateFrom) : undefined,
-        dateTo: dateTo ? new Date(dateTo + 'T23:59:59') : undefined,
-        facilityName: facilityNameFilter.trim() || undefined,
-        corporationName: corporationNameFilter.trim() || undefined,
-        workerSearch: workerSearchFilter.trim() || undefined,
-        status: statusFilter !== 'all' ? statusFilter : undefined,
-      });
+      // クエリパラメータを構築
+      const params = new URLSearchParams();
+      if (dateFrom) params.set('dateFrom', new Date(dateFrom).toISOString());
+      if (dateTo) params.set('dateTo', new Date(dateTo + 'T23:59:59').toISOString());
+      if (facilityNameFilter.trim()) params.set('facilityName', facilityNameFilter.trim());
+      if (corporationNameFilter.trim()) params.set('corporationName', corporationNameFilter.trim());
+      if (workerSearchFilter.trim()) params.set('workerSearch', workerSearchFilter.trim());
+      if (statusFilter !== 'all') params.set('status', statusFilter);
 
-      if (result.success && result.csvData) {
-        // CSVダウンロード
-        const blob = new Blob(['\uFEFF' + result.csvData], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        const now = new Date();
-        const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
-        const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '');
-        link.download = `勤怠情報_${dateStr}_${timeStr}.csv`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-        toast.success(`${result.count}件のデータをCSV出力しました`);
-      } else {
-        toast.error(result.error || 'エクスポートに失敗しました');
-      }
+      // ストリーミングレスポンスを直接ダウンロード
+      const url = `/api/system-admin/attendance-csv?${params.toString()}`;
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = ''; // サーバーからのContent-Dispositionヘッダーを使用
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast.success(`CSVエクスポートを開始しました`);
     } catch (error) {
       console.error('エクスポートエラー:', error);
       toast.error('エクスポートに失敗しました');
