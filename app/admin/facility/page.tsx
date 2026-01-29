@@ -1184,10 +1184,10 @@ export default function FacilityPage() {
                   <PhoneNumberInput
                     value={corporateInfo.phone}
                     onChange={(value) => setCorporateInfo({ ...corporateInfo, phone: value })}
-                    placeholder="03-1234-5678"
+                    placeholder="0312345678"
                     className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent"
                   />
-                  <p className="text-xs text-gray-500 mt-1">※数字のみ入力（ハイフンは自動挿入）</p>
+                  <p className="text-xs text-gray-500 mt-1">※数字のみ（10桁または11桁）</p>
                 </div>
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1409,10 +1409,10 @@ export default function FacilityPage() {
                     <PhoneNumberInput
                       value={managerInfo.phone}
                       onChange={(value) => setManagerInfo({ ...managerInfo, phone: value })}
-                      placeholder="090-1234-5678"
+                      placeholder="09012345678"
                       className={`w-full max-w-xs px-2 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent ${showErrors && !managerInfo.phone ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                     />
-                    <p className="text-xs text-gray-500 mt-1">※数字のみ入力（ハイフンは自動挿入）</p>
+                    <p className="text-xs text-gray-500 mt-1">※数字のみ（10桁または11桁）</p>
                     {showErrors && !managerInfo.phone && (
                       <p className="text-red-500 text-xs mt-1">責任者の電話番号を入力してください</p>
                     )}
@@ -1608,10 +1608,10 @@ export default function FacilityPage() {
                     <PhoneNumberInput
                       value={staffInfo.phone}
                       onChange={(value) => setStaffInfo({ ...staffInfo, phone: value })}
-                      placeholder="090-1234-5678"
+                      placeholder="09012345678"
                       className={`w-full max-w-xs px-2 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-admin-primary focus:border-transparent ${showErrors && !staffInfo.phone ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                     />
-                    <p className="text-xs text-gray-500 mt-1">※数字のみ入力（ハイフンは自動挿入）</p>
+                    <p className="text-xs text-gray-500 mt-1">※数字のみ（10桁または11桁）</p>
                     {showErrors && !staffInfo.phone && (
                       <p className="text-red-500 text-xs mt-1">連絡先電話番号を入力してください</p>
                     )}

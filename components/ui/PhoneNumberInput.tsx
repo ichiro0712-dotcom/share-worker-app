@@ -9,16 +9,11 @@ interface PhoneNumberInputProps extends Omit<InputHTMLAttributes<HTMLInputElemen
 }
 
 /**
- * IME入力問題に対応した電話番号入力コンポーネント
+ * 電話番号入力コンポーネント
  *
- * 問題: 電話番号入力でformatPhoneNumber（ハイフン自動挿入）を
- * リアルタイムで適用すると、IME入力中に干渉して
- * 「勝手に文字が入力される」「カーソルが飛ぶ」問題が発生する。
- *
- * 解決策:
- * 1. onCompositionStart/Endを使用してIME入力中はフォーマット処理をスキップ
- * 2. onBlur時にもフォーマットを適用（ライブ変換の取りこぼし対策）
- * 3. 変換後の値が同じ場合はonChangeを呼ばない（無限ループ防止）
+ * - 数字のみを許可（全角数字は自動で半角に変換）
+ * - 最大11桁に制限
+ * - IME入力にも対応
  */
 export function PhoneNumberInput({ value, onChange, onBlur, ...props }: PhoneNumberInputProps) {
   // IME入力中かどうかを追跡

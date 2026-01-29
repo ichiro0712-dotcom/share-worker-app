@@ -225,7 +225,7 @@ export default function WorkerRegisterPage() {
 
     // 電話番号形式チェック
     if (!isValidPhoneNumber(formData.phoneNumber)) {
-      toast.error('電話番号は10桁または11桁の数字で入力してください（ハイフン可）');
+      toast.error('電話番号は10桁または11桁の数字で入力してください');
       return;
     }
 
@@ -532,13 +532,13 @@ export default function WorkerRegisterPage() {
                     required
                     value={formData.phoneNumber}
                     onChange={(value) => setFormData({ ...formData, phoneNumber: value })}
-                    placeholder="090-1234-5678"
+                    placeholder="09012345678"
                     className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.phoneNumber ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                   />
                   {showErrors && !formData.phoneNumber && (
                     <p className="text-red-500 text-xs mt-1">電話番号を入力してください</p>
                   )}
-                  <p className="text-xs text-gray-500 mt-1">※数字のみ入力（ハイフンは自動挿入）</p>
+                  <p className="text-xs text-gray-500 mt-1">※数字のみ（10桁または11桁）</p>
                 </div>
               </div>
 

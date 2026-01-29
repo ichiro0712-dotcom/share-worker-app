@@ -185,10 +185,10 @@ export default function SystemAdminNewFacilityPage() {
                                 name="phoneNumber"
                                 value={formData.phoneNumber}
                                 onChange={(value) => setFormData(prev => ({ ...prev, phoneNumber: value }))}
-                                placeholder="例: 03-1234-5678"
+                                placeholder="例: 0312345678"
                                 className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                             />
-                            <p className="text-xs text-gray-500 mt-1">※数字のみ入力（ハイフンは自動挿入）</p>
+                            <p className="text-xs text-gray-500 mt-1">※数字のみ（10桁または11桁）</p>
                         </div>
 
                         <div className="md:col-span-2 space-y-4 pt-2 border-t border-slate-50">
@@ -299,10 +299,10 @@ export default function SystemAdminNewFacilityPage() {
                                 name="adminPhone"
                                 value={formData.adminPhone}
                                 onChange={(value) => setFormData(prev => ({ ...prev, adminPhone: value }))}
-                                placeholder="例: 090-1234-5678"
+                                placeholder="例: 09012345678"
                                 className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                             />
-                            <p className="text-xs text-gray-500 mt-1">※数字のみ入力（ハイフンは自動挿入）</p>
+                            <p className="text-xs text-gray-500 mt-1">※数字のみ（10桁または11桁）</p>
                         </div>
 
                         <div className="md:col-span-2">
