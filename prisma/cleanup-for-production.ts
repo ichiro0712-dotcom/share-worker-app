@@ -145,7 +145,7 @@
  * ============================================================================
  */
 
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, Prisma } from '@prisma/client'
 import { config } from 'dotenv'
 
 // 環境変数を読み込む（.env.local → .env の順で読み込み）
@@ -320,7 +320,7 @@ async function dropForeignKeyConstraint(): Promise<void> {
  */
 async function executePhase<T>(
   phaseName: string,
-  operations: Promise<T>[],
+  operations: Prisma.PrismaPromise<T>[],
   labels: string[]
 ): Promise<T[]> {
   console.log(`\n📌 ${phaseName}`)

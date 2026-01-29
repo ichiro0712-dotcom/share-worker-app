@@ -137,9 +137,9 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   // 利用規約同意状態をチェック
   useEffect(() => {
     const checkTermsAgreement = async () => {
-      if (admin?.adminId && !isMasquerade && !isPending) {
+      if (admin?.id && !isMasquerade && !isPending) {
         try {
-          const result = await getTermsAgreementStatus(admin.adminId);
+          const result = await getTermsAgreementStatus(admin.id);
           if (result.success && !result.hasAgreed) {
             setShowTermsModal(true);
           }
@@ -149,15 +149,15 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       }
     };
     checkTermsAgreement();
-  }, [admin?.adminId, isMasquerade, isPending]);
+  }, [admin?.id, isMasquerade, isPending]);
 
   // 利用規約同意処理
   const handleAgreeToTerms = async () => {
-    if (!admin?.adminId || !termsChecked) return;
+    if (!admin?.id || !termsChecked) return;
 
     setIsAgreeing(true);
     try {
-      const result = await agreeToTerms(admin.adminId);
+      const result = await agreeToTerms(admin.id);
       if (result.success) {
         setShowTermsModal(false);
         toast.success('利用規約に同意しました');
