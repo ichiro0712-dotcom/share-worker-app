@@ -9,7 +9,6 @@ import { Download, Filter, RefreshCw, Calendar, Users, Clock, CircleDollarSign }
 import toast from 'react-hot-toast';
 import {
   getAllAttendances,
-  exportAttendancesCsv,
   getAttendanceStats,
 } from '@/src/lib/actions/attendance-system-admin';
 import { formatCurrency } from '@/src/lib/salary-calculator';
@@ -126,14 +125,22 @@ export default function SystemAdminAttendancePage() {
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      const result = await exportAttendancesCsv({
-        dateFrom: dateFrom ? new Date(dateFrom).toISOString() : undefined,
-        dateTo: dateTo ? new Date(dateTo + 'T23:59:59').toISOString() : undefined,
-        facilityName: facilityNameFilter.trim() || undefined,
-        corporationName: corporationNameFilter.trim() || undefined,
-        workerSearch: workerSearchFilter.trim() || undefined,
-        status: statusFilter !== 'all' ? statusFilter : undefined,
+      const response = await fetch('/api/system-admin/attendance-export', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          dateFrom: dateFrom ? new Date(dateFrom).toISOString() : undefined,
+          dateTo: dateTo ? new Date(dateTo + 'T23:59:59').toISOString() : undefined,
+          facilityName: facilityNameFilter.trim() || undefined,
+          corporationName: corporationNameFilter.trim() || undefined,
+          workerSearch: workerSearchFilter.trim() || undefined,
+          status: statusFilter !== 'all' ? statusFilter : undefined,
+        }),
       });
+
+      const result = await response.json();
 
       if (result.success && result.csvData) {
         // CSVダウンロード
