@@ -72,24 +72,29 @@ export default function AttendanceInfoExport() {
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      const result = await exportAttendanceInfoCsv(filters);
-      if (result.success && result.csvData) {
-        const blob = new Blob(['\uFEFF' + result.csvData], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        const now = new Date();
-        const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
-        const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '');
-        link.download = `勤怠情報_${dateStr}_${timeStr}.csv`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-        toast.success(`${result.count}件のデータをCSV出力しました`);
-      } else {
-        toast.error(result.error || 'CSV出力に失敗しました');
+      const params = new URLSearchParams();
+      if (filters.userName) params.set('workerSearch', filters.userName);
+      if (filters.facilityName) params.set('facilityName', filters.facilityName);
+      if (filters.workDateFrom) params.set('dateFrom', new Date(filters.workDateFrom).toISOString());
+      if (filters.workDateTo) params.set('dateTo', new Date(filters.workDateTo + 'T23:59:59').toISOString());
+      if (filters.status) {
+        // ステータスをAPI用に変換
+        const statusMap: Record<string, string> = {
+          checked_in: 'CHECKED_IN',
+          checked_out: 'CHECKED_OUT',
+        };
+        const apiStatus = statusMap[filters.status] || filters.status.toUpperCase();
+        params.set('status', apiStatus);
       }
+
+      const link = document.createElement('a');
+      link.href = `/api/system-admin/attendance-csv?${params.toString()}`;
+      link.download = '';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast.success('CSVエクスポートを開始しました');
     } catch (error) {
       console.error('CSV出力エラー:', error);
       toast.error('CSV出力に失敗しました');

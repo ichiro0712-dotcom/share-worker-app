@@ -65,24 +65,23 @@ export default function StaffInfoExport() {
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      const result = await exportStaffInfoCsv(filters);
-      if (result.success && result.csvData) {
-        const blob = new Blob(['\uFEFF' + result.csvData], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        const now = new Date();
-        const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
-        const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '');
-        link.download = `プールスタッフ情報_${dateStr}_${timeStr}.csv`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-        toast.success(`${result.count}件のデータをCSV出力しました`);
-      } else {
-        toast.error(result.error || 'CSV出力に失敗しました');
-      }
+      const params = new URLSearchParams();
+      if (filters.search) params.set('search', filters.search);
+      if (filters.staffId) params.set('staffId', filters.staffId);
+      if (filters.name) params.set('name', filters.name);
+      if (filters.phoneNumber) params.set('phoneNumber', filters.phoneNumber);
+      if (filters.email) params.set('email', filters.email);
+      if (filters.dateFrom) params.set('dateFrom', new Date(filters.dateFrom).toISOString());
+      if (filters.dateTo) params.set('dateTo', new Date(filters.dateTo + 'T23:59:59').toISOString());
+
+      const link = document.createElement('a');
+      link.href = `/api/system-admin/staff-csv?${params.toString()}`;
+      link.download = '';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast.success('CSVエクスポートを開始しました');
     } catch (error) {
       console.error('CSV出力エラー:', error);
       toast.error('CSV出力に失敗しました');
