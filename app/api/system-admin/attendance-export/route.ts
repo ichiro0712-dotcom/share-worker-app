@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { generateAttendanceInfoCsv } from '@/src/lib/csv-export/attendance-info-csv';
 
 export async function GET(request: NextRequest) {
   try {
-    // Step 1: Parse URL
     const url = new URL(request.url);
     const status = url.searchParams.get('status') || 'CHECKED_OUT';
 
-    // Step 2: Import prisma
-    const { prisma } = await import('@/lib/prisma');
-
-    // Step 3: Query database
     const attendances = await prisma.attendance.findMany({
       where: { status },
       include: {
@@ -33,7 +30,6 @@ export async function GET(request: NextRequest) {
       orderBy: { check_in_time: 'asc' },
     });
 
-    // Step 4: Transform data
     const attendanceData = attendances.map((att) => ({
       id: att.id,
       user_id: att.user_id,
@@ -56,8 +52,6 @@ export async function GET(request: NextRequest) {
       facility: { id: att.facility.id, facility_name: att.facility.facility_name },
     }));
 
-    // Step 5: Generate CSV
-    const { generateAttendanceInfoCsv } = await import('@/src/lib/csv-export/attendance-info-csv');
     const csvData = generateAttendanceInfoCsv(attendanceData);
 
     return NextResponse.json({
