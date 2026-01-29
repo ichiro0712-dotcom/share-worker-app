@@ -1,11 +1,33 @@
 /**
  * CSV出力テスト用の勤怠データを作成
- * 様々なパターン（通常、残業、深夜、深夜残業、遅刻、早退）
+ * フラグ判定が正確に確認できるよう、明確なパターンでデータを作成
+ *
+ * パターン:
+ * 1. 通常勤務（定刻通り）- フラグなし
+ * 2. 遅刻30分 - 遅刻フラグ
+ * 3. 早退30分 - 早退フラグ
+ * 4. 残業1時間 - 残業フラグ
+ * 5. 深夜勤務（定刻通り）- フラグなし
  */
 
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
+
+/**
+ * JST時刻をUTCのDateオブジェクトに変換
+ * @param date 日付部分（Date）
+ * @param timeStr 時刻文字列（HH:MM形式、JST）
+ * @param addDays 日付をずらす場合（翌日なら1）
+ */
+function jstToUtc(date: Date, timeStr: string, addDays = 0): Date {
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  const result = new Date(date);
+  result.setDate(result.getDate() + addDays);
+  // JSTはUTC+9なので、JST時刻からUTCに変換するには9時間引く
+  result.setUTCHours(hours - 9, minutes, 0, 0);
+  return result;
+}
 
 async function main() {
   console.log('=== CSV出力テスト用データ作成開始 ===\n');
@@ -40,31 +62,80 @@ async function main() {
   }
   console.log('施設:', facility.id, facility.facility_name);
 
-  // 3. テスト用求人を作成（様々なシフトパターン）
-  const jobPatterns = [
-    { title: '日勤（9-17時）', start: '09:00', end: '17:00', breakMin: '60', wage: 1500 },
-    { title: '日勤長時間（8-19時）', start: '08:00', end: '19:00', breakMin: '60', wage: 1500 },
-    { title: '夜勤（21-6時）', start: '21:00', end: '06:00', breakMin: '60', wage: 1800 },
-    { title: '準夜勤（17-24時）', start: '17:00', end: '00:00', breakMin: '30', wage: 1600 },
-    { title: '早朝（4-10時）', start: '04:00', end: '10:00', breakMin: '30', wage: 1700 },
+  // 3. テストパターン定義
+  // 各パターンで求人のシフト時間と、実際の勤務時間を明確に定義
+  const testPatterns = [
+    {
+      name: '通常勤務（定刻通り）',
+      description: '9:00-17:00勤務、フラグなし',
+      job: { start: '09:00', end: '17:00', breakMin: 60, wage: 1500, transportFee: 500 },
+      actual: { start: '09:00', end: '17:00', breakMin: 60 },
+      expectedFlags: { late: false, early: false, overtime: false },
+    },
+    {
+      name: '遅刻30分',
+      description: '9:00出勤予定を9:30出勤、遅刻フラグ表示',
+      job: { start: '09:00', end: '17:00', breakMin: 60, wage: 1500, transportFee: 500 },
+      actual: { start: '09:30', end: '17:00', breakMin: 60 },
+      expectedFlags: { late: true, early: false, overtime: false },
+    },
+    {
+      name: '早退30分',
+      description: '17:00退勤予定を16:30退勤、早退フラグ表示',
+      job: { start: '09:00', end: '17:00', breakMin: 60, wage: 1500, transportFee: 500 },
+      actual: { start: '09:00', end: '16:30', breakMin: 60 },
+      expectedFlags: { late: false, early: true, overtime: false },
+    },
+    {
+      name: '残業1時間',
+      description: '17:00退勤予定を18:00退勤、残業フラグ表示',
+      job: { start: '09:00', end: '17:00', breakMin: 60, wage: 1500, transportFee: 500 },
+      actual: { start: '09:00', end: '18:00', breakMin: 60 },
+      expectedFlags: { late: false, early: false, overtime: true },
+    },
+    {
+      name: '深夜勤務（定刻通り）',
+      description: '22:00-6:00勤務（翌日）、フラグなし',
+      job: { start: '22:00', end: '06:00', breakMin: 60, wage: 1800, transportFee: 800 },
+      actual: { start: '22:00', end: '06:00', breakMin: 60, nextDay: true },
+      expectedFlags: { late: false, early: false, overtime: false },
+    },
+    {
+      name: '遅刻＋残業',
+      description: '9:00出勤予定を9:15出勤、17:00退勤予定を18:30退勤',
+      job: { start: '09:00', end: '17:00', breakMin: 60, wage: 1600, transportFee: 600 },
+      actual: { start: '09:15', end: '18:30', breakMin: 60 },
+      expectedFlags: { late: true, early: false, overtime: true },
+    },
   ];
 
-  const jobs: any[] = [];
-  for (const pattern of jobPatterns) {
+  // 4. 各パターンでテストデータを作成
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0); // 日付のみ使用
+
+  for (let i = 0; i < testPatterns.length; i++) {
+    const pattern = testPatterns[i];
+    const workDate = new Date(today);
+    workDate.setDate(workDate.getDate() - (i + 1)); // 過去の日付
+
+    console.log(`\n--- パターン ${i + 1}: ${pattern.name} ---`);
+    console.log(`  説明: ${pattern.description}`);
+
+    // 求人作成
     const job = await prisma.job.create({
       data: {
         facility_id: facility.id,
-        title: `[CSVテスト] ${pattern.title}`,
-        start_time: pattern.start,
-        end_time: pattern.end,
-        break_time: pattern.breakMin,
-        wage: pattern.wage * 8, // 日給（仮）
-        hourly_wage: pattern.wage,
-        transportation_fee: 500,
+        title: `[フラグテスト] ${pattern.name}`,
+        start_time: pattern.job.start,
+        end_time: pattern.job.end,
+        break_time: String(pattern.job.breakMin),
+        wage: pattern.job.wage * 8,
+        hourly_wage: pattern.job.wage,
+        transportation_fee: pattern.job.transportFee,
         status: 'PUBLISHED',
         access: '最寄り駅より徒歩5分',
         recruitment_count: 1,
-        overview: 'CSV出力テスト用の求人です',
+        overview: `フラグ表示テスト用: ${pattern.description}`,
         work_content: ['テスト業務'],
         required_qualifications: [],
         required_experience: [],
@@ -77,23 +148,11 @@ async function main() {
         tags: [],
       },
     });
-    jobs.push({ ...job, pattern });
-    console.log('求人作成:', job.id, pattern.title);
-  }
+    console.log(`  求人作成: ID=${job.id}, ${pattern.job.start}-${pattern.job.end}`);
 
-  // 4. 各求人に対して勤務日と応募を作成
-  const today = new Date();
-  const attendanceData: any[] = [];
-
-  for (let i = 0; i < jobs.length; i++) {
-    const job = jobs[i];
-    const workDate = new Date(today);
-    workDate.setDate(workDate.getDate() - (i + 1)); // 過去の日付
-
-    // JobWorkDateを作成（締め切りは勤務日の前日）
+    // JobWorkDate作成
     const deadline = new Date(workDate);
     deadline.setDate(deadline.getDate() - 1);
-
     const wd = await prisma.jobWorkDate.create({
       data: {
         job_id: job.id,
@@ -103,7 +162,7 @@ async function main() {
       },
     });
 
-    // Applicationを作成（COMPLETED_RATED = 完了済み）
+    // Application作成
     const app = await prisma.application.create({
       data: {
         user_id: testWorker.id,
@@ -112,103 +171,50 @@ async function main() {
       },
     });
 
-    attendanceData.push({
-      job,
-      workDate: wd,
-      application: app,
-      pattern: job.pattern,
-    });
-  }
+    // 実績時刻を計算（JSTからUTCに変換）
+    const actualStart = jstToUtc(workDate, pattern.actual.start);
+    const actualEnd = jstToUtc(
+      workDate,
+      pattern.actual.end,
+      pattern.actual.nextDay ? 1 : 0
+    );
 
-  // 5. 勤怠レコードを作成（様々なパターン）
-  const attendancePatterns = [
-    {
-      // パターン1: 通常勤務（定刻通り）
-      name: '通常勤務（定刻）',
-      startOffset: 0,  // 定刻通り
-      endOffset: 0,    // 定刻通り
-      breakDiff: 0,    // 休憩時間差なし
-    },
-    {
-      // パターン2: 残業あり（1時間残業）- 10時間勤務で2時間残業
-      name: '残業2時間',
-      startOffset: 0,
-      endOffset: 0,   // 元々10時間勤務
-      breakDiff: 0,
-    },
-    {
-      // パターン3: 深夜勤務（夜勤シフト）
-      name: '深夜勤務',
-      startOffset: 0,
-      endOffset: 0,
-      breakDiff: 0,
-    },
-    {
-      // パターン4: 遅刻あり
-      name: '遅刻30分',
-      startOffset: 30,  // 30分遅刻
-      endOffset: 0,
-      breakDiff: 0,
-    },
-    {
-      // パターン5: 早退あり
-      name: '早退30分',
-      startOffset: 0,
-      endOffset: -30,   // 30分早退
-      breakDiff: 0,
-    },
-  ];
+    // 勤務時間を計算（分）
+    const workedMinutes = Math.floor((actualEnd.getTime() - actualStart.getTime()) / (1000 * 60)) - pattern.actual.breakMin;
+    const calculatedWage = Math.ceil((workedMinutes / 60) * pattern.job.wage);
 
-  for (let i = 0; i < Math.min(attendanceData.length, attendancePatterns.length); i++) {
-    const data = attendanceData[i];
-    const pattern = attendancePatterns[i];
-
-    // 予定時刻を計算
-    const [startH, startM] = data.pattern.start.split(':').map(Number);
-    const [endH, endM] = data.pattern.end.split(':').map(Number);
-    const breakMinutes = parseInt(data.pattern.breakMin);
-
-    // チェックイン・チェックアウト時刻を計算
-    const checkInTime = new Date(data.workDate.work_date);
-    checkInTime.setHours(startH, startM + pattern.startOffset, 0, 0);
-
-    const checkOutTime = new Date(data.workDate.work_date);
-    // 終了時刻が翌日の場合
-    if (endH < startH || (endH === 0 && startH > 0)) {
-      checkOutTime.setDate(checkOutTime.getDate() + 1);
-    }
-    checkOutTime.setHours(endH, endM + pattern.endOffset, 0, 0);
-
-    // 勤怠レコードを作成
-    // job_idも設定することで、CSV出力時にjobリレーションが取得できるようにする
+    // Attendance作成
     const attendance = await prisma.attendance.create({
       data: {
         user_id: testWorker.id,
         facility_id: facility.id,
-        application_id: data.application.id,
-        job_id: data.job.id,  // 直接job_idも設定
-        check_in_time: checkInTime,
-        check_out_time: checkOutTime,
+        application_id: app.id,
+        job_id: job.id,
+        check_in_time: actualStart,
+        check_out_time: actualEnd,
         check_in_method: 'QR',
         check_out_method: 'QR',
         check_out_type: 'ON_TIME',
         status: 'CHECKED_OUT',
-        actual_start_time: checkInTime,
-        actual_end_time: checkOutTime,
-        actual_break_time: breakMinutes + pattern.breakDiff,
-        calculated_wage: data.pattern.wage * 8, // 仮の計算
+        actual_start_time: actualStart,
+        actual_end_time: actualEnd,
+        actual_break_time: pattern.actual.breakMin,
+        calculated_wage: calculatedWage,
       },
     });
 
-    console.log(`\n勤怠レコード作成 [${pattern.name}]:`);
-    console.log(`  ID: ${attendance.id}`);
-    console.log(`  求人: ${data.pattern.title}`);
-    console.log(`  出勤: ${checkInTime.toISOString()}`);
-    console.log(`  退勤: ${checkOutTime.toISOString()}`);
+    console.log(`  勤怠作成: ID=${attendance.id}`);
+    console.log(`    定刻: ${pattern.job.start} - ${pattern.job.end}`);
+    console.log(`    実績: ${pattern.actual.start} - ${pattern.actual.end}${pattern.actual.nextDay ? '(翌日)' : ''}`);
+    console.log(`    期待フラグ: 遅刻=${pattern.expectedFlags.late}, 早退=${pattern.expectedFlags.early}, 残業=${pattern.expectedFlags.overtime}`);
+    console.log(`    報酬: ${calculatedWage}円 + 交通費${pattern.job.transportFee}円 = ${calculatedWage + pattern.job.transportFee}円`);
   }
 
   console.log('\n=== テストデータ作成完了 ===');
-  console.log(`作成した勤怠レコード数: ${Math.min(attendanceData.length, attendancePatterns.length)}`);
+  console.log(`作成した勤怠レコード数: ${testPatterns.length}`);
+  console.log('\n確認方法:');
+  console.log('1. システム管理画面 > 勤怠管理 でフラグ表示を確認');
+  console.log('2. 各パターンの期待フラグと実際の表示が一致することを確認');
 }
 
 main()

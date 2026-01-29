@@ -40,6 +40,9 @@ interface AttendanceItem {
   scheduledEndTime?: string;
   scheduledBreakTime?: number;
   calculatedWage?: number;
+  // 交通費と時給
+  transportationFee?: number;
+  hourlyWage?: number;
   hasModificationRequest: boolean;
   modificationStatus?: string;
   // 遅刻・早退・残業フラグ
@@ -382,6 +385,9 @@ export default function SystemAdminAttendancePage() {
                   <th className="px-3 py-3 text-center text-xs font-medium text-slate-500 uppercase">
                     実績
                   </th>
+                  <th className="px-3 py-3 text-right text-xs font-medium text-slate-500 uppercase">
+                    交通費
+                  </th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-slate-500 uppercase">
                     フラグ
                   </th>
@@ -389,7 +395,7 @@ export default function SystemAdminAttendancePage() {
                     ステータス
                   </th>
                   <th className="px-3 py-3 text-right text-xs font-medium text-slate-500 uppercase">
-                    報酬
+                    報酬（税込）
                   </th>
                 </tr>
               </thead>
@@ -430,6 +436,14 @@ export default function SystemAdminAttendancePage() {
                           {formatTime(item.actualStartTime)} ~ {formatTime(item.actualEndTime)}
                         </div>
                         <div className="text-slate-400">休憩 {item.actualBreakTime ?? 0}分</div>
+                      </div>
+                    </td>
+                    {/* 交通費 */}
+                    <td className="px-3 py-3 text-right">
+                      <div className="text-xs text-slate-600">
+                        {item.transportationFee
+                          ? formatCurrency(item.transportationFee)
+                          : '-'}
                       </div>
                     </td>
                     {/* 遅刻・早退・残業フラグ */}
@@ -486,11 +500,18 @@ export default function SystemAdminAttendancePage() {
                       )}
                     </td>
                     <td className="px-3 py-3 text-right">
-                      <div className="text-sm font-medium text-slate-900">
-                        {item.calculatedWage
-                          ? formatCurrency(item.calculatedWage)
-                          : '-'}
-                      </div>
+                      {item.calculatedWage ? (
+                        <div>
+                          <div className="text-sm font-medium text-slate-900">
+                            {formatCurrency(item.calculatedWage + (item.transportationFee ?? 0))}
+                          </div>
+                          <div className="text-xs text-slate-400">
+                            (時給分 {formatCurrency(item.calculatedWage)})
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-sm text-slate-400">-</span>
+                      )}
                     </td>
                   </tr>
                 ))}
