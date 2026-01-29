@@ -108,7 +108,7 @@ function splitWorkPeriodIntoSegments(startTime: Date, endTime: Date): Array<{
   let current = new Date(startTime);
 
   while (current < endTime) {
-    const currentHour = current.getHours();
+    const currentHour = getJSTHour(current);
     const isCurrentNight = isNightTime(current);
 
     // 次の境界時刻を計算
