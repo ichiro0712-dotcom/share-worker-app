@@ -24,6 +24,7 @@ interface AttendanceItem {
   userEmail: string;
   facilityId: number;
   facilityName: string;
+  corporationName?: string;
   jobId?: number;
   jobTitle: string;
   workDate: Date;
@@ -35,9 +36,16 @@ interface AttendanceItem {
   actualStartTime?: Date;
   actualEndTime?: Date;
   actualBreakTime?: number;
+  scheduledStartTime?: string;
+  scheduledEndTime?: string;
+  scheduledBreakTime?: number;
   calculatedWage?: number;
   hasModificationRequest: boolean;
   modificationStatus?: string;
+  // 遅刻・早退・残業フラグ
+  isLate?: boolean;
+  isEarlyLeave?: boolean;
+  isOvertime?: boolean;
 }
 
 interface Stats {
@@ -61,6 +69,9 @@ export default function SystemAdminAttendancePage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
+  const [facilityNameFilter, setFacilityNameFilter] = useState<string>('');
+  const [corporationNameFilter, setCorporationNameFilter] = useState<string>('');
+  const [workerSearchFilter, setWorkerSearchFilter] = useState<string>('');
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -75,6 +86,15 @@ export default function SystemAdminAttendancePage() {
       }
       if (dateTo) {
         filter.dateTo = new Date(dateTo + 'T23:59:59');
+      }
+      if (facilityNameFilter.trim()) {
+        filter.facilityName = facilityNameFilter.trim();
+      }
+      if (corporationNameFilter.trim()) {
+        filter.corporationName = corporationNameFilter.trim();
+      }
+      if (workerSearchFilter.trim()) {
+        filter.workerSearch = workerSearchFilter.trim();
       }
 
       const [attendanceResult, statsResult] = await Promise.all([
@@ -98,7 +118,7 @@ export default function SystemAdminAttendancePage() {
 
   useEffect(() => {
     fetchData();
-  }, [statusFilter, dateFrom, dateTo]);
+  }, [statusFilter, dateFrom, dateTo, facilityNameFilter, corporationNameFilter, workerSearchFilter]);
 
   const handleExport = async () => {
     if (!dateFrom || !dateTo) {
@@ -234,7 +254,8 @@ export default function SystemAdminAttendancePage() {
           <span className="text-sm font-medium text-slate-700">フィルター</span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* 1行目: 期間・ステータス・エクスポート */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
           {/* ステータス */}
           <div>
             <label className="block text-xs text-slate-500 mb-1">ステータス</label>
@@ -287,6 +308,45 @@ export default function SystemAdminAttendancePage() {
             </button>
           </div>
         </div>
+
+        {/* 2行目: 施設名・法人名・ワーカー検索 */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* 施設名 */}
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">施設名</label>
+            <input
+              type="text"
+              value={facilityNameFilter}
+              onChange={(e) => setFacilityNameFilter(e.target.value)}
+              placeholder="施設名で絞り込み"
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+            />
+          </div>
+
+          {/* 法人名 */}
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">法人名</label>
+            <input
+              type="text"
+              value={corporationNameFilter}
+              onChange={(e) => setCorporationNameFilter(e.target.value)}
+              placeholder="法人名で絞り込み"
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+            />
+          </div>
+
+          {/* ワーカー検索 */}
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">ワーカー（名前/メール）</label>
+            <input
+              type="text"
+              value={workerSearchFilter}
+              onChange={(e) => setWorkerSearchFilter(e.target.value)}
+              placeholder="名前またはメールで絞り込み"
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+            />
+          </div>
+        </div>
       </div>
 
       {/* テーブル */}
@@ -302,28 +362,31 @@ export default function SystemAdminAttendancePage() {
             <table className="w-full">
               <thead className="bg-slate-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">
+                  <th className="px-3 py-3 text-left text-xs font-medium text-slate-500 uppercase">
                     勤務日
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">
+                  <th className="px-3 py-3 text-left text-xs font-medium text-slate-500 uppercase">
                     ワーカー
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">
+                  <th className="px-3 py-3 text-left text-xs font-medium text-slate-500 uppercase">
                     施設
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">
+                  <th className="px-3 py-3 text-left text-xs font-medium text-slate-500 uppercase">
                     案件
                   </th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase">
-                    出勤
+                  <th className="px-3 py-3 text-center text-xs font-medium text-slate-500 uppercase">
+                    定刻
                   </th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase">
-                    退勤
+                  <th className="px-3 py-3 text-center text-xs font-medium text-slate-500 uppercase">
+                    実績
                   </th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase">
+                  <th className="px-3 py-3 text-center text-xs font-medium text-slate-500 uppercase">
+                    フラグ
+                  </th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-slate-500 uppercase">
                     ステータス
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase">
+                  <th className="px-3 py-3 text-right text-xs font-medium text-slate-500 uppercase">
                     報酬
                   </th>
                 </tr>
@@ -331,42 +394,66 @@ export default function SystemAdminAttendancePage() {
               <tbody className="divide-y divide-slate-200">
                 {items.map((item) => (
                   <tr key={item.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3">
                       <div className="text-sm text-slate-900">
                         {formatDate(item.workDate)}
                       </div>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3">
                       <div className="text-sm font-medium text-slate-900">
                         {item.userName}
                       </div>
                       <div className="text-xs text-slate-500">{item.userEmail}</div>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3">
                       <div className="text-sm text-slate-900">{item.facilityName}</div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="text-sm text-slate-900">{item.jobTitle}</div>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <div className="text-sm text-slate-900">
-                        {formatTime(item.checkInTime)}
-                      </div>
-                      <div className="text-xs text-slate-500">
-                        {item.checkInMethod === 'QR' ? 'QR' : '緊急'}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <div className="text-sm text-slate-900">
-                        {formatTime(item.checkOutTime)}
-                      </div>
-                      {item.checkOutMethod && (
-                        <div className="text-xs text-slate-500">
-                          {item.checkOutMethod === 'QR' ? 'QR' : '緊急'}
-                        </div>
+                      {item.corporationName && (
+                        <div className="text-xs text-slate-500">{item.corporationName}</div>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-3 py-3">
+                      <div className="text-sm text-slate-900">{item.jobTitle}</div>
+                    </td>
+                    {/* 定刻（出勤・退勤・休憩） */}
+                    <td className="px-3 py-3 text-center">
+                      <div className="text-xs text-slate-600">
+                        <div>{item.scheduledStartTime || '-'} ~ {item.scheduledEndTime || '-'}</div>
+                        <div className="text-slate-400">休憩 {item.scheduledBreakTime ?? 0}分</div>
+                      </div>
+                    </td>
+                    {/* 実績（出勤・退勤・休憩） */}
+                    <td className="px-3 py-3 text-center">
+                      <div className="text-xs text-slate-600">
+                        <div>
+                          {formatTime(item.actualStartTime)} ~ {formatTime(item.actualEndTime)}
+                        </div>
+                        <div className="text-slate-400">休憩 {item.actualBreakTime ?? 0}分</div>
+                      </div>
+                    </td>
+                    {/* 遅刻・早退・残業フラグ */}
+                    <td className="px-3 py-3 text-center">
+                      <div className="flex flex-wrap justify-center gap-1">
+                        {item.isLate && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-700">
+                            遅刻
+                          </span>
+                        )}
+                        {item.isEarlyLeave && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-700">
+                            早退
+                          </span>
+                        )}
+                        {item.isOvertime && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
+                            残業
+                          </span>
+                        )}
+                        {!item.isLate && !item.isEarlyLeave && !item.isOvertime && (
+                          <span className="text-xs text-slate-400">-</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-3 py-3 text-center">
                       <span
                         className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                           item.status === 'CHECKED_OUT'
@@ -396,7 +483,7 @@ export default function SystemAdminAttendancePage() {
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-3 py-3 text-right">
                       <div className="text-sm font-medium text-slate-900">
                         {item.calculatedWage
                           ? formatCurrency(item.calculatedWage)
