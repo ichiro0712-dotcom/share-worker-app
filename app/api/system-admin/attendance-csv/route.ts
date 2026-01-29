@@ -240,7 +240,10 @@ export async function GET(request: NextRequest) {
 
   const encoder = new TextEncoder();
 
-  // デバッグ: where条件をログ出力
+  // デバッグ: DB接続先とwhere条件をログ出力
+  const dbUrl = process.env.DATABASE_URL || 'NOT SET';
+  const dbHost = dbUrl.includes('@') ? dbUrl.split('@')[1]?.split('/')[0] : 'unknown';
+  console.log('[attendance-csv] DB Host:', dbHost);
   console.log('[attendance-csv] Request params:', { status, dateFrom, dateTo, facilityName, corporationName, workerSearch });
   console.log('[attendance-csv] Where condition:', JSON.stringify(where, null, 2));
 
