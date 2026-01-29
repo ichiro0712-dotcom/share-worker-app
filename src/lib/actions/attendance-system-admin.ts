@@ -334,6 +334,7 @@ export async function exportAttendancesCsv(options: {
           select: {
             id: true,
             name: true,
+            email: true,
           },
         },
         facility: {
@@ -380,6 +381,7 @@ export async function exportAttendancesCsv(options: {
       user: {
         id: att.user.id,
         name: att.user.name,
+        email: att.user.email,
       },
       job: att.application?.workDate.job ? {
         id: att.application.workDate.job.id,

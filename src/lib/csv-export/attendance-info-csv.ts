@@ -159,7 +159,7 @@ export function generateAttendanceInfoCsv(attendances: AttendanceWithDetails[]):
     }
 
     return [
-      String(att.user_id), // 1. 就業者ID
+      att.user?.email || '', // 1. 就業者ID（メールアドレス）
       '', // 2. 雇用契約No.（空白で出力）
       formatDateForCsv(att.check_in_time), // 3. 勤務日
       '0', // 4. 出勤区分（0=出勤）
