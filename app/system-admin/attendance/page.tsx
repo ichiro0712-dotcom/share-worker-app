@@ -9,7 +9,6 @@ import { Download, Filter, RefreshCw, Calendar, Users, Clock, CircleDollarSign }
 import toast from 'react-hot-toast';
 import {
   getAllAttendances,
-  exportAttendancesCsv,
   getAttendanceStats,
 } from '@/src/lib/actions/attendance-system-admin';
 import { formatCurrency } from '@/src/lib/salary-calculator';
@@ -126,14 +125,19 @@ export default function SystemAdminAttendancePage() {
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      const result = await exportAttendancesCsv({
-        dateFrom: dateFrom ? new Date(dateFrom) : undefined,
-        dateTo: dateTo ? new Date(dateTo + 'T23:59:59') : undefined,
-        facilityName: facilityNameFilter.trim() || undefined,
-        corporationName: corporationNameFilter.trim() || undefined,
-        workerSearch: workerSearchFilter.trim() || undefined,
-        status: statusFilter !== 'all' ? statusFilter : undefined,
-      });
+      // クエリパラメータを構築
+      const params = new URLSearchParams();
+      if (dateFrom) params.set('dateFrom', new Date(dateFrom).toISOString());
+      if (dateTo) params.set('dateTo', new Date(dateTo + 'T23:59:59').toISOString());
+      if (facilityNameFilter.trim()) params.set('facilityName', facilityNameFilter.trim());
+      if (corporationNameFilter.trim()) params.set('corporationName', corporationNameFilter.trim());
+      if (workerSearchFilter.trim()) params.set('workerSearch', workerSearchFilter.trim());
+      if (statusFilter !== 'all') params.set('status', statusFilter);
+
+      const url = `/api/system-admin/attendance-export?${params.toString()}`;
+      const response = await fetch(url);
+
+      const result = await response.json();
 
       if (result.success && result.csvData) {
         // CSVダウンロード
