@@ -105,7 +105,8 @@ function calculateEarlyLeaveTime(scheduledEnd: string, actualEnd: Date | null): 
  * @returns CSV文字列
  */
 export function generateAttendanceInfoCsv(attendances: AttendanceWithDetails[]): string {
-  const rows = attendances.map(att => {
+  const rows = attendances.map((att, index) => {
+    try {
     const job = att.job;
     const startTime = job ? formatTimeForCsv(job.start_time) : '';
     const endTime = job ? formatTimeForCsv(job.end_time) : '';
@@ -193,8 +194,13 @@ export function generateAttendanceInfoCsv(attendances: AttendanceWithDetails[]):
       lateTime, // 33. 遅刻時間
       earlyLeaveTime, // 34. 早退時間
       job?.transportation_fee ? String(job.transportation_fee) : '0', // 35. 交通費金額
-      att.user.name, // 36. ワーカー名（追加項目）
+      att.user?.name || '', // 36. ワーカー名（追加項目）
     ];
+    } catch (rowError) {
+      console.error(`[generateAttendanceInfoCsv] Error processing row ${index}:`, rowError);
+      console.error(`[generateAttendanceInfoCsv] Row data:`, JSON.stringify(att, null, 2));
+      throw rowError;
+    }
   });
 
   return generateCsv(ATTENDANCE_INFO_HEADERS, rows);

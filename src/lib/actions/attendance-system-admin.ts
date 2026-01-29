@@ -393,13 +393,18 @@ export async function exportAttendancesCsv(options: {
     }));
 
     // CROSSNAVI連携用CSV生成（36項目）
-    const { generateAttendanceInfoCsv } = await import('@/src/lib/csv-export/attendance-info-csv');
-    const csvData = generateAttendanceInfoCsv(attendanceData);
-
-    return { success: true, csvData, count: attendances.length };
+    try {
+      const { generateAttendanceInfoCsv } = await import('@/src/lib/csv-export/attendance-info-csv');
+      const csvData = generateAttendanceInfoCsv(attendanceData);
+      return { success: true, csvData, count: attendances.length };
+    } catch (csvError) {
+      console.error('[exportAttendancesCsv] CSV generation error:', csvError);
+      console.error('[exportAttendancesCsv] Sample data:', JSON.stringify(attendanceData.slice(0, 2), null, 2));
+      return { success: false, error: `CSV生成エラー: ${csvError instanceof Error ? csvError.message : 'Unknown error'}` };
+    }
   } catch (error) {
     console.error('[exportAttendancesCsv] Error:', error);
-    return { success: false, error: 'エクスポートに失敗しました' };
+    return { success: false, error: `エクスポートに失敗しました: ${error instanceof Error ? error.message : 'Unknown error'}` };
   }
 }
 

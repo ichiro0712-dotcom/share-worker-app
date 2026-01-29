@@ -54,7 +54,7 @@ const DEBUG_ITEMS: DebugSection[] = [
             { text: "・ワーカーログイン: /login", isDescription: true },
             { text: "・施設管理者ログイン: /admin/login", isDescription: true },
             { text: "・システム管理者ログイン: /system-admin/login", isDescription: true },
-            { text: "・開発ポータル: /system-admin/dev-portal （PW：password123）", isDescription: true },
+            { text: "・開発ポータル: /system-admin/dev-portal", isDescription: true },
             { text: "0-3. デバッグ管理表（報告先）", isHeader: true },
             { text: "・デバッグ管理表 (Google Spreadsheets) へ報告", isDescription: true },
         ]
