@@ -7,11 +7,11 @@ import { generateCsv, formatDateForCsv, formatTimeForCsv, calculateWorkingHours 
 import type { AttendanceWithDetails } from '@/app/system-admin/csv-export/attendance-info/types';
 
 /**
- * CROSSNAVI仕様の35項目ヘッダー
+ * CROSSNAVI仕様の36項目ヘッダー（35項目 + ワーカー名）
  */
 const ATTENDANCE_INFO_HEADERS = [
   '就業者ID',               // 1. User.id
-  '雇用契約No.',            // 2. 必須 - 未対応
+  '雇用契約No.',            // 2. 必須 - 空白で出力
   '勤務日',                 // 3. 必須 - check_in_time の日付
   '出勤区分',               // 4. 0=出勤
   'シフト名称',             // 5. Job.title
@@ -45,6 +45,7 @@ const ATTENDANCE_INFO_HEADERS = [
   '遅刻時間',               // 33. 計算値
   '早退時間',               // 34. 計算値
   '交通費金額',             // 35. Job.transportation_fee
+  'ワーカー名',             // 36. User.name（追加項目）
 ];
 
 /**
@@ -131,7 +132,7 @@ export function generateAttendanceInfoCsv(attendances: AttendanceWithDetails[]):
 
     return [
       String(att.user_id), // 1. 就業者ID
-      '', // 2. 雇用契約No.（未対応）
+      '', // 2. 雇用契約No.（空白で出力）
       formatDateForCsv(att.check_in_time), // 3. 勤務日
       '0', // 4. 出勤区分（0=出勤）
       job?.title || '', // 5. シフト名称
@@ -165,6 +166,7 @@ export function generateAttendanceInfoCsv(attendances: AttendanceWithDetails[]):
       lateTime, // 33. 遅刻時間
       earlyLeaveTime, // 34. 早退時間
       job?.transportation_fee ? String(job.transportation_fee) : '0', // 35. 交通費金額
+      att.user.name, // 36. ワーカー名（追加項目）
     ];
   });
 

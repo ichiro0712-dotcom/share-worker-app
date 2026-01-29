@@ -121,16 +121,15 @@ export default function SystemAdminAttendancePage() {
   }, [statusFilter, dateFrom, dateTo, facilityNameFilter, corporationNameFilter, workerSearchFilter]);
 
   const handleExport = async () => {
-    if (!dateFrom || !dateTo) {
-      toast.error('エクスポート期間を指定してください');
-      return;
-    }
-
     setIsExporting(true);
     try {
       const result = await exportAttendancesCsv({
-        dateFrom: new Date(dateFrom),
-        dateTo: new Date(dateTo + 'T23:59:59'),
+        dateFrom: dateFrom ? new Date(dateFrom) : undefined,
+        dateTo: dateTo ? new Date(dateTo + 'T23:59:59') : undefined,
+        facilityName: facilityNameFilter.trim() || undefined,
+        corporationName: corporationNameFilter.trim() || undefined,
+        workerSearch: workerSearchFilter.trim() || undefined,
+        status: statusFilter !== 'all' ? statusFilter : undefined,
       });
 
       if (result.success && result.csvData) {
@@ -139,12 +138,15 @@ export default function SystemAdminAttendancePage() {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `attendance_${dateFrom}_${dateTo}.csv`;
+        const now = new Date();
+        const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+        const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '');
+        link.download = `勤怠情報_${dateStr}_${timeStr}.csv`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
-        toast.success('CSVをダウンロードしました');
+        toast.success(`${result.count}件のデータをCSV出力しました`);
       } else {
         toast.error(result.error || 'エクスポートに失敗しました');
       }
@@ -296,15 +298,15 @@ export default function SystemAdminAttendancePage() {
           <div className="flex items-end">
             <button
               onClick={handleExport}
-              disabled={isExporting || !dateFrom || !dateTo}
+              disabled={isExporting || total === 0}
               className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                isExporting || !dateFrom || !dateTo
+                isExporting || total === 0
                   ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
                   : 'bg-[#66cc99] hover:bg-[#55bb88] text-white'
               }`}
             >
               <Download className="w-4 h-4" />
-              CSVエクスポート
+              CSV出力 ({total}件)
             </button>
           </div>
         </div>
