@@ -70,6 +70,7 @@ export interface AttendanceWithDetails {
     end_time: string;
     break_time: string;
     transportation_fee: number;
+    hourly_wage: number;  // 時給（深夜・残業計算に必要）
   } | null;
   facility: {
     id: number;
