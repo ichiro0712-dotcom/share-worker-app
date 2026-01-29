@@ -4,9 +4,9 @@
 
 export const TRANSPORTATION_FEE_OPTIONS = [
   { value: 0, label: 'なし' },
-  ...Array.from({ length: 30 }, (_, i) => ({
-    value: (i + 1) * 100,
-    label: `${(i + 1) * 100}円`
+  ...Array.from({ length: 60 }, (_, i) => ({
+    value: (i + 1) * 50,
+    label: `${(i + 1) * 50}円`
   }))
 ] as const;
 
