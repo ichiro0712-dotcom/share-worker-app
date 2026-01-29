@@ -127,8 +127,8 @@ export default function SystemAdminAttendancePage() {
     setIsExporting(true);
     try {
       const result = await exportAttendancesCsv({
-        dateFrom: dateFrom ? new Date(dateFrom) : undefined,
-        dateTo: dateTo ? new Date(dateTo + 'T23:59:59') : undefined,
+        dateFrom: dateFrom ? new Date(dateFrom).toISOString() : undefined,
+        dateTo: dateTo ? new Date(dateTo + 'T23:59:59').toISOString() : undefined,
         facilityName: facilityNameFilter.trim() || undefined,
         corporationName: corporationNameFilter.trim() || undefined,
         workerSearch: workerSearchFilter.trim() || undefined,

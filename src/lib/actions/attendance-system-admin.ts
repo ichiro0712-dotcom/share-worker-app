@@ -259,8 +259,8 @@ export async function getAllAttendances(options?: {
  * CROSSNAVI連携用36項目（35項目 + ワーカー名）
  */
 export async function exportAttendancesCsv(options: {
-  dateFrom?: Date;
-  dateTo?: Date;
+  dateFrom?: Date | string;
+  dateTo?: Date | string;
   facilityId?: number;
   facilityName?: string;
   corporationName?: string;
@@ -273,16 +273,20 @@ export async function exportAttendancesCsv(options: {
       return { success: false, error: '認証エラー' };
     }
 
+    // Date型またはstring型をDate型に変換
+    const dateFrom = options.dateFrom ? new Date(options.dateFrom) : undefined;
+    const dateTo = options.dateTo ? new Date(options.dateTo) : undefined;
+
     const whereClause: any = {};
 
     // 期間フィルター
-    if (options.dateFrom || options.dateTo) {
+    if (dateFrom || dateTo) {
       whereClause.check_in_time = {};
-      if (options.dateFrom) {
-        whereClause.check_in_time.gte = options.dateFrom;
+      if (dateFrom) {
+        whereClause.check_in_time.gte = dateFrom;
       }
-      if (options.dateTo) {
-        whereClause.check_in_time.lte = options.dateTo;
+      if (dateTo) {
+        whereClause.check_in_time.lte = dateTo;
       }
     }
 
