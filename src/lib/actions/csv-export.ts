@@ -785,10 +785,12 @@ function buildAttendanceInfoWhere(filters: AttendanceInfoFilter) {
   const where: any = {};
 
   if (filters.search) {
+    // job_idが直接設定されている場合とapplication経由の両方を検索
     where.OR = [
       { user: { name: { contains: filters.search, mode: 'insensitive' } } },
       { facility: { facility_name: { contains: filters.search, mode: 'insensitive' } } },
       { job: { title: { contains: filters.search, mode: 'insensitive' } } },
+      { application: { workDate: { job: { title: { contains: filters.search, mode: 'insensitive' } } } } },
     ];
   }
 
@@ -844,6 +846,20 @@ export async function getAttendanceInfoList(
             title: true,
           },
         },
+        // application経由のjob（job_idがnullの場合のフォールバック用）
+        application: {
+          select: {
+            workDate: {
+              select: {
+                job: {
+                  select: {
+                    title: true,
+                  },
+                },
+              },
+            },
+          },
+        },
         facility: {
           select: {
             facility_name: true,
@@ -857,17 +873,21 @@ export async function getAttendanceInfoList(
     prisma.attendance.count({ where }),
   ]);
 
-  const items: AttendanceInfoItem[] = attendances.map((att) => ({
-    id: att.id,
-    workDate: att.check_in_time,
-    userName: att.user.name,
-    userId: att.user_id,
-    facilityName: att.facility.facility_name,
-    jobTitle: att.job?.title || '',
-    checkInTime: att.check_in_time,
-    checkOutTime: att.check_out_time,
-    status: att.status,
-  }));
+  const items: AttendanceInfoItem[] = attendances.map((att) => {
+    // job_idが直接設定されている場合はそちらを優先、なければapplication経由で取得
+    const jobTitle = att.job?.title || att.application?.workDate?.job?.title || '';
+    return {
+      id: att.id,
+      workDate: att.check_in_time,
+      userName: att.user.name,
+      userId: att.user_id,
+      facilityName: att.facility.facility_name,
+      jobTitle,
+      checkInTime: att.check_in_time,
+      checkOutTime: att.check_out_time,
+      status: att.status,
+    };
+  });
 
   return { items, total };
 }
@@ -898,6 +918,7 @@ export async function exportAttendanceInfoCsv(
             name: true,
           },
         },
+        // 直接紐づくjob
         job: {
           select: {
             id: true,
@@ -906,6 +927,27 @@ export async function exportAttendanceInfoCsv(
             end_time: true,
             break_time: true,
             transportation_fee: true,
+            hourly_wage: true,  // 時給（深夜・残業計算に必要）
+          },
+        },
+        // application経由のjob（job_idがnullの場合のフォールバック用）
+        application: {
+          select: {
+            workDate: {
+              select: {
+                job: {
+                  select: {
+                    id: true,
+                    title: true,
+                    start_time: true,
+                    end_time: true,
+                    break_time: true,
+                    transportation_fee: true,
+                    hourly_wage: true,
+                  },
+                },
+              },
+            },
           },
         },
         facility: {
@@ -923,19 +965,26 @@ export async function exportAttendanceInfoCsv(
       return { success: false, error: '出力対象のデータがありません' };
     }
 
-    const attendanceList: AttendanceWithDetails[] = attendances.map((att) => ({
-      id: att.id,
-      user_id: att.user_id,
-      check_in_time: att.check_in_time,
-      check_out_time: att.check_out_time,
-      actual_start_time: att.actual_start_time,
-      actual_end_time: att.actual_end_time,
-      actual_break_time: att.actual_break_time,
-      status: att.status,
-      user: att.user,
-      job: att.job,
-      facility: att.facility,
-    }));
+    const attendanceList: AttendanceWithDetails[] = attendances.map((att) => {
+      // job_idが直接設定されている場合はそちらを優先、なければapplication経由で取得
+      const jobData = att.job || att.application?.workDate?.job || null;
+      return {
+        id: att.id,
+        user_id: att.user_id,
+        check_in_time: att.check_in_time,
+        check_out_time: att.check_out_time,
+        actual_start_time: att.actual_start_time,
+        actual_end_time: att.actual_end_time,
+        actual_break_time: att.actual_break_time,
+        status: att.status,
+        user: att.user,
+        job: jobData ? {
+          ...jobData,
+          hourly_wage: jobData.hourly_wage,
+        } : null,
+        facility: att.facility,
+      };
+    });
 
     const csvData = generateAttendanceInfoCsv(attendanceList);
 

@@ -365,7 +365,7 @@ export default function SystemAdminFacilitiesPage() {
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                             <input
                                 type="text"
-                                placeholder="施設名、法人名、住所、IDで検索"
+                                placeholder="施設名、法人名、住所、ID、メールアドレスで検索"
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                                 className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"

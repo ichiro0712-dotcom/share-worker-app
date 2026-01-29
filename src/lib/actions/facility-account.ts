@@ -321,3 +321,88 @@ export async function deleteFacilityAccount(accountId: number, facilityId: numbe
         return { success: false, error: 'アカウントの削除に失敗しました' };
     }
 }
+
+/**
+ * 施設管理者の利用規約同意状態を取得
+ */
+export async function getTermsAgreementStatus(adminId: number) {
+    try {
+        const admin = await prisma.facilityAdmin.findUnique({
+            where: { id: adminId },
+            select: {
+                id: true,
+                terms_agreed_at: true,
+            },
+        });
+
+        if (!admin) {
+            return { success: false, error: '管理者が見つかりません' };
+        }
+
+        return {
+            success: true,
+            hasAgreed: admin.terms_agreed_at !== null,
+            agreedAt: admin.terms_agreed_at,
+        };
+    } catch (error) {
+        console.error('Failed to get terms agreement status:', error);
+        return { success: false, error: '利用規約同意状態の取得に失敗しました' };
+    }
+}
+
+/**
+ * 施設管理者の利用規約に同意
+ */
+export async function agreeToTerms(adminId: number) {
+    const session = await getFacilityAdminSessionData();
+    try {
+        const admin = await prisma.facilityAdmin.findUnique({
+            where: { id: adminId },
+        });
+
+        if (!admin) {
+            return { success: false, error: '管理者が見つかりません' };
+        }
+
+        await prisma.facilityAdmin.update({
+            where: { id: adminId },
+            data: {
+                terms_agreed_at: new Date(),
+            },
+        });
+
+        // ログ記録
+        logActivity({
+            userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
+            action: 'TERMS_AGREEMENT',
+            targetType: 'FacilityAdmin',
+            targetId: adminId,
+            requestData: {
+                adminId,
+                agreedAt: new Date().toISOString(),
+            },
+            result: 'SUCCESS',
+        }).catch(() => {});
+
+        return { success: true };
+    } catch (error) {
+        console.error('Failed to agree to terms:', error);
+
+        // エラーログ記録
+        logActivity({
+            userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
+            action: 'TERMS_AGREEMENT',
+            targetType: 'FacilityAdmin',
+            targetId: adminId,
+            result: 'ERROR',
+            errorMessage: getErrorMessage(error),
+            errorStack: getErrorStack(error),
+        }).catch(() => {});
+
+        return { success: false, error: '利用規約への同意に失敗しました' };
+    }
+}

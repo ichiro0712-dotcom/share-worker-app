@@ -224,7 +224,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
       case 'phone':
       case 'emergencyContactPhone':
         if (!validatePhone(value)) {
-          return '電話番号は数字とハイフンのみで入力してください';
+          return '電話番号は10桁または11桁の数字で入力してください';
         }
         break;
       case 'postalCode':
@@ -975,13 +975,13 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
               <PhoneNumberInput
                 value={formData.phone}
                 onChange={(value) => setFormData({ ...formData, phone: value })}
-                placeholder="090-1234-5678"
+                placeholder="09012345678"
                 className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.phone ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
               />
               {showErrors && !formData.phone && (
                 <p className="text-red-500 text-xs mt-1">電話番号を入力してください</p>
               )}
-              <p className="text-xs text-gray-500 mt-1">※数字のみ入力（ハイフンは自動挿入）</p>
+              <p className="text-xs text-gray-500 mt-1">※数字のみ（10桁または11桁）</p>
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">メールアドレス <span className="text-red-500">*</span></label>
@@ -1070,10 +1070,10 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
               <PhoneNumberInput
                 value={formData.emergencyContactPhone}
                 onChange={(value) => setFormData({ ...formData, emergencyContactPhone: value })}
-                placeholder="090-1234-5678"
+                placeholder="09012345678"
                 className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.emergencyContactPhone ? 'border-red-500' : 'border-gray-300'}`}
               />
-              <p className="text-xs text-gray-500 mt-1">※数字のみ入力（ハイフンは自動挿入）</p>
+              <p className="text-xs text-gray-500 mt-1">※数字のみ（10桁または11桁）</p>
               {showErrors && !formData.emergencyContactPhone && (
                 <p className="text-red-500 text-xs mt-1">緊急連絡先電話番号は必須です</p>
               )}

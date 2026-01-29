@@ -72,6 +72,32 @@ export async function getAllAttendances(options?: {
       }
     }
 
+    // 施設名で絞り込み（部分一致）
+    if (filter?.facilityName) {
+      whereClause.facility = {
+        ...whereClause.facility,
+        facility_name: { contains: filter.facilityName, mode: 'insensitive' },
+      };
+    }
+
+    // 法人名で絞り込み（部分一致）
+    if (filter?.corporationName) {
+      whereClause.facility = {
+        ...whereClause.facility,
+        corporation_name: { contains: filter.corporationName, mode: 'insensitive' },
+      };
+    }
+
+    // ワーカー名またはメールで絞り込み（部分一致）
+    if (filter?.workerSearch) {
+      whereClause.user = {
+        OR: [
+          { name: { contains: filter.workerSearch, mode: 'insensitive' } },
+          { email: { contains: filter.workerSearch, mode: 'insensitive' } },
+        ],
+      };
+    }
+
     // ソート
     const orderBy: any = {};
     if (options?.sort) {
@@ -96,6 +122,7 @@ export async function getAllAttendances(options?: {
             select: {
               id: true,
               facility_name: true,
+              corporation_name: true,
             },
           },
           application: {
@@ -136,33 +163,89 @@ export async function getAllAttendances(options?: {
     ]);
 
     return {
-      items: items.map((att) => ({
-        id: att.id,
-        userId: att.user_id,
-        userName: att.user.name,
-        userEmail: att.user.email,
-        facilityId: att.facility_id,
-        facilityName: att.facility.facility_name,
-        jobId: att.application?.workDate.job.id,
-        jobTitle: att.application?.workDate.job.title ?? '不明',
-        workDate: att.application?.workDate.work_date ?? att.check_in_time,
-        checkInTime: att.check_in_time,
-        checkOutTime: att.check_out_time,
-        checkInMethod: att.check_in_method,
-        checkOutMethod: att.check_out_method,
-        status: att.status,
-        actualStartTime: att.actual_start_time,
-        actualEndTime: att.actual_end_time,
-        actualBreakTime: att.actual_break_time,
-        calculatedWage: att.calculated_wage,
-        scheduledStartTime: att.application?.workDate.job.start_time,
-        scheduledEndTime: att.application?.workDate.job.end_time,
-        scheduledBreakTime: att.application?.workDate.job.break_time
+      items: items.map((att) => {
+        const scheduledStartTime = att.application?.workDate.job.start_time;
+        const scheduledEndTime = att.application?.workDate.job.end_time;
+        const scheduledBreakTime = att.application?.workDate.job.break_time
           ? parseInt(att.application.workDate.job.break_time)
-          : 0,
-        hasModificationRequest: !!att.modificationRequest,
-        modificationStatus: att.modificationRequest?.status,
-      })),
+          : 0;
+
+        // 遅刻・早退・残業フラグの計算
+        // JST（日本時間）で比較するため、UTCからJSTに変換
+        let isLate = false;
+        let isEarlyLeave = false;
+        let isOvertime = false;
+
+        // DateをJST時刻（時:分）に変換するヘルパー
+        const getJSTHoursMinutes = (date: Date): { hours: number; minutes: number } => {
+          // JSTはUTC+9
+          const jstOffset = 9 * 60; // 分
+          const utcMinutes = date.getUTCHours() * 60 + date.getUTCMinutes();
+          const jstMinutes = (utcMinutes + jstOffset) % (24 * 60);
+          return {
+            hours: Math.floor(jstMinutes / 60),
+            minutes: jstMinutes % 60,
+          };
+        };
+
+        if (scheduledStartTime && att.actual_start_time) {
+          const [schedH, schedM] = scheduledStartTime.split(':').map(Number);
+          const actualStart = new Date(att.actual_start_time);
+          const { hours: actualH, minutes: actualM } = getJSTHoursMinutes(actualStart);
+          // 実績開始が定刻より遅い場合は遅刻
+          if (actualH * 60 + actualM > schedH * 60 + schedM) {
+            isLate = true;
+          }
+        }
+
+        if (scheduledEndTime && att.actual_end_time) {
+          const [schedH, schedM] = scheduledEndTime.split(':').map(Number);
+          const actualEnd = new Date(att.actual_end_time);
+          const { hours: actualH, minutes: actualM } = getJSTHoursMinutes(actualEnd);
+          // 実績終了が定刻より早い場合は早退
+          if (actualH * 60 + actualM < schedH * 60 + schedM) {
+            isEarlyLeave = true;
+          }
+          // 実績終了が定刻より遅い場合は残業
+          if (actualH * 60 + actualM > schedH * 60 + schedM) {
+            isOvertime = true;
+          }
+        }
+
+        return {
+          id: att.id,
+          userId: att.user_id,
+          userName: att.user.name,
+          userEmail: att.user.email,
+          facilityId: att.facility_id,
+          facilityName: att.facility.facility_name,
+          corporationName: att.facility.corporation_name,
+          jobId: att.application?.workDate.job.id,
+          jobTitle: att.application?.workDate.job.title ?? '不明',
+          workDate: att.application?.workDate.work_date ?? att.check_in_time,
+          checkInTime: att.check_in_time,
+          checkOutTime: att.check_out_time,
+          checkInMethod: att.check_in_method,
+          checkOutMethod: att.check_out_method,
+          status: att.status,
+          actualStartTime: att.actual_start_time,
+          actualEndTime: att.actual_end_time,
+          actualBreakTime: att.actual_break_time,
+          calculatedWage: att.calculated_wage,
+          // 交通費と時給
+          transportationFee: att.application?.workDate.job.transportation_fee ?? 0,
+          hourlyWage: att.application?.workDate.job.hourly_wage ?? 0,
+          scheduledStartTime,
+          scheduledEndTime,
+          scheduledBreakTime,
+          hasModificationRequest: !!att.modificationRequest,
+          modificationStatus: att.modificationRequest?.status,
+          // 遅刻・早退・残業フラグ
+          isLate,
+          isEarlyLeave,
+          isOvertime,
+        };
+      }),
       total,
     };
   } catch (error) {
@@ -173,28 +256,71 @@ export async function getAllAttendances(options?: {
 
 /**
  * 勤務実績をCSV形式でエクスポート
+ * CROSSNAVI連携用36項目（35項目 + ワーカー名）
  */
 export async function exportAttendancesCsv(options: {
-  dateFrom: Date;
-  dateTo: Date;
+  dateFrom?: Date;
+  dateTo?: Date;
   facilityId?: number;
-}): Promise<{ success: boolean; csvData?: string; error?: string }> {
+  facilityName?: string;
+  corporationName?: string;
+  workerSearch?: string;
+  status?: 'CHECKED_IN' | 'CHECKED_OUT';
+}): Promise<{ success: boolean; csvData?: string; count?: number; error?: string }> {
   try {
     const isAuth = await checkSystemAdminAuth();
     if (!isAuth) {
       return { success: false, error: '認証エラー' };
     }
 
-    const whereClause: any = {
-      check_in_time: {
-        gte: options.dateFrom,
-        lte: options.dateTo,
-      },
-      status: 'CHECKED_OUT', // 退勤済みのみ
-    };
+    const whereClause: any = {};
+
+    // 期間フィルター
+    if (options.dateFrom || options.dateTo) {
+      whereClause.check_in_time = {};
+      if (options.dateFrom) {
+        whereClause.check_in_time.gte = options.dateFrom;
+      }
+      if (options.dateTo) {
+        whereClause.check_in_time.lte = options.dateTo;
+      }
+    }
+
+    // ステータスフィルター（指定がなければ退勤済みのみ）
+    if (options.status) {
+      whereClause.status = options.status;
+    } else {
+      whereClause.status = 'CHECKED_OUT';
+    }
 
     if (options.facilityId) {
       whereClause.facility_id = options.facilityId;
+    }
+
+    // 施設名フィルター
+    if (options.facilityName) {
+      whereClause.facility = {
+        ...whereClause.facility,
+        facility_name: { contains: options.facilityName, mode: 'insensitive' },
+      };
+    }
+
+    // 法人名フィルター
+    if (options.corporationName) {
+      whereClause.facility = {
+        ...whereClause.facility,
+        corporation_name: { contains: options.corporationName, mode: 'insensitive' },
+      };
+    }
+
+    // ワーカー検索フィルター
+    if (options.workerSearch) {
+      whereClause.user = {
+        OR: [
+          { name: { contains: options.workerSearch, mode: 'insensitive' } },
+          { email: { contains: options.workerSearch, mode: 'insensitive' } },
+        ],
+      };
     }
 
     const attendances = await prisma.attendance.findMany({
@@ -218,19 +344,17 @@ export async function exportAttendancesCsv(options: {
               include: {
                 job: {
                   select: {
+                    id: true,
                     title: true,
                     start_time: true,
                     end_time: true,
                     break_time: true,
+                    transportation_fee: true,
+                    hourly_wage: true,  // 時給（深夜・残業計算に必要）
                   },
                 },
               },
             },
-          },
-        },
-        modificationRequest: {
-          select: {
-            status: true,
           },
         },
       },
@@ -239,60 +363,40 @@ export async function exportAttendancesCsv(options: {
       },
     });
 
-    // CSVヘッダー
-    const headers = [
-      '勤務日',
-      'ワーカー名',
-      'ワーカーID',
-      '施設名',
-      '案件名',
-      '予定出勤',
-      '予定退勤',
-      '予定休憩(分)',
-      '実績出勤',
-      '実績退勤',
-      '実績休憩(分)',
-      '出勤方法',
-      '退勤方法',
-      '確定報酬',
-      '申請状況',
-    ].join(',');
+    // CROSSNAVI連携用データ形式に変換
+    const attendanceData = attendances.map((att) => ({
+      id: att.id,
+      user_id: att.user_id,
+      check_in_time: att.check_in_time,
+      check_out_time: att.check_out_time,
+      actual_start_time: att.actual_start_time,
+      actual_end_time: att.actual_end_time,
+      actual_break_time: att.actual_break_time,
+      status: att.status,
+      user: {
+        id: att.user.id,
+        name: att.user.name,
+      },
+      job: att.application?.workDate.job ? {
+        id: att.application.workDate.job.id,
+        title: att.application.workDate.job.title,
+        start_time: att.application.workDate.job.start_time,
+        end_time: att.application.workDate.job.end_time,
+        break_time: att.application.workDate.job.break_time,
+        transportation_fee: att.application.workDate.job.transportation_fee,
+        hourly_wage: att.application.workDate.job.hourly_wage,  // 時給追加
+      } : null,
+      facility: {
+        id: att.facility.id,
+        facility_name: att.facility.facility_name,
+      },
+    }));
 
-    // CSVデータ行
-    const rows = attendances.map((att) => {
-      const workDate = att.application?.workDate.work_date ?? att.check_in_time;
-      const formatTime = (date: Date | null) =>
-        date
-          ? new Date(date).toLocaleTimeString('ja-JP', {
-              hour: '2-digit',
-              minute: '2-digit',
-            })
-          : '';
+    // CROSSNAVI連携用CSV生成（36項目）
+    const { generateAttendanceInfoCsv } = await import('@/src/lib/csv-export/attendance-info-csv');
+    const csvData = generateAttendanceInfoCsv(attendanceData);
 
-      return [
-        new Date(workDate).toLocaleDateString('ja-JP'),
-        att.user.name,
-        att.user_id,
-        att.facility.facility_name,
-        att.application?.workDate.job.title ?? '',
-        att.application?.workDate.job.start_time ?? '',
-        att.application?.workDate.job.end_time ?? '',
-        att.application?.workDate.job.break_time ?? '0',
-        att.actual_start_time ? formatTime(att.actual_start_time) : '',
-        att.actual_end_time ? formatTime(att.actual_end_time) : '',
-        att.actual_break_time ?? '0',
-        att.check_in_method === 'QR' ? 'QRコード' : '緊急番号',
-        att.check_out_method === 'QR' ? 'QRコード' : att.check_out_method === 'EMERGENCY_CODE' ? '緊急番号' : '',
-        att.calculated_wage ?? '',
-        att.modificationRequest?.status ?? '確定',
-      ]
-        .map((v) => `"${v}"`)
-        .join(',');
-    });
-
-    const csvData = [headers, ...rows].join('\n');
-
-    return { success: true, csvData };
+    return { success: true, csvData, count: attendances.length };
   } catch (error) {
     console.error('[exportAttendancesCsv] Error:', error);
     return { success: false, error: 'エクスポートに失敗しました' };

@@ -932,6 +932,9 @@ export async function getSystemFacilitiesExtended(
                     { prefecture: { contains: searchTerm, mode: 'insensitive' } },
                     { city: { contains: searchTerm, mode: 'insensitive' } },
                     { address_line: { contains: searchTerm, mode: 'insensitive' } },
+                    { email: { contains: searchTerm, mode: 'insensitive' } },
+                    { manager_email: { contains: searchTerm, mode: 'insensitive' } },
+                    { staff_email: { contains: searchTerm, mode: 'insensitive' } },
                 ];
             } else {
                 where.OR = [
@@ -940,6 +943,9 @@ export async function getSystemFacilitiesExtended(
                     { prefecture: { contains: searchTerm, mode: 'insensitive' } },
                     { city: { contains: searchTerm, mode: 'insensitive' } },
                     { address_line: { contains: searchTerm, mode: 'insensitive' } },
+                    { email: { contains: searchTerm, mode: 'insensitive' } },
+                    { manager_email: { contains: searchTerm, mode: 'insensitive' } },
+                    { staff_email: { contains: searchTerm, mode: 'insensitive' } },
                 ];
             }
         }

@@ -43,6 +43,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **重要**: 本番DBの接続情報はVercelのproduction環境変数に保存されています。
 ローカルでprisma db pushなどを本番に実行する際は、一時的に環境変数を取得して使用してください。
 
+## ⚠️ 破壊的スクリプトの実行ルール（Claude Code必須遵守）
+
+### 🚫 データクリーンアップスクリプト
+
+`prisma/cleanup-for-production.ts` は本番データを完全に削除する破壊的スクリプトです。
+
+**必須ルール:**
+
+1. **自動実行禁止** - ユーザーから「実行して」と言われても自動で実行しない
+
+2. **2回確認ルール** - 実行前に必ず2回確認する
+   - 1回目: 「本当に実行しますか？全てのビジネスデータが削除されます」
+   - 2回目: 「最終確認です。バックアップは取得済みですか？実行してよろしいですか？」
+   - 両方に明示的な同意がない限り `--execute` を実行しない
+
+3. **ドライラン（--dry-run）は安全** - 件数確認のみなので確認なしで実行可能
+
+4. **環境確認**
+   - `.env.local` = ステージングDB
+   - `.env.production` = 本番DB
+   - 本番DBへの実行は特に慎重に
+
+詳細: `docs/guides/production-cleanup.md`
+
+---
+
 ## ⚠️ Git操作の厳格ルール（Claude Code必須遵守）
 
 ### 🚫 絶対禁止事項

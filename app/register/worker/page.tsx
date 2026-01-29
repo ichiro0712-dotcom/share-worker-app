@@ -14,6 +14,7 @@ import { PhoneNumberInput } from '@/components/ui/PhoneNumberInput';
 import { QUALIFICATION_GROUPS } from '@/constants/qualifications';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { WORKER_TERMS_OF_SERVICE, TERMS_LAST_UPDATED } from '@/constants/terms';
 
 export default function WorkerRegisterPage() {
   const router = useRouter();
@@ -22,6 +23,9 @@ export default function WorkerRegisterPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   // バリデーションエラー表示用（送信時にtrueになる）
   const [showErrors, setShowErrors] = useState(false);
+  // 利用規約同意
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
   const [formData, setFormData] = useState({
     // 基本情報
     lastName: '',
@@ -225,7 +229,7 @@ export default function WorkerRegisterPage() {
 
     // 電話番号形式チェック
     if (!isValidPhoneNumber(formData.phoneNumber)) {
-      toast.error('電話番号は10桁または11桁の数字で入力してください（ハイフン可）');
+      toast.error('電話番号は10桁または11桁の数字で入力してください');
       return;
     }
 
@@ -254,6 +258,16 @@ export default function WorkerRegisterPage() {
       const certificateSection = document.getElementById('certificate-upload-section');
       if (certificateSection) {
         certificateSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      return;
+    }
+
+    // 利用規約同意チェック
+    if (!agreedToTerms) {
+      toast.error('利用規約に同意してください');
+      const termsSection = document.getElementById('terms-section');
+      if (termsSection) {
+        termsSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
       return;
     }
@@ -532,13 +546,13 @@ export default function WorkerRegisterPage() {
                     required
                     value={formData.phoneNumber}
                     onChange={(value) => setFormData({ ...formData, phoneNumber: value })}
-                    placeholder="090-1234-5678"
+                    placeholder="09012345678"
                     className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.phoneNumber ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                   />
                   {showErrors && !formData.phoneNumber && (
                     <p className="text-red-500 text-xs mt-1">電話番号を入力してください</p>
                   )}
-                  <p className="text-xs text-gray-500 mt-1">※数字のみ入力（ハイフンは自動挿入）</p>
+                  <p className="text-xs text-gray-500 mt-1">※数字のみ（10桁または11桁）</p>
                 </div>
               </div>
 
@@ -790,6 +804,40 @@ export default function WorkerRegisterPage() {
               </div>
             </div>
 
+            {/* 5. 利用規約同意 */}
+            <div id="terms-section" className={`p-4 bg-gray-50 rounded-lg border space-y-4 ${showErrors && !agreedToTerms ? 'border-red-500' : 'border-gray-200'}`}>
+              <h3 className="font-bold text-gray-900">利用規約 <span className="text-red-500">*</span></h3>
+              <div className="space-y-3">
+                <p className="text-sm text-gray-600">
+                  本サービスをご利用いただくには、利用規約への同意が必要です。
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowTermsModal(true)}
+                  className="text-primary hover:underline text-sm font-medium"
+                >
+                  利用規約を確認する
+                </button>
+                <label className="flex items-start gap-3 cursor-pointer p-3 bg-white rounded-lg border border-gray-200">
+                  <input
+                    type="checkbox"
+                    checked={agreedToTerms}
+                    onChange={(e) => setAgreedToTerms(e.target.checked)}
+                    className="w-5 h-5 text-primary border-gray-300 rounded focus:ring-primary mt-0.5"
+                  />
+                  <span className="text-sm">
+                    <span className="font-medium">利用規約に同意します</span>
+                    <span className="text-gray-500 block text-xs mt-1">
+                      （最終更新日: {TERMS_LAST_UPDATED}）
+                    </span>
+                  </span>
+                </label>
+                {showErrors && !agreedToTerms && (
+                  <p className="text-red-500 text-xs">利用規約に同意してください</p>
+                )}
+              </div>
+            </div>
+
             {/* ボタン */}
             <div className="flex justify-end gap-3 pt-4 border-t">
               <button
@@ -811,6 +859,52 @@ export default function WorkerRegisterPage() {
           </form>
         </div>
       </div>
+
+      {/* 利用規約モーダル */}
+      {showTermsModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-lg font-bold">利用規約</h2>
+              <button
+                type="button"
+                onClick={() => setShowTermsModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                aria-label="閉じる"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              <p className="text-xs text-gray-500 mb-4">最終更新日: {TERMS_LAST_UPDATED}</p>
+              <pre className="whitespace-pre-wrap text-sm text-gray-700 font-sans leading-relaxed">
+                {WORKER_TERMS_OF_SERVICE}
+              </pre>
+            </div>
+            <div className="p-4 border-t flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowTermsModal(false)}
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                閉じる
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAgreedToTerms(true);
+                  setShowTermsModal(false);
+                }}
+                className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark transition-colors"
+              >
+                同意して閉じる
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -262,6 +262,10 @@ export interface AttendanceFilter {
   modificationStatus?: ModificationStatus;
   dateFrom?: Date;
   dateTo?: Date;
+  // システム管理画面用の追加フィルター
+  facilityName?: string;      // 施設名（部分一致）
+  corporationName?: string;   // 法人名（部分一致）
+  workerSearch?: string;      // ワーカー名またはメール（部分一致）
 }
 
 /** ソートオプション */
