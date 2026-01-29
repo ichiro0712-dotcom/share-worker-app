@@ -134,7 +134,7 @@ export default function SystemAdminAttendancePage() {
       if (workerSearchFilter.trim()) params.set('workerSearch', workerSearchFilter.trim());
       if (statusFilter !== 'all') params.set('status', statusFilter);
 
-      const url = `/api/system-admin/attendance-export?${params.toString()}`;
+      const url = `/api/system-admin/attendance-csv?${params.toString()}`;
       const response = await fetch(url);
 
       const result = await response.json();
