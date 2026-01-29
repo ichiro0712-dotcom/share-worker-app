@@ -1,13 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { generateAttendanceInfoCsv } from '@/src/lib/csv-export/attendance-info-csv';
+
+// 動的ルート設定
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
+    // Step 1: 基本レスポンステスト
+    const step1 = 'Basic response OK';
+
+    // Step 2: URL解析
     const url = new URL(request.url);
     const status = url.searchParams.get('status') || 'CHECKED_OUT';
+    const step2 = `URL parsed, status=${status}`;
 
-    const attendances = await prisma.attendance.findMany({
+    // Step 3: Prismaインポート
+    let step3 = 'Prisma not imported';
+    let prisma: any;
+    try {
+      const module = await import('@/lib/prisma');
+      prisma = module.prisma;
+      step3 = 'Prisma imported OK';
+    } catch (e: any) {
+      return NextResponse.json({ success: false, error: `Prisma import failed: ${e.message}` });
+    }
+
+    // Step 4: CSVジェネレーターインポート
+    let step4 = 'CSV generator not imported';
+    let generateAttendanceInfoCsv: any;
+    try {
+      const csvModule = await import('@/src/lib/csv-export/attendance-info-csv');
+      generateAttendanceInfoCsv = csvModule.generateAttendanceInfoCsv;
+      step4 = 'CSV generator imported OK';
+    } catch (e: any) {
+      return NextResponse.json({ success: false, error: `CSV generator import failed: ${e.message}`, steps: { step1, step2, step3 } });
+    }
+
+    // Step 5: データベースクエリ
+    let step5 = 'DB query not executed';
+    let attendances: any[];
+    try {
+      attendances = await prisma.attendance.findMany({
       where: { status },
       include: {
         user: { select: { id: true, name: true } },
@@ -29,8 +61,16 @@ export async function GET(request: NextRequest) {
       },
       orderBy: { check_in_time: 'asc' },
     });
+      step5 = `DB query OK, count=${attendances.length}`;
+    } catch (e: any) {
+      return NextResponse.json({ success: false, error: `DB query failed: ${e.message}`, steps: { step1, step2, step3, step4 } });
+    }
 
-    const attendanceData = attendances.map((att) => ({
+    // Step 6: データ変換
+    let step6 = 'Data transform not executed';
+    let attendanceData: any[];
+    try {
+      attendanceData = attendances.map((att: any) => ({
       id: att.id,
       user_id: att.user_id,
       check_in_time: att.check_in_time,
@@ -51,13 +91,26 @@ export async function GET(request: NextRequest) {
       } : null,
       facility: { id: att.facility.id, facility_name: att.facility.facility_name },
     }));
+      step6 = 'Data transform OK';
+    } catch (e: any) {
+      return NextResponse.json({ success: false, error: `Data transform failed: ${e.message}`, steps: { step1, step2, step3, step4, step5 } });
+    }
 
-    const csvData = generateAttendanceInfoCsv(attendanceData);
+    // Step 7: CSV生成
+    let step7 = 'CSV generation not executed';
+    let csvData: string;
+    try {
+      csvData = generateAttendanceInfoCsv(attendanceData);
+      step7 = `CSV generation OK, length=${csvData.length}`;
+    } catch (e: any) {
+      return NextResponse.json({ success: false, error: `CSV generation failed: ${e.message}`, steps: { step1, step2, step3, step4, step5, step6 } });
+    }
 
     return NextResponse.json({
       success: true,
       csvData,
       count: attendances.length,
+      steps: { step1, step2, step3, step4, step5, step6, step7 },
     });
   } catch (error) {
     console.error('[attendance-export] Error:', error);
