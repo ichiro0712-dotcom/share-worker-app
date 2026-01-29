@@ -155,7 +155,7 @@ function attendanceToRow(att: any): (string | number)[] {
   }
 
   return [
-    att.user_id,
+    att.user?.email || '',
     '',
     formatDateForCsv(att.check_in_time),
     '0',
@@ -253,7 +253,7 @@ export async function GET(request: NextRequest) {
           const batch = await prisma.attendance.findMany({
             where,
             include: {
-              user: { select: { id: true, name: true } },
+              user: { select: { id: true, name: true, email: true } },
               facility: { select: { id: true, facility_name: true } },
               application: {
                 include: {
