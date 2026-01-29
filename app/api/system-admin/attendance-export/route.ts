@@ -4,10 +4,44 @@ import { generateAttendanceInfoCsv } from '@/src/lib/csv-export/attendance-info-
 
 export const dynamic = 'force-dynamic';
 
+// GET と POST の両方をサポート
+export async function GET(request: NextRequest) {
+  return handleExport(request, 'GET');
+}
+
 export async function POST(request: NextRequest) {
+  return handleExport(request, 'POST');
+}
+
+async function handleExport(request: NextRequest, method: string) {
   try {
-    const body = await request.json();
-    const { dateFrom, dateTo, facilityId, facilityName, corporationName, workerSearch, status } = body;
+    let dateFrom: string | null = null;
+    let dateTo: string | null = null;
+    let facilityId: number | null = null;
+    let facilityName: string | null = null;
+    let corporationName: string | null = null;
+    let workerSearch: string | null = null;
+    let status: string | null = null;
+
+    if (method === 'GET') {
+      const { searchParams } = new URL(request.url);
+      dateFrom = searchParams.get('dateFrom');
+      dateTo = searchParams.get('dateTo');
+      facilityId = searchParams.get('facilityId') ? parseInt(searchParams.get('facilityId')!) : null;
+      facilityName = searchParams.get('facilityName');
+      corporationName = searchParams.get('corporationName');
+      workerSearch = searchParams.get('workerSearch');
+      status = searchParams.get('status');
+    } else {
+      const body = await request.json();
+      dateFrom = body.dateFrom;
+      dateTo = body.dateTo;
+      facilityId = body.facilityId;
+      facilityName = body.facilityName;
+      corporationName = body.corporationName;
+      workerSearch = body.workerSearch;
+      status = body.status;
+    }
 
     const whereClause: any = {};
 
@@ -23,7 +57,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ステータスフィルター（指定がなければ退勤済みのみ）
-    whereClause.status = status || 'CHECKED_OUT';
+    whereClause.status = status as string || 'CHECKED_OUT';
 
     if (facilityId) {
       whereClause.facility_id = facilityId;

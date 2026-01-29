@@ -125,20 +125,17 @@ export default function SystemAdminAttendancePage() {
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      const response = await fetch('/api/system-admin/attendance-export', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          dateFrom: dateFrom ? new Date(dateFrom).toISOString() : undefined,
-          dateTo: dateTo ? new Date(dateTo + 'T23:59:59').toISOString() : undefined,
-          facilityName: facilityNameFilter.trim() || undefined,
-          corporationName: corporationNameFilter.trim() || undefined,
-          workerSearch: workerSearchFilter.trim() || undefined,
-          status: statusFilter !== 'all' ? statusFilter : undefined,
-        }),
-      });
+      // クエリパラメータを構築
+      const params = new URLSearchParams();
+      if (dateFrom) params.set('dateFrom', new Date(dateFrom).toISOString());
+      if (dateTo) params.set('dateTo', new Date(dateTo + 'T23:59:59').toISOString());
+      if (facilityNameFilter.trim()) params.set('facilityName', facilityNameFilter.trim());
+      if (corporationNameFilter.trim()) params.set('corporationName', corporationNameFilter.trim());
+      if (workerSearchFilter.trim()) params.set('workerSearch', workerSearchFilter.trim());
+      if (statusFilter !== 'all') params.set('status', statusFilter);
+
+      const url = `/api/system-admin/attendance-export?${params.toString()}`;
+      const response = await fetch(url);
 
       const result = await response.json();
 
