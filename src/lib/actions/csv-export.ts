@@ -916,6 +916,7 @@ export async function exportAttendanceInfoCsv(
           select: {
             id: true,
             name: true,
+            email: true,
           },
         },
         // 直接紐づくjob

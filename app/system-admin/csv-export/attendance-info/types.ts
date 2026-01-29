@@ -62,6 +62,7 @@ export interface AttendanceWithDetails {
   user: {
     id: number;
     name: string;
+    email: string;
   };
   job: {
     id: number;
