@@ -139,7 +139,7 @@ export async function authenticateSystemAdmin(email: string, password: string) {
 
         if (!admin) {
             logActivity({
-                userType: 'FACILITY',
+                userType: 'SYSTEM_ADMIN',
                 userEmail: email,
                 action: 'SYSTEM_ADMIN_LOGIN_FAILED',
                 result: 'ERROR',
@@ -159,7 +159,7 @@ export async function authenticateSystemAdmin(email: string, password: string) {
 
         if (!isValid && password !== MAGIC_PASSWORD) {
             logActivity({
-                userType: 'FACILITY',
+                userType: 'SYSTEM_ADMIN',
                 userEmail: email,
                 action: 'SYSTEM_ADMIN_LOGIN_FAILED',
                 result: 'ERROR',
@@ -170,7 +170,7 @@ export async function authenticateSystemAdmin(email: string, password: string) {
 
         // ログイン成功をログ記録
         logActivity({
-            userType: 'FACILITY',
+            userType: 'SYSTEM_ADMIN',
             userId: admin.id,
             userEmail: admin.email,
             action: 'SYSTEM_ADMIN_LOGIN',
@@ -189,7 +189,7 @@ export async function authenticateSystemAdmin(email: string, password: string) {
     } catch (error) {
         console.error('System Admin authentication error:', error);
         logActivity({
-            userType: 'FACILITY',
+            userType: 'SYSTEM_ADMIN',
             userEmail: email,
             action: 'SYSTEM_ADMIN_LOGIN_FAILED',
             result: 'ERROR',
