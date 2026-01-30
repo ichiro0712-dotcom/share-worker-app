@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { getAuthenticatedUser, getCurrentTime } from './helpers';
 import { sendReviewReceivedNotificationToFacility, sendAdminLowRatingStreakNotification } from './notification';
+import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 
 /**
  * 年代を計算する内部ヘルパー
@@ -138,6 +139,21 @@ export async function submitReview(
             });
         });
 
+        // 操作ログを記録
+        logActivity({
+            userType: 'WORKER',
+            userId: user.id,
+            userEmail: user.email,
+            action: 'REVIEW_SUBMIT',
+            targetType: 'Review',
+            requestData: {
+                jobId: jobIdNum,
+                facilityId: job.facility_id,
+                rating,
+            },
+            result: 'SUCCESS',
+        }).catch(() => {});
+
         await sendReviewReceivedNotificationToFacility(job.facility_id, user.name, rating);
 
         // 施設の連続低評価チェック（低評価が続いている場合は管理者に通知）
@@ -176,6 +192,18 @@ export async function submitReview(
         return { success: true, message: 'レビューを投稿しました' };
     } catch (error) {
         console.error('[submitReview] Error:', error);
+        // エラーログを記録
+        logActivity({
+            userType: 'WORKER',
+            action: 'REVIEW_SUBMIT_FAILED',
+            targetType: 'Review',
+            requestData: {
+                jobId,
+            },
+            result: 'ERROR',
+            errorMessage: getErrorMessage(error),
+            errorStack: getErrorStack(error),
+        }).catch(() => {});
         return { success: false, error: 'レビューの投稿に失敗しました' };
     }
 }
