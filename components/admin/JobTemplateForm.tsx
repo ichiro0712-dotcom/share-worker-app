@@ -627,7 +627,7 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                                     TOP画像登録（3枚まで） <span className="text-red-500">*</span>
                                 </label>
                                 <p className="text-xs text-gray-500 mb-2">推奨画像サイズ: 1200×800px（比率 3:2）</p>
-                                <p className="text-xs text-gray-500 mb-3">登録できるファイルサイズは20MBまでです</p>
+                                <p className="text-xs text-gray-500 mb-3">登録できるファイルサイズは10MBまでです</p>
                                 <div className="space-y-2">
                                     {/* アップロードエリア */}
                                     {(formData.existingImages.length + formData.images.length) < 3 && (
@@ -647,7 +647,7 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                                                 const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
                                                 const validFiles = files.filter(file => file.size <= 5 * 1024 * 1024);
                                                 if (files.length !== validFiles.length) {
-                                                    toast.error('20MBを超えるファイルは登録できません');
+                                                    toast.error('10MBを超えるファイルは登録できません');
                                                     return;
                                                 }
                                                 const totalImages = formData.existingImages.length + formData.images.length + validFiles.length;
@@ -1295,7 +1295,7 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                                     その他添付文章（3つまで）
                                 </label>
                                 <p className="text-xs text-red-500 mb-2">登録された文章は公開されます</p>
-                                <p className="text-xs text-gray-500 mb-3">20MB以下 / 画像(JPG, PNG, HEIC等)・PDF・Word・Excel・テキスト形式</p>
+                                <p className="text-xs text-gray-500 mb-3">10MB以下 / 画像(JPG, PNG, HEIC等)・PDF・Word・Excel・テキスト形式</p>
                                 <div className="space-y-2">
                                     {(formData.existingAttachments.length + formData.attachments.length) < 3 && (
                                         <label

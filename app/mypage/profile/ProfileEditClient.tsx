@@ -604,10 +604,12 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
         newBankBookImageUrl = url;
       }
 
-      // 資格証明書（複数）- 既存URLをマージ
+      // 資格証明書（複数）- 既存URLをマージ（base64は除外、サーバー側で既存データを維持）
       const existingCertUrls: Record<string, string> = {};
       for (const [qual, certUrl] of Object.entries(qualificationCertificates)) {
-        if (certUrl && isValidImageUrl(certUrl)) {
+        // base64データは送信しない（サーバー側で既存データを維持する）
+        // 新規アップロードはqualificationCertificateFilesで処理される
+        if (certUrl && isValidImageUrl(certUrl) && certUrl.startsWith('http')) {
           existingCertUrls[qual] = certUrl;
         }
       }
@@ -802,7 +804,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
               onChange={handleProfileImageChange}
               className="hidden"
             />
-            <p className="text-xs text-gray-500 mt-2">20MB以下 / JPG, PNG, HEIC形式</p>
+            <p className="text-xs text-gray-500 mt-2">10MB以下 / JPG, PNG, HEIC形式</p>
 
             <button
               type="button"
@@ -1263,7 +1265,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                               className="hidden"
                             />
                           </label>
-                          <p className="text-xs text-gray-500">20MB以下 / JPG, PNG, HEIC, PDF形式（自動圧縮）</p>
+                          <p className="text-xs text-gray-500">10MB以下 / JPG, PNG, HEIC, PDF形式（自動圧縮）</p>
                         </div>
                       </div>
                     ) : (
@@ -1277,7 +1279,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                             className="hidden"
                           />
                         </label>
-                        <p className="text-xs text-gray-500 text-center">20MB以下 / JPG, PNG, HEIC, PDF形式（自動圧縮）</p>
+                        <p className="text-xs text-gray-500 text-center">10MB以下 / JPG, PNG, HEIC, PDF形式（自動圧縮）</p>
                         {showErrors && (
                           <p className="text-red-500 text-xs text-center">資格証明書をアップロードしてください</p>
                         )}
@@ -1521,7 +1523,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                           className="hidden"
                         />
                       </label>
-                      <p className="text-xs text-gray-500">20MB以下 / JPG, PNG, HEIC, PDF形式</p>
+                      <p className="text-xs text-gray-500">10MB以下 / JPG, PNG, HEIC, PDF形式</p>
                     </div>
                   </div>
                 ) : (
@@ -1535,7 +1537,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                         className="hidden"
                       />
                     </label>
-                    <p className="text-xs text-gray-500 text-center">20MB以下 / JPG, PNG, HEIC, PDF形式</p>
+                    <p className="text-xs text-gray-500 text-center">10MB以下 / JPG, PNG, HEIC, PDF形式</p>
                     {showErrors && (
                       <p className="text-red-500 text-xs text-center">通帳コピーをアップロードしてください</p>
                     )}
@@ -1565,7 +1567,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                         className="hidden"
                       />
                     </label>
-                    <p className="text-xs text-gray-500">20MB以下 / JPG, PNG, HEIC, PDF形式</p>
+                    <p className="text-xs text-gray-500">10MB以下 / JPG, PNG, HEIC, PDF形式</p>
                   </div>
                 </div>
               ) : (
@@ -1579,7 +1581,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                       className="hidden"
                     />
                   </label>
-                  <p className="text-xs text-gray-500 text-center">20MB以下 / JPG, PNG, HEIC, PDF形式</p>
+                  <p className="text-xs text-gray-500 text-center">10MB以下 / JPG, PNG, HEIC, PDF形式</p>
                   {showErrors && (
                     <p className="text-red-500 text-xs text-center">身分証明書をアップロードしてください</p>
                   )}
