@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 export default function UnderConstruction() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const page = searchParams.get('page') || 'このページ';
+  const page = searchParams?.get('page') || 'このページ';
 
   const pageNames: Record<string, string> = {
     favorites: 'お気に入り',

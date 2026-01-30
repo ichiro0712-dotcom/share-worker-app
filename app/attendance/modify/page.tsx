@@ -137,8 +137,8 @@ function ModificationContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const attendanceIdParam = searchParams.get('attendanceId');
-  const resubmitIdParam = searchParams.get('resubmit');
+  const attendanceIdParam = searchParams?.get('attendanceId');
+  const resubmitIdParam = searchParams?.get('resubmit');
 
   const [step, setStep] = useState<PageStep>('form');
   const [attendance, setAttendance] = useState<AttendanceData | null>(null);

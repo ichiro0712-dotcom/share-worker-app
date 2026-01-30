@@ -247,7 +247,7 @@ export default function WorkerDetailPage({
           <p className="text-gray-500 mb-4">ワーカーが見つかりません</p>
           <button
             onClick={() => {
-              const returnTab = searchParams.get('returnTab');
+              const returnTab = searchParams?.get('returnTab');
               if (returnTab === 'workers') {
                 router.push('/admin/applications?tab=workers');
               } else if (returnTab === 'jobs') {
@@ -277,7 +277,7 @@ export default function WorkerDetailPage({
         <div className="flex items-center gap-4">
           <button
             onClick={() => {
-              const returnTab = searchParams.get('returnTab');
+              const returnTab = searchParams?.get('returnTab');
               if (returnTab === 'workers') {
                 router.push('/admin/applications?tab=workers');
               } else if (returnTab === 'jobs') {

@@ -9,7 +9,7 @@ import { createWorkerMasqueradeSession } from '@/src/lib/worker-masquerade-sessi
 export default function WorkerMasqueradePage() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const token = searchParams.get('token');
+    const token = searchParams?.get('token');
 
     const [status, setStatus] = useState<'verifying' | 'success' | 'error'>('verifying');
     const [errorMessage, setErrorMessage] = useState('');

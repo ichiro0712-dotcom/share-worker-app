@@ -18,7 +18,7 @@ interface VerifyResult {
 export default function VerifyEmailPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const token = searchParams.get('token');
+  const token = searchParams?.get('token');
 
   const [state, setState] = useState<VerifyState>('loading');
   const [error, setError] = useState<string>('');

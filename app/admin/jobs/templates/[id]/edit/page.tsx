@@ -17,7 +17,7 @@ export default function EditJobTemplatePage() {
   const [loading, setLoading] = useState(true);
   const [initialData, setInitialData] = useState<TemplateInitialData | null>(null);
 
-  const templateId = Number(params.id);
+  const templateId = Number(params?.id);
 
   useEffect(() => {
     const fetchTemplate = async () => {
