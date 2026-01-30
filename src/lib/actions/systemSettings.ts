@@ -5,6 +5,7 @@ import {
   SYSTEM_SETTING_DEFAULTS,
   SYSTEM_SETTING_DESCRIPTIONS,
 } from '@/src/lib/constants/systemSettings';
+import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 
 /**
  * システム設定を取得
@@ -90,9 +91,35 @@ export async function updateSystemSetting(
       },
     });
 
+    // 操作ログを記録
+    logActivity({
+      userType: updatedBy?.type === 'SYSTEM_ADMIN' ? 'SYSTEM_ADMIN' : 'FACILITY',
+      userId: updatedBy?.id,
+      action: 'SYSTEM_SETTING_UPDATE',
+      targetType: 'SystemSetting',
+      requestData: {
+        key,
+        value,
+      },
+      result: 'SUCCESS',
+    }).catch(() => {});
+
     return { success: true };
   } catch (error) {
     console.error('[updateSystemSetting] Error:', error);
+    // エラーログを記録
+    logActivity({
+      userType: updatedBy?.type === 'SYSTEM_ADMIN' ? 'SYSTEM_ADMIN' : 'FACILITY',
+      userId: updatedBy?.id,
+      action: 'SYSTEM_SETTING_UPDATE_FAILED',
+      targetType: 'SystemSetting',
+      requestData: {
+        key,
+      },
+      result: 'ERROR',
+      errorMessage: getErrorMessage(error),
+      errorStack: getErrorStack(error),
+    }).catch(() => {});
     return { success: false, error: '設定の更新に失敗しました' };
   }
 }
@@ -125,9 +152,35 @@ export async function updateSystemSettings(
 
     await prisma.$transaction(updates);
 
+    // 操作ログを記録
+    logActivity({
+      userType: updatedBy?.type === 'SYSTEM_ADMIN' ? 'SYSTEM_ADMIN' : 'FACILITY',
+      userId: updatedBy?.id,
+      action: 'SYSTEM_SETTING_UPDATE',
+      targetType: 'SystemSetting',
+      requestData: {
+        settings: Object.keys(settings), // キーのみ記録（値はセンシティブな可能性）
+        updatedCount: Object.keys(settings).length,
+      },
+      result: 'SUCCESS',
+    }).catch(() => {});
+
     return { success: true };
   } catch (error) {
     console.error('[updateSystemSettings] Error:', error);
+    // エラーログを記録
+    logActivity({
+      userType: updatedBy?.type === 'SYSTEM_ADMIN' ? 'SYSTEM_ADMIN' : 'FACILITY',
+      userId: updatedBy?.id,
+      action: 'SYSTEM_SETTING_UPDATE_FAILED',
+      targetType: 'SystemSetting',
+      requestData: {
+        settings: Object.keys(settings),
+      },
+      result: 'ERROR',
+      errorMessage: getErrorMessage(error),
+      errorStack: getErrorStack(error),
+    }).catch(() => {});
     return { success: false, error: '設定の更新に失敗しました' };
   }
 }

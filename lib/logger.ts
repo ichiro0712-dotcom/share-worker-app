@@ -16,7 +16,7 @@ import { getVersionForLog } from '@/lib/version'
 
 // ========== 型定義 ==========
 
-export type UserType = 'WORKER' | 'FACILITY' | 'GUEST'
+export type UserType = 'WORKER' | 'FACILITY' | 'SYSTEM_ADMIN' | 'GUEST'
 export type LogResult = 'SUCCESS' | 'ERROR'
 
 export type ActivityAction =
@@ -95,6 +95,8 @@ export type ActivityAction =
   | 'USER_SUSPEND'             // ユーザー停止
   | 'USER_UNSUSPEND'           // ユーザー停止解除
   | 'FACILITY_SUSPEND'         // 施設停止
+  | 'SYSTEM_SETTING_UPDATE'    // システム設定更新
+  | 'SYSTEM_SETTING_UPDATE_FAILED' // システム設定更新失敗
   // ========== 勤怠管理系 ==========
   | 'ATTENDANCE_CHECK_IN'            // 出勤打刻
   | 'ATTENDANCE_CHECK_IN_FAILED'     // 出勤打刻失敗
@@ -104,6 +106,14 @@ export type ActivityAction =
   | 'ATTENDANCE_MODIFY_CREATE_FAILED'// 勤怠変更申請作成失敗
   | 'ATTENDANCE_MODIFY_RESUBMIT'     // 勤怠変更申請再提出
   | 'ATTENDANCE_MODIFY_RESUBMIT_FAILED' // 勤怠変更申請再提出失敗
+  | 'ATTENDANCE_MODIFY_APPROVE'     // 勤怠変更申請承認
+  | 'ATTENDANCE_MODIFY_APPROVE_FAILED' // 勤怠変更申請承認失敗
+  | 'ATTENDANCE_MODIFY_REJECT'      // 勤怠変更申請却下
+  | 'ATTENDANCE_MODIFY_REJECT_FAILED' // 勤怠変更申請却下失敗
+  | 'QR_CODE_REGENERATE'            // QRコード再生成
+  | 'QR_CODE_REGENERATE_FAILED'     // QRコード再生成失敗
+  | 'EMERGENCY_CODE_UPDATE'         // 緊急コード更新
+  | 'EMERGENCY_CODE_UPDATE_FAILED'  // 緊急コード更新失敗
   // ========== CSV出力系 ==========
   | 'CSV_EXPORT_CLIENT'        // 取引先情報CSV出力
   | 'CSV_EXPORT_CLIENT_FAILED' // 取引先情報CSV出力失敗
@@ -258,6 +268,12 @@ function sanitizeData(data: Record<string, unknown> | null | undefined): Record<
     'card_number',
     'cvv',
     'pin',
+    'emergency_code',    // 緊急コード
+    'emergencycode',     // 緊急コード（キャメルケース）
+    'qr_token',          // QRトークン
+    'qrtoken',           // QRトークン（キャメルケース）
+    'qr_secret',         // QRシークレット
+    'qrsecret',          // QRシークレット（キャメルケース）
   ]
 
   const sanitized: Record<string, unknown> = {}
