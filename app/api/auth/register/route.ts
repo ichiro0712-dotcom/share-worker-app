@@ -4,10 +4,33 @@ import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { sendAdminNewWorkerNotification } from '@/src/lib/actions/notification';
 import { sendVerificationEmail } from '@/src/lib/auth/email-verification';
+import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
+
+interface RegisterBody {
+  email: string;
+  password: string;
+  name: string;
+  phoneNumber: string;
+  birthDate?: string;
+  qualifications?: string[];
+  lastNameKana?: string;
+  firstNameKana?: string;
+  gender?: string;
+  nationality?: string;
+  postalCode?: string;
+  prefecture?: string;
+  city?: string;
+  addressLine?: string;
+  building?: string;
+  experienceFields?: Record<string, unknown>;
+  workHistories?: string[];
+  qualificationCertificates?: Record<string, unknown>;
+}
 
 export async function POST(request: NextRequest) {
+  let body: RegisterBody | null = null;
   try {
-    const body = await request.json();
+    body = await request.json() as RegisterBody;
     const {
       email,
       password,
@@ -81,24 +104,47 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // 認証メールを送信
-    const verificationResult = await sendVerificationEmail(
-      user.id,
-      user.email,
-      user.name
-    );
+    // 操作ログを記録（ユーザー登録成功）
+    await logActivity({
+      userType: 'WORKER',
+      userId: user.id,
+      userEmail: user.email,
+      action: 'REGISTER',
+      targetType: 'User',
+      targetId: user.id,
+      requestData: { name, email, phoneNumber, prefecture, city },
+      result: 'SUCCESS',
+      url: '/api/auth/register',
+    });
 
-    if (!verificationResult.success) {
-      console.error('Failed to send verification email:', verificationResult.error);
-      // 認証メール送信に失敗してもユーザー登録は成功とする
+    // 認証メールを送信（エラーがあっても登録は成功とする）
+    let emailError: string | null = null;
+    try {
+      const verificationResult = await sendVerificationEmail(
+        user.id,
+        user.email,
+        user.name
+      );
+
+      if (!verificationResult.success) {
+        emailError = verificationResult.error || 'Unknown email error';
+        console.error('Failed to send verification email:', emailError);
+      }
+    } catch (emailErr) {
+      emailError = getErrorMessage(emailErr);
+      console.error('Exception sending verification email:', emailError, getErrorStack(emailErr));
     }
 
-    // 管理者に新規ワーカー登録を通知
-    await sendAdminNewWorkerNotification(
-      user.id,
-      user.name,
-      user.email
-    );
+    // 管理者に新規ワーカー登録を通知（エラーがあってもスキップ）
+    try {
+      await sendAdminNewWorkerNotification(
+        user.id,
+        user.name,
+        user.email
+      );
+    } catch (notifyErr) {
+      console.error('Failed to notify admin:', getErrorMessage(notifyErr));
+    }
 
     return NextResponse.json({
       message: '登録が完了しました。確認メールをお送りしましたので、メール内のリンクをクリックして認証を完了してください。',
@@ -108,9 +154,24 @@ export async function POST(request: NextRequest) {
         name: user.name,
       },
       requiresVerification: true,
+      emailSent: !emailError,
     });
   } catch (error) {
     console.error('Registration error:', error);
+
+    // 操作ログを記録（ユーザー登録失敗）
+    await logActivity({
+      userType: 'GUEST',
+      userEmail: null,
+      action: 'REGISTER_FAILED',
+      targetType: 'User',
+      requestData: { email: body?.email },
+      result: 'ERROR',
+      errorMessage: getErrorMessage(error),
+      errorStack: getErrorStack(error),
+      url: '/api/auth/register',
+    }).catch(logErr => console.error('Failed to log activity:', logErr));
+
     // デバッグ用：エラー詳細を返す（本番運用開始後は削除）
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorStack = error instanceof Error ? error.stack : undefined;

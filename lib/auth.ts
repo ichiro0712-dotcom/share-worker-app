@@ -2,6 +2,7 @@ import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 import prisma from './prisma';
+import { logActivity } from './logger';
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -42,6 +43,17 @@ export const authOptions: NextAuthOptions = {
           });
 
           console.log('[AUTH] Auto login successful for user:', user.id);
+          // 自動ログイン成功をログ記録
+          logActivity({
+            userType: 'WORKER',
+            userId: user.id,
+            userEmail: user.email,
+            action: 'LOGIN',
+            targetType: 'User',
+            targetId: user.id,
+            requestData: { method: 'auto_login' },
+            result: 'SUCCESS',
+          }).catch(() => {});
           return {
             id: String(user.id),
             email: user.email,
@@ -61,11 +73,30 @@ export const authOptions: NextAuthOptions = {
 
 
         if (!user) {
+          // ログイン失敗（ユーザー不在）をログ記録
+          logActivity({
+            userType: 'WORKER',
+            userEmail: credentials.email,
+            action: 'LOGIN_FAILED',
+            result: 'ERROR',
+            errorMessage: 'ユーザーが見つかりません',
+          }).catch(() => {});
           throw new Error('メールアドレスまたはパスワードが正しくありません');
         }
 
         // メールアドレス未認証チェック
         if (!user.email_verified) {
+          // ログイン失敗（メール未認証）をログ記録
+          logActivity({
+            userType: 'WORKER',
+            userId: user.id,
+            userEmail: user.email,
+            action: 'LOGIN_FAILED',
+            targetType: 'User',
+            targetId: user.id,
+            result: 'ERROR',
+            errorMessage: 'メール未認証',
+          }).catch(() => {});
           throw new Error('EMAIL_NOT_VERIFIED');
         }
 
@@ -85,8 +116,31 @@ export const authOptions: NextAuthOptions = {
 
 
         if (!isValid) {
+          // ログイン失敗（パスワード不一致）をログ記録
+          logActivity({
+            userType: 'WORKER',
+            userId: user.id,
+            userEmail: user.email,
+            action: 'LOGIN_FAILED',
+            targetType: 'User',
+            targetId: user.id,
+            result: 'ERROR',
+            errorMessage: 'パスワードが一致しません',
+          }).catch(() => {});
           throw new Error('メールアドレスまたはパスワードが正しくありません');
         }
+
+        // ログイン成功をログ記録
+        logActivity({
+          userType: 'WORKER',
+          userId: user.id,
+          userEmail: user.email,
+          action: 'LOGIN',
+          targetType: 'User',
+          targetId: user.id,
+          requestData: { method: 'credentials' },
+          result: 'SUCCESS',
+        }).catch(() => {});
 
         return {
           id: String(user.id),
