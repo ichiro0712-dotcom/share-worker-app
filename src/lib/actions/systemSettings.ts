@@ -91,15 +91,15 @@ export async function updateSystemSetting(
       },
     });
 
-    // 操作ログを記録
+    // 操作ログを記録（valueはセンシティブな可能性があるためログに含めない）
     logActivity({
-      userType: updatedBy?.type === 'SYSTEM_ADMIN' ? 'SYSTEM_ADMIN' : 'FACILITY',
+      userType: updatedBy?.type === 'SYSTEM_ADMIN' ? 'SYSTEM_ADMIN' : updatedBy ? 'FACILITY' : 'GUEST',
       userId: updatedBy?.id,
       action: 'SYSTEM_SETTING_UPDATE',
       targetType: 'SystemSetting',
       requestData: {
         key,
-        value,
+        // valueは含めない（セキュリティ上の理由）
       },
       result: 'SUCCESS',
     }).catch(() => {});
@@ -109,7 +109,7 @@ export async function updateSystemSetting(
     console.error('[updateSystemSetting] Error:', error);
     // エラーログを記録
     logActivity({
-      userType: updatedBy?.type === 'SYSTEM_ADMIN' ? 'SYSTEM_ADMIN' : 'FACILITY',
+      userType: updatedBy?.type === 'SYSTEM_ADMIN' ? 'SYSTEM_ADMIN' : updatedBy ? 'FACILITY' : 'GUEST',
       userId: updatedBy?.id,
       action: 'SYSTEM_SETTING_UPDATE_FAILED',
       targetType: 'SystemSetting',
@@ -154,7 +154,7 @@ export async function updateSystemSettings(
 
     // 操作ログを記録
     logActivity({
-      userType: updatedBy?.type === 'SYSTEM_ADMIN' ? 'SYSTEM_ADMIN' : 'FACILITY',
+      userType: updatedBy?.type === 'SYSTEM_ADMIN' ? 'SYSTEM_ADMIN' : updatedBy ? 'FACILITY' : 'GUEST',
       userId: updatedBy?.id,
       action: 'SYSTEM_SETTING_UPDATE',
       targetType: 'SystemSetting',
@@ -170,7 +170,7 @@ export async function updateSystemSettings(
     console.error('[updateSystemSettings] Error:', error);
     // エラーログを記録
     logActivity({
-      userType: updatedBy?.type === 'SYSTEM_ADMIN' ? 'SYSTEM_ADMIN' : 'FACILITY',
+      userType: updatedBy?.type === 'SYSTEM_ADMIN' ? 'SYSTEM_ADMIN' : updatedBy ? 'FACILITY' : 'GUEST',
       userId: updatedBy?.id,
       action: 'SYSTEM_SETTING_UPDATE_FAILED',
       targetType: 'SystemSetting',
