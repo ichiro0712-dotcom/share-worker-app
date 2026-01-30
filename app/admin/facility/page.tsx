@@ -510,7 +510,7 @@ export default function FacilityPage() {
 
     for (const file of filesToAdd) {
       if (file.size > MAX_FILE_SIZE) {
-        toast.error(`「${file.name}」のサイズが大きすぎます（${formatFileSize(file.size)}）。20MB以下の画像をお使いください。`);
+        toast.error(`「${file.name}」のサイズが大きすぎます（${formatFileSize(file.size)}）。10MB以下の画像をお使いください。`);
         continue;
       }
       const result = validateFile(file, 'image');
@@ -1747,7 +1747,7 @@ export default function FacilityPage() {
                     <div className="text-center">
                       <Upload className="w-8 h-8 mx-auto text-gray-400 mb-2" />
                       <span className="text-sm text-gray-500">画像を選択 または ドラッグ&ドロップ</span>
-                      <p className="text-xs text-gray-400 mt-1">20MB以下 / JPG, PNG, HEIC形式</p>
+                      <p className="text-xs text-gray-400 mt-1">10MB以下 / JPG, PNG, HEIC形式</p>
                     </div>
                     <input
                       type="file"

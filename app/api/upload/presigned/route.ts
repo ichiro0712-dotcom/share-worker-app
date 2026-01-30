@@ -26,7 +26,7 @@ const ALLOWED_MIME_TYPES = [
   'text/plain', 'text/csv',
 ];
 
-// 最大ファイルサイズ（20MB）
+// 最大ファイルサイズ（10MB）
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
 // ご利用ガイド用最大ファイルサイズ（100MB）

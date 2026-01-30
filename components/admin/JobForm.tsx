@@ -1474,7 +1474,7 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
                                     TOP画像登録（3枚まで） <span className="text-red-500">*</span>
                                 </label>
                                 <p className="text-xs text-gray-500 mb-2">推奨画像サイズ: 1200×800px（比率 3:2）</p>
-                                <p className="text-xs text-gray-500 mb-3">登録できるファイルサイズは20MBまでです</p>
+                                <p className="text-xs text-gray-500 mb-3">登録できるファイルサイズは10MBまでです</p>
                                 <div className="space-y-2">
                                     {(formData.existingImages.length + formData.images.length) < 3 && (
                                         <label
