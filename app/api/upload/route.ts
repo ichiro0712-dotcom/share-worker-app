@@ -33,7 +33,7 @@ const ALLOWED_EXTENSIONS = [
   'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'csv',
 ];
 
-// 最大ファイルサイズ（通常: 20MB）
+// 最大ファイルサイズ（通常: 10MB）
 // クライアント側バリデーション（utils/fileValidation.ts）と同期
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 

@@ -44,8 +44,8 @@ export function getSafeImageUrl(url: unknown, fallback?: string): string | null 
   return fallback ?? null;
 }
 
-// 最大ファイルサイズ（20MB）
-export const MAX_FILE_SIZE = 20 * 1024 * 1024;
+// 最大ファイルサイズ（10MB）- スマホでの処理負荷を考慮
+export const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 // 圧縮後の目標サイズ（2MB）
 export const TARGET_COMPRESSED_SIZE = 2 * 1024 * 1024;
@@ -108,7 +108,7 @@ export function validateFile(
   if (file.size > MAX_FILE_SIZE) {
     return {
       isValid: false,
-      error: `「${file.name}」のファイルサイズが大きすぎます（${formatFileSize(file.size)}）。20MB以下にしてください。`,
+      error: `「${file.name}」のファイルサイズが大きすぎます（${formatFileSize(file.size)}）。10MB以下にしてください。`,
       errorType: 'size'
     };
   }
