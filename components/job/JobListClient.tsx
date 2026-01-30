@@ -210,8 +210,8 @@ export function JobListClient({
       '1日4時間以下': 'short',
     };
 
-    const jobTypes = searchParams?.getAll('jobType').map(t => jobTypeMapping[t]).filter(Boolean);
-    const workTimeTypes = searchParams?.getAll('workTimeType').map(t => workTimeMapping[t]).filter(Boolean);
+    const jobTypes = (searchParams?.getAll('jobType') || []).map(t => jobTypeMapping[t]).filter(Boolean);
+    const workTimeTypes = (searchParams?.getAll('workTimeType') || []).map(t => workTimeMapping[t]).filter(Boolean);
     const minWageParam = searchParams?.get('minWage');
     const distanceKm = searchParams?.get('distanceKm');
     const distanceLat = searchParams?.get('distanceLat');
