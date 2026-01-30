@@ -376,13 +376,15 @@ export async function approveModificationRequest(
     });
 
     // 3. 操作ログを記録
+    // Note: facilityIdは施設IDであり、操作者のユーザーIDではないためrequestDataに含める
     logActivity({
       userType: 'FACILITY',
-      userId: facilityId,
       action: 'ATTENDANCE_MODIFY_APPROVE',
       targetType: 'AttendanceModificationRequest',
       targetId: modificationId,
       requestData: {
+        facilityId,
+        facilityName: facility.facility_name,
         attendanceId: modification.attendance_id,
         workerId: modification.attendance.user.id,
         workerName: modification.attendance.user.name,
@@ -435,10 +437,12 @@ export async function approveModificationRequest(
     // エラーログを記録
     logActivity({
       userType: 'FACILITY',
-      userId: facilityId,
       action: 'ATTENDANCE_MODIFY_APPROVE_FAILED',
       targetType: 'AttendanceModificationRequest',
       targetId: modificationId,
+      requestData: {
+        facilityId,
+      },
       result: 'ERROR',
       errorMessage: getErrorMessage(error),
       errorStack: getErrorStack(error),
@@ -459,7 +463,7 @@ export async function rejectModificationRequest(
   request: ApproveRejectRequest
 ): Promise<ApproveRejectResponse> {
   try {
-    await getFacilityById(facilityId);
+    const facility = await getFacilityById(facilityId);
 
     // 1. 申請の取得と権限確認
     const modification = await prisma.attendanceModificationRequest.findUnique({
@@ -520,13 +524,15 @@ export async function rejectModificationRequest(
     });
 
     // 3. 操作ログを記録
+    // Note: facilityIdは施設IDであり、操作者のユーザーIDではないためrequestDataに含める
     logActivity({
       userType: 'FACILITY',
-      userId: facilityId,
       action: 'ATTENDANCE_MODIFY_REJECT',
       targetType: 'AttendanceModificationRequest',
       targetId: modificationId,
       requestData: {
+        facilityId,
+        facilityName: facility.facility_name,
         attendanceId: modification.attendance_id,
         workerId: modification.attendance.user.id,
         workerName: modification.attendance.user.name,
@@ -569,10 +575,12 @@ export async function rejectModificationRequest(
     // エラーログを記録
     logActivity({
       userType: 'FACILITY',
-      userId: facilityId,
       action: 'ATTENDANCE_MODIFY_REJECT_FAILED',
       targetType: 'AttendanceModificationRequest',
       targetId: modificationId,
+      requestData: {
+        facilityId,
+      },
       result: 'ERROR',
       errorMessage: getErrorMessage(error),
       errorStack: getErrorStack(error),
@@ -591,7 +599,7 @@ export async function rejectModificationRequest(
  */
 export async function regenerateQRCode(facilityId: number): Promise<RegenerateQRResponse> {
   try {
-    await getFacilityById(facilityId);
+    const facility = await getFacilityById(facilityId);
 
     // 新しいトークンを生成
     const newToken = randomBytes(32).toString('hex');
@@ -607,13 +615,15 @@ export async function regenerateQRCode(facilityId: number): Promise<RegenerateQR
     });
 
     // 操作ログを記録
+    // Note: facilityIdは施設IDであり、操作者のユーザーIDではないためrequestDataに含める
     logActivity({
       userType: 'FACILITY',
-      userId: facilityId,
       action: 'QR_CODE_REGENERATE',
       targetType: 'Facility',
       targetId: facilityId,
       requestData: {
+        facilityId,
+        facilityName: facility.facility_name,
         generatedAt: now.toISOString(),
       },
       result: 'SUCCESS',
@@ -630,10 +640,12 @@ export async function regenerateQRCode(facilityId: number): Promise<RegenerateQR
     // エラーログを記録
     logActivity({
       userType: 'FACILITY',
-      userId: facilityId,
       action: 'QR_CODE_REGENERATE_FAILED',
       targetType: 'Facility',
       targetId: facilityId,
+      requestData: {
+        facilityId,
+      },
       result: 'ERROR',
       errorMessage: getErrorMessage(error),
       errorStack: getErrorStack(error),
@@ -653,7 +665,7 @@ export async function updateEmergencyCode(
   code: string
 ): Promise<{ success: boolean; message: string }> {
   try {
-    await getFacilityById(facilityId);
+    const facility = await getFacilityById(facilityId);
 
     // 4桁の数字かバリデーション
     if (!/^\d{4}$/.test(code)) {
@@ -680,13 +692,15 @@ export async function updateEmergencyCode(
     });
 
     // 操作ログを記録（緊急コード自体はマスクされる）
+    // Note: facilityIdは施設IDであり、操作者のユーザーIDではないためrequestDataに含める
     logActivity({
       userType: 'FACILITY',
-      userId: facilityId,
       action: 'EMERGENCY_CODE_UPDATE',
       targetType: 'Facility',
       targetId: facilityId,
       requestData: {
+        facilityId,
+        facilityName: facility.facility_name,
         emergency_code: code, // sanitizeDataでマスクされる
       },
       result: 'SUCCESS',
@@ -701,10 +715,12 @@ export async function updateEmergencyCode(
     // エラーログを記録
     logActivity({
       userType: 'FACILITY',
-      userId: facilityId,
       action: 'EMERGENCY_CODE_UPDATE_FAILED',
       targetType: 'Facility',
       targetId: facilityId,
+      requestData: {
+        facilityId,
+      },
       result: 'ERROR',
       errorMessage: getErrorMessage(error),
       errorStack: getErrorStack(error),
