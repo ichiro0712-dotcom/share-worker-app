@@ -30,8 +30,8 @@ export default function JobFormWrapper({
   const searchParams = useSearchParams();
 
   // オファーモード判定
-  const isOfferMode = searchParams.get('mode') === 'offer';
-  const offerWorkerId = searchParams.get('workerId');
+  const isOfferMode = searchParams?.get('mode') === 'offer';
+  const offerWorkerId = searchParams?.get('workerId');
 
   // Admin依存のデータ
   const [templates, setTemplates] = useState<any[]>([]);

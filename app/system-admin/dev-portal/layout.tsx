@@ -102,7 +102,7 @@ export default function DevPortalLayout({ children }: { children: React.ReactNod
                             <ul className="space-y-1">
                                 {section.items.map((item) => {
                                     const isActive = pathname === item.href ||
-                                        (item.href !== '/system-admin/dev-portal' && pathname.startsWith(item.href));
+                                        (item.href !== '/system-admin/dev-portal' && pathname?.startsWith(item.href));
                                     const colors = colorMap[item.color || 'default'];
                                     const Icon = item.icon;
 

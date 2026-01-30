@@ -32,8 +32,8 @@ export function WorkerLayout({ children }: WorkerLayoutProps) {
 
   // フッターを表示しないページかチェック
   const shouldHideFooter =
-    EXCLUDED_PATHS.includes(pathname) ||
-    EXCLUDED_PREFIXES.some(prefix => pathname.startsWith(prefix));
+    (pathname && EXCLUDED_PATHS.includes(pathname)) ||
+    EXCLUDED_PREFIXES.some(prefix => pathname?.startsWith(prefix));
 
   if (shouldHideFooter) {
     return <>{children}</>;

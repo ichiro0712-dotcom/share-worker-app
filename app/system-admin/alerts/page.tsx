@@ -16,9 +16,9 @@ interface Alert {
 
 export default function AlertsPage() {
     const searchParams = useSearchParams();
-    const highlightType = searchParams.get('type');
-    const highlightId = searchParams.get('id');
-    const highlightAlertType = searchParams.get('alertType');
+    const highlightType = searchParams?.get('type');
+    const highlightId = searchParams?.get('id');
+    const highlightAlertType = searchParams?.get('alertType');
 
     const [alerts, setAlerts] = useState<Alert[]>([]);
     const [loading, setLoading] = useState(true);

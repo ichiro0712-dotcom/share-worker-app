@@ -180,8 +180,8 @@ function ApplicationsContent() {
 
   // フィルタ・検索状態
   const searchParams = useSearchParams();
-  const initialStatusFilter = searchParams.get('status') as 'all' | 'published' | 'stopped' | 'completed' | null;
-  const initialPage = searchParams.get('page');
+  const initialStatusFilter = searchParams?.get('status') as 'all' | 'published' | 'stopped' | 'completed' | null;
+  const initialPage = searchParams?.get('page');
 
   const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'stopped' | 'completed'>(
     initialStatusFilter && ['all', 'published', 'stopped', 'completed'].includes(initialStatusFilter)
@@ -191,7 +191,7 @@ function ApplicationsContent() {
   const [jobTypeFilter, setJobTypeFilter] = useState<string>('all');
   const [qualificationCategory, setQualificationCategory] = useState<string>('all');
   const [workerSortBy, setWorkerSortBy] = useState<string>('workCount_desc');
-  const initialJobSort = searchParams.get('jobSort') as JobApplicationsSortOption | null;
+  const initialJobSort = searchParams?.get('jobSort') as JobApplicationsSortOption | null;
   const [jobSortBy, setJobSortBy] = useState<JobApplicationsSortOption>(
     initialJobSort && ['created_desc', 'created_asc', 'applied_desc', 'applied_asc', 'unviewed_desc', 'workDate_asc', 'workDate_desc'].includes(initialJobSort)
       ? initialJobSort : 'created_desc'
@@ -278,7 +278,7 @@ function ApplicationsContent() {
 
   // URLパラメータからタブを復元
   useEffect(() => {
-    const tab = searchParams.get('tab');
+    const tab = searchParams?.get('tab');
     if (tab === 'workers') {
       setViewMode('workers');
     } else if (tab === 'jobs') {

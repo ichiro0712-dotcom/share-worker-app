@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 
 export function MessagesTabs() {
   const searchParams = useSearchParams();
-  const activeTab = searchParams.get('tab') === 'notifications' ? 'notifications' : 'messages';
+  const activeTab = searchParams?.get('tab') === 'notifications' ? 'notifications' : 'messages';
 
   return (
     <div className="flex border-t border-gray-200">

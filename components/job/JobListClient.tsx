@@ -59,7 +59,7 @@ export function JobListClient({
   const [showListTypeMenu, setShowListTypeMenu] = useState(false);
 
   // URLパラメータから初期値を取得
-  const dateIndexFromUrl = searchParams.get('dateIndex');
+  const dateIndexFromUrl = searchParams?.get('dateIndex');
   const urlDateIndex = dateIndexFromUrl ? parseInt(dateIndexFromUrl, 10) : 0;
   const safeUrlDateIndex = isNaN(urlDateIndex) ? 0 : urlDateIndex;
 
@@ -67,7 +67,7 @@ export function JobListClient({
   const [selectedDateIndex, setSelectedDateIndex] = useState(safeUrlDateIndex);
 
   // URLパラメータからソート順を取得
-  const sortFromUrl = searchParams.get('sort') as SortOrder | null;
+  const sortFromUrl = searchParams?.get('sort') as SortOrder | null;
   const [sortOrder, setSortOrder] = useState<SortOrder>(sortFromUrl || 'distance');
 
   const [showSortMenu, setShowSortMenu] = useState(false);
@@ -89,7 +89,7 @@ export function JobListClient({
   useEffect(() => {
     if (sortOrder === 'distance' && !locationRequested && !userLocation) {
       // URLパラメータに位置情報がない場合のみ位置取得を試みる
-      const hasLocationInUrl = searchParams.get('distanceLat') && searchParams.get('distanceLng');
+      const hasLocationInUrl = searchParams?.get('distanceLat') && searchParams?.get('distanceLng');
       if (!hasLocationInUrl && navigator.geolocation) {
         setLocationRequested(true);
         navigator.geolocation.getCurrentPosition(
@@ -113,8 +113,8 @@ export function JobListClient({
   // URLパラメータから検索条件を構築
   // 距離ソート用: URLパラメータに位置情報がなくても、userLocationがあれば使用
   const searchParamsObj = useMemo(() => {
-    const urlDistanceLat = searchParams.get('distanceLat');
-    const urlDistanceLng = searchParams.get('distanceLng');
+    const urlDistanceLat = searchParams?.get('distanceLat');
+    const urlDistanceLng = searchParams?.get('distanceLng');
 
     // 距離ソート時: URLに位置情報がなければuserLocationを使用
     let effectiveDistanceLat = urlDistanceLat || undefined;
@@ -126,21 +126,21 @@ export function JobListClient({
     }
 
     return {
-      query: searchParams.get('query') || undefined,
-      prefecture: searchParams.get('prefecture') || undefined,
-      city: searchParams.get('city') || undefined,
-      minWage: searchParams.get('minWage') || undefined,
-      serviceTypes: searchParams.getAll('serviceType'),
-      transportations: searchParams.getAll('transportation'),
-      otherConditions: searchParams.getAll('otherCondition'),
-      jobTypes: searchParams.getAll('jobType'),
-      workTimeTypes: searchParams.getAll('workTimeType'),
-      page: searchParams.get('page') ? parseInt(searchParams.get('page')!, 10) : 1,
+      query: searchParams?.get('query') || undefined,
+      prefecture: searchParams?.get('prefecture') || undefined,
+      city: searchParams?.get('city') || undefined,
+      minWage: searchParams?.get('minWage') || undefined,
+      serviceTypes: searchParams?.getAll('serviceType'),
+      transportations: searchParams?.getAll('transportation'),
+      otherConditions: searchParams?.getAll('otherCondition'),
+      jobTypes: searchParams?.getAll('jobType'),
+      workTimeTypes: searchParams?.getAll('workTimeType'),
+      page: searchParams?.get('page') ? parseInt(searchParams?.get('page')!, 10) : 1,
       dateIndex: selectedDateIndex,
       sort: sortOrder,
-      timeRangeFrom: searchParams.get('timeRangeFrom') || undefined,
-      timeRangeTo: searchParams.get('timeRangeTo') || undefined,
-      distanceKm: searchParams.get('distanceKm') || undefined,
+      timeRangeFrom: searchParams?.get('timeRangeFrom') || undefined,
+      timeRangeTo: searchParams?.get('timeRangeTo') || undefined,
+      distanceKm: searchParams?.get('distanceKm') || undefined,
       distanceLat: effectiveDistanceLat,
       distanceLng: effectiveDistanceLng,
       listType: listType,
@@ -210,25 +210,25 @@ export function JobListClient({
       '1日4時間以下': 'short',
     };
 
-    const jobTypes = searchParams.getAll('jobType').map(t => jobTypeMapping[t]).filter(Boolean);
-    const workTimeTypes = searchParams.getAll('workTimeType').map(t => workTimeMapping[t]).filter(Boolean);
-    const minWageParam = searchParams.get('minWage');
-    const distanceKm = searchParams.get('distanceKm');
-    const distanceLat = searchParams.get('distanceLat');
-    const distanceLng = searchParams.get('distanceLng');
-    const distanceAddress = searchParams.get('distanceAddress');
+    const jobTypes = searchParams?.getAll('jobType').map(t => jobTypeMapping[t]).filter(Boolean);
+    const workTimeTypes = searchParams?.getAll('workTimeType').map(t => workTimeMapping[t]).filter(Boolean);
+    const minWageParam = searchParams?.get('minWage');
+    const distanceKm = searchParams?.get('distanceKm');
+    const distanceLat = searchParams?.get('distanceLat');
+    const distanceLng = searchParams?.get('distanceLng');
+    const distanceAddress = searchParams?.get('distanceAddress');
 
     return {
-      prefecture: searchParams.get('prefecture') || '',
-      city: searchParams.get('city') || '',
+      prefecture: searchParams?.get('prefecture') || '',
+      city: searchParams?.get('city') || '',
       jobTypes,
       workTimeTypes,
-      timeRangeFrom: searchParams.get('timeRangeFrom') || '',
-      timeRangeTo: searchParams.get('timeRangeTo') || '',
+      timeRangeFrom: searchParams?.get('timeRangeFrom') || '',
+      timeRangeTo: searchParams?.get('timeRangeTo') || '',
       minWage: minWageParam ? `${minWageParam}円以上` : '',
-      serviceTypes: searchParams.getAll('serviceType'),
-      transportations: searchParams.getAll('transportation'),
-      otherConditions: searchParams.getAll('otherCondition'),
+      serviceTypes: searchParams?.getAll('serviceType'),
+      transportations: searchParams?.getAll('transportation'),
+      otherConditions: searchParams?.getAll('otherCondition'),
       distanceEnabled: !!(distanceKm && distanceLat && distanceLng),
       distanceAddress: distanceAddress || '',
       distanceKm: distanceKm ? parseFloat(distanceKm) : 10,
@@ -241,48 +241,48 @@ export function JobListClient({
   const activeFilters = useMemo(() => {
     const filters: { key: string; label: string; paramName: string; rawValue: string }[] = [];
 
-    const prefecture = searchParams.get('prefecture');
+    const prefecture = searchParams?.get('prefecture');
     if (prefecture) {
       filters.push({ key: `prefecture-${prefecture}`, label: prefecture, paramName: 'prefecture', rawValue: prefecture });
     }
 
-    const city = searchParams.get('city');
+    const city = searchParams?.get('city');
     if (city) {
       filters.push({ key: `city-${city}`, label: city, paramName: 'city', rawValue: city });
     }
 
-    const minWage = searchParams.get('minWage');
+    const minWage = searchParams?.get('minWage');
     if (minWage) {
       filters.push({ key: `minWage-${minWage}`, label: `${minWage}円以上`, paramName: 'minWage', rawValue: minWage });
     }
 
-    const serviceTypes = searchParams.getAll('serviceType');
+    const serviceTypes = searchParams?.getAll('serviceType') || [];
     serviceTypes.forEach((type) => {
       filters.push({ key: `serviceType-${type}`, label: getShortLabel(type), paramName: 'serviceType', rawValue: type });
     });
 
-    const transportations = searchParams.getAll('transportation');
+    const transportations = searchParams?.getAll('transportation') || [];
     transportations.forEach((t) => {
       filters.push({ key: `transportation-${t}`, label: getShortLabel(t), paramName: 'transportation', rawValue: t });
     });
 
-    const otherConditions = searchParams.getAll('otherCondition');
+    const otherConditions = searchParams?.getAll('otherCondition') || [];
     otherConditions.forEach((c) => {
       filters.push({ key: `otherCondition-${c}`, label: getShortLabel(c), paramName: 'otherCondition', rawValue: c });
     });
 
-    const jobTypes = searchParams.getAll('jobType');
+    const jobTypes = searchParams?.getAll('jobType') || [];
     jobTypes.forEach((type) => {
       filters.push({ key: `jobType-${type}`, label: getShortLabel(type), paramName: 'jobType', rawValue: type });
     });
 
-    const workTimeTypes = searchParams.getAll('workTimeType');
+    const workTimeTypes = searchParams?.getAll('workTimeType') || [];
     workTimeTypes.forEach((type) => {
       filters.push({ key: `workTimeType-${type}`, label: getShortLabel(type), paramName: 'workTimeType', rawValue: type });
     });
 
-    const timeRangeFrom = searchParams.get('timeRangeFrom');
-    const timeRangeTo = searchParams.get('timeRangeTo');
+    const timeRangeFrom = searchParams?.get('timeRangeFrom');
+    const timeRangeTo = searchParams?.get('timeRangeTo');
     if (timeRangeFrom || timeRangeTo) {
       const label = timeRangeFrom && timeRangeTo
         ? `${timeRangeFrom}〜${timeRangeTo}`
@@ -297,9 +297,9 @@ export function JobListClient({
       });
     }
 
-    const distanceKm = searchParams.get('distanceKm');
-    const distanceLat = searchParams.get('distanceLat');
-    const distanceLng = searchParams.get('distanceLng');
+    const distanceKm = searchParams?.get('distanceKm');
+    const distanceLat = searchParams?.get('distanceLat');
+    const distanceLng = searchParams?.get('distanceLng');
     if (distanceKm && distanceLat && distanceLng) {
       filters.push({
         key: `distance-${distanceKm}km`,
@@ -317,7 +317,7 @@ export function JobListClient({
     setSelectedDateIndex(index);
 
     // URLパラメータを更新（ブラウザ履歴に保存）
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(searchParams?.toString() || '');
     if (index === 0) {
       // デフォルト値（今日）の場合はパラメータを削除
       params.delete('dateIndex');
@@ -333,28 +333,28 @@ export function JobListClient({
   // 日付ホバー時のプリフェッチ
   const handleDateHover = useCallback((index: number) => {
     const baseParams = {
-      query: searchParams.get('query') || undefined,
-      prefecture: searchParams.get('prefecture') || undefined,
-      city: searchParams.get('city') || undefined,
-      minWage: searchParams.get('minWage') || undefined,
-      serviceTypes: searchParams.getAll('serviceType'),
-      transportations: searchParams.getAll('transportation'),
-      otherConditions: searchParams.getAll('otherCondition'),
-      jobTypes: searchParams.getAll('jobType'),
-      workTimeTypes: searchParams.getAll('workTimeType'),
+      query: searchParams?.get('query') || undefined,
+      prefecture: searchParams?.get('prefecture') || undefined,
+      city: searchParams?.get('city') || undefined,
+      minWage: searchParams?.get('minWage') || undefined,
+      serviceTypes: searchParams?.getAll('serviceType'),
+      transportations: searchParams?.getAll('transportation'),
+      otherConditions: searchParams?.getAll('otherCondition'),
+      jobTypes: searchParams?.getAll('jobType'),
+      workTimeTypes: searchParams?.getAll('workTimeType'),
       sort: sortOrder,
-      timeRangeFrom: searchParams.get('timeRangeFrom') || undefined,
-      timeRangeTo: searchParams.get('timeRangeTo') || undefined,
-      distanceKm: searchParams.get('distanceKm') || undefined,
-      distanceLat: searchParams.get('distanceLat') || undefined,
-      distanceLng: searchParams.get('distanceLng') || undefined,
+      timeRangeFrom: searchParams?.get('timeRangeFrom') || undefined,
+      timeRangeTo: searchParams?.get('timeRangeTo') || undefined,
+      distanceKm: searchParams?.get('distanceKm') || undefined,
+      distanceLat: searchParams?.get('distanceLat') || undefined,
+      distanceLng: searchParams?.get('distanceLng') || undefined,
     };
     prefetchJobsForDate(baseParams, index);
   }, [searchParams, sortOrder]);
 
   // 個別のフィルターを削除する
   const handleRemoveFilter = (paramName: string, value: string) => {
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(searchParams?.toString() || '');
 
     if (['serviceType', 'transportation', 'otherCondition', 'jobType', 'workTimeType'].includes(paramName)) {
       const values = params.getAll(paramName);
@@ -393,7 +393,7 @@ export function JobListClient({
   };
 
   const handleApplyFilters = (filters: any) => {
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(searchParams?.toString() || '');
 
     params.delete('page');
 
@@ -496,7 +496,7 @@ export function JobListClient({
 
   // ページ変更処理
   const handlePageChange = (page: number) => {
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(searchParams?.toString() || '');
     if (page === 1) {
       params.delete('page');
     } else {

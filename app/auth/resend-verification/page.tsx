@@ -7,7 +7,7 @@ import { Mail, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react';
 
 function ResendVerificationForm() {
   const searchParams = useSearchParams();
-  const initialEmail = searchParams.get('email') || '';
+  const initialEmail = searchParams?.get('email') || '';
 
   const [email, setEmail] = useState(initialEmail);
   const [isSubmitting, setIsSubmitting] = useState(false);

@@ -71,7 +71,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
   const { showDebugError } = useDebugError();
 
   // URLパラメータからselectedを読み取る（プロフィール編集から戻った場合）
-  const selectedFromUrl = searchParams.get('selected');
+  const selectedFromUrl = searchParams?.get('selected');
   const preselectedIds = selectedFromUrl ? selectedFromUrl.split(',').map(id => parseInt(id, 10)).filter(id => !isNaN(id)) : [];
 
   const [currentImageIndex, setCurrentImageIndex] = useState(0);

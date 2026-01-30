@@ -12,7 +12,7 @@ export default function PasswordResetPage() {
   const params = useParams();
   const router = useRouter();
   const { showDebugError } = useDebugError();
-  const token = params.token as string;
+  const token = params?.token as string;
 
   const [isValidating, setIsValidating] = useState(true);
   const [isValidToken, setIsValidToken] = useState(false);

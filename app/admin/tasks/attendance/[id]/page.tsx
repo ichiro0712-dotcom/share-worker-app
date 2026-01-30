@@ -21,7 +21,7 @@ export default function AttendanceApprovalDetailPage() {
   const router = useRouter();
   const params = useParams();
   const { admin, isAdmin, isAdminLoading } = useAuth();
-  const modificationId = params.id ? parseInt(params.id as string) : null;
+  const modificationId = params?.id ? parseInt(params.id as string) : null;
 
   const [request, setRequest] = useState<ModificationRequestDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);

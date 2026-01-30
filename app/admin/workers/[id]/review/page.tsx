@@ -29,7 +29,7 @@ export default function FacilityWorkerReviewPage() {
 
   const { showDebugError } = useDebugError();
   const searchParams = useSearchParams();
-  const applicationId = searchParams.get('applicationId');
+  const applicationId = searchParams?.get('applicationId');
   const { admin, isAdmin } = useAuth();
 
   const [applicationData, setApplicationData] = useState<ApplicationData | null>(null);

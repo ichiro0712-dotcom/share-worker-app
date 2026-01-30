@@ -126,9 +126,9 @@ export default function AdminWorkersPage() {
   const { showDebugError } = useDebugError();
   const { admin, isAdmin, isAdminLoading } = useAuth();
   const searchParams = useSearchParams();
-  const initialStatusFilter = searchParams.get('status') as StatusFilterType | null;
-  const initialSortBy = searchParams.get('sort') as SortByType | null;
-  const initialPage = searchParams.get('page');
+  const initialStatusFilter = searchParams?.get('status') as StatusFilterType | null;
+  const initialSortBy = searchParams?.get('sort') as SortByType | null;
+  const initialPage = searchParams?.get('page');
 
   const [page, setPage] = useState(initialPage ? parseInt(initialPage) : 1);
 

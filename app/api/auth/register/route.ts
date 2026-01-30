@@ -98,9 +98,9 @@ export async function POST(request: NextRequest) {
         city: city || null,
         address_line: addressLine || null,
         building: building || null,
-        experience_fields: experienceFields && Object.keys(experienceFields).length > 0 ? experienceFields : Prisma.DbNull,
+        experience_fields: experienceFields && Object.keys(experienceFields).length > 0 ? experienceFields as Prisma.InputJsonValue : Prisma.DbNull,
         work_histories: workHistoriesArray,
-        qualification_certificates: qualificationCertificates && Object.keys(qualificationCertificates).length > 0 ? qualificationCertificates : Prisma.DbNull,
+        qualification_certificates: qualificationCertificates && Object.keys(qualificationCertificates).length > 0 ? qualificationCertificates as Prisma.InputJsonValue : Prisma.DbNull,
       },
     });
 

@@ -52,8 +52,8 @@ export default function AdminMessagesPage() {
   const { showDebugError: showDebug } = useDebugError();
   const showDebugError = showDebug || ((x: any) => console.log(x));
   const searchParams = useSearchParams();
-  const initialWorkerId = searchParams.get('workerId');
-  const initialFilter = searchParams.get('filter') as FilterType | null;
+  const initialWorkerId = searchParams?.get('workerId');
+  const initialFilter = searchParams?.get('filter') as FilterType | null;
   const { admin, isAdmin, isAdminLoading } = useAuth();
 
   // SWRでデータ取得

@@ -106,13 +106,13 @@ export default function AdminJobsList() {
   const { admin, isAdmin, isAdminLoading } = useAuth();
   const [jobTemplates, setJobTemplates] = useState<TemplateData[]>([]);
   const searchParams = useSearchParams();
-  const initialStatusFilter = searchParams.get('status') as JobStatus | null;
-  const initialPage = searchParams.get('page');
-  const initialPeriodStart = searchParams.get('periodStart');
-  const initialPeriodEnd = searchParams.get('periodEnd');
-  const initialTemplate = searchParams.get('template');
-  const initialJobType = searchParams.get('jobType');
-  const initialSort = searchParams.get('sort') as JobSortOption | null;
+  const initialStatusFilter = searchParams?.get('status') as JobStatus | null;
+  const initialPage = searchParams?.get('page');
+  const initialPeriodStart = searchParams?.get('periodStart');
+  const initialPeriodEnd = searchParams?.get('periodEnd');
+  const initialTemplate = searchParams?.get('template');
+  const initialJobType = searchParams?.get('jobType');
+  const initialSort = searchParams?.get('sort') as JobSortOption | null;
 
   const [facilityName, setFacilityName] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
