@@ -306,6 +306,7 @@ export async function updateUserProfile(formData: FormData) {
                 'https://ryvyuxomiqcgkspmpltk.supabase.co/storage/v1/object/public/',
                 'https://qcovuuqxyihbpjlgccxz.supabase.co/storage/v1/object/public/',
                 'https://ziaunavcbawzorrwwnos.supabase.co/storage/v1/object/public/',
+                'data:image/',  // base64エンコードされた画像データも許可（既存データ互換性のため）
             ];
             return allowedPatterns.some(pattern => url.startsWith(pattern));
         };
