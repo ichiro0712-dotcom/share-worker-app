@@ -111,8 +111,17 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Registration error:', error);
+    // デバッグ用：エラー詳細を返す（本番運用開始後は削除）
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
     return NextResponse.json(
-      { error: '登録中にエラーが発生しました' },
+      {
+        error: '登録中にエラーが発生しました',
+        debug: {
+          message: errorMessage,
+          stack: errorStack?.split('\n').slice(0, 5).join('\n'),
+        }
+      },
       { status: 500 }
     );
   }
