@@ -9,6 +9,7 @@ import { getCurrentTime } from './helpers';
 import { calculateSalary } from '@/src/lib/salary-calculator';
 import { sendNotification } from '@/src/lib/notification-service';
 import { randomBytes } from 'crypto';
+import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 import {
   ATTENDANCE_ERROR_CODES,
   createAttendanceError,
@@ -374,7 +375,24 @@ export async function approveModificationRequest(
       }
     });
 
-    // 3. ワーカーへの通知
+    // 3. 操作ログを記録
+    logActivity({
+      userType: 'FACILITY',
+      userId: facilityId,
+      action: 'ATTENDANCE_MODIFY_APPROVE',
+      targetType: 'AttendanceModificationRequest',
+      targetId: modificationId,
+      requestData: {
+        attendanceId: modification.attendance_id,
+        workerId: modification.attendance.user.id,
+        workerName: modification.attendance.user.name,
+        requestedAmount: modification.requested_amount,
+        adminComment: request.adminComment,
+      },
+      result: 'SUCCESS',
+    }).catch(() => {});
+
+    // 4. ワーカーへの通知
     const applicationId = modification.attendance.application?.id;
     await sendNotification({
       notificationKey: 'ATTENDANCE_MODIFICATION_APPROVED',
@@ -414,6 +432,17 @@ export async function approveModificationRequest(
     };
   } catch (error) {
     console.error('[approveModificationRequest] Error:', error);
+    // エラーログを記録
+    logActivity({
+      userType: 'FACILITY',
+      userId: facilityId,
+      action: 'ATTENDANCE_MODIFY_APPROVE_FAILED',
+      targetType: 'AttendanceModificationRequest',
+      targetId: modificationId,
+      result: 'ERROR',
+      errorMessage: getErrorMessage(error),
+      errorStack: getErrorStack(error),
+    }).catch(() => {});
     return {
       success: false,
       message: error instanceof Error ? error.message : '承認に失敗しました',
@@ -490,7 +519,23 @@ export async function rejectModificationRequest(
       }
     });
 
-    // 3. ワーカーへの通知
+    // 3. 操作ログを記録
+    logActivity({
+      userType: 'FACILITY',
+      userId: facilityId,
+      action: 'ATTENDANCE_MODIFY_REJECT',
+      targetType: 'AttendanceModificationRequest',
+      targetId: modificationId,
+      requestData: {
+        attendanceId: modification.attendance_id,
+        workerId: modification.attendance.user.id,
+        workerName: modification.attendance.user.name,
+        adminComment: request.adminComment,
+      },
+      result: 'SUCCESS',
+    }).catch(() => {});
+
+    // 4. ワーカーへの通知
     const applicationId = modification.attendance.application?.id;
     await sendNotification({
       notificationKey: 'ATTENDANCE_MODIFICATION_REJECTED',
@@ -521,6 +566,17 @@ export async function rejectModificationRequest(
     };
   } catch (error) {
     console.error('[rejectModificationRequest] Error:', error);
+    // エラーログを記録
+    logActivity({
+      userType: 'FACILITY',
+      userId: facilityId,
+      action: 'ATTENDANCE_MODIFY_REJECT_FAILED',
+      targetType: 'AttendanceModificationRequest',
+      targetId: modificationId,
+      result: 'ERROR',
+      errorMessage: getErrorMessage(error),
+      errorStack: getErrorStack(error),
+    }).catch(() => {});
     return {
       success: false,
       message: error instanceof Error ? error.message : '却下に失敗しました',
@@ -550,6 +606,19 @@ export async function regenerateQRCode(facilityId: number): Promise<RegenerateQR
       },
     });
 
+    // 操作ログを記録
+    logActivity({
+      userType: 'FACILITY',
+      userId: facilityId,
+      action: 'QR_CODE_REGENERATE',
+      targetType: 'Facility',
+      targetId: facilityId,
+      requestData: {
+        generatedAt: now.toISOString(),
+      },
+      result: 'SUCCESS',
+    }).catch(() => {});
+
     return {
       success: true,
       qrToken: newToken,
@@ -558,6 +627,17 @@ export async function regenerateQRCode(facilityId: number): Promise<RegenerateQR
     };
   } catch (error) {
     console.error('[regenerateQRCode] Error:', error);
+    // エラーログを記録
+    logActivity({
+      userType: 'FACILITY',
+      userId: facilityId,
+      action: 'QR_CODE_REGENERATE_FAILED',
+      targetType: 'Facility',
+      targetId: facilityId,
+      result: 'ERROR',
+      errorMessage: getErrorMessage(error),
+      errorStack: getErrorStack(error),
+    }).catch(() => {});
     return {
       success: false,
       message: error instanceof Error ? error.message : 'QRコードの再発行に失敗しました',
@@ -599,12 +679,36 @@ export async function updateEmergencyCode(
       },
     });
 
+    // 操作ログを記録（緊急コード自体はマスクされる）
+    logActivity({
+      userType: 'FACILITY',
+      userId: facilityId,
+      action: 'EMERGENCY_CODE_UPDATE',
+      targetType: 'Facility',
+      targetId: facilityId,
+      requestData: {
+        emergency_code: code, // sanitizeDataでマスクされる
+      },
+      result: 'SUCCESS',
+    }).catch(() => {});
+
     return {
       success: true,
       message: '緊急時出退勤番号を更新しました',
     };
   } catch (error) {
     console.error('[updateEmergencyCode] Error:', error);
+    // エラーログを記録
+    logActivity({
+      userType: 'FACILITY',
+      userId: facilityId,
+      action: 'EMERGENCY_CODE_UPDATE_FAILED',
+      targetType: 'Facility',
+      targetId: facilityId,
+      result: 'ERROR',
+      errorMessage: getErrorMessage(error),
+      errorStack: getErrorStack(error),
+    }).catch(() => {});
     return {
       success: false,
       message: error instanceof Error ? error.message : '更新に失敗しました',
