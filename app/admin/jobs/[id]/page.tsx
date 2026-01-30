@@ -51,7 +51,7 @@ export default function AdminJobDetailPage() {
   const router = useRouter();
   const params = useParams();
   const { showDebugError } = useDebugError();
-  const jobId = params.id as string;
+  const jobId = params?.id as string;
   const { admin, isAdmin, isAdminLoading } = useAuth();
 
   const [job, setJob] = useState<JobData | null>(null);

@@ -27,7 +27,7 @@ interface ApiResponse {
 
 export default function WorkerLaborDocumentsPage() {
   const params = useParams();
-  const id = params.id as string;
+  const id = params?.id as string;
   const router = useRouter();
   const { admin, isAdmin, isAdminLoading } = useAuth();
   const workerId = parseInt(id);

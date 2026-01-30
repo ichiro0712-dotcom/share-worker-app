@@ -7,8 +7,8 @@ import { verifyMasqueradeToken } from '@/src/lib/system-actions';
 export default function MasqueradePage() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const token = searchParams.get('token');
-    const redirect = searchParams.get('redirect'); // リダイレクト先を取得
+    const token = searchParams?.get('token');
+    const redirect = searchParams?.get('redirect'); // リダイレクト先を取得
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(true);
     const [success, setSuccess] = useState(false); // 成功フラグを追加

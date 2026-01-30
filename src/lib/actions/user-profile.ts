@@ -2,9 +2,8 @@
 
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
-import { getAuthenticatedUser, FileBlob } from './helpers';
+import { getAuthenticatedUser } from './helpers';
 import { geocodeAddress } from '@/src/lib/geocoding';
-import { uploadFile, STORAGE_BUCKETS } from '@/lib/supabase';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 import { generateBankAccountName } from '@/lib/string-utils';
 
@@ -202,7 +201,12 @@ export async function updateUserProfile(formData: FormData) {
         const phoneNumber = formData.get('phoneNumber') as string;
         const birthDate = formData.get('birthDate') as string;
         const qualificationsStr = formData.get('qualifications') as string;
-        const profileImageFile = formData.get('profileImage') as FileBlob | null;
+
+        // URLフィールド（署名付きURLでアップロード済み）
+        const profileImageUrl = formData.get('profileImageUrl') as string | null;
+        const idDocumentUrl = formData.get('idDocumentUrl') as string | null;
+        const bankBookImageUrl = formData.get('bankBookImageUrl') as string | null;
+        const qualificationCertificatesStr = formData.get('qualificationCertificates') as string | null;
 
         // 追加フィールド
         const lastNameKana = formData.get('lastNameKana') as string | null;
@@ -251,26 +255,18 @@ export async function updateUserProfile(formData: FormData) {
         // その他
         const pensionNumber = formData.get('pensionNumber') as string | null;
 
-        // 新しいフィールド（ファイルとして取得）
-        const idDocumentFile = formData.get('idDocument') as FileBlob | null;
-        const bankBookImageFile = formData.get('bankBookImage') as FileBlob | null;
-
         // 資格は配列に変換
         const qualifications = qualificationsStr ? qualificationsStr.split(',').filter(q => q.trim()) : [];
 
-        // 資格証明書ファイルを取得
-        const qualificationCertificateFiles: Record<string, FileBlob> = {};
-        const entries = Array.from(formData.entries());
-        for (const [key, value] of entries) {
-            if (key.startsWith('qualificationCertificate_') && value instanceof Blob && value.size > 0) {
-                const encodedQualification = key.replace('qualificationCertificate_', '');
-                try {
-                    // Base64デコード -> UTF-8デコード（Node.js用）
-                    const qualification = Buffer.from(encodedQualification, 'base64').toString('utf-8');
-                    qualificationCertificateFiles[qualification] = value as FileBlob;
-                } catch (decodeError) {
-                    console.error('[updateUserProfile] Failed to decode qualification:', decodeError);
-                }
+        // 資格証明書URLをパース（クライアントから署名付きURLでアップロード済み）
+        let newCertificates: Record<string, string> = {};
+        if (qualificationCertificatesStr) {
+            try {
+                newCertificates = JSON.parse(qualificationCertificatesStr);
+            } catch {
+                // パースエラー時は既存データを維持
+                console.error('[updateUserProfile] Failed to parse qualificationCertificates');
+                newCertificates = (user.qualification_certificates as Record<string, string>) || {};
             }
         }
 
@@ -298,102 +294,67 @@ export async function updateUserProfile(formData: FormData) {
             };
         }
 
-        // Supabase Storage用ヘルパー関数
-        const uploadToSupabaseStorage = async (file: FileBlob, folder: string, prefix: string, userId: number): Promise<{ url: string } | { error: string }> => {
-            try {
-                const timestamp = Date.now();
-                const fileExtension = file.name.split('.').pop();
-                const fileName = `${folder}/${prefix}-${userId}-${timestamp}.${fileExtension}`;
-
-                const arrayBuffer = await file.arrayBuffer();
-                const buffer = Buffer.from(arrayBuffer);
-
-                const result = await uploadFile(
-                    STORAGE_BUCKETS.UPLOADS,
-                    fileName,
-                    buffer,
-                    file.type
-                );
-
-                if ('error' in result) {
-                    console.error('[Profile Upload] Upload failed:', result.error);
-                    return { error: result.error };
-                }
-
-                return { url: result.url };
-            } catch (error) {
-                console.error('[Profile Upload] Unexpected error:', error);
-                return { error: error instanceof Error ? error.message : '画像のアップロードに失敗しました' };
-            }
+        // URL検証関数（セキュリティ: Supabase Storage URLのみ許可）
+        const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const isValidSupabaseUrl = (url: string | null): boolean => {
+            if (!url || url.trim() === '') return true; // 空は許可（既存データを維持するため）
+            if (!SUPABASE_URL) return false;
+            // Supabase Storage URLパターン: https://{project}.supabase.co/storage/v1/object/public/uploads/...
+            // 複数のSupabaseプロジェクトURLを許可（移行履歴による）
+            const allowedPatterns = [
+                `${SUPABASE_URL}/storage/v1/object/public/`,
+                'https://ryvyuxomiqcgkspmpltk.supabase.co/storage/v1/object/public/',
+                'https://qcovuuqxyihbpjlgccxz.supabase.co/storage/v1/object/public/',
+                'https://ziaunavcbawzorrwwnos.supabase.co/storage/v1/object/public/',
+                'data:image/',  // base64エンコードされた画像データも許可（既存データ互換性のため）
+            ];
+            return allowedPatterns.some(pattern => url.startsWith(pattern));
         };
 
-        // プロフィール画像のアップロード処理
-        let profileImagePath = user.profile_image;
-
-        if (profileImageFile && profileImageFile.size > 0) {
-            const uploadResult = await uploadToSupabaseStorage(profileImageFile, 'profiles', 'profile', user.id);
-            if ('error' in uploadResult) {
-                return {
-                    success: false,
-                    error: `プロフィール画像のアップロードに失敗しました: ${uploadResult.error}`,
-                };
-            }
-            profileImagePath = uploadResult.url;
+        // URLバリデーション
+        if (profileImageUrl && !isValidSupabaseUrl(profileImageUrl)) {
+            console.error('[updateUserProfile] Invalid profileImageUrl:', profileImageUrl);
+            return { success: false, error: '不正な画像URLが検出されました' };
+        }
+        if (idDocumentUrl && !isValidSupabaseUrl(idDocumentUrl)) {
+            console.error('[updateUserProfile] Invalid idDocumentUrl:', idDocumentUrl);
+            return { success: false, error: '不正な身分証明書URLが検出されました' };
+        }
+        if (bankBookImageUrl && !isValidSupabaseUrl(bankBookImageUrl)) {
+            console.error('[updateUserProfile] Invalid bankBookImageUrl:', bankBookImageUrl);
+            return { success: false, error: '不正な通帳コピーURLが検出されました' };
         }
 
-        // 身分証明書のアップロード処理
-        let idDocumentPath = user.id_document;
-        if (idDocumentFile && idDocumentFile.size > 0) {
-            const uploadResult = await uploadToSupabaseStorage(idDocumentFile, 'documents', 'id-document', user.id);
-            if ('error' in uploadResult) {
-                return {
-                    success: false,
-                    error: `身分証明書のアップロードに失敗しました: ${uploadResult.error}`,
-                };
-            }
-            idDocumentPath = uploadResult.url;
-        }
-
-        // 通帳コピーのアップロード処理
-        let bankBookImagePath = user.bank_book_image;
-        if (bankBookImageFile && bankBookImageFile.size > 0) {
-            const uploadResult = await uploadToSupabaseStorage(bankBookImageFile, 'documents', 'bank-book', user.id);
-            if ('error' in uploadResult) {
-                return {
-                    success: false,
-                    error: `通帳コピーのアップロードに失敗しました: ${uploadResult.error}`,
-                };
-            }
-            bankBookImagePath = uploadResult.url;
-        }
-
-        // 資格証明書のアップロード処理
-        const rawCertificates = (user.qualification_certificates as Record<string, unknown>) || {};
-        const existingCertificates: Record<string, string> = {};
-
-        for (const [key, value] of Object.entries(rawCertificates)) {
-            if (typeof value === 'string') {
-                existingCertificates[key] = value;
-            } else if (value && typeof value === 'object' && 'certificate_image' in value) {
-                const certImage = (value as { certificate_image?: string }).certificate_image;
-                if (certImage && typeof certImage === 'string') {
-                    existingCertificates[key] = certImage;
-                }
+        // 資格証明書URLのバリデーション
+        for (const [qual, certUrl] of Object.entries(newCertificates)) {
+            if (certUrl && !isValidSupabaseUrl(certUrl)) {
+                console.error('[updateUserProfile] Invalid certificate URL for', qual, ':', certUrl);
+                return { success: false, error: `不正な資格証明書URL（${qual}）が検出されました` };
             }
         }
-        const newCertificates: Record<string, string> = { ...existingCertificates };
 
-        for (const [qualification, file] of Object.entries(qualificationCertificateFiles)) {
-            const encodedQualName = Buffer.from(qualification).toString('base64').replace(/[+/=]/g, '_');
-            const uploadResult = await uploadToSupabaseStorage(file, 'certificates', `cert-${encodedQualName}`, user.id);
-            if ('error' in uploadResult) {
-                return {
-                    success: false,
-                    error: `資格証明書（${qualification}）のアップロードに失敗しました: ${uploadResult.error}`,
-                };
+        // URLフィールドの処理（署名付きURLでクライアントからアップロード済み）
+        // 新しいURLがあればそれを使用、なければ既存のURLを維持
+        const profileImagePath = profileImageUrl || user.profile_image;
+        const idDocumentPath = idDocumentUrl || user.id_document;
+        const bankBookImagePath = bankBookImageUrl || user.bank_book_image;
+
+        // 資格証明書URLの処理
+        // クライアントから送られたnewCertificatesには既存URLと新規URLがマージされている
+        // 選択された資格のみに絞り込む（データ整合性）
+        const filteredCertificates: Record<string, string> = {};
+        const qualificationsNeedingCerts = qualifications.filter(q => q !== 'その他');
+        for (const qual of qualificationsNeedingCerts) {
+            if (newCertificates[qual]) {
+                filteredCertificates[qual] = newCertificates[qual];
+            } else if (user.qualification_certificates && (user.qualification_certificates as Record<string, string>)[qual]) {
+                // 既存の証明書を維持
+                filteredCertificates[qual] = (user.qualification_certificates as Record<string, string>)[qual];
             }
-            newCertificates[qualification] = uploadResult.url;
         }
+        const finalCertificates = Object.keys(filteredCertificates).length > 0
+            ? filteredCertificates
+            : (user.qualification_certificates as Record<string, string>) || {};
 
         // 住所が変更された場合（または入力がある場合）、ジオコーディングを実行
         let lat: number | null = user.lat;
@@ -464,7 +425,7 @@ export async function updateUserProfile(formData: FormData) {
                 pension_number: pensionNumber || null,
                 id_document: idDocumentPath,
                 bank_book_image: bankBookImagePath,
-                qualification_certificates: Object.keys(newCertificates).length > 0 ? newCertificates : undefined,
+                qualification_certificates: Object.keys(finalCertificates).length > 0 ? finalCertificates : undefined,
                 // 更新者追跡
                 updated_by_type: 'WORKER',
                 updated_by_id: user.id,

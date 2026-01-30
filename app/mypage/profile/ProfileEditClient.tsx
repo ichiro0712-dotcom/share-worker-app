@@ -18,6 +18,57 @@ import BankSelector from '@/components/ui/BankSelector';
 import BranchSelector from '@/components/ui/BranchSelector';
 import { generateBankAccountName } from '@/lib/string-utils';
 
+/**
+ * 署名付きURLを使用してファイルをSupabase Storageに直接アップロード
+ * Vercel 6MB制限を回避するため、クライアントから直接Storageにアップロード
+ * @param file アップロードするファイル
+ * @param uploadType アップロード種別（'profile'固定）
+ * @returns 成功時はpublicUrl、失敗時はnull
+ */
+async function uploadFileWithPresignedUrl(
+  file: File,
+  uploadType: string = 'profile'
+): Promise<string | null> {
+  try {
+    // 1. 署名付きURL取得
+    const response = await fetch('/api/upload/presigned', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fileName: file.name,
+        contentType: file.type,
+        fileSize: file.size,
+        uploadType
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      console.error('[uploadFileWithPresignedUrl] Failed to get presigned URL:', error);
+      return null;
+    }
+
+    const { presignedUrl, publicUrl } = await response.json();
+
+    // 2. Supabase Storageに直接アップロード
+    const uploadResponse = await fetch(presignedUrl, {
+      method: 'PUT',
+      body: file,
+      headers: { 'Content-Type': file.type }
+    });
+
+    if (!uploadResponse.ok) {
+      console.error('[uploadFileWithPresignedUrl] Failed to upload file:', uploadResponse.status);
+      return null;
+    }
+
+    return publicUrl;
+  } catch (error) {
+    console.error('[uploadFileWithPresignedUrl] Error:', error);
+    return null;
+  }
+}
+
 interface UserProfile {
   id: number;
   email: string;
@@ -82,7 +133,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
   const { update: updateSession } = useSession();
 
   // 戻り先URL（求人ページから来た場合）
-  const returnUrl = searchParams.get('returnUrl');
+  const returnUrl = searchParams?.get('returnUrl');
 
   // ユーザー名を姓と名に分割
   const nameParts = userProfile.name.split(' ');
@@ -436,6 +487,9 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
     setWorkHistories(newHistories);
   };
 
+  // アップロード進捗表示用state
+  const [uploadProgress, setUploadProgress] = useState<string>('');
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -508,8 +562,70 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
     }
 
     setIsSaving(true);
+    setUploadProgress('アップロード準備中...');
 
     try {
+      // === Phase 1: ファイルを個別にアップロード（署名付きURL経由）===
+      // 既存URLを維持（新しいファイルがなければ変更しない）
+      let newProfileImageUrl = profileImage;
+      let newIdDocumentUrl = idDocument;
+      let newBankBookImageUrl = bankBookImage;
+
+      // プロフィール画像
+      if (profileImageFile) {
+        setUploadProgress('プロフィール画像をアップロード中...');
+        const url = await uploadFileWithPresignedUrl(profileImageFile, 'profile');
+        if (!url) {
+          toast.error('プロフィール画像のアップロードに失敗しました');
+          return;
+        }
+        newProfileImageUrl = url;
+      }
+
+      // 身分証明書
+      if (idDocumentFile) {
+        setUploadProgress('身分証明書をアップロード中...');
+        const url = await uploadFileWithPresignedUrl(idDocumentFile, 'profile');
+        if (!url) {
+          toast.error('身分証明書のアップロードに失敗しました');
+          return;
+        }
+        newIdDocumentUrl = url;
+      }
+
+      // 通帳コピー
+      if (bankBookImageFile) {
+        setUploadProgress('通帳コピーをアップロード中...');
+        const url = await uploadFileWithPresignedUrl(bankBookImageFile, 'profile');
+        if (!url) {
+          toast.error('通帳コピーのアップロードに失敗しました');
+          return;
+        }
+        newBankBookImageUrl = url;
+      }
+
+      // 資格証明書（複数）- 既存URLをマージ
+      const existingCertUrls: Record<string, string> = {};
+      for (const [qual, certUrl] of Object.entries(qualificationCertificates)) {
+        if (certUrl && isValidImageUrl(certUrl)) {
+          existingCertUrls[qual] = certUrl;
+        }
+      }
+      const newCertificates: Record<string, string> = { ...existingCertUrls };
+
+      for (const [qualification, file] of Object.entries(qualificationCertificateFiles)) {
+        setUploadProgress(`資格証明書（${qualification}）をアップロード中...`);
+        const url = await uploadFileWithPresignedUrl(file, 'profile');
+        if (!url) {
+          toast.error(`資格証明書（${qualification}）のアップロードに失敗しました`);
+          return;
+        }
+        newCertificates[qualification] = url;
+      }
+
+      // === Phase 2: Server ActionにURLのみ送信 ===
+      setUploadProgress('プロフィールを保存中...');
+
       // FormDataを作成
       const form = new FormData();
       // 基本情報
@@ -564,25 +680,17 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
       // その他
       form.append('pensionNumber', formData.pensionNumber);
 
-      // プロフィール画像がアップロードされている場合は追加
-      if (profileImageFile) {
-        form.append('profileImage', profileImageFile);
-      }
+      // ファイルURLを追加（署名付きURLでアップロード済み）
+      form.append('profileImageUrl', newProfileImageUrl || '');
+      form.append('idDocumentUrl', newIdDocumentUrl || '');
+      form.append('bankBookImageUrl', newBankBookImageUrl || '');
+      form.append('qualificationCertificates', JSON.stringify(newCertificates));
 
-      if (idDocumentFile) {
-        form.append('idDocument', idDocumentFile);
-      }
-
-      if (bankBookImageFile) {
-        form.append('bankBookImage', bankBookImageFile);
-      }
-
-      // 資格証明書ファイルを追加（日本語キー名をBase64エンコード）
-      console.log('[ProfileEditClient] qualificationCertificateFiles:', Object.keys(qualificationCertificateFiles));
-      Object.entries(qualificationCertificateFiles).forEach(([qualification, file]) => {
-        const encodedQualification = btoa(unescape(encodeURIComponent(qualification)));
-        console.log('[ProfileEditClient] Appending certificate:', qualification, '→', encodedQualification, 'file:', file.name, file.size);
-        form.append(`qualificationCertificate_${encodedQualification}`, file);
+      console.log('[ProfileEditClient] Sending URLs to server:', {
+        profileImageUrl: newProfileImageUrl ? 'set' : 'empty',
+        idDocumentUrl: newIdDocumentUrl ? 'set' : 'empty',
+        bankBookImageUrl: newBankBookImageUrl ? 'set' : 'empty',
+        qualificationCertificates: Object.keys(newCertificates),
       });
 
       // サーバーアクションを呼び出し
@@ -596,10 +704,10 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
           message: 'サーバーからの応答がありませんでした。認証セッションが切れている可能性があります。',
           context: {
             formDataKeys: Array.from(form.keys()),
-            hasProfileImage: !!profileImageFile,
-            hasIdDocument: !!idDocumentFile,
-            hasBankBookImage: !!bankBookImageFile,
-            qualificationCertificateCount: Object.keys(qualificationCertificateFiles).length,
+            hasProfileImage: !!newProfileImageUrl,
+            hasIdDocument: !!newIdDocumentUrl,
+            hasBankBookImage: !!newBankBookImageUrl,
+            qualificationCertificateCount: Object.keys(newCertificates).length,
           }
         });
         toast.error('セッションが切れた可能性があります。再度ログインしてください。');
@@ -623,10 +731,10 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
           message: result.error || 'プロフィールの更新に失敗しました',
           context: {
             formDataKeys: Array.from(form.keys()),
-            hasProfileImage: !!profileImageFile,
-            hasIdDocument: !!idDocumentFile,
-            hasBankBookImage: !!bankBookImageFile,
-            qualificationCertificateCount: Object.keys(qualificationCertificateFiles).length,
+            hasProfileImage: !!newProfileImageUrl,
+            hasIdDocument: !!newIdDocumentUrl,
+            hasBankBookImage: !!newBankBookImageUrl,
+            qualificationCertificateCount: Object.keys(newCertificates).length,
           }
         });
         toast.error(result.error || 'プロフィールの更新に失敗しました');
@@ -649,6 +757,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
       toast.error('予期しないエラーが発生しました');
     } finally {
       setIsSaving(false);
+      setUploadProgress('');
     }
   };
 
@@ -1512,7 +1621,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
             disabled={isSaving}
             className="flex-1 px-6 py-3 bg-primary text-white rounded-lg font-bold hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isSaving ? '保存中...' : '保存する'}
+            {isSaving ? (uploadProgress || '保存中...') : '保存する'}
           </button>
         </div>
       </form>
