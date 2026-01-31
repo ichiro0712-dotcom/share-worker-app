@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
@@ -136,6 +136,31 @@ export default function WorkerRegisterPage() {
 
   // 圧縮中の状態管理
   const [compressingQual, setCompressingQual] = useState<string | null>(null);
+
+  // LP経由登録情報（localStorageから取得）
+  const [lpInfo, setLpInfo] = useState<{ lpId: string | null; campaignCode: string | null }>({
+    lpId: null,
+    campaignCode: null,
+  });
+
+  // ページロード時にlocalStorageからLP情報を取得
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const storedLpId = localStorage.getItem('lp_id');
+        const storedCampaignCode = localStorage.getItem('lp_campaign_code');
+        if (storedLpId) {
+          setLpInfo({
+            lpId: storedLpId,
+            campaignCode: storedCampaignCode,
+          });
+        }
+      } catch (e) {
+        // localStorage アクセスエラーは無視
+        console.error('Failed to get LP info from localStorage:', e);
+      }
+    }
+  }, []);
 
   const handleQualificationCertificateChange = async (qualification: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -303,6 +328,9 @@ export default function WorkerRegisterPage() {
           experienceFields: experienceFieldsData,
           workHistories: workHistories.filter(h => h.trim() !== ''),
           qualificationCertificates: qualificationCertificates,
+          // LP経由登録情報
+          registrationLpId: lpInfo.lpId,
+          registrationCampaignCode: lpInfo.campaignCode,
         }),
       });
 

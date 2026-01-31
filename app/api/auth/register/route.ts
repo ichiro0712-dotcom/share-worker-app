@@ -25,6 +25,9 @@ interface RegisterBody {
   experienceFields?: Record<string, unknown>;
   workHistories?: string[];
   qualificationCertificates?: Record<string, unknown>;
+  // LP経由登録情報
+  registrationLpId?: string;
+  registrationCampaignCode?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -50,6 +53,8 @@ export async function POST(request: NextRequest) {
       experienceFields,
       workHistories,
       qualificationCertificates,
+      registrationLpId,
+      registrationCampaignCode,
     } = body;
 
     // バリデーション
@@ -101,6 +106,9 @@ export async function POST(request: NextRequest) {
         experience_fields: experienceFields && Object.keys(experienceFields).length > 0 ? experienceFields as Prisma.InputJsonValue : Prisma.DbNull,
         work_histories: workHistoriesArray,
         qualification_certificates: qualificationCertificates && Object.keys(qualificationCertificates).length > 0 ? qualificationCertificates as Prisma.InputJsonValue : Prisma.DbNull,
+        // LP経由登録情報
+        registration_lp_id: registrationLpId || null,
+        registration_campaign_code: registrationCampaignCode || null,
       },
     });
 
