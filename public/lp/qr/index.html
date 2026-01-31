@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>スマホ確認用QRコード</title>
+    <style>
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background-color: #f6f6f8;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+        }
+
+        h1 {
+            font-size: 20px;
+            margin-bottom: 20px;
+            color: #E60012;
+        }
+
+        #qrcode {
+            margin: 20px auto;
+            display: flex;
+            justify-content: center;
+        }
+
+        .url-text {
+            font-size: 14px;
+            color: #666;
+            margin-top: 20px;
+            word-break: break-all;
+            background: #eee;
+            padding: 10px;
+            border-radius: 8px;
+        }
+
+        .ip-input {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            font-size: 12px;
+        }
+
+        .ip-input input {
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 150px;
+            text-align: center;
+        }
+
+        .ip-input button {
+            background: #333;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .note {
+            font-size: 11px;
+            color: #999;
+            margin-top: 10px;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <h1>スマホで確認 (Same Wi-Fi)</h1>
+        <div id="qrcode"></div>
+        <p class="url-text" id="url-display"></p>
+
+        <div class="ip-input">
+            <p>接続先設定 (IP : Port / Path):</p>
+            http://<input type="text" id="ip-field" value="192.168.3.111"> : <input type="text" id="port-field"
+                value="55939" style="width: 60px;"> / <input type="text" id="path-field" placeholder="index3.html"
+                value="">
+            <button onclick="updateQR()">QR更新</button>
+            <p class="note">※PCとスマホが同じWi-Fiに接続されている必要があります</p>
+        </div>
+    </div>
+
+    <script>
+        // Default IP (Detected at file creation)
+        let currentIp = "192.168.3.111";
+        let currentPort = "55939";
+        let currentPath = "";
+        let qrcodeObj = null;
+
+        function generateURL() {
+            let url = `http://${currentIp}:${currentPort}`;
+            if (currentPath) {
+                const cleanPath = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
+                url += `/${cleanPath}`;
+            }
+            return url;
+        }
+
+        function updateQR() {
+            const ipVal = document.getElementById('ip-field').value;
+            const portVal = document.getElementById('port-field').value;
+            const pathVal = document.getElementById('path-field').value;
+
+            if (ipVal) currentIp = ipVal;
+            if (portVal) currentPort = portVal;
+            currentPath = pathVal || "";
+
+            const url = generateURL();
+
+            // Clear previous QR
+            const container = document.getElementById('qrcode');
+            container.innerHTML = '';
+
+            // Generate new QR
+            qrcodeObj = new QRCode(container, {
+                text: url,
+                width: 200,
+                height: 200,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+
+            document.getElementById('url-display').textContent = url;
+
+            // Update link to open index3.html implicitly or explicitly?
+            // Usually just root or specific file. Let's append index3.html if needed or just root.
+            // Since we are using live-server with --entry-file=index3.html, root might serve it.
+            // But usually safely http://ip:8080/index3.html is better.
+            // Let's stick to root first.
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            updateQR();
+        });
+    </script>
+</body>
+
+</html>
