@@ -506,6 +506,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(response);
   } catch (error) {
     console.error('LP tracking fetch error:', error);
-    return NextResponse.json({ error: 'Failed to fetch tracking data' }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json({ error: 'Failed to fetch tracking data', details: errorMessage }, { status: 500 });
   }
 }
