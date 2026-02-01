@@ -134,7 +134,8 @@ export default function TrackingPage() {
     startDate: '',
     endDate: '',
   });
-  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+  // 選択された行（エンゲージメント分析用）- 合計行をデフォルトで選択
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set(['total:all']));
   const [expandedLps, setExpandedLps] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<ViewMode>('comparison');
   const [engagementData, setEngagementData] = useState<EngagementData | null>(null);
@@ -504,27 +505,6 @@ export default function TrackingPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trackingData, lpConfig]);
 
-  // チェックボックス操作
-  const toggleRow = (id: string) => {
-    const newSelected = new Set(selectedRows);
-    if (newSelected.has(id)) {
-      newSelected.delete(id);
-    } else {
-      newSelected.add(id);
-    }
-    setSelectedRows(newSelected);
-  };
-
-  const toggleAllRows = () => {
-    if (selectedRows.size === tableData.filter(r => r.type !== 'campaign').length) {
-      setSelectedRows(new Set());
-    } else {
-      // LP行と合計行のみ選択
-      const allLpRows = tableData.filter(r => r.type !== 'campaign').map(r => r.id);
-      setSelectedRows(new Set(allLpRows));
-    }
-  };
-
   // LP展開/折りたたみ
   const toggleLpExpand = (lpId: string) => {
     const newExpanded = new Set(expandedLps);
@@ -540,7 +520,6 @@ export default function TrackingPage() {
   const handleReset = () => {
     setPeriodMode('week');
     setBaseDate(getMonday(new Date()));
-    setSelectedRows(new Set());
     setExpandedLps(new Set());
     setEngagementData(null);
   };
@@ -950,22 +929,12 @@ export default function TrackingPage() {
             <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-8">
               <div className="px-6 py-4 border-b border-gray-200">
                 <h2 className="text-lg font-semibold text-gray-900">LP別アクセス状況</h2>
-                <p className="text-sm text-gray-500 mt-1">
-                  チェックした項目の合計でエンゲージメント分析を表示します
-                </p>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-4 py-3 text-left">
-                        <input
-                          type="checkbox"
-                          checked={selectedRows.size === tableData.filter(r => r.type !== 'campaign').length && selectedRows.size > 0}
-                          onChange={toggleAllRows}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                      </th>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-10">選択</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">LP / キャンペーン</th>
                       <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">PV</th>
                       <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">セッション</th>
@@ -989,12 +958,20 @@ export default function TrackingPage() {
                           if (!expandedLps.has(row.lpId)) return null;
                           return (
                             <tr key={row.id} className="bg-gray-50">
-                              <td className="px-4 py-3">
+                              <td className="px-4 py-3 text-center">
                                 <input
                                   type="checkbox"
                                   checked={selectedRows.has(row.id)}
-                                  onChange={() => toggleRow(row.id)}
-                                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 ml-6"
+                                  onChange={() => {
+                                    const newSelected = new Set(selectedRows);
+                                    if (newSelected.has(row.id)) {
+                                      newSelected.delete(row.id);
+                                    } else {
+                                      newSelected.add(row.id);
+                                    }
+                                    setSelectedRows(newSelected);
+                                  }}
+                                  className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
                                 />
                               </td>
                               <td className="px-4 py-3 text-sm text-gray-600 pl-10">
@@ -1018,12 +995,20 @@ export default function TrackingPage() {
 
                         return (
                           <tr key={row.id} className={isTotal ? 'bg-blue-50 font-semibold' : 'font-medium'}>
-                            <td className="px-4 py-3">
+                            <td className="px-4 py-3 text-center">
                               <input
                                 type="checkbox"
                                 checked={selectedRows.has(row.id)}
-                                onChange={() => toggleRow(row.id)}
-                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                onChange={() => {
+                                  const newSelected = new Set(selectedRows);
+                                  if (newSelected.has(row.id)) {
+                                    newSelected.delete(row.id);
+                                  } else {
+                                    newSelected.add(row.id);
+                                  }
+                                  setSelectedRows(newSelected);
+                                }}
+                                className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
                               />
                             </td>
                             <td className="px-4 py-3 text-sm text-gray-900">
@@ -1060,17 +1045,13 @@ export default function TrackingPage() {
             </div>
 
             {/* Engagement Analysis Section */}
-            {selectedRows.size > 0 && (
-              <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-8">
-                <div className="px-6 py-4 border-b border-gray-200">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                      <BarChart3 className="w-5 h-5" />
-                      エンゲージメント分析
-                      <span className="text-sm font-normal text-gray-500">
-                        （{selectedRows.size}件選択中）
-                      </span>
-                    </h2>
+            <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-8">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <BarChart3 className="w-5 h-5" />
+                    エンゲージメント分析
+                  </h2>
                     <div className="flex gap-2">
                       {(['all', 'ctaClicked', 'ctaNotClicked', 'comparison'] as ViewMode[]).map((mode) => (
                         <button
@@ -1106,6 +1087,78 @@ export default function TrackingPage() {
                   </div>
                 ) : engagementData ? (
                   <div className="p-6 space-y-8">
+                    {/* Average Summary - 一番上に配置 */}
+                    <div>
+                      <div className="bg-gray-50 rounded-lg p-4">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="text-gray-500">
+                              <th className="text-left py-2">平均値サマリー</th>
+                              {viewMode === 'comparison' ? (
+                                <>
+                                  <th className="text-right py-2">全体</th>
+                                  <th className="text-right py-2 text-green-600">CTAあり</th>
+                                  <th className="text-right py-2 text-red-600">CTAなし</th>
+                                </>
+                              ) : (
+                                <th className="text-right py-2">値</th>
+                              )}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td className="py-2">平均滞在時間</td>
+                              {viewMode === 'comparison' ? (
+                                <>
+                                  <td className="text-right py-2">{engagementData.averages.all.avgDwellTime}秒</td>
+                                  <td className="text-right py-2 text-green-600">{engagementData.averages.ctaClicked.avgDwellTime}秒</td>
+                                  <td className="text-right py-2 text-red-600">{engagementData.averages.ctaNotClicked.avgDwellTime}秒</td>
+                                </>
+                              ) : (
+                                <td className="text-right py-2">{engagementData.averages[viewMode].avgDwellTime}秒</td>
+                              )}
+                            </tr>
+                            <tr>
+                              <td className="py-2">平均スクロール深度</td>
+                              {viewMode === 'comparison' ? (
+                                <>
+                                  <td className="text-right py-2">{engagementData.averages.all.avgScrollDepth}%</td>
+                                  <td className="text-right py-2 text-green-600">{engagementData.averages.ctaClicked.avgScrollDepth}%</td>
+                                  <td className="text-right py-2 text-red-600">{engagementData.averages.ctaNotClicked.avgScrollDepth}%</td>
+                                </>
+                              ) : (
+                                <td className="text-right py-2">{engagementData.averages[viewMode].avgScrollDepth}%</td>
+                              )}
+                            </tr>
+                            <tr>
+                              <td className="py-2">平均エンゲージメントLv</td>
+                              {viewMode === 'comparison' ? (
+                                <>
+                                  <td className="text-right py-2">{engagementData.averages.all.avgEngagementLevel}</td>
+                                  <td className="text-right py-2 text-green-600">{engagementData.averages.ctaClicked.avgEngagementLevel}</td>
+                                  <td className="text-right py-2 text-red-600">{engagementData.averages.ctaNotClicked.avgEngagementLevel}</td>
+                                </>
+                              ) : (
+                                <td className="text-right py-2">{engagementData.averages[viewMode].avgEngagementLevel}</td>
+                              )}
+                            </tr>
+                            <tr className="text-gray-400 text-xs">
+                              <td className="py-2">サンプル数</td>
+                              {viewMode === 'comparison' ? (
+                                <>
+                                  <td className="text-right py-2">{engagementData.averages.all.count}人</td>
+                                  <td className="text-right py-2">{engagementData.averages.ctaClicked.count}人</td>
+                                  <td className="text-right py-2">{engagementData.averages.ctaNotClicked.count}人</td>
+                                </>
+                              ) : (
+                                <td className="text-right py-2">{engagementData.averages[viewMode].count}人</td>
+                              )}
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
                     {/* Scroll Reach Rate */}
                     <div>
                       <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
@@ -1191,79 +1244,6 @@ export default function TrackingPage() {
                       </div>
                     </div>
 
-                    {/* Average Summary */}
-                    <div>
-                      <h3 className="text-sm font-medium text-gray-700 mb-3">平均値サマリー</h3>
-                      <div className="bg-gray-50 rounded-lg p-4">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="text-gray-500">
-                              <th className="text-left py-2">指標</th>
-                              {viewMode === 'comparison' ? (
-                                <>
-                                  <th className="text-right py-2">全体</th>
-                                  <th className="text-right py-2 text-green-600">CTAあり</th>
-                                  <th className="text-right py-2 text-red-600">CTAなし</th>
-                                </>
-                              ) : (
-                                <th className="text-right py-2">値</th>
-                              )}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <tr>
-                              <td className="py-2">平均滞在時間</td>
-                              {viewMode === 'comparison' ? (
-                                <>
-                                  <td className="text-right py-2">{engagementData.averages.all.avgDwellTime}秒</td>
-                                  <td className="text-right py-2 text-green-600">{engagementData.averages.ctaClicked.avgDwellTime}秒</td>
-                                  <td className="text-right py-2 text-red-600">{engagementData.averages.ctaNotClicked.avgDwellTime}秒</td>
-                                </>
-                              ) : (
-                                <td className="text-right py-2">{engagementData.averages[viewMode].avgDwellTime}秒</td>
-                              )}
-                            </tr>
-                            <tr>
-                              <td className="py-2">平均スクロール深度</td>
-                              {viewMode === 'comparison' ? (
-                                <>
-                                  <td className="text-right py-2">{engagementData.averages.all.avgScrollDepth}%</td>
-                                  <td className="text-right py-2 text-green-600">{engagementData.averages.ctaClicked.avgScrollDepth}%</td>
-                                  <td className="text-right py-2 text-red-600">{engagementData.averages.ctaNotClicked.avgScrollDepth}%</td>
-                                </>
-                              ) : (
-                                <td className="text-right py-2">{engagementData.averages[viewMode].avgScrollDepth}%</td>
-                              )}
-                            </tr>
-                            <tr>
-                              <td className="py-2">平均エンゲージメントLv</td>
-                              {viewMode === 'comparison' ? (
-                                <>
-                                  <td className="text-right py-2">{engagementData.averages.all.avgEngagementLevel}</td>
-                                  <td className="text-right py-2 text-green-600">{engagementData.averages.ctaClicked.avgEngagementLevel}</td>
-                                  <td className="text-right py-2 text-red-600">{engagementData.averages.ctaNotClicked.avgEngagementLevel}</td>
-                                </>
-                              ) : (
-                                <td className="text-right py-2">{engagementData.averages[viewMode].avgEngagementLevel}</td>
-                              )}
-                            </tr>
-                            <tr className="text-gray-400 text-xs">
-                              <td className="py-2">サンプル数</td>
-                              {viewMode === 'comparison' ? (
-                                <>
-                                  <td className="text-right py-2">{engagementData.averages.all.count}人</td>
-                                  <td className="text-right py-2">{engagementData.averages.ctaClicked.count}人</td>
-                                  <td className="text-right py-2">{engagementData.averages.ctaNotClicked.count}人</td>
-                                </>
-                              ) : (
-                                <td className="text-right py-2">{engagementData.averages[viewMode].count}人</td>
-                              )}
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-
                     {/* Section Dwell Time (Heatspot) */}
                     {sectionIds.length > 0 && (
                       <div>
@@ -1323,16 +1303,6 @@ export default function TrackingPage() {
                   </div>
                 )}
               </div>
-            )}
-
-            {/* Empty state when no rows selected */}
-            {selectedRows.size === 0 && (
-              <div className="bg-white rounded-lg shadow-sm p-8 text-center text-gray-500">
-                <BarChart3 className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                <p className="font-medium">エンゲージメント分析を表示するには</p>
-                <p className="text-sm mt-1">上のテーブルからLP/キャンペーンを選択してください</p>
-              </div>
-            )}
           </>
         )}
       </div>
