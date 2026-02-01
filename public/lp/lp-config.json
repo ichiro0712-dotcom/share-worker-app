@@ -1,0 +1,39 @@
+{
+  "0": {
+    "title": "大前さん",
+    "isActive": true,
+    "campaigns": []
+  },
+  "1": {
+    "title": "高単価訴求",
+    "isActive": true,
+    "campaigns": [
+      {
+        "code": "R38CBUT8",
+        "name": "LINE用",
+        "createdAt": "2026-01-30T19:40:23.481Z"
+      }
+    ]
+  },
+  "2": {
+    "title": "一般的",
+    "isActive": true,
+    "campaigns": []
+  },
+  "3": {
+    "title": "テストlp",
+    "isActive": true,
+    "campaigns": [
+      {
+        "code": "google_summer",
+        "name": "Google夏キャンペーン",
+        "createdAt": "2026-01-30T00:00:00.000Z"
+      },
+      {
+        "code": "line_ad",
+        "name": "LINE広告",
+        "createdAt": "2026-01-30T00:00:00.000Z"
+      }
+    ]
+  }
+}

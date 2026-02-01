@@ -100,6 +100,13 @@ model User {
   /// 銀行口座情報（構造化データ）
   bankAccount            BankAccount?
 
+  /// LP経由登録情報
+  /// 登録時にアクセスしたLP番号（"0", "1", "2" など）
+  registration_lp_id     String?        @map("registration_lp_id")
+  /// 登録時に使用されたキャンペーンコード
+  registration_campaign_code String?    @map("registration_campaign_code")
+
+  @@index([registration_lp_id])
   @@map("users")
 }
 
@@ -1434,4 +1441,110 @@ enum AccountType {
   CURRENT   // 当座
 
   @@map("account_type")
+}
+
+// ========== LPトラッキング ==========
+
+/// LPページビュー（アクセス記録）
+model LpPageView {
+  id            Int      @id @default(autoincrement())
+  lp_id         String   @map("lp_id")           // LP番号（"0", "1", "2"...）
+  campaign_code String?  @map("campaign_code")   // キャンペーンコード（nullなら直接アクセス）
+  session_id    String   @map("session_id")      // セッション識別子
+  user_agent    String?  @map("user_agent")
+  referrer      String?
+  ip_address    String?  @map("ip_address")
+  created_at    DateTime @default(now()) @map("created_at")
+
+  @@index([lp_id, campaign_code])
+  @@index([created_at])
+  @@map("lp_page_views")
+}
+
+/// LPクリックイベント（ボタンクリック記録）
+model LpClickEvent {
+  id            Int      @id @default(autoincrement())
+  lp_id         String   @map("lp_id")           // LP番号
+  campaign_code String?  @map("campaign_code")   // キャンペーンコード
+  session_id    String   @map("session_id")      // セッション識別子
+  button_id     String   @map("button_id")       // クリックされたボタンの識別子
+  button_text   String?  @map("button_text")     // ボタンのテキスト
+  created_at    DateTime @default(now()) @map("created_at")
+
+  @@index([lp_id, campaign_code])
+  @@index([button_id])
+  @@index([created_at])
+  @@map("lp_click_events")
+}
+
+/// LPスクロールイベント（スクロール到達記録）
+model LpScrollEvent {
+  id            Int      @id @default(autoincrement())
+  lp_id         String   @map("lp_id")           // LP番号
+  campaign_code String?  @map("campaign_code")   // キャンペーンコード
+  session_id    String   @map("session_id")      // セッション識別子
+  scroll_depth  Int      @map("scroll_depth")    // 到達スクロール深度（25, 50, 75, 90）
+  time_to_reach Int?     @map("time_to_reach")   // 到達までの秒数
+  created_at    DateTime @default(now()) @map("created_at")
+
+  @@index([lp_id, campaign_code])
+  @@index([session_id])
+  @@index([scroll_depth])
+  @@index([created_at])
+  @@map("lp_scroll_events")
+}
+
+/// LP滞在時間イベント（滞在時間閾値到達記録）
+model LpDwellEvent {
+  id            Int      @id @default(autoincrement())
+  lp_id         String   @map("lp_id")           // LP番号
+  campaign_code String?  @map("campaign_code")   // キャンペーンコード
+  session_id    String   @map("session_id")      // セッション識別子
+  dwell_seconds Int      @map("dwell_seconds")   // 到達秒数（5, 10）
+  created_at    DateTime @default(now()) @map("created_at")
+
+  @@index([lp_id, campaign_code])
+  @@index([session_id])
+  @@index([dwell_seconds])
+  @@index([created_at])
+  @@map("lp_dwell_events")
+}
+
+/// LPセクション別滞在時間（ヒートスポット用）
+model LpSectionDwell {
+  id            Int      @id @default(autoincrement())
+  lp_id         String   @map("lp_id")           // LP番号
+  campaign_code String?  @map("campaign_code")   // キャンペーンコード
+  session_id    String   @map("session_id")      // セッション識別子
+  section_id    String   @map("section_id")      // セクションの識別子
+  section_name  String?  @map("section_name")    // セクション名（表示用）
+  dwell_seconds Float    @map("dwell_seconds")   // 滞在秒数
+  created_at    DateTime @default(now()) @map("created_at")
+
+  @@index([lp_id, campaign_code])
+  @@index([session_id])
+  @@index([section_id])
+  @@map("lp_section_dwells")
+}
+
+/// LPエンゲージメントサマリー（セッション終了時に集計）
+model LpEngagementSummary {
+  id                Int      @id @default(autoincrement())
+  lp_id             String   @map("lp_id")              // LP番号
+  campaign_code     String?  @map("campaign_code")      // キャンペーンコード
+  session_id        String   @unique @map("session_id") // セッション識別子（ユニーク）
+  max_scroll_depth  Int      @map("max_scroll_depth")   // 最大到達スクロール深度（0-100）
+  total_dwell_time  Int      @map("total_dwell_time")   // 総滞在時間（秒）
+  engagement_level  Int      @map("engagement_level")   // エンゲージメントレベル（1-5）
+  cta_clicked       Boolean  @default(false) @map("cta_clicked") // CTAクリックしたか
+  utm_source        String?  @map("utm_source")
+  utm_medium        String?  @map("utm_medium")
+  utm_campaign      String?  @map("utm_campaign")
+  created_at        DateTime @default(now()) @map("created_at")
+
+  @@index([lp_id, campaign_code])
+  @@index([engagement_level])
+  @@index([cta_clicked])
+  @@index([created_at])
+  @@map("lp_engagement_summaries")
 }

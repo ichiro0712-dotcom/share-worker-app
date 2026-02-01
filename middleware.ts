@@ -48,6 +48,7 @@ const publicPaths = [
   '/public', // SEO用公開ページ
   '/robots.txt', // SEO: robots.txt
   '/sitemap.xml', // SEO: サイトマップ
+  '/lp', // LP関連ページ（/lp, /lp/1, /lp/tracking等）
 ];
 
 // 静的ファイルとAPI認証エンドポイント
@@ -60,6 +61,8 @@ const ignoredPaths = [
   '/api/dev', // 開発用API（テストメール送信など）
   '/api/error-messages', // エラーメッセージ設定（認証不要）
   '/api/jobs', // 求人一覧API（ログイン前でも表示が必要）
+  '/api/lp-tracking', // LPトラッキングAPI（POST: 公開、GET: 管理ページから使用）
+  '/api/lp-config', // LP設定API
   '/rogo', // ロゴ画像
   '/images', // 画像ファイル
   '/icons', // アイコン
