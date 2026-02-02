@@ -63,6 +63,7 @@ const ignoredPaths = [
   '/api/jobs', // 求人一覧API（ログイン前でも表示が必要）
   '/api/lp-tracking', // LPトラッキングAPI（POST: 公開、GET: 管理ページから使用）
   '/api/lp-config', // LP設定API
+  '/api/upload', // アップロードAPI（API側で独自認証を実施）
   '/rogo', // ロゴ画像
   '/images', // 画像ファイル
   '/icons', // アイコン
