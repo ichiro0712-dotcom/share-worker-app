@@ -1,17 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { withFacilityAuth } from '@/lib/api-auth';
 
 export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const facilityId = searchParams.get('facilityId');
+  const { searchParams } = new URL(request.url);
+  const facilityId = parseInt(searchParams.get('facilityId') || '0');
 
-    if (!facilityId) {
-      return NextResponse.json({ error: '施設IDが必要です' }, { status: 400 });
-    }
-
+  return withFacilityAuth(facilityId, async (validatedFacilityId) => {
     const facility = await prisma.facility.findUnique({
-      where: { id: parseInt(facilityId) },
+      where: { id: validatedFacilityId },
       select: {
         id: true,
         facility_name: true,
@@ -25,12 +22,9 @@ export async function GET(request: NextRequest) {
     });
 
     if (!facility) {
-      return NextResponse.json({ error: '施設が見つかりません' }, { status: 404 });
+      throw new Error('施設が見つかりません');
     }
 
-    return NextResponse.json(facility);
-  } catch (error) {
-    console.error('Error fetching facility:', error);
-    return NextResponse.json({ error: 'サーバーエラー' }, { status: 500 });
-  }
+    return facility;
+  });
 }

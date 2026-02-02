@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import {
   formatDateForCsv,
@@ -7,6 +7,7 @@ import {
   formatMinutesToTime,
 } from '@/src/lib/csv-export/utils';
 import { calculateSalary } from '@/src/lib/salary-calculator';
+import { getSystemAdminSessionData } from '@/lib/system-admin-session-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -199,6 +200,12 @@ function attendanceToRow(att: any): (string | number)[] {
  * ストリーミングCSVエクスポート
  */
 export async function GET(request: NextRequest) {
+  // システム管理者認証チェック
+  const session = await getSystemAdminSessionData();
+  if (!session) {
+    return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+  }
+
   const url = new URL(request.url);
   const status = url.searchParams.get('status'); // 未指定の場合は全件
   const dateFrom = url.searchParams.get('dateFrom');
@@ -336,5 +343,11 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  // システム管理者認証チェック
+  const session = await getSystemAdminSessionData();
+  if (!session) {
+    return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+  }
+
   return GET(request);
 }
