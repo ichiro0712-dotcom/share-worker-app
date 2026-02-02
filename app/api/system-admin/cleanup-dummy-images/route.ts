@@ -6,12 +6,13 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
+import { getSystemAdminSessionData } from '@/lib/system-admin-session-server';
 
-export async function POST(request: Request) {
-  // System Admin認証チェック（簡易版）
-  const authHeader = request.headers.get('authorization');
-  if (authHeader !== 'Bearer system-admin-cleanup-2024') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+export async function POST() {
+  // システム管理者認証チェック（iron-sessionベース）
+  const session = await getSystemAdminSessionData();
+  if (!session) {
+    return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
   }
 
   const results = {

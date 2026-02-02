@@ -1,6 +1,7 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { formatDateForCsv } from '@/src/lib/csv-export/utils';
+import { getSystemAdminSessionData } from '@/lib/system-admin-session-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -147,6 +148,12 @@ function staffToRow(staff: any, bankAccount: any): (string | number)[] {
 }
 
 export async function GET(request: NextRequest) {
+  // システム管理者認証チェック
+  const session = await getSystemAdminSessionData();
+  if (!session) {
+    return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+  }
+
   const url = new URL(request.url);
   const search = url.searchParams.get('search');
   const staffId = url.searchParams.get('staffId');

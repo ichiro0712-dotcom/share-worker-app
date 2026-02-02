@@ -1,9 +1,16 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { getSystemAdminSessionData } from '@/lib/system-admin-session-server';
 
 const prisma = new PrismaClient();
 
 export async function GET() {
+    // システム管理者認証チェック
+    const session = await getSystemAdminSessionData();
+    if (!session) {
+        return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     try {
         const settings = await prisma.errorMessageSetting.findMany({
             orderBy: { id: 'asc' },
@@ -19,6 +26,12 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
+    // システム管理者認証チェック
+    const session = await getSystemAdminSessionData();
+    if (!session) {
+        return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     try {
         const body = await request.json();
         const { id, title, banner_message, detail_message, banner_enabled, chat_enabled, email_enabled, push_enabled } = body;
@@ -54,6 +67,12 @@ export async function PUT(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+    // システム管理者認証チェック
+    const session = await getSystemAdminSessionData();
+    if (!session) {
+        return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     try {
         const body = await request.json();
         const { id, enable_field, value } = body;

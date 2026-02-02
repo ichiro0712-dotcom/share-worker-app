@@ -3,9 +3,16 @@ import {
   getAllSystemSettings,
   updateSystemSettings,
 } from '@/src/lib/actions/systemSettings';
+import { getSystemAdminSessionData } from '@/lib/system-admin-session-server';
 
 // GET: 全システム設定を取得
 export async function GET() {
+  // システム管理者認証チェック
+  const session = await getSystemAdminSessionData();
+  if (!session) {
+    return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+  }
+
   try {
     const settings = await getAllSystemSettings();
     return NextResponse.json(settings);
@@ -20,18 +27,18 @@ export async function GET() {
 
 // POST: システム設定を更新
 export async function POST(request: NextRequest) {
+  // システム管理者認証チェック
+  const session = await getSystemAdminSessionData();
+  if (!session) {
+    return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+  }
+
   try {
     const settings = await request.json();
 
-    // TODO: 認証チェック（System Admin のみ）
-    // const session = await getServerSession(authOptions);
-    // if (!session?.user?.isSystemAdmin) {
-    //   return NextResponse.json({ error: '権限がありません' }, { status: 403 });
-    // }
-
     const result = await updateSystemSettings(settings, {
       type: 'SYSTEM_ADMIN',
-      id: 0, // TODO: 実際の管理者IDを設定
+      id: session.adminId || 0,
     });
 
     if (result.success) {
