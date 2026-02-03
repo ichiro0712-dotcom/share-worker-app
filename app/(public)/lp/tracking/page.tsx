@@ -2,7 +2,14 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, BarChart3, Clock, Scroll, ExternalLink, HelpCircle, ChevronDown, ChevronRight, Download, ChevronLeft, Copy, Check } from 'lucide-react';
+import { ArrowLeft, BarChart3, Clock, Scroll, ExternalLink, HelpCircle, ChevronDown, ChevronRight, Download, ChevronLeft, Copy, Check, Filter } from 'lucide-react';
+
+// ジャンル型
+type Genre = {
+  id: number;
+  prefix: string;
+  name: string;
+};
 
 // 日付ユーティリティ関数
 const getMonday = (date: Date): Date => {
@@ -153,6 +160,10 @@ export default function TrackingPage() {
   // 日付エラー（開始日 > 終了日）
   const [dateError, setDateError] = useState<string | null>(null);
 
+  // ジャンル一覧とフィルター
+  const [genres, setGenres] = useState<Genre[]>([]);
+  const [selectedGenrePrefix, setSelectedGenrePrefix] = useState<string>('all');
+
   // エクスポートメニューの外側クリックで閉じる
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -255,17 +266,24 @@ export default function TrackingPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Fetch LP config
-      const configRes = await fetch('/api/lp-config');
+      // Fetch LP config (no-store to always get fresh data)
+      const configRes = await fetch('/api/lp-config', { cache: 'no-store' });
       const configData = await configRes.json();
       setLpConfig(configData);
 
-      // Fetch tracking data
+      // Fetch genres (no-store to always get fresh data)
+      const genresRes = await fetch('/api/lp-code-genres', { cache: 'no-store' });
+      const genresData = await genresRes.json();
+      if (genresData.genres) {
+        setGenres(genresData.genres);
+      }
+
+      // Fetch tracking data (no-store to always get fresh data)
       const params = new URLSearchParams();
       if (dateRange.startDate) params.set('startDate', dateRange.startDate);
       if (dateRange.endDate) params.set('endDate', dateRange.endDate);
 
-      const trackingRes = await fetch(`/api/lp-tracking?${params.toString()}`);
+      const trackingRes = await fetch(`/api/lp-tracking?${params.toString()}`, { cache: 'no-store' });
       const trackingJson = await trackingRes.json();
       setTrackingData(trackingJson);
     } catch (error) {
@@ -301,7 +319,7 @@ export default function TrackingPage() {
         params.set('lpId', selectedItems[0].lpId);
       }
 
-      const res = await fetch(`/api/lp-tracking?${params.toString()}`);
+      const res = await fetch(`/api/lp-tracking?${params.toString()}`, { cache: 'no-store' });
       const data = await res.json();
       setEngagementData(data.engagement || null);
     } catch (error) {
@@ -505,6 +523,80 @@ export default function TrackingPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trackingData, lpConfig]);
 
+  // ジャンルフィルター適用後のテーブルデータ
+  const filteredTableData = useMemo<RowData[]>(() => {
+    if (selectedGenrePrefix === 'all') {
+      return tableData;
+    }
+
+    // 合計行は常に表示（フィルター後の合計を再計算）
+    const filteredRows: RowData[] = [];
+    let totalPv = 0, totalSessions = 0, totalClicks = 0, totalRegistrations = 0;
+
+    // キャンペーンコードがジャンルプレフィックスで始まるかチェック
+    const matchesGenre = (campaignCode: string | null) => {
+      if (!campaignCode) return false;
+      return campaignCode.startsWith(`${selectedGenrePrefix}-`);
+    };
+
+    tableData.forEach(row => {
+      if (row.type === 'total') {
+        // 合計行はスキップ（後で再計算）
+        return;
+      }
+
+      if (row.type === 'lp') {
+        // LP行の場合、そのLPにフィルター対象のキャンペーンがあるかチェック
+        const lpCampaigns = tableData.filter(
+          r => r.type === 'campaign' && r.lpId === row.lpId && matchesGenre(r.campaignCode)
+        );
+        if (lpCampaigns.length > 0) {
+          // フィルター対象のキャンペーンがあるLPを表示（LP行の数値はフィルター対象分のみ）
+          const filteredPv = lpCampaigns.reduce((sum, c) => sum + c.pv, 0);
+          const filteredSessions = lpCampaigns.reduce((sum, c) => sum + c.sessions, 0);
+          const filteredEvents = lpCampaigns.reduce((sum, c) => sum + c.events, 0);
+          const filteredRegs = lpCampaigns.reduce((sum, c) => sum + c.registrations, 0);
+
+          totalPv += filteredPv;
+          totalSessions += filteredSessions;
+          totalClicks += filteredEvents;
+          totalRegistrations += filteredRegs;
+
+          filteredRows.push({
+            ...row,
+            pv: filteredPv,
+            sessions: filteredSessions,
+            events: filteredEvents,
+            eventCtr: filteredSessions > 0 ? (filteredEvents / filteredSessions) * 100 : 0,
+            registrations: filteredRegs,
+            registrationRate: filteredSessions > 0 ? (filteredRegs / filteredSessions) * 100 : 0,
+          });
+        }
+      }
+
+      if (row.type === 'campaign' && matchesGenre(row.campaignCode)) {
+        filteredRows.push(row);
+      }
+    });
+
+    // フィルター後の合計行を先頭に追加
+    filteredRows.unshift({
+      id: 'total:all',
+      type: 'total',
+      lpId: 'total',
+      campaignCode: null,
+      label: '合計',
+      pv: totalPv,
+      sessions: totalSessions,
+      events: totalClicks,
+      eventCtr: totalSessions > 0 ? (totalClicks / totalSessions) * 100 : 0,
+      registrations: totalRegistrations,
+      registrationRate: totalSessions > 0 ? (totalRegistrations / totalSessions) * 100 : 0,
+    });
+
+    return filteredRows;
+  }, [tableData, selectedGenrePrefix]);
+
   // LP展開/折りたたみ
   const toggleLpExpand = (lpId: string) => {
     const newExpanded = new Set(expandedLps);
@@ -522,6 +614,7 @@ export default function TrackingPage() {
     setBaseDate(getMonday(new Date()));
     setExpandedLps(new Set());
     setEngagementData(null);
+    setSelectedGenrePrefix('all');
   };
 
   // DL可能かどうか
@@ -536,7 +629,7 @@ export default function TrackingPage() {
       selectedLpIds.add(lpId);
     });
 
-    return tableData.filter(row => {
+    return filteredTableData.filter(row => {
       // 合計行は選択されていれば含める
       if (row.type === 'total') {
         return selectedRows.has(row.id);
@@ -551,7 +644,7 @@ export default function TrackingPage() {
       }
       return false;
     });
-  }, [tableData, selectedRows]);
+  }, [filteredTableData, selectedRows]);
 
   // CSVダウンロード
   const downloadCSV = useCallback(() => {
@@ -723,19 +816,84 @@ export default function TrackingPage() {
               <ArrowLeft className="w-4 h-4" />
               LP管理に戻る
             </Link>
-            <Link
-              href="/lp/tracking/spec"
-              className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800"
-            >
-              <HelpCircle className="w-4 h-4" />
-              トラッキング仕様
-            </Link>
+            <div className="flex items-center gap-3">
+              <Link
+                href="/lp/tracking/spec"
+                className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800"
+              >
+                <HelpCircle className="w-4 h-4" />
+                トラッキング仕様
+              </Link>
+              {/* エクスポートボタン */}
+              <div className="relative" ref={exportMenuRef}>
+                <button
+                  onClick={() => canExport && setShowExportMenu(!showExportMenu)}
+                  disabled={!canExport}
+                  className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                    canExport
+                      ? 'bg-blue-600 text-white hover:bg-blue-700'
+                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  }`}
+                  title={!canExport ? 'DLしたいデータをテーブルで選択してください' : `選択中: ${selectedRows.size}件`}
+                >
+                  <Download className="w-4 h-4" />
+                  エクスポート
+                  {canExport && (
+                    <span className="bg-blue-500 text-white text-xs px-1.5 py-0.5 rounded-full">
+                      {selectedRows.size}
+                    </span>
+                  )}
+                </button>
+                {showExportMenu && canExport && (
+                  <div className="absolute right-0 mt-2 w-52 bg-white rounded-lg shadow-lg border border-gray-200 z-10 overflow-hidden">
+                    <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
+                      <p className="text-xs text-gray-500">
+                        {dateRange.startDate} 〜 {dateRange.endDate}
+                      </p>
+                      <p className="text-xs text-gray-500">{selectedRows.size}件選択中</p>
+                    </div>
+                    <button
+                      onClick={downloadCSV}
+                      className="w-full px-4 py-3 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3"
+                    >
+                      <Download className="w-4 h-4 text-gray-400" />
+                      <div>
+                        <div className="font-medium">CSVダウンロード</div>
+                        <div className="text-xs text-gray-400">Excel・スプレッドシート用</div>
+                      </div>
+                    </button>
+                    <button
+                      onClick={copyToClipboard}
+                      className="w-full px-4 py-3 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 border-t border-gray-100"
+                    >
+                      {copied ? (
+                        <>
+                          <Check className="w-4 h-4 text-green-500" />
+                          <div>
+                            <div className="font-medium text-green-600">コピーしました</div>
+                            <div className="text-xs text-gray-400">クリップボードに保存済み</div>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4 text-gray-400" />
+                          <div>
+                            <div className="font-medium">テキストをコピー</div>
+                            <div className="text-xs text-gray-400">Slack・メール用</div>
+                          </div>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
           <h1 className="text-2xl font-bold text-gray-900">LPトラッキング</h1>
           <p className="text-gray-600 mt-1">LP別のアクセス数・エンゲージメントを分析できます</p>
         </div>
 
-        {/* Filters - 1行にすべて配置 */}
+        {/* Filters - 1行構成 */}
         <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
           <div className="flex flex-wrap items-center gap-3">
             {/* 期間クイック選択 */}
@@ -802,7 +960,6 @@ export default function TrackingPage() {
                   const newStart = e.target.value;
                   setPeriodMode('custom');
                   setDateRange(prev => {
-                    // 日付検証
                     if (newStart && prev.endDate && newStart > prev.endDate) {
                       setDateError('開始日は終了日より前にしてください');
                     } else {
@@ -823,7 +980,6 @@ export default function TrackingPage() {
                   const newEnd = e.target.value;
                   setPeriodMode('custom');
                   setDateRange(prev => {
-                    // 日付検証
                     if (prev.startDate && newEnd && prev.startDate > newEnd) {
                       setDateError('終了日は開始日より後にしてください');
                     } else {
@@ -841,6 +997,27 @@ export default function TrackingPage() {
               )}
             </div>
 
+            {/* 区切り線 */}
+            <div className="h-8 w-px bg-gray-200 hidden sm:block" />
+
+            {/* コードフィルター */}
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-gray-400" />
+              <span className="text-sm text-gray-600">コード:</span>
+              <select
+                value={selectedGenrePrefix}
+                onChange={(e) => setSelectedGenrePrefix(e.target.value)}
+                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white min-w-[140px]"
+              >
+                <option value="all">すべて</option>
+                {genres.map((genre) => (
+                  <option key={genre.prefix} value={genre.prefix}>
+                    {genre.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {/* リセット */}
             <button
               onClick={handleReset}
@@ -848,73 +1025,6 @@ export default function TrackingPage() {
             >
               リセット
             </button>
-
-            {/* スペーサー */}
-            <div className="flex-1" />
-
-            {/* DLボタン */}
-            <div className="relative" ref={exportMenuRef}>
-              <button
-                onClick={() => canExport && setShowExportMenu(!showExportMenu)}
-                disabled={!canExport}
-                className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                  canExport
-                    ? 'bg-blue-600 text-white hover:bg-blue-700'
-                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                }`}
-                title={!canExport ? 'DLしたいデータをテーブルで選択してください' : `選択中: ${selectedRows.size}件`}
-              >
-                <Download className="w-4 h-4" />
-                エクスポート
-                {canExport && (
-                  <span className="bg-blue-500 text-white text-xs px-1.5 py-0.5 rounded-full">
-                    {selectedRows.size}
-                  </span>
-                )}
-              </button>
-              {showExportMenu && canExport && (
-                <div className="absolute right-0 mt-2 w-52 bg-white rounded-lg shadow-lg border border-gray-200 z-10 overflow-hidden">
-                  <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
-                    <p className="text-xs text-gray-500">
-                      {dateRange.startDate} 〜 {dateRange.endDate}
-                    </p>
-                    <p className="text-xs text-gray-500">{selectedRows.size}件選択中</p>
-                  </div>
-                  <button
-                    onClick={downloadCSV}
-                    className="w-full px-4 py-3 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3"
-                  >
-                    <Download className="w-4 h-4 text-gray-400" />
-                    <div>
-                      <div className="font-medium">CSVダウンロード</div>
-                      <div className="text-xs text-gray-400">Excel・スプレッドシート用</div>
-                    </div>
-                  </button>
-                  <button
-                    onClick={copyToClipboard}
-                    className="w-full px-4 py-3 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 border-t border-gray-100"
-                  >
-                    {copied ? (
-                      <>
-                        <Check className="w-4 h-4 text-green-500" />
-                        <div>
-                          <div className="font-medium text-green-600">コピーしました</div>
-                          <div className="text-xs text-gray-400">クリップボードに保存済み</div>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-4 h-4 text-gray-400" />
-                        <div>
-                          <div className="font-medium">テキストをコピー</div>
-                          <div className="text-xs text-gray-400">Slack・メール用</div>
-                        </div>
-                      </>
-                    )}
-                  </button>
-                </div>
-              )}
-            </div>
           </div>
         </div>
 
@@ -945,14 +1055,17 @@ export default function TrackingPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {tableData.length === 0 ? (
+                    {filteredTableData.length === 0 ? (
                       <tr>
                         <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
-                          トラッキングデータがありません
+                          {selectedGenrePrefix !== 'all'
+                            ? `「${genres.find(g => g.prefix === selectedGenrePrefix)?.name || selectedGenrePrefix}」のデータがありません`
+                            : 'トラッキングデータがありません'
+                          }
                         </td>
                       </tr>
                     ) : (
-                      tableData.map((row) => {
+                      filteredTableData.map((row) => {
                         // キャンペーン行は親LPが展開されている場合のみ表示
                         if (row.type === 'campaign') {
                           if (!expandedLps.has(row.lpId)) return null;
@@ -990,7 +1103,7 @@ export default function TrackingPage() {
                         // LP行または合計行
                         const isTotal = row.type === 'total';
                         const isLp = row.type === 'lp';
-                        const hasChildren = isLp && tableData.some(r => r.type === 'campaign' && r.lpId === row.lpId);
+                        const hasChildren = isLp && filteredTableData.some(r => r.type === 'campaign' && r.lpId === row.lpId);
                         const isExpanded = expandedLps.has(row.lpId);
 
                         return (

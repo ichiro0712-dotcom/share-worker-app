@@ -138,21 +138,46 @@ export default function WorkerRegisterPage() {
   const [compressingQual, setCompressingQual] = useState<string | null>(null);
 
   // LP経由登録情報（localStorageから取得）
-  const [lpInfo, setLpInfo] = useState<{ lpId: string | null; campaignCode: string | null }>({
+  const [lpInfo, setLpInfo] = useState<{ lpId: string | null; campaignCode: string | null; genrePrefix: string | null }>({
     lpId: null,
     campaignCode: null,
+    genrePrefix: null,
   });
 
   // ページロード時にlocalStorageからLP情報を取得
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
+        // 新形式（lp_tracking_data）を優先して取得
+        const trackingDataStr = localStorage.getItem('lp_tracking_data');
+        if (trackingDataStr) {
+          const trackingData = JSON.parse(trackingDataStr);
+          // 有効期限チェック
+          if (trackingData.expiry && Date.now() <= trackingData.expiry) {
+            setLpInfo({
+              lpId: trackingData.lpId || null,
+              campaignCode: trackingData.campaignCode || null,
+              genrePrefix: trackingData.genrePrefix || null,
+            });
+            return;
+          }
+        }
+        // 旧形式へのフォールバック
         const storedLpId = localStorage.getItem('lp_id');
         const storedCampaignCode = localStorage.getItem('lp_campaign_code');
         if (storedLpId) {
+          // 旧形式からgenrePrefixを抽出
+          let genrePrefix = null;
+          if (storedCampaignCode) {
+            const match = storedCampaignCode.match(/^([A-Z]{3})-/);
+            if (match) {
+              genrePrefix = match[1];
+            }
+          }
           setLpInfo({
             lpId: storedLpId,
             campaignCode: storedCampaignCode,
+            genrePrefix,
           });
         }
       } catch (e) {
@@ -331,6 +356,7 @@ export default function WorkerRegisterPage() {
           // LP経由登録情報
           registrationLpId: lpInfo.lpId,
           registrationCampaignCode: lpInfo.campaignCode,
+          registrationGenrePrefix: lpInfo.genrePrefix,
         }),
       });
 

@@ -103,10 +103,13 @@ model User {
   /// LP経由登録情報
   /// 登録時にアクセスしたLP番号（"0", "1", "2" など）
   registration_lp_id     String?        @map("registration_lp_id")
-  /// 登録時に使用されたキャンペーンコード
+  /// 登録時に使用されたキャンペーンコード（例: "AAA-X4Y5Z6"）
   registration_campaign_code String?    @map("registration_campaign_code")
+  /// 登録時のキャンペーンコードのジャンルプレフィックス（例: "AAA"）
+  registration_genre_prefix String?     @map("registration_genre_prefix") @db.VarChar(3)
 
   @@index([registration_lp_id])
+  @@index([registration_genre_prefix])
   @@map("users")
 }
 
@@ -1547,4 +1550,50 @@ model LpEngagementSummary {
   @@index([cta_clicked])
   @@index([created_at])
   @@map("lp_engagement_summaries")
+}
+
+/// LPキャンペーンコードのジャンル（広告媒体）
+model LpCodeGenre {
+  id         Int       @id @default(autoincrement())
+  /// 3文字のプレフィックス（例: "AAA", "AAB"）
+  prefix     String    @unique @db.VarChar(3)
+  /// ジャンル名（例: "LINE", "Meta広告"）
+  name       String
+  /// 表示順序
+  sort_order Int       @default(0) @map("sort_order")
+  created_at DateTime  @default(now()) @map("created_at")
+  updated_at DateTime  @updatedAt @map("updated_at")
+
+  /// このジャンルに属するキャンペーンコード
+  campaignCodes LpCampaignCode[]
+
+  @@index([sort_order])
+  @@map("lp_code_genres")
+}
+
+/// LPキャンペーンコード
+model LpCampaignCode {
+  id           Int       @id @default(autoincrement())
+  /// コード（例: "AAA-X4Y5Z6"）
+  code         String    @unique
+  /// LP番号（"0", "1", "2" など）
+  lp_id        String    @map("lp_id")
+  /// ジャンルID
+  genre_id     Int       @map("genre_id")
+  /// 表示名（例: "LINE - AAA-X4Y5Z6"）
+  name         String?
+  /// メモ
+  memo         String?
+  /// 有効フラグ
+  is_active    Boolean   @default(true) @map("is_active")
+  created_at   DateTime  @default(now()) @map("created_at")
+  updated_at   DateTime  @updatedAt @map("updated_at")
+
+  /// ジャンル
+  genre        LpCodeGenre @relation(fields: [genre_id], references: [id])
+
+  @@index([lp_id])
+  @@index([genre_id])
+  @@index([is_active])
+  @@map("lp_campaign_codes")
 }

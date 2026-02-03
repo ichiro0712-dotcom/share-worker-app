@@ -7,13 +7,7 @@
   "1": {
     "title": "高単価訴求",
     "isActive": true,
-    "campaigns": [
-      {
-        "code": "R38CBUT8",
-        "name": "LINE用",
-        "createdAt": "2026-01-30T19:40:23.481Z"
-      }
-    ]
+    "campaigns": []
   },
   "2": {
     "title": "一般的",
@@ -25,15 +19,60 @@
     "isActive": true,
     "campaigns": [
       {
-        "code": "google_summer",
-        "name": "Google夏キャンペーン",
-        "createdAt": "2026-01-30T00:00:00.000Z"
+        "code": "AAH-SUMMER",
+        "name": "Google広告 - AAH-SUMMER",
+        "createdAt": "2026-01-30T00:00:00.000Z",
+        "genreName": "Google広告",
+        "genrePrefix": "AAH"
       },
       {
-        "code": "line_ad",
-        "name": "LINE広告",
-        "createdAt": "2026-01-30T00:00:00.000Z"
+        "code": "AAA-LINEAD",
+        "name": "LINE - AAA-LINEAD",
+        "createdAt": "2026-01-30T00:00:00.000Z",
+        "genreName": "LINE",
+        "genrePrefix": "AAA"
+      },
+      {
+        "code": "AAB-BTTLLV",
+        "name": "Meta広告 - AAB-BTTLLV",
+        "createdAt": "2026-02-03T11:01:14.269Z",
+        "genreName": "Meta広告",
+        "genrePrefix": "AAB"
       }
     ]
-  }
+  },
+  "genres": [
+    {
+      "prefix": "AAA",
+      "name": "LINE"
+    },
+    {
+      "prefix": "AAB",
+      "name": "Meta広告"
+    },
+    {
+      "prefix": "AAC",
+      "name": "Facebook"
+    },
+    {
+      "prefix": "AAD",
+      "name": "Instagram"
+    },
+    {
+      "prefix": "AAE",
+      "name": "Messenger"
+    },
+    {
+      "prefix": "AAF",
+      "name": "Audience Network"
+    },
+    {
+      "prefix": "AAG",
+      "name": "Threads"
+    },
+    {
+      "prefix": "AAH",
+      "name": "Google広告"
+    }
+  ]
 }
