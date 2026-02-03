@@ -160,22 +160,6 @@ export default function Sample04Page() {
                                 </div>
                                 <p className="text-sm text-slate-500 truncate mb-4 font-medium">{user.email}</p>
 
-                                {/* 統計情報エリア */}
-                                <div className="grid grid-cols-3 gap-2 mb-4">
-                                    <div className="text-center p-2 rounded-xl bg-slate-50/80 border border-slate-100/50">
-                                        <p className="text-[10px] text-slate-500 font-medium mb-0.5">キャンセル率</p>
-                                        <p className="text-sm font-bold text-slate-700">1.2%</p>
-                                    </div>
-                                    <div className="text-center p-2 rounded-xl bg-orange-50/80 border border-orange-100/50">
-                                        <p className="text-[10px] text-orange-600 font-medium mb-0.5">直前キャンセル</p>
-                                        <p className="text-sm font-bold text-orange-700">0.5%</p>
-                                    </div>
-                                    <div className="text-center p-2 rounded-xl bg-slate-50/80 border border-slate-100/50">
-                                        <p className="text-[10px] text-slate-500 font-medium mb-0.5">キャンセル数</p>
-                                        <p className="text-sm font-bold text-slate-700">3回</p>
-                                    </div>
-                                </div>
-
                                 <Link
                                     href="/mypage/profile"
                                     className="inline-flex items-center text-xs font-bold text-blue-600 bg-blue-50/80 px-4 py-2 rounded-full hover:bg-blue-100 transition-colors group/btn shadow-sm border border-blue-100"
@@ -184,6 +168,24 @@ export default function Sample04Page() {
                                     <ChevronRight className="w-3 h-3 ml-1 transition-transform group-hover/btn:translate-x-0.5" />
                                 </Link>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* 統計情報エリア */}
+                <div className="px-6 mb-6">
+                    <div className="grid grid-cols-3 gap-3">
+                        <div className="bg-white/60 backdrop-blur-md rounded-2xl p-3 border border-white/60 shadow-sm flex flex-col items-center justify-center group hover:bg-white/80 transition-colors">
+                            <p className="text-[10px] text-slate-500 font-bold mb-1">キャンセル率</p>
+                            <p className="text-lg font-black text-slate-700">1.2<span className="text-xs font-bold ml-0.5">%</span></p>
+                        </div>
+                        <div className="bg-orange-50/60 backdrop-blur-md rounded-2xl p-3 border border-orange-100/60 shadow-sm flex flex-col items-center justify-center group hover:bg-orange-50/80 transition-colors">
+                            <p className="text-[10px] text-orange-600 font-bold mb-1">直前キャンセル</p>
+                            <p className="text-lg font-black text-orange-700">0.5<span className="text-xs font-bold ml-0.5">%</span></p>
+                        </div>
+                        <div className="bg-white/60 backdrop-blur-md rounded-2xl p-3 border border-white/60 shadow-sm flex flex-col items-center justify-center group hover:bg-white/80 transition-colors">
+                            <p className="text-[10px] text-slate-500 font-bold mb-1">キャンセル数</p>
+                            <p className="text-lg font-black text-slate-700">3<span className="text-xs font-bold ml-0.5">回</span></p>
                         </div>
                     </div>
                 </div>
