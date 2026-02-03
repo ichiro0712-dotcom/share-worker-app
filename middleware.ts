@@ -65,6 +65,7 @@ const ignoredPaths = [
   '/api/lp-config', // LP設定API
   '/api/lp-code-genres', // LPコードジャンルAPI
   '/api/lp-campaign-codes', // LPキャンペーンコードAPI
+  '/api/upload', // アップロードAPI（API側で独自認証を実施）
   '/rogo', // ロゴ画像
   '/images', // 画像ファイル
   '/icons', // アイコン

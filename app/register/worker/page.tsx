@@ -191,9 +191,9 @@ export default function WorkerRegisterPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // ファイルサイズチェック（20MB）
+    // ファイルサイズチェック（10MB）
     if (file.size > MAX_FILE_SIZE) {
-      toast.error(`ファイルサイズが大きすぎます（${formatFileSize(file.size)}）。20MB以下にしてください。`);
+      toast.error(`ファイルサイズが大きすぎます（${formatFileSize(file.size)}）。10MB以下にしてください。`);
       return;
     }
 
@@ -699,7 +699,7 @@ export default function WorkerRegisterPage() {
                                 className="hidden"
                               />
                             </label>
-                            <p className="text-xs text-gray-500">20MB以下 / JPG, PNG, HEIC, PDF形式（自動圧縮）</p>
+                            <p className="text-xs text-gray-500">10MB以下 / JPG, PNG, HEIC, PDF形式（自動圧縮）</p>
                           </div>
                         </div>
                       ) : (
@@ -713,7 +713,7 @@ export default function WorkerRegisterPage() {
                               className="hidden"
                             />
                           </label>
-                          <p className="text-xs text-gray-500 text-center">20MB以下 / JPG, PNG, HEIC, PDF形式（自動圧縮）</p>
+                          <p className="text-xs text-gray-500 text-center">10MB以下 / JPG, PNG, HEIC, PDF形式（自動圧縮）</p>
                           {showErrors && !qualificationCertificates[qual] && (
                             <p className="text-red-600 text-sm font-medium text-center">⚠️ {qual}の資格証明書をアップロードしてください</p>
                           )}
