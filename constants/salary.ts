@@ -4,11 +4,17 @@
 
 export const TRANSPORTATION_FEE_OPTIONS = [
   { value: 0, label: 'なし' },
-  ...Array.from({ length: 60 }, (_, i) => ({
-    value: (i + 1) * 50,
-    label: `${(i + 1) * 50}円`
+  ...Array.from({ length: 120 }, (_, i) => ({
+    value: (i + 1) * 25,
+    label: `${(i + 1) * 25}円`
   }))
 ] as const;
+
+/**
+ * 交通費の最低レート（1時間あたり）
+ * 15分25円 = 1時間100円
+ */
+export const TRANSPORTATION_FEE_MIN_RATE_PER_HOUR = 100;
 
 export const HOURLY_WAGE_MIN = 1000;
 export const HOURLY_WAGE_MAX = 5000;
