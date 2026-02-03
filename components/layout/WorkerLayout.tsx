@@ -25,6 +25,7 @@ const EXCLUDED_PREFIXES = [
   '/register/',
   '/password-reset/',
   '/public/',  // SEO用公開ページ
+  '/terms/',   // 利用規約ページ
 ];
 
 export function WorkerLayout({ children }: WorkerLayoutProps) {
