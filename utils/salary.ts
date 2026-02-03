@@ -110,3 +110,35 @@ export const calculateWorkingHours = (
 
   return totalMinutes / 60;
 };
+
+/**
+ * 実働時間から最低交通費を計算
+ * 1時間あたり100円（15分あたり25円）
+ * @param workingMinutes - 実働時間（分）
+ * @returns 最低交通費（円）、25円刻みに切り上げ
+ */
+export const calculateMinTransportationFee = (workingMinutes: number): number => {
+  if (workingMinutes <= 0) return 0;
+
+  // 1時間100円 = 1分あたり100/60円
+  const minFee = (workingMinutes * 100) / 60;
+
+  // 25円刻みに切り上げ
+  return Math.ceil(minFee / 25) * 25;
+};
+
+/**
+ * 勤務時間に応じてフィルタリングされた交通費選択肢を取得
+ * @param workingMinutes - 実働時間（分）
+ * @param options - 元の交通費選択肢
+ * @returns フィルタリングされた選択肢
+ */
+export const getFilteredTransportationFeeOptions = <T extends { value: number; label: string }>(
+  workingMinutes: number,
+  options: readonly T[]
+): T[] => {
+  const minFee = calculateMinTransportationFee(workingMinutes);
+
+  // 0円（なし）は常に表示、それ以外は最低額以上のものを表示
+  return options.filter(option => option.value === 0 || option.value >= minFee);
+};
