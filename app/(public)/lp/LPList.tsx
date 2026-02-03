@@ -1,11 +1,15 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import GenreSelectModal from './components/GenreSelectModal';
+import GenreEditModal from './components/GenreEditModal';
 
 type Campaign = {
   code: string;
   name: string;
   createdAt: string;
+  genreName?: string;
+  genrePrefix?: string;
 };
 
 type LPPage = {
@@ -21,11 +25,15 @@ export default function LPList({ initialPages }: { initialPages: LPPage[] }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [newCampaignName, setNewCampaignName] = useState('');
-  const [addingCampaignId, setAddingCampaignId] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // モーダル状態
+  const [genreSelectModalOpen, setGenreSelectModalOpen] = useState(false);
+  const [genreEditModalOpen, setGenreEditModalOpen] = useState(false);
+  const [selectedLpIdForCode, setSelectedLpIdForCode] = useState<string | null>(null);
+  const [isGeneratingCode, setIsGeneratingCode] = useState(false);
 
   // ページ遷移で戻った時に最新データを取得
   useEffect(() => {
@@ -85,64 +93,118 @@ export default function LPList({ initialPages }: { initialPages: LPPage[] }) {
 
   const toggleExpand = (id: string) => {
     setExpandedId(expandedId === id ? null : id);
-    setAddingCampaignId(null);
-    setNewCampaignName('');
     setMenuOpenId(null);
   };
 
-  const generateCode = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let code = '';
-    for (let i = 0; i < 8; i++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return code;
+  // ジャンル選択モーダルを開く
+  const openGenreSelectModal = (lpId: string) => {
+    setSelectedLpIdForCode(lpId);
+    setGenreSelectModalOpen(true);
   };
 
-  const addCampaign = async (lpId: string) => {
-    const code = generateCode();
-    const name = newCampaignName.trim() || `キャンペーン ${code}`;
+  // ジャンル選択後にコード発行（DB APIを使用）
+  const handleGenreSelect = async (genrePrefix: string, genreName: string) => {
+    if (!selectedLpIdForCode) return;
+
+    setGenreSelectModalOpen(false);
+    setIsGeneratingCode(true);
+
     try {
-      const response = await fetch('/api/lp-config', {
+      // ジャンルIDを取得
+      const genresRes = await fetch('/api/lp-code-genres');
+      const genresData = await genresRes.json();
+      const genre = genresData.genres?.find((g: { prefix: string }) => g.prefix === genrePrefix);
+
+      if (!genre) {
+        alert('ジャンルが見つかりません');
+        return;
+      }
+
+      // DB APIでコード生成
+      const res = await fetch('/api/lp-campaign-codes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id: lpId,
-          action: 'addCampaign',
-          campaign: { code, name, createdAt: new Date().toISOString() }
+          action: 'create',
+          lpId: selectedLpIdForCode,
+          genreId: genre.id,
+          name: `${genreName} - `,
         }),
       });
-      if (response.ok) {
-        setPages(pages.map(p => {
-          if (p.id === lpId) {
-            return { ...p, campaigns: [...(p.campaigns || []), { code, name, createdAt: new Date().toISOString() }] };
-          }
-          return p;
-        }));
-        setAddingCampaignId(null);
-        setNewCampaignName('');
+
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'コードの発行に失敗しました');
+        return;
       }
-    } catch {
-      alert('キャンペーンコードの作成に失敗しました');
+
+      // 生成されたコードをUIに反映
+      const newCampaign = {
+        code: data.code.code,
+        name: data.code.name || `${genreName} - ${data.code.code}`,
+        createdAt: data.code.created_at,
+        genreName,
+        genrePrefix,
+      };
+
+      // JSONファイルにも保存（既存の仕組みとの互換性維持）
+      await fetch('/api/lp-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: selectedLpIdForCode,
+          action: 'addCampaign',
+          campaign: newCampaign,
+        }),
+      });
+
+      setPages(pages.map(p => {
+        if (p.id === selectedLpIdForCode) {
+          return { ...p, campaigns: [...(p.campaigns || []), newCampaign] };
+        }
+        return p;
+      }));
+
+      // 展開状態にする
+      setExpandedId(selectedLpIdForCode);
+    } catch (error) {
+      console.error('Failed to generate code:', error);
+      alert('コードの発行に失敗しました');
+    } finally {
+      setIsGeneratingCode(false);
+      setSelectedLpIdForCode(null);
     }
   };
 
   const deleteCampaign = async (lpId: string, code: string) => {
     if (!confirm('このキャンペーンコードを削除しますか？')) return;
     try {
-      const response = await fetch('/api/lp-config', {
+      // DB APIでコードを検索して削除
+      const searchRes = await fetch(`/api/lp-campaign-codes?code=${encodeURIComponent(code)}`);
+      const searchData = await searchRes.json();
+
+      if (searchData.valid && searchData.code) {
+        // DB APIで削除
+        await fetch('/api/lp-campaign-codes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'delete', id: searchData.code.id }),
+        });
+      }
+
+      // JSONファイルからも削除（互換性維持）
+      await fetch('/api/lp-config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: lpId, action: 'deleteCampaign', code }),
       });
-      if (response.ok) {
-        setPages(pages.map(p => {
-          if (p.id === lpId) {
-            return { ...p, campaigns: (p.campaigns || []).filter(c => c.code !== code) };
-          }
-          return p;
-        }));
-      }
+
+      setPages(pages.map(p => {
+        if (p.id === lpId) {
+          return { ...p, campaigns: (p.campaigns || []).filter(c => c.code !== code) };
+        }
+        return p;
+      }));
     } catch {
       alert('削除に失敗しました');
     }
@@ -176,6 +238,14 @@ export default function LPList({ initialPages }: { initialPages: LPPage[] }) {
   const getFullUrl = (path: string, code?: string) => {
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
     return code ? `${baseUrl}${path}?c=${code}` : `${baseUrl}${path}`;
+  };
+
+  // プレフィックスからジャンル名を判定（genreNameがない古いコード用）
+  const getGenreFromCode = (code: string): string | null => {
+    const match = code.match(/^([A-Z]{3})-/);
+    if (!match) return null;
+    // プレフィックスを返す（ジャンル名はcampaign.genreNameで取得）
+    return match[1];
   };
 
   const renderLpCard = (page: LPPage) => (
@@ -367,45 +437,26 @@ export default function LPList({ initialPages }: { initialPages: LPPage[] }) {
       {/* キャンペーンコード展開エリア */}
       {expandedId === page.id && (
         <div className="border-t border-gray-100 bg-gray-50/50 p-4">
-          {/* 新規追加 */}
-          {addingCampaignId === page.id ? (
-            <div className="flex items-center gap-2 mb-4">
-              <input
-                type="text"
-                placeholder="キャンペーン名（任意）"
-                value={newCampaignName}
-                onChange={(e) => setNewCampaignName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') addCampaign(page.id);
-                  if (e.key === 'Escape') { setAddingCampaignId(null); setNewCampaignName(''); }
-                }}
-                autoFocus
-                className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-rose-500 focus:border-transparent outline-none"
-              />
-              <button
-                onClick={() => addCampaign(page.id)}
-                className="px-4 py-2 text-sm font-medium bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-              >
-                発行
-              </button>
-              <button
-                onClick={() => { setAddingCampaignId(null); setNewCampaignName(''); }}
-                className="px-4 py-2 text-sm font-medium bg-gray-100 text-gray-600 rounded-md hover:bg-gray-200 transition-colors"
-              >
-                取消
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setAddingCampaignId(page.id)}
-              className="mb-4 px-4 py-2 text-sm font-medium bg-rose-600 text-white rounded-md hover:bg-rose-700 transition-colors flex items-center gap-1.5"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              新規コード発行
-            </button>
-          )}
+          {/* 新規コード発行ボタン */}
+          <button
+            onClick={() => openGenreSelectModal(page.id)}
+            disabled={isGeneratingCode}
+            className="mb-4 px-4 py-2 text-sm font-medium bg-rose-600 text-white rounded-md hover:bg-rose-700 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+          >
+            {isGeneratingCode && selectedLpIdForCode === page.id ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                発行中...
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                新規コード発行
+              </>
+            )}
+          </button>
 
           {/* キャンペーン一覧 */}
           {(page.campaigns || []).length === 0 ? (
@@ -414,49 +465,57 @@ export default function LPList({ initialPages }: { initialPages: LPPage[] }) {
             </div>
           ) : (
             <div className="space-y-2">
-              {(page.campaigns || []).map((campaign) => (
-                <div
-                  key={campaign.code}
-                  className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200"
-                >
-                  <code className="px-2 py-1 bg-gray-100 rounded text-sm font-mono font-semibold text-gray-700">
-                    {campaign.code}
-                  </code>
-                  <span className="flex-1 text-sm text-gray-600 truncate">
-                    {campaign.name}
-                  </span>
-                  <button
-                    onClick={() => copyToClipboard(getFullUrl(page.path, campaign.code), campaign.code)}
-                    className={`
-                      p-1.5 rounded transition-colors
-                      ${copiedCode === campaign.code
-                        ? 'text-green-600 bg-green-50'
-                        : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'
-                      }
-                    `}
-                    title={copiedCode === campaign.code ? 'コピーしました' : 'URLをコピー'}
+              {(page.campaigns || []).map((campaign) => {
+                const genre = campaign.genreName || getGenreFromCode(campaign.code);
+                return (
+                  <div
+                    key={campaign.code}
+                    className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200"
                   >
-                    {copiedCode === campaign.code ? (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    ) : (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                      </svg>
+                    <code className="px-2 py-1 bg-gray-100 rounded text-sm font-mono font-semibold text-gray-700">
+                      {campaign.code}
+                    </code>
+                    {genre && (
+                      <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded">
+                        {genre}
+                      </span>
                     )}
-                  </button>
-                  <button
-                    onClick={() => deleteCampaign(page.id, campaign.code)}
-                    className="p-1.5 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                    title="削除"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                </div>
-              ))}
+                    <span className="flex-1 text-sm text-gray-600 truncate">
+                      {campaign.name}
+                    </span>
+                    <button
+                      onClick={() => copyToClipboard(getFullUrl(page.path, campaign.code), campaign.code)}
+                      className={`
+                        p-1.5 rounded transition-colors
+                        ${copiedCode === campaign.code
+                          ? 'text-green-600 bg-green-50'
+                          : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'
+                        }
+                      `}
+                      title={copiedCode === campaign.code ? 'コピーしました' : 'URLをコピー'}
+                    >
+                      {copiedCode === campaign.code ? (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => deleteCampaign(page.id, campaign.code)}
+                      className="p-1.5 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                      title="削除"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -465,48 +524,67 @@ export default function LPList({ initialPages }: { initialPages: LPPage[] }) {
   );
 
   return (
-    <div className="space-y-6">
-      {/* 有効なLP */}
-      <div>
-        <div className="flex items-center gap-2 mb-3">
-          <span className="w-2 h-2 rounded-full bg-green-500" />
-          <h2 className="text-sm font-semibold text-gray-700">
-            有効 ({activePages.length})
-          </h2>
-        </div>
-        <div className="space-y-3">
-          {activePages.map(renderLpCard)}
-          {activePages.length === 0 && (
-            <div className="py-8 text-center text-gray-400 text-sm bg-gray-50 rounded-lg border border-dashed border-gray-200">
-              有効なLPがありません
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* 停止中のLP */}
-      {inactivePages.length > 0 && (
+    <>
+      <div className="space-y-6">
+        {/* 有効なLP */}
         <div>
           <div className="flex items-center gap-2 mb-3">
-            <span className="w-2 h-2 rounded-full bg-gray-400" />
-            <h2 className="text-sm font-semibold text-gray-500">
-              停止中 ({inactivePages.length})
+            <span className="w-2 h-2 rounded-full bg-green-500" />
+            <h2 className="text-sm font-semibold text-gray-700">
+              有効 ({activePages.length})
             </h2>
           </div>
-          <p className="text-xs text-gray-400 mb-3">
-            トラッキング一覧に表示されません。データは保持されています。
-          </p>
           <div className="space-y-3">
-            {inactivePages.map(renderLpCard)}
+            {activePages.map(renderLpCard)}
+            {activePages.length === 0 && (
+              <div className="py-8 text-center text-gray-400 text-sm bg-gray-50 rounded-lg border border-dashed border-gray-200">
+                有効なLPがありません
+              </div>
+            )}
           </div>
         </div>
-      )}
 
-      {pages.length === 0 && (
-        <div className="py-12 text-center text-gray-400">
-          LPページが見つかりません
-        </div>
-      )}
-    </div>
+        {/* 停止中のLP */}
+        {inactivePages.length > 0 && (
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <span className="w-2 h-2 rounded-full bg-gray-400" />
+              <h2 className="text-sm font-semibold text-gray-500">
+                停止中 ({inactivePages.length})
+              </h2>
+            </div>
+            <p className="text-xs text-gray-400 mb-3">
+              トラッキング一覧に表示されません。データは保持されています。
+            </p>
+            <div className="space-y-3">
+              {inactivePages.map(renderLpCard)}
+            </div>
+          </div>
+        )}
+
+        {pages.length === 0 && (
+          <div className="py-12 text-center text-gray-400">
+            LPページが見つかりません
+          </div>
+        )}
+      </div>
+
+      {/* ジャンル選択モーダル */}
+      <GenreSelectModal
+        isOpen={genreSelectModalOpen}
+        onClose={() => {
+          setGenreSelectModalOpen(false);
+          setSelectedLpIdForCode(null);
+        }}
+        onSelect={handleGenreSelect}
+        onOpenGenreEdit={() => setGenreEditModalOpen(true)}
+      />
+
+      {/* ジャンル編集モーダル */}
+      <GenreEditModal
+        isOpen={genreEditModalOpen}
+        onClose={() => setGenreEditModalOpen(false)}
+      />
+    </>
   );
 }

@@ -28,6 +28,7 @@ interface RegisterBody {
   // LP経由登録情報
   registrationLpId?: string;
   registrationCampaignCode?: string;
+  registrationGenrePrefix?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -55,6 +56,7 @@ export async function POST(request: NextRequest) {
       qualificationCertificates,
       registrationLpId,
       registrationCampaignCode,
+      registrationGenrePrefix,
     } = body;
 
     // バリデーション
@@ -109,6 +111,7 @@ export async function POST(request: NextRequest) {
         // LP経由登録情報
         registration_lp_id: registrationLpId || null,
         registration_campaign_code: registrationCampaignCode || null,
+        registration_genre_prefix: registrationGenrePrefix || null,
       },
     });
 

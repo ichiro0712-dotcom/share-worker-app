@@ -68,14 +68,60 @@
     };
   }
 
+  // キャンペーンコードからジャンルプレフィックスを抽出（AAA-XXXXXX形式）
+  function extractGenrePrefix(code) {
+    if (!code) return null;
+    const match = code.match(/^([A-Z]{3})-/);
+    return match ? match[1] : null;
+  }
+
+  // localStorage有効期限チェック
+  function isStorageExpired() {
+    const data = localStorage.getItem('lp_tracking_data');
+    if (!data) return true;
+
+    try {
+      const parsed = JSON.parse(data);
+      if (!parsed.expiry) return true;
+      return Date.now() > parsed.expiry;
+    } catch (e) {
+      return true;
+    }
+  }
+
+  // 期限切れデータをクリア
+  function clearExpiredStorage() {
+    localStorage.removeItem('lp_tracking_data');
+    localStorage.removeItem('lp_campaign_code');
+    localStorage.removeItem('lp_genre_prefix');
+    localStorage.removeItem('lp_id');
+    localStorage.removeItem('lp_utm_source');
+    localStorage.removeItem('lp_first_visit');
+  }
+
   // localStorage保存（7日間有効）
   function storeToLocalStorage(params) {
     if (!params.lpId) return;
 
+    // 既存データの有効期限チェック
+    const existing = localStorage.getItem('lp_tracking_data');
+    if (existing) {
+      // 期限切れならクリアして新規保存を許可
+      if (isStorageExpired()) {
+        clearExpiredStorage();
+      } else {
+        // 有効期限内の既存データがあれば保存しない（初回訪問のみ）
+        return;
+      }
+    }
+
     const expiry = Date.now() + (CONFIG.STORAGE_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+    const genrePrefix = extractGenrePrefix(params.campaignCode);
+
     const data = {
       lpId: params.lpId,
       campaignCode: params.campaignCode,
+      genrePrefix: genrePrefix,
       utmSource: params.utmSource,
       utmMedium: params.utmMedium,
       utmCampaign: params.utmCampaign,
@@ -83,15 +129,14 @@
       expiry: expiry,
     };
 
-    // 既存データがなければ保存（初回訪問のみ）
-    const existing = localStorage.getItem('lp_tracking_data');
-    if (!existing) {
-      localStorage.setItem('lp_tracking_data', JSON.stringify(data));
-    }
+    localStorage.setItem('lp_tracking_data', JSON.stringify(data));
 
     // 個別キーも保存（後方互換性）
     if (params.campaignCode) {
       localStorage.setItem('lp_campaign_code', params.campaignCode);
+    }
+    if (genrePrefix) {
+      localStorage.setItem('lp_genre_prefix', genrePrefix);
     }
     if (params.lpId) {
       localStorage.setItem('lp_id', params.lpId);
