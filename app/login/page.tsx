@@ -199,12 +199,6 @@ export default function WorkerLogin() {
           </div>
         </div>
 
-        {/* TOPに戻るリンク */}
-        <div className="mt-4 text-center">
-          <Link href="/" className="text-sm text-primary hover:underline">
-            TOPに戻る
-          </Link>
-        </div>
       </div>
     </div>
   );
