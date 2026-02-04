@@ -72,6 +72,7 @@ const ignoredPaths = [
   '/fonts', // フォント
   '/uploads', // アップロードファイル
   '/sw.js', // Service Worker
+  '/worker-', // PWA custom worker files (worker-*.js)
   '/workbox', // Workbox
   '/manifest.json', // PWA manifest
 ];

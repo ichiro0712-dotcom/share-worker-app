@@ -191,6 +191,12 @@ export default function TrackingSpecPage() {
                 <li>5秒以上: 最低限のコンテンツ閲覧</li>
                 <li>10秒以上: 一定の関心を示す滞在</li>
               </ul>
+              <div className="mt-3 p-3 bg-slate-50 rounded-lg">
+                <p className="text-sm text-slate-600">
+                  <strong>上限:</strong> 滞在時間は最大300秒（5分）でキャップされます。
+                  タブを開きっぱなしにした場合など、異常値が平均を引き上げることを防ぐための対策です。
+                </p>
+              </div>
             </div>
 
             {/* Section Dwell */}

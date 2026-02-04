@@ -10,6 +10,7 @@
     STORAGE_EXPIRY_DAYS: 7,
     API_ENDPOINT: '/api/lp-tracking',
     SECTION_TRACK_INTERVAL: 1000, // セクション滞在計測間隔（ミリ秒）
+    MAX_DWELL_TIME_SECONDS: 300, // 滞在時間の上限（5分）- 異常値対策
   };
 
   // ========== 状態管理 ==========
@@ -366,7 +367,8 @@
 
   // エンゲージメントレベル計算
   function calculateEngagementLevel() {
-    const dwellTime = Math.round((Date.now() - state.startTime) / 1000);
+    const rawDwellTime = Math.round((Date.now() - state.startTime) / 1000);
+    const dwellTime = Math.min(rawDwellTime, CONFIG.MAX_DWELL_TIME_SECONDS); // 5分でキャップ
     const scrollDepth = state.maxScrollDepth;
 
     // Level 5: 10秒以上滞在 かつ 90%スクロール
@@ -428,7 +430,8 @@
       });
 
       // エンゲージメントサマリーを送信
-      const totalDwellTime = Math.round((Date.now() - state.startTime) / 1000);
+      const rawTotalDwellTime = Math.round((Date.now() - state.startTime) / 1000);
+      const totalDwellTime = Math.min(rawTotalDwellTime, CONFIG.MAX_DWELL_TIME_SECONDS); // 5分でキャップ
       const engagementLevel = calculateEngagementLevel();
 
       sendToAPI({
