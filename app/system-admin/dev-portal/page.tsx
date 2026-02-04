@@ -241,6 +241,7 @@ const SYSTEM_ADMIN_TREE: SiteMapNode[] = [
             { name: 'formulas', title: '計算式・指標一覧', href: '/system-admin/dev-portal/formulas' },
             { name: 'debug-checklist', title: 'デバッグチェックリスト', href: '/system-admin/dev-portal/debug-checklist' },
             { name: 'debug-time', title: 'デバッグ時刻設定', href: '/system-admin/dev-portal/debug-time' },
+            { name: 'error-alert', title: 'エラー通知設定', href: '/system-admin/dev-portal/error-alert' },
         ]
     },
 ];

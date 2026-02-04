@@ -41,6 +41,10 @@
     {
       "path": "/api/cron/update-bank-data",
       "schedule": "0 18 * * 0"
+    },
+    {
+      "path": "/api/cron/error-alert",
+      "schedule": "*/5 * * * *"
     }
   ]
 }
