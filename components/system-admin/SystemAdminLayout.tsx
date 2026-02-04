@@ -21,6 +21,7 @@ import {
     ChevronRight,
     Clock,
     FileSpreadsheet,
+    Megaphone,
 } from 'lucide-react';
 
 interface SystemAdminLayoutProps {
@@ -116,6 +117,12 @@ export default function SystemAdminLayout({ children }: SystemAdminLayoutProps) 
             icon: <FileEdit className="w-5 h-5" />,
             href: '/system-admin/content',
             active: pathname?.startsWith('/system-admin/content'),
+        },
+        {
+            title: 'LP管理',
+            icon: <Megaphone className="w-5 h-5" />,
+            href: '/system-admin/lp',
+            active: pathname?.startsWith('/system-admin/lp'),
         },
         {
             title: 'システム設定',
