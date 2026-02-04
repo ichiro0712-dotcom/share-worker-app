@@ -503,7 +503,14 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    return NextResponse.json(response);
+    // キャッシュを無効化して常に最新データを返す
+    return NextResponse.json(response, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      },
+    });
   } catch (error) {
     console.error('LP tracking fetch error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

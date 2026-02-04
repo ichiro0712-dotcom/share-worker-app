@@ -366,6 +366,124 @@ export default function TrackingSpecPage() {
           </div>
         </div>
 
+        {/* Campaign Code Generation */}
+        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Target className="w-5 h-5 text-rose-600" />
+            キャンペーンコード発行
+          </h2>
+          <p className="text-gray-700 mb-4">
+            LP管理ページから、広告媒体別にキャンペーンコードを発行できます。
+            コードにはジャンル（広告媒体）を識別するプレフィックスが付与されます。
+          </p>
+
+          <div className="space-y-4">
+            <div className="border border-gray-200 rounded-lg p-4">
+              <h3 className="font-medium text-gray-900 mb-2">コード形式</h3>
+              <p className="text-sm text-gray-600 mb-2">
+                コードは以下の形式で生成されます：
+              </p>
+              <div className="bg-gray-50 p-3 rounded-lg">
+                <code className="text-sm font-mono">
+                  <span className="text-blue-600">[プレフィックス]</span>
+                  <span className="text-gray-400">-</span>
+                  <span className="text-green-600">[ランダム6文字]</span>
+                </code>
+                <p className="text-xs text-gray-500 mt-2">例: AAA-X4Y5Z6, AAB-1B2C3D</p>
+              </div>
+            </div>
+
+            <div className="border border-gray-200 rounded-lg p-4">
+              <h3 className="font-medium text-gray-900 mb-3">ジャンル（プレフィックス）一覧</h3>
+              <p className="text-sm text-gray-600 mb-3">
+                デフォルトで以下のジャンルが登録されています。ジャンルは自由に追加・編集できます。
+              </p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium text-gray-700">プレフィックス</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-700">ジャンル名</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    <tr>
+                      <td className="px-3 py-2"><code className="bg-gray-100 px-1.5 py-0.5 rounded">AAA</code></td>
+                      <td className="px-3 py-2 text-gray-600">LINE</td>
+                    </tr>
+                    <tr>
+                      <td className="px-3 py-2"><code className="bg-gray-100 px-1.5 py-0.5 rounded">AAB</code></td>
+                      <td className="px-3 py-2 text-gray-600">Meta広告</td>
+                    </tr>
+                    <tr>
+                      <td className="px-3 py-2"><code className="bg-gray-100 px-1.5 py-0.5 rounded">AAC</code></td>
+                      <td className="px-3 py-2 text-gray-600">Facebook</td>
+                    </tr>
+                    <tr>
+                      <td className="px-3 py-2"><code className="bg-gray-100 px-1.5 py-0.5 rounded">AAD</code></td>
+                      <td className="px-3 py-2 text-gray-600">Instagram</td>
+                    </tr>
+                    <tr>
+                      <td className="px-3 py-2"><code className="bg-gray-100 px-1.5 py-0.5 rounded">AAE</code></td>
+                      <td className="px-3 py-2 text-gray-600">Messenger</td>
+                    </tr>
+                    <tr>
+                      <td className="px-3 py-2"><code className="bg-gray-100 px-1.5 py-0.5 rounded">AAF</code></td>
+                      <td className="px-3 py-2 text-gray-600">Audience Network</td>
+                    </tr>
+                    <tr>
+                      <td className="px-3 py-2"><code className="bg-gray-100 px-1.5 py-0.5 rounded">AAG</code></td>
+                      <td className="px-3 py-2 text-gray-600">Threads</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="border border-gray-200 rounded-lg p-4">
+              <h3 className="font-medium text-gray-900 mb-2">ジャンル編集</h3>
+              <ul className="text-sm text-gray-600 list-disc list-inside space-y-1">
+                <li>LP管理ページの「コードジャンル編集」からジャンルを追加・編集・削除できます</li>
+                <li>新規ジャンル追加時、プレフィックスは自動で割り当てられます（AAH, AAI, ...）</li>
+                <li>一度割り当てられたプレフィックスは変更できません（ジャンル名のみ変更可能）</li>
+                <li>コードが発行されているジャンルは削除できません</li>
+              </ul>
+            </div>
+
+            <div className="border border-gray-200 rounded-lg p-4">
+              <h3 className="font-medium text-gray-900 mb-2">コード発行手順</h3>
+              <ol className="text-sm text-gray-600 list-decimal list-inside space-y-1">
+                <li>LP管理ページでLPカードの「コード」ボタンをクリック</li>
+                <li>「新規コード発行」ボタンをクリック</li>
+                <li>ジャンル選択モーダルから広告媒体を選択</li>
+                <li>コードが自動生成され、一覧に追加されます</li>
+              </ol>
+            </div>
+
+            <div className="border border-gray-200 rounded-lg p-4">
+              <h3 className="font-medium text-gray-900 mb-2">コードの使用方法</h3>
+              <p className="text-sm text-gray-600 mb-2">
+                発行したコードをURLパラメータとして付与します：
+              </p>
+              <div className="bg-gray-50 p-3 rounded-lg">
+                <code className="text-sm break-all">
+                  https://example.com/lp/1/index.html<span className="text-rose-600">?c=AAA-X4Y5Z6</span>
+                </code>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                このURLでアクセスしたユーザーは、該当ジャンル（広告媒体）からの流入として記録されます。
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+            <p className="text-sm text-blue-800">
+              <strong>分析のポイント</strong>: プレフィックスにより広告媒体ごとの流入を識別できるため、
+              将来的にトラッキング一覧でジャンル別の絞り込みや比較分析が可能になります。
+            </p>
+          </div>
+        </div>
+
         {/* External Tools */}
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">外部ツールとの連携</h2>
