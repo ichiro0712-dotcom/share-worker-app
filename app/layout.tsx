@@ -9,6 +9,7 @@ import { ErrorToastProvider } from '@/components/ui/PersistentErrorToast';
 import { DebugErrorProvider } from '@/components/debug/DebugErrorBanner';
 import { WorkerLayout } from '@/components/layout/WorkerLayout';
 import { OfflineBanner } from '@/components/ui/OfflineBanner';
+import { GoogleTagManager, GoogleTagManagerNoscript } from '@/components/GoogleTagManager';
 
 // Viewport設定（iOS safe-area対応 + themeColor）
 export const viewport: Viewport = {
@@ -43,6 +44,8 @@ export default function RootLayout({
   return (
     <html lang="ja">
       <body>
+        <GoogleTagManagerNoscript />
+        <GoogleTagManager />
         <NetworkStatusProvider>
           <OfflineBanner />
           <DebugErrorProvider>

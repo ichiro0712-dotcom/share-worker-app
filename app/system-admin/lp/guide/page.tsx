@@ -16,15 +16,15 @@ function CodeBlock({ code, language = 'html' }: { code: string; language?: strin
 
   return (
     <div className="relative group">
-      <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto text-sm">
+      <pre className="bg-slate-900 text-slate-100 p-4 rounded-lg overflow-x-auto text-sm">
         <code>{code}</code>
       </pre>
       <button
         onClick={handleCopy}
-        className="absolute top-2 right-2 p-2 bg-gray-700 hover:bg-gray-600 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+        className="absolute top-2 right-2 p-2 bg-slate-700 hover:bg-slate-600 rounded opacity-0 group-hover:opacity-100 transition-opacity"
         title="コピー"
       >
-        {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-gray-300" />}
+        {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-slate-300" />}
       </button>
     </div>
   );
@@ -32,48 +32,48 @@ function CodeBlock({ code, language = 'html' }: { code: string; language?: strin
 
 export default function LPGuidePage() {
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="p-8">
+      <div className="max-w-4xl mx-auto">
         {/* ヘッダー */}
         <div className="mb-8">
           <Link
-            href="/lp"
-            className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
+            href="/system-admin/lp"
+            className="inline-flex items-center gap-2 text-slate-600 hover:text-slate-900 mb-4"
           >
             <ArrowLeft className="w-4 h-4" />
             LP管理に戻る
           </Link>
-          <h1 className="text-2xl font-bold text-gray-900">LP作成ガイド</h1>
-          <p className="text-gray-600 mt-2">
+          <h1 className="text-2xl font-bold text-slate-800">LP作成ガイド</h1>
+          <p className="text-slate-500 mt-2">
             新しいLPを作成する際に必要な設定や、トラッキング機能を活用するための手順をまとめています。
           </p>
         </div>
 
         {/* 目次 */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 mb-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">目次</h2>
+        <div className="bg-white rounded-xl border border-slate-200 p-6 mb-8">
+          <h2 className="text-lg font-semibold text-slate-900 mb-4">目次</h2>
           <ol className="space-y-2 text-sm">
-            <li><a href="#file-structure" className="text-blue-600 hover:underline">1. ファイル構成</a></li>
-            <li><a href="#tracking-script" className="text-blue-600 hover:underline">2. トラッキングスクリプトの設置</a></li>
-            <li><a href="#gtm-clarity" className="text-blue-600 hover:underline">3. GTM・Clarityタグの設置</a></li>
-            <li><a href="#section-tracking" className="text-blue-600 hover:underline">4. セクション別滞在時間の計測</a></li>
-            <li><a href="#cta-tracking" className="text-blue-600 hover:underline">5. CTAボタンのトラッキング</a></li>
-            <li><a href="#ogp-meta" className="text-blue-600 hover:underline">6. OGP・メタタグの設定</a></li>
-            <li><a href="#checklist" className="text-blue-600 hover:underline">7. リリース前チェックリスト</a></li>
+            <li><a href="#file-structure" className="text-indigo-600 hover:underline">1. ファイル構成</a></li>
+            <li><a href="#tracking-script" className="text-indigo-600 hover:underline">2. トラッキングスクリプトの設置</a></li>
+            <li><a href="#gtm-clarity" className="text-indigo-600 hover:underline">3. GTM・Clarityタグの設置</a></li>
+            <li><a href="#section-tracking" className="text-indigo-600 hover:underline">4. セクション別滞在時間の計測</a></li>
+            <li><a href="#cta-tracking" className="text-indigo-600 hover:underline">5. CTAボタンのトラッキング</a></li>
+            <li><a href="#ogp-meta" className="text-indigo-600 hover:underline">6. OGP・メタタグの設定</a></li>
+            <li><a href="#checklist" className="text-indigo-600 hover:underline">7. リリース前チェックリスト</a></li>
           </ol>
         </div>
 
         {/* セクション1: ファイル構成 */}
-        <section id="file-structure" className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+        <section id="file-structure" className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-              <FolderOpen className="w-5 h-5 text-blue-600" />
+            <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
+              <FolderOpen className="w-5 h-5 text-indigo-600" />
             </div>
-            <h2 className="text-lg font-semibold text-gray-900">1. ファイル構成</h2>
+            <h2 className="text-lg font-semibold text-slate-900">1. ファイル構成</h2>
           </div>
 
-          <p className="text-gray-600 mb-4">
-            新しいLPは <code className="bg-gray-100 px-2 py-1 rounded text-sm">public/lp/</code> ディレクトリ配下に、
+          <p className="text-slate-600 mb-4">
+            新しいLPは <code className="bg-slate-100 px-2 py-1 rounded text-sm">public/lp/</code> ディレクトリ配下に、
             <strong>数字のフォルダ名</strong>で作成してください。
           </p>
 
@@ -105,16 +105,16 @@ export default function LPGuidePage() {
         </section>
 
         {/* セクション2: トラッキングスクリプト */}
-        <section id="tracking-script" className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+        <section id="tracking-script" className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
               <FileCode className="w-5 h-5 text-green-600" />
             </div>
-            <h2 className="text-lg font-semibold text-gray-900">2. トラッキングスクリプトの設置</h2>
+            <h2 className="text-lg font-semibold text-slate-900">2. トラッキングスクリプトの設置</h2>
           </div>
 
-          <p className="text-gray-600 mb-4">
-            <code className="bg-gray-100 px-2 py-1 rounded text-sm">&lt;/body&gt;</code> タグの直前に以下を追加してください。
+          <p className="text-slate-600 mb-4">
+            <code className="bg-slate-100 px-2 py-1 rounded text-sm">&lt;/body&gt;</code> タグの直前に以下を追加してください。
             これにより、PV・スクロール・滞在時間・CTAクリックが自動計測されます。
           </p>
 
@@ -123,9 +123,9 @@ export default function LPGuidePage() {
 </body>
 </html>`} />
 
-          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <h4 className="text-sm font-semibold text-blue-800 mb-2">自動計測される項目:</h4>
-            <ul className="text-sm text-blue-700 space-y-1">
+          <div className="mt-4 p-4 bg-indigo-50 border border-blue-200 rounded-lg">
+            <h4 className="text-sm font-semibold text-indigo-800 mb-2">自動計測される項目:</h4>
+            <ul className="text-sm text-indigo-700 space-y-1">
               <li>✓ ページビュー（PV）</li>
               <li>✓ スクロール深度（25%, 50%, 75%, 90%到達）</li>
               <li>✓ 滞在時間（5秒, 10秒到達）</li>
@@ -137,17 +137,17 @@ export default function LPGuidePage() {
         </section>
 
         {/* セクション3: GTM・Clarity */}
-        <section id="gtm-clarity" className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+        <section id="gtm-clarity" className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
               <Tag className="w-5 h-5 text-purple-600" />
             </div>
-            <h2 className="text-lg font-semibold text-gray-900">3. GTM・Clarityタグの設置</h2>
+            <h2 className="text-lg font-semibold text-slate-900">3. GTM・Clarityタグの設置</h2>
           </div>
 
-          <h3 className="font-medium text-gray-900 mb-2">Google Tag Manager</h3>
-          <p className="text-gray-600 mb-4">
-            <code className="bg-gray-100 px-2 py-1 rounded text-sm">&lt;head&gt;</code> タグの直後に以下を追加:
+          <h3 className="font-medium text-slate-900 mb-2">Google Tag Manager</h3>
+          <p className="text-slate-600 mb-4">
+            <code className="bg-slate-100 px-2 py-1 rounded text-sm">&lt;head&gt;</code> タグの直後に以下を追加:
           </p>
 
           <CodeBlock code={`<!-- Google Tag Manager -->
@@ -158,8 +158,8 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 })(window,document,'script','dataLayer','GTM-MSBWVNVB');</script>
 <!-- End Google Tag Manager -->`} />
 
-          <p className="text-gray-600 my-4">
-            <code className="bg-gray-100 px-2 py-1 rounded text-sm">&lt;body&gt;</code> タグの直後に以下を追加:
+          <p className="text-slate-600 my-4">
+            <code className="bg-slate-100 px-2 py-1 rounded text-sm">&lt;body&gt;</code> タグの直後に以下を追加:
           </p>
 
           <CodeBlock code={`<!-- Google Tag Manager (noscript) -->
@@ -167,9 +167,9 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <!-- End Google Tag Manager (noscript) -->`} />
 
-          <h3 className="font-medium text-gray-900 mt-6 mb-2">Microsoft Clarity（ヒートマップ）</h3>
-          <p className="text-gray-600 mb-2">
-            Clarityを使用する場合は、GTM経由で設定するか、以下を <code className="bg-gray-100 px-1 rounded text-sm">&lt;head&gt;</code> に追加:
+          <h3 className="font-medium text-slate-900 mt-6 mb-2">Microsoft Clarity（ヒートマップ）</h3>
+          <p className="text-slate-600 mb-2">
+            Clarityを使用する場合は、GTM経由で設定するか、以下を <code className="bg-slate-100 px-1 rounded text-sm">&lt;head&gt;</code> に追加:
           </p>
 
           <CodeBlock code={`<!-- Clarity -->
@@ -183,16 +183,16 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         </section>
 
         {/* セクション4: セクション別滞在時間 */}
-        <section id="section-tracking" className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+        <section id="section-tracking" className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
               <BarChart3 className="w-5 h-5 text-orange-600" />
             </div>
-            <h2 className="text-lg font-semibold text-gray-900">4. セクション別滞在時間の計測</h2>
+            <h2 className="text-lg font-semibold text-slate-900">4. セクション別滞在時間の計測</h2>
           </div>
 
-          <p className="text-gray-600 mb-4">
-            LPの各セクションに <code className="bg-gray-100 px-2 py-1 rounded text-sm">data-section-id</code> 属性を追加すると、
+          <p className="text-slate-600 mb-4">
+            LPの各セクションに <code className="bg-slate-100 px-2 py-1 rounded text-sm">data-section-id</code> 属性を追加すると、
             セクションごとの滞在時間が計測されます。
           </p>
 
@@ -237,15 +237,15 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         </section>
 
         {/* セクション5: CTAボタン */}
-        <section id="cta-tracking" className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+        <section id="cta-tracking" className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 bg-rose-100 rounded-lg flex items-center justify-center">
               <CheckCircle className="w-5 h-5 text-rose-600" />
             </div>
-            <h2 className="text-lg font-semibold text-gray-900">5. CTAボタンのトラッキング</h2>
+            <h2 className="text-lg font-semibold text-slate-900">5. CTAボタンのトラッキング</h2>
           </div>
 
-          <p className="text-gray-600 mb-4">
+          <p className="text-slate-600 mb-4">
             以下のクラス名を持つボタンは自動的にCTAクリックとして計測されます:
           </p>
 
@@ -261,27 +261,27 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <!-- テキストに「LINE」を含むボタンも自動計測 -->
 <button>LINEで相談する</button>`} />
 
-          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <h4 className="text-sm font-semibold text-blue-800 mb-2">トラッキング対象:</h4>
-            <ul className="text-sm text-blue-700 space-y-1">
-              <li>• <code className="bg-blue-100 px-1 rounded">.btn-line-cta</code> クラスを持つ要素</li>
-              <li>• <code className="bg-blue-100 px-1 rounded">.btn-line-header</code> クラスを持つ要素</li>
+          <div className="mt-4 p-4 bg-indigo-50 border border-blue-200 rounded-lg">
+            <h4 className="text-sm font-semibold text-indigo-800 mb-2">トラッキング対象:</h4>
+            <ul className="text-sm text-indigo-700 space-y-1">
+              <li>• <code className="bg-indigo-100 px-1 rounded">.btn-line-cta</code> クラスを持つ要素</li>
+              <li>• <code className="bg-indigo-100 px-1 rounded">.btn-line-header</code> クラスを持つ要素</li>
               <li>• テキストに「LINE」を含むリンク/ボタン</li>
-              <li>• <code className="bg-blue-100 px-1 rounded">.cta</code> または <code className="bg-blue-100 px-1 rounded">.btn</code> クラスを持つ要素</li>
+              <li>• <code className="bg-indigo-100 px-1 rounded">.cta</code> または <code className="bg-indigo-100 px-1 rounded">.btn</code> クラスを持つ要素</li>
             </ul>
           </div>
         </section>
 
         {/* セクション6: OGP */}
-        <section id="ogp-meta" className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+        <section id="ogp-meta" className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
               <Tag className="w-5 h-5 text-indigo-600" />
             </div>
-            <h2 className="text-lg font-semibold text-gray-900">6. OGP・メタタグの設定</h2>
+            <h2 className="text-lg font-semibold text-slate-900">6. OGP・メタタグの設定</h2>
           </div>
 
-          <p className="text-gray-600 mb-4">
+          <p className="text-slate-600 mb-4">
             SNS共有時に正しく表示されるよう、以下のメタタグを設定してください:
           </p>
 
@@ -322,21 +322,21 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         </section>
 
         {/* セクション7: チェックリスト */}
-        <section id="checklist" className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+        <section id="checklist" className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
               <CheckCircle className="w-5 h-5 text-emerald-600" />
             </div>
-            <h2 className="text-lg font-semibold text-gray-900">7. リリース前チェックリスト</h2>
+            <h2 className="text-lg font-semibold text-slate-900">7. リリース前チェックリスト</h2>
           </div>
 
           <div className="space-y-4">
-            <div className="p-4 border border-gray-200 rounded-lg">
-              <h3 className="font-medium text-gray-900 mb-3">ファイル構成</h3>
-              <ul className="space-y-2 text-sm text-gray-600">
+            <div className="p-4 border border-slate-200 rounded-lg">
+              <h3 className="font-medium text-slate-900 mb-3">ファイル構成</h3>
+              <ul className="space-y-2 text-sm text-slate-600">
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
-                  <span><code className="bg-gray-100 px-1 rounded">public/lp/{'{'}数字{'}'}/index.html</code> を作成</span>
+                  <span><code className="bg-slate-100 px-1 rounded">public/lp/{'{'}数字{'}'}/index.html</code> を作成</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
@@ -345,48 +345,48 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
               </ul>
             </div>
 
-            <div className="p-4 border border-gray-200 rounded-lg">
-              <h3 className="font-medium text-gray-900 mb-3">トラッキング設定</h3>
-              <ul className="space-y-2 text-sm text-gray-600">
+            <div className="p-4 border border-slate-200 rounded-lg">
+              <h3 className="font-medium text-slate-900 mb-3">トラッキング設定</h3>
+              <ul className="space-y-2 text-sm text-slate-600">
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
-                  <span><code className="bg-gray-100 px-1 rounded">&lt;script src=&quot;../tracking.js&quot;&gt;&lt;/script&gt;</code> を追加</span>
+                  <span><code className="bg-slate-100 px-1 rounded">&lt;script src=&quot;../tracking.js&quot;&gt;&lt;/script&gt;</code> を追加</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
-                  <span>GTMタグを <code className="bg-gray-100 px-1 rounded">&lt;head&gt;</code> と <code className="bg-gray-100 px-1 rounded">&lt;body&gt;</code> に追加</span>
+                  <span>GTMタグを <code className="bg-slate-100 px-1 rounded">&lt;head&gt;</code> と <code className="bg-slate-100 px-1 rounded">&lt;body&gt;</code> に追加</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
-                  <span>セクションに <code className="bg-gray-100 px-1 rounded">data-section-id</code> を設定（任意）</span>
-                </li>
-              </ul>
-            </div>
-
-            <div className="p-4 border border-gray-200 rounded-lg">
-              <h3 className="font-medium text-gray-900 mb-3">CTAリンク</h3>
-              <ul className="space-y-2 text-sm text-gray-600">
-                <li className="flex items-start gap-2">
-                  <input type="checkbox" className="mt-1 rounded" />
-                  <span>CTAボタンの <code className="bg-gray-100 px-1 rounded">href=&quot;#&quot;</code> を実際のLINE URLに変更</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <input type="checkbox" className="mt-1 rounded" />
-                  <span>CTAボタンに適切なクラス（<code className="bg-gray-100 px-1 rounded">.btn-line-cta</code>）を設定</span>
+                  <span>セクションに <code className="bg-slate-100 px-1 rounded">data-section-id</code> を設定（任意）</span>
                 </li>
               </ul>
             </div>
 
-            <div className="p-4 border border-gray-200 rounded-lg">
-              <h3 className="font-medium text-gray-900 mb-3">OGP・メタ情報</h3>
-              <ul className="space-y-2 text-sm text-gray-600">
+            <div className="p-4 border border-slate-200 rounded-lg">
+              <h3 className="font-medium text-slate-900 mb-3">CTAリンク</h3>
+              <ul className="space-y-2 text-sm text-slate-600">
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
-                  <span><code className="bg-gray-100 px-1 rounded">og:url</code> を本番URLに変更</span>
+                  <span>CTAボタンの <code className="bg-slate-100 px-1 rounded">href=&quot;#&quot;</code> を実際のLINE URLに変更</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
-                  <span><code className="bg-gray-100 px-1 rounded">og:image</code> を本番URLに変更</span>
+                  <span>CTAボタンに適切なクラス（<code className="bg-slate-100 px-1 rounded">.btn-line-cta</code>）を設定</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="p-4 border border-slate-200 rounded-lg">
+              <h3 className="font-medium text-slate-900 mb-3">OGP・メタ情報</h3>
+              <ul className="space-y-2 text-sm text-slate-600">
+                <li className="flex items-start gap-2">
+                  <input type="checkbox" className="mt-1 rounded" />
+                  <span><code className="bg-slate-100 px-1 rounded">og:url</code> を本番URLに変更</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <input type="checkbox" className="mt-1 rounded" />
+                  <span><code className="bg-slate-100 px-1 rounded">og:image</code> を本番URLに変更</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
@@ -399,9 +399,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
               </ul>
             </div>
 
-            <div className="p-4 border border-gray-200 rounded-lg">
-              <h3 className="font-medium text-gray-900 mb-3">動作確認</h3>
-              <ul className="space-y-2 text-sm text-gray-600">
+            <div className="p-4 border border-slate-200 rounded-lg">
+              <h3 className="font-medium text-slate-900 mb-3">動作確認</h3>
+              <ul className="space-y-2 text-sm text-slate-600">
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
                   <span>LP管理画面（/lp）に新しいLPが表示される</span>
@@ -426,8 +426,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         {/* フッター */}
         <div className="text-center py-8">
           <Link
-            href="/lp"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-colors"
+            href="/system-admin/lp"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
             LP管理に戻る
