@@ -1,4 +1,25 @@
 {
+  "headers": [
+    {
+      "source": "/sw.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" },
+        { "key": "Service-Worker-Allowed", "value": "/" }
+      ]
+    },
+    {
+      "source": "/worker-:hash.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/workbox-:hash.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    }
+  ],
   "functions": {
     "app/**/*": {
       "maxDuration": 60
@@ -20,6 +41,10 @@
     {
       "path": "/api/cron/update-bank-data",
       "schedule": "0 18 * * 0"
+    },
+    {
+      "path": "/api/cron/error-alert",
+      "schedule": "*/5 * * * *"
     }
   ]
 }
