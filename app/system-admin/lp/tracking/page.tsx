@@ -774,15 +774,15 @@ export default function TrackingPage() {
   const ProgressBar = ({ value, maxValue = 100, color = 'blue' }: { value: number; maxValue?: number; color?: string }) => {
     const percentage = Math.min((value / maxValue) * 100, 100);
     const colorClasses: Record<string, string> = {
-      blue: 'bg-blue-500',
+      blue: 'bg-indigo-500',
       green: 'bg-green-500',
       purple: 'bg-purple-500',
       orange: 'bg-orange-500',
     };
     return (
-      <div className="w-full bg-gray-200 rounded-full h-2.5">
+      <div className="w-full bg-slate-200 rounded-full h-2.5">
         <div
-          className={`h-2.5 rounded-full ${colorClasses[color] || 'bg-blue-500'}`}
+          className={`h-2.5 rounded-full ${colorClasses[color] || 'bg-indigo-500'}`}
           style={{ width: `${percentage}%` }}
         />
       </div>
@@ -794,7 +794,7 @@ export default function TrackingPage() {
     if (viewMode === 'comparison') {
       return (
         <div className="flex gap-4">
-          <span className="text-gray-900 min-w-[60px]">{values.all}</span>
+          <span className="text-slate-900 min-w-[60px]">{values.all}</span>
           <span className="text-green-600 min-w-[60px]">{values.ctaClicked}</span>
           <span className="text-red-600 min-w-[60px]">{values.ctaNotClicked}</span>
         </div>
@@ -804,22 +804,21 @@ export default function TrackingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 py-8">
+    <div className="p-8">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <Link
-              href="/lp"
-              className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900"
+              href="/system-admin/lp"
+              className="inline-flex items-center gap-2 text-slate-600 hover:text-slate-900"
             >
               <ArrowLeft className="w-4 h-4" />
               LP管理に戻る
             </Link>
             <div className="flex items-center gap-3">
               <Link
-                href="/lp/tracking/spec"
-                className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800"
+                href="/system-admin/lp/tracking/spec"
+                className="inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-800"
               >
                 <HelpCircle className="w-4 h-4" />
                 トラッキング仕様
@@ -831,55 +830,55 @@ export default function TrackingPage() {
                   disabled={!canExport}
                   className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                     canExport
-                      ? 'bg-blue-600 text-white hover:bg-blue-700'
-                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                      : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                   }`}
                   title={!canExport ? 'DLしたいデータをテーブルで選択してください' : `選択中: ${selectedRows.size}件`}
                 >
                   <Download className="w-4 h-4" />
                   エクスポート
                   {canExport && (
-                    <span className="bg-blue-500 text-white text-xs px-1.5 py-0.5 rounded-full">
+                    <span className="bg-indigo-500 text-white text-xs px-1.5 py-0.5 rounded-full">
                       {selectedRows.size}
                     </span>
                   )}
                 </button>
                 {showExportMenu && canExport && (
-                  <div className="absolute right-0 mt-2 w-52 bg-white rounded-lg shadow-lg border border-gray-200 z-10 overflow-hidden">
-                    <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
-                      <p className="text-xs text-gray-500">
+                  <div className="absolute right-0 mt-2 w-52 bg-white rounded-lg shadow-lg border border-slate-200 z-10 overflow-hidden">
+                    <div className="px-3 py-2 bg-slate-50 border-b border-slate-200">
+                      <p className="text-xs text-slate-500">
                         {dateRange.startDate} 〜 {dateRange.endDate}
                       </p>
-                      <p className="text-xs text-gray-500">{selectedRows.size}件選択中</p>
+                      <p className="text-xs text-slate-500">{selectedRows.size}件選択中</p>
                     </div>
                     <button
                       onClick={downloadCSV}
-                      className="w-full px-4 py-3 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3"
+                      className="w-full px-4 py-3 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-3"
                     >
-                      <Download className="w-4 h-4 text-gray-400" />
+                      <Download className="w-4 h-4 text-slate-400" />
                       <div>
                         <div className="font-medium">CSVダウンロード</div>
-                        <div className="text-xs text-gray-400">Excel・スプレッドシート用</div>
+                        <div className="text-xs text-slate-400">Excel・スプレッドシート用</div>
                       </div>
                     </button>
                     <button
                       onClick={copyToClipboard}
-                      className="w-full px-4 py-3 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 border-t border-gray-100"
+                      className="w-full px-4 py-3 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-3 border-t border-slate-100"
                     >
                       {copied ? (
                         <>
                           <Check className="w-4 h-4 text-green-500" />
                           <div>
                             <div className="font-medium text-green-600">コピーしました</div>
-                            <div className="text-xs text-gray-400">クリップボードに保存済み</div>
+                            <div className="text-xs text-slate-400">クリップボードに保存済み</div>
                           </div>
                         </>
                       ) : (
                         <>
-                          <Copy className="w-4 h-4 text-gray-400" />
+                          <Copy className="w-4 h-4 text-slate-400" />
                           <div>
                             <div className="font-medium">テキストをコピー</div>
-                            <div className="text-xs text-gray-400">Slack・メール用</div>
+                            <div className="text-xs text-slate-400">Slack・メール用</div>
                           </div>
                         </>
                       )}
@@ -889,15 +888,15 @@ export default function TrackingPage() {
               </div>
             </div>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">LPトラッキング</h1>
-          <p className="text-gray-600 mt-1">LP別のアクセス数・エンゲージメントを分析できます</p>
+          <h1 className="text-2xl font-bold text-slate-800">LPトラッキング</h1>
+          <p className="text-slate-500 mt-1">LP別のアクセス数・エンゲージメントを分析できます</p>
         </div>
 
         {/* Filters - 1行構成 */}
         <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
           <div className="flex flex-wrap items-center gap-3">
             {/* 期間クイック選択 */}
-            <div className="flex items-center bg-gray-100 rounded-lg p-1">
+            <div className="flex items-center bg-slate-100 rounded-lg p-1">
               <button
                 onClick={() => {
                   setPeriodMode('week');
@@ -905,8 +904,8 @@ export default function TrackingPage() {
                 }}
                 className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
                   periodMode === 'week'
-                    ? 'bg-white text-gray-900 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 週
@@ -918,8 +917,8 @@ export default function TrackingPage() {
                 }}
                 className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
                   periodMode === 'month'
-                    ? 'bg-white text-gray-900 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 月
@@ -927,29 +926,29 @@ export default function TrackingPage() {
             </div>
 
             {/* 期間ナビゲーション */}
-            <div className="flex items-center gap-1 border border-gray-200 rounded-lg">
+            <div className="flex items-center gap-1 border border-slate-200 rounded-lg">
               <button
                 onClick={goToPrevPeriod}
-                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-l-lg"
+                className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-l-lg"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <button
                 onClick={goToCurrentPeriod}
-                className="px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 min-w-[120px] text-center"
+                className="px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 min-w-[120px] text-center"
               >
                 {periodLabel}
               </button>
               <button
                 onClick={goToNextPeriod}
-                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-r-lg"
+                className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-r-lg"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
 
             {/* 区切り線 */}
-            <div className="h-8 w-px bg-gray-200 hidden sm:block" />
+            <div className="h-8 w-px bg-slate-200 hidden sm:block" />
 
             {/* カスタム日付 */}
             <div className="flex items-center gap-2">
@@ -968,11 +967,11 @@ export default function TrackingPage() {
                     return { ...prev, startDate: newStart };
                   });
                 }}
-                className={`border rounded-lg px-3 py-1.5 text-sm text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                  dateError ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                className={`border rounded-lg px-3 py-1.5 text-sm text-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                  dateError ? 'border-red-300 bg-red-50' : 'border-slate-200'
                 }`}
               />
-              <span className="text-gray-400">〜</span>
+              <span className="text-slate-400">〜</span>
               <input
                 type="date"
                 value={dateRange.endDate}
@@ -988,8 +987,8 @@ export default function TrackingPage() {
                     return { ...prev, endDate: newEnd };
                   });
                 }}
-                className={`border rounded-lg px-3 py-1.5 text-sm text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                  dateError ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                className={`border rounded-lg px-3 py-1.5 text-sm text-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                  dateError ? 'border-red-300 bg-red-50' : 'border-slate-200'
                 }`}
               />
               {dateError && (
@@ -998,16 +997,16 @@ export default function TrackingPage() {
             </div>
 
             {/* 区切り線 */}
-            <div className="h-8 w-px bg-gray-200 hidden sm:block" />
+            <div className="h-8 w-px bg-slate-200 hidden sm:block" />
 
             {/* コードフィルター */}
             <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-gray-400" />
-              <span className="text-sm text-gray-600">コード:</span>
+              <Filter className="w-4 h-4 text-slate-400" />
+              <span className="text-sm text-slate-600">コード:</span>
               <select
                 value={selectedGenrePrefix}
                 onChange={(e) => setSelectedGenrePrefix(e.target.value)}
-                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white min-w-[140px]"
+                className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white min-w-[140px]"
               >
                 <option value="all">すべて</option>
                 {genres.map((genre) => (
@@ -1021,7 +1020,7 @@ export default function TrackingPage() {
             {/* リセット */}
             <button
               onClick={handleReset}
-              className="px-3 py-1.5 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
+              className="px-3 py-1.5 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
             >
               リセット
             </button>
@@ -1030,34 +1029,34 @@ export default function TrackingPage() {
 
         {loading ? (
           <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
-            <p className="mt-2 text-gray-600">読み込み中...</p>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900 mx-auto"></div>
+            <p className="mt-2 text-slate-600">読み込み中...</p>
           </div>
         ) : (
           <>
             {/* LP/Campaign Table */}
             <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-8">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-900">LP別アクセス状況</h2>
+              <div className="px-6 py-4 border-b border-slate-200">
+                <h2 className="text-lg font-semibold text-slate-900">LP別アクセス状況</h2>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-slate-50">
                     <tr>
-                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-10">選択</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">LP / キャンペーン</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">PV</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">セッション</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">イベント</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">イベントCTR</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">登録</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">登録率</th>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider w-10">選択</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">LP / キャンペーン</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">PV</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">セッション</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">イベント</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">イベントCTR</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">登録</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">登録率</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
                     {filteredTableData.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                        <td colSpan={8} className="px-6 py-8 text-center text-slate-500">
                           {selectedGenrePrefix !== 'all'
                             ? `「${genres.find(g => g.prefix === selectedGenrePrefix)?.name || selectedGenrePrefix}」のデータがありません`
                             : 'トラッキングデータがありません'
@@ -1070,7 +1069,7 @@ export default function TrackingPage() {
                         if (row.type === 'campaign') {
                           if (!expandedLps.has(row.lpId)) return null;
                           return (
-                            <tr key={row.id} className="bg-gray-50">
+                            <tr key={row.id} className="bg-slate-50">
                               <td className="px-4 py-3 text-center">
                                 <input
                                   type="checkbox"
@@ -1084,18 +1083,18 @@ export default function TrackingPage() {
                                     }
                                     setSelectedRows(newSelected);
                                   }}
-                                  className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                                  className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-blue-500"
                                 />
                               </td>
-                              <td className="px-4 py-3 text-sm text-gray-600 pl-10">
+                              <td className="px-4 py-3 text-sm text-slate-600 pl-10">
                                 └ {row.label}
                               </td>
-                              <td className="px-4 py-3 text-sm text-gray-600 text-right">{row.pv.toLocaleString()}</td>
-                              <td className="px-4 py-3 text-sm text-gray-600 text-right">{row.sessions.toLocaleString()}</td>
-                              <td className="px-4 py-3 text-sm text-gray-600 text-right">{row.events.toLocaleString()}</td>
-                              <td className="px-4 py-3 text-sm text-gray-600 text-right">{row.eventCtr.toFixed(1)}%</td>
-                              <td className="px-4 py-3 text-sm text-gray-600 text-right">{row.registrations.toLocaleString()}</td>
-                              <td className="px-4 py-3 text-sm text-gray-600 text-right">{row.registrationRate.toFixed(1)}%</td>
+                              <td className="px-4 py-3 text-sm text-slate-600 text-right">{row.pv.toLocaleString()}</td>
+                              <td className="px-4 py-3 text-sm text-slate-600 text-right">{row.sessions.toLocaleString()}</td>
+                              <td className="px-4 py-3 text-sm text-slate-600 text-right">{row.events.toLocaleString()}</td>
+                              <td className="px-4 py-3 text-sm text-slate-600 text-right">{row.eventCtr.toFixed(1)}%</td>
+                              <td className="px-4 py-3 text-sm text-slate-600 text-right">{row.registrations.toLocaleString()}</td>
+                              <td className="px-4 py-3 text-sm text-slate-600 text-right">{row.registrationRate.toFixed(1)}%</td>
                             </tr>
                           );
                         }
@@ -1107,7 +1106,7 @@ export default function TrackingPage() {
                         const isExpanded = expandedLps.has(row.lpId);
 
                         return (
-                          <tr key={row.id} className={isTotal ? 'bg-blue-50 font-semibold' : 'font-medium'}>
+                          <tr key={row.id} className={isTotal ? 'bg-indigo-50 font-semibold' : 'font-medium'}>
                             <td className="px-4 py-3 text-center">
                               <input
                                 type="checkbox"
@@ -1121,20 +1120,20 @@ export default function TrackingPage() {
                                   }
                                   setSelectedRows(newSelected);
                                 }}
-                                className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                                className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-blue-500"
                               />
                             </td>
-                            <td className="px-4 py-3 text-sm text-gray-900">
+                            <td className="px-4 py-3 text-sm text-slate-900">
                               <div className="flex items-center gap-2">
                                 {hasChildren && (
                                   <button
                                     onClick={() => toggleLpExpand(row.lpId)}
-                                    className="p-0.5 hover:bg-gray-200 rounded"
+                                    className="p-0.5 hover:bg-slate-200 rounded"
                                   >
                                     {isExpanded ? (
-                                      <ChevronDown className="w-4 h-4 text-gray-500" />
+                                      <ChevronDown className="w-4 h-4 text-slate-500" />
                                     ) : (
-                                      <ChevronRight className="w-4 h-4 text-gray-500" />
+                                      <ChevronRight className="w-4 h-4 text-slate-500" />
                                     )}
                                   </button>
                                 )}
@@ -1142,12 +1141,12 @@ export default function TrackingPage() {
                                 {row.label}
                               </div>
                             </td>
-                            <td className="px-4 py-3 text-sm text-gray-900 text-right">{row.pv.toLocaleString()}</td>
-                            <td className="px-4 py-3 text-sm text-gray-900 text-right">{row.sessions.toLocaleString()}</td>
-                            <td className="px-4 py-3 text-sm text-gray-900 text-right">{row.events.toLocaleString()}</td>
-                            <td className="px-4 py-3 text-sm text-gray-900 text-right">{row.eventCtr.toFixed(1)}%</td>
-                            <td className="px-4 py-3 text-sm text-gray-900 text-right">{row.registrations.toLocaleString()}</td>
-                            <td className="px-4 py-3 text-sm text-gray-900 text-right">{row.registrationRate.toFixed(1)}%</td>
+                            <td className="px-4 py-3 text-sm text-slate-900 text-right">{row.pv.toLocaleString()}</td>
+                            <td className="px-4 py-3 text-sm text-slate-900 text-right">{row.sessions.toLocaleString()}</td>
+                            <td className="px-4 py-3 text-sm text-slate-900 text-right">{row.events.toLocaleString()}</td>
+                            <td className="px-4 py-3 text-sm text-slate-900 text-right">{row.eventCtr.toFixed(1)}%</td>
+                            <td className="px-4 py-3 text-sm text-slate-900 text-right">{row.registrations.toLocaleString()}</td>
+                            <td className="px-4 py-3 text-sm text-slate-900 text-right">{row.registrationRate.toFixed(1)}%</td>
                           </tr>
                         );
                       })
@@ -1159,9 +1158,9 @@ export default function TrackingPage() {
 
             {/* Engagement Analysis Section */}
             <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-8">
-              <div className="px-6 py-4 border-b border-gray-200">
+              <div className="px-6 py-4 border-b border-slate-200">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
                     <BarChart3 className="w-5 h-5" />
                     エンゲージメント分析
                   </h2>
@@ -1172,8 +1171,8 @@ export default function TrackingPage() {
                           onClick={() => setViewMode(mode)}
                           className={`px-3 py-1.5 text-sm rounded-md ${
                             viewMode === mode
-                              ? 'bg-blue-100 text-blue-700'
-                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                              ? 'bg-indigo-100 text-indigo-700'
+                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                           }`}
                         >
                           {mode === 'all' && '全体'}
@@ -1186,7 +1185,7 @@ export default function TrackingPage() {
                   </div>
                   {viewMode === 'comparison' && (
                     <div className="mt-2 flex gap-4 text-sm">
-                      <span className="text-gray-600">■ 全体</span>
+                      <span className="text-slate-600">■ 全体</span>
                       <span className="text-green-600">■ CTAクリックあり</span>
                       <span className="text-red-600">■ CTAクリックなし</span>
                     </div>
@@ -1195,17 +1194,17 @@ export default function TrackingPage() {
 
                 {loadingEngagement ? (
                   <div className="p-8 text-center">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 mx-auto"></div>
-                    <p className="mt-2 text-sm text-gray-600">エンゲージメントデータを読み込み中...</p>
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-slate-900 mx-auto"></div>
+                    <p className="mt-2 text-sm text-slate-600">エンゲージメントデータを読み込み中...</p>
                   </div>
                 ) : engagementData ? (
                   <div className="p-6 space-y-8">
                     {/* Average Summary - 一番上に配置 */}
                     <div>
-                      <div className="bg-gray-50 rounded-lg p-4">
+                      <div className="bg-slate-50 rounded-lg p-4">
                         <table className="w-full text-sm">
                           <thead>
-                            <tr className="text-gray-500">
+                            <tr className="text-slate-500">
                               <th className="text-left py-2">平均値サマリー</th>
                               {viewMode === 'comparison' ? (
                                 <>
@@ -1255,7 +1254,7 @@ export default function TrackingPage() {
                                 <td className="text-right py-2">{engagementData.averages[viewMode].avgEngagementLevel}</td>
                               )}
                             </tr>
-                            <tr className="text-gray-400 text-xs">
+                            <tr className="text-slate-400 text-xs">
                               <td className="py-2">サンプル数</td>
                               {viewMode === 'comparison' ? (
                                 <>
@@ -1274,14 +1273,14 @@ export default function TrackingPage() {
 
                     {/* Scroll Reach Rate */}
                     <div>
-                      <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+                      <h3 className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-2">
                         <Scroll className="w-4 h-4" />
                         スクロール到達率
                       </h3>
                       <div className="space-y-3">
                         {[25, 50, 75, 90].map((depth) => (
                           <div key={depth} className="flex items-center gap-4">
-                            <span className="text-sm text-gray-600 w-20">{depth}%到達</span>
+                            <span className="text-sm text-slate-600 w-20">{depth}%到達</span>
                             <div className="flex-1">
                               <ProgressBar value={getScrollRate(depth, viewMode === 'comparison' ? 'all' : viewMode)} />
                             </div>
@@ -1299,14 +1298,14 @@ export default function TrackingPage() {
 
                     {/* Dwell Time Rate */}
                     <div>
-                      <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+                      <h3 className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-2">
                         <Clock className="w-4 h-4" />
                         滞在時間達成率
                       </h3>
                       <div className="space-y-3">
                         {[5, 10].map((seconds) => (
                           <div key={seconds} className="flex items-center gap-4">
-                            <span className="text-sm text-gray-600 w-20">{seconds}秒以上</span>
+                            <span className="text-sm text-slate-600 w-20">{seconds}秒以上</span>
                             <div className="flex-1">
                               <ProgressBar value={getDwellRate(seconds, viewMode === 'comparison' ? 'all' : viewMode)} color="green" />
                             </div>
@@ -1324,7 +1323,7 @@ export default function TrackingPage() {
 
                     {/* Engagement Level Distribution */}
                     <div>
-                      <h3 className="text-sm font-medium text-gray-700 mb-3">エンゲージメントレベル分布</h3>
+                      <h3 className="text-sm font-medium text-slate-700 mb-3">エンゲージメントレベル分布</h3>
                       <div className="space-y-3">
                         {[
                           { level: 1, label: 'Level 1 (5秒滞在)' },
@@ -1336,7 +1335,7 @@ export default function TrackingPage() {
                           const levelKey = `level${level}` as 'level1' | 'level2' | 'level3' | 'level4' | 'level5';
                           return (
                             <div key={level} className="flex items-center gap-4">
-                              <span className="text-sm text-gray-600 w-32">{label}</span>
+                              <span className="text-sm text-slate-600 w-32">{label}</span>
                               <div className="flex-1">
                                 <ProgressBar
                                   value={engagementData.distribution.all[levelKey]}
@@ -1360,7 +1359,7 @@ export default function TrackingPage() {
                     {/* Section Dwell Time (Heatspot) */}
                     {sectionIds.length > 0 && (
                       <div>
-                        <h3 className="text-sm font-medium text-gray-700 mb-3">セクション別滞在時間（ヒートスポット）</h3>
+                        <h3 className="text-sm font-medium text-slate-700 mb-3">セクション別滞在時間（ヒートスポット）</h3>
                         <div className="space-y-3">
                           {sectionIds.map((sectionId) => {
                             const maxDwell = Math.max(
@@ -1369,7 +1368,7 @@ export default function TrackingPage() {
                             );
                             return (
                               <div key={sectionId} className="flex items-center gap-4">
-                                <span className="text-sm text-gray-600 w-32 truncate" title={getSectionName(sectionId)}>
+                                <span className="text-sm text-slate-600 w-32 truncate" title={getSectionName(sectionId)}>
                                   {getSectionName(sectionId)}
                                 </span>
                                 <div className="flex-1">
@@ -1394,31 +1393,30 @@ export default function TrackingPage() {
                     )}
 
                     {/* Clarity Link */}
-                    <div className="pt-4 border-t border-gray-200">
+                    <div className="pt-4 border-t border-slate-200">
                       <a
                         href="https://clarity.microsoft.com/"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800"
+                        className="inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-800"
                       >
                         <BarChart3 className="w-4 h-4" />
                         Clarityで詳細なヒートマップを見る
                         <ExternalLink className="w-4 h-4" />
                       </a>
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-xs text-slate-500 mt-1">
                         ピクセル単位のヒートマップやセッション録画はMicrosoft Clarityで確認できます
                       </p>
                     </div>
                   </div>
                 ) : (
-                  <div className="p-8 text-center text-gray-500">
+                  <div className="p-8 text-center text-slate-500">
                     エンゲージメントデータがありません
                   </div>
                 )}
               </div>
           </>
         )}
-      </div>
     </div>
   );
 }
