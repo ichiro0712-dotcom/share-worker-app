@@ -7,7 +7,7 @@ import { useSWRConfig } from 'swr';
 import { useAuth } from '@/contexts/AuthContext';
 import { Upload, X } from 'lucide-react';
 import { TemplatePreviewModal } from '@/components/admin/TemplatePreviewModal';
-import { calculateDailyWage, calculateWorkingHours } from '@/utils/salary';
+import { calculateDailyWage, calculateWorkingHours, getFilteredTransportationFeeOptions, calculateMinTransportationFee } from '@/utils/salary';
 import { validateImageFiles, validateAttachmentFiles } from '@/utils/fileValidation';
 import toast from 'react-hot-toast';
 import { directUploadMultiple } from '@/utils/directUpload';
@@ -289,6 +289,28 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
         formData.endTime,
         formData.breakTime
     );
+
+    // 実働時間（分）を計算して、交通費選択肢をフィルタリング
+    const workingMinutes = workingHours * 60;
+    const filteredTransportationFeeOptions = getFilteredTransportationFeeOptions(
+        workingMinutes,
+        TRANSPORTATION_FEE_OPTIONS
+    );
+    const minTransportationFee = calculateMinTransportationFee(workingMinutes);
+
+    // 勤務時間変更時に、交通費が選択肢外になった場合は自動調整
+    useEffect(() => {
+        if (workingMinutes <= 0) return;
+
+        const currentFee = formData.transportationFee;
+        // 0円（なし）は常にOK
+        if (currentFee === 0) return;
+
+        // 現在の値が最低額を下回っている場合は自動調整
+        if (currentFee < minTransportationFee) {
+            setFormData(prev => ({ ...prev, transportationFee: minTransportationFee }));
+        }
+    }, [workingMinutes, minTransportationFee]);
 
     // 実働時間を「X時間Y分」形式でフォーマット
     const formatWorkingHours = (hours: number): string => {
@@ -933,10 +955,15 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                                     onChange={(e) => handleInputChange('transportationFee', Number(e.target.value))}
                                     className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
                                 >
-                                    {TRANSPORTATION_FEE_OPTIONS.map(option => (
+                                    {filteredTransportationFeeOptions.map(option => (
                                         <option key={option.value} value={option.value}>{option.label}</option>
                                     ))}
                                 </select>
+                                {workingMinutes > 0 && minTransportationFee > 0 && (
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        ※ 実働{formatWorkingHours(workingHours)}の場合、最低{minTransportationFee}円以上
+                                    </p>
+                                )}
                             </div>
 
                             <div>
