@@ -20,6 +20,13 @@ type LPPage = {
   campaigns: Campaign[];
 };
 
+// LINEタグ（広告プラットフォーム）の定義
+type LineTag = 'meta' | 'google';
+const LINE_TAG_OPTIONS: { value: LineTag; label: string }[] = [
+  { value: 'meta', label: 'Meta広告' },
+  { value: 'google', label: 'Google広告' },
+];
+
 export default function LPList({ initialPages }: { initialPages: LPPage[] }) {
   const [pages, setPages] = useState(initialPages);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -29,11 +36,30 @@ export default function LPList({ initialPages }: { initialPages: LPPage[] }) {
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // LINEタグ状態（全LP共通、適用前の選択値）
+  const [selectedLineTag, setSelectedLineTag] = useState<LineTag>('meta');
+  // 適用済みのLINEタグ（実際にURLに反映される値）
+  const [appliedLineTag, setAppliedLineTag] = useState<LineTag>('meta');
+
+  // クライアント側のoriginを保持（hydrationエラー回避）
+  const [origin, setOrigin] = useState('');
+
+  // クライアント側でoriginを設定
+  useEffect(() => {
+    setOrigin(window.location.origin);
+  }, []);
+
+  // LINEタグを適用
+  const applyLineTag = () => {
+    setAppliedLineTag(selectedLineTag);
+  };
+
   // モーダル状態
   const [genreSelectModalOpen, setGenreSelectModalOpen] = useState(false);
   const [genreEditModalOpen, setGenreEditModalOpen] = useState(false);
   const [selectedLpIdForCode, setSelectedLpIdForCode] = useState<string | null>(null);
   const [isGeneratingCode, setIsGeneratingCode] = useState(false);
+
 
   // ページ遷移で戻った時に最新データを取得
   useEffect(() => {
@@ -236,8 +262,17 @@ export default function LPList({ initialPages }: { initialPages: LPPage[] }) {
   };
 
   const getFullUrl = (path: string, code?: string) => {
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-    return code ? `${baseUrl}${path}?c=${code}` : `${baseUrl}${path}`;
+    return code ? `${origin}${path}?c=${code}` : `${origin}${path}`;
+  };
+
+  // LINEタグ付きURLを生成（適用済みのタグを使用）
+  const getUrlWithLineTag = (path: string, code?: string) => {
+    const params = new URLSearchParams();
+    params.set('utm_source', appliedLineTag);
+    if (code) {
+      params.set('c', code);
+    }
+    return `${origin}${path}?${params.toString()}`;
   };
 
   // プレフィックスからジャンル名を判定（genreNameがない古いコード用）
@@ -484,7 +519,7 @@ export default function LPList({ initialPages }: { initialPages: LPPage[] }) {
                       {campaign.name}
                     </span>
                     <button
-                      onClick={() => copyToClipboard(getFullUrl(page.path, campaign.code), campaign.code)}
+                      onClick={() => copyToClipboard(getUrlWithLineTag(page.path, campaign.code), campaign.code)}
                       className={`
                         p-1.5 rounded transition-colors
                         ${copiedCode === campaign.code
@@ -525,6 +560,48 @@ export default function LPList({ initialPages }: { initialPages: LPPage[] }) {
 
   return (
     <>
+      {/* LINEタグ選択（全LP共通） */}
+      <div className="mb-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border border-green-200">
+        <div className="flex items-center gap-4">
+          <svg className="w-6 h-6 text-green-600" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63h2.386c.349 0 .63.285.63.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63.349 0 .631.285.631.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.281.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/>
+          </svg>
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-gray-700">LINEタグ:</span>
+            <select
+              value={selectedLineTag}
+              onChange={(e) => setSelectedLineTag(e.target.value as LineTag)}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
+            >
+              {LINE_TAG_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            <button
+              onClick={applyLineTag}
+              disabled={selectedLineTag === appliedLineTag}
+              className={`
+                px-4 py-1.5 text-sm font-medium rounded-md transition-colors
+                ${selectedLineTag === appliedLineTag
+                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  : 'bg-green-600 text-white hover:bg-green-700'
+                }
+              `}
+            >
+              適用
+            </button>
+          </div>
+          {appliedLineTag && (
+            <span className="ml-auto text-xs text-green-700 bg-green-100 px-2 py-1 rounded">
+              適用中: {LINE_TAG_OPTIONS.find(opt => opt.value === appliedLineTag)?.label}
+            </span>
+          )}
+        </div>
+        <p className="mt-2 text-xs text-gray-500">
+          適用ボタンを押すと、全LP・全キャンペーンコードのURLに反映されます
+        </p>
+      </div>
+
       <div className="space-y-6">
         {/* 有効なLP */}
         <div>

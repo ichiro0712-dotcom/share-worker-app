@@ -58,6 +58,7 @@ export default function LPGuidePage() {
             <li><a href="#gtm-clarity" className="text-indigo-600 hover:underline">3. GTM・Clarityタグの設置</a></li>
             <li><a href="#section-tracking" className="text-indigo-600 hover:underline">4. セクション別滞在時間の計測</a></li>
             <li><a href="#cta-tracking" className="text-indigo-600 hover:underline">5. CTAボタンのトラッキング</a></li>
+            <li><a href="#ad-url" className="text-indigo-600 hover:underline">5.5 広告用URL発行（LINEタグ設定）</a></li>
             <li><a href="#ogp-meta" className="text-indigo-600 hover:underline">6. OGP・メタタグの設定</a></li>
             <li><a href="#checklist" className="text-indigo-600 hover:underline">7. リリース前チェックリスト</a></li>
           </ol>
@@ -246,20 +247,28 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
           </div>
 
           <p className="text-slate-600 mb-4">
-            以下のクラス名を持つボタンは自動的にCTAクリックとして計測されます:
+            以下のクラス名を持つボタンは自動的にCTAクリックとして計測されます。
+            <strong>hrefは「#」のままでOK</strong> - tracking.jsがutm_sourceに基づいて自動でLINE URLを設定します。
           </p>
 
-          <CodeBlock code={`<!-- 自動計測されるCTAボタン -->
-<a href="https://line.me/..." class="btn-line-cta">
+          <CodeBlock code={`<!-- CTAボタン（href="#" でOK、自動でLINE URLが設定される） -->
+<a href="#" class="btn-line-cta" data-cats="lineFriendsFollowLink">
   今すぐ公式LINEに登録
 </a>
 
-<a href="https://line.me/..." class="btn-line-header">
+<a href="#" class="btn-line-header" data-cats="lineFriendsFollowLink">
   LINE登録
-</a>
+</a>`} />
 
-<!-- テキストに「LINE」を含むボタンも自動計測 -->
-<button>LINEで相談する</button>`} />
+          <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <h4 className="text-sm font-semibold text-green-800 mb-2">LINE URL自動切り替えの仕組み:</h4>
+            <ul className="text-sm text-green-700 space-y-1">
+              <li>• URLに <code className="bg-green-100 px-1 rounded">?utm_source=google</code> → Google広告用LINE URL</li>
+              <li>• URLに <code className="bg-green-100 px-1 rounded">?utm_source=meta</code> → Meta広告用LINE URL</li>
+              <li>• tracking.jsが自動でhref属性を設定</li>
+              <li>• <code className="bg-green-100 px-1 rounded">data-cats=&quot;lineFriendsFollowLink&quot;</code> はCATS計測用</li>
+            </ul>
+          </div>
 
           <div className="mt-4 p-4 bg-indigo-50 border border-blue-200 rounded-lg">
             <h4 className="text-sm font-semibold text-indigo-800 mb-2">トラッキング対象:</h4>
@@ -269,6 +278,58 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
               <li>• テキストに「LINE」を含むリンク/ボタン</li>
               <li>• <code className="bg-indigo-100 px-1 rounded">.cta</code> または <code className="bg-indigo-100 px-1 rounded">.btn</code> クラスを持つ要素</li>
             </ul>
+          </div>
+        </section>
+
+        {/* セクション5.5: 広告用URL発行 */}
+        <section id="ad-url" className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+              <Tag className="w-5 h-5 text-green-600" />
+            </div>
+            <h2 className="text-lg font-semibold text-slate-900">5.5 広告用URL発行（LINEタグ設定）</h2>
+          </div>
+
+          <p className="text-slate-600 mb-4">
+            Google広告とMeta広告では、LINE友だち追加URLの計測タグが異なります。
+            LP管理画面でLINEタグを選択し、適切なURLを発行してください。
+          </p>
+
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg mb-4">
+            <h4 className="text-sm font-semibold text-slate-800 mb-3">発行手順:</h4>
+            <ol className="text-sm text-slate-700 space-y-2">
+              <li className="flex items-start gap-2">
+                <span className="flex-shrink-0 w-5 h-5 bg-green-500 text-white rounded-full flex items-center justify-center text-xs font-bold">1</span>
+                <span>LP管理画面の上部にある「LINEタグ」ドロップダウンで広告プラットフォームを選択</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="flex-shrink-0 w-5 h-5 bg-green-500 text-white rounded-full flex items-center justify-center text-xs font-bold">2</span>
+                <span>「適用」ボタンをクリック</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="flex-shrink-0 w-5 h-5 bg-green-500 text-white rounded-full flex items-center justify-center text-xs font-bold">3</span>
+                <span>各LPカードの「開く」ボタンまたは「コピー」ボタンで広告用URLを取得</span>
+              </li>
+            </ol>
+          </div>
+
+          <CodeBlock code={`# Google広告用URL
+https://tastas.work/lp/0/index.html?utm_source=google
+
+# Meta広告用URL
+https://tastas.work/lp/0/index.html?utm_source=meta
+
+# キャンペーンコード付き（例: サマーキャンペーン）
+https://tastas.work/lp/0/index.html?utm_source=google&c=AAH-SUMMER`} language="text" />
+
+          <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-amber-800">
+                <strong>重要:</strong> 広告入稿時は必ずLP管理画面から発行したURLを使用してください。
+                utm_sourceパラメータがないと、LINE友だち追加の計測が正しく行われません。
+              </div>
+            </div>
           </div>
         </section>
 
@@ -354,7 +415,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 </li>
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
-                  <span>GTMタグを <code className="bg-slate-100 px-1 rounded">&lt;head&gt;</code> と <code className="bg-slate-100 px-1 rounded">&lt;body&gt;</code> に追加</span>
+                  <span>GTMタグ（GTM-MSBWVNVB）を <code className="bg-slate-100 px-1 rounded">&lt;head&gt;</code> と <code className="bg-slate-100 px-1 rounded">&lt;body&gt;</code> に追加</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
@@ -364,15 +425,19 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             </div>
 
             <div className="p-4 border border-slate-200 rounded-lg">
-              <h3 className="font-medium text-slate-900 mb-3">CTAリンク</h3>
+              <h3 className="font-medium text-slate-900 mb-3">CTAボタン設定</h3>
               <ul className="space-y-2 text-sm text-slate-600">
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
-                  <span>CTAボタンの <code className="bg-slate-100 px-1 rounded">href=&quot;#&quot;</code> を実際のLINE URLに変更</span>
+                  <span>CTAボタンに <code className="bg-slate-100 px-1 rounded">.btn-line-cta</code> または <code className="bg-slate-100 px-1 rounded">.btn-line-header</code> クラスを設定</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
-                  <span>CTAボタンに適切なクラス（<code className="bg-slate-100 px-1 rounded">.btn-line-cta</code>）を設定</span>
+                  <span>CTAボタンに <code className="bg-slate-100 px-1 rounded">data-cats=&quot;lineFriendsFollowLink&quot;</code> を追加（CATS計測用）</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <input type="checkbox" className="mt-1 rounded" />
+                  <span><code className="bg-slate-100 px-1 rounded">href=&quot;#&quot;</code> のままでOK（tracking.jsが自動でLINE URLを設定）</span>
                 </li>
               </ul>
             </div>
@@ -390,11 +455,33 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 </li>
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
-                  <span>OGP画像（1200×630px）を用意</span>
+                  <span>OGP画像（1200×630px）を <code className="bg-slate-100 px-1 rounded">public/lp/images/ogp.png</code> に配置</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
                   <span>タイトル・説明文を設定</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="p-4 border border-green-200 bg-green-50 rounded-lg">
+              <h3 className="font-medium text-green-900 mb-3">広告入稿用URL発行</h3>
+              <ul className="space-y-2 text-sm text-green-800">
+                <li className="flex items-start gap-2">
+                  <input type="checkbox" className="mt-1 rounded" />
+                  <span>LP管理画面でLINEタグ（Meta/Google）を選択し「適用」ボタンをクリック</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <input type="checkbox" className="mt-1 rounded" />
+                  <span>Google広告用: <code className="bg-green-100 px-1 rounded">?utm_source=google</code> 付きURLを発行</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <input type="checkbox" className="mt-1 rounded" />
+                  <span>Meta広告用: <code className="bg-green-100 px-1 rounded">?utm_source=meta</code> 付きURLを発行</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <input type="checkbox" className="mt-1 rounded" />
+                  <span>キャンペーンコードが必要な場合は「コード」ボタンから発行</span>
                 </li>
               </ul>
             </div>
@@ -417,6 +504,14 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
                   <span>キャンペーンURL（?c=xxx）でアクセスした際にコードが記録される</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <input type="checkbox" className="mt-1 rounded" />
+                  <span><code className="bg-slate-100 px-1 rounded">?utm_source=google</code> でGoogle用LINE URLが設定される</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <input type="checkbox" className="mt-1 rounded" />
+                  <span><code className="bg-slate-100 px-1 rounded">?utm_source=meta</code> でMeta用LINE URLが設定される</span>
                 </li>
               </ul>
             </div>

@@ -11,6 +11,12 @@
     API_ENDPOINT: '/api/lp-tracking',
     SECTION_TRACK_INTERVAL: 1000, // セクション滞在計測間隔（ミリ秒）
     MAX_DWELL_TIME_SECONDS: 300, // 滞在時間の上限（5分）- 異常値対策
+    // LINE友だち追加URL（広告プラットフォーム別）
+    LINE_URLS: {
+      google: 'https://liff.line.me/2009053059-UzfNXDJd/landing?follow=%40894ipobi&lp=4Ghdqp&liff_id=2009053059-UzfNXDJd',
+      meta: 'https://liff.line.me/2009053059-UzfNXDJd/landing?follow=%40894ipobi&lp=GQbsFI&liff_id=2009053059-UzfNXDJd',
+      default: 'https://liff.line.me/2009053059-UzfNXDJd/landing?follow=%40894ipobi&lp=4Ghdqp&liff_id=2009053059-UzfNXDJd', // デフォルトはGoogle用
+    },
   };
 
   // ========== 状態管理 ==========
@@ -307,6 +313,37 @@
     });
   }
 
+  // LINE URLを取得（utm_sourceに基づいて切り替え）
+  function getLineUrl() {
+    const utmSource = state.utmSource ? state.utmSource.toLowerCase() : '';
+
+    if (utmSource === 'meta' || utmSource === 'facebook' || utmSource === 'instagram') {
+      return CONFIG.LINE_URLS.meta;
+    } else if (utmSource === 'google') {
+      return CONFIG.LINE_URLS.google;
+    }
+    return CONFIG.LINE_URLS.default;
+  }
+
+  // LINEボタンのURLを設定
+  function initLineButtons() {
+    const lineButtons = document.querySelectorAll('.btn-line-cta, .btn-line-header');
+    const lineUrl = getLineUrl();
+
+    lineButtons.forEach(function(button) {
+      // href属性を設定
+      button.setAttribute('href', lineUrl);
+      // data-cats属性を追加（CATS計測用）
+      button.setAttribute('data-cats', 'lineFriendsFollowLink');
+    });
+
+    console.log('[LP Tracking] LINE buttons initialized', {
+      utmSource: state.utmSource,
+      lineUrl: lineUrl,
+      buttonCount: lineButtons.length,
+    });
+  }
+
   // CTAクリックトラッキング
   function initClickTracking() {
     document.addEventListener('click', function(e) {
@@ -335,8 +372,8 @@
           button_text: buttonText,
         });
 
-        // LINE URLにパラメータを追加
-        if (target.href && target.href.includes('line.me')) {
+        // LINE URLにトラッキングパラメータを追加
+        if (target.href && target.href.includes('liff.line.me')) {
           const url = new URL(target.href);
           if (state.campaignCode) {
             url.searchParams.set('lp_campaign', state.campaignCode);
@@ -484,6 +521,7 @@
     initClickTracking();
     initSectionTracking();
     initPageUnloadHandler();
+    initLineButtons(); // LINEボタンのURL設定（utm_sourceに基づく）
 
     console.log('[LP Tracking] Initialized', {
       lpId: state.lpId,
