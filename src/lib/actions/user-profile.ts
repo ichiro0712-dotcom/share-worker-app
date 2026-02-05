@@ -20,6 +20,8 @@ export async function checkProfileComplete(userId: number) {
     }
 
     const requiredFields = [
+        // 氏名（登録時は任意、応募時に必須）
+        { key: 'name', label: '氏名' },
         { key: 'last_name_kana', label: 'フリガナ（セイ）' },
         { key: 'first_name_kana', label: 'フリガナ（メイ）' },
         { key: 'gender', label: '性別' },
@@ -48,7 +50,9 @@ export async function checkProfileComplete(userId: number) {
     const missingFields: string[] = [];
 
     for (const field of requiredFields) {
-        if (!user[field.key as keyof typeof user]) {
+        const value = user[field.key as keyof typeof user];
+        // 空文字も未入力として扱う
+        if (!value || (typeof value === 'string' && value.trim() === '')) {
             missingFields.push(field.label);
         }
     }

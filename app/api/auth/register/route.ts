@@ -9,7 +9,7 @@ import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 interface RegisterBody {
   email: string;
   password: string;
-  name: string;
+  name?: string;
   phoneNumber: string;
   birthDate?: string;
   qualifications?: string[];
@@ -59,8 +59,8 @@ export async function POST(request: NextRequest) {
       registrationGenrePrefix,
     } = body;
 
-    // バリデーション
-    if (!email || !password || !name || !phoneNumber) {
+    // バリデーション（name は任意）
+    if (!email || !password || !phoneNumber) {
       return NextResponse.json(
         { error: '必須項目を入力してください' },
         { status: 400 }
@@ -87,12 +87,12 @@ export async function POST(request: NextRequest) {
       ? workHistories.filter((h: string) => h && h.trim() !== '')
       : [];
 
-    // ユーザー作成
+    // ユーザー作成（name は空文字許容）
     const user = await prisma.user.create({
       data: {
         email,
         password_hash: hashedPassword,
-        name,
+        name: name?.trim() || '',
         phone_number: phoneNumber,
         birth_date: birthDate ? new Date(birthDate) : null,
         qualifications: qualifications || [],
@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
       const verificationResult = await sendVerificationEmail(
         user.id,
         user.email,
-        user.name
+        user.name || 'TASTASユーザー'
       );
 
       if (!verificationResult.success) {
@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
     try {
       await sendAdminNewWorkerNotification(
         user.id,
-        user.name,
+        user.name || '名前未設定',
         user.email
       );
     } catch (notifyErr) {

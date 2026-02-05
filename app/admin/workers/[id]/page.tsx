@@ -320,11 +320,11 @@ export default function WorkerDetailPage({
                   <img src={worker.profileImage} alt={worker.name} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-gray-400 text-2xl font-bold">
-                    {worker.name.charAt(0)}
+                    {(worker.name || '?').charAt(0)}
                   </div>
                 )}
               </div>
-              <h2 className="text-xl font-bold text-gray-900">{worker.name}</h2>
+              <h2 className="text-xl font-bold text-gray-900">{worker.name || '名前未設定'}</h2>
               <p className="text-sm text-gray-500 mb-2">
                 {worker.age !== null ? `${worker.age}歳` : '年齢不明'} / {worker.gender ? <span>{worker.gender}</span> : <span className="text-gray-400">性別未登録</span>}
               </p>
