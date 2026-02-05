@@ -27,6 +27,7 @@ import {
     ICON_OPTIONS,
     BREAK_TIME_OPTIONS,
     TRANSPORTATION_FEE_OPTIONS,
+    TRANSPORTATION_FEE_MAX,
     RECRUITMENT_START_DAY_OPTIONS,
     RECRUITMENT_END_DAY_OPTIONS,
     HOUR_OPTIONS,
@@ -2028,7 +2029,10 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
                                 </select>
                                 {workingMinutes > 0 && minTransportationFee > 0 && (
                                     <p className="text-xs text-gray-500 mt-1">
-                                        ※ 実働{formatWorkingHours(workingHours)}の場合、最低{minTransportationFee}円以上
+                                        {minTransportationFee >= TRANSPORTATION_FEE_MAX
+                                            ? `※ 実働${formatWorkingHours(workingHours)}の場合、交通費は上限の${TRANSPORTATION_FEE_MAX.toLocaleString()}円となります`
+                                            : `※ 実働${formatWorkingHours(workingHours)}の場合、最低${minTransportationFee}円以上`
+                                        }
                                     </p>
                                 )}
                             </div>
