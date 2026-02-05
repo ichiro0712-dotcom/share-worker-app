@@ -230,21 +230,12 @@ export default function WorkerRegisterPage() {
       return;
     }
 
-    // 必須フィールドのバリデーション
+    // 必須フィールドのバリデーション（メール・パスワード・電話番号のみ必須）
     const errors: string[] = [];
 
-    if (!formData.lastName) errors.push('姓');
-    if (!formData.firstName) errors.push('名');
-    if (!formData.lastNameKana) errors.push('セイ（フリガナ）');
-    if (!formData.firstNameKana) errors.push('メイ（フリガナ）');
-    if (!formData.gender) errors.push('性別');
-    if (!formData.nationality) errors.push('国籍');
     if (!formData.email) errors.push('メールアドレス');
     if (!formData.emailConfirm) errors.push('メールアドレス（確認）');
     if (!formData.phoneNumber) errors.push('電話番号');
-    if (!formData.prefecture) errors.push('都道府県');
-    if (!formData.city) errors.push('市区町村');
-    if (!formData.address) errors.push('町名・番地');
     if (!formData.password) errors.push('パスワード');
     if (!formData.passwordConfirm) errors.push('パスワード（確認）');
 
@@ -271,45 +262,35 @@ export default function WorkerRegisterPage() {
       return;
     }
 
-    // 資格が選択されているか確認
-    if (formData.qualifications.length === 0) {
-      toast.error('少なくとも1つの資格を選択してください');
-      return;
-    }
-
     // 電話番号形式チェック
     if (!isValidPhoneNumber(formData.phoneNumber)) {
       toast.error('電話番号は10桁または11桁の数字で入力してください');
       return;
     }
 
-    // フリガナのカタカナチェック
-    if (!isKatakanaOnly(formData.lastNameKana)) {
+    // フリガナのカタカナチェック（入力されている場合のみ）
+    if (formData.lastNameKana && !isKatakanaOnly(formData.lastNameKana)) {
       toast.error('セイ（フリガナ）はカタカナで入力してください');
       return;
     }
-    if (!isKatakanaOnly(formData.firstNameKana)) {
+    if (formData.firstNameKana && !isKatakanaOnly(formData.firstNameKana)) {
       toast.error('メイ（フリガナ）はカタカナで入力してください');
       return;
     }
 
-    // 経験分野確認
-    if (experienceFields.length === 0) {
-      toast.error('少なくとも1つの経験分野を選択してください');
-      return;
-    }
-
-    // 資格証明書の確認（「その他」以外の資格は証明書必須）
-    const qualificationsNeedingCertificates = formData.qualifications.filter(qual => qual !== 'その他');
-    const missingCertificates = qualificationsNeedingCertificates.filter(qual => !qualificationCertificates[qual]);
-    if (missingCertificates.length > 0) {
-      toast.error(`以下の資格の証明書をアップロードしてください: ${missingCertificates.join('、')}`);
-      // 証明書アップロードセクションにスクロール
-      const certificateSection = document.getElementById('certificate-upload-section');
-      if (certificateSection) {
-        certificateSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // 資格証明書の確認（入力されている資格のうち「その他」以外は証明書必須）
+    if (formData.qualifications.length > 0) {
+      const qualificationsNeedingCertificates = formData.qualifications.filter(qual => qual !== 'その他');
+      const missingCertificates = qualificationsNeedingCertificates.filter(qual => !qualificationCertificates[qual]);
+      if (missingCertificates.length > 0) {
+        toast.error(`以下の資格の証明書をアップロードしてください: ${missingCertificates.join('、')}`);
+        // 証明書アップロードセクションにスクロール
+        const certificateSection = document.getElementById('certificate-upload-section');
+        if (certificateSection) {
+          certificateSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        return;
       }
-      return;
     }
 
     // 利用規約同意チェック
@@ -337,7 +318,9 @@ export default function WorkerRegisterPage() {
         body: JSON.stringify({
           email: formData.email,
           password: formData.password,
-          name: `${formData.lastName} ${formData.firstName}`,
+          name: formData.lastName && formData.firstName
+            ? `${formData.lastName} ${formData.firstName}`.trim()
+            : '',
           phoneNumber: formData.phoneNumber,
           birthDate: formData.birthDate,
           qualifications: formData.qualifications,
@@ -414,59 +397,47 @@ export default function WorkerRegisterPage() {
           </p>
 
           <form onSubmit={handleSubmit} noValidate className="space-y-6">
-            {/* 1. 基本情報 */}
+            {/* 1. 基本情報（任意） */}
             <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
-              <h3 className="font-bold text-gray-900">基本情報 <span className="text-red-500">*</span></h3>
+              <h3 className="font-bold text-gray-900">基本情報 <span className="text-gray-500 text-sm font-normal">（任意・応募時に必須）</span></h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* 姓名 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    姓 <span className="text-red-500">*</span>
+                    姓
                   </label>
                   <input
                     type="text"
-                    required
                     value={formData.lastName}
                     onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.lastName ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                     placeholder="山田"
                   />
-                  {showErrors && !formData.lastName && (
-                    <p className="text-red-500 text-xs mt-1">姓を入力してください</p>
-                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    名 <span className="text-red-500">*</span>
+                    名
                   </label>
                   <input
                     type="text"
-                    required
                     value={formData.firstName}
                     onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.firstName ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                     placeholder="太郎"
                   />
-                  {showErrors && !formData.firstName && (
-                    <p className="text-red-500 text-xs mt-1">名を入力してください</p>
-                  )}
                 </div>
                 {/* フリガナ（姓名の直後） - iOS IME対応コンポーネント使用 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    セイ（フリガナ） <span className="text-red-500">*</span>
+                    セイ（フリガナ）
                   </label>
                   <KatakanaInput
-                    required
                     value={formData.lastNameKana}
                     onChange={(value) => setFormData({ ...formData, lastNameKana: value })}
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.lastNameKana ? 'border-red-500 bg-red-50' : formData.lastNameKana && !isKatakanaOnly(formData.lastNameKana) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${formData.lastNameKana && !isKatakanaOnly(formData.lastNameKana) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                     placeholder="ヤマダ"
                   />
-                  {showErrors && !formData.lastNameKana && (
-                    <p className="text-red-500 text-xs mt-1">セイ（フリガナ）を入力してください</p>
-                  )}
                   {formData.lastNameKana && !isKatakanaOnly(formData.lastNameKana) && (
                     <p className="text-red-500 text-xs mt-1">カタカナで入力してください</p>
                   )}
@@ -474,18 +445,14 @@ export default function WorkerRegisterPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    メイ（フリガナ） <span className="text-red-500">*</span>
+                    メイ（フリガナ）
                   </label>
                   <KatakanaInput
-                    required
                     value={formData.firstNameKana}
                     onChange={(value) => setFormData({ ...formData, firstNameKana: value })}
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.firstNameKana ? 'border-red-500 bg-red-50' : formData.firstNameKana && !isKatakanaOnly(formData.firstNameKana) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${formData.firstNameKana && !isKatakanaOnly(formData.firstNameKana) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                     placeholder="タロウ"
                   />
-                  {showErrors && !formData.firstNameKana && (
-                    <p className="text-red-500 text-xs mt-1">メイ（フリガナ）を入力してください</p>
-                  )}
                   {formData.firstNameKana && !isKatakanaOnly(formData.firstNameKana) && (
                     <p className="text-red-500 text-xs mt-1">カタカナで入力してください</p>
                   )}
@@ -494,52 +461,43 @@ export default function WorkerRegisterPage() {
                 {/* 生年月日・性別 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    生年月日 <span className="text-red-500">*</span>
+                    生年月日
                   </label>
                   <input
                     type="date"
-                    required
                     value={formData.birthDate}
                     onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })}
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.birthDate ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    性別（出生時） <span className="text-red-500">*</span>
+                    性別（出生時）
                   </label>
                   <select
-                    required
                     value={formData.gender}
                     onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.gender ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                   >
                     <option value="">選択してください</option>
                     <option value="男性">男性</option>
                     <option value="女性">女性</option>
                   </select>
-                  {showErrors && !formData.gender && (
-                    <p className="text-red-500 text-xs mt-1">性別を選択してください</p>
-                  )}
                 </div>
                 {/* 国籍（ドロップダウン） */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    国籍 <span className="text-red-500">*</span>
+                    国籍
                   </label>
                   <select
-                    required
                     value={formData.nationality}
                     onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.nationality ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                   >
                     <option value="">選択してください</option>
                     <option value="日本">日本</option>
                     <option value="その他">その他</option>
                   </select>
-                  {showErrors && !formData.nationality && (
-                    <p className="text-red-500 text-xs mt-1">国籍を選択してください</p>
-                  )}
                 </div>
               </div>
             </div>
@@ -610,10 +568,10 @@ export default function WorkerRegisterPage() {
                 </div>
               </div>
 
-              {/* 住所は独立したセクション */}
+              {/* 住所（任意） */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  住所 <span className="text-red-500">*</span>
+                  住所 <span className="text-gray-500 text-sm font-normal">（任意・応募時に必須）</span>
                 </label>
                 <AddressSelector
                   prefecture={formData.prefecture}
@@ -629,21 +587,21 @@ export default function WorkerRegisterPage() {
                     building: data.building || '',
                     postalCode: data.postalCode || ''
                   })}
-                  required={true}
-                  showErrors={showErrors}
+                  required={false}
+                  showErrors={false}
                 />
               </div>
             </div>
 
-            {/* 3. 資格情報 */}
-            <div className={`p-4 bg-gray-50 rounded-lg border space-y-4 ${showErrors && formData.qualifications.length === 0 ? 'border-red-500' : 'border-gray-200'}`}>
-              <h3 className="font-bold text-gray-900">資格情報 <span className="text-red-500">*</span></h3>
+            {/* 3. 資格情報（任意） */}
+            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
+              <h3 className="font-bold text-gray-900">資格情報 <span className="text-gray-500 text-sm font-normal">（任意・応募時に必須）</span></h3>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  保有資格 <span className="text-red-500">*</span>
+                  保有資格
                 </label>
                 <p className="text-sm text-gray-600 mb-3">
-                  ※保有している資格にチェックを入れ、<span className="font-bold text-red-500">必ず</span>資格証明書の写真を添付してください。
+                  ※保有している資格にチェックを入れ、資格証明書の写真を添付してください。
                 </p>
                 {QUALIFICATION_GROUPS.map((group) => (
                   <div key={group.name} className="mb-4">
@@ -663,15 +621,12 @@ export default function WorkerRegisterPage() {
                     </div>
                   </div>
                 ))}
-                {showErrors && formData.qualifications.length === 0 && (
-                  <p className="text-red-500 text-xs mt-1">少なくとも1つの資格を選択してください</p>
-                )}
               </div>
 
               {/* 資格証明書アップロード - 選択された資格（その他以外）の数だけ表示 */}
               {formData.qualifications.filter(qual => qual !== 'その他').length > 0 && (
                 <div id="certificate-upload-section" className="space-y-4">
-                  <label className="block text-sm font-medium text-gray-700">資格証明書アップロード <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-medium text-gray-700">資格証明書アップロード</label>
                   {formData.qualifications.filter(qual => qual !== 'その他').map((qual) => (
                     <div key={qual} className={`border rounded-lg p-4 ${showErrors && !qualificationCertificates[qual] ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}>
                       <label className="block text-sm font-medium text-gray-700 mb-3">{qual}</label>
@@ -725,14 +680,14 @@ export default function WorkerRegisterPage() {
               )}
             </div>
 
-            {/* 経験セクション */}
-            <div className={`p-4 bg-gray-50 rounded-lg border space-y-4 ${showErrors && experienceFields.length === 0 ? 'border-red-500' : 'border-gray-200'}`}>
-              <h3 className="font-bold text-gray-900">経験・職歴 <span className="text-red-500">*</span></h3>
+            {/* 経験セクション（任意） */}
+            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
+              <h3 className="font-bold text-gray-900">経験・職歴 <span className="text-gray-500 text-sm font-normal">（任意・応募時に必須）</span></h3>
 
               {/* 経験分野チェックボックス */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  経験分野 <span className="text-red-500">*</span>
+                  経験分野
                 </label>
                 <p className="text-xs text-gray-500 mb-3">※複数選択できます</p>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -748,9 +703,6 @@ export default function WorkerRegisterPage() {
                     </label>
                   ))}
                 </div>
-                {showErrors && experienceFields.length === 0 && (
-                  <p className="text-red-500 text-xs mt-2">少なくとも1つの経験分野を選択してください</p>
-                )}
               </div>
 
               {/* 選択された経験分野の経験年数入力 */}
