@@ -5,137 +5,27 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
-import { useAuth } from '@/contexts/AuthContext';
-import { compressImage, MAX_FILE_SIZE, formatFileSize } from '@/utils/fileValidation';
-import { isValidEmail, isValidPhoneNumber, isKatakanaOnly } from '@/utils/inputValidation';
-import AddressSelector from '@/components/ui/AddressSelector';
-import { KatakanaInput } from '@/components/ui/KatakanaInput';
+import { isValidEmail, isValidPhoneNumber } from '@/utils/inputValidation';
 import { PhoneNumberInput } from '@/components/ui/PhoneNumberInput';
-import { QUALIFICATION_GROUPS } from '@/constants/qualifications';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { WORKER_TERMS_OF_SERVICE, TERMS_LAST_UPDATED } from '@/constants/terms';
 
 export default function WorkerRegisterPage() {
   const router = useRouter();
-  const { login } = useAuth();
   const { showDebugError } = useDebugError();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  // バリデーションエラー表示用（送信時にtrueになる）
   const [showErrors, setShowErrors] = useState(false);
-  // 利用規約同意
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
+
   const [formData, setFormData] = useState({
-    // 基本情報
-    lastName: '',
-    firstName: '',
-    birthDate: '1980-01-01',
-    gender: '',
-    nationality: '',
-
-    // メールアドレス
     email: '',
-    emailConfirm: '',  // メールアドレス確認用
-
-    // 郵便番号
-    postalCode: '',
-    prefecture: '',
-    city: '',
-    address: '',
-    building: '',
-
-    // 電話番号
+    emailConfirm: '',
     phoneNumber: '',
-
-    // 資格情報
-    qualifications: [] as string[],
-
-    // パスワード
     password: '',
     passwordConfirm: '',
-
-    // フリガナ
-    lastNameKana: '',
-    firstNameKana: '',
   });
-
-  // 経験情報（プロフィール編集と同じ形式）
-  const [experienceFields, setExperienceFields] = useState<string[]>([]);
-  const [experienceYearsMap, setExperienceYearsMap] = useState<Record<string, string>>({});
-  const [workHistories, setWorkHistories] = useState<string[]>(['']);
-
-  // 経験分野リスト
-  const experienceFieldsList = [
-    '特別養護老人ホーム',
-    '介護老人保健施設',
-    'グループホーム',
-    'デイサービス',
-    '訪問介護',
-    '有料老人ホーム',
-    'サービス付き高齢者向け住宅',
-    'その他',
-  ];
-
-  // 経験年数オプション
-  const experienceYearOptions = [
-    '1年未満',
-    '1〜2年',
-    '3〜5年',
-    '5〜10年',
-    '10年以上',
-  ];
-
-  // 経験分野チェックボックスハンドラ
-  const handleExperienceFieldChange = (field: string) => {
-    if (experienceFields.includes(field)) {
-      setExperienceFields(experienceFields.filter(f => f !== field));
-      const newYears = { ...experienceYearsMap };
-      delete newYears[field];
-      setExperienceYearsMap(newYears);
-    } else {
-      setExperienceFields([...experienceFields, field]);
-    }
-  };
-
-  // 経験年数変更ハンドラ
-  const handleExperienceYearChange = (field: string, value: string) => {
-    setExperienceYearsMap(prev => ({ ...prev, [field]: value }));
-  };
-
-  // 職歴追加
-  const addWorkHistory = () => {
-    if (workHistories.length < 5) {
-      setWorkHistories([...workHistories, '']);
-    }
-  };
-
-  // 職歴削除
-  const removeWorkHistory = (index: number) => {
-    setWorkHistories(workHistories.filter((_, i) => i !== index));
-  };
-
-  // 職歴更新
-  const updateWorkHistory = (index: number, value: string) => {
-    const newHistories = [...workHistories];
-    newHistories[index] = value;
-    setWorkHistories(newHistories);
-  };
-
-  // 資格証明書の状態管理
-  const [qualificationCertificates, setQualificationCertificates] = useState<Record<string, string | null>>({});
-
-  const handleCheckboxChange = (value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      qualifications: prev.qualifications.includes(value)
-        ? prev.qualifications.filter(item => item !== value)
-        : [...prev.qualifications, value]
-    }));
-  };
-
-  // 圧縮中の状態管理
-  const [compressingQual, setCompressingQual] = useState<string | null>(null);
 
   // LP経由登録情報（localStorageから取得）
   const [lpInfo, setLpInfo] = useState<{ lpId: string | null; campaignCode: string | null; genrePrefix: string | null }>({
@@ -148,11 +38,9 @@ export default function WorkerRegisterPage() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
-        // 新形式（lp_tracking_data）を優先して取得
         const trackingDataStr = localStorage.getItem('lp_tracking_data');
         if (trackingDataStr) {
           const trackingData = JSON.parse(trackingDataStr);
-          // 有効期限チェック
           if (trackingData.expiry && Date.now() <= trackingData.expiry) {
             setLpInfo({
               lpId: trackingData.lpId || null,
@@ -162,11 +50,9 @@ export default function WorkerRegisterPage() {
             return;
           }
         }
-        // 旧形式へのフォールバック
         const storedLpId = localStorage.getItem('lp_id');
         const storedCampaignCode = localStorage.getItem('lp_campaign_code');
         if (storedLpId) {
-          // 旧形式からgenrePrefixを抽出
           let genrePrefix = null;
           if (storedCampaignCode) {
             const match = storedCampaignCode.match(/^([A-Z]{3})-/);
@@ -181,58 +67,17 @@ export default function WorkerRegisterPage() {
           });
         }
       } catch (e) {
-        // localStorage アクセスエラーは無視
         console.error('Failed to get LP info from localStorage:', e);
       }
     }
   }, []);
 
-  const handleQualificationCertificateChange = async (qualification: string, e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // ファイルサイズチェック（10MB）
-    if (file.size > MAX_FILE_SIZE) {
-      toast.error(`ファイルサイズが大きすぎます（${formatFileSize(file.size)}）。10MB以下にしてください。`);
-      return;
-    }
-
-    try {
-      setCompressingQual(qualification);
-      toast.loading('画像を圧縮中...', { id: 'compress' });
-
-      const compressedData = await compressImage(file);
-
-      setQualificationCertificates(prev => ({
-        ...prev,
-        [qualification]: compressedData
-      }));
-
-      toast.success('画像を圧縮しました', { id: 'compress' });
-    } catch (error) {
-      toast.error('画像の処理中にエラーが発生しました', { id: 'compress' });
-    } finally {
-      setCompressingQual(null);
-    }
-  };
-
-  // バリデーション関数はutils/inputValidation.tsからインポート
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    // バリデーションエラー表示を有効化
     setShowErrors(true);
 
-    // 画像圧縮中は送信しない
-    if (compressingQual) {
-      toast.error('画像を圧縮中です。完了までお待ちください。');
-      return;
-    }
-
-    // 必須フィールドのバリデーション（メール・パスワード・電話番号のみ必須）
+    // 必須フィールドのバリデーション
     const errors: string[] = [];
-
     if (!formData.email) errors.push('メールアドレス');
     if (!formData.emailConfirm) errors.push('メールアドレス（確認）');
     if (!formData.phoneNumber) errors.push('電話番号');
@@ -268,31 +113,6 @@ export default function WorkerRegisterPage() {
       return;
     }
 
-    // フリガナのカタカナチェック（入力されている場合のみ）
-    if (formData.lastNameKana && !isKatakanaOnly(formData.lastNameKana)) {
-      toast.error('セイ（フリガナ）はカタカナで入力してください');
-      return;
-    }
-    if (formData.firstNameKana && !isKatakanaOnly(formData.firstNameKana)) {
-      toast.error('メイ（フリガナ）はカタカナで入力してください');
-      return;
-    }
-
-    // 資格証明書の確認（入力されている資格のうち「その他」以外は証明書必須）
-    if (formData.qualifications.length > 0) {
-      const qualificationsNeedingCertificates = formData.qualifications.filter(qual => qual !== 'その他');
-      const missingCertificates = qualificationsNeedingCertificates.filter(qual => !qualificationCertificates[qual]);
-      if (missingCertificates.length > 0) {
-        toast.error(`以下の資格の証明書をアップロードしてください: ${missingCertificates.join('、')}`);
-        // 証明書アップロードセクションにスクロール
-        const certificateSection = document.getElementById('certificate-upload-section');
-        if (certificateSection) {
-          certificateSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-        return;
-      }
-    }
-
     // 利用規約同意チェック
     if (!agreedToTerms) {
       toast.error('利用規約に同意してください');
@@ -305,12 +125,6 @@ export default function WorkerRegisterPage() {
 
     setIsSubmitting(true);
 
-    // 経験分野と経験年数をexperience_fieldsの形式に変換
-    const experienceFieldsData: Record<string, string> = {};
-    experienceFields.forEach(field => {
-      experienceFieldsData[field] = experienceYearsMap[field] || '';
-    });
-
     try {
       const response = await fetch('/api/auth/register', {
         method: 'POST',
@@ -318,24 +132,7 @@ export default function WorkerRegisterPage() {
         body: JSON.stringify({
           email: formData.email,
           password: formData.password,
-          name: formData.lastName && formData.firstName
-            ? `${formData.lastName} ${formData.firstName}`.trim()
-            : '',
           phoneNumber: formData.phoneNumber,
-          birthDate: formData.birthDate,
-          qualifications: formData.qualifications,
-          lastNameKana: formData.lastNameKana,
-          firstNameKana: formData.firstNameKana,
-          gender: formData.gender,
-          nationality: formData.nationality,
-          postalCode: formData.postalCode,
-          prefecture: formData.prefecture,
-          city: formData.city,
-          addressLine: formData.address,
-          building: formData.building,
-          experienceFields: experienceFieldsData,
-          workHistories: workHistories.filter(h => h.trim() !== ''),
-          qualificationCertificates: qualificationCertificates,
           // LP経由登録情報
           registrationLpId: lpInfo.lpId,
           registrationCampaignCode: lpInfo.campaignCode,
@@ -363,9 +160,6 @@ export default function WorkerRegisterPage() {
         stack: debugInfo.stack,
         context: {
           email: formData.email,
-          name: `${formData.lastName} ${formData.firstName}`,
-          qualificationsCount: formData.qualifications.length,
-          experienceFieldsCount: experienceFields.length,
         }
       });
       toast.error(error instanceof Error ? error.message : '登録中にエラーが発生しました');
@@ -382,7 +176,7 @@ export default function WorkerRegisterPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4">
+      <div className="max-w-xl mx-auto px-4">
         <div className="mb-6">
           <Link href="/job-list" className="inline-flex items-center gap-2 text-primary hover:underline">
             <ArrowLeft className="w-4 h-4" />
@@ -392,431 +186,113 @@ export default function WorkerRegisterPage() {
 
         <div className="bg-white rounded-lg shadow-lg p-8">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">新規ワーカー登録</h1>
-          <p className="text-gray-600 mb-8">
-            以下の情報を入力して登録してください。登録後、ログインして求人検索ができます。
+          <p className="text-gray-600 mb-6">
+            まずはアカウントを作成しましょう。詳しいプロフィールは登録後に入力できます。
           </p>
 
           <form onSubmit={handleSubmit} noValidate className="space-y-6">
-            {/* 1. 基本情報（任意） */}
-            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
-              <h3 className="font-bold text-gray-900">基本情報 <span className="text-gray-500 text-sm font-normal">（任意・応募時に必須）</span></h3>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* 姓名 */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    姓
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.lastName}
-                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                    placeholder="山田"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    名
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.firstName}
-                    onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                    placeholder="太郎"
-                  />
-                </div>
-                {/* フリガナ（姓名の直後） - iOS IME対応コンポーネント使用 */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    セイ（フリガナ）
-                  </label>
-                  <KatakanaInput
-                    value={formData.lastNameKana}
-                    onChange={(value) => setFormData({ ...formData, lastNameKana: value })}
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${formData.lastNameKana && !isKatakanaOnly(formData.lastNameKana) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
-                    placeholder="ヤマダ"
-                  />
-                  {formData.lastNameKana && !isKatakanaOnly(formData.lastNameKana) && (
-                    <p className="text-red-500 text-xs mt-1">カタカナで入力してください</p>
-                  )}
-                  <p className="text-xs text-gray-500 mt-1">※カタカナで入力（ひらがなは自動変換）</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    メイ（フリガナ）
-                  </label>
-                  <KatakanaInput
-                    value={formData.firstNameKana}
-                    onChange={(value) => setFormData({ ...formData, firstNameKana: value })}
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${formData.firstNameKana && !isKatakanaOnly(formData.firstNameKana) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
-                    placeholder="タロウ"
-                  />
-                  {formData.firstNameKana && !isKatakanaOnly(formData.firstNameKana) && (
-                    <p className="text-red-500 text-xs mt-1">カタカナで入力してください</p>
-                  )}
-                  <p className="text-xs text-gray-500 mt-1">※カタカナで入力（ひらがなは自動変換）</p>
-                </div>
-                {/* 生年月日・性別 */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    生年月日
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.birthDate}
-                    onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    性別（出生時）
-                  </label>
-                  <select
-                    value={formData.gender}
-                    onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                  >
-                    <option value="">選択してください</option>
-                    <option value="男性">男性</option>
-                    <option value="女性">女性</option>
-                  </select>
-                </div>
-                {/* 国籍（ドロップダウン） */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    国籍
-                  </label>
-                  <select
-                    value={formData.nationality}
-                    onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                  >
-                    <option value="">選択してください</option>
-                    <option value="日本">日本</option>
-                    <option value="その他">その他</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* 2. 連絡先情報 */}
-            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
-              <h3 className="font-bold text-gray-900">連絡先情報 <span className="text-red-500">*</span></h3>
-
-              {/* メールアドレス（2段構成） */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    メールアドレス <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.email ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
-                    placeholder="example@email.com"
-                  />
-                  {showErrors && !formData.email && (
-                    <p className="text-red-500 text-xs mt-1">メールアドレスを入力してください</p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    メールアドレス（確認） <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={formData.emailConfirm}
-                    onChange={(e) => setFormData({ ...formData, emailConfirm: e.target.value })}
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.emailConfirm ? 'border-red-500 bg-red-50' : formData.emailConfirm && formData.email !== formData.emailConfirm ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
-                    placeholder="確認のため再入力"
-                  />
-                  {showErrors && !formData.emailConfirm && (
-                    <p className="text-red-500 text-xs mt-1">メールアドレス（確認）を入力してください</p>
-                  )}
-                  {formData.emailConfirm && formData.email !== formData.emailConfirm && (
-                    <p className="text-red-500 text-xs mt-1">メールアドレスが一致しません</p>
-                  )}
-                  {formData.emailConfirm && formData.email === formData.emailConfirm && (
-                    <p className="text-green-600 text-xs mt-1">✓ 一致しています</p>
-                  )}
-                </div>
-              </div>
-
-              {/* 電話番号 */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    電話番号 <span className="text-red-500">*</span>
-                  </label>
-                  <PhoneNumberInput
-                    required
-                    value={formData.phoneNumber}
-                    onChange={(value) => setFormData({ ...formData, phoneNumber: value })}
-                    placeholder="09012345678"
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.phoneNumber ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
-                  />
-                  {showErrors && !formData.phoneNumber && (
-                    <p className="text-red-500 text-xs mt-1">電話番号を入力してください</p>
-                  )}
-                  <p className="text-xs text-gray-500 mt-1">※数字のみ（10桁または11桁）</p>
-                </div>
-              </div>
-
-              {/* 住所（任意） */}
+            {/* メールアドレス */}
+            <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  住所 <span className="text-gray-500 text-sm font-normal">（任意・応募時に必須）</span>
+                  メールアドレス <span className="text-red-500">*</span>
                 </label>
-                <AddressSelector
-                  prefecture={formData.prefecture}
-                  city={formData.city}
-                  addressLine={formData.address}
-                  building={formData.building}
-                  postalCode={formData.postalCode}
-                  onChange={(data) => setFormData({
-                    ...formData,
-                    prefecture: data.prefecture,
-                    city: data.city,
-                    address: data.addressLine || '',
-                    building: data.building || '',
-                    postalCode: data.postalCode || ''
-                  })}
-                  required={false}
-                  showErrors={false}
+                <input
+                  type="email"
+                  required
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.email ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                  placeholder="example@email.com"
                 />
+                {showErrors && !formData.email && (
+                  <p className="text-red-500 text-xs mt-1">メールアドレスを入力してください</p>
+                )}
               </div>
-            </div>
-
-            {/* 3. 資格情報（任意） */}
-            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
-              <h3 className="font-bold text-gray-900">資格情報 <span className="text-gray-500 text-sm font-normal">（任意・応募時に必須）</span></h3>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  保有資格
+                  メールアドレス（確認） <span className="text-red-500">*</span>
                 </label>
-                <p className="text-sm text-gray-600 mb-3">
-                  ※保有している資格にチェックを入れ、資格証明書の写真を添付してください。
-                </p>
-                {QUALIFICATION_GROUPS.map((group) => (
-                  <div key={group.name} className="mb-4">
-                    <h4 className="text-sm font-semibold text-gray-700 mb-2">{group.name}</h4>
-                    <div className="grid grid-cols-2 gap-2">
-                      {group.qualifications.map((qual) => (
-                        <label key={qual} className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={formData.qualifications.includes(qual)}
-                            onChange={() => handleCheckboxChange(qual)}
-                            className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
-                          />
-                          <span className="text-sm">{qual}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* 資格証明書アップロード - 選択された資格（その他以外）の数だけ表示 */}
-              {formData.qualifications.filter(qual => qual !== 'その他').length > 0 && (
-                <div id="certificate-upload-section" className="space-y-4">
-                  <label className="block text-sm font-medium text-gray-700">資格証明書アップロード</label>
-                  {formData.qualifications.filter(qual => qual !== 'その他').map((qual) => (
-                    <div key={qual} className={`border rounded-lg p-4 ${showErrors && !qualificationCertificates[qual] ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}>
-                      <label className="block text-sm font-medium text-gray-700 mb-3">{qual}</label>
-
-                      {/* 既存の証明書がある場合はプレビュー表示 */}
-                      {qualificationCertificates[qual] ? (
-                        <div className="flex flex-col gap-3">
-                          {/* 画像プレビュー */}
-                          <div className="relative w-full h-48 sm:h-40 border border-gray-300 rounded-lg overflow-hidden bg-gray-50">
-                            <img
-                              src={qualificationCertificates[qual]!}
-                              alt={`${qual}の証明書`}
-                              className="w-full h-full object-contain"
-                            />
-                          </div>
-                          <p className="text-xs text-green-600">✓ 登録済み</p>
-                          {/* 変更ボタン */}
-                          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                            <label className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer text-center text-sm font-medium">
-                              画像を変更
-                              <input
-                                type="file"
-                                accept="image/*,.pdf"
-                                onChange={(e) => handleQualificationCertificateChange(qual, e)}
-                                className="hidden"
-                              />
-                            </label>
-                            <p className="text-xs text-gray-500">10MB以下 / JPG, PNG, HEIC, PDF形式（自動圧縮）</p>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          <label className={`block w-full px-4 py-3 rounded-lg hover:bg-blue-100 transition-colors cursor-pointer text-center text-sm font-medium border-2 border-dashed ${showErrors && !qualificationCertificates[qual] ? 'bg-red-50 text-red-700 border-red-300 animate-pulse' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
-                            📷 ファイルを選択
-                            <input
-                              type="file"
-                              accept="image/*,.pdf"
-                              onChange={(e) => handleQualificationCertificateChange(qual, e)}
-                              className="hidden"
-                            />
-                          </label>
-                          <p className="text-xs text-gray-500 text-center">10MB以下 / JPG, PNG, HEIC, PDF形式（自動圧縮）</p>
-                          {showErrors && !qualificationCertificates[qual] && (
-                            <p className="text-red-600 text-sm font-medium text-center">⚠️ {qual}の資格証明書をアップロードしてください</p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* 経験セクション（任意） */}
-            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
-              <h3 className="font-bold text-gray-900">経験・職歴 <span className="text-gray-500 text-sm font-normal">（任意・応募時に必須）</span></h3>
-
-              {/* 経験分野チェックボックス */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  経験分野
-                </label>
-                <p className="text-xs text-gray-500 mb-3">※複数選択できます</p>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {experienceFieldsList.map((field) => (
-                    <label key={field} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={experienceFields.includes(field)}
-                        onChange={() => handleExperienceFieldChange(field)}
-                        className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
-                      />
-                      <span className="text-sm">{field}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {/* 選択された経験分野の経験年数入力 */}
-              {experienceFields.length > 0 && (
-                <div className="p-4 bg-white rounded-lg border border-gray-200">
-                  <label className="block text-sm font-medium text-gray-700 mb-3">経験年数</label>
-                  <div className="space-y-3">
-                    {experienceFields.map((field) => (
-                      <div key={field} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-                        <span className="text-sm sm:min-w-[180px] font-medium">{field}</span>
-                        <select
-                          value={experienceYearsMap[field] || ''}
-                          onChange={(e) => handleExperienceYearChange(field, e.target.value)}
-                          className="w-full sm:flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
-                        >
-                          <option value="">選択してください</option>
-                          {experienceYearOptions.map((option) => (
-                            <option key={option} value={option}>{option}</option>
-                          ))}
-                        </select>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* 職歴（任意） */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  職歴 <span className="text-gray-500 text-xs">（任意）</span>
-                </label>
-                <div className="space-y-3">
-                  {workHistories.map((history, index) => (
-                    <div key={index} className="flex gap-2">
-                      <input
-                        type="text"
-                        value={history}
-                        onChange={(e) => updateWorkHistory(index, e.target.value)}
-                        placeholder="例：2018年4月〜2021年3月 ◯◯施設 介護職員"
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                      />
-                      {workHistories.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeWorkHistory(index)}
-                          className="px-3 py-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors text-sm"
-                        >
-                          削除
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                {workHistories.length < 5 && (
-                  <button
-                    type="button"
-                    onClick={addWorkHistory}
-                    className="mt-3 w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-primary hover:text-primary transition-colors text-sm"
-                  >
-                    + 職歴を追加
-                  </button>
+                <input
+                  type="email"
+                  required
+                  value={formData.emailConfirm}
+                  onChange={(e) => setFormData({ ...formData, emailConfirm: e.target.value })}
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.emailConfirm ? 'border-red-500 bg-red-50' : formData.emailConfirm && formData.email !== formData.emailConfirm ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                  placeholder="確認のため再入力"
+                />
+                {showErrors && !formData.emailConfirm && (
+                  <p className="text-red-500 text-xs mt-1">メールアドレス（確認）を入力してください</p>
+                )}
+                {formData.emailConfirm && formData.email !== formData.emailConfirm && (
+                  <p className="text-red-500 text-xs mt-1">メールアドレスが一致しません</p>
+                )}
+                {formData.emailConfirm && formData.email === formData.emailConfirm && (
+                  <p className="text-green-600 text-xs mt-1">✓ 一致しています</p>
                 )}
               </div>
             </div>
 
-            {/* 4. パスワード設定 */}
-            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
-              <h3 className="font-bold text-gray-900">パスワード設定 <span className="text-red-500">*</span></h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    パスワード <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.password ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
-                    placeholder="8文字以上"
-                    minLength={8}
-                  />
-                  <p className="text-xs text-gray-500 mt-1">8文字以上で入力してください</p>
-                  {showErrors && !formData.password && (
-                    <p className="text-red-500 text-xs mt-1">パスワードを入力してください</p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    パスワード（確認） <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    value={formData.passwordConfirm}
-                    onChange={(e) => setFormData({ ...formData, passwordConfirm: e.target.value })}
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.passwordConfirm ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
-                    placeholder="パスワードを再入力"
-                    minLength={8}
-                  />
-                  {showErrors && !formData.passwordConfirm && (
-                    <p className="text-red-500 text-xs mt-1">パスワード（確認）を入力してください</p>
-                  )}
-                </div>
+            {/* 電話番号 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                電話番号 <span className="text-red-500">*</span>
+              </label>
+              <PhoneNumberInput
+                required
+                value={formData.phoneNumber}
+                onChange={(value) => setFormData({ ...formData, phoneNumber: value })}
+                placeholder="09012345678"
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.phoneNumber ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+              />
+              {showErrors && !formData.phoneNumber && (
+                <p className="text-red-500 text-xs mt-1">電話番号を入力してください</p>
+              )}
+              <p className="text-xs text-gray-500 mt-1">※数字のみ（10桁または11桁）</p>
+            </div>
+
+            {/* パスワード */}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  パスワード <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.password ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                  placeholder="8文字以上"
+                  minLength={8}
+                />
+                <p className="text-xs text-gray-500 mt-1">8文字以上で入力してください</p>
+                {showErrors && !formData.password && (
+                  <p className="text-red-500 text-xs mt-1">パスワードを入力してください</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  パスワード（確認） <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={formData.passwordConfirm}
+                  onChange={(e) => setFormData({ ...formData, passwordConfirm: e.target.value })}
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.passwordConfirm ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                  placeholder="パスワードを再入力"
+                  minLength={8}
+                />
+                {showErrors && !formData.passwordConfirm && (
+                  <p className="text-red-500 text-xs mt-1">パスワード（確認）を入力してください</p>
+                )}
               </div>
             </div>
 
-            {/* 5. 利用規約同意 */}
-            <div id="terms-section" className={`p-4 bg-gray-50 rounded-lg border space-y-4 ${showErrors && !agreedToTerms ? 'border-red-500' : 'border-gray-200'}`}>
-              <h3 className="font-bold text-gray-900">利用規約 <span className="text-red-500">*</span></h3>
+            {/* 利用規約同意 */}
+            <div id="terms-section" className={`p-4 bg-gray-50 rounded-lg border ${showErrors && !agreedToTerms ? 'border-red-500' : 'border-gray-200'}`}>
               <div className="space-y-3">
-                <p className="text-sm text-gray-600">
-                  本サービスをご利用いただくには、利用規約への同意が必要です。
-                </p>
                 <button
                   type="button"
                   onClick={() => setShowTermsModal(true)}
@@ -833,6 +309,7 @@ export default function WorkerRegisterPage() {
                   />
                   <span className="text-sm">
                     <span className="font-medium">利用規約に同意します</span>
+                    <span className="text-red-500 ml-1">*</span>
                     <span className="text-gray-500 block text-xs mt-1">
                       （最終更新日: {TERMS_LAST_UPDATED}）
                     </span>
@@ -842,6 +319,13 @@ export default function WorkerRegisterPage() {
                   <p className="text-red-500 text-xs">利用規約に同意してください</p>
                 )}
               </div>
+            </div>
+
+            {/* 案内文 */}
+            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <p className="text-sm text-blue-800">
+                📝 氏名・住所・資格などの詳細情報は、登録後にマイページから入力できます。求人に応募する際に必要となります。
+              </p>
             </div>
 
             {/* ボタン */}
@@ -855,11 +339,11 @@ export default function WorkerRegisterPage() {
               </button>
               <button
                 type="submit"
-                disabled={isSubmitting || !!compressingQual}
+                disabled={isSubmitting}
                 className="px-6 py-2 bg-primary hover:bg-primary-dark text-white rounded-md transition-colors font-bold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-w-[100px]"
               >
-                {(isSubmitting || compressingQual) && <LoadingSpinner size="sm" color="white" />}
-                {compressingQual ? '画像圧縮中...' : isSubmitting ? '登録中...' : '登録'}
+                {isSubmitting && <LoadingSpinner size="sm" color="white" />}
+                {isSubmitting ? '登録中...' : '登録'}
               </button>
             </div>
           </form>
