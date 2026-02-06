@@ -22,6 +22,16 @@ export interface MinimumWageData {
   effectiveFrom: Date;
   createdAt: Date;
   updatedAt: Date;
+  status?: 'active' | 'scheduled';
+}
+
+/**
+ * 管理画面用: 都道府県ごとの現行 + 予定ビュー
+ */
+export interface AdminMinimumWageView {
+  prefecture: string;
+  active: MinimumWageData | null;
+  scheduled: MinimumWageData | null;
 }
 
 /**
@@ -37,32 +47,97 @@ export interface MinimumWageHistoryData {
 }
 
 /**
- * 全都道府県の最低賃金を取得（適用開始日を考慮）
+ * DBレコードをMinimumWageDataに変換するヘルパー
+ */
+function toWageData(
+  w: { id: number; prefecture: string; hourly_wage: number; effective_from: Date; created_at: Date; updated_at: Date },
+  status: 'active' | 'scheduled'
+): MinimumWageData {
+  return {
+    id: w.id,
+    prefecture: w.prefecture,
+    hourlyWage: w.hourly_wage,
+    effectiveFrom: w.effective_from,
+    createdAt: w.created_at,
+    updatedAt: w.updated_at,
+    status,
+  };
+}
+
+/**
+ * 予定が適用日を過ぎたレコードを自動昇格（古いactiveをHistoryへ移動）
+ * クエリ時に呼び出される。47都道府県×最大2件のため処理コストは無視可能。
+ */
+async function promoteScheduledWages(): Promise<void> {
+  const now = new Date();
+
+  await prisma.$transaction(async (tx) => {
+    const allWages = await tx.minimumWage.findMany({
+      orderBy: [{ prefecture: 'asc' }, { effective_from: 'desc' }],
+    });
+
+    // 都道府県ごとにグループ化
+    const byPref = new Map<string, typeof allWages>();
+    for (const w of allWages) {
+      if (!byPref.has(w.prefecture)) byPref.set(w.prefecture, []);
+      byPref.get(w.prefecture)!.push(w);
+    }
+
+    for (const records of Array.from(byPref.values())) {
+      // effective_from <= now のレコード（active候補）
+      const activeRecords = records.filter(r => r.effective_from <= now);
+      if (activeRecords.length > 1) {
+        // effective_from descで並んでいるので、先頭が最新
+        const latestEffectiveFrom = activeRecords[0].effective_from;
+        const archiveIds = activeRecords.slice(1).map(r => r.id);
+
+        // 冪等な一括アーカイブ: 条件付きdeleteMany で存在チェック不要
+        for (const old of activeRecords.slice(1)) {
+          await tx.minimumWageHistory.create({
+            data: {
+              prefecture: old.prefecture,
+              hourly_wage: old.hourly_wage,
+              effective_from: old.effective_from,
+              effective_to: latestEffectiveFrom,
+              archived_at: now,
+            },
+          });
+        }
+        await tx.minimumWage.deleteMany({
+          where: { id: { in: archiveIds } },
+        });
+      }
+    }
+  });
+}
+
+/**
+ * 全都道府県の最低賃金を取得（ワーカー/施設向け）
  * - 適用開始日が現在日以前のデータのみ有効
+ * - 各都道府県で最新の1件のみ返す
  */
 export async function getAllMinimumWages(): Promise<MinimumWageData[]> {
   try {
+    await promoteScheduledWages();
     const now = new Date();
 
     const wages = await prisma.minimumWage.findMany({
       where: {
-        effective_from: {
-          lte: now,
-        },
+        effective_from: { lte: now },
       },
-      orderBy: {
-        prefecture: 'asc',
-      },
+      orderBy: [{ prefecture: 'asc' }, { effective_from: 'desc' }],
     });
 
-    return wages.map(w => ({
-      id: w.id,
-      prefecture: w.prefecture,
-      hourlyWage: w.hourly_wage,
-      effectiveFrom: w.effective_from,
-      createdAt: w.created_at,
-      updatedAt: w.updated_at,
-    }));
+    // 各都道府県で最新の1件のみ
+    const seen = new Set<string>();
+    const result: MinimumWageData[] = [];
+    for (const w of wages) {
+      if (!seen.has(w.prefecture)) {
+        seen.add(w.prefecture);
+        result.push(toWageData(w, 'active'));
+      }
+    }
+    return result;
   } catch (error) {
     console.error('[getAllMinimumWages] Error:', error);
     return [];
@@ -70,28 +145,50 @@ export async function getAllMinimumWages(): Promise<MinimumWageData[]> {
 }
 
 /**
- * 全都道府県の最低賃金を取得（適用開始日関係なく全件）
- * 管理画面表示用
+ * 管理画面用: 全都道府県の現行 + 予定を取得
+ * 都道府県ごとに active と scheduled に分類して返す
  */
-export async function getAllMinimumWagesForAdmin(): Promise<MinimumWageData[]> {
+export async function getAllMinimumWagesForAdmin(): Promise<AdminMinimumWageView[]> {
   try {
+    await promoteScheduledWages();
+    const now = new Date();
+
     const wages = await prisma.minimumWage.findMany({
-      orderBy: {
-        prefecture: 'asc',
-      },
+      orderBy: [{ prefecture: 'asc' }, { effective_from: 'desc' }],
     });
 
-    return wages.map(w => ({
-      id: w.id,
-      prefecture: w.prefecture,
-      hourlyWage: w.hourly_wage,
-      effectiveFrom: w.effective_from,
-      createdAt: w.created_at,
-      updatedAt: w.updated_at,
+    // 都道府県ごとに分類
+    const prefMap = new Map<string, { active: MinimumWageData | null; scheduled: MinimumWageData | null }>();
+
+    for (const w of wages) {
+      if (!prefMap.has(w.prefecture)) {
+        prefMap.set(w.prefecture, { active: null, scheduled: null });
+      }
+      const entry = prefMap.get(w.prefecture)!;
+      const isScheduled = w.effective_from > now;
+
+      if (isScheduled) {
+        // 予定: 最も早い未来日付のもの
+        if (!entry.scheduled || w.effective_from < entry.scheduled.effectiveFrom) {
+          entry.scheduled = toWageData(w, 'scheduled');
+        }
+      } else {
+        // 現行: 最新の effective_from（descソートなので最初のもの）
+        if (!entry.active) {
+          entry.active = toWageData(w, 'active');
+        }
+      }
+    }
+
+    // 47都道府県すべてについてビューを返す
+    return PREFECTURES.map(pref => ({
+      prefecture: pref,
+      active: prefMap.get(pref)?.active ?? null,
+      scheduled: prefMap.get(pref)?.scheduled ?? null,
     }));
   } catch (error) {
     console.error('[getAllMinimumWagesForAdmin] Error:', error);
-    return [];
+    return PREFECTURES.map(pref => ({ prefecture: pref, active: null, scheduled: null }));
   }
 }
 
@@ -112,10 +209,9 @@ export async function getMinimumWageForPrefecture(
     const wage = await prisma.minimumWage.findFirst({
       where: {
         prefecture: normalized,
-        effective_from: {
-          lte: now,
-        },
+        effective_from: { lte: now },
       },
+      orderBy: { effective_from: 'desc' },
     });
 
     return wage?.hourly_wage ?? null;
@@ -126,7 +222,9 @@ export async function getMinimumWageForPrefecture(
 }
 
 /**
- * 単一の都道府県の最低賃金を更新
+ * 単一の都道府県の最低賃金を更新/予定登録
+ * - effectiveFrom > now → 予定として登録（現行は変更しない）
+ * - effectiveFrom <= now → 即時更新（現行をHistoryに移動）
  */
 export async function upsertMinimumWage(
   prefecture: string,
@@ -144,39 +242,68 @@ export async function upsertMinimumWage(
       return { success: false, error: '時給は正の数である必要があります' };
     }
 
-    // 既存データを履歴に保存
-    const existing = await prisma.minimumWage.findUnique({
-      where: { prefecture: normalized },
-    });
+    const now = new Date();
+    const isScheduled = effectiveFrom > now;
 
-    if (existing) {
-      await prisma.minimumWageHistory.create({
-        data: {
-          prefecture: existing.prefecture,
-          hourly_wage: existing.hourly_wage,
-          effective_from: existing.effective_from,
-          effective_to: effectiveFrom,
-          archived_at: new Date(),
-        },
-      });
-    }
+    await prisma.$transaction(async (tx) => {
+      if (isScheduled) {
+        // 予定登録: 既存の予定を削除してから新規作成
+        await tx.minimumWage.deleteMany({
+          where: {
+            prefecture: normalized,
+            effective_from: { gt: now },
+          },
+        });
+        await tx.minimumWage.create({
+          data: {
+            prefecture: normalized,
+            hourly_wage: hourlyWage,
+            effective_from: effectiveFrom,
+            updated_by_type: updatedBy?.type,
+            updated_by_id: updatedBy?.id,
+          },
+        });
+      } else {
+        // 即時更新: 現行のactiveをHistory移動してupdate
+        const currentActive = await tx.minimumWage.findFirst({
+          where: {
+            prefecture: normalized,
+            effective_from: { lte: now },
+          },
+          orderBy: { effective_from: 'desc' },
+        });
 
-    // upsert
-    await prisma.minimumWage.upsert({
-      where: { prefecture: normalized },
-      update: {
-        hourly_wage: hourlyWage,
-        effective_from: effectiveFrom,
-        updated_by_type: updatedBy?.type,
-        updated_by_id: updatedBy?.id,
-      },
-      create: {
-        prefecture: normalized,
-        hourly_wage: hourlyWage,
-        effective_from: effectiveFrom,
-        updated_by_type: updatedBy?.type,
-        updated_by_id: updatedBy?.id,
-      },
+        if (currentActive) {
+          await tx.minimumWageHistory.create({
+            data: {
+              prefecture: currentActive.prefecture,
+              hourly_wage: currentActive.hourly_wage,
+              effective_from: currentActive.effective_from,
+              effective_to: effectiveFrom,
+              archived_at: new Date(),
+            },
+          });
+          await tx.minimumWage.update({
+            where: { id: currentActive.id },
+            data: {
+              hourly_wage: hourlyWage,
+              effective_from: effectiveFrom,
+              updated_by_type: updatedBy?.type,
+              updated_by_id: updatedBy?.id,
+            },
+          });
+        } else {
+          await tx.minimumWage.create({
+            data: {
+              prefecture: normalized,
+              hourly_wage: hourlyWage,
+              effective_from: effectiveFrom,
+              updated_by_type: updatedBy?.type,
+              updated_by_id: updatedBy?.id,
+            },
+          });
+        }
+      }
     });
 
     return { success: true };
@@ -188,9 +315,8 @@ export async function upsertMinimumWage(
 
 /**
  * CSVから最低賃金を一括インポート
- * @param csvContent CSV文字列
- * @param effectiveFrom 適用開始日
- * @param updatedBy 更新者情報
+ * - effectiveFrom > now → 予定として一括登録（現行は変更しない）
+ * - effectiveFrom <= now → 即時一括更新（現行をHistoryに移動）
  */
 export async function importMinimumWages(
   csvContent: string,
@@ -212,47 +338,84 @@ export async function importMinimumWages(
       };
     }
 
-    // トランザクションで一括処理
+    const now = new Date();
+    const isScheduled = effectiveFrom > now;
+    const prefectures = data.map(d => d.prefecture);
+
     await prisma.$transaction(async (tx) => {
-      // 既存データを履歴に保存
-      const existingWages = await tx.minimumWage.findMany({
-        where: {
-          prefecture: {
-            in: data.map(d => d.prefecture),
+      if (isScheduled) {
+        // 予定一括登録: 対象都道府県の既存予定を削除してから新規作成
+        await tx.minimumWage.deleteMany({
+          where: {
+            prefecture: { in: prefectures },
+            effective_from: { gt: now },
           },
-        },
-      });
-
-      if (existingWages.length > 0) {
-        await tx.minimumWageHistory.createMany({
-          data: existingWages.map(w => ({
-            prefecture: w.prefecture,
-            hourly_wage: w.hourly_wage,
-            effective_from: w.effective_from,
-            effective_to: effectiveFrom,
-            archived_at: new Date(),
-          })),
         });
-      }
-
-      // 新データをupsert
-      for (const item of data) {
-        await tx.minimumWage.upsert({
-          where: { prefecture: item.prefecture },
-          update: {
-            hourly_wage: item.hourlyWage,
-            effective_from: effectiveFrom,
-            updated_by_type: updatedBy?.type,
-            updated_by_id: updatedBy?.id,
-          },
-          create: {
+        // createMany で一括作成
+        await tx.minimumWage.createMany({
+          data: data.map(item => ({
             prefecture: item.prefecture,
             hourly_wage: item.hourlyWage,
             effective_from: effectiveFrom,
             updated_by_type: updatedBy?.type,
             updated_by_id: updatedBy?.id,
-          },
+          })),
         });
+      } else {
+        // 即時一括更新: 既存activeをHistoryに保存してから更新/作成
+        const existingActive = await tx.minimumWage.findMany({
+          where: {
+            prefecture: { in: prefectures },
+            effective_from: { lte: now },
+          },
+          orderBy: [{ prefecture: 'asc' }, { effective_from: 'desc' }],
+        });
+
+        // 都道府県ごとの最新activeのみアーカイブ対象
+        const activeByPref = new Map<string, typeof existingActive[0]>();
+        for (const w of existingActive) {
+          if (!activeByPref.has(w.prefecture)) {
+            activeByPref.set(w.prefecture, w);
+          }
+        }
+
+        if (activeByPref.size > 0) {
+          await tx.minimumWageHistory.createMany({
+            data: Array.from(activeByPref.values()).map(w => ({
+              prefecture: w.prefecture,
+              hourly_wage: w.hourly_wage,
+              effective_from: w.effective_from,
+              effective_to: effectiveFrom,
+              archived_at: new Date(),
+            })),
+          });
+        }
+
+        // 各都道府県について更新 or 作成
+        for (const item of data) {
+          const existing = activeByPref.get(item.prefecture);
+          if (existing) {
+            await tx.minimumWage.update({
+              where: { id: existing.id },
+              data: {
+                hourly_wage: item.hourlyWage,
+                effective_from: effectiveFrom,
+                updated_by_type: updatedBy?.type,
+                updated_by_id: updatedBy?.id,
+              },
+            });
+          } else {
+            await tx.minimumWage.create({
+              data: {
+                prefecture: item.prefecture,
+                hourly_wage: item.hourlyWage,
+                effective_from: effectiveFrom,
+                updated_by_type: updatedBy?.type,
+                updated_by_id: updatedBy?.id,
+              },
+            });
+          }
+        }
       }
     });
 
@@ -268,6 +431,32 @@ export async function importMinimumWages(
       imported: 0,
       errors: [{ line: 0, content: '', reason: 'インポート処理中にエラーが発生しました' }],
     };
+  }
+}
+
+/**
+ * 予定の最低賃金を取消
+ * effective_from > now のレコードのみ削除可能
+ */
+export async function deleteScheduledWage(
+  id: number
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const now = new Date();
+    // TOCTOU安全: 1クエリで条件付き削除（effective_from > now のみ削除可能）
+    const result = await prisma.minimumWage.deleteMany({
+      where: {
+        id,
+        effective_from: { gt: now },
+      },
+    });
+    if (result.count === 0) {
+      return { success: false, error: '該当する予定データが見つからないか、既に適用中のため削除できません' };
+    }
+    return { success: true };
+  } catch (error) {
+    console.error('[deleteScheduledWage] Error:', error);
+    return { success: false, error: '予定の取消に失敗しました' };
   }
 }
 
@@ -313,10 +502,15 @@ export async function getMinimumWageHistory(
 
 /**
  * 未登録の都道府県一覧を取得
+ * 現行（active）のレコードがない都道府県を返す（予定のみの場合も未登録扱い）
  */
 export async function getMissingPrefectures(): Promise<Prefecture[]> {
   try {
+    const now = new Date();
     const existing = await prisma.minimumWage.findMany({
+      where: {
+        effective_from: { lte: now },
+      },
       select: { prefecture: true },
     });
 

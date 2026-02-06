@@ -11,7 +11,9 @@ import {
   CheckCircle,
   ChevronDown,
   ChevronUp,
+  Clock,
   X,
+  Trash2,
 } from 'lucide-react';
 import { PREFECTURES } from '@/constants/prefectureCities';
 import { parseMinimumWageCsv, decodeCsvBuffer } from '@/src/lib/prefecture-utils';
@@ -23,6 +25,13 @@ interface MinimumWageData {
   effectiveFrom: string;
   createdAt: string;
   updatedAt: string;
+  status?: 'active' | 'scheduled';
+}
+
+interface AdminMinimumWageView {
+  prefecture: string;
+  active: MinimumWageData | null;
+  scheduled: MinimumWageData | null;
 }
 
 interface HistoryData {
@@ -42,7 +51,7 @@ interface CsvError {
 
 export default function MinimumWagePage() {
   // データ
-  const [wages, setWages] = useState<MinimumWageData[]>([]);
+  const [prefectureViews, setPrefectureViews] = useState<AdminMinimumWageView[]>([]);
   const [missingPrefectures, setMissingPrefectures] = useState<string[]>([]);
   const [history, setHistory] = useState<HistoryData[]>([]);
 
@@ -51,10 +60,17 @@ export default function MinimumWagePage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // 編集中の行
+  // 編集中の行（現行の即時編集）
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingPrefecture, setEditingPrefecture] = useState<string>('');
   const [editingWage, setEditingWage] = useState<string>('');
   const [editingEffectiveFrom, setEditingEffectiveFrom] = useState<string>('');
+
+  // 予定登録/編集
+  const [schedulingPrefecture, setSchedulingPrefecture] = useState<string | null>(null);
+  const [scheduleWage, setScheduleWage] = useState<string>('');
+  const [scheduleEffectiveFrom, setScheduleEffectiveFrom] = useState<string>('');
+  const [schedulingExistingId, setSchedulingExistingId] = useState<number | null>(null);
 
   // CSVインポート
   const [showImportModal, setShowImportModal] = useState(false);
@@ -75,7 +91,7 @@ export default function MinimumWagePage() {
       const res = await fetch('/api/system-admin/minimum-wage');
       if (res.ok) {
         const data = await res.json();
-        setWages(data.wages || []);
+        setPrefectureViews(data.prefectures || []);
         setMissingPrefectures(data.missingPrefectures || []);
       }
     } catch (error) {
@@ -92,7 +108,7 @@ export default function MinimumWagePage() {
 
   // 履歴取得
   const fetchHistory = async () => {
-    if (history.length > 0) return; // 既に取得済み
+    if (history.length > 0) return;
     setLoadingHistory(true);
     try {
       const res = await fetch('/api/system-admin/minimum-wage/history');
@@ -107,9 +123,10 @@ export default function MinimumWagePage() {
     }
   };
 
-  // 編集開始
+  // 現行の編集開始
   const startEdit = (wage: MinimumWageData) => {
     setEditingId(wage.id);
+    setEditingPrefecture(wage.prefecture);
     setEditingWage(wage.hourlyWage.toString());
     setEditingEffectiveFrom(wage.effectiveFrom.split('T')[0]);
   };
@@ -117,11 +134,12 @@ export default function MinimumWagePage() {
   // 編集キャンセル
   const cancelEdit = () => {
     setEditingId(null);
+    setEditingPrefecture('');
     setEditingWage('');
     setEditingEffectiveFrom('');
   };
 
-  // 保存
+  // 現行の保存
   const saveEdit = async (prefecture: string) => {
     const hourlyWage = parseInt(editingWage, 10);
     if (isNaN(hourlyWage) || hourlyWage <= 0) {
@@ -152,20 +170,122 @@ export default function MinimumWagePage() {
         setMessage({ type: 'success', text: `${prefecture}の最低賃金を更新しました` });
         cancelEdit();
         fetchData();
-        // 履歴も更新
         setHistory([]);
       } else {
         const data = await res.json();
         setMessage({ type: 'error', text: data.error || '更新に失敗しました' });
       }
-    } catch (error) {
+    } catch {
       setMessage({ type: 'error', text: '更新に失敗しました' });
     } finally {
       setSaving(false);
     }
   };
 
-  // CSVインポート
+  // 予定登録開始
+  const startSchedule = (prefecture: string, existingScheduled?: MinimumWageData | null) => {
+    setSchedulingPrefecture(prefecture);
+    if (existingScheduled) {
+      setScheduleWage(existingScheduled.hourlyWage.toString());
+      setScheduleEffectiveFrom(existingScheduled.effectiveFrom.split('T')[0]);
+      setSchedulingExistingId(existingScheduled.id);
+    } else {
+      setScheduleWage('');
+      setScheduleEffectiveFrom('');
+      setSchedulingExistingId(null);
+    }
+  };
+
+  // 予定登録キャンセル
+  const cancelSchedule = () => {
+    setSchedulingPrefecture(null);
+    setScheduleWage('');
+    setScheduleEffectiveFrom('');
+    setSchedulingExistingId(null);
+  };
+
+  // 予定保存
+  const saveSchedule = async () => {
+    if (!schedulingPrefecture) return;
+
+    const hourlyWage = parseInt(scheduleWage, 10);
+    if (isNaN(hourlyWage) || hourlyWage <= 0) {
+      setMessage({ type: 'error', text: '時給は正の数で入力してください' });
+      return;
+    }
+
+    if (!scheduleEffectiveFrom) {
+      setMessage({ type: 'error', text: '適用予定日を入力してください' });
+      return;
+    }
+
+    // 未来日付チェック
+    const selectedDate = new Date(scheduleEffectiveFrom);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (selectedDate <= today) {
+      setMessage({ type: 'error', text: '予定の適用開始日は明日以降の日付を選択してください' });
+      return;
+    }
+
+    setSaving(true);
+    setMessage(null);
+
+    try {
+      const res = await fetch('/api/system-admin/minimum-wage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prefecture: schedulingPrefecture,
+          hourlyWage,
+          effectiveFrom: scheduleEffectiveFrom,
+        }),
+      });
+
+      if (res.ok) {
+        const action = schedulingExistingId ? '更新' : '登録';
+        setMessage({ type: 'success', text: `${schedulingPrefecture}の予定を${action}しました` });
+        cancelSchedule();
+        fetchData();
+      } else {
+        const data = await res.json();
+        setMessage({ type: 'error', text: data.error || '予定の登録に失敗しました' });
+      }
+    } catch {
+      setMessage({ type: 'error', text: '予定の登録に失敗しました' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // 予定取消
+  const deleteSchedule = async (id: number, prefecture: string) => {
+    if (!window.confirm(`${prefecture}の予定を取り消しますか？`)) return;
+
+    setSaving(true);
+    setMessage(null);
+
+    try {
+      const res = await fetch('/api/system-admin/minimum-wage', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+
+      if (res.ok) {
+        setMessage({ type: 'success', text: `${prefecture}の予定を取り消しました` });
+        fetchData();
+      } else {
+        const data = await res.json();
+        setMessage({ type: 'error', text: data.error || '取消に失敗しました' });
+      }
+    } catch {
+      setMessage({ type: 'error', text: '取消に失敗しました' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // CSVファイル選択時にプレビュー表示
   const handleFileSelect = async (file: File | null) => {
     setImportFile(file);
@@ -219,9 +339,11 @@ export default function MinimumWagePage() {
       const data = await res.json();
 
       if (data.success) {
+        const isScheduled = new Date(effectiveDate) > new Date();
+        const label = isScheduled ? '予定として' : '';
         setMessage({
           type: 'success',
-          text: `${data.imported}件の最低賃金をインポートしました`,
+          text: `${data.imported}件の最低賃金を${label}インポートしました`,
         });
         setShowImportModal(false);
         setImportFile(null);
@@ -231,7 +353,6 @@ export default function MinimumWagePage() {
           fileInputRef.current.value = '';
         }
         fetchData();
-        // 履歴も更新
         setHistory([]);
       } else {
         setImportErrors(data.errors || []);
@@ -239,7 +360,7 @@ export default function MinimumWagePage() {
           setMessage({ type: 'error', text: 'インポートに失敗しました' });
         }
       }
-    } catch (error) {
+    } catch {
       setMessage({ type: 'error', text: 'インポートに失敗しました' });
     } finally {
       setImporting(false);
@@ -283,6 +404,16 @@ export default function MinimumWagePage() {
     document.body.removeChild(link);
   };
 
+  // 日付フォーマット
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('ja-JP');
+  };
+
+  // インポート時の予定/即時判定
+  const isImportScheduled = importEffectiveFrom
+    ? new Date(importEffectiveFrom) > new Date()
+    : false;
+
   // ローディング表示
   if (loading) {
     return (
@@ -298,11 +429,8 @@ export default function MinimumWagePage() {
     );
   }
 
-  // 都道府県ごとのデータをマップ化
-  const wageMap = new Map(wages.map(w => [w.prefecture, w]));
-
   return (
-    <div className="p-6 max-w-6xl">
+    <div className="p-6 max-w-7xl">
       {/* ヘッダー */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">最低賃金設定</h1>
@@ -357,95 +485,203 @@ export default function MinimumWagePage() {
 
       {/* 最低賃金一覧テーブル */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-6">
-        <table className="w-full">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
-                都道府県
-              </th>
-              <th className="px-4 py-3 text-right text-sm font-medium text-gray-700">
-                時給（円）
-              </th>
-              <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">
-                適用開始日
-              </th>
-              <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">
-                操作
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {PREFECTURES.map(pref => {
-              const wage = wageMap.get(pref);
-              const isEditing = wage && editingId === wage.id;
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[900px]">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 w-[120px]">
+                  都道府県
+                </th>
+                <th className="px-4 py-3 text-right text-sm font-medium text-gray-700 w-[120px]">
+                  現行時給
+                </th>
+                <th className="px-4 py-3 text-center text-sm font-medium text-gray-700 w-[130px]">
+                  適用日
+                </th>
+                <th className="px-4 py-3 text-right text-sm font-medium text-gray-700 w-[120px]">
+                  <span className="flex items-center justify-end gap-1">
+                    <Clock className="w-3.5 h-3.5 text-blue-500" />
+                    予定時給
+                  </span>
+                </th>
+                <th className="px-4 py-3 text-center text-sm font-medium text-gray-700 w-[130px]">
+                  予定開始日
+                </th>
+                <th className="px-4 py-3 text-center text-sm font-medium text-gray-700 w-[200px]">
+                  操作
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {prefectureViews.map(view => {
+                const { prefecture, active, scheduled } = view;
+                const isEditingActive = active && editingId === active.id;
+                const isScheduling = schedulingPrefecture === prefecture;
+                const hasSchedule = !!scheduled;
 
-              return (
-                <tr key={pref} className={!wage ? 'bg-yellow-50' : ''}>
-                  <td className="px-4 py-3 text-sm">{pref}</td>
-                  <td className="px-4 py-3 text-right">
-                    {isEditing ? (
-                      <input
-                        type="number"
-                        value={editingWage}
-                        onChange={e => setEditingWage(e.target.value)}
-                        className="w-24 px-2 py-1 border border-gray-300 rounded text-right"
-                        min="1"
-                      />
-                    ) : wage ? (
-                      <span className="font-mono">¥{wage.hourlyWage.toLocaleString()}</span>
-                    ) : (
-                      <span className="text-gray-400">-</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    {isEditing ? (
-                      <input
-                        type="date"
-                        value={editingEffectiveFrom}
-                        onChange={e => setEditingEffectiveFrom(e.target.value)}
-                        className="px-2 py-1 border border-gray-300 rounded"
-                      />
-                    ) : wage ? (
-                      <span className="text-sm text-gray-600">
-                        {new Date(wage.effectiveFrom).toLocaleDateString('ja-JP')}
-                      </span>
-                    ) : (
-                      <span className="text-gray-400">-</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    {isEditing ? (
-                      <div className="flex justify-center gap-2">
-                        <button
-                          onClick={() => saveEdit(pref)}
-                          disabled={saving}
-                          className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:opacity-50"
-                        >
-                          <Save className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={cancelEdit}
-                          className="px-3 py-1 bg-gray-400 text-white text-sm rounded hover:bg-gray-500"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ) : wage ? (
-                      <button
-                        onClick={() => startEdit(wage)}
-                        className="px-3 py-1 bg-blue-100 text-blue-700 text-sm rounded hover:bg-blue-200"
-                      >
-                        編集
-                      </button>
-                    ) : (
-                      <span className="text-sm text-gray-400">CSVで登録</span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                return (
+                  <tr
+                    key={prefecture}
+                    className={`${!active ? 'bg-yellow-50' : ''} ${hasSchedule ? 'border-l-4 border-l-blue-300' : 'border-l-4 border-l-transparent'}`}
+                  >
+                    {/* 都道府県 */}
+                    <td className="px-4 py-3 text-sm font-medium">{prefecture}</td>
+
+                    {/* 現行時給 */}
+                    <td className="px-4 py-3 text-right">
+                      {isEditingActive ? (
+                        <input
+                          type="number"
+                          value={editingWage}
+                          onChange={e => setEditingWage(e.target.value)}
+                          className="w-24 px-2 py-1 border border-gray-300 rounded text-right"
+                          min="1"
+                        />
+                      ) : active ? (
+                        <span className="font-mono">¥{active.hourlyWage.toLocaleString()}</span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </td>
+
+                    {/* 適用日 */}
+                    <td className="px-4 py-3 text-center">
+                      {isEditingActive ? (
+                        <input
+                          type="date"
+                          value={editingEffectiveFrom}
+                          onChange={e => setEditingEffectiveFrom(e.target.value)}
+                          className="px-2 py-1 border border-gray-300 rounded text-sm"
+                        />
+                      ) : active ? (
+                        <span className="text-sm text-gray-600">
+                          {formatDate(active.effectiveFrom)}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </td>
+
+                    {/* 予定時給 */}
+                    <td className="px-4 py-3 text-right">
+                      {isScheduling ? (
+                        <input
+                          type="number"
+                          value={scheduleWage}
+                          onChange={e => setScheduleWage(e.target.value)}
+                          className="w-24 px-2 py-1 border border-blue-300 rounded text-right bg-blue-50"
+                          min="1"
+                        />
+                      ) : scheduled ? (
+                        <span className="flex items-center justify-end gap-1.5">
+                          <span className="font-mono text-blue-700">¥{scheduled.hourlyWage.toLocaleString()}</span>
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 text-blue-600">
+                            予定
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="text-gray-300">-</span>
+                      )}
+                    </td>
+
+                    {/* 予定開始日 */}
+                    <td className="px-4 py-3 text-center">
+                      {isScheduling ? (
+                        <input
+                          type="date"
+                          value={scheduleEffectiveFrom}
+                          onChange={e => setScheduleEffectiveFrom(e.target.value)}
+                          className="px-2 py-1 border border-blue-300 rounded text-sm bg-blue-50"
+                        />
+                      ) : scheduled ? (
+                        <span className="text-sm text-blue-600">
+                          {formatDate(scheduled.effectiveFrom)}
+                        </span>
+                      ) : (
+                        <span className="text-gray-300">-</span>
+                      )}
+                    </td>
+
+                    {/* 操作 */}
+                    <td className="px-4 py-3 text-center">
+                      {isEditingActive ? (
+                        <div className="flex justify-center gap-1.5">
+                          <button
+                            onClick={() => saveEdit(prefecture)}
+                            disabled={saving}
+                            className="px-2.5 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:opacity-50"
+                          >
+                            <Save className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={cancelEdit}
+                            className="px-2.5 py-1 bg-gray-400 text-white text-sm rounded hover:bg-gray-500"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : isScheduling ? (
+                        <div className="flex justify-center gap-1.5">
+                          <button
+                            onClick={saveSchedule}
+                            disabled={saving}
+                            className="px-2.5 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50"
+                          >
+                            <Save className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={cancelSchedule}
+                            className="px-2.5 py-1 bg-gray-400 text-white text-sm rounded hover:bg-gray-500"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex justify-center gap-1.5 flex-wrap">
+                          {active && (
+                            <button
+                              onClick={() => startEdit(active)}
+                              className="px-2.5 py-1 bg-gray-100 text-gray-700 text-xs rounded hover:bg-gray-200"
+                            >
+                              編集
+                            </button>
+                          )}
+                          {scheduled ? (
+                            <>
+                              <button
+                                onClick={() => startSchedule(prefecture, scheduled)}
+                                className="px-2.5 py-1 bg-blue-50 text-blue-700 text-xs rounded hover:bg-blue-100"
+                              >
+                                予定編集
+                              </button>
+                              <button
+                                onClick={() => deleteSchedule(scheduled.id, prefecture)}
+                                className="px-2 py-1 bg-red-50 text-red-600 text-xs rounded hover:bg-red-100"
+                                title="予定を取消"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => startSchedule(prefecture)}
+                              className="px-2.5 py-1 bg-blue-50 text-blue-700 text-xs rounded hover:bg-blue-100"
+                            >
+                              予定登録
+                            </button>
+                          )}
+                          {!active && !scheduled && (
+                            <span className="text-xs text-gray-400">CSVで登録</span>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* 履歴セクション */}
@@ -505,15 +741,15 @@ export default function MinimumWagePage() {
                           ¥{h.hourlyWage.toLocaleString()}
                         </td>
                         <td className="px-3 py-2 text-center text-gray-600">
-                          {new Date(h.effectiveFrom).toLocaleDateString('ja-JP')}
+                          {formatDate(h.effectiveFrom)}
                         </td>
                         <td className="px-3 py-2 text-center text-gray-600">
                           {h.effectiveTo
-                            ? new Date(h.effectiveTo).toLocaleDateString('ja-JP')
+                            ? formatDate(h.effectiveTo)
                             : '-'}
                         </td>
                         <td className="px-3 py-2 text-center text-gray-600">
-                          {new Date(h.archivedAt).toLocaleDateString('ja-JP')}
+                          {formatDate(h.archivedAt)}
                         </td>
                       </tr>
                     ))}
@@ -597,6 +833,25 @@ export default function MinimumWagePage() {
                 <p className="mt-1 text-xs text-gray-500">
                   未入力の場合、本日から即反映するか確認されます
                 </p>
+                {importEffectiveFrom && (
+                  <div className={`mt-2 px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 ${
+                    isImportScheduled
+                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                      : 'bg-amber-50 text-amber-700 border border-amber-200'
+                  }`}>
+                    {isImportScheduled ? (
+                      <>
+                        <Clock className="w-3.5 h-3.5" />
+                        予定として登録されます。現在の賃金は変更されません。
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        即時適用されます。現在の賃金は履歴に保存されます。
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* プレビュー */}
@@ -605,6 +860,11 @@ export default function MinimumWagePage() {
                   <div className="bg-green-50 px-4 py-2 border-b border-green-200">
                     <p className="text-sm font-medium text-green-800">
                       プレビュー（{previewData.length}件）
+                      {isImportScheduled && (
+                        <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-blue-100 text-blue-600">
+                          予定として登録
+                        </span>
+                      )}
                     </p>
                   </div>
                   <div className="max-h-48 overflow-auto">
@@ -655,6 +915,7 @@ export default function MinimumWagePage() {
                   インポート時の注意
                 </h3>
                 <ul className="text-xs text-blue-700 space-y-1">
+                  <li>• 適用開始日が未来の場合、予定データとして登録されます（現在の賃金は変更されません）</li>
                   <li>• 既存のデータは履歴として自動バックアップされます</li>
                   <li>• 都道府県名は「東京都」「東京」どちらでも認識されます</li>
                   <li>• 時給は「1163」「1,163」どちらでも認識されます</li>
