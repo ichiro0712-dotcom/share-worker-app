@@ -27,6 +27,7 @@ import {
     ICON_OPTIONS,
     BREAK_TIME_OPTIONS,
     TRANSPORTATION_FEE_OPTIONS,
+    TRANSPORTATION_FEE_MAX,
     RECRUITMENT_START_DAY_OPTIONS,
     RECRUITMENT_END_DAY_OPTIONS,
     HOUR_OPTIONS,
@@ -125,6 +126,8 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
     // initialDataがある場合はcreateモードでもロード不要（データ事前取得済み）
     const [isLoading, setIsLoading] = useState(mode === 'edit' || !initialData);
     const [isSaving, setIsSaving] = useState(false);
+    // 初期データ取得済みフラグ（useEffectの再実行でformDataが上書きされるのを防ぐ）
+    const [isInitialized, setIsInitialized] = useState(false);
     // バリデーションエラー表示用
     const [showErrors, setShowErrors] = useState(false);
     const [jobTemplates, setJobTemplates] = useState<TemplateData[]>(initialData?.templates || []);
@@ -279,6 +282,9 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
 
     // === 初期データ取得 ===
     useEffect(() => {
+        // 既に初期化済みの場合は何もしない（formDataの上書きを防ぐ）
+        if (isInitialized) return;
+
         if (isAdminLoading) return;
         if (!isAdmin || !admin) {
             router.push('/admin/login');
@@ -310,6 +316,7 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
                         } : {}),
                     }));
                 }
+                setIsInitialized(true);
                 setIsLoading(false);
                 return;
             } else if (mode === 'edit' && jobId) {
@@ -331,6 +338,7 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
                         toast.error('データの読み込みに失敗しました');
                         setIsLoading(false);
                     }
+                    setIsInitialized(true);
                 };
                 loadEditData();
                 return;
@@ -387,6 +395,7 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
                 if (mode === 'edit' && jobId) {
                     await fetchEditData(jobId, facility, dismissalReasons);
                 } else {
+                    setIsInitialized(true);
                     setIsLoading(false);
                 }
 
@@ -402,12 +411,13 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
                 });
                 console.error('Failed to load initial data:', error);
                 toast.error('データの読み込みに失敗しました');
+                setIsInitialized(true);
                 setIsLoading(false);
             }
         };
 
         loadData();
-    }, [isAdmin, admin, isAdminLoading, router, mode, jobId, initialData]);
+    }, [isInitialized, isAdmin, admin, isAdminLoading, router, mode, jobId, initialData]);
 
     // 編集モードデータの取得
     const fetchEditData = async (id: string, facility: any, defaultDismissalReasons: string) => {
@@ -520,6 +530,7 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
             console.error('Failed to fetch edit data:', error);
             toast.error('求人データの取得に失敗しました');
         } finally {
+            setIsInitialized(true);
             setIsLoading(false);
         }
     };
@@ -652,7 +663,7 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
     };
 
     const handleInputChange = (field: string, value: any) => {
-        setFormData({ ...formData, [field]: value });
+        setFormData(prev => ({ ...prev, [field]: value }));
     };
 
     // 配列操作
@@ -2028,7 +2039,10 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
                                 </select>
                                 {workingMinutes > 0 && minTransportationFee > 0 && (
                                     <p className="text-xs text-gray-500 mt-1">
-                                        ※ 実働{formatWorkingHours(workingHours)}の場合、最低{minTransportationFee}円以上
+                                        {minTransportationFee >= TRANSPORTATION_FEE_MAX
+                                            ? `※ 実働${formatWorkingHours(workingHours)}の場合、交通費は上限の${TRANSPORTATION_FEE_MAX.toLocaleString()}円となります`
+                                            : `※ 実働${formatWorkingHours(workingHours)}の場合、最低${minTransportationFee}円以上`
+                                        }
                                     </p>
                                 )}
                             </div>

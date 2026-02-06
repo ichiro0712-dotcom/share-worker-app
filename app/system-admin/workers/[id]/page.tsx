@@ -267,11 +267,11 @@ export default function SystemAdminWorkerDetailPage({ params }: { params: { id: 
                                         <img src={worker.profile_image} alt={worker.name} className="w-full h-full object-cover" />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center text-gray-400 text-2xl font-bold">
-                                            {worker.name.charAt(0)}
+                                            {(worker.name || '?').charAt(0)}
                                         </div>
                                     )}
                                 </div>
-                                <h2 className="text-xl font-bold text-gray-900">{worker.name}</h2>
+                                <h2 className="text-xl font-bold text-gray-900">{worker.name || '名前未設定'}</h2>
                                 {worker.last_name_kana && worker.first_name_kana && (
                                     <p className="text-xs text-gray-400 mb-2">{worker.last_name_kana} {worker.first_name_kana}</p>
                                 )}

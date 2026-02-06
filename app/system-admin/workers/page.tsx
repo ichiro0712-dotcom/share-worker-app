@@ -497,11 +497,11 @@ export default function SystemAdminWorkersPage() {
                                                 {worker.profile_image ? (
                                                     <img src={worker.profile_image} alt={worker.name} className="w-full h-full object-cover" />
                                                 ) : (
-                                                    <span className="text-slate-500 font-bold">{worker.name.charAt(0)}</span>
+                                                    <span className="text-slate-500 font-bold">{(worker.name || '?').charAt(0)}</span>
                                                 )}
                                             </div>
                                             <div>
-                                                <div className="font-bold text-slate-800">{worker.name}</div>
+                                                <div className="font-bold text-slate-800">{worker.name || '名前未設定'}</div>
                                                 <div className="text-xs text-slate-500">ID: {worker.id}</div>
                                                 {worker.isSuspended && (
                                                     <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-red-100 text-red-700 text-[10px] font-medium mt-0.5">
