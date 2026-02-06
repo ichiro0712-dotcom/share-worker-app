@@ -258,6 +258,31 @@ export function generateMinimumWageCsv(
 }
 
 /**
+ * ArrayBufferからCSVテキストをデコード（UTF-8 / Shift-JIS 自動判定）
+ * UTF-8でデコードして日本語の都道府県名が見つからなければShift-JISとして再デコード
+ */
+export function decodeCsvBuffer(buffer: ArrayBuffer): string {
+  // まずUTF-8でデコード
+  const utf8Text = new TextDecoder('utf-8').decode(buffer);
+  // BOM除去
+  const cleanUtf8 = utf8Text.replace(/^\uFEFF/, '');
+
+  // 日本語文字（ひらがな・カタカナ・漢字）が含まれていればUTF-8で正しくデコードできている
+  if (/[\u3040-\u30FF\u4E00-\u9FFF]/.test(cleanUtf8)) {
+    return cleanUtf8;
+  }
+
+  // Shift-JISとしてデコード
+  try {
+    const sjisText = new TextDecoder('shift-jis').decode(buffer);
+    return sjisText.replace(/^\uFEFF/, '');
+  } catch {
+    // Shift-JISデコード失敗時はUTF-8のまま返す
+    return cleanUtf8;
+  }
+}
+
+/**
  * 日付をフォーマット（yyyy/MM/dd）
  */
 function formatDate(date: Date): string {
