@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { AlertTriangle, RefreshCw, Eye, CheckCircle, XCircle, Trash2 } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Eye, CheckCircle, XCircle, Trash2, Download } from 'lucide-react';
 import LPUploadModal from './LPUploadModal';
 import GenreSelectModal from './GenreSelectModal';
 import GenreEditModal from './GenreEditModal';
@@ -477,6 +477,14 @@ export default function DBLPList({ initialPages }: DBLPListProps) {
                         <RefreshCw className="w-4 h-4" />
                         再アップロード
                       </button>
+                      <a
+                        href={`/api/lp/${lp.lp_number}/download`}
+                        onClick={() => setMenuOpenId(null)}
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                      >
+                        <Download className="w-4 h-4" />
+                        ファイルDL
+                      </a>
                       <button
                         onClick={() => {
                           handleDelete(lp.lp_number, lp.name);

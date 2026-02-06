@@ -233,6 +233,62 @@ function AttendanceScanPageContent() {
         return;
       }
 
+      // カメラ権限を明示的にリクエスト（許可ダイアログを確実に表示するため）
+      let cameraStream: MediaStream | null = null;
+      try {
+        // navigator.permissions APIでカメラ権限の状態を確認
+        let permissionState: PermissionState | null = null;
+        if (navigator.permissions) {
+          try {
+            const permissionStatus = await navigator.permissions.query({ name: 'camera' as PermissionName });
+            permissionState = permissionStatus.state;
+            console.log('[Attendance] Camera permission status:', permissionState);
+          } catch {
+            console.log('[Attendance] Permission API not available for camera');
+          }
+        }
+
+        // getUserMedia()を呼び出してカメラ権限をリクエスト
+        // これにより、権限が 'prompt' の場合はブラウザの許可ダイアログが表示される
+        // 'denied' の場合でも、一部のブラウザでは再度ダイアログが表示されることがある
+        console.log('[Attendance] Requesting camera access via getUserMedia...');
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' }
+        });
+        console.log('[Attendance] Camera access granted');
+
+        // getUserMediaで取得したストリームは一旦停止（Html5Qrcodeが再度取得する）
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraStream = null;
+
+      } catch (mediaError: any) {
+        console.error('[Attendance] getUserMedia error:', mediaError);
+
+        // ストリームが取得されていた場合は停止
+        if (cameraStream) {
+          cameraStream.getTracks().forEach(track => track.stop());
+        }
+
+        // エラーの種類に応じたメッセージ表示
+        if (mediaError?.name === 'NotAllowedError') {
+          // iOS Safari/Chrome では設定画面への誘導が必要
+          const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+          if (isIOS) {
+            toast.error('カメラの使用が許可されていません。\n設定 > Safari > カメラ から許可してください。', { duration: 5000 });
+          } else {
+            toast.error('カメラの使用が許可されていません。\nブラウザのアドレスバー横のカメラアイコンから許可してください。', { duration: 5000 });
+          }
+        } else if (mediaError?.name === 'NotFoundError') {
+          toast.error('カメラが見つかりません。');
+        } else {
+          toast.error('カメラへのアクセスに失敗しました。');
+        }
+
+        setScanStatus('error');
+        setIsScanning(false);
+        return;
+      }
+
       try {
         const scanner = new Html5Qrcode('qr-reader');
         scannerRef.current = scanner;
@@ -286,9 +342,23 @@ function AttendanceScanPageContent() {
             }
           }
         );
-      } catch (error) {
+      } catch (error: any) {
         console.error('カメラ起動エラー:', error);
-        toast.error('カメラの起動に失敗しました');
+
+        // エラーの種類に応じたメッセージ表示
+        let errorMessage = 'カメラの起動に失敗しました';
+
+        if (error?.name === 'NotAllowedError' || error?.message?.includes('Permission')) {
+          errorMessage = 'カメラの使用が許可されていません。ブラウザの設定でカメラの使用を許可してください。';
+        } else if (error?.name === 'NotFoundError' || error?.message?.includes('Requested device not found')) {
+          errorMessage = 'カメラが見つかりません。デバイスにカメラが接続されているか確認してください。';
+        } else if (error?.name === 'NotReadableError' || error?.message?.includes('Could not start')) {
+          errorMessage = 'カメラが他のアプリで使用中です。他のアプリを閉じてから再度お試しください。';
+        } else if (error?.message) {
+          errorMessage = `カメラの起動に失敗しました: ${error.message}`;
+        }
+
+        toast.error(errorMessage);
         setScanStatus('error');
         setIsScanning(false);
       }
