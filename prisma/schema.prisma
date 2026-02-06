@@ -1639,6 +1639,31 @@ model LpCampaignCode {
   @@map("lp_campaign_codes")
 }
 
+/// ランディングページ管理
+model LandingPage {
+  id          Int      @id @default(autoincrement())
+  /// LP番号（0, 1, 2...）。削除されても再利用しない
+  lp_number   Int      @unique @map("lp_number")
+  /// LP名（管理用）
+  name        String
+  /// GTMタグが存在するか
+  has_gtm     Boolean  @default(false) @map("has_gtm")
+  /// LINE Tagが存在するか
+  has_line_tag Boolean @default(false) @map("has_line_tag")
+  /// tracking.jsが存在するか
+  has_tracking Boolean @default(false) @map("has_tracking")
+  /// Supabase Storage内のパス（例: "lp/0/"）
+  storage_path String  @map("storage_path")
+  /// 公開中かどうか
+  is_published Boolean @default(true) @map("is_published")
+  created_at  DateTime @default(now()) @map("created_at")
+  updated_at  DateTime @updatedAt @map("updated_at")
+
+  @@index([lp_number])
+  @@index([is_published])
+  @@map("landing_pages")
+}
+
 // ========== エラー通知システム ==========
 
 /// エラー通知先（本番環境でエラー発生時にメール送信）

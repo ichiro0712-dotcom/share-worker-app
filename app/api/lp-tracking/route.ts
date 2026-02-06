@@ -1,6 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
+// バリデーションヘルパー
+function isValidString(value: unknown, maxLength: number = 500): value is string {
+  return typeof value === 'string' && value.length > 0 && value.length <= maxLength;
+}
+
+function isValidNumber(value: unknown, min: number = 0, max: number = Number.MAX_SAFE_INTEGER): value is number {
+  return typeof value === 'number' && !isNaN(value) && value >= min && value <= max;
+}
+
+function isValidBoolean(value: unknown): value is boolean {
+  return typeof value === 'boolean';
+}
+
+// 許可されたイベントタイプ
+const VALID_EVENT_TYPES = ['pageview', 'click', 'scroll', 'dwell', 'section_dwell', 'engagement_summary'] as const;
+type EventType = typeof VALID_EVENT_TYPES[number];
+
+function isValidEventType(value: unknown): value is EventType {
+  return typeof value === 'string' && VALID_EVENT_TYPES.includes(value as EventType);
+}
+
 // POST: トラッキングイベントを記録
 export async function POST(request: NextRequest) {
   try {
@@ -31,6 +52,24 @@ export async function POST(request: NextRequest) {
       utmCampaign,
     } = body;
 
+    // 基本バリデーション
+    if (!isValidEventType(type)) {
+      return NextResponse.json({ success: false, error: 'Invalid event type' });
+    }
+
+    if (!isValidString(lpId, 100)) {
+      return NextResponse.json({ success: false, error: 'Invalid lpId' });
+    }
+
+    if (!isValidString(sessionId, 100)) {
+      return NextResponse.json({ success: false, error: 'Invalid sessionId' });
+    }
+
+    // campaignCodeはオプショナルだが、存在する場合はバリデーション
+    if (campaignCode !== undefined && campaignCode !== null && !isValidString(campaignCode, 100)) {
+      return NextResponse.json({ success: false, error: 'Invalid campaignCode' });
+    }
+
     // 基本情報
     const userAgent = request.headers.get('user-agent') || undefined;
     const referrer = request.headers.get('referer') || undefined;
@@ -52,30 +91,42 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'click':
+        // clickイベントのバリデーション
+        if (!isValidString(buttonId, 200)) {
+          return NextResponse.json({ success: false, error: 'Invalid buttonId for click event' });
+        }
         await prisma.lpClickEvent.create({
           data: {
             lp_id: lpId,
             campaign_code: campaignCode || null,
             session_id: sessionId,
             button_id: buttonId,
-            button_text: buttonText || null,
+            button_text: typeof buttonText === 'string' ? buttonText.slice(0, 500) : null,
           },
         });
         break;
 
       case 'scroll':
+        // scrollイベントのバリデーション
+        if (!isValidNumber(scrollDepth, 0, 100)) {
+          return NextResponse.json({ success: false, error: 'Invalid scrollDepth (must be 0-100)' });
+        }
         await prisma.lpScrollEvent.create({
           data: {
             lp_id: lpId,
             campaign_code: campaignCode || null,
             session_id: sessionId,
             scroll_depth: scrollDepth,
-            time_to_reach: timeToReach || null,
+            time_to_reach: isValidNumber(timeToReach, 0, 86400) ? timeToReach : null,
           },
         });
         break;
 
       case 'dwell':
+        // dwellイベントのバリデーション（最大24時間=86400秒）
+        if (!isValidNumber(dwellSeconds, 0, 86400)) {
+          return NextResponse.json({ success: false, error: 'Invalid dwellSeconds (must be 0-86400)' });
+        }
         await prisma.lpDwellEvent.create({
           data: {
             lp_id: lpId,
@@ -87,45 +138,53 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'section_dwell':
+        // section_dwellイベントのバリデーション
+        if (!isValidString(sectionId, 200)) {
+          return NextResponse.json({ success: false, error: 'Invalid sectionId for section_dwell event' });
+        }
+        if (!isValidNumber(dwellSeconds, 0, 86400)) {
+          return NextResponse.json({ success: false, error: 'Invalid dwellSeconds (must be 0-86400)' });
+        }
         await prisma.lpSectionDwell.create({
           data: {
             lp_id: lpId,
             campaign_code: campaignCode || null,
             session_id: sessionId,
             section_id: sectionId,
-            section_name: sectionName || null,
+            section_name: typeof sectionName === 'string' ? sectionName.slice(0, 200) : null,
             dwell_seconds: dwellSeconds,
           },
         });
         break;
 
       case 'engagement_summary':
-        // upsert: 同一セッションの場合は更新
+        // engagement_summaryイベントのバリデーション
+        const validMaxScrollDepth = isValidNumber(maxScrollDepth, 0, 100) ? maxScrollDepth : 0;
+        const validTotalDwellTime = isValidNumber(totalDwellTime, 0, 86400) ? totalDwellTime : 0;
+        const validEngagementLevel = isValidNumber(engagementLevel, 0, 5) ? engagementLevel : 0;
+        const validCtaClicked = isValidBoolean(ctaClicked) ? ctaClicked : false;
+
         await prisma.lpEngagementSummary.upsert({
           where: { session_id: sessionId },
           create: {
             lp_id: lpId,
             campaign_code: campaignCode || null,
             session_id: sessionId,
-            max_scroll_depth: maxScrollDepth || 0,
-            total_dwell_time: totalDwellTime || 0,
-            engagement_level: engagementLevel || 0,
-            cta_clicked: ctaClicked || false,
-            utm_source: utmSource || null,
-            utm_medium: utmMedium || null,
-            utm_campaign: utmCampaign || null,
+            max_scroll_depth: validMaxScrollDepth,
+            total_dwell_time: validTotalDwellTime,
+            engagement_level: validEngagementLevel,
+            cta_clicked: validCtaClicked,
+            utm_source: typeof utmSource === 'string' ? utmSource.slice(0, 100) : null,
+            utm_medium: typeof utmMedium === 'string' ? utmMedium.slice(0, 100) : null,
+            utm_campaign: typeof utmCampaign === 'string' ? utmCampaign.slice(0, 200) : null,
           },
           update: {
-            max_scroll_depth: maxScrollDepth || 0,
-            total_dwell_time: totalDwellTime || 0,
-            engagement_level: engagementLevel || 0,
-            cta_clicked: ctaClicked || false,
+            max_scroll_depth: validMaxScrollDepth,
+            total_dwell_time: validTotalDwellTime,
+            engagement_level: validEngagementLevel,
+            cta_clicked: validCtaClicked,
           },
         });
-        break;
-
-      default:
-        // 未知のタイプは無視
         break;
     }
 
@@ -513,7 +572,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('LP tracking fetch error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.json({ error: 'Failed to fetch tracking data', details: errorMessage }, { status: 500 });
+    // 本番環境ではエラー詳細を返さない（情報漏洩防止）
+    return NextResponse.json({ error: 'Failed to fetch tracking data' }, { status: 500 });
   }
 }
