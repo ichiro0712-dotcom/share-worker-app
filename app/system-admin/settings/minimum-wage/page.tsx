@@ -14,6 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import { PREFECTURES } from '@/constants/prefectureCities';
+import { parseMinimumWageCsv, decodeCsvBuffer } from '@/src/lib/prefecture-utils';
 
 interface MinimumWageData {
   id: number;
@@ -61,6 +62,7 @@ export default function MinimumWagePage() {
   const [importEffectiveFrom, setImportEffectiveFrom] = useState<string>('');
   const [importing, setImporting] = useState(false);
   const [importErrors, setImportErrors] = useState<CsvError[]>([]);
+  const [previewData, setPreviewData] = useState<{ prefecture: string; hourlyWage: number }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 履歴表示
@@ -164,10 +166,40 @@ export default function MinimumWagePage() {
   };
 
   // CSVインポート
+  // CSVファイル選択時にプレビュー表示
+  const handleFileSelect = async (file: File | null) => {
+    setImportFile(file);
+    setPreviewData([]);
+    setImportErrors([]);
+
+    if (!file) return;
+
+    try {
+      const buffer = await file.arrayBuffer();
+      const text = decodeCsvBuffer(buffer);
+      const { data, errors } = parseMinimumWageCsv(text);
+      setPreviewData(data);
+      setImportErrors(errors.map((e: { line: number; content: string; reason: string }) => ({ line: e.line, content: e.content, reason: e.reason })));
+    } catch {
+      setImportErrors([{ line: 0, content: '', reason: 'ファイルの読み込みに失敗しました' }]);
+    }
+  };
+
   const handleImport = async () => {
-    if (!importFile || !importEffectiveFrom) {
-      setMessage({ type: 'error', text: 'ファイルと適用開始日を選択してください' });
+    if (!importFile) {
+      setMessage({ type: 'error', text: 'ファイルを選択してください' });
       return;
+    }
+
+    let effectiveDate = importEffectiveFrom;
+    if (!effectiveDate) {
+      const today = new Date();
+      const todayStr = `${today.getFullYear()}/${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}`;
+      const confirmed = window.confirm(
+        `適用開始日が未入力です。\n本日（${todayStr}）から即反映しますか？`
+      );
+      if (!confirmed) return;
+      effectiveDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     }
 
     setImporting(true);
@@ -177,7 +209,7 @@ export default function MinimumWagePage() {
     try {
       const formData = new FormData();
       formData.append('file', importFile);
-      formData.append('effectiveFrom', importEffectiveFrom);
+      formData.append('effectiveFrom', effectiveDate);
 
       const res = await fetch('/api/system-admin/minimum-wage/import', {
         method: 'POST',
@@ -194,6 +226,7 @@ export default function MinimumWagePage() {
         setShowImportModal(false);
         setImportFile(null);
         setImportEffectiveFrom('');
+        setPreviewData([]);
         if (fileInputRef.current) {
           fileInputRef.current.value = '';
         }
@@ -507,6 +540,7 @@ export default function MinimumWagePage() {
                 onClick={() => {
                   setShowImportModal(false);
                   setImportErrors([]);
+                  setPreviewData([]);
                 }}
                 className="p-1 hover:bg-gray-100 rounded"
               >
@@ -541,7 +575,7 @@ export default function MinimumWagePage() {
                   ref={fileInputRef}
                   type="file"
                   accept=".csv"
-                  onChange={e => setImportFile(e.target.files?.[0] || null)}
+                  onChange={e => handleFileSelect(e.target.files?.[0] || null)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
                 <p className="mt-1 text-xs text-gray-500">
@@ -561,9 +595,40 @@ export default function MinimumWagePage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  この日付から新しい最低賃金が適用されます
+                  未入力の場合、本日から即反映するか確認されます
                 </p>
               </div>
+
+              {/* プレビュー */}
+              {previewData.length > 0 && (
+                <div className="border border-green-200 rounded-lg overflow-hidden">
+                  <div className="bg-green-50 px-4 py-2 border-b border-green-200">
+                    <p className="text-sm font-medium text-green-800">
+                      プレビュー（{previewData.length}件）
+                    </p>
+                  </div>
+                  <div className="max-h-48 overflow-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 sticky top-0">
+                        <tr>
+                          <th className="px-4 py-1.5 text-left text-xs font-medium text-gray-500">都道府県</th>
+                          <th className="px-4 py-1.5 text-right text-xs font-medium text-gray-500">時給</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {previewData.map((row, i) => (
+                          <tr key={i} className="hover:bg-gray-50">
+                            <td className="px-4 py-1 text-gray-700">{row.prefecture}</td>
+                            <td className="px-4 py-1 text-right text-gray-900 font-medium">
+                              {row.hourlyWage.toLocaleString()}円
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
 
               {/* エラー表示 */}
               {importErrors.length > 0 && (
@@ -603,6 +668,7 @@ export default function MinimumWagePage() {
                 onClick={() => {
                   setShowImportModal(false);
                   setImportErrors([]);
+                  setPreviewData([]);
                 }}
                 className="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300"
               >
@@ -610,7 +676,7 @@ export default function MinimumWagePage() {
               </button>
               <button
                 onClick={handleImport}
-                disabled={importing || !importFile || !importEffectiveFrom}
+                disabled={importing || !importFile || previewData.length === 0}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {importing ? 'インポート中...' : 'インポート実行'}

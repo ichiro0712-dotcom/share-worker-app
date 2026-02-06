@@ -136,8 +136,9 @@ export function parseMinimumWageCsvRow(
 ): { prefecture: Prefecture; hourlyWage: number } | null {
   if (!row || !row.trim()) return null;
 
-  // CSVの引用符を考慮したパース
-  const parts = row.split(',').map(s => s.trim().replace(/^"|"$/g, ''));
+  // CSV引用符を正しく処理するパース
+  // Excel出力で "1,163" のようにカンマ入り数値がダブルクォートで囲まれるケースに対応
+  const parts = parseCsvFields(row);
 
   if (parts.length < 2) return null;
 
@@ -147,6 +148,32 @@ export function parseMinimumWageCsvRow(
   if (!prefecture || !hourlyWage) return null;
 
   return { prefecture, hourlyWage };
+}
+
+/**
+ * CSV行をフィールドに分割（ダブルクォート内のカンマを正しく処理）
+ * "東京都","1,163" → ["東京都", "1,163"]
+ * 東京都,1163 → ["東京都", "1163"]
+ */
+function parseCsvFields(row: string): string[] {
+  const fields: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < row.length; i++) {
+    const ch = row[i];
+    if (ch === '"') {
+      inQuotes = !inQuotes;
+    } else if (ch === ',' && !inQuotes) {
+      fields.push(current.trim());
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  fields.push(current.trim());
+
+  return fields;
 }
 
 /**
@@ -228,6 +255,31 @@ export function generateMinimumWageCsv(
   });
 
   return [headers.join(','), ...rows].join('\r\n');
+}
+
+/**
+ * ArrayBufferからCSVテキストをデコード（UTF-8 / Shift-JIS 自動判定）
+ * UTF-8でデコードして日本語の都道府県名が見つからなければShift-JISとして再デコード
+ */
+export function decodeCsvBuffer(buffer: ArrayBuffer): string {
+  // まずUTF-8でデコード
+  const utf8Text = new TextDecoder('utf-8').decode(buffer);
+  // BOM除去
+  const cleanUtf8 = utf8Text.replace(/^\uFEFF/, '');
+
+  // 日本語文字（ひらがな・カタカナ・漢字）が含まれていればUTF-8で正しくデコードできている
+  if (/[\u3040-\u30FF\u4E00-\u9FFF]/.test(cleanUtf8)) {
+    return cleanUtf8;
+  }
+
+  // Shift-JISとしてデコード
+  try {
+    const sjisText = new TextDecoder('shift-jis').decode(buffer);
+    return sjisText.replace(/^\uFEFF/, '');
+  } catch {
+    // Shift-JISデコード失敗時はUTF-8のまま返す
+    return cleanUtf8;
+  }
 }
 
 /**
