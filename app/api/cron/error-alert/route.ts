@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { Resend } from 'resend';
+import { cacheResendQuotaHeader } from '@/src/lib/resend-quota';
 
 export const dynamic = 'force-dynamic';
 
@@ -181,12 +182,17 @@ export async function GET(request: NextRequest) {
                     const toAddresses = recipients.map(r => r.email);
 
                     try {
-                        await client.emails.send({
+                        const { headers: resendHeaders } = await client.emails.send({
                             from: FROM_EMAIL,
                             to: toAddresses,
                             subject: `⚠️ [TASTAS] ${newErrors.length}件のエラーが検出されました`,
                             html: emailHtml,
                         });
+
+                        // Resend月間送信数ヘッダーをキャッシュ（fire-and-forget）
+                        if (resendHeaders?.['x-resend-monthly-quota']) {
+                            cacheResendQuotaHeader(resendHeaders['x-resend-monthly-quota']).catch(() => {});
+                        }
 
                         console.log(`[ERROR_ALERT] Sent alert email to ${toAddresses.length} recipients`);
                     } catch (emailError) {

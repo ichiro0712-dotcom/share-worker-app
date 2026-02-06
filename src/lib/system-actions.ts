@@ -3564,3 +3564,67 @@ export async function getDashboardAlerts() {
 
     return alerts;
 }
+
+// システムアラートの型定義
+export interface SystemAlert {
+    id: string;
+    alertType: string;
+    severity: 'info' | 'warning' | 'critical';
+    title: string;
+    message: string;
+    value: number;
+    limit: number;
+}
+
+/**
+ * システムアラートを取得（メール送信量など）
+ * systemSettingのキャッシュデータから閾値判定を行う
+ */
+export async function getSystemAlerts(): Promise<SystemAlert[]> {
+    const RESEND_MONTHLY_LIMIT = 50_000;
+    const WARNING_RATIO = 0.80;
+    const CRITICAL_RATIO = 0.95;
+
+    const alerts: SystemAlert[] = [];
+
+    try {
+        const quotaSetting = await prisma.systemSetting.findUnique({
+            where: { key: 'resend_email_monthly_count' },
+        });
+
+        if (quotaSetting) {
+            const data = JSON.parse(quotaSetting.value);
+            const effectiveCount: number = data.effectiveCount || 0;
+            const ratio = effectiveCount / RESEND_MONTHLY_LIMIT;
+            const remaining = RESEND_MONTHLY_LIMIT - effectiveCount;
+
+            let severity: 'info' | 'warning' | 'critical' = 'info';
+            let title = 'メール送信数';
+            let alertType = 'email_quota_info';
+
+            if (ratio >= CRITICAL_RATIO) {
+                severity = 'critical';
+                title = 'メール送信上限危険';
+                alertType = 'email_quota_critical';
+            } else if (ratio >= WARNING_RATIO) {
+                severity = 'warning';
+                title = 'メール送信上限警告';
+                alertType = 'email_quota_warning';
+            }
+
+            alerts.push({
+                id: 'email_quota',
+                alertType,
+                severity,
+                title,
+                message: `${effectiveCount.toLocaleString()} / ${RESEND_MONTHLY_LIMIT.toLocaleString()}通（${(ratio * 100).toFixed(1)}%）- 残り ${remaining.toLocaleString()}通`,
+                value: effectiveCount,
+                limit: RESEND_MONTHLY_LIMIT,
+            });
+        }
+    } catch (error) {
+        console.error('[getSystemAlerts] Error checking email quota:', error);
+    }
+
+    return alerts;
+}

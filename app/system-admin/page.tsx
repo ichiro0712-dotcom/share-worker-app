@@ -3,6 +3,7 @@ import {
     getDashboardKPIs,
     getDashboardTrends,
     getDashboardAlerts,
+    getSystemAlerts,
     getWorkerDemographics,
     getFacilityTypeStats
 } from '@/src/lib/system-actions';
@@ -13,10 +14,11 @@ import BarChart from '@/components/system-admin/analytics/BarChart';
 import { Users, Building2, Briefcase, Calendar, Target } from 'lucide-react';
 
 export default async function SystemAdminDashboard() {
-    const [kpis, trends, alerts, demographics, facilityTypes] = await Promise.all([
+    const [kpis, trends, alerts, systemAlerts, demographics, facilityTypes] = await Promise.all([
         getDashboardKPIs(),
         getDashboardTrends(),
         getDashboardAlerts(),
+        getSystemAlerts(),
         getWorkerDemographics(),
         getFacilityTypeStats()
     ]);
@@ -29,7 +31,7 @@ export default async function SystemAdminDashboard() {
             </div>
 
             {/* アラートセクション */}
-            <DashboardAlerts alerts={alerts} />
+            <DashboardAlerts alerts={alerts} systemAlerts={systemAlerts} />
 
             {/* KPI Cards - 5列 */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">

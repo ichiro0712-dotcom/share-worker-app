@@ -271,11 +271,25 @@ function AttendanceScanPageContent() {
 
         // エラーの種類に応じたメッセージ表示
         if (mediaError?.name === 'NotAllowedError') {
-          // iOS Safari/Chrome では設定画面への誘導が必要
-          const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+          // iOS/Android判定とブラウザ判定
+          const ua = navigator.userAgent;
+          const isIOS = /iPad|iPhone|iPod/.test(ua);
+          const isChrome = /CriOS/.test(ua); // iOS Chrome
+          const isAndroid = /Android/.test(ua);
+
           if (isIOS) {
-            toast.error('カメラの使用が許可されていません。\n設定 > Safari > カメラ から許可してください。', { duration: 5000 });
+            if (isChrome) {
+              // iOS Chrome
+              toast.error('カメラの使用が許可されていません。\nChromeの設定 > サイトの設定 > カメラ から許可してください。', { duration: 5000 });
+            } else {
+              // iOS Safari
+              toast.error('カメラの使用が許可されていません。\n設定 > Safari > カメラ から許可してください。', { duration: 5000 });
+            }
+          } else if (isAndroid) {
+            // Android（Chrome等）
+            toast.error('カメラの使用が許可されていません。\nブラウザのアドレスバー左のアイコン > 権限 > カメラ から許可してください。', { duration: 5000 });
           } else {
+            // PC（デスクトップブラウザ）
             toast.error('カメラの使用が許可されていません。\nブラウザのアドレスバー横のカメラアイコンから許可してください。', { duration: 5000 });
           }
         } else if (mediaError?.name === 'NotFoundError') {

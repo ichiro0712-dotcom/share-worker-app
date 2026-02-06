@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { Resend } from 'resend';
 import crypto from 'crypto';
+import { cacheResendQuotaHeader } from '@/src/lib/resend-quota';
 
 // Resend設定（遅延初期化 - APIキーがない場合はnull）
 let resend: Resend | null = null;
@@ -49,7 +50,7 @@ export async function sendVerificationEmail(
     });
 
     // 認証URL
-    const verificationUrl = `${APP_URL}/auth/verify?token=${token}`;
+    const verificationUrl = `${APP_URL}/api/auth/verify?token=${token}`;
 
     // メール送信が無効化されている場合はログのみ
     if (process.env.DISABLE_EMAIL_SENDING === 'true') {
@@ -67,13 +68,18 @@ export async function sendVerificationEmail(
       return { success: true };
     }
 
-    const { error } = await client.emails.send({
+    const { error, headers } = await client.emails.send({
       from: `+TASTAS <${FROM_EMAIL}>`,
       to: [email],
       subject: '【+TASTAS】メールアドレスの確認',
       html: formatVerificationEmailHtml(name, verificationUrl),
       text: formatVerificationEmailText(name, verificationUrl),
     });
+
+    // Resend月間送信数ヘッダーをキャッシュ（fire-and-forget）
+    if (headers?.['x-resend-monthly-quota']) {
+      cacheResendQuotaHeader(headers['x-resend-monthly-quota']).catch(() => {});
+    }
 
     if (error) {
       console.error('[Email Verification] Failed to send:', error);
@@ -105,7 +111,7 @@ export async function verifyEmailToken(
     });
 
     if (!user) {
-      return { success: false, error: '無効な認証リンクです。' };
+      return { success: false, error: '無効な認証リンクです。既に認証済みの場合はログインしてください。' };
     }
 
     // 有効期限チェック
