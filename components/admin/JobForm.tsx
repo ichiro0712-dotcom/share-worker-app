@@ -130,6 +130,8 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
     const [isInitialized, setIsInitialized] = useState(false);
     // バリデーションエラー表示用
     const [showErrors, setShowErrors] = useState(false);
+    // 最低賃金バリデーション用
+    const [minimumWage, setMinimumWage] = useState<number | null>(null);
     const [jobTemplates, setJobTemplates] = useState<TemplateData[]>(initialData?.templates || []);
     const [facilityInfo, setFacilityInfo] = useState<FacilityData | null>(initialData?.facilityInfo || null);
     const [jobDescriptionFormats, setJobDescriptionFormats] = useState<{ id: number; label: string; content: string }[]>(initialData?.formats || []);
@@ -250,6 +252,11 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
         TRANSPORTATION_FEE_OPTIONS
     );
     const minTransportationFee = calculateMinTransportationFee(workingMinutes);
+
+    // 最低賃金チェック
+    const isBelowMinimumWage = minimumWage !== null
+        && formData.hourlyWage > 0
+        && formData.hourlyWage < minimumWage;
 
     // 勤務時間変更時に、交通費が選択肢外になった場合は自動調整
     useEffect(() => {
@@ -567,6 +574,26 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
 
         fetchOfferTemplates();
     }, [isOfferMode, admin?.facilityId]);
+
+    // === 施設都道府県の最低賃金を取得 ===
+    useEffect(() => {
+        if (!facilityInfo?.prefecture) return;
+        const controller = new AbortController();
+        fetch(`/api/minimum-wage?prefecture=${encodeURIComponent(facilityInfo.prefecture)}`, {
+            signal: controller.signal,
+        })
+            .then(res => {
+                if (!res.ok) throw new Error('Failed to fetch minimum wage');
+                return res.json();
+            })
+            .then(data => setMinimumWage(data.hourlyWage ?? null))
+            .catch((err) => {
+                if (err.name !== 'AbortError') {
+                    setMinimumWage(null);
+                }
+            });
+        return () => controller.abort();
+    }, [facilityInfo?.prefecture]);
 
     // オファーテンプレートの再取得
     const refreshOfferTemplates = async () => {
@@ -977,6 +1004,9 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
             }
         }
         if (!formData.startTime || !formData.endTime) return toast.error('勤務時間は必須です');
+        if (minimumWage !== null && formData.hourlyWage > 0 && formData.hourlyWage < minimumWage) {
+            return toast.error(`時給が${facilityInfo?.prefecture}の最低賃金（${minimumWage.toLocaleString()}円）を下回っています`);
+        }
 
         setShowConfirm(true);
     };
@@ -1004,6 +1034,9 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
         if (!formData.startTime) errors.push('開始時刻は必須です');
         if (!formData.endTime) errors.push('終了時刻は必須です');
         if (!formData.hourlyWage || formData.hourlyWage <= 0) errors.push('時給は必須です');
+        if (minimumWage !== null && formData.hourlyWage > 0 && formData.hourlyWage < minimumWage) {
+            errors.push(`時給が${facilityInfo?.prefecture}の最低賃金（${minimumWage.toLocaleString()}円）を下回っています`);
+        }
         if (!formData.recruitmentCount || formData.recruitmentCount <= 0) errors.push('募集人数は必須です');
         if (formData.qualifications.length === 0) errors.push('必要な資格を選択してください');
 
@@ -2013,11 +2046,34 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
                                     min="0"
                                     value={formData.hourlyWage === 0 ? '' : formData.hourlyWage}
                                     onChange={(e) => handleInputChange('hourlyWage', Number(e.target.value))}
-                                    className={`w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-600 ${showErrors && (!formData.hourlyWage || formData.hourlyWage <= 0) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                                    className={`w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-600 ${
+                                        isBelowMinimumWage || (showErrors && (!formData.hourlyWage || formData.hourlyWage <= 0))
+                                            ? 'border-red-500 bg-red-50'
+                                            : 'border-gray-300'
+                                    }`}
                                     placeholder="例: 1200"
                                 />
-                                {formData.hourlyWage > 0 && (
+                                {formData.hourlyWage > 0 && !isBelowMinimumWage && (
                                     <p className="text-blue-600 text-xs mt-1">¥{formData.hourlyWage.toLocaleString()}</p>
+                                )}
+                                {isBelowMinimumWage && (
+                                    <div className="mt-1">
+                                        <p className="text-red-500 text-xs">
+                                            {facilityInfo?.prefecture}の最低賃金（{minimumWage!.toLocaleString()}円）を下回っています
+                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleInputChange('hourlyWage', minimumWage!)}
+                                            className="text-blue-600 text-xs mt-1 underline hover:text-blue-800"
+                                        >
+                                            最低賃金を適用（{minimumWage!.toLocaleString()}円）
+                                        </button>
+                                    </div>
+                                )}
+                                {!isBelowMinimumWage && minimumWage !== null && facilityInfo?.prefecture && (
+                                    <p className="text-gray-500 text-xs mt-1">
+                                        ※ {facilityInfo.prefecture}の最低賃金: {minimumWage.toLocaleString()}円
+                                    </p>
                                 )}
                                 {showErrors && (!formData.hourlyWage || formData.hourlyWage <= 0) && (
                                     <p className="text-red-500 text-xs mt-1">時給を入力してください</p>
