@@ -653,7 +653,7 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
     };
 
     const handleInputChange = (field: string, value: any) => {
-        setFormData({ ...formData, [field]: value });
+        setFormData(prev => ({ ...prev, [field]: value }));
     };
 
     // 配列操作
