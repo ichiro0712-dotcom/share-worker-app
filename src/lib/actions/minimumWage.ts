@@ -200,25 +200,20 @@ export async function getAllMinimumWagesForAdmin(): Promise<AdminMinimumWageView
 export async function getMinimumWageForPrefecture(
   prefecture: string
 ): Promise<number | null> {
-  try {
-    const normalized = normalizePrefecture(prefecture);
-    if (!normalized) return null;
+  const normalized = normalizePrefecture(prefecture);
+  if (!normalized) return null;
 
-    const now = new Date();
+  const now = new Date();
 
-    const wage = await prisma.minimumWage.findFirst({
-      where: {
-        prefecture: normalized,
-        effective_from: { lte: now },
-      },
-      orderBy: { effective_from: 'desc' },
-    });
+  const wage = await prisma.minimumWage.findFirst({
+    where: {
+      prefecture: normalized,
+      effective_from: { lte: now },
+    },
+    orderBy: { effective_from: 'desc' },
+  });
 
-    return wage?.hourly_wage ?? null;
-  } catch (error) {
-    console.error('[getMinimumWageForPrefecture] Error:', error);
-    return null;
-  }
+  return wage?.hourly_wage ?? null;
 }
 
 /**
