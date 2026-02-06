@@ -3,6 +3,7 @@ import webPush from 'web-push';
 import { Resend } from 'resend';
 import { getTodayStart } from '@/utils/debugTime';
 import { getVersionForLog } from '@/lib/version';
+import { cacheResendQuotaHeader } from '@/src/lib/resend-quota';
 
 // Resend設定（遅延初期化 - APIキーがない場合はnull）
 let resend: Resend | null = null;
@@ -280,7 +281,7 @@ async function sendEmailNotification(params: {
             return;
         }
 
-        const { data, error } = await client.emails.send({
+        const { data, error, headers } = await client.emails.send({
             from: `+TASTAS <${FROM_EMAIL}>`,
             to: toAddresses,
             subject: subject,
@@ -293,6 +294,11 @@ async function sendEmailNotification(params: {
         }
 
         console.log('[Email] Sent successfully:', { messageId: data?.id, to: toAddresses });
+
+        // Resend月間送信数ヘッダーをキャッシュ（fire-and-forget）
+        if (headers?.['x-resend-monthly-quota']) {
+            cacheResendQuotaHeader(headers['x-resend-monthly-quota']).catch(() => {});
+        }
 
         // 成功ログ記録
         await prisma.notificationLog.create({

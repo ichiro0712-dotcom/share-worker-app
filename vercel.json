@@ -45,6 +45,10 @@
     {
       "path": "/api/cron/error-alert",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/email-quota",
+      "schedule": "0 21 * * *"
     }
   ]
 }

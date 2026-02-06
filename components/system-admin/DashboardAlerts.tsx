@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertTriangle, Info, Settings, ChevronRight, Copy, Check, Users, Building2, ExternalLink } from 'lucide-react';
+import { AlertTriangle, Info, Settings, ChevronRight, Copy, Check, Users, Building2, ExternalLink, Mail } from 'lucide-react';
 import Link from 'next/link';
+import type { SystemAlert } from '@/src/lib/system-actions';
 
 interface Alert {
     id: number;
@@ -16,10 +17,14 @@ interface Alert {
 
 interface DashboardAlertsProps {
     alerts: Alert[];
+    systemAlerts?: SystemAlert[];
 }
 
-export default function DashboardAlerts({ alerts }: DashboardAlertsProps) {
+export default function DashboardAlerts({ alerts, systemAlerts = [] }: DashboardAlertsProps) {
     const [copiedId, setCopiedId] = useState<string | null>(null);
+
+    const warningSystemAlerts = systemAlerts.filter(a => a.severity !== 'info');
+    const totalAlertCount = alerts.length + warningSystemAlerts.length;
 
     const getAlertMessage = (alert: Alert): string => {
         if (alert.alertType === 'low_rating') {
@@ -51,9 +56,9 @@ export default function DashboardAlerts({ alerts }: DashboardAlertsProps) {
                 <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
                     <AlertTriangle className="w-5 h-5 text-amber-500" />
                     アラート
-                    {alerts.length > 0 && (
+                    {totalAlertCount > 0 && (
                         <span className="ml-2 px-2 py-0.5 bg-amber-100 text-amber-700 text-sm font-medium rounded-full">
-                            {alerts.length}
+                            {totalAlertCount}
                         </span>
                     )}
                 </h2>
@@ -75,7 +80,70 @@ export default function DashboardAlerts({ alerts }: DashboardAlertsProps) {
                 </div>
             </div>
 
-            {alerts.length === 0 ? (
+            {/* システムアラート（メール送信数など） */}
+            {systemAlerts.length > 0 && (
+                <div className="space-y-2 mb-3">
+                    {systemAlerts.map((alert) => {
+                        const styles = {
+                            critical: {
+                                bg: 'bg-red-50 border-red-200',
+                                icon: 'text-red-600',
+                                mailIcon: 'text-red-500',
+                                title: 'text-red-800',
+                                message: 'text-red-600',
+                                bar: 'bg-red-500',
+                            },
+                            warning: {
+                                bg: 'bg-yellow-50 border-yellow-200',
+                                icon: 'text-yellow-600',
+                                mailIcon: 'text-yellow-500',
+                                title: 'text-yellow-800',
+                                message: 'text-yellow-600',
+                                bar: 'bg-yellow-500',
+                            },
+                            info: {
+                                bg: 'bg-slate-50 border-slate-200',
+                                icon: 'text-slate-400',
+                                mailIcon: 'text-slate-400',
+                                title: 'text-slate-700',
+                                message: 'text-slate-500',
+                                bar: 'bg-blue-400',
+                            },
+                        }[alert.severity];
+
+                        return (
+                            <div
+                                key={alert.id}
+                                className={`p-3 rounded-lg border ${styles.bg}`}
+                            >
+                                <div className="flex items-center gap-3">
+                                    {alert.severity !== 'info' && (
+                                        <AlertTriangle className={`w-4 h-4 flex-shrink-0 ${styles.icon}`} />
+                                    )}
+                                    <Mail className={`w-4 h-4 flex-shrink-0 ${styles.mailIcon}`} />
+                                    <div className="flex-1 min-w-0">
+                                        <span className={`font-medium text-sm ${styles.title}`}>
+                                            {alert.title}
+                                        </span>
+                                        <p className={`text-sm ${styles.message}`}>
+                                            {alert.message}
+                                        </p>
+                                        <div className="mt-1.5 w-full max-w-xs h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full rounded-full transition-all ${styles.bar}`}
+                                                style={{ width: `${Math.min((alert.value / alert.limit) * 100, 100)}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* ワーカー/施設アラート */}
+            {alerts.length === 0 && systemAlerts.length === 0 ? (
                 <div className="flex items-center justify-between py-2">
                     <div className="flex items-center gap-2 text-slate-500">
                         <Info className="w-4 h-4" />
@@ -88,7 +156,7 @@ export default function DashboardAlerts({ alerts }: DashboardAlertsProps) {
                         過去のアラートを確認 →
                     </Link>
                 </div>
-            ) : (
+            ) : alerts.length > 0 ? (
                 <div className="space-y-2">
                     {alerts.slice(0, 5).map((alert) => (
                         <Link
@@ -136,7 +204,7 @@ export default function DashboardAlerts({ alerts }: DashboardAlertsProps) {
                         </Link>
                     )}
                 </div>
-            )}
+            ) : null}
         </div>
     );
 }
