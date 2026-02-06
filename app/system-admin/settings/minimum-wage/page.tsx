@@ -14,7 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import { PREFECTURES } from '@/constants/prefectureCities';
-import { parseMinimumWageCsv } from '@/src/lib/prefecture-utils';
+import { parseMinimumWageCsv, decodeCsvBuffer } from '@/src/lib/prefecture-utils';
 
 interface MinimumWageData {
   id: number;
@@ -175,7 +175,8 @@ export default function MinimumWagePage() {
     if (!file) return;
 
     try {
-      const text = await file.text();
+      const buffer = await file.arrayBuffer();
+      const text = decodeCsvBuffer(buffer);
       const { data, errors } = parseMinimumWageCsv(text);
       setPreviewData(data);
       setImportErrors(errors.map((e: { line: number; content: string; reason: string }) => ({ line: e.line, content: e.content, reason: e.reason })));
