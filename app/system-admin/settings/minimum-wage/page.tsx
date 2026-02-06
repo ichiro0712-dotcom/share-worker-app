@@ -165,9 +165,20 @@ export default function MinimumWagePage() {
 
   // CSVインポート
   const handleImport = async () => {
-    if (!importFile || !importEffectiveFrom) {
-      setMessage({ type: 'error', text: 'ファイルと適用開始日を選択してください' });
+    if (!importFile) {
+      setMessage({ type: 'error', text: 'ファイルを選択してください' });
       return;
+    }
+
+    let effectiveDate = importEffectiveFrom;
+    if (!effectiveDate) {
+      const today = new Date();
+      const todayStr = `${today.getFullYear()}/${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}`;
+      const confirmed = window.confirm(
+        `適用開始日が未入力です。\n本日（${todayStr}）から即反映しますか？`
+      );
+      if (!confirmed) return;
+      effectiveDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     }
 
     setImporting(true);
@@ -177,7 +188,7 @@ export default function MinimumWagePage() {
     try {
       const formData = new FormData();
       formData.append('file', importFile);
-      formData.append('effectiveFrom', importEffectiveFrom);
+      formData.append('effectiveFrom', effectiveDate);
 
       const res = await fetch('/api/system-admin/minimum-wage/import', {
         method: 'POST',
@@ -561,7 +572,7 @@ export default function MinimumWagePage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  この日付から新しい最低賃金が適用されます
+                  未入力の場合、本日から即反映するか確認されます
                 </p>
               </div>
 
@@ -610,7 +621,7 @@ export default function MinimumWagePage() {
               </button>
               <button
                 onClick={handleImport}
-                disabled={importing || !importFile || !importEffectiveFrom}
+                disabled={importing || !importFile}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {importing ? 'インポート中...' : 'インポート実行'}
