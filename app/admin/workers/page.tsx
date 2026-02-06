@@ -701,7 +701,7 @@ export default function AdminWorkersPage() {
                           ) : (
                             <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
                               <span className="text-2xl font-bold text-gray-400">
-                                {worker.name.charAt(0)}
+                                {(worker.name || '?').charAt(0)}
                               </span>
                             </div>
                           )}
@@ -723,7 +723,7 @@ export default function AdminWorkersPage() {
                         {/* 1行目: 名前・地域・評価・統計 */}
                         <div className="flex items-center gap-4 mb-2 flex-wrap">
                           <h3 className="font-bold text-gray-900 text-lg group-hover:text-admin-primary transition-colors">
-                            {worker.name}
+                            {worker.name || '名前未設定'}
                           </h3>
                           {(worker.prefecture || worker.city) && (
                             <span className="text-sm text-gray-500 flex items-center gap-1">
@@ -1085,7 +1085,7 @@ export default function AdminWorkersPage() {
                     <img src={selectedApplication.userProfileImage} alt="" className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-400 font-bold">
-                      {selectedApplication.userName.charAt(0)}
+                      {(selectedApplication.userName || '?').charAt(0)}
                     </div>
                   )}
                 </div>

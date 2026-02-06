@@ -13,7 +13,7 @@ model User {
   id                     Int            @id @default(autoincrement())
   email                  String         @unique
   password_hash          String         @map("password_hash")
-  name                   String
+  name                   String         @default("")
   birth_date             DateTime?      @map("birth_date")
   phone_number           String         @map("phone_number")
   profile_image          String?        @map("profile_image")
@@ -1264,6 +1264,47 @@ model SystemSetting {
   updated_by_id    Int?     @map("updated_by_id")
 
   @@map("system_settings")
+}
+
+// ========== 最低賃金マスタ ==========
+
+/// 都道府県別最低賃金（現在有効なデータ）
+model MinimumWage {
+  id             Int      @id @default(autoincrement())
+  /// 都道府県（正規化済み: "東京都"形式）
+  prefecture     String   @unique
+  /// 時給（円）
+  hourly_wage    Int      @map("hourly_wage")
+  /// 適用開始日
+  effective_from DateTime @map("effective_from")
+
+  created_at     DateTime @default(now()) @map("created_at")
+  updated_at     DateTime @updatedAt @map("updated_at")
+
+  /// 更新者種別 ("SYSTEM_ADMIN")
+  updated_by_type  String?  @map("updated_by_type")
+  /// 更新者ID
+  updated_by_id    Int?     @map("updated_by_id")
+
+  @@map("minimum_wages")
+}
+
+/// 最低賃金の履歴（バックアップ用）
+model MinimumWageHistory {
+  id             Int       @id @default(autoincrement())
+  /// 都道府県
+  prefecture     String
+  /// 時給（円）
+  hourly_wage    Int       @map("hourly_wage")
+  /// 適用開始日
+  effective_from DateTime  @map("effective_from")
+  /// 適用終了日（次の更新時に設定）
+  effective_to   DateTime? @map("effective_to")
+  /// アーカイブ日時
+  archived_at    DateTime  @default(now()) @map("archived_at")
+
+  @@index([prefecture])
+  @@map("minimum_wage_history")
 }
 
 // ========== デバッグチェックリスト ==========
