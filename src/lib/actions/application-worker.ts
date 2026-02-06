@@ -777,9 +777,10 @@ export async function cancelApplicationByWorker(applicationId: number) {
         const workDate = application.workDate.work_date;
         const startTime = application.workDate.job.start_time;
         const [hours, minutes] = startTime.split(':').map(Number);
-        // workDateのミリ秒値を基準に時刻を加算（タイムゾーン非依存）
+        // workDateはUTC midnight。JSTの時刻をUTCタイムスタンプに変換
         const workDateMs = new Date(workDate).getTime();
-        const workStartDateTime = new Date(workDateMs + (hours * 60 + minutes) * 60 * 1000);
+        const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
+        const workStartDateTime = new Date(workDateMs - JST_OFFSET_MS + (hours * 60 + minutes) * 60 * 1000);
 
         const now = getCurrentTime();
         if (now >= workStartDateTime) return { success: false, error: '勤務開始時刻を過ぎているためキャンセルできません' };
