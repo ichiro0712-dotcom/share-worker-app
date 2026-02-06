@@ -43,9 +43,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ja">
+      <head>
+        <GoogleTagManager />
+      </head>
       <body>
         <GoogleTagManagerNoscript />
-        <GoogleTagManager />
         <NetworkStatusProvider>
           <OfflineBanner />
           <DebugErrorProvider>

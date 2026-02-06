@@ -186,7 +186,7 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
     // ============ ハンドラー関数群 ============
 
     const handleInputChange = (field: string, value: any) => {
-        setFormData({ ...formData, [field]: value });
+        setFormData(prev => ({ ...prev, [field]: value }));
     };
 
     const toggleArrayItem = (field: string, item: string) => {
