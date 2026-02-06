@@ -233,6 +233,25 @@ function AttendanceScanPageContent() {
         return;
       }
 
+      // カメラ権限の状態を事前チェック
+      try {
+        // navigator.permissions APIでカメラ権限の状態を確認
+        if (navigator.permissions) {
+          const permissionStatus = await navigator.permissions.query({ name: 'camera' as PermissionName });
+          console.log('[Attendance] Camera permission status:', permissionStatus.state);
+
+          if (permissionStatus.state === 'denied') {
+            toast.error('カメラの使用が拒否されています。ブラウザの設定でカメラの使用を許可してください。');
+            setScanStatus('error');
+            setIsScanning(false);
+            return;
+          }
+        }
+      } catch (permError) {
+        // permissions API未対応のブラウザでは続行
+        console.log('[Attendance] Permission API not available, continuing...');
+      }
+
       try {
         const scanner = new Html5Qrcode('qr-reader');
         scannerRef.current = scanner;
@@ -286,9 +305,23 @@ function AttendanceScanPageContent() {
             }
           }
         );
-      } catch (error) {
+      } catch (error: any) {
         console.error('カメラ起動エラー:', error);
-        toast.error('カメラの起動に失敗しました');
+
+        // エラーの種類に応じたメッセージ表示
+        let errorMessage = 'カメラの起動に失敗しました';
+
+        if (error?.name === 'NotAllowedError' || error?.message?.includes('Permission')) {
+          errorMessage = 'カメラの使用が許可されていません。ブラウザの設定でカメラの使用を許可してください。';
+        } else if (error?.name === 'NotFoundError' || error?.message?.includes('Requested device not found')) {
+          errorMessage = 'カメラが見つかりません。デバイスにカメラが接続されているか確認してください。';
+        } else if (error?.name === 'NotReadableError' || error?.message?.includes('Could not start')) {
+          errorMessage = 'カメラが他のアプリで使用中です。他のアプリを閉じてから再度お試しください。';
+        } else if (error?.message) {
+          errorMessage = `カメラの起動に失敗しました: ${error.message}`;
+        }
+
+        toast.error(errorMessage);
         setScanStatus('error');
         setIsScanning(false);
       }
