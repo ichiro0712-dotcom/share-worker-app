@@ -400,20 +400,20 @@ export default function DBLPList({ initialPages }: DBLPListProps) {
             {/* アクションボタン群 */}
             {editingId !== lp.id && (
               <div className="flex items-center gap-2">
-                {/* プレビューボタン */}
+                {/* プレビューボタン（LINEタグ付きURL） */}
                 <a
-                  href={`/api/lp/${lp.lp_number}`}
+                  href={getUrlWithLineTag(lp.lp_number)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="p-2 rounded-md text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
-                  title="プレビュー"
+                  title={`プレビュー (${appliedLineTag})`}
                 >
                   <Eye className="w-4 h-4" />
                 </a>
 
-                {/* URLコピーボタン */}
+                {/* URLコピーボタン（LINEタグ付きURL） */}
                 <button
-                  onClick={() => copyToClipboard(getFullUrl(lp.lp_number), `lp-${lp.lp_number}`)}
+                  onClick={() => copyToClipboard(getUrlWithLineTag(lp.lp_number), `lp-${lp.lp_number}`)}
                   className={`
                     p-2 rounded-md transition-colors
                     ${copiedCode === `lp-${lp.lp_number}`
@@ -421,7 +421,7 @@ export default function DBLPList({ initialPages }: DBLPListProps) {
                       : 'text-gray-500 hover:text-blue-600 hover:bg-blue-50'
                     }
                   `}
-                  title={copiedCode === `lp-${lp.lp_number}` ? 'コピーしました' : 'URLをコピー'}
+                  title={copiedCode === `lp-${lp.lp_number}` ? 'コピーしました' : `URLをコピー (${appliedLineTag})`}
                 >
                   {copiedCode === `lp-${lp.lp_number}` ? (
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
