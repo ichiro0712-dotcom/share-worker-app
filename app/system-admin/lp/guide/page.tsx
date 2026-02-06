@@ -1,11 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, FileCode, Tag, BarChart3, FolderOpen, CheckCircle, AlertTriangle, Copy, Check } from 'lucide-react';
+import { ArrowLeft, Upload, FileArchive, CheckCircle, AlertTriangle, Tag, BarChart3, Trash2, Edit3 } from 'lucide-react';
 import { useState } from 'react';
 
 // コードブロックコンポーネント
-function CodeBlock({ code, language = 'html' }: { code: string; language?: string }) {
+function CodeBlock({ code }: { code: string }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
@@ -24,7 +24,13 @@ function CodeBlock({ code, language = 'html' }: { code: string; language?: strin
         className="absolute top-2 right-2 p-2 bg-slate-700 hover:bg-slate-600 rounded opacity-0 group-hover:opacity-100 transition-opacity"
         title="コピー"
       >
-        {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-slate-300" />}
+        {copied ? (
+          <CheckCircle className="w-4 h-4 text-green-400" />
+        ) : (
+          <svg className="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+        )}
       </button>
     </div>
   );
@@ -43,89 +49,213 @@ export default function LPGuidePage() {
             <ArrowLeft className="w-4 h-4" />
             LP管理に戻る
           </Link>
-          <h1 className="text-2xl font-bold text-slate-800">LP作成ガイド</h1>
+          <h1 className="text-2xl font-bold text-slate-800">LP作成・アップロードガイド</h1>
           <p className="text-slate-500 mt-2">
-            新しいLPを作成する際に必要な設定や、トラッキング機能を活用するための手順をまとめています。
+            管理画面からLPをアップロードする方法と、自動設定される機能について説明します。
           </p>
+        </div>
+
+        {/* 新方式の概要 */}
+        <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-200 p-6 mb-8">
+          <h2 className="text-lg font-semibold text-indigo-900 mb-3">新しいLP管理方式</h2>
+          <p className="text-indigo-800 mb-4">
+            LPはZIPファイルでアップロードするだけで公開できます。<br />
+            <strong>GTM・LINE・トラッキングのタグは自動で挿入</strong>されるため、手動設定は不要です。
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div className="bg-white rounded-lg p-4 border border-indigo-100">
+              <div className="flex items-center gap-2 text-indigo-600 font-medium mb-2">
+                <Upload className="w-4 h-4" />
+                ZIPアップロード
+              </div>
+              <p className="text-slate-600">HTML+画像をまとめてアップロード</p>
+            </div>
+            <div className="bg-white rounded-lg p-4 border border-indigo-100">
+              <div className="flex items-center gap-2 text-indigo-600 font-medium mb-2">
+                <Tag className="w-4 h-4" />
+                タグ自動挿入
+              </div>
+              <p className="text-slate-600">GTM・LINE・トラッキングを自動設定</p>
+            </div>
+            <div className="bg-white rounded-lg p-4 border border-indigo-100">
+              <div className="flex items-center gap-2 text-indigo-600 font-medium mb-2">
+                <BarChart3 className="w-4 h-4" />
+                即座に計測開始
+              </div>
+              <p className="text-slate-600">アップロード後すぐにトラッキング可能</p>
+            </div>
+          </div>
         </div>
 
         {/* 目次 */}
         <div className="bg-white rounded-xl border border-slate-200 p-6 mb-8">
           <h2 className="text-lg font-semibold text-slate-900 mb-4">目次</h2>
           <ol className="space-y-2 text-sm">
-            <li><a href="#file-structure" className="text-indigo-600 hover:underline">1. ファイル構成</a></li>
-            <li><a href="#tracking-script" className="text-indigo-600 hover:underline">2. トラッキングスクリプトの設置</a></li>
-            <li><a href="#gtm-clarity" className="text-indigo-600 hover:underline">3. GTM・Clarityタグの設置</a></li>
-            <li><a href="#section-tracking" className="text-indigo-600 hover:underline">4. セクション別滞在時間の計測</a></li>
-            <li><a href="#cta-tracking" className="text-indigo-600 hover:underline">5. CTAボタンのトラッキング</a></li>
-            <li><a href="#ad-url" className="text-indigo-600 hover:underline">5.5 広告用URL発行（LINEタグ設定）</a></li>
+            <li><a href="#zip-structure" className="text-indigo-600 hover:underline">1. ZIPファイルの構成</a></li>
+            <li><a href="#upload-flow" className="text-indigo-600 hover:underline">2. アップロード手順</a></li>
+            <li><a href="#auto-tags" className="text-indigo-600 hover:underline">3. 自動挿入されるタグ</a></li>
+            <li><a href="#cta-settings" className="text-indigo-600 hover:underline">4. CTAボタンの設定</a></li>
+            <li><a href="#section-tracking" className="text-indigo-600 hover:underline">5. セクション別滞在時間の計測（任意）</a></li>
             <li><a href="#ogp-meta" className="text-indigo-600 hover:underline">6. OGP・メタタグの設定</a></li>
-            <li><a href="#checklist" className="text-indigo-600 hover:underline">7. リリース前チェックリスト</a></li>
+            <li><a href="#edit-delete" className="text-indigo-600 hover:underline">7. LPの編集・削除</a></li>
+            <li><a href="#warnings" className="text-indigo-600 hover:underline">8. 警告アイコンについて</a></li>
+            <li><a href="#checklist" className="text-indigo-600 hover:underline">9. リリース前チェックリスト</a></li>
           </ol>
         </div>
 
-        {/* セクション1: ファイル構成 */}
-        <section id="file-structure" className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
+        {/* セクション1: ZIPファイルの構成 */}
+        <section id="zip-structure" className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
-              <FolderOpen className="w-5 h-5 text-indigo-600" />
+              <FileArchive className="w-5 h-5 text-indigo-600" />
             </div>
-            <h2 className="text-lg font-semibold text-slate-900">1. ファイル構成</h2>
+            <h2 className="text-lg font-semibold text-slate-900">1. ZIPファイルの構成</h2>
           </div>
 
           <p className="text-slate-600 mb-4">
-            新しいLPは <code className="bg-slate-100 px-2 py-1 rounded text-sm">public/lp/</code> ディレクトリ配下に、
-            <strong>数字のフォルダ名</strong>で作成してください。
+            アップロードするZIPファイルは、以下の構成にしてください。
+            <code className="bg-slate-100 px-2 py-1 rounded text-sm">index.html</code> は必須です。
           </p>
 
-          <CodeBlock code={`public/
-└── lp/
-    ├── tracking.js        # 共通トラッキングスクリプト（編集不要）
-    ├── lp-config.json     # LP設定ファイル（自動生成）
-    ├── images/            # 共通画像
-    │   └── ogp.png        # OGP画像（1200×630px推奨）
-    ├── 0/                 # LP 0
-    │   ├── index.html     # メインHTML
-    │   └── styles.css     # スタイルシート
-    ├── 1/                 # LP 1
-    │   ├── index.html
-    │   └── styles.css
-    └── 2/                 # LP 2（新規作成）
-        ├── index.html     # ← 必須
-        └── styles.css     # ← 任意`} language="text" />
+          <CodeBlock code={`my-lp.zip
+├── index.html      # 必須: メインHTMLファイル
+├── styles.css      # 任意: スタイルシート
+└── images/         # 任意: 画像フォルダ
+    ├── hero.png
+    ├── logo.svg
+    └── feature.jpg`} />
+
+          <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <h4 className="text-sm font-semibold text-green-800 mb-2">ポイント</h4>
+            <ul className="text-sm text-green-700 space-y-1">
+              <li>• <code className="bg-green-100 px-1 rounded">index.html</code> はZIPのルート直下に配置</li>
+              <li>• 画像は <code className="bg-green-100 px-1 rounded">images/</code> フォルダにまとめると管理しやすい</li>
+              <li>• 画像パスは自動でSupabase Storage URLに変換されます</li>
+            </ul>
+          </div>
 
           <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
             <div className="flex items-start gap-2">
               <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
               <div className="text-sm text-amber-800">
-                <strong>重要:</strong> フォルダ名は必ず数字（0, 1, 2...）にしてください。
-                LP管理画面で自動検出されます。
+                <strong>注意:</strong> ZIPファイル内にフォルダが1階層あるパターン（例: <code className="bg-amber-100 px-1 rounded">lp-folder/index.html</code>）もサポートしています。
               </div>
             </div>
           </div>
         </section>
 
-        {/* セクション2: トラッキングスクリプト */}
-        <section id="tracking-script" className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
+        {/* セクション2: アップロード手順 */}
+        <section id="upload-flow" className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-              <FileCode className="w-5 h-5 text-green-600" />
+              <Upload className="w-5 h-5 text-green-600" />
             </div>
-            <h2 className="text-lg font-semibold text-slate-900">2. トラッキングスクリプトの設置</h2>
+            <h2 className="text-lg font-semibold text-slate-900">2. アップロード手順</h2>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-start gap-4 p-4 bg-slate-50 rounded-lg">
+              <div className="flex-shrink-0 w-8 h-8 bg-indigo-600 text-white rounded-full flex items-center justify-center text-sm font-bold">1</div>
+              <div>
+                <h4 className="font-medium text-slate-900">LP管理画面を開く</h4>
+                <p className="text-sm text-slate-600 mt-1">
+                  <code className="bg-slate-200 px-1 rounded">/system-admin/lp</code> にアクセス
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-4 p-4 bg-slate-50 rounded-lg">
+              <div className="flex-shrink-0 w-8 h-8 bg-indigo-600 text-white rounded-full flex items-center justify-center text-sm font-bold">2</div>
+              <div>
+                <h4 className="font-medium text-slate-900">「+ LP追加」ボタンをクリック</h4>
+                <p className="text-sm text-slate-600 mt-1">
+                  画面右上の追加ボタンからアップロードモーダルを開きます
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-4 p-4 bg-slate-50 rounded-lg">
+              <div className="flex-shrink-0 w-8 h-8 bg-indigo-600 text-white rounded-full flex items-center justify-center text-sm font-bold">3</div>
+              <div>
+                <h4 className="font-medium text-slate-900">ZIPファイルをアップロード</h4>
+                <p className="text-sm text-slate-600 mt-1">
+                  LP名を入力し、ZIPファイルを選択またはドラッグ&ドロップ
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-4 p-4 bg-slate-50 rounded-lg">
+              <div className="flex-shrink-0 w-8 h-8 bg-indigo-600 text-white rounded-full flex items-center justify-center text-sm font-bold">4</div>
+              <div>
+                <h4 className="font-medium text-slate-900">自動処理が実行される</h4>
+                <p className="text-sm text-slate-600 mt-1">
+                  ZIPが解凍され、タグが自動挿入され、Supabase Storageに保存されます
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-4 p-4 bg-green-50 rounded-lg border border-green-200">
+              <div className="flex-shrink-0 w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center">
+                <CheckCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-medium text-green-900">完了！</h4>
+                <p className="text-sm text-green-700 mt-1">
+                  LP番号が自動採番され、<code className="bg-green-100 px-1 rounded">/api/lp/[番号]</code> で公開されます（認証不要でどこからでもアクセス可能）
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* セクション3: 自動挿入されるタグ */}
+        <section id="auto-tags" className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+              <Tag className="w-5 h-5 text-purple-600" />
+            </div>
+            <h2 className="text-lg font-semibold text-slate-900">3. 自動挿入されるタグ</h2>
           </div>
 
           <p className="text-slate-600 mb-4">
-            <code className="bg-slate-100 px-2 py-1 rounded text-sm">&lt;/body&gt;</code> タグの直前に以下を追加してください。
-            これにより、PV・スクロール・滞在時間・CTAクリックが自動計測されます。
+            以下のタグは<strong>アップロード時に自動挿入</strong>されます。
+            既にタグが存在する場合は、重複を避けるため挿入されません。
           </p>
 
-          <CodeBlock code={`<!-- LP Tracking Script -->
-<script src="../tracking.js"></script>
-</body>
-</html>`} />
+          <div className="space-y-4">
+            <div className="p-4 border border-slate-200 rounded-lg">
+              <h3 className="font-medium text-slate-900 mb-2">GTMタグ（Google Tag Manager）</h3>
+              <p className="text-sm text-slate-600 mb-2">
+                <code className="bg-slate-100 px-1 rounded">&lt;head&gt;</code> 直後と <code className="bg-slate-100 px-1 rounded">&lt;body&gt;</code> 直後に挿入
+              </p>
+              <div className="text-xs text-slate-500 bg-slate-50 p-2 rounded">
+                GTM-MSBWVNVB が自動設定されます
+              </div>
+            </div>
 
-          <div className="mt-4 p-4 bg-indigo-50 border border-blue-200 rounded-lg">
-            <h4 className="text-sm font-semibold text-indigo-800 mb-2">自動計測される項目:</h4>
+            <div className="p-4 border border-slate-200 rounded-lg">
+              <h3 className="font-medium text-slate-900 mb-2">LINE友だち登録ボタン属性</h3>
+              <p className="text-sm text-slate-600 mb-2">
+                LINE CTAボタンの <code className="bg-slate-100 px-1 rounded">&lt;a&gt;</code> タグに挿入
+              </p>
+              <div className="text-xs text-slate-500 bg-slate-50 p-2 rounded">
+                <code>data-cats=&quot;lineFriendsFollowLink&quot;</code> 属性が自動設定されます（markecats連携用）
+              </div>
+            </div>
+
+            <div className="p-4 border border-slate-200 rounded-lg">
+              <h3 className="font-medium text-slate-900 mb-2">トラッキングスクリプト</h3>
+              <p className="text-sm text-slate-600 mb-2">
+                <code className="bg-slate-100 px-1 rounded">&lt;/body&gt;</code> 直前に挿入
+              </p>
+              <div className="text-xs text-slate-500 bg-slate-50 p-2 rounded">
+                PV・スクロール・滞在時間・CTAクリックを自動計測
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
+            <h4 className="text-sm font-semibold text-indigo-800 mb-2">自動計測される項目</h4>
             <ul className="text-sm text-indigo-700 space-y-1">
               <li>✓ ページビュー（PV）</li>
               <li>✓ スクロール深度（25%, 50%, 75%, 90%到達）</li>
@@ -135,70 +265,83 @@ export default function LPGuidePage() {
               <li>✓ キャンペーンコード（URLパラメータから自動取得）</li>
             </ul>
           </div>
+
+          <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-amber-800">
+                <strong>重複チェック:</strong> 既にGTMタグやトラッキングスクリプトが含まれている場合、自動挿入はスキップされます。
+                既存のタグがそのまま維持されます。
+              </div>
+            </div>
+          </div>
         </section>
 
-        {/* セクション3: GTM・Clarity */}
-        <section id="gtm-clarity" className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
+        {/* セクション4: CTAボタンの設定 */}
+        <section id="cta-settings" className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-              <Tag className="w-5 h-5 text-purple-600" />
+            <div className="w-10 h-10 bg-rose-100 rounded-lg flex items-center justify-center">
+              <CheckCircle className="w-5 h-5 text-rose-600" />
             </div>
-            <h2 className="text-lg font-semibold text-slate-900">3. GTM・Clarityタグの設置</h2>
+            <h2 className="text-lg font-semibold text-slate-900">4. CTAボタンの設定</h2>
           </div>
 
-          <h3 className="font-medium text-slate-900 mb-2">Google Tag Manager</h3>
           <p className="text-slate-600 mb-4">
-            <code className="bg-slate-100 px-2 py-1 rounded text-sm">&lt;head&gt;</code> タグの直後に以下を追加:
+            LINE登録ボタンは、以下のクラス名を設定するとクリック計測され、URLも自動設定されます。
+            <strong>hrefは「#」でOK</strong> です。
           </p>
 
-          <CodeBlock code={`<!-- Google Tag Manager -->
-<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-})(window,document,'script','dataLayer','GTM-MSBWVNVB');</script>
-<!-- End Google Tag Manager -->`} />
+          <CodeBlock code={`<!-- CTAボタンの推奨設定 -->
+<a href="#" class="btn-line-cta">
+  今すぐ公式LINEに登録
+</a>
 
-          <p className="text-slate-600 my-4">
-            <code className="bg-slate-100 px-2 py-1 rounded text-sm">&lt;body&gt;</code> タグの直後に以下を追加:
-          </p>
+<!-- ヘッダーのLINEボタン -->
+<a href="#" class="btn-line-header">
+  LINE登録
+</a>
 
-          <CodeBlock code={`<!-- Google Tag Manager (noscript) -->
-<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-MSBWVNVB"
-height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
-<!-- End Google Tag Manager (noscript) -->`} />
+<!-- 自動挿入後（data-cats属性が追加される） -->
+<a href="#" class="btn-line-cta" data-cats="lineFriendsFollowLink">
+  今すぐ公式LINEに登録
+</a>`} />
 
-          <h3 className="font-medium text-slate-900 mt-6 mb-2">Microsoft Clarity（ヒートマップ）</h3>
-          <p className="text-slate-600 mb-2">
-            Clarityを使用する場合は、GTM経由で設定するか、以下を <code className="bg-slate-100 px-1 rounded text-sm">&lt;head&gt;</code> に追加:
-          </p>
+          <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <h4 className="text-sm font-semibold text-green-800 mb-2">自動処理</h4>
+            <ul className="text-sm text-green-700 space-y-1">
+              <li>• <code className="bg-green-100 px-1 rounded">href=&quot;#&quot;</code> は自動でLINE URLに置換されます</li>
+              <li>• <code className="bg-green-100 px-1 rounded">?utm_source=google</code> → Google広告用LINE URL</li>
+              <li>• <code className="bg-green-100 px-1 rounded">?utm_source=meta</code> → Meta広告用LINE URL</li>
+              <li>• クリック計測が自動で行われます</li>
+              <li>• <code className="bg-green-100 px-1 rounded">data-cats=&quot;lineFriendsFollowLink&quot;</code> 属性が自動挿入されます（markecats連携用）</li>
+            </ul>
+          </div>
 
-          <CodeBlock code={`<!-- Clarity -->
-<script type="text/javascript">
-(function(c,l,a,r,i,t,y){
-    c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
-    t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
-    y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
-})(window, document, "clarity", "script", "YOUR_CLARITY_ID");
-</script>`} />
+          <div className="mt-4 p-4 bg-indigo-50 border border-blue-200 rounded-lg">
+            <h4 className="text-sm font-semibold text-indigo-800 mb-2">トラッキング対象クラス</h4>
+            <ul className="text-sm text-indigo-700 space-y-1">
+              <li>• <code className="bg-indigo-100 px-1 rounded">.btn-line-cta</code> - メインCTAボタン</li>
+              <li>• <code className="bg-indigo-100 px-1 rounded">.btn-line-header</code> - ヘッダーLINEボタン</li>
+              <li>• テキストに「LINE」を含むリンク/ボタン</li>
+            </ul>
+          </div>
         </section>
 
-        {/* セクション4: セクション別滞在時間 */}
+        {/* セクション5: セクション別滞在時間 */}
         <section id="section-tracking" className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
               <BarChart3 className="w-5 h-5 text-orange-600" />
             </div>
-            <h2 className="text-lg font-semibold text-slate-900">4. セクション別滞在時間の計測</h2>
+            <h2 className="text-lg font-semibold text-slate-900">5. セクション別滞在時間の計測（任意）</h2>
           </div>
 
           <p className="text-slate-600 mb-4">
-            LPの各セクションに <code className="bg-slate-100 px-2 py-1 rounded text-sm">data-section-id</code> 属性を追加すると、
-            セクションごとの滞在時間が計測されます。
+            各セクションに <code className="bg-slate-100 px-2 py-1 rounded text-sm">data-section-id</code> 属性を追加すると、
+            セクションごとの滞在時間が計測されます。<strong>任意設定</strong>です。
           </p>
 
-          <CodeBlock code={`<!-- セクション別滞在時間を計測する例 -->
-<section data-section-id="hero" data-section-name="ヒーロー">
+          <CodeBlock code={`<section data-section-id="hero" data-section-name="ヒーロー">
   <!-- ヒーローセクションの内容 -->
 </section>
 
@@ -206,130 +349,12 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   <!-- 機能紹介セクションの内容 -->
 </section>
 
-<section data-section-id="testimonials" data-section-name="お客様の声">
-  <!-- 口コミセクションの内容 -->
-</section>
-
 <section data-section-id="cta" data-section-name="CTA">
   <!-- CTAセクションの内容 -->
 </section>`} />
 
-          <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-            <h4 className="text-sm font-semibold text-green-800 mb-2">計測の仕組み:</h4>
-            <ul className="text-sm text-green-700 space-y-1">
-              <li>• Intersection Observerで画面表示を監視</li>
-              <li>• セクションが画面の50%以上表示されている間の時間を累積</li>
-              <li>• ページ離脱時にサーバーへ送信</li>
-              <li>• トラッキングページの「セクション別滞在時間」で確認可能</li>
-            </ul>
-          </div>
-
-          <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-amber-800">
-                <strong>注意:</strong> 複数のLPで同じ <code className="bg-amber-100 px-1 rounded">data-section-id</code> を使用すると、
-                トラッキングデータがマージされます。LP間で区別したい場合は、
-                <code className="bg-amber-100 px-1 rounded">lp1-hero</code>、<code className="bg-amber-100 px-1 rounded">lp2-hero</code> のように
-                ユニークなIDを使用してください。
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* セクション5: CTAボタン */}
-        <section id="cta-tracking" className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-rose-100 rounded-lg flex items-center justify-center">
-              <CheckCircle className="w-5 h-5 text-rose-600" />
-            </div>
-            <h2 className="text-lg font-semibold text-slate-900">5. CTAボタンのトラッキング</h2>
-          </div>
-
-          <p className="text-slate-600 mb-4">
-            以下のクラス名を持つボタンは自動的にCTAクリックとして計測されます。
-            <strong>hrefは「#」のままでOK</strong> - tracking.jsがutm_sourceに基づいて自動でLINE URLを設定します。
-          </p>
-
-          <CodeBlock code={`<!-- CTAボタン（href="#" でOK、自動でLINE URLが設定される） -->
-<a href="#" class="btn-line-cta" data-cats="lineFriendsFollowLink">
-  今すぐ公式LINEに登録
-</a>
-
-<a href="#" class="btn-line-header" data-cats="lineFriendsFollowLink">
-  LINE登録
-</a>`} />
-
-          <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-            <h4 className="text-sm font-semibold text-green-800 mb-2">LINE URL自動切り替えの仕組み:</h4>
-            <ul className="text-sm text-green-700 space-y-1">
-              <li>• URLに <code className="bg-green-100 px-1 rounded">?utm_source=google</code> → Google広告用LINE URL</li>
-              <li>• URLに <code className="bg-green-100 px-1 rounded">?utm_source=meta</code> → Meta広告用LINE URL</li>
-              <li>• tracking.jsが自動でhref属性を設定</li>
-              <li>• <code className="bg-green-100 px-1 rounded">data-cats=&quot;lineFriendsFollowLink&quot;</code> はCATS計測用</li>
-            </ul>
-          </div>
-
-          <div className="mt-4 p-4 bg-indigo-50 border border-blue-200 rounded-lg">
-            <h4 className="text-sm font-semibold text-indigo-800 mb-2">トラッキング対象:</h4>
-            <ul className="text-sm text-indigo-700 space-y-1">
-              <li>• <code className="bg-indigo-100 px-1 rounded">.btn-line-cta</code> クラスを持つ要素</li>
-              <li>• <code className="bg-indigo-100 px-1 rounded">.btn-line-header</code> クラスを持つ要素</li>
-              <li>• テキストに「LINE」を含むリンク/ボタン</li>
-              <li>• <code className="bg-indigo-100 px-1 rounded">.cta</code> または <code className="bg-indigo-100 px-1 rounded">.btn</code> クラスを持つ要素</li>
-            </ul>
-          </div>
-        </section>
-
-        {/* セクション5.5: 広告用URL発行 */}
-        <section id="ad-url" className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-              <Tag className="w-5 h-5 text-green-600" />
-            </div>
-            <h2 className="text-lg font-semibold text-slate-900">5.5 広告用URL発行（LINEタグ設定）</h2>
-          </div>
-
-          <p className="text-slate-600 mb-4">
-            Google広告とMeta広告では、LINE友だち追加URLの計測タグが異なります。
-            LP管理画面でLINEタグを選択し、適切なURLを発行してください。
-          </p>
-
-          <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg mb-4">
-            <h4 className="text-sm font-semibold text-slate-800 mb-3">発行手順:</h4>
-            <ol className="text-sm text-slate-700 space-y-2">
-              <li className="flex items-start gap-2">
-                <span className="flex-shrink-0 w-5 h-5 bg-green-500 text-white rounded-full flex items-center justify-center text-xs font-bold">1</span>
-                <span>LP管理画面の上部にある「LINEタグ」ドロップダウンで広告プラットフォームを選択</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="flex-shrink-0 w-5 h-5 bg-green-500 text-white rounded-full flex items-center justify-center text-xs font-bold">2</span>
-                <span>「適用」ボタンをクリック</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="flex-shrink-0 w-5 h-5 bg-green-500 text-white rounded-full flex items-center justify-center text-xs font-bold">3</span>
-                <span>各LPカードの「開く」ボタンまたは「コピー」ボタンで広告用URLを取得</span>
-              </li>
-            </ol>
-          </div>
-
-          <CodeBlock code={`# Google広告用URL
-https://tastas.work/lp/0/index.html?utm_source=google
-
-# Meta広告用URL
-https://tastas.work/lp/0/index.html?utm_source=meta
-
-# キャンペーンコード付き（例: サマーキャンペーン）
-https://tastas.work/lp/0/index.html?utm_source=google&c=AAH-SUMMER`} language="text" />
-
-          <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-amber-800">
-                <strong>重要:</strong> 広告入稿時は必ずLP管理画面から発行したURLを使用してください。
-                utm_sourceパラメータがないと、LINE友だち追加の計測が正しく行われません。
-              </div>
-            </div>
+          <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-600">
+            計測データは「トラッキング」画面の「セクション別滞在時間」で確認できます。
           </div>
         </section>
 
@@ -343,175 +368,206 @@ https://tastas.work/lp/0/index.html?utm_source=google&c=AAH-SUMMER`} language="t
           </div>
 
           <p className="text-slate-600 mb-4">
-            SNS共有時に正しく表示されるよう、以下のメタタグを設定してください:
+            SNS共有時に正しく表示されるよう、以下のメタタグをHTML内に設定してください。
+            <strong>これは自動挿入されない</strong>ため、手動で設定が必要です。
           </p>
 
           <CodeBlock code={`<head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="ページの説明文（120文字以内推奨）">
   <title>ページタイトル | TASTAS</title>
+  <meta name="description" content="ページの説明文">
 
-  <!-- OGP / SNS共有用メタタグ -->
+  <!-- OGP設定 -->
   <meta property="og:title" content="ページタイトル | TASTAS">
   <meta property="og:description" content="ページの説明文">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://share-worker-app.vercel.app/lp/2/index.html">
-  <meta property="og:image" content="https://share-worker-app.vercel.app/lp/images/ogp.png">
+  <meta property="og:url" content="https://tastas.work/api/lp/X">
+  <meta property="og:image" content="https://tastas.work/lp/images/ogp.png">
   <meta property="og:site_name" content="TASTAS">
-  <meta property="og:locale" content="ja_JP">
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="ページタイトル | TASTAS">
-  <meta name="twitter:description" content="ページの説明文">
 </head>`} />
 
           <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
             <div className="flex items-start gap-2">
               <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
               <div className="text-sm text-amber-800">
-                <strong>リリース前に必ず確認:</strong>
-                <ul className="mt-1 space-y-1">
-                  <li>• <code className="bg-amber-100 px-1 rounded">og:url</code> を本番URLに変更</li>
-                  <li>• <code className="bg-amber-100 px-1 rounded">og:image</code> を本番URLに変更</li>
-                  <li>• OGP画像（1200×630px）を用意</li>
-                </ul>
+                <strong>注意:</strong> <code className="bg-amber-100 px-1 rounded">og:url</code> と <code className="bg-amber-100 px-1 rounded">og:image</code> は本番URLに変更してください。
               </div>
             </div>
           </div>
         </section>
 
-        {/* セクション7: チェックリスト */}
+        {/* セクション7: LPの編集・削除 */}
+        <section id="edit-delete" className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center">
+              <Edit3 className="w-5 h-5 text-slate-600" />
+            </div>
+            <h2 className="text-lg font-semibold text-slate-900">7. LPの編集・削除</h2>
+          </div>
+
+          <div className="space-y-4">
+            <div className="p-4 border border-slate-200 rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <Edit3 className="w-4 h-4 text-indigo-600" />
+                <h3 className="font-medium text-slate-900">LPの編集（上書き更新）</h3>
+              </div>
+              <p className="text-sm text-slate-600">
+                既存のLPを更新する場合、同じLP番号を指定して新しいZIPをアップロードします。
+                古いファイルは削除され、新しいファイルに置き換わります。
+              </p>
+            </div>
+
+            <div className="p-4 border border-red-200 bg-red-50 rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <Trash2 className="w-4 h-4 text-red-600" />
+                <h3 className="font-medium text-red-900">LPの削除</h3>
+              </div>
+              <p className="text-sm text-red-800">
+                LP一覧の削除ボタンから削除できます。削除されたLPのURLはアクセス不可になります。
+                <strong>この操作は取り消せません。</strong>
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* セクション8: 警告アイコンについて */}
+        <section id="warnings" className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+              <AlertTriangle className="w-5 h-5 text-amber-600" />
+            </div>
+            <h2 className="text-lg font-semibold text-slate-900">8. 警告アイコンについて</h2>
+          </div>
+
+          <p className="text-slate-600 mb-4">
+            LP一覧で、以下のタグが設定されていないLPには警告アイコンが表示されます。
+          </p>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50">
+                  <th className="text-left p-3 border-b">状態</th>
+                  <th className="text-left p-3 border-b">表示</th>
+                  <th className="text-left p-3 border-b">対処方法</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="p-3 border-b">GTMタグなし</td>
+                  <td className="p-3 border-b"><span className="text-amber-600">⚠️ GTM未設定</span></td>
+                  <td className="p-3 border-b text-slate-600">通常は自動挿入されます。既存タグがある場合は維持されます。</td>
+                </tr>
+                <tr>
+                  <td className="p-3 border-b">LINE属性なし</td>
+                  <td className="p-3 border-b"><span className="text-amber-600">⚠️ LINE未設定</span></td>
+                  <td className="p-3 border-b text-slate-600">LINE CTAボタンに<code className="bg-slate-100 px-1 rounded">data-cats</code>属性が設定されていません。CTAボタンのクラス名を確認してください。</td>
+                </tr>
+                <tr>
+                  <td className="p-3 border-b">トラッキングなし</td>
+                  <td className="p-3 border-b"><span className="text-amber-600">⚠️ トラッキング未設定</span></td>
+                  <td className="p-3 border-b text-slate-600">通常は自動挿入されます。</td>
+                </tr>
+                <tr>
+                  <td className="p-3">全て設定済み</td>
+                  <td className="p-3"><span className="text-green-600">✓</span></td>
+                  <td className="p-3 text-slate-600">問題ありません。</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        {/* セクション9: チェックリスト */}
         <section id="checklist" className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
               <CheckCircle className="w-5 h-5 text-emerald-600" />
             </div>
-            <h2 className="text-lg font-semibold text-slate-900">7. リリース前チェックリスト</h2>
+            <h2 className="text-lg font-semibold text-slate-900">9. リリース前チェックリスト</h2>
           </div>
 
           <div className="space-y-4">
             <div className="p-4 border border-slate-200 rounded-lg">
-              <h3 className="font-medium text-slate-900 mb-3">ファイル構成</h3>
+              <h3 className="font-medium text-slate-900 mb-3">アップロード前の確認</h3>
               <ul className="space-y-2 text-sm text-slate-600">
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
-                  <span><code className="bg-slate-100 px-1 rounded">public/lp/{'{'}数字{'}'}/index.html</code> を作成</span>
+                  <span><code className="bg-slate-100 px-1 rounded">index.html</code> がZIPのルートに存在する</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
-                  <span>スタイルシート（styles.css）を作成</span>
+                  <span>画像ファイルがZIPに含まれている</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <input type="checkbox" className="mt-1 rounded" />
+                  <span>HTMLが文法的に正しい（開始/終了タグの対応）</span>
                 </li>
               </ul>
             </div>
 
             <div className="p-4 border border-slate-200 rounded-lg">
-              <h3 className="font-medium text-slate-900 mb-3">トラッキング設定</h3>
+              <h3 className="font-medium text-slate-900 mb-3">HTML内の設定</h3>
               <ul className="space-y-2 text-sm text-slate-600">
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
-                  <span><code className="bg-slate-100 px-1 rounded">&lt;script src=&quot;../tracking.js&quot;&gt;&lt;/script&gt;</code> を追加</span>
+                  <span>CTAボタンに <code className="bg-slate-100 px-1 rounded">.btn-line-cta</code> クラスを設定</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
-                  <span>GTMタグ（GTM-MSBWVNVB）を <code className="bg-slate-100 px-1 rounded">&lt;head&gt;</code> と <code className="bg-slate-100 px-1 rounded">&lt;body&gt;</code> に追加</span>
+                  <span>OGPメタタグ（og:title, og:image等）を設定</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
-                  <span>セクションに <code className="bg-slate-100 px-1 rounded">data-section-id</code> を設定（任意）</span>
-                </li>
-              </ul>
-            </div>
-
-            <div className="p-4 border border-slate-200 rounded-lg">
-              <h3 className="font-medium text-slate-900 mb-3">CTAボタン設定</h3>
-              <ul className="space-y-2 text-sm text-slate-600">
-                <li className="flex items-start gap-2">
-                  <input type="checkbox" className="mt-1 rounded" />
-                  <span>CTAボタンに <code className="bg-slate-100 px-1 rounded">.btn-line-cta</code> または <code className="bg-slate-100 px-1 rounded">.btn-line-header</code> クラスを設定</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <input type="checkbox" className="mt-1 rounded" />
-                  <span>CTAボタンに <code className="bg-slate-100 px-1 rounded">data-cats=&quot;lineFriendsFollowLink&quot;</code> を追加（CATS計測用）</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <input type="checkbox" className="mt-1 rounded" />
-                  <span><code className="bg-slate-100 px-1 rounded">href=&quot;#&quot;</code> のままでOK（tracking.jsが自動でLINE URLを設定）</span>
-                </li>
-              </ul>
-            </div>
-
-            <div className="p-4 border border-slate-200 rounded-lg">
-              <h3 className="font-medium text-slate-900 mb-3">OGP・メタ情報</h3>
-              <ul className="space-y-2 text-sm text-slate-600">
-                <li className="flex items-start gap-2">
-                  <input type="checkbox" className="mt-1 rounded" />
-                  <span><code className="bg-slate-100 px-1 rounded">og:url</code> を本番URLに変更</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <input type="checkbox" className="mt-1 rounded" />
-                  <span><code className="bg-slate-100 px-1 rounded">og:image</code> を本番URLに変更</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <input type="checkbox" className="mt-1 rounded" />
-                  <span>OGP画像（1200×630px）を <code className="bg-slate-100 px-1 rounded">public/lp/images/ogp.png</code> に配置</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <input type="checkbox" className="mt-1 rounded" />
-                  <span>タイトル・説明文を設定</span>
+                  <span>セクション別計測が必要なら <code className="bg-slate-100 px-1 rounded">data-section-id</code> を設定</span>
                 </li>
               </ul>
             </div>
 
             <div className="p-4 border border-green-200 bg-green-50 rounded-lg">
-              <h3 className="font-medium text-green-900 mb-3">広告入稿用URL発行</h3>
+              <h3 className="font-medium text-green-900 mb-3">アップロード後の確認</h3>
               <ul className="space-y-2 text-sm text-green-800">
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
-                  <span>LP管理画面でLINEタグ（Meta/Google）を選択し「適用」ボタンをクリック</span>
+                  <span>LP一覧に警告アイコンがないこと（✓が表示）</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
-                  <span>Google広告用: <code className="bg-green-100 px-1 rounded">?utm_source=google</code> 付きURLを発行</span>
+                  <span>「開く」ボタンでLPが正常に表示される</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
-                  <span>Meta広告用: <code className="bg-green-100 px-1 rounded">?utm_source=meta</code> 付きURLを発行</span>
+                  <span>画像が正しく表示される</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
-                  <span>キャンペーンコードが必要な場合は「コード」ボタンから発行</span>
+                  <span>CTAボタンをクリックするとLINE URLに遷移する</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <input type="checkbox" className="mt-1 rounded" />
+                  <span>トラッキング画面でPVが計測される</span>
                 </li>
               </ul>
             </div>
 
             <div className="p-4 border border-slate-200 rounded-lg">
-              <h3 className="font-medium text-slate-900 mb-3">動作確認</h3>
+              <h3 className="font-medium text-slate-900 mb-3">広告入稿時</h3>
               <ul className="space-y-2 text-sm text-slate-600">
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
-                  <span>LP管理画面（/lp）に新しいLPが表示される</span>
+                  <span>Google広告: <code className="bg-slate-100 px-1 rounded">?utm_source=google</code> 付きURLを使用</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
-                  <span>トラッキングデータがトラッキング画面に反映される</span>
+                  <span>Meta広告: <code className="bg-slate-100 px-1 rounded">?utm_source=meta</code> 付きURLを使用</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
-                  <span>CTAボタンクリックが計測される</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <input type="checkbox" className="mt-1 rounded" />
-                  <span>キャンペーンURL（?c=xxx）でアクセスした際にコードが記録される</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <input type="checkbox" className="mt-1 rounded" />
-                  <span><code className="bg-slate-100 px-1 rounded">?utm_source=google</code> でGoogle用LINE URLが設定される</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <input type="checkbox" className="mt-1 rounded" />
-                  <span><code className="bg-slate-100 px-1 rounded">?utm_source=meta</code> でMeta用LINE URLが設定される</span>
+                  <span>キャンペーンコードが必要な場合は「コード」から発行</span>
                 </li>
               </ul>
             </div>

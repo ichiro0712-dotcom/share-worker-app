@@ -31,6 +31,7 @@ export { s3Client };
 export const STORAGE_BUCKETS = {
   UPLOADS: 'uploads',
   USER_ASSETS: 'user-assets',
+  LP_ASSETS: 'lp-assets', // LP用バケット
 } as const;
 
 /**
@@ -137,5 +138,66 @@ export async function deleteFile(
   } catch (error: any) {
     console.error('[S3 Storage] Delete error:', error);
     return { success: false, error: error.message };
+  }
+}
+
+// フォルダ内のファイル一覧を取得
+export async function listFiles(
+  bucket: string,
+  folder: string
+): Promise<{ files: string[]; error?: string }> {
+  try {
+    const { data, error } = await supabaseAdmin.storage.from(bucket).list(folder, {
+      limit: 1000, // 十分な数
+    });
+
+    if (error) {
+      console.error('[Storage] List files error:', error);
+      return { files: [], error: error.message };
+    }
+
+    // ファイルパスを構築（フォルダ名 + ファイル名）
+    const files = (data || [])
+      .filter((item) => item.name) // 空の名前を除外
+      .map((item) => `${folder}/${item.name}`);
+
+    return { files };
+  } catch (error: any) {
+    console.error('[Storage] List files error:', error);
+    return { files: [], error: error.message };
+  }
+}
+
+// フォルダ内の全ファイルを削除
+export async function deleteFolder(
+  bucket: string,
+  folder: string
+): Promise<{ success: boolean; deletedCount: number; error?: string }> {
+  try {
+    // フォルダ内のファイル一覧を取得
+    const { files, error: listError } = await listFiles(bucket, folder);
+
+    if (listError) {
+      return { success: false, deletedCount: 0, error: listError };
+    }
+
+    if (files.length === 0) {
+      console.log(`[Storage] No files found in folder: ${folder}`);
+      return { success: true, deletedCount: 0 };
+    }
+
+    // Supabase Storage APIで一括削除
+    const { error } = await supabaseAdmin.storage.from(bucket).remove(files);
+
+    if (error) {
+      console.error('[Storage] Delete folder error:', error);
+      return { success: false, deletedCount: 0, error: error.message };
+    }
+
+    console.log(`[Storage] Deleted ${files.length} files from folder: ${folder}`);
+    return { success: true, deletedCount: files.length };
+  } catch (error: any) {
+    console.error('[Storage] Delete folder error:', error);
+    return { success: false, deletedCount: 0, error: error.message };
   }
 }
