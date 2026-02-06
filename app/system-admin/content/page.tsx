@@ -11,6 +11,7 @@ import {
     BellRing,
     MessageCircle,
     Shield,
+    Coins,
 } from 'lucide-react';
 
 interface ContentCard {
@@ -70,6 +71,13 @@ export default function ContentManagementPage() {
             description: '通知タイミングと表示先を一覧で確認',
             href: '/system-admin/content/notifications',
             icon: <BellRing className="w-6 h-6" />,
+            enabled: true,
+        },
+        {
+            title: '最低賃金管理',
+            description: '都道府県別の最低賃金を設定・CSV一括更新・履歴管理',
+            href: '/system-admin/settings/minimum-wage',
+            icon: <Coins className="w-6 h-6" />,
             enabled: true,
         },
         {
