@@ -127,13 +127,28 @@ export function parseWageValue(value: string): number | null {
 }
 
 /**
+ * 日付文字列（YYYY-MM-DD）のバリデーション
+ * @returns 有効な日付文字列か
+ */
+function isValidDateString(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(value + 'T00:00:00+09:00');
+  if (isNaN(date.getTime())) return false;
+  // パースした結果が元の日付と一致するか（2026-02-30 などの無効日付を弾く）
+  const [y, m, d] = value.split('-').map(Number);
+  return date.getFullYear() === y
+    && date.getMonth() + 1 === m
+    && date.getDate() === d;
+}
+
+/**
  * CSVの1行をパースして最低賃金データに変換
- * @param row CSV行（都道府県,時給）
- * @returns パースされたデータ、または null（無効な行）
+ * @param row CSV行（都道府県,時給[,適用開始日]）
+ * @returns パースされたデータ、または null（無効な行）。invalidDate が true の場合は日付が不正。
  */
 export function parseMinimumWageCsvRow(
   row: string
-): { prefecture: Prefecture; hourlyWage: number } | null {
+): { prefecture: Prefecture; hourlyWage: number; effectiveFrom?: string; invalidDate?: boolean } | null {
   if (!row || !row.trim()) return null;
 
   // CSV引用符を正しく処理するパース
@@ -147,7 +162,21 @@ export function parseMinimumWageCsvRow(
 
   if (!prefecture || !hourlyWage) return null;
 
-  return { prefecture, hourlyWage };
+  // 3列目: 適用開始日（省略可能）
+  let effectiveFrom: string | undefined;
+  let invalidDate = false;
+  if (parts.length >= 3 && parts[2]) {
+    const dateStr = parts[2].trim();
+    if (dateStr) {
+      if (isValidDateString(dateStr)) {
+        effectiveFrom = dateStr;
+      } else {
+        invalidDate = true;
+      }
+    }
+  }
+
+  return { prefecture, hourlyWage, effectiveFrom, invalidDate };
 }
 
 /**
@@ -186,11 +215,11 @@ export function parseMinimumWageCsv(
   csvContent: string,
   skipHeader?: boolean
 ): {
-  data: { prefecture: Prefecture; hourlyWage: number }[];
+  data: { prefecture: Prefecture; hourlyWage: number; effectiveFrom?: string }[];
   errors: { line: number; content: string; reason: string }[];
 } {
   const lines = csvContent.split(/\r?\n/).filter(line => line.trim());
-  const data: { prefecture: Prefecture; hourlyWage: number }[] = [];
+  const data: { prefecture: Prefecture; hourlyWage: number; effectiveFrom?: string }[] = [];
   const errors: { line: number; content: string; reason: string }[] = [];
 
   // ヘッダー行の自動判定
@@ -198,7 +227,7 @@ export function parseMinimumWageCsv(
   if (skipHeader === undefined && lines.length > 0) {
     const firstLine = lines[0].toLowerCase();
     // "都道府県" や "prefecture" などが含まれていればヘッダーとみなす
-    if (firstLine.includes('都道府県') || firstLine.includes('prefecture') || firstLine.includes('時給') || firstLine.includes('wage')) {
+    if (firstLine.includes('都道府県') || firstLine.includes('prefecture') || firstLine.includes('時給') || firstLine.includes('wage') || firstLine.includes('適用開始日') || firstLine.includes('effective') || firstLine.includes('date')) {
       startIndex = 1;
     }
   } else if (skipHeader) {
@@ -210,6 +239,15 @@ export function parseMinimumWageCsv(
     const parsed = parseMinimumWageCsvRow(line);
 
     if (parsed) {
+      // 日付が不正な場合はエラー
+      if (parsed.invalidDate) {
+        errors.push({
+          line: i + 1,
+          content: line,
+          reason: '適用開始日の形式が不正です（YYYY-MM-DD形式で入力してください）',
+        });
+        continue;
+      }
       // 重複チェック
       const existing = data.find(d => d.prefecture === parsed.prefecture);
       if (existing) {
@@ -219,7 +257,11 @@ export function parseMinimumWageCsv(
           reason: `都道府県「${parsed.prefecture}」が重複しています`,
         });
       } else {
-        data.push(parsed);
+        data.push({
+          prefecture: parsed.prefecture,
+          hourlyWage: parsed.hourlyWage,
+          effectiveFrom: parsed.effectiveFrom,
+        });
       }
     } else {
       errors.push({
@@ -239,17 +281,20 @@ export function parseMinimumWageCsv(
  * @returns CSV文字列
  */
 export function generateMinimumWageCsv(
-  data: { prefecture: string; hourlyWage: number; effectiveFrom?: Date }[]
+  data: { prefecture: string; hourlyWage: number; effectiveFrom?: Date | string }[]
 ): string {
-  const headers = ['都道府県', '時給'];
-  if (data.some(d => d.effectiveFrom)) {
-    headers.push('適用開始日');
-  }
+  const headers = ['都道府県', '時給', '適用開始日'];
 
   const rows = data.map(d => {
     const row = [d.prefecture, d.hourlyWage.toString()];
     if (d.effectiveFrom) {
-      row.push(formatDate(d.effectiveFrom));
+      if (typeof d.effectiveFrom === 'string') {
+        row.push(d.effectiveFrom);
+      } else {
+        row.push(formatDateISO(d.effectiveFrom));
+      }
+    } else {
+      row.push('');
     }
     return row.join(',');
   });
@@ -290,4 +335,14 @@ function formatDate(date: Date): string {
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}/${m}/${d}`;
+}
+
+/**
+ * 日付をISO形式でフォーマット（YYYY-MM-DD）
+ */
+function formatDateISO(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }

@@ -62,7 +62,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const parsedDate = new Date(effectiveFrom);
+    // 日付をJST深夜0時として解釈（"2026-02-07" → 2026-02-07T00:00:00+09:00）
+    const parsedDate = new Date(effectiveFrom + (effectiveFrom.includes('T') ? '' : 'T00:00:00+09:00'));
     if (isNaN(parsedDate.getTime())) {
       return NextResponse.json(
         { error: '適用開始日が不正です' },
