@@ -136,8 +136,9 @@ export function parseMinimumWageCsvRow(
 ): { prefecture: Prefecture; hourlyWage: number } | null {
   if (!row || !row.trim()) return null;
 
-  // CSVの引用符を考慮したパース
-  const parts = row.split(',').map(s => s.trim().replace(/^"|"$/g, ''));
+  // CSV引用符を正しく処理するパース
+  // Excel出力で "1,163" のようにカンマ入り数値がダブルクォートで囲まれるケースに対応
+  const parts = parseCsvFields(row);
 
   if (parts.length < 2) return null;
 
@@ -147,6 +148,32 @@ export function parseMinimumWageCsvRow(
   if (!prefecture || !hourlyWage) return null;
 
   return { prefecture, hourlyWage };
+}
+
+/**
+ * CSV行をフィールドに分割（ダブルクォート内のカンマを正しく処理）
+ * "東京都","1,163" → ["東京都", "1,163"]
+ * 東京都,1163 → ["東京都", "1163"]
+ */
+function parseCsvFields(row: string): string[] {
+  const fields: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < row.length; i++) {
+    const ch = row[i];
+    if (ch === '"') {
+      inQuotes = !inQuotes;
+    } else if (ch === ',' && !inQuotes) {
+      fields.push(current.trim());
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  fields.push(current.trim());
+
+  return fields;
 }
 
 /**
