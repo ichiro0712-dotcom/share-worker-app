@@ -78,7 +78,7 @@ export default function MinimumWagePage() {
   const [importEffectiveFrom, setImportEffectiveFrom] = useState<string>('');
   const [importing, setImporting] = useState(false);
   const [importErrors, setImportErrors] = useState<CsvError[]>([]);
-  const [previewData, setPreviewData] = useState<{ prefecture: string; hourlyWage: number }[]>([]);
+  const [previewData, setPreviewData] = useState<{ prefecture: string; hourlyWage: number; effectiveFrom?: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 履歴表示
@@ -369,9 +369,14 @@ export default function MinimumWagePage() {
 
   // CSVテンプレートダウンロード
   const handleDownloadTemplate = () => {
+    // 次の10月1日をサンプル日付として計算
+    const now = new Date();
+    const year = now.getMonth() >= 9 ? now.getFullYear() + 1 : now.getFullYear(); // 10月以降なら翌年
+    const sampleDate = `${year}-10-01`;
+
     const bom = '\uFEFF';
-    const header = '都道府県,時給';
-    const rows = PREFECTURES.map(pref => `${pref},`);
+    const header = '都道府県,時給,適用開始日';
+    const rows = PREFECTURES.map(pref => `${pref},,${sampleDate}`);
     const csv = bom + [header, ...rows].join('\r\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -496,7 +501,7 @@ export default function MinimumWagePage() {
                   現行時給
                 </th>
                 <th className="px-4 py-3 text-center text-sm font-medium text-gray-700 w-[130px]">
-                  適用日
+                  適用実施日
                 </th>
                 <th className="px-4 py-3 text-right text-sm font-medium text-gray-700 w-[120px]">
                   <span className="flex items-center justify-end gap-1">
@@ -544,16 +549,9 @@ export default function MinimumWagePage() {
                       )}
                     </td>
 
-                    {/* 適用日 */}
+                    {/* 適用日（読み取り専用） */}
                     <td className="px-4 py-3 text-center">
-                      {isEditingActive ? (
-                        <input
-                          type="date"
-                          value={editingEffectiveFrom}
-                          onChange={e => setEditingEffectiveFrom(e.target.value)}
-                          className="px-2 py-1 border border-gray-300 rounded text-sm"
-                        />
-                      ) : active ? (
+                      {active ? (
                         <span className="text-sm text-gray-600">
                           {formatDate(active.effectiveFrom)}
                         </span>
@@ -790,7 +788,7 @@ export default function MinimumWagePage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-700">CSVフォーマットがわからない場合</p>
-                    <p className="text-xs text-gray-500 mt-0.5">47都道府県が入ったテンプレートをダウンロードして、時給を入力してください</p>
+                    <p className="text-xs text-gray-500 mt-0.5">47都道府県が入ったテンプレートをダウンロードして、時給と適用開始日を入力してください</p>
                   </div>
                   <button
                     onClick={handleDownloadTemplate}
@@ -815,14 +813,14 @@ export default function MinimumWagePage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  形式: 都道府県,時給（例: 東京都,1163 または 東京,1163）
+                  形式: 都道府県,時給,適用開始日（例: 東京都,1163,2026-10-01）※3列目は省略可
                 </p>
               </div>
 
-              {/* 適用開始日 */}
+              {/* 適用開始日（デフォルト） */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  適用開始日
+                  適用開始日（デフォルト）
                 </label>
                 <input
                   type="date"
@@ -831,7 +829,7 @@ export default function MinimumWagePage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  未入力の場合、本日から即反映するか確認されます
+                  CSVで個別に日付指定がない行に適用されます。未入力の場合は即反映確認
                 </p>
                 {importEffectiveFrom && (
                   <div className={`mt-2 px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 ${
@@ -860,11 +858,6 @@ export default function MinimumWagePage() {
                   <div className="bg-green-50 px-4 py-2 border-b border-green-200">
                     <p className="text-sm font-medium text-green-800">
                       プレビュー（{previewData.length}件）
-                      {isImportScheduled && (
-                        <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-blue-100 text-blue-600">
-                          予定として登録
-                        </span>
-                      )}
                     </p>
                   </div>
                   <div className="max-h-48 overflow-auto">
@@ -873,6 +866,7 @@ export default function MinimumWagePage() {
                         <tr>
                           <th className="px-4 py-1.5 text-left text-xs font-medium text-gray-500">都道府県</th>
                           <th className="px-4 py-1.5 text-right text-xs font-medium text-gray-500">時給</th>
+                          <th className="px-4 py-1.5 text-left text-xs font-medium text-gray-500">適用開始日</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
@@ -881,6 +875,11 @@ export default function MinimumWagePage() {
                             <td className="px-4 py-1 text-gray-700">{row.prefecture}</td>
                             <td className="px-4 py-1 text-right text-gray-900 font-medium">
                               {row.hourlyWage.toLocaleString()}円
+                            </td>
+                            <td className="px-4 py-1 text-gray-600 text-xs">
+                              {row.effectiveFrom || (
+                                <span className="text-gray-400">デフォルト{importEffectiveFrom ? `(${importEffectiveFrom})` : ''}</span>
+                              )}
                             </td>
                           </tr>
                         ))}
@@ -915,6 +914,8 @@ export default function MinimumWagePage() {
                   インポート時の注意
                 </h3>
                 <ul className="text-xs text-blue-700 space-y-1">
+                  <li>• CSVの3列目に適用開始日（YYYY-MM-DD）を都道府県ごとに指定できます</li>
+                  <li>• 3列目が空欄の行は、上で設定したデフォルト適用開始日が使われます</li>
                   <li>• 適用開始日が未来の場合、予定データとして登録されます（現在の賃金は変更されません）</li>
                   <li>• 既存のデータは履歴として自動バックアップされます</li>
                   <li>• 都道府県名は「東京都」「東京」どちらでも認識されます</li>

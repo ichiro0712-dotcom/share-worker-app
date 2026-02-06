@@ -64,12 +64,36 @@ function toWageData(
   };
 }
 
+// --- JST日付ユーティリティ ---
+const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
+
+/** DateをJSTの日付文字列（YYYY-MM-DD）に変換 */
+function toJSTDateString(date: Date): string {
+  const jst = new Date(date.getTime() + JST_OFFSET_MS);
+  const y = jst.getUTCFullYear();
+  const m = String(jst.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(jst.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/** 今日のJST 00:00:00 をDateで返す */
+function getTodayJSTStart(): Date {
+  const now = new Date();
+  const jst = new Date(now.getTime() + JST_OFFSET_MS);
+  return new Date(Date.UTC(jst.getUTCFullYear(), jst.getUTCMonth(), jst.getUTCDate()) - JST_OFFSET_MS);
+}
+
 /**
  * 予定が適用日を過ぎたレコードを自動昇格（古いactiveをHistoryへ移動）
  * クエリ時に呼び出される。47都道府県×最大2件のため処理コストは無視可能。
+ *
+ * 比較はJST日付レベルで行う。例: effective_from が 2026-02-07 のレコードは
+ * JST 2026-02-07 00:00 以降に active とみなす（UTC保存時刻に依存しない）。
  */
 async function promoteScheduledWages(): Promise<void> {
   const now = new Date();
+  // 今日のJST日付の開始時刻（00:00:00 JST = 前日15:00:00 UTC）
+  const todayJSTStart = getTodayJSTStart();
 
   await prisma.$transaction(async (tx) => {
     const allWages = await tx.minimumWage.findMany({
@@ -84,8 +108,8 @@ async function promoteScheduledWages(): Promise<void> {
     }
 
     for (const records of Array.from(byPref.values())) {
-      // effective_from <= now のレコード（active候補）
-      const activeRecords = records.filter(r => r.effective_from <= now);
+      // effective_from の JST日付 が今日以前のレコード（active候補）
+      const activeRecords = records.filter(r => toJSTDateString(r.effective_from) <= toJSTDateString(todayJSTStart));
       if (activeRecords.length > 1) {
         // effective_from descで並んでいるので、先頭が最新
         const latestEffectiveFrom = activeRecords[0].effective_from;
@@ -119,11 +143,13 @@ async function promoteScheduledWages(): Promise<void> {
 export async function getAllMinimumWages(): Promise<MinimumWageData[]> {
   try {
     await promoteScheduledWages();
-    const now = new Date();
+    // JSTの「今日の終わり」(23:59:59 JST)をクエリに使用
+    // → 今日が適用開始日のレコードも含まれる
+    const todayJSTEnd = new Date(getTodayJSTStart().getTime() + 24 * 60 * 60 * 1000 - 1);
 
     const wages = await prisma.minimumWage.findMany({
       where: {
-        effective_from: { lte: now },
+        effective_from: { lte: todayJSTEnd },
       },
       orderBy: [{ prefecture: 'asc' }, { effective_from: 'desc' }],
     });
@@ -151,7 +177,7 @@ export async function getAllMinimumWages(): Promise<MinimumWageData[]> {
 export async function getAllMinimumWagesForAdmin(): Promise<AdminMinimumWageView[]> {
   try {
     await promoteScheduledWages();
-    const now = new Date();
+    const todayStr = toJSTDateString(getTodayJSTStart());
 
     const wages = await prisma.minimumWage.findMany({
       orderBy: [{ prefecture: 'asc' }, { effective_from: 'desc' }],
@@ -165,7 +191,8 @@ export async function getAllMinimumWagesForAdmin(): Promise<AdminMinimumWageView
         prefMap.set(w.prefecture, { active: null, scheduled: null });
       }
       const entry = prefMap.get(w.prefecture)!;
-      const isScheduled = w.effective_from > now;
+      // JST日付レベルで比較（UTC保存時刻に依存しない）
+      const isScheduled = toJSTDateString(w.effective_from) > todayStr;
 
       if (isScheduled) {
         // 予定: 最も早い未来日付のもの
@@ -203,12 +230,12 @@ export async function getMinimumWageForPrefecture(
   const normalized = normalizePrefecture(prefecture);
   if (!normalized) return null;
 
-  const now = new Date();
+  const todayEnd = new Date(getTodayJSTStart().getTime() + 24 * 60 * 60 * 1000 - 1);
 
   const wage = await prisma.minimumWage.findFirst({
     where: {
       prefecture: normalized,
-      effective_from: { lte: now },
+      effective_from: { lte: todayEnd },
     },
     orderBy: { effective_from: 'desc' },
   });
@@ -237,8 +264,9 @@ export async function upsertMinimumWage(
       return { success: false, error: '時給は正の数である必要があります' };
     }
 
-    const now = new Date();
-    const isScheduled = effectiveFrom > now;
+    const todayStart = getTodayJSTStart();
+    const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000 - 1);
+    const isScheduled = toJSTDateString(effectiveFrom) > toJSTDateString(todayStart);
 
     await prisma.$transaction(async (tx) => {
       if (isScheduled) {
@@ -246,7 +274,7 @@ export async function upsertMinimumWage(
         await tx.minimumWage.deleteMany({
           where: {
             prefecture: normalized,
-            effective_from: { gt: now },
+            effective_from: { gt: todayEnd },
           },
         });
         await tx.minimumWage.create({
@@ -263,7 +291,7 @@ export async function upsertMinimumWage(
         const currentActive = await tx.minimumWage.findFirst({
           where: {
             prefecture: normalized,
-            effective_from: { lte: now },
+            effective_from: { lte: todayEnd },
           },
           orderBy: { effective_from: 'desc' },
         });
@@ -310,12 +338,13 @@ export async function upsertMinimumWage(
 
 /**
  * CSVから最低賃金を一括インポート
- * - effectiveFrom > now → 予定として一括登録（現行は変更しない）
- * - effectiveFrom <= now → 即時一括更新（現行をHistoryに移動）
+ * - 行ごとの適用開始日をサポート（3列目が省略された行はdefaultEffectiveFromを使用）
+ * - effectiveFrom > now → 予定として登録（現行は変更しない）
+ * - effectiveFrom <= now → 即時更新（現行をHistoryに移動）
  */
 export async function importMinimumWages(
   csvContent: string,
-  effectiveFrom: Date,
+  defaultEffectiveFrom: Date,
   updatedBy?: UpdatedBy
 ): Promise<{
   success: boolean;
@@ -334,81 +363,94 @@ export async function importMinimumWages(
     }
 
     const now = new Date();
-    const isScheduled = effectiveFrom > now;
-    const prefectures = data.map(d => d.prefecture);
+    const todayStart = getTodayJSTStart();
+    const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000 - 1);
+    const todayStr = toJSTDateString(todayStart);
+    const defaultDateKey = toJSTDateString(defaultEffectiveFrom);
+
+    // 適用開始日ごとにグループ化
+    const groupedByDate = new Map<string, typeof data>();
+    for (const item of data) {
+      const dateKey = item.effectiveFrom || defaultDateKey;
+      if (!groupedByDate.has(dateKey)) groupedByDate.set(dateKey, []);
+      groupedByDate.get(dateKey)!.push(item);
+    }
 
     await prisma.$transaction(async (tx) => {
-      if (isScheduled) {
-        // 予定一括登録: 対象都道府県の既存予定を削除してから新規作成
-        await tx.minimumWage.deleteMany({
-          where: {
-            prefecture: { in: prefectures },
-            effective_from: { gt: now },
-          },
-        });
-        // createMany で一括作成
-        await tx.minimumWage.createMany({
-          data: data.map(item => ({
-            prefecture: item.prefecture,
-            hourly_wage: item.hourlyWage,
-            effective_from: effectiveFrom,
-            updated_by_type: updatedBy?.type,
-            updated_by_id: updatedBy?.id,
-          })),
-        });
-      } else {
-        // 即時一括更新: 既存activeをHistoryに保存してから更新/作成
-        const existingActive = await tx.minimumWage.findMany({
-          where: {
-            prefecture: { in: prefectures },
-            effective_from: { lte: now },
-          },
-          orderBy: [{ prefecture: 'asc' }, { effective_from: 'desc' }],
-        });
+      for (const [dateStr, items] of Array.from(groupedByDate.entries())) {
+        const effectiveFrom = new Date(dateStr + 'T00:00:00+09:00');
+        const isScheduled = dateStr > todayStr;
+        const prefectures = items.map(d => d.prefecture);
 
-        // 都道府県ごとの最新activeのみアーカイブ対象
-        const activeByPref = new Map<string, typeof existingActive[0]>();
-        for (const w of existingActive) {
-          if (!activeByPref.has(w.prefecture)) {
-            activeByPref.set(w.prefecture, w);
-          }
-        }
-
-        if (activeByPref.size > 0) {
-          await tx.minimumWageHistory.createMany({
-            data: Array.from(activeByPref.values()).map(w => ({
-              prefecture: w.prefecture,
-              hourly_wage: w.hourly_wage,
-              effective_from: w.effective_from,
-              effective_to: effectiveFrom,
-              archived_at: new Date(),
+        if (isScheduled) {
+          // 予定登録: 対象都道府県の既存予定を削除してから新規作成
+          await tx.minimumWage.deleteMany({
+            where: {
+              prefecture: { in: prefectures },
+              effective_from: { gt: todayEnd },
+            },
+          });
+          await tx.minimumWage.createMany({
+            data: items.map(item => ({
+              prefecture: item.prefecture,
+              hourly_wage: item.hourlyWage,
+              effective_from: effectiveFrom,
+              updated_by_type: updatedBy?.type,
+              updated_by_id: updatedBy?.id,
             })),
           });
-        }
+        } else {
+          // 即時更新: 既存activeをHistoryに保存してから更新/作成
+          const existingActive = await tx.minimumWage.findMany({
+            where: {
+              prefecture: { in: prefectures },
+              effective_from: { lte: todayEnd },
+            },
+            orderBy: [{ prefecture: 'asc' }, { effective_from: 'desc' }],
+          });
 
-        // 各都道府県について更新 or 作成
-        for (const item of data) {
-          const existing = activeByPref.get(item.prefecture);
-          if (existing) {
-            await tx.minimumWage.update({
-              where: { id: existing.id },
-              data: {
-                hourly_wage: item.hourlyWage,
-                effective_from: effectiveFrom,
-                updated_by_type: updatedBy?.type,
-                updated_by_id: updatedBy?.id,
-              },
+          const activeByPref = new Map<string, typeof existingActive[0]>();
+          for (const w of existingActive) {
+            if (!activeByPref.has(w.prefecture)) {
+              activeByPref.set(w.prefecture, w);
+            }
+          }
+
+          if (activeByPref.size > 0) {
+            await tx.minimumWageHistory.createMany({
+              data: Array.from(activeByPref.values()).map(w => ({
+                prefecture: w.prefecture,
+                hourly_wage: w.hourly_wage,
+                effective_from: w.effective_from,
+                effective_to: effectiveFrom,
+                archived_at: new Date(),
+              })),
             });
-          } else {
-            await tx.minimumWage.create({
-              data: {
-                prefecture: item.prefecture,
-                hourly_wage: item.hourlyWage,
-                effective_from: effectiveFrom,
-                updated_by_type: updatedBy?.type,
-                updated_by_id: updatedBy?.id,
-              },
-            });
+          }
+
+          for (const item of items) {
+            const existing = activeByPref.get(item.prefecture);
+            if (existing) {
+              await tx.minimumWage.update({
+                where: { id: existing.id },
+                data: {
+                  hourly_wage: item.hourlyWage,
+                  effective_from: effectiveFrom,
+                  updated_by_type: updatedBy?.type,
+                  updated_by_id: updatedBy?.id,
+                },
+              });
+            } else {
+              await tx.minimumWage.create({
+                data: {
+                  prefecture: item.prefecture,
+                  hourly_wage: item.hourlyWage,
+                  effective_from: effectiveFrom,
+                  updated_by_type: updatedBy?.type,
+                  updated_by_id: updatedBy?.id,
+                },
+              });
+            }
           }
         }
       }
@@ -437,12 +479,12 @@ export async function deleteScheduledWage(
   id: number
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const now = new Date();
-    // TOCTOU安全: 1クエリで条件付き削除（effective_from > now のみ削除可能）
+    const todayEnd = new Date(getTodayJSTStart().getTime() + 24 * 60 * 60 * 1000 - 1);
+    // TOCTOU安全: 1クエリで条件付き削除（JST日付で未来のレコードのみ削除可能）
     const result = await prisma.minimumWage.deleteMany({
       where: {
         id,
-        effective_from: { gt: now },
+        effective_from: { gt: todayEnd },
       },
     });
     if (result.count === 0) {
@@ -501,10 +543,10 @@ export async function getMinimumWageHistory(
  */
 export async function getMissingPrefectures(): Promise<Prefecture[]> {
   try {
-    const now = new Date();
+    const todayEnd = new Date(getTodayJSTStart().getTime() + 24 * 60 * 60 * 1000 - 1);
     const existing = await prisma.minimumWage.findMany({
       where: {
-        effective_from: { lte: now },
+        effective_from: { lte: todayEnd },
       },
       select: { prefecture: true },
     });
