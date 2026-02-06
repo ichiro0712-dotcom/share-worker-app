@@ -5,6 +5,7 @@ import {
   Save,
   Upload,
   Download,
+  FileDown,
   History,
   AlertCircle,
   CheckCircle,
@@ -210,6 +211,23 @@ export default function MinimumWagePage() {
     } finally {
       setImporting(false);
     }
+  };
+
+  // CSVテンプレートダウンロード
+  const handleDownloadTemplate = () => {
+    const bom = '\uFEFF';
+    const header = '都道府県,時給';
+    const rows = PREFECTURES.map(pref => `${pref},`);
+    const csv = bom + [header, ...rows].join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = '最低賃金_テンプレート.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
   };
 
   // CSVエクスポート
@@ -497,6 +515,23 @@ export default function MinimumWagePage() {
             </div>
 
             <div className="p-6 space-y-4">
+              {/* テンプレートダウンロード */}
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">CSVフォーマットがわからない場合</p>
+                    <p className="text-xs text-gray-500 mt-0.5">47都道府県が入ったテンプレートをダウンロードして、時給を入力してください</p>
+                  </div>
+                  <button
+                    onClick={handleDownloadTemplate}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap"
+                  >
+                    <FileDown className="w-4 h-4" />
+                    テンプレート
+                  </button>
+                </div>
+              </div>
+
               {/* ファイル選択 */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
