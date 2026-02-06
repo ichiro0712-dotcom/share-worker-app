@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getAllMinimumWagesForAdmin } from '@/src/lib/actions/minimumWage';
 import { getSystemAdminSessionData } from '@/lib/system-admin-session-server';
-import { generateMinimumWageCsv } from '@/src/lib/prefecture-utils';
 
 /**
- * GET: 最低賃金データをCSVでエクスポート
+ * GET: 最低賃金データをCSVでエクスポート（現行 + 予定を含む）
  */
 export async function GET() {
   const session = await getSystemAdminSessionData();
@@ -13,15 +12,25 @@ export async function GET() {
   }
 
   try {
-    const wages = await getAllMinimumWagesForAdmin();
+    const views = await getAllMinimumWagesForAdmin();
 
-    const csvContent = generateMinimumWageCsv(
-      wages.map(w => ({
-        prefecture: w.prefecture,
-        hourlyWage: w.hourlyWage,
-        effectiveFrom: w.effectiveFrom,
-      }))
-    );
+    // CSVヘッダー
+    const header = '都道府県,時給,適用開始日,ステータス';
+
+    // 各都道府県のactive/scheduledをフラットに展開
+    const rows: string[] = [];
+    for (const view of views) {
+      if (view.active) {
+        const dateStr = formatDate(new Date(view.active.effectiveFrom));
+        rows.push(`${view.prefecture},${view.active.hourlyWage},${dateStr},適用中`);
+      }
+      if (view.scheduled) {
+        const dateStr = formatDate(new Date(view.scheduled.effectiveFrom));
+        rows.push(`${view.prefecture},${view.scheduled.hourlyWage},${dateStr},予定`);
+      }
+    }
+
+    const csvContent = [header, ...rows].join('\r\n');
 
     // ファイル名に日付を含める
     const now = new Date();
@@ -42,4 +51,11 @@ export async function GET() {
       { status: 500 }
     );
   }
+}
+
+function formatDate(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}/${m}/${d}`;
 }

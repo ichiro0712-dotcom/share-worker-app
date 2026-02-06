@@ -1268,11 +1268,11 @@ model SystemSetting {
 
 // ========== 最低賃金マスタ ==========
 
-/// 都道府県別最低賃金（現在有効なデータ）
+/// 都道府県別最低賃金（現行 + 予定の最大2レコード/都道府県）
 model MinimumWage {
   id             Int      @id @default(autoincrement())
   /// 都道府県（正規化済み: "東京都"形式）
-  prefecture     String   @unique
+  prefecture     String
   /// 時給（円）
   hourly_wage    Int      @map("hourly_wage")
   /// 適用開始日
@@ -1286,6 +1286,8 @@ model MinimumWage {
   /// 更新者ID
   updated_by_id    Int?     @map("updated_by_id")
 
+  @@unique([prefecture, effective_from], name: "prefecture_effective_from")
+  @@index([prefecture])
   @@map("minimum_wages")
 }
 
