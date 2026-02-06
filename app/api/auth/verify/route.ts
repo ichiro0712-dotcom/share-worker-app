@@ -7,7 +7,7 @@ import { verifyEmailToken } from '@/src/lib/auth/email-verification';
  * フロー:
  * 1. メールリンク: /api/auth/verify?token=xxx
  * 2. トークン検証 → email_verified = true に更新
- * 3. 成功: /api/auth/auto-login にリダイレクト（サーバーサイドでCookie設定 → ホームへ）
+ * 3. 成功: /api/auth/auto-login にリダイレクト（サーバーサイドでCookie設定 → プロフィール編集へ）
  * 4. 失敗: /auth/verify?status=error にリダイレクト（エラー画面表示）
  *
  * モバイルアプリ内ブラウザ（Gmail, LINE等）でもクライアントJSに依存せず動作する。
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
       const autoLoginUrl = new URL('/api/auth/auto-login', origin);
       autoLoginUrl.searchParams.set('token', result.autoLoginToken);
       autoLoginUrl.searchParams.set('email', result.email);
-      autoLoginUrl.searchParams.set('redirect', '/');
+      autoLoginUrl.searchParams.set('redirect', '/mypage/profile');
       return secureRedirect(autoLoginUrl);
     }
 
