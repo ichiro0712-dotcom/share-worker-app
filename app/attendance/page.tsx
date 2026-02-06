@@ -233,23 +233,60 @@ function AttendanceScanPageContent() {
         return;
       }
 
-      // カメラ権限の状態を事前チェック
+      // カメラ権限を明示的にリクエスト（許可ダイアログを確実に表示するため）
+      let cameraStream: MediaStream | null = null;
       try {
         // navigator.permissions APIでカメラ権限の状態を確認
+        let permissionState: PermissionState | null = null;
         if (navigator.permissions) {
-          const permissionStatus = await navigator.permissions.query({ name: 'camera' as PermissionName });
-          console.log('[Attendance] Camera permission status:', permissionStatus.state);
-
-          if (permissionStatus.state === 'denied') {
-            toast.error('カメラの使用が拒否されています。ブラウザの設定でカメラの使用を許可してください。');
-            setScanStatus('error');
-            setIsScanning(false);
-            return;
+          try {
+            const permissionStatus = await navigator.permissions.query({ name: 'camera' as PermissionName });
+            permissionState = permissionStatus.state;
+            console.log('[Attendance] Camera permission status:', permissionState);
+          } catch {
+            console.log('[Attendance] Permission API not available for camera');
           }
         }
-      } catch (permError) {
-        // permissions API未対応のブラウザでは続行
-        console.log('[Attendance] Permission API not available, continuing...');
+
+        // getUserMedia()を呼び出してカメラ権限をリクエスト
+        // これにより、権限が 'prompt' の場合はブラウザの許可ダイアログが表示される
+        // 'denied' の場合でも、一部のブラウザでは再度ダイアログが表示されることがある
+        console.log('[Attendance] Requesting camera access via getUserMedia...');
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' }
+        });
+        console.log('[Attendance] Camera access granted');
+
+        // getUserMediaで取得したストリームは一旦停止（Html5Qrcodeが再度取得する）
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraStream = null;
+
+      } catch (mediaError: any) {
+        console.error('[Attendance] getUserMedia error:', mediaError);
+
+        // ストリームが取得されていた場合は停止
+        if (cameraStream) {
+          cameraStream.getTracks().forEach(track => track.stop());
+        }
+
+        // エラーの種類に応じたメッセージ表示
+        if (mediaError?.name === 'NotAllowedError') {
+          // iOS Safari/Chrome では設定画面への誘導が必要
+          const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+          if (isIOS) {
+            toast.error('カメラの使用が許可されていません。\n設定 > Safari > カメラ から許可してください。', { duration: 5000 });
+          } else {
+            toast.error('カメラの使用が許可されていません。\nブラウザのアドレスバー横のカメラアイコンから許可してください。', { duration: 5000 });
+          }
+        } else if (mediaError?.name === 'NotFoundError') {
+          toast.error('カメラが見つかりません。');
+        } else {
+          toast.error('カメラへのアクセスに失敗しました。');
+        }
+
+        setScanStatus('error');
+        setIsScanning(false);
+        return;
       }
 
       try {
