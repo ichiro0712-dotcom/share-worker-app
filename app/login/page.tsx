@@ -87,9 +87,9 @@ export default function WorkerLogin() {
         <div className="text-center mb-5 mt-10">
           <div className="flex justify-center">
             <img
-              src="/rogo/rogo5.png"
+              src="/rogo/logo-tastas.webp"
               alt="TASTAS"
-              width={200}
+              width={180}
               height={200}
               className="object-contain"
             />
