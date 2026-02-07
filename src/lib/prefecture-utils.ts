@@ -127,18 +127,28 @@ export function parseWageValue(value: string): number | null {
 }
 
 /**
- * 日付文字列（YYYY-MM-DD）のバリデーション
- * @returns 有効な日付文字列か
+ * 日付文字列（YYYY-MM-DD または YYYY-M-D）を検証し、YYYY-MM-DDに正規化
+ * @param value 日付文字列
+ * @returns 正規化済み日付文字列（YYYY-MM-DD形式）。無効なら null
  */
-function isValidDateString(value: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const date = new Date(value + 'T00:00:00+09:00');
-  if (isNaN(date.getTime())) return false;
-  // パースした結果が元の日付と一致するか（2026-02-30 などの無効日付を弾く）
-  const [y, m, d] = value.split('-').map(Number);
-  return date.getFullYear() === y
-    && date.getMonth() + 1 === m
-    && date.getDate() === d;
+function normalizeDateString(value: string): string | null {
+  const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(value);
+  if (!m) return null;
+
+  const y = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+
+  // 月の範囲チェック
+  if (month < 1 || month > 12) return null;
+
+  // 日の範囲チェック（うるう年考慮）
+  const isLeap = (y % 4 === 0 && y % 100 !== 0) || (y % 400 === 0);
+  const daysInMonth = [31, isLeap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1];
+  if (day < 1 || day > daysInMonth) return null;
+
+  // YYYY-MM-DD形式に正規化して返す
+  return `${String(y).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
 /**
@@ -168,8 +178,9 @@ export function parseMinimumWageCsvRow(
   if (parts.length >= 3 && parts[2]) {
     const dateStr = parts[2].trim();
     if (dateStr) {
-      if (isValidDateString(dateStr)) {
-        effectiveFrom = dateStr;
+      const normalizedDate = normalizeDateString(dateStr);
+      if (normalizedDate) {
+        effectiveFrom = normalizedDate;
       } else {
         invalidDate = true;
       }
@@ -244,7 +255,7 @@ export function parseMinimumWageCsv(
         errors.push({
           line: i + 1,
           content: line,
-          reason: '適用開始日の形式が不正です（YYYY-MM-DD形式で入力してください）',
+          reason: '適用開始日の形式が不正です（YYYY-MM-DD形式、例: 2026-02-07 または 2026-2-7）',
         });
         continue;
       }
