@@ -31,8 +31,11 @@ function verifyCronAuth(request: NextRequest): boolean {
 /**
  * メール送信数集計Cron
  * - notificationLogテーブルから当月のEMAIL送信数を集計
- * - Resend APIヘッダーのキャッシュ値とクロスチェック
  * - 結果をsystemSettingに保存（ダッシュボード表示用）
+ *
+ * NOTE: 以前はResend APIヘッダー(x-resend-monthly-quota)のキャッシュ値と
+ * クロスチェックしていたが、ヘッダーの存在が未検証かつ月替わりリセットされない
+ * 問題があったため、DB集計のみをSource of Truthとする方式に変更。
  */
 export async function GET(request: NextRequest) {
     if (!verifyCronAuth(request)) {
@@ -49,7 +52,7 @@ export async function GET(request: NextRequest) {
         );
 
         // DB集計: 当月のメール送信数（SENT のみ）
-        const dbEmailCount = await prisma.notificationLog.count({
+        const effectiveCount = await prisma.notificationLog.count({
             where: {
                 channel: 'EMAIL',
                 status: 'SENT',
@@ -57,19 +60,9 @@ export async function GET(request: NextRequest) {
             },
         });
 
-        // キャッシュ済みResend APIヘッダー値を読み取り
-        const cachedQuota = await prisma.systemSetting.findUnique({
-            where: { key: SYSTEM_SETTING_KEYS.RESEND_QUOTA_HEADER_CACHE },
-        });
-        const apiQuotaUsed = cachedQuota ? parseInt(cachedQuota.value, 10) || 0 : 0;
-
-        // 大きい方を有効値とする
-        const effectiveCount = Math.max(dbEmailCount, apiQuotaUsed);
-
         // 集計結果をsystemSettingに保存
         const resultJson = JSON.stringify({
-            dbCount: dbEmailCount,
-            apiQuotaUsed,
+            dbCount: effectiveCount,
             effectiveCount,
             monthStart: monthStartUtc.toISOString(),
             checkedAt: now.toISOString(),
@@ -87,12 +80,10 @@ export async function GET(request: NextRequest) {
             },
         });
 
-        console.log(`[EMAIL_QUOTA] Aggregated: db=${dbEmailCount}, api=${apiQuotaUsed}, effective=${effectiveCount}`);
+        console.log(`[EMAIL_QUOTA] Aggregated: effective=${effectiveCount} (db-only)`);
 
         return NextResponse.json({
             success: true,
-            dbEmailCount,
-            apiQuotaUsed,
             effectiveCount,
             monthStart: monthStartUtc.toISOString(),
         });
