@@ -199,6 +199,19 @@ export default function WorkerLogin() {
           </div>
         </div>
 
+        {/* 運営会社情報 */}
+        <div className="text-center text-sm text-gray-500 mt-6 mb-4">
+          <span>株式会社キャリア</span>
+          <span className="mx-2">|</span>
+          <a
+            href="https://www.careergift.co.jp/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-gray-500 hover:text-gray-700 hover:underline"
+          >
+            運営会社情報
+          </a>
+        </div>
       </div>
     </div>
   );
