@@ -9,7 +9,7 @@ import { isValidEmail, isValidPhoneNumber } from '@/utils/inputValidation';
 import { PhoneNumberInput } from '@/components/ui/PhoneNumberInput';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { WORKER_TERMS_OF_SERVICE, TERMS_LAST_UPDATED } from '@/constants/terms';
+import { WORKER_TERMS_OF_SERVICE, TERMS_LAST_UPDATED, WORKER_PRIVACY_POLICY, PRIVACY_LAST_UPDATED } from '@/constants/terms';
 
 export default function WorkerRegisterPage() {
   const router = useRouter();
@@ -18,6 +18,8 @@ export default function WorkerRegisterPage() {
   const [showErrors, setShowErrors] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
+  const [agreedToPrivacy, setAgreedToPrivacy] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
 
   const [formData, setFormData] = useState({
     email: '',
@@ -116,6 +118,16 @@ export default function WorkerRegisterPage() {
     // 利用規約同意チェック
     if (!agreedToTerms) {
       toast.error('利用規約に同意してください');
+      const termsSection = document.getElementById('terms-section');
+      if (termsSection) {
+        termsSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      return;
+    }
+
+    // プライバシーポリシー同意チェック
+    if (!agreedToPrivacy) {
+      toast.error('プライバシーポリシーに同意してください');
       const termsSection = document.getElementById('terms-section');
       if (termsSection) {
         termsSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -290,34 +302,66 @@ export default function WorkerRegisterPage() {
               </div>
             </div>
 
-            {/* 利用規約同意 */}
-            <div id="terms-section" className={`p-4 bg-gray-50 rounded-lg border ${showErrors && !agreedToTerms ? 'border-red-500' : 'border-gray-200'}`}>
-              <div className="space-y-3">
-                <button
-                  type="button"
-                  onClick={() => setShowTermsModal(true)}
-                  className="text-primary hover:underline text-sm font-medium"
-                >
-                  利用規約を確認する
-                </button>
-                <label className="flex items-start gap-3 cursor-pointer p-3 bg-white rounded-lg border border-gray-200">
-                  <input
-                    type="checkbox"
-                    checked={agreedToTerms}
-                    onChange={(e) => setAgreedToTerms(e.target.checked)}
-                    className="w-5 h-5 text-primary border-gray-300 rounded focus:ring-primary mt-0.5"
-                  />
-                  <span className="text-sm">
-                    <span className="font-medium">利用規約に同意します</span>
-                    <span className="text-red-500 ml-1">*</span>
-                    <span className="text-gray-500 block text-xs mt-1">
-                      （最終更新日: {TERMS_LAST_UPDATED}）
+            {/* 利用規約・プライバシーポリシー同意 */}
+            <div id="terms-section" className={`p-4 bg-gray-50 rounded-lg border ${showErrors && (!agreedToTerms || !agreedToPrivacy) ? 'border-red-500' : 'border-gray-200'}`}>
+              <div className="space-y-4">
+                {/* 利用規約 */}
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowTermsModal(true)}
+                    className="text-primary hover:underline text-sm font-medium"
+                  >
+                    利用規約を確認する
+                  </button>
+                  <label className="flex items-start gap-3 cursor-pointer p-3 bg-white rounded-lg border border-gray-200">
+                    <input
+                      type="checkbox"
+                      checked={agreedToTerms}
+                      onChange={(e) => setAgreedToTerms(e.target.checked)}
+                      className="w-5 h-5 text-primary border-gray-300 rounded focus:ring-primary mt-0.5"
+                    />
+                    <span className="text-sm">
+                      <span className="font-medium">利用規約に同意します</span>
+                      <span className="text-red-500 ml-1">*</span>
+                      <span className="text-gray-500 block text-xs mt-1">
+                        （最終更新日: {TERMS_LAST_UPDATED}）
+                      </span>
                     </span>
-                  </span>
-                </label>
-                {showErrors && !agreedToTerms && (
-                  <p className="text-red-500 text-xs">利用規約に同意してください</p>
-                )}
+                  </label>
+                  {showErrors && !agreedToTerms && (
+                    <p className="text-red-500 text-xs">利用規約に同意してください</p>
+                  )}
+                </div>
+
+                {/* プライバシーポリシー */}
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowPrivacyModal(true)}
+                    className="text-primary hover:underline text-sm font-medium"
+                  >
+                    プライバシーポリシーを確認する
+                  </button>
+                  <label className="flex items-start gap-3 cursor-pointer p-3 bg-white rounded-lg border border-gray-200">
+                    <input
+                      type="checkbox"
+                      checked={agreedToPrivacy}
+                      onChange={(e) => setAgreedToPrivacy(e.target.checked)}
+                      className="w-5 h-5 text-primary border-gray-300 rounded focus:ring-primary mt-0.5"
+                    />
+                    <span className="text-sm">
+                      <span className="font-medium">プライバシーポリシーに同意します</span>
+                      <span className="text-red-500 ml-1">*</span>
+                      <span className="text-gray-500 block text-xs mt-1">
+                        （最終更新日: {PRIVACY_LAST_UPDATED}）
+                      </span>
+                    </span>
+                  </label>
+                  {showErrors && !agreedToPrivacy && (
+                    <p className="text-red-500 text-xs">プライバシーポリシーに同意してください</p>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -386,6 +430,52 @@ export default function WorkerRegisterPage() {
                 onClick={() => {
                   setAgreedToTerms(true);
                   setShowTermsModal(false);
+                }}
+                className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark transition-colors"
+              >
+                同意して閉じる
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* プライバシーポリシーモーダル */}
+      {showPrivacyModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-lg font-bold">プライバシーポリシー</h2>
+              <button
+                type="button"
+                onClick={() => setShowPrivacyModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                aria-label="閉じる"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              <p className="text-xs text-gray-500 mb-4">最終更新日: {PRIVACY_LAST_UPDATED}</p>
+              <pre className="whitespace-pre-wrap text-sm text-gray-700 font-sans leading-relaxed">
+                {WORKER_PRIVACY_POLICY}
+              </pre>
+            </div>
+            <div className="p-4 border-t flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowPrivacyModal(false)}
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                閉じる
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAgreedToPrivacy(true);
+                  setShowPrivacyModal(false);
                 }}
                 className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark transition-colors"
               >
