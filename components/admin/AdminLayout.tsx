@@ -348,7 +348,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               title={isCollapsed && facilityName ? facilityName : undefined}
             >
               <Image
-                src="/images/logo.png"
+                src="/images/logo-tastas-admin.webp"
                 alt="+TASTAS"
                 width={isCollapsed ? 32 : 48}
                 height={isCollapsed ? 32 : 48}

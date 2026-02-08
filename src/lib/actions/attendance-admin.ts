@@ -890,18 +890,25 @@ export async function getUsageDetails(
 
     return {
       items: items.map((att) => {
-        const wage = att.calculated_wage ?? 0;
+        // calculated_wageには交通費が含まれているため、分離して表示する
+        // calculated_wageがnull（未承認）の場合は交通費を引かない
+        const calculatedWageWithTransport = att.calculated_wage ?? 0;
         const transportationFee = att.job?.transportation_fee ?? 0;
-        const platformFee = Math.floor(wage * PLATFORM_FEE_RATE);
+        const wage = att.calculated_wage != null
+          ? calculatedWageWithTransport - transportationFee
+          : 0; // 未承認の場合は0
+        const platformFee = Math.floor(calculatedWageWithTransport * PLATFORM_FEE_RATE);
         const tax = Math.floor(platformFee * TAX_RATE);
-        const totalAmount = wage + transportationFee + platformFee + tax;
+        const totalAmount = calculatedWageWithTransport + platformFee + tax;
 
-        // 勤務日時を「2025/10/23 (木)17:00 〜 18:00」形式で生成
+        // 勤務日時を「2025/10/23 (木)17:00 〜 18:00」形式で生成（JST基準）
         const workDate = att.application?.workDate.work_date ?? att.check_in_time;
         const dateObj = new Date(workDate);
+        const jstDateStr = dateObj.toLocaleDateString('en-US', { timeZone: 'Asia/Tokyo' });
+        const jstDate = new Date(jstDateStr);
         const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
-        const weekday = weekdays[dateObj.getDay()];
-        const dateStr = dateObj.toLocaleDateString('ja-JP');
+        const weekday = weekdays[jstDate.getDay()];
+        const dateStr = dateObj.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo' });
         const startTime = att.job?.start_time ?? '';
         const endTime = att.job?.end_time ?? '';
         const workDateTime = `${dateStr} (${weekday})${startTime} 〜 ${endTime}`;

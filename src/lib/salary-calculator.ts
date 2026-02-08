@@ -309,16 +309,17 @@ export function calculateSalary(input: SalaryCalculationInput): SalaryCalculatio
   const totalNightMinutes = adjustedNightOvertimeMinutes + adjustedNightMinutes;
 
   // 金額計算
-  const hourlyRatePerMinute = hourlyRate / 60;
+  // 注意: hourlyRate / 60 を先に計算すると浮動小数点誤差でMath.ceilが+1ずれるため、
+  // 整数同士の乗算を先に行い、最後に60で割る（例: 480 * 1000 / 60 = 8000.0）
 
   // ① ベース給与（全実働時間に対する基本給）
-  const basePay = Math.ceil(workedMinutes * hourlyRatePerMinute);
+  const basePay = Math.ceil((workedMinutes * hourlyRate) / 60);
 
   // ② 残業手当（残業時間 × 0.25）
-  const overtimePay = Math.ceil(totalOvertimeMinutes * hourlyRatePerMinute * 0.25);
+  const overtimePay = Math.ceil((totalOvertimeMinutes * hourlyRate * 0.25) / 60);
 
   // ③ 深夜手当（深夜時間 × 0.25）
-  const nightPay = Math.ceil(totalNightMinutes * hourlyRatePerMinute * 0.25);
+  const nightPay = Math.ceil((totalNightMinutes * hourlyRate * 0.25) / 60);
 
   // 合計
   const totalPay = basePay + overtimePay + nightPay;
@@ -334,7 +335,7 @@ export function calculateSalary(input: SalaryCalculationInput): SalaryCalculatio
       hours: adjustedNormalMinutes / 60,
       type: 'normal',
       rate: 1.0,
-      amount: Math.ceil(adjustedNormalMinutes * hourlyRatePerMinute)
+      amount: Math.ceil((adjustedNormalMinutes * hourlyRate) / 60),
     });
   }
 
@@ -346,7 +347,7 @@ export function calculateSalary(input: SalaryCalculationInput): SalaryCalculatio
       hours: adjustedNightMinutes / 60,
       type: 'night',
       rate: 1.25,
-      amount: Math.ceil(adjustedNightMinutes * hourlyRatePerMinute * 1.25)
+      amount: Math.ceil((adjustedNightMinutes * hourlyRate * 1.25) / 60),
     });
   }
 
@@ -358,7 +359,7 @@ export function calculateSalary(input: SalaryCalculationInput): SalaryCalculatio
       hours: adjustedOvertimeMinutes / 60,
       type: 'overtime',
       rate: 1.25,
-      amount: Math.ceil(adjustedOvertimeMinutes * hourlyRatePerMinute * 1.25)
+      amount: Math.ceil((adjustedOvertimeMinutes * hourlyRate * 1.25) / 60),
     });
   }
 
@@ -370,7 +371,7 @@ export function calculateSalary(input: SalaryCalculationInput): SalaryCalculatio
       hours: adjustedNightOvertimeMinutes / 60,
       type: 'night_overtime',
       rate: 1.5,
-      amount: Math.ceil(adjustedNightOvertimeMinutes * hourlyRatePerMinute * 1.5)
+      amount: Math.ceil((adjustedNightOvertimeMinutes * hourlyRate * 1.5) / 60),
     });
   }
 
