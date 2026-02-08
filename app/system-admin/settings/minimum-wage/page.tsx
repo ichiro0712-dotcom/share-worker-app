@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Save,
   Upload,
@@ -50,6 +51,8 @@ interface CsvError {
 }
 
 export default function MinimumWagePage() {
+  const router = useRouter();
+
   // データ
   const [prefectureViews, setPrefectureViews] = useState<AdminMinimumWageView[]>([]);
   const [missingPrefectures, setMissingPrefectures] = useState<string[]>([]);
@@ -89,10 +92,16 @@ export default function MinimumWagePage() {
   const fetchData = useCallback(async () => {
     try {
       const res = await fetch('/api/system-admin/minimum-wage');
+      if (res.status === 401) {
+        router.push('/system-admin/login');
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         setPrefectureViews(data.prefectures || []);
         setMissingPrefectures(data.missingPrefectures || []);
+      } else {
+        setMessage({ type: 'error', text: 'データの取得に失敗しました' });
       }
     } catch (error) {
       console.error('データ取得エラー:', error);
@@ -100,7 +109,7 @@ export default function MinimumWagePage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     fetchData();
@@ -112,6 +121,10 @@ export default function MinimumWagePage() {
     setLoadingHistory(true);
     try {
       const res = await fetch('/api/system-admin/minimum-wage/history');
+      if (res.status === 401) {
+        router.push('/system-admin/login');
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         setHistory(data.history || []);
@@ -166,6 +179,10 @@ export default function MinimumWagePage() {
         }),
       });
 
+      if (res.status === 401) {
+        router.push('/system-admin/login');
+        return;
+      }
       if (res.ok) {
         setMessage({ type: 'success', text: `${prefecture}の最低賃金を更新しました` });
         cancelEdit();
@@ -242,6 +259,10 @@ export default function MinimumWagePage() {
         }),
       });
 
+      if (res.status === 401) {
+        router.push('/system-admin/login');
+        return;
+      }
       if (res.ok) {
         const action = schedulingExistingId ? '更新' : '登録';
         setMessage({ type: 'success', text: `${schedulingPrefecture}の予定を${action}しました` });
@@ -272,6 +293,10 @@ export default function MinimumWagePage() {
         body: JSON.stringify({ id }),
       });
 
+      if (res.status === 401) {
+        router.push('/system-admin/login');
+        return;
+      }
       if (res.ok) {
         setMessage({ type: 'success', text: `${prefecture}の予定を取り消しました` });
         fetchData();
@@ -335,6 +360,11 @@ export default function MinimumWagePage() {
         method: 'POST',
         body: formData,
       });
+
+      if (res.status === 401) {
+        router.push('/system-admin/login');
+        return;
+      }
 
       const data = await res.json();
 
