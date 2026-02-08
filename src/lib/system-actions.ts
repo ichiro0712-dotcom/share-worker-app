@@ -2793,12 +2793,33 @@ export async function deletePendingFacility(facilityId: number, adminId: number)
 
 /**
  * 施設の仮登録状態を解除（正式登録に切り替え）
+ * 同時に緊急時出退勤番号とQRトークンを自動生成・付与する
  */
 export async function activateFacility(facilityId: number) {
     try {
+        // 現在の施設情報を取得（既に番号が設定されているか確認）
+        const currentFacility = await prisma.facility.findUnique({
+            where: { id: facilityId },
+            select: {
+                emergency_attendance_code: true,
+                qr_secret_token: true,
+            }
+        });
+
+        // 緊急時出退勤番号とQRトークンを生成（未設定の場合のみ）
+        const emergencyCode = currentFacility?.emergency_attendance_code
+            || await generateUniqueEmergencyCode();
+        const qrSecretToken = currentFacility?.qr_secret_token
+            || generateQRSecretToken();
+
         await prisma.facility.update({
             where: { id: facilityId },
-            data: { is_pending: false }
+            data: {
+                is_pending: false,
+                emergency_attendance_code: emergencyCode,
+                qr_secret_token: qrSecretToken,
+                qr_generated_at: currentFacility?.qr_secret_token ? undefined : new Date(),
+            }
         });
         return { success: true };
     } catch (error) {

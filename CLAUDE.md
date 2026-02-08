@@ -403,6 +403,40 @@ npm run lint   # Lintエラーがないこと
 
 ## Development Guidelines
 
+### ⚠️ 日時処理は必ずJST基準にすること（必須ルール）
+
+このサービスは日本国内向けのため、日付・時刻の比較や保存は**必ずJST（日本標準時, UTC+9）基準**で行うこと。
+
+**禁止パターン:**
+```typescript
+// ❌ UTC基準で比較される（JSTと最大9時間ズレる）
+const now = new Date();
+if (effectiveFrom <= now) { ... }
+
+// ❌ "2026-02-07" は UTC深夜0時（= JST午前9時）として解釈される
+const date = new Date("2026-02-07");
+```
+
+**正しいパターン:**
+```typescript
+// ✅ JST日付レベルで比較
+const todayStr = toJSTDateString(getTodayJSTStart()); // "2026-02-07"
+const isScheduled = toJSTDateString(effectiveFrom) > todayStr;
+
+// ✅ 日付文字列はJST深夜0時として保存
+const date = new Date("2026-02-07T00:00:00+09:00");
+
+// ✅ Prismaクエリの日付フィルタはJSTの日境界を使用
+const todayEnd = new Date(getTodayJSTStart().getTime() + 24 * 60 * 60 * 1000 - 1);
+await prisma.model.findMany({ where: { date_field: { lte: todayEnd } } });
+```
+
+**ヘルパー関数（`src/lib/actions/minimumWage.ts` に定義済み）:**
+- `toJSTDateString(date)` - DateをJSTの `YYYY-MM-DD` 文字列に変換
+- `getTodayJSTStart()` - 今日のJST 00:00:00 をDateで返す
+
+**注意:** Vercelサーバーは UTC で動作する。`new Date()` は UTC タイムスタンプを返すため、「今日」の判定にそのまま使うとJSTと最大9時間ズレる。
+
 ### Git Workflow
 - `main`: 本番ブランチ（直接push/PR禁止、developからのマージのみ）
 - `develop`: ステージングブランチ（feature/fix からのPRマージ先）

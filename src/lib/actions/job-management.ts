@@ -9,6 +9,7 @@ import { CreateJobInput } from './helpers';
 import { sendFavoriteNewJobNotification } from './notification';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 import { getFacilityAdminSessionData } from '@/lib/admin-session-server';
+import { getMinimumWageForPrefecture } from '@/src/lib/actions/minimumWage';
 
 /**
  * ローカル用の日付フォーマット関数 (M/D形式)
@@ -314,6 +315,17 @@ export async function createJobs(input: CreateJobInput) {
 
     if (!facility) {
         return { success: false, error: '施設が見つかりません' };
+    }
+
+    // 最低賃金チェック
+    if (facility.prefecture) {
+        const minWage = await getMinimumWageForPrefecture(facility.prefecture);
+        if (minWage !== null && input.hourlyWage < minWage) {
+            return {
+                success: false,
+                error: `時給が${facility.prefecture}の最低賃金（${minWage.toLocaleString()}円）を下回っています`,
+            };
+        }
     }
 
     const calculateWage = (startTime: string, endTime: string, breakMinutes: number, hourlyWage: number, transportFee: number) => {
@@ -898,6 +910,21 @@ export async function updateJob(
 
         if (!existingJob) {
             return { success: false, error: '求人が見つかりません' };
+        }
+
+        // 最低賃金チェック
+        const facility = await prisma.facility.findUnique({
+            where: { id: facilityId },
+            select: { prefecture: true },
+        });
+        if (facility?.prefecture) {
+            const minWage = await getMinimumWageForPrefecture(facility.prefecture);
+            if (minWage !== null && data.hourlyWage < minWage) {
+                return {
+                    success: false,
+                    error: `時給が${facility.prefecture}の最低賃金（${minWage.toLocaleString()}円）を下回っています`,
+                };
+            }
         }
 
         const breakTimeMinutes = data.breakTime;

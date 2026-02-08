@@ -377,6 +377,9 @@ export default function SystemAdminAttendancePage() {
                     実績
                   </th>
                   <th className="px-3 py-3 text-right text-xs font-medium text-slate-500 uppercase">
+                    時給
+                  </th>
+                  <th className="px-3 py-3 text-right text-xs font-medium text-slate-500 uppercase">
                     交通費
                   </th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-slate-500 uppercase">
@@ -386,7 +389,7 @@ export default function SystemAdminAttendancePage() {
                     ステータス
                   </th>
                   <th className="px-3 py-3 text-right text-xs font-medium text-slate-500 uppercase">
-                    報酬（税込）
+                    報酬
                   </th>
                 </tr>
               </thead>
@@ -427,6 +430,14 @@ export default function SystemAdminAttendancePage() {
                           {formatTime(item.actualStartTime)} ~ {formatTime(item.actualEndTime)}
                         </div>
                         <div className="text-slate-400">休憩 {item.actualBreakTime ?? 0}分</div>
+                      </div>
+                    </td>
+                    {/* 時給 */}
+                    <td className="px-3 py-3 text-right">
+                      <div className="text-xs text-slate-600">
+                        {item.hourlyWage
+                          ? formatCurrency(item.hourlyWage)
+                          : '-'}
                       </div>
                     </td>
                     {/* 交通費 */}
@@ -494,10 +505,12 @@ export default function SystemAdminAttendancePage() {
                       {item.calculatedWage ? (
                         <div>
                           <div className="text-sm font-medium text-slate-900">
-                            {formatCurrency(item.calculatedWage + (item.transportationFee ?? 0))}
+                            {/* calculated_wageは既に交通費込みの値 */}
+                            {formatCurrency(item.calculatedWage)}
                           </div>
                           <div className="text-xs text-slate-400">
-                            (時給分 {formatCurrency(item.calculatedWage)})
+                            {/* 純粋な給与（時給分）= calculated_wage - 交通費 */}
+                            (時給分 {formatCurrency(item.calculatedWage - (item.transportationFee ?? 0))})
                           </div>
                         </div>
                       ) : (
