@@ -43,6 +43,16 @@ const LINE_CTA_PATTERNS = [
 // tracking.jsスニペット
 const TRACKING_SNIPPET = `<script src="/lp/tracking.js"></script>`;
 
+// フッターリンクスニペット
+const FOOTER_LINKS_SNIPPET = `    <nav class="footer-links">
+      <a href="https://tastas.work/terms" target="_blank" rel="noopener noreferrer">利用規約</a>
+      <a href="https://tastas.work/privacy" target="_blank" rel="noopener noreferrer">プライバシーポリシー</a>
+      <a href="https://www.careergift.co.jp" target="_blank" rel="noopener noreferrer">運営会社</a>
+    </nav>`;
+
+// フッターリンク検出パターン
+const FOOTER_LINKS_PATTERN = /tastas\.work\/terms|tastas\.work\/privacy|careergift\.co\.jp/i;
+
 /**
  * LINE CTAボタンにdata-cats属性を自動挿入する
  * 既にdata-cats属性がある場合はスキップ
@@ -116,6 +126,20 @@ function insertTagsToHtml(html: string): {
   if (!hasTracking) {
     // </body>の直前に挿入
     modifiedHtml = modifiedHtml.replace(/<\/body>/i, `${TRACKING_SNIPPET}\n</body>`);
+  }
+
+  // フッターリンクを挿入（なければ）
+  const hasFooterLinks = FOOTER_LINKS_PATTERN.test(modifiedHtml);
+  if (!hasFooterLinks) {
+    // <footer> の直後、最初の子要素の前に挿入
+    const footerInserted = modifiedHtml.replace(
+      /(<footer[^>]*>)\s*\n?/i,
+      `$1\n${FOOTER_LINKS_SNIPPET}\n`
+    );
+    if (footerInserted !== modifiedHtml) {
+      modifiedHtml = footerInserted;
+      console.log('[LP Upload] Inserted footer links (利用規約・プライバシーポリシー・運営会社)');
+    }
   }
 
   return {
