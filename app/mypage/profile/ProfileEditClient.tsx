@@ -141,8 +141,10 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
   const firstName = nameParts[1] || '';
 
   // 安全に画像URLを取得（[object Object]などの無効な値を防ぐ）
+  // fallbackを渡さない: 表示用フォールバックはUI側で処理（UserIconを表示）
+  // fallback URLをサーバーに送信するとSupabase URLバリデーションでエラーになる
   const [profileImage, setProfileImage] = useState<string | null>(
-    getSafeImageUrl(userProfile.profile_image, '/images/users/user2.svg')
+    getSafeImageUrl(userProfile.profile_image)
   );
   const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
   const profileImageInputRef = useRef<HTMLInputElement>(null);
@@ -567,7 +569,10 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
     try {
       // === Phase 1: ファイルを個別にアップロード（署名付きURL経由）===
       // 既存URLを維持（新しいファイルがなければ変更しない）
-      let newProfileImageUrl = profileImage;
+      // フォールバック画像やローカルパスはサーバーに送信しない（Supabase URLバリデーション対策）
+      let newProfileImageUrl = (profileImage && (profileImage.startsWith('http') || profileImage.startsWith('data:')))
+        ? profileImage
+        : null;
       let newIdDocumentUrl = idDocument;
       let newBankBookImageUrl = bankBookImage;
 
