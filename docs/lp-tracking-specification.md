@@ -164,7 +164,59 @@ model LandingPage {
 ```typescript
 // 公開アクセス可能（middlewareで除外済み）
 // Response: HTML content (Content-Type: text/html)
+// index.html配信時、DBからLINEタグを取得し<head>内にscriptとして動的注入
 ```
+
+**GET `/api/lp-line-tags`** - LINEタグ一覧取得
+```typescript
+// Response
+{ tags: [{ id, key, label, url, sort_order, is_default }] }
+// タグが空の場合、google/metaをデフォルトとして自動シード
+```
+
+**POST `/api/lp-line-tags`** - LINEタグ操作（create / update / delete）
+```typescript
+// create: { action: 'create', key, label, url }
+// update: { action: 'update', id, key?, label?, url?, is_default? }
+// delete: { action: 'delete', id }
+```
+
+### 2.10 LINEタグ管理
+
+LINEタグ（広告プラットフォーム別LINE友だち追加URL）はDB管理される。
+
+**データモデル（`lp_line_tags`テーブル）:**
+| カラム | 型 | 説明 |
+|--------|-----|------|
+| key | VARCHAR(50) UNIQUE | utm_sourceの値（例: `google`, `meta`） |
+| label | TEXT | 表示名（例: `Google広告`, `Meta広告`） |
+| url | TEXT | LINE友だち追加URL |
+| sort_order | INT | 表示順 |
+| is_default | BOOLEAN | デフォルトタグフラグ |
+
+**動的注入の仕組み:**
+1. LP配信API（`GET /api/lp/[id]`）がindex.htmlを返す際、DBからLINEタグを全件取得
+2. `</head>`の前に以下のscriptタグを注入:
+   ```html
+   <script>
+   window.__LP_LINE_TAGS={"google":"https://...","meta":"https://..."};
+   window.__LP_LINE_TAG_DEFAULT="google";
+   </script>
+   ```
+3. tracking.jsが`window.__LP_LINE_TAGS`からutm_sourceに対応するURLを取得してLINEボタンに設定
+
+**デフォルト初期データ（自動シード）:**
+| key | label | URL | デフォルト |
+|-----|-------|-----|-----------|
+| `google` | Google広告 | `https://liff.line.me/2009053059-UzfNXDJd/landing?follow=%40894ipobi&lp=4Ghdqp&liff_id=2009053059-UzfNXDJd` | ✅ |
+| `meta` | Meta広告 | `https://liff.line.me/2009053059-UzfNXDJd/landing?follow=%40894ipobi&lp=GQbsFI&liff_id=2009053059-UzfNXDJd` | |
+
+※ DBにタグが存在しない場合、初回アクセス時に上記2件が自動シードされる。
+
+**管理画面:**
+- LP管理画面の「LINEタグ管理」ボタンからモーダルでCRUD操作
+- キーは英小文字・数字・アンダースコアのみ（utm_sourceパラメータとして使用）
+- タグの追加・編集は即座に全LPに反映（HTML配信時に動的注入のため）
 
 ---
 

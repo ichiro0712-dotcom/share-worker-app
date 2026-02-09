@@ -5,6 +5,7 @@ import { AlertTriangle, RefreshCw, Eye, CheckCircle, XCircle, Trash2, Download }
 import LPUploadModal from './LPUploadModal';
 import GenreSelectModal from './GenreSelectModal';
 import GenreEditModal from './GenreEditModal';
+import LineTagEditModal from './LineTagEditModal';
 import { getLandingPages, deleteLandingPage, updateLandingPageName } from '@/lib/lp-actions';
 import type { LandingPage } from '@prisma/client';
 
@@ -20,12 +21,14 @@ type DBLPListProps = {
   initialPages: LandingPage[];
 };
 
-// LINEタグ（広告プラットフォーム）の定義
-type LineTag = 'meta' | 'google';
-const LINE_TAG_OPTIONS: { value: LineTag; label: string }[] = [
-  { value: 'meta', label: 'Meta広告' },
-  { value: 'google', label: 'Google広告' },
-];
+// LINEタグ（広告プラットフォーム）の型
+type LineTagOption = {
+  id: number;
+  key: string;
+  label: string;
+  url: string;
+  is_default: boolean;
+};
 
 export default function DBLPList({ initialPages }: DBLPListProps) {
   const [pages, setPages] = useState<LandingPage[]>(initialPages);
@@ -43,8 +46,10 @@ export default function DBLPList({ initialPages }: DBLPListProps) {
   const [campaignsByLp, setCampaignsByLp] = useState<Record<number, Campaign[]>>({});
 
   // LINEタグ状態
-  const [selectedLineTag, setSelectedLineTag] = useState<LineTag>('meta');
-  const [appliedLineTag, setAppliedLineTag] = useState<LineTag>('meta');
+  const [lineTagOptions, setLineTagOptions] = useState<LineTagOption[]>([]);
+  const [selectedLineTag, setSelectedLineTag] = useState<string>('');
+  const [appliedLineTag, setAppliedLineTag] = useState<string>('');
+  const [lineTagEditModalOpen, setLineTagEditModalOpen] = useState(false);
 
   // クライアント側のoriginを保持
   const [origin, setOrigin] = useState('');
@@ -58,6 +63,25 @@ export default function DBLPList({ initialPages }: DBLPListProps) {
   // クライアント側でoriginを設定
   useEffect(() => {
     setOrigin(window.location.origin);
+  }, []);
+
+  // LINEタグを取得
+  useEffect(() => {
+    const fetchLineTags = async () => {
+      try {
+        const res = await fetch('/api/lp-line-tags');
+        const data = await res.json();
+        if (data.tags && data.tags.length > 0) {
+          setLineTagOptions(data.tags);
+          const defaultTag = data.tags.find((t: LineTagOption) => t.is_default) || data.tags[0];
+          setSelectedLineTag(defaultTag.key);
+          setAppliedLineTag(defaultTag.key);
+        }
+      } catch (e) {
+        console.error('Failed to fetch line tags:', e);
+      }
+    };
+    fetchLineTags();
   }, []);
 
   // キャンペーンコードを一括取得（N+1問題の解消）
@@ -603,11 +627,11 @@ export default function DBLPList({ initialPages }: DBLPListProps) {
             <span className="text-sm font-medium text-gray-700">LINEタグ:</span>
             <select
               value={selectedLineTag}
-              onChange={(e) => setSelectedLineTag(e.target.value as LineTag)}
+              onChange={(e) => setSelectedLineTag(e.target.value)}
               className="px-3 py-1.5 text-sm border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
             >
-              {LINE_TAG_OPTIONS.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              {lineTagOptions.map(opt => (
+                <option key={opt.key} value={opt.key}>{opt.label}</option>
               ))}
             </select>
             <button
@@ -623,10 +647,16 @@ export default function DBLPList({ initialPages }: DBLPListProps) {
             >
               適用
             </button>
+            <button
+              onClick={() => setLineTagEditModalOpen(true)}
+              className="px-3 py-1.5 text-sm font-medium text-green-700 bg-green-100 rounded-md hover:bg-green-200 transition-colors"
+            >
+              LINEタグ管理
+            </button>
           </div>
           {appliedLineTag && (
             <span className="ml-auto text-xs text-green-700 bg-green-100 px-2 py-1 rounded">
-              適用中: {LINE_TAG_OPTIONS.find(opt => opt.value === appliedLineTag)?.label}
+              適用中: {lineTagOptions.find(opt => opt.key === appliedLineTag)?.label}
             </span>
           )}
         </div>
@@ -730,6 +760,27 @@ export default function DBLPList({ initialPages }: DBLPListProps) {
       <GenreEditModal
         isOpen={genreEditModalOpen}
         onClose={() => setGenreEditModalOpen(false)}
+      />
+
+      {/* LINEタグ管理モーダル */}
+      <LineTagEditModal
+        isOpen={lineTagEditModalOpen}
+        onClose={() => {
+          setLineTagEditModalOpen(false);
+          // タグを再取得して最新状態に
+          fetch('/api/lp-line-tags').then(r => r.json()).then(data => {
+            if (data.tags && data.tags.length > 0) {
+              setLineTagOptions(data.tags);
+              // 現在選択中のタグが削除されていたらデフォルトに戻す
+              const currentExists = data.tags.some((t: LineTagOption) => t.key === appliedLineTag);
+              if (!currentExists) {
+                const defaultTag = data.tags.find((t: LineTagOption) => t.is_default) || data.tags[0];
+                setSelectedLineTag(defaultTag.key);
+                setAppliedLineTag(defaultTag.key);
+              }
+            }
+          });
+        }}
       />
     </>
   );

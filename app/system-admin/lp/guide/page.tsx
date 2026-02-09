@@ -312,6 +312,7 @@ export default function LPGuidePage() {
               <li>• <code className="bg-green-100 px-1 rounded">href=&quot;#&quot;</code> は自動でLINE URLに置換されます</li>
               <li>• <code className="bg-green-100 px-1 rounded">?utm_source=google</code> → Google広告用LINE URL</li>
               <li>• <code className="bg-green-100 px-1 rounded">?utm_source=meta</code> → Meta広告用LINE URL</li>
+              <li>• その他のタグもLP管理画面の「LINEタグ管理」から追加・編集可能</li>
               <li>• クリック計測が自動で行われます</li>
               <li>• <code className="bg-green-100 px-1 rounded">data-cats=&quot;lineFriendsFollowLink&quot;</code> 属性が自動挿入されます（markecats連携用）</li>
             </ul>
@@ -564,6 +565,10 @@ export default function LPGuidePage() {
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
                   <span>Meta広告: <code className="bg-slate-100 px-1 rounded">?utm_source=meta</code> 付きURLを使用</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <input type="checkbox" className="mt-1 rounded" />
+                  <span>その他の広告: LINEタグ管理で追加したキーを <code className="bg-slate-100 px-1 rounded">?utm_source=キー</code> で使用</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />

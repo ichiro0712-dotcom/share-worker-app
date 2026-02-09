@@ -12,10 +12,11 @@
     SECTION_TRACK_INTERVAL: 1000, // セクション滞在計測間隔（ミリ秒）
     MAX_DWELL_TIME_SECONDS: 300, // 滞在時間の上限（5分）- 異常値対策
     // LINE友だち追加URL（広告プラットフォーム別）
-    LINE_URLS: {
+    // 動的注入: window.__LP_LINE_TAGS からDB管理されたURLを取得
+    // フォールバック: 注入がない場合のデフォルトURL
+    LINE_URLS_FALLBACK: {
       google: 'https://liff.line.me/2009053059-UzfNXDJd/landing?follow=%40894ipobi&lp=4Ghdqp&liff_id=2009053059-UzfNXDJd',
       meta: 'https://liff.line.me/2009053059-UzfNXDJd/landing?follow=%40894ipobi&lp=GQbsFI&liff_id=2009053059-UzfNXDJd',
-      default: 'https://liff.line.me/2009053059-UzfNXDJd/landing?follow=%40894ipobi&lp=4Ghdqp&liff_id=2009053059-UzfNXDJd', // デフォルトはGoogle用
     },
   };
 
@@ -314,15 +315,38 @@
   }
 
   // LINE URLを取得（utm_sourceに基づいて切り替え）
+  // window.__LP_LINE_TAGS（DB管理）を優先、なければフォールバック
   function getLineUrl() {
-    const utmSource = state.utmSource ? state.utmSource.toLowerCase() : '';
+    var tags = window.__LP_LINE_TAGS || {};
+    var defaultKey = window.__LP_LINE_TAG_DEFAULT || '';
+    var utmSource = state.utmSource ? state.utmSource.toLowerCase() : '';
 
-    if (utmSource === 'meta' || utmSource === 'facebook' || utmSource === 'instagram') {
-      return CONFIG.LINE_URLS.meta;
-    } else if (utmSource === 'google') {
-      return CONFIG.LINE_URLS.google;
+    // 1. utm_sourceで完全一致
+    if (utmSource && tags[utmSource]) {
+      return tags[utmSource];
     }
-    return CONFIG.LINE_URLS.default;
+
+    // 2. facebook/instagram → meta フォールバック
+    if ((utmSource === 'facebook' || utmSource === 'instagram') && tags['meta']) {
+      return tags['meta'];
+    }
+
+    // 3. デフォルトタグ
+    if (defaultKey && tags[defaultKey]) {
+      return tags[defaultKey];
+    }
+
+    // 4. タグの先頭
+    var keys = Object.keys(tags);
+    if (keys.length > 0) {
+      return tags[keys[0]];
+    }
+
+    // 5. フォールバック（動的注入がない古いHTML用）
+    if (utmSource === 'meta' || utmSource === 'facebook' || utmSource === 'instagram') {
+      return CONFIG.LINE_URLS_FALLBACK.meta;
+    }
+    return CONFIG.LINE_URLS_FALLBACK.google;
   }
 
   // LINEボタンのURLを設定
