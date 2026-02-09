@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import GenreSelectModal from './components/GenreSelectModal';
 import GenreEditModal from './components/GenreEditModal';
+import LineTagEditModal from './components/LineTagEditModal';
 
 type Campaign = {
   code: string;
@@ -20,12 +21,14 @@ type LPPage = {
   campaigns: Campaign[];
 };
 
-// LINEタグ（広告プラットフォーム）の定義
-type LineTag = 'meta' | 'google';
-const LINE_TAG_OPTIONS: { value: LineTag; label: string }[] = [
-  { value: 'meta', label: 'Meta広告' },
-  { value: 'google', label: 'Google広告' },
-];
+// LINEタグ（広告プラットフォーム）の型
+type LineTagOption = {
+  id: number;
+  key: string;
+  label: string;
+  url: string;
+  is_default: boolean;
+};
 
 export default function LPList({ initialPages }: { initialPages: LPPage[] }) {
   const [pages, setPages] = useState(initialPages);
@@ -36,10 +39,11 @@ export default function LPList({ initialPages }: { initialPages: LPPage[] }) {
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // LINEタグ状態（全LP共通、適用前の選択値）
-  const [selectedLineTag, setSelectedLineTag] = useState<LineTag>('meta');
-  // 適用済みのLINEタグ（実際にURLに反映される値）
-  const [appliedLineTag, setAppliedLineTag] = useState<LineTag>('meta');
+  // LINEタグ状態
+  const [lineTagOptions, setLineTagOptions] = useState<LineTagOption[]>([]);
+  const [selectedLineTag, setSelectedLineTag] = useState<string>('');
+  const [appliedLineTag, setAppliedLineTag] = useState<string>('');
+  const [lineTagEditModalOpen, setLineTagEditModalOpen] = useState(false);
 
   // クライアント側のoriginを保持（hydrationエラー回避）
   const [origin, setOrigin] = useState('');
@@ -47,6 +51,25 @@ export default function LPList({ initialPages }: { initialPages: LPPage[] }) {
   // クライアント側でoriginを設定
   useEffect(() => {
     setOrigin(window.location.origin);
+  }, []);
+
+  // LINEタグを取得
+  useEffect(() => {
+    const fetchLineTags = async () => {
+      try {
+        const res = await fetch('/api/lp-line-tags');
+        const data = await res.json();
+        if (data.tags && data.tags.length > 0) {
+          setLineTagOptions(data.tags);
+          const defaultTag = data.tags.find((t: LineTagOption) => t.is_default) || data.tags[0];
+          setSelectedLineTag(defaultTag.key);
+          setAppliedLineTag(defaultTag.key);
+        }
+      } catch (e) {
+        console.error('Failed to fetch line tags:', e);
+      }
+    };
+    fetchLineTags();
   }, []);
 
   // LINEタグを適用
@@ -570,11 +593,11 @@ export default function LPList({ initialPages }: { initialPages: LPPage[] }) {
             <span className="text-sm font-medium text-gray-700">LINEタグ:</span>
             <select
               value={selectedLineTag}
-              onChange={(e) => setSelectedLineTag(e.target.value as LineTag)}
+              onChange={(e) => setSelectedLineTag(e.target.value)}
               className="px-3 py-1.5 text-sm border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
             >
-              {LINE_TAG_OPTIONS.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              {lineTagOptions.map(opt => (
+                <option key={opt.key} value={opt.key}>{opt.label}</option>
               ))}
             </select>
             <button
@@ -590,10 +613,16 @@ export default function LPList({ initialPages }: { initialPages: LPPage[] }) {
             >
               適用
             </button>
+            <button
+              onClick={() => setLineTagEditModalOpen(true)}
+              className="px-3 py-1.5 text-sm font-medium text-green-700 bg-green-100 rounded-md hover:bg-green-200 transition-colors"
+            >
+              LINEタグ管理
+            </button>
           </div>
           {appliedLineTag && (
             <span className="ml-auto text-xs text-green-700 bg-green-100 px-2 py-1 rounded">
-              適用中: {LINE_TAG_OPTIONS.find(opt => opt.value === appliedLineTag)?.label}
+              適用中: {lineTagOptions.find(opt => opt.key === appliedLineTag)?.label}
             </span>
           )}
         </div>
@@ -661,6 +690,25 @@ export default function LPList({ initialPages }: { initialPages: LPPage[] }) {
       <GenreEditModal
         isOpen={genreEditModalOpen}
         onClose={() => setGenreEditModalOpen(false)}
+      />
+
+      {/* LINEタグ編集モーダル */}
+      <LineTagEditModal
+        isOpen={lineTagEditModalOpen}
+        onClose={() => {
+          setLineTagEditModalOpen(false);
+          fetch('/api/lp-line-tags').then(r => r.json()).then(data => {
+            if (data.tags && data.tags.length > 0) {
+              setLineTagOptions(data.tags);
+              const currentExists = data.tags.some((t: LineTagOption) => t.key === appliedLineTag);
+              if (!currentExists) {
+                const defaultTag = data.tags.find((t: LineTagOption) => t.is_default) || data.tags[0];
+                setSelectedLineTag(defaultTag.key);
+                setAppliedLineTag(defaultTag.key);
+              }
+            }
+          });
+        }}
       />
     </>
   );

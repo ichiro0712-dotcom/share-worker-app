@@ -1666,6 +1666,26 @@ model LandingPage {
   @@map("landing_pages")
 }
 
+/// LINEタグ（広告プラットフォーム別LINE友だち追加URL）
+model LpLineTag {
+  id          Int      @id @default(autoincrement())
+  /// 識別キー（utm_sourceの値として使用。例: "meta", "google", "tiktok"）
+  key         String   @unique @db.VarChar(50)
+  /// 表示名（例: "Meta広告", "Google広告"）
+  label       String
+  /// LINE友だち追加URL
+  url         String   @db.Text
+  /// 表示順序
+  sort_order  Int      @default(0) @map("sort_order")
+  /// デフォルト選択フラグ
+  is_default  Boolean  @default(false) @map("is_default")
+  created_at  DateTime @default(now()) @map("created_at")
+  updated_at  DateTime @updatedAt @map("updated_at")
+
+  @@index([sort_order])
+  @@map("lp_line_tags")
+}
+
 // ========== エラー通知システム ==========
 
 /// エラー通知先（本番環境でエラー発生時にメール送信）
