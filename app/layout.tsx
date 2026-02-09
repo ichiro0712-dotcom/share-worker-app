@@ -22,7 +22,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "+TASTAS - 看護師・介護士のための求人マッチング",
+  title: "+タスタス - 看護師・介護士のための求人マッチング",
   description: "看護師・介護士のための求人マッチングWebサービス",
   manifest: '/manifest.json',
   icons: {
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: '+TASTAS',
+    title: '+タスタス',
   },
 };
 
@@ -43,10 +43,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ja">
-      <head>
-        <GoogleTagManager />
-      </head>
       <body>
+        <GoogleTagManager />
         <GoogleTagManagerNoscript />
         <NetworkStatusProvider>
           <OfflineBanner />
