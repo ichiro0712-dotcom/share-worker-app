@@ -1,14 +1,26 @@
+'use client';
+
 import Script from 'next/script';
+import { usePathname } from 'next/navigation';
 
 const GTM_ID = process.env.NEXT_PUBLIC_GTM_ID;
 
+const EXCLUDED_PATHS = ['/admin', '/system-admin'];
+
+function useIsWorkerPage() {
+  const pathname = usePathname();
+  return !EXCLUDED_PATHS.some(path => pathname?.startsWith(path));
+}
+
 export function GoogleTagManager() {
-  if (!GTM_ID) return null;
+  const isWorkerPage = useIsWorkerPage();
+
+  if (!GTM_ID || !isWorkerPage) return null;
 
   return (
     <Script
       id="gtm-script"
-      strategy="beforeInteractive"
+      strategy="afterInteractive"
       dangerouslySetInnerHTML={{
         __html: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
 new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
@@ -21,7 +33,9 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 }
 
 export function GoogleTagManagerNoscript() {
-  if (!GTM_ID) return null;
+  const isWorkerPage = useIsWorkerPage();
+
+  if (!GTM_ID || !isWorkerPage) return null;
 
   return (
     <noscript>
