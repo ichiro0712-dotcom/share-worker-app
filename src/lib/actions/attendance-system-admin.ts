@@ -8,22 +8,12 @@ import { prisma } from '@/lib/prisma';
 import { getCurrentTime } from './helpers';
 import { calculateSalary } from '@/src/lib/salary-calculator';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
+import { requireSystemAdminAuth, getSystemAdminSessionData } from '@/lib/system-admin-session-server';
 import type {
   AttendanceFilter,
   AttendanceSortOption,
   AttendanceExportRow,
 } from '@/src/types/attendance';
-
-// ================== 認証ヘルパー ==================
-
-/**
- * システム管理者認証チェック（簡易版）
- * TODO: 実際の認証実装に合わせて修正
- */
-async function checkSystemAdminAuth(): Promise<boolean> {
-  // 本番環境ではセッションベースの認証を実装
-  return true;
-}
 
 // ================== 勤務実績管理 ==================
 
@@ -40,10 +30,7 @@ export async function getAllAttendances(options?: {
   total: number;
 }> {
   try {
-    const isAuth = await checkSystemAdminAuth();
-    if (!isAuth) {
-      return { items: [], total: 0 };
-    }
+    await requireSystemAdminAuth();
 
     const limit = options?.limit ?? 50;
     const offset = options?.offset ?? 0;
@@ -270,10 +257,7 @@ export async function exportAttendancesCsv(options: {
   status?: 'CHECKED_IN' | 'CHECKED_OUT';
 }): Promise<{ success: boolean; csvData?: string; count?: number; error?: string }> {
   try {
-    const isAuth = await checkSystemAdminAuth();
-    if (!isAuth) {
-      return { success: false, error: '認証エラー' };
-    }
+    await requireSystemAdminAuth();
 
     // Date型またはstring型をDate型に変換
     const dateFrom = options.dateFrom ? new Date(options.dateFrom) : undefined;
@@ -428,10 +412,7 @@ export async function getAttendanceStats(options?: {
   totalWage: number;
 }> {
   try {
-    const isAuth = await checkSystemAdminAuth();
-    if (!isAuth) {
-      return { totalAttendances: 0, pendingModifications: 0, totalWage: 0 };
-    }
+    await requireSystemAdminAuth();
 
     const whereClause: any = {};
     if (options?.dateFrom || options?.dateTo) {
@@ -538,10 +519,7 @@ export async function getAttendanceDetail(
   attendanceId: number
 ): Promise<{ success: boolean; data?: AttendanceDetailForEdit; message?: string }> {
   try {
-    const isAuth = await checkSystemAdminAuth();
-    if (!isAuth) {
-      return { success: false, message: '認証エラー' };
-    }
+    await requireSystemAdminAuth();
 
     const attendance = await prisma.attendance.findUnique({
       where: { id: attendanceId },
@@ -647,10 +625,7 @@ export async function recalculateWage(
   breakMinutes: number
 ): Promise<{ success: boolean; wage?: number; message?: string }> {
   try {
-    const isAuth = await checkSystemAdminAuth();
-    if (!isAuth) {
-      return { success: false, message: '認証エラー' };
-    }
+    await requireSystemAdminAuth();
 
     const attendance = await prisma.attendance.findUnique({
       where: { id: attendanceId },
@@ -706,10 +681,9 @@ export async function updateAttendanceBySystemAdmin(
   data: UpdateAttendanceData
 ): Promise<{ success: boolean; message: string }> {
   try {
-    const isAuth = await checkSystemAdminAuth();
-    if (!isAuth) {
-      return { success: false, message: '認証エラー' };
-    }
+    await requireSystemAdminAuth();
+    const session = await getSystemAdminSessionData();
+    const adminEmail = session?.email ?? 'SYSTEM_ADMIN';
 
     if (!data.reason.trim()) {
       return { success: false, message: '変更理由は必須です' };
@@ -718,11 +692,18 @@ export async function updateAttendanceBySystemAdmin(
     const newStart = new Date(data.actualStartTime);
     const newEnd = new Date(data.actualEndTime);
 
+    if (isNaN(newStart.getTime()) || isNaN(newEnd.getTime())) {
+      return { success: false, message: '有効な日時を入力してください' };
+    }
+
     if (newStart >= newEnd) {
       return { success: false, message: '開始時間は終了時間より前にしてください' };
     }
 
     const totalMinutes = (newEnd.getTime() - newStart.getTime()) / (1000 * 60);
+    if (totalMinutes > 24 * 60) {
+      return { success: false, message: '勤務時間が24時間を超えています' };
+    }
     if (data.actualBreakTime >= totalMinutes) {
       return { success: false, message: '休憩時間が実働時間を超えています' };
     }
@@ -751,7 +732,7 @@ export async function updateAttendanceBySystemAdmin(
       await tx.attendanceEditHistory.create({
         data: {
           attendance_id: attendanceId,
-          edited_by: 'SYSTEM_ADMIN',
+          edited_by: adminEmail,
           prev_actual_start_time: current.actual_start_time,
           prev_actual_end_time: current.actual_end_time,
           prev_actual_break_time: current.actual_break_time,
@@ -781,6 +762,7 @@ export async function updateAttendanceBySystemAdmin(
 
     logActivity({
       userType: 'SYSTEM_ADMIN',
+      userEmail: adminEmail,
       action: 'ATTENDANCE_EDIT_BY_SYSTEM_ADMIN',
       targetType: 'Attendance',
       targetId: attendanceId,

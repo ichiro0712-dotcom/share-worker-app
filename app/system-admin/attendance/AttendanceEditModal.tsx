@@ -35,13 +35,27 @@ function toJSTDateString(isoString: string): string {
 function buildJSTDateTime(workDateISO: string, timeStr: string): string {
   const workDate = new Date(workDateISO);
   const [h, m] = timeStr.split(':').map(Number);
-  // workDate は UTC midnight として格納されている。JSTの日付として HH:mm を組み立て
-  const year = workDate.getUTCFullYear();
-  const month = workDate.getUTCMonth();
-  const day = workDate.getUTCDate();
+  // workDateをJST日付として解釈（+9hしてからUTCゲッターで取得）
+  const jstDate = new Date(workDate.getTime() + 9 * 60 * 60 * 1000);
+  const year = jstDate.getUTCFullYear();
+  const month = jstDate.getUTCMonth();
+  const day = jstDate.getUTCDate();
   // JST HH:mm → UTC に変換（-9h）
   const utc = new Date(Date.UTC(year, month, day, h - 9, m, 0, 0));
   return utc.toISOString();
+}
+
+/** 終了時刻用: 開始より前なら翌日として組み立て（日跨ぎシフト対応） */
+function buildJSTEndDateTime(workDateISO: string, startTimeStr: string, endTimeStr: string): string {
+  const startISO = buildJSTDateTime(workDateISO, startTimeStr);
+  const endISO = buildJSTDateTime(workDateISO, endTimeStr);
+  // 終了が開始より前なら翌日（+24h）
+  if (new Date(endISO) <= new Date(startISO)) {
+    const endDate = new Date(endISO);
+    endDate.setUTCDate(endDate.getUTCDate() + 1);
+    return endDate.toISOString();
+  }
+  return endISO;
 }
 
 export default function AttendanceEditModal({
@@ -134,8 +148,12 @@ export default function AttendanceEditModal({
 
   const handleRecalculate = async () => {
     if (!detail) return;
+    if (!actualStart || !actualEnd) {
+      toast.error('開始・終了時刻を入力してください');
+      return;
+    }
     const startISO = buildJSTDateTime(detail.workDate, actualStart);
-    const endISO = buildJSTDateTime(detail.workDate, actualEnd);
+    const endISO = buildJSTEndDateTime(detail.workDate, actualStart, actualEnd);
     const result = await recalculateWage(detail.id, startISO, endISO, breakTime);
     if (result.success && result.wage !== undefined) {
       setWage(result.wage);
@@ -154,6 +172,10 @@ export default function AttendanceEditModal({
 
   const handleSave = async () => {
     if (!detail) return;
+    if (!actualStart || !actualEnd) {
+      toast.error('開始・終了時刻を入力してください');
+      return;
+    }
     if (!reason.trim()) {
       toast.error('変更理由を入力してください');
       return;
@@ -167,7 +189,7 @@ export default function AttendanceEditModal({
     setShowConfirm(false);
     try {
       const startISO = buildJSTDateTime(detail.workDate, actualStart);
-      const endISO = buildJSTDateTime(detail.workDate, actualEnd);
+      const endISO = buildJSTEndDateTime(detail.workDate, actualStart, actualEnd);
 
       const result = await updateAttendanceBySystemAdmin(detail.id, {
         actualStartTime: startISO,

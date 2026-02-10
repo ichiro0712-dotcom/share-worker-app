@@ -1257,8 +1257,7 @@ model AttendanceEditHistory {
   // リレーション
   attendance              Attendance @relation(fields: [attendance_id], references: [id], onDelete: Cascade)
 
-  @@index([attendance_id])
-  @@index([created_at])
+  @@index([attendance_id, created_at])
   @@map("attendance_edit_histories")
 }
 
