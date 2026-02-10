@@ -13,7 +13,7 @@
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { getVersionForLog } from '@/lib/version'
-import { getDeviceInfo, getClientIpAddress, simplifyDeviceInfo } from '@/src/lib/device-info'
+import { getDeviceInfoAndIp, simplifyDeviceInfo } from '@/src/lib/device-info'
 
 // ========== 型定義 ==========
 
@@ -204,9 +204,8 @@ export async function logActivity(params: ActivityLogParams): Promise<void> {
 
   if (!userAgent || !ipAddress) {
     try {
-      // headers()が使えるコンテキスト（Server Actions/Route Handlers）でのみ取得
-      const autoDeviceInfo = await getDeviceInfo()
-      const autoIpAddress = await getClientIpAddress()
+      // headers()を1回だけ呼び出して両方取得（最適化）
+      const { deviceInfo: autoDeviceInfo, ipAddress: autoIpAddress } = await getDeviceInfoAndIp()
 
       if (!userAgent) {
         userAgent = autoDeviceInfo.userAgent

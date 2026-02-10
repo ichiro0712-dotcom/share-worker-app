@@ -68,24 +68,51 @@ export async function getDeviceInfo(): Promise<DeviceInfo> {
 }
 
 /**
+ * IPアドレスのバリデーション
+ * 基本的なIPv4/IPv6形式チェック
+ */
+function isValidIpAddress(ip: string): boolean {
+  // IPv4チェック（簡易版）
+  const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
+  if (ipv4Regex.test(ip)) {
+    const parts = ip.split('.');
+    return parts.every(part => {
+      const num = parseInt(part, 10);
+      return num >= 0 && num <= 255;
+    });
+  }
+
+  // IPv6チェック（簡易版）
+  const ipv6Regex = /^[0-9a-fA-F:]+$/;
+  return ipv6Regex.test(ip) && ip.includes(':');
+}
+
+/**
  * IPアドレスを取得（Vercelのヘッダーから取得）
  * Server Actions/Route Handlersでのみ使用可能
+ *
+ * 優先順位:
+ * 1. x-real-ip（信頼できるプロキシが設定）
+ * 2. x-forwarded-for（検証済み）
  */
 export async function getClientIpAddress(): Promise<string | null> {
   // 動的インポートでServer Component専用機能を使用
   const { headers } = await import('next/headers');
   const headersList = headers();
 
-  // Vercelの場合は x-forwarded-for を使用
-  const forwardedFor = headersList.get('x-forwarded-for');
-  if (forwardedFor) {
-    return forwardedFor.split(',')[0].trim();
+  // x-real-ip を優先（より信頼性が高い）
+  const realIp = headersList.get('x-real-ip');
+  if (realIp && isValidIpAddress(realIp)) {
+    return realIp;
   }
 
-  // x-real-ip も確認
-  const realIp = headersList.get('x-real-ip');
-  if (realIp) {
-    return realIp;
+  // x-forwarded-for（最初のIPのみ、検証付き）
+  const forwardedFor = headersList.get('x-forwarded-for');
+  if (forwardedFor) {
+    const firstIp = forwardedFor.split(',')[0].trim();
+    if (isValidIpAddress(firstIp)) {
+      return firstIp;
+    }
   }
 
   return null;
@@ -121,4 +148,65 @@ export function simplifyDeviceInfo(info: DeviceInfo) {
     device: info.device.type || 'desktop',
     model: info.device.model || null,
   };
+}
+
+/**
+ * デバイス情報とIPアドレスを一度に取得（最適化版）
+ * headers() を1回だけ呼び出して両方の情報を取得
+ */
+export async function getDeviceInfoAndIp(): Promise<{
+  deviceInfo: DeviceInfo;
+  ipAddress: string | null;
+}> {
+  // 動的インポートでServer Component専用機能を使用
+  const { headers } = await import('next/headers');
+  const headersList = headers();
+
+  // User-Agent からデバイス情報を取得
+  const userAgent = headersList.get('user-agent') || '';
+  const parser = new UAParser(userAgent);
+  const result = parser.getResult();
+
+  const deviceInfo: DeviceInfo = {
+    browser: {
+      name: result.browser.name,
+      version: result.browser.version,
+      major: result.browser.major,
+    },
+    os: {
+      name: result.os.name,
+      version: result.os.version,
+    },
+    device: {
+      type: result.device.type || 'desktop',
+      vendor: result.device.vendor,
+      model: result.device.model,
+    },
+    engine: {
+      name: result.engine.name,
+      version: result.engine.version,
+    },
+    cpu: {
+      architecture: result.cpu.architecture,
+    },
+    userAgent,
+  };
+
+  // IPアドレスを取得（優先順位: x-real-ip → x-forwarded-for）
+  let ipAddress: string | null = null;
+
+  const realIp = headersList.get('x-real-ip');
+  if (realIp && isValidIpAddress(realIp)) {
+    ipAddress = realIp;
+  } else {
+    const forwardedFor = headersList.get('x-forwarded-for');
+    if (forwardedFor) {
+      const firstIp = forwardedFor.split(',')[0].trim();
+      if (isValidIpAddress(firstIp)) {
+        ipAddress = firstIp;
+      }
+    }
+  }
+
+  return { deviceInfo, ipAddress };
 }
