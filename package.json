@@ -35,6 +35,7 @@
     "@types/qrcode": "^1.5.6",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@types/ua-parser-js": "^0.7.39",
     "@types/web-push": "^3.6.4",
     "archiver": "^7.0.1",
     "autoprefixer": "^10.4.22",
@@ -60,9 +61,11 @@
     "react-dom": "^18",
     "react-hot-toast": "^2.6.0",
     "resend": "^6.7.0",
+    "sonner": "^2.0.7",
     "swr": "^2.3.8",
     "tailwindcss": "^3.4.18",
     "typescript": "^5",
+    "ua-parser-js": "^2.0.9",
     "web-push": "^3.6.7"
   },
   "devDependencies": {
