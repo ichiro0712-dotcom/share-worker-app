@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Download, Filter, RefreshCw, Calendar, Users, Clock, CircleDollarSign } from 'lucide-react';
+import { Download, Filter, RefreshCw, Calendar, Users, Clock, CircleDollarSign, Pencil } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
   getAllAttendances,
@@ -13,6 +13,7 @@ import {
 } from '@/src/lib/actions/attendance-system-admin';
 import { formatCurrency } from '@/src/lib/salary-calculator';
 import type { AttendanceFilter, AttendanceSortOption } from '@/src/types/attendance';
+import AttendanceEditModal from './AttendanceEditModal';
 
 type StatusFilter = 'all' | 'CHECKED_IN' | 'CHECKED_OUT';
 
@@ -66,6 +67,10 @@ export default function SystemAdminAttendancePage() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
+
+  // 編集モーダル
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editAttendanceId, setEditAttendanceId] = useState<number | null>(null);
 
   // フィルター状態
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -391,6 +396,9 @@ export default function SystemAdminAttendancePage() {
                   <th className="px-3 py-3 text-right text-xs font-medium text-slate-500 uppercase">
                     報酬
                   </th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-slate-500 uppercase">
+                    操作
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
@@ -517,6 +525,18 @@ export default function SystemAdminAttendancePage() {
                         <span className="text-sm text-slate-400">-</span>
                       )}
                     </td>
+                    <td className="px-3 py-3 text-center">
+                      <button
+                        onClick={() => {
+                          setEditAttendanceId(item.id);
+                          setEditModalOpen(true);
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                        title="編集"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -531,6 +551,17 @@ export default function SystemAdminAttendancePage() {
           {total}件中 {items.length}件を表示
         </div>
       )}
+
+      {/* 編集モーダル */}
+      <AttendanceEditModal
+        isOpen={editModalOpen}
+        attendanceId={editAttendanceId}
+        onClose={() => {
+          setEditModalOpen(false);
+          setEditAttendanceId(null);
+        }}
+        onUpdated={fetchData}
+      />
     </div>
   );
 }
