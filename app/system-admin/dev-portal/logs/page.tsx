@@ -23,12 +23,22 @@ import {
     Calendar,
     GitCommit,
     ExternalLink,
+    Monitor,
+    Smartphone,
+    Tablet,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import { toZonedTime } from 'date-fns-tz';
 
 // ========== 型定義 ==========
+
+interface DeviceInfo {
+    browser: string;
+    os: string;
+    device: 'desktop' | 'mobile' | 'tablet';
+    model: string | null;
+}
 
 interface ActivityLog {
     id: number;
@@ -38,7 +48,7 @@ interface ActivityLog {
     action: string;
     target_type: string | null;
     target_id: number | null;
-    request_data: Record<string, unknown> | null;
+    request_data: (Record<string, unknown> & { device?: DeviceInfo }) | null;
     response_data: Record<string, unknown> | null;
     result: 'SUCCESS' | 'ERROR';
     error_message: string | null;
@@ -97,6 +107,7 @@ export default function LogViewerPage() {
     // フィルタ状態
     const [userTypeFilter, setUserTypeFilter] = useState('ALL');
     const [actionFilter, setActionFilter] = useState('ALL');
+    const [deviceTypeFilter, setDeviceTypeFilter] = useState('ALL');
     const [searchQuery, setSearchQuery] = useState('');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
@@ -126,6 +137,7 @@ export default function LogViewerPage() {
             } else {
                 if (userTypeFilter !== 'ALL') params.append('user_type', userTypeFilter);
                 if (actionFilter !== 'ALL') params.append('action', actionFilter);
+                if (deviceTypeFilter !== 'ALL') params.append('device_type', deviceTypeFilter);
             }
 
             if (userId) {
@@ -158,7 +170,7 @@ export default function LogViewerPage() {
         } finally {
             setActivityLoading(false);
         }
-    }, [activityPage, userTypeFilter, actionFilter, searchQuery, dateFrom, dateTo, traceUserType, showDebugError]);
+    }, [activityPage, userTypeFilter, actionFilter, deviceTypeFilter, searchQuery, dateFrom, dateTo, traceUserType, showDebugError]);
 
     const fetchNotificationLogs = useCallback(async () => {
         setNotificationLoading(true);
@@ -249,6 +261,24 @@ export default function LogViewerPage() {
             case 'EMAIL': return <Mail className="w-4 h-4 text-orange-500" />;
             case 'PUSH': return <Bell className="w-4 h-4 text-purple-500" />;
             default: return null;
+        }
+    };
+
+    const getDeviceIcon = (deviceType?: string) => {
+        switch (deviceType) {
+            case 'mobile': return <Smartphone className="w-4 h-4 text-blue-500" />;
+            case 'tablet': return <Tablet className="w-4 h-4 text-purple-500" />;
+            case 'desktop': return <Monitor className="w-4 h-4 text-slate-500" />;
+            default: return <Monitor className="w-4 h-4 text-slate-300" />;
+        }
+    };
+
+    const getDeviceLabel = (deviceType?: string) => {
+        switch (deviceType) {
+            case 'mobile': return 'スマホ';
+            case 'tablet': return 'タブレット';
+            case 'desktop': return 'デスクトップ';
+            default: return '不明';
         }
     };
 
@@ -375,6 +405,19 @@ export default function LogViewerPage() {
                                                 ))}
                                             </select>
                                         </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-500 mb-1">デバイス</label>
+                                            <select
+                                                value={deviceTypeFilter}
+                                                onChange={(e) => { setDeviceTypeFilter(e.target.value); setActivityPage(1); }}
+                                                className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                                            >
+                                                <option value="ALL">すべて</option>
+                                                <option value="desktop">💻 デスクトップ</option>
+                                                <option value="mobile">📱 スマホ</option>
+                                                <option value="tablet">📲 タブレット</option>
+                                            </select>
+                                        </div>
                                     </>
                                 )}
                                 <div>
@@ -498,6 +541,7 @@ export default function LogViewerPage() {
                                 <tr>
                                     <th className="px-6 py-3 font-medium text-slate-500">日時</th>
                                     <th className="px-6 py-3 font-medium text-slate-500">種別</th>
+                                    <th className="px-6 py-3 font-medium text-slate-500">デバイス</th>
                                     <th className="px-6 py-3 font-medium text-slate-500">アクション</th>
                                     <th className="px-6 py-3 font-medium text-slate-500">ユーザー</th>
                                     <th className="px-6 py-3 font-medium text-slate-500">結果</th>
@@ -507,14 +551,14 @@ export default function LogViewerPage() {
                             <tbody className="divide-y divide-slate-200">
                                 {activityLoading ? (
                                     <tr>
-                                        <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
+                                        <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
                                             <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600 mb-2"></div>
                                             <p>読み込み中...</p>
                                         </td>
                                     </tr>
                                 ) : activityLogs.length === 0 ? (
                                     <tr>
-                                        <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
+                                        <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
                                             {activeTab === 'trace' && !traceUserId
                                                 ? 'ユーザーIDを入力して追跡を開始してください'
                                                 : 'ログが見つかりませんでした'}
@@ -528,6 +572,14 @@ export default function LogViewerPage() {
                                             </td>
                                             <td className="px-6 py-4">
                                                 {getUserTypeBadge(log.user_type)}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-2">
+                                                    {getDeviceIcon(log.request_data?.device?.device)}
+                                                    <span className="text-xs text-slate-600">
+                                                        {getDeviceLabel(log.request_data?.device?.device)}
+                                                    </span>
+                                                </div>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <span className="bg-slate-100 text-slate-700 px-2 py-1 rounded text-xs font-mono">
@@ -804,6 +856,47 @@ export default function LogViewerPage() {
                                     <pre className="bg-slate-100 p-4 rounded-lg text-xs font-mono overflow-x-auto text-slate-700">
                                         {JSON.stringify(selectedActivityLog.response_data, null, 2)}
                                     </pre>
+                                </div>
+                            )}
+
+                            {/* デバイス情報 */}
+                            {selectedActivityLog.request_data?.device && (
+                                <div className="border-t border-slate-200 pt-4">
+                                    <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+                                        {getDeviceIcon(selectedActivityLog.request_data.device.device)}
+                                        デバイス情報
+                                    </h3>
+                                    <div className="bg-slate-50 rounded-lg p-4">
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="text-xs font-medium text-slate-500">ブラウザ</label>
+                                                <p className="text-sm text-slate-800 mt-1">
+                                                    {selectedActivityLog.request_data.device.browser}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-medium text-slate-500">OS</label>
+                                                <p className="text-sm text-slate-800 mt-1">
+                                                    {selectedActivityLog.request_data.device.os}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-medium text-slate-500">端末種別</label>
+                                                <p className="text-sm text-slate-800 mt-1 flex items-center gap-2">
+                                                    {getDeviceIcon(selectedActivityLog.request_data.device.device)}
+                                                    {getDeviceLabel(selectedActivityLog.request_data.device.device)}
+                                                </p>
+                                            </div>
+                                            {selectedActivityLog.request_data.device.model && (
+                                                <div>
+                                                    <label className="text-xs font-medium text-slate-500">機種</label>
+                                                    <p className="text-sm text-slate-800 mt-1">
+                                                        {selectedActivityLog.request_data.device.model}
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
                             )}
 

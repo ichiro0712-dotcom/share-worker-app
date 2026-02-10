@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
         const userId = searchParams.get('user_id'); // 特定ユーザーの追跡用
         const dateFrom = searchParams.get('date_from'); // 日付範囲（開始）
         const dateTo = searchParams.get('date_to'); // 日付範囲（終了）
+        const deviceType = searchParams.get('device_type'); // desktop | mobile | tablet | ALL
         const page = parseInt(searchParams.get('page') || '1');
         const limit = parseInt(searchParams.get('limit') || '20');
         const errorsOnly = searchParams.get('errors_only') === 'true'; // エラーのみ
@@ -71,6 +72,14 @@ export async function GET(request: NextRequest) {
                 endDate.setDate(endDate.getDate() + 1);
                 where.created_at.lt = endDate;
             }
+        }
+
+        // デバイスタイプフィルタ（JSONBフィールド内を検索）
+        if (deviceType && deviceType !== 'ALL') {
+            where.request_data = {
+                path: ['device', 'device'],
+                equals: deviceType,
+            };
         }
 
         const [logs, total, errorCount24h] = await Promise.all([

@@ -1174,6 +1174,7 @@ model Attendance {
   application     Application? @relation(fields: [application_id], references: [id], onDelete: SetNull)
   job             Job?        @relation(fields: [job_id], references: [id], onDelete: SetNull)
   modificationRequest AttendanceModificationRequest?
+  editHistories       AttendanceEditHistory[]
 
   @@index([user_id, created_at])
   @@index([facility_id, created_at])
@@ -1221,6 +1222,43 @@ model AttendanceModificationRequest {
   @@index([status])
   @@index([created_at])
   @@map("attendance_modification_requests")
+}
+
+/// システム管理者による勤怠編集履歴
+model AttendanceEditHistory {
+  id                      Int       @id @default(autoincrement())
+  attendance_id           Int       @map("attendance_id")
+
+  // 変更者情報
+  edited_by               String    @map("edited_by") // "SYSTEM_ADMIN" or admin email
+
+  // 変更前の値
+  prev_actual_start_time  DateTime? @map("prev_actual_start_time")
+  prev_actual_end_time    DateTime? @map("prev_actual_end_time")
+  prev_actual_break_time  Int?      @map("prev_actual_break_time")
+  prev_calculated_wage    Int?      @map("prev_calculated_wage")
+  prev_status             String?   @map("prev_status")
+
+  // 変更後の値
+  new_actual_start_time   DateTime? @map("new_actual_start_time")
+  new_actual_end_time     DateTime? @map("new_actual_end_time")
+  new_actual_break_time   Int?      @map("new_actual_break_time")
+  new_calculated_wage     Int?      @map("new_calculated_wage")
+  new_status              String?   @map("new_status")
+
+  // 変更理由（必須）
+  reason                  String    @db.Text
+
+  // 給与手動上書きフラグ
+  wage_manually_set       Boolean   @default(false) @map("wage_manually_set")
+
+  created_at              DateTime  @default(now()) @map("created_at")
+
+  // リレーション
+  attendance              Attendance @relation(fields: [attendance_id], references: [id], onDelete: Cascade)
+
+  @@index([attendance_id, created_at])
+  @@map("attendance_edit_histories")
 }
 
 model ErrorMessageSetting {
