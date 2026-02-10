@@ -13,6 +13,7 @@
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { getVersionForLog } from '@/lib/version'
+import { getDeviceInfoAndIp, simplifyDeviceInfo } from '@/src/lib/device-info'
 
 // ========== 型定義 ==========
 
@@ -196,8 +197,36 @@ export function logTrace(params: TraceLogParams): void {
 export async function logActivity(params: ActivityLogParams): Promise<void> {
   const timestamp = new Date().toISOString()
 
+  // デバイス情報とIPアドレスの自動取得（未指定時のみ）
+  let userAgent = params.userAgent
+  let ipAddress = params.ipAddress
+  let deviceInfo = null
+
+  if (!userAgent || !ipAddress) {
+    try {
+      // headers()を1回だけ呼び出して両方取得（最適化）
+      const { deviceInfo: autoDeviceInfo, ipAddress: autoIpAddress } = await getDeviceInfoAndIp()
+
+      if (!userAgent) {
+        userAgent = autoDeviceInfo.userAgent
+        deviceInfo = simplifyDeviceInfo(autoDeviceInfo)
+      }
+      if (!ipAddress) {
+        ipAddress = autoIpAddress
+      }
+    } catch (error) {
+      // headers()が使えないコンテキストでは無視（クライアントコンポーネント等）
+      // エラーログは出さない（正常な動作）
+    }
+  }
+
   // センシティブデータをマスク
   const sanitizedRequestData = sanitizeData(params.requestData)
+
+  // デバイス情報をrequest_dataに追加（取得できた場合）
+  const enrichedRequestData = deviceInfo
+    ? { ...sanitizedRequestData, device: deviceInfo }
+    : sanitizedRequestData
 
   const logData = {
     timestamp,
@@ -207,10 +236,12 @@ export async function logActivity(params: ActivityLogParams): Promise<void> {
     action: params.action,
     target_type: params.targetType,
     target_id: params.targetId,
-    request_data: sanitizedRequestData,
+    request_data: enrichedRequestData,
     result: params.result || 'SUCCESS',
     error_message: params.errorMessage,
     url: params.url,
+    user_agent: userAgent,
+    ip_address: ipAddress,
   }
 
   // 1. Vercel Logs に出力（リアルタイム確認用）
@@ -230,14 +261,14 @@ export async function logActivity(params: ActivityLogParams): Promise<void> {
         action: params.action,
         target_type: params.targetType,
         target_id: params.targetId,
-        request_data: sanitizedRequestData as Prisma.InputJsonValue | undefined,
+        request_data: enrichedRequestData as Prisma.InputJsonValue | undefined,
         response_data: params.responseData as Prisma.InputJsonValue | undefined,
         result: params.result || 'SUCCESS',
         error_message: params.errorMessage,
         error_stack: params.errorStack,
         url: params.url,
-        user_agent: params.userAgent,
-        ip_address: params.ipAddress,
+        user_agent: userAgent,
+        ip_address: ipAddress,
         // バージョン情報を自動付与
         app_version: versionInfo.app_version,
         deployment_id: versionInfo.deployment_id,
