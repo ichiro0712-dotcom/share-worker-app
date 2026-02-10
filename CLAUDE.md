@@ -71,52 +71,48 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## ⚠️ Git操作の厳格ルール（Claude Code必須遵守）
 
+### 🔴 最重要ルール: `gh pr merge` は絶対に自分で実行しない
+
+**Claude Codeは `gh pr merge` を実行してはならない。**
+- PRを作成するところまでがClaude Codeの役割
+- マージはユーザーが手動で行う
+- 「マージして」と言われても **PRを作成して URL を返す** だけにする
+- ユーザーが「PRをマージして」「gh pr merge を実行して」と **マージ実行を明示的に指示した場合のみ** 実行可
+
 ### 🚫 絶対禁止事項
 
-1. **mainブランチへの直接push禁止**
-   - `git push origin main` は絶対に実行しないこと
-   - mainへの変更は必ずPR経由
-
-2. **mainブランチへの直接PR作成禁止**
-   - `feature/*` → `main` へのPRは作成しない
-   - `fix/*` → `main` へのPRも作成しない
-   - **必ず `develop` ブランチを経由すること**
-
-3. **developブランチへの直接push禁止（推奨）**
-   - 原則としてPR経由でマージ
-
-4. **指示がない限りPRをマージしない**
-   - PRを作成した後、ユーザーから明示的な指示があるまで絶対にマージしないこと
-   - `gh pr merge` は指示があるまで実行禁止
+| # | 禁止事項 | 理由 |
+|---|----------|------|
+| 1 | `git push origin main` | mainへの直接pushは禁止。必ずPR経由 |
+| 2 | `gh pr create --base main`（feature/fix ブランチから） | feature/fix → main は禁止。必ず develop 経由 |
+| 3 | `git push origin develop`（直接push） | 原則PR経由でマージ |
+| 4 | `gh pr merge`（自己判断での実行） | 上記「最重要ルール」参照 |
 
 ### ✅ 正しいワークフロー
 
 ```
 feature/* または fix/*
-    ↓ PRを作成（ターゲット: develop）
+    ↓ Claude Code: PRを作成（--base develop）→ URLをユーザーに報告
+    ↓ ユーザー: 確認してマージ
 develop ← マージ
-    ↓ Vercel自動デプロイ
+    ↓ Vercel自動デプロイ（ステージング）
 https://stg-share-worker.vercel.app/ で確認
-    ↓ 確認OK後、管理者がPRを作成（ターゲット: main）
+    ↓ ユーザー: develop → main のPR作成・マージ（または Claude Code に PR作成を依頼）
 main ← マージ
-    ↓ Vercel自動デプロイ
-https://share-worker-app.vercel.app/ に本番反映
+    ↓ Vercel自動デプロイ（本番）
+https://tastas.work に本番反映
 ```
+
+**Claude Codeの役割は「PR作成 → URL報告」まで。マージ判断はユーザーが行う。**
 
 ### PR作成時の確認
 
-PRを作成する前に、必ず以下を確認すること：
-
 ```bash
-# 現在のブランチ確認
-git branch
-
 # PRのターゲットブランチ確認（重要！）
 # ✅ 正しい: gh pr create --base develop
-# 🚫 禁止: gh pr create --base main
+# 🚫 禁止: gh pr create --base main（feature/fixブランチから）
+# ⚠️ develop → main のPR作成は、ユーザーから依頼された場合のみ可
 ```
-
-**Claude CodeがPRを作成する場合は、必ず `--base develop` を指定すること。**
 
 ## Project Overview
 
