@@ -46,7 +46,7 @@ export function IOSInstallGuide() {
                 </div>
 
                 <p className="text-sm text-gray-600 mb-4">
-                    +TASTASをホーム画面に追加すると、通知を受け取れるようになります。
+                    +タスタスをホーム画面に追加すると、通知を受け取れるようになります。
                 </p>
 
                 <div className="bg-gray-50 rounded-lg p-4 space-y-3">

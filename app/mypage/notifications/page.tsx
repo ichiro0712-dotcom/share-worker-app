@@ -3,7 +3,7 @@ import Link from 'next/link';
 import NotificationSettingsClient from './NotificationSettingsClient';
 
 export const metadata = {
-  title: '通知設定 | +TASTAS',
+  title: '通知設定 | +タスタス',
   description: 'プッシュ通知の設定を管理',
 };
 

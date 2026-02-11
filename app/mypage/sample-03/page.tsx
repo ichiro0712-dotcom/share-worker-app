@@ -70,7 +70,7 @@ export default function Sample03Page() {
                         <div className="w-8 h-8 bg-gradient-to-br from-amber-400 to-amber-600 rounded-lg flex items-center justify-center shadow-lg shadow-amber-900/20">
                             <Crown className="w-5 h-5 text-white" />
                         </div>
-                        <span className="font-bold text-lg tracking-wide text-white">TASTAS<span className="text-amber-500">.</span></span>
+                        <span className="font-bold text-lg tracking-wide text-white">タスタス<span className="text-amber-500">.</span></span>
                     </div>
                     <div className="flex gap-4 text-xs font-medium text-slate-500">
                         <span>PREMIUM</span>
@@ -156,7 +156,7 @@ export default function Sample03Page() {
                     >
                         Log Out
                     </button>
-                    <p className="mt-4 text-[10px] text-slate-700 font-mono">TASTAS SYSTEM CONNECTED</p>
+                    <p className="mt-4 text-[10px] text-slate-700 font-mono">タスタス SYSTEM CONNECTED</p>
                 </div>
 
             </div>

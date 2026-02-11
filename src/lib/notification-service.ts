@@ -282,7 +282,7 @@ async function sendEmailNotification(params: {
         }
 
         const { data, error, headers } = await client.emails.send({
-            from: `+TASTAS <${FROM_EMAIL}>`,
+            from: `+タスタス <${FROM_EMAIL}>`,
             to: toAddresses,
             subject: subject,
             html: formatEmailHtml(body),
@@ -358,7 +358,7 @@ function formatEmailHtml(body: string): string {
         ${htmlBody}
     </div>
     <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #666;">
-        <p>このメールは +TASTAS より自動送信されています。</p>
+        <p>このメールは +タスタス より自動送信されています。</p>
         <p>※このメールに心当たりがない場合は、お手数ですが削除してください。</p>
     </div>
 </body>

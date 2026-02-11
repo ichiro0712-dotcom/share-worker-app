@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
 
   const APP_URL = process.env.NEXTAUTH_URL || 'http://localhost:3000';
   const verificationUrl = `${APP_URL}/api/auth/verify?token=${user.verification_token}`;
-  const name = user.name || 'TASTASユーザー';
+  const name = user.name || '+タスタスユーザー';
 
   const emailHtml = `
 <!DOCTYPE html>
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
 
         <p>${name} 様</p>
 
-        <p>+TASTASへのご登録ありがとうございます。</p>
+        <p>+タスタスへのご登録ありがとうございます。</p>
 
         <p>下記のボタンをクリックして、メールアドレスの確認を完了してください。</p>
 
@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
     </div>
 
     <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #666;">
-        <p>このメールは +TASTAS より自動送信されています。</p>
+        <p>このメールは +タスタス より自動送信されています。</p>
     </div>
 </body>
 </html>`;

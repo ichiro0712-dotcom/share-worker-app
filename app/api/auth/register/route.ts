@@ -143,7 +143,7 @@ export async function POST(request: NextRequest) {
       const verificationResult = await sendVerificationEmail(
         user.id,
         user.email,
-        user.name || 'TASTASユーザー'
+        user.name || '+タスタスユーザー'
       );
 
       if (!verificationResult.success) {

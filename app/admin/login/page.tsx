@@ -56,7 +56,7 @@ export default function AdminLogin() {
             </div>
           </div>
           <h1 className="text-3xl font-bold text-blue-600 mb-2">施設管理者ログイン</h1>
-          <p className="text-gray-600">+TASTAS 管理画面</p>
+          <p className="text-gray-600">+タスタス 管理画面</p>
         </div>
 
         {/* ログインフォーム */}

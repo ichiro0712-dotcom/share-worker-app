@@ -94,7 +94,7 @@ export function PWAInstallBanner() {
     <div className="bg-indigo-600 text-white px-4 py-2.5 flex items-center justify-between gap-3 text-sm">
       <div className="flex items-center gap-2 min-w-0">
         <Smartphone className="w-4 h-4 shrink-0" />
-        <span className="truncate">+TASTASをホーム画面に追加しよう</span>
+        <span className="truncate">+タスタスをホーム画面に追加しよう</span>
       </div>
       <div className="flex items-center gap-2 shrink-0">
         {deferredPrompt && (

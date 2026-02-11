@@ -50,22 +50,22 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const testSubject = subject || '【テスト】+TASTAS メール送信テスト';
+        const testSubject = subject || '【テスト】+タスタス メール送信テスト';
         const testBody = emailBody || `
 これはテストメールです。
 
-+TASTAS からのメール送信が正常に動作しています。
++タスタス からのメール送信が正常に動作しています。
 
 送信日時: ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}
 送信先: ${to}
 送信元: ${FROM_EMAIL}
 
 ---
-+TASTAS 運営
++タスタス 運営
         `.trim();
 
         const { data, error } = await resend.emails.send({
-            from: `+TASTAS <${FROM_EMAIL}>`,
+            from: `+タスタス <${FROM_EMAIL}>`,
             to: [to],
             subject: testSubject,
             html: `

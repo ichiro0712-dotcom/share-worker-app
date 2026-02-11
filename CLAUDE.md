@@ -116,7 +116,7 @@ https://tastas.work に本番反映
 
 ## Project Overview
 
-+TASTAS - 看護師・介護士向け求人マッチングWebサービス (Nurse & Caregiver Job Matching Web Service)
++タスタス - 看護師・介護士向け求人マッチングWebサービス (Nurse & Caregiver Job Matching Web Service)
 
 ## Commands
 

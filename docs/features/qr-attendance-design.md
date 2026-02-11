@@ -1091,7 +1091,7 @@ interface AttendanceState {
   chat_enabled: false,
   email_enabled: true,
   push_enabled: true,
-  email_subject: '【+TASTAS】勤怠変更申請がありました',
+  email_subject: '【+タスタス】勤怠変更申請がありました',
   email_body: `
     {{workerName}}様から勤怠変更申請がありました。
 
@@ -1134,7 +1134,7 @@ interface AttendanceState {
     施設コメント:
     {{adminComment}}
   `,
-  email_subject: '【+TASTAS】勤怠変更申請が承認されました',
+  email_subject: '【+タスタス】勤怠変更申請が承認されました',
   // ... email_body
 }
 
