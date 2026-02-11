@@ -87,7 +87,7 @@ export default function DevPortalLayout({ children }: { children: React.ReactNod
                         </div>
                         <div>
                             <h1 className="text-lg font-bold text-gray-900">開発ポータル</h1>
-                            <p className="text-xs text-gray-500">+TASTAS Dev Hub</p>
+                            <p className="text-xs text-gray-500">+タスタス Dev Hub</p>
                         </div>
                     </div>
                 </div>

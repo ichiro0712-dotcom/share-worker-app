@@ -349,14 +349,14 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             >
               <Image
                 src="/images/logo-tastas-admin.webp"
-                alt="+TASTAS"
+                alt="+タスタス"
                 width={isCollapsed ? 32 : 48}
                 height={isCollapsed ? 32 : 48}
                 className="rounded-lg flex-shrink-0 transition-all duration-300"
               />
               {!isCollapsed && (
                 <div className="overflow-hidden">
-                  <h1 className="text-lg font-bold text-white whitespace-nowrap">+TASTAS</h1>
+                  <h1 className="text-lg font-bold text-white whitespace-nowrap">+タスタス</h1>
                   <p className="text-xs text-gray-400 whitespace-nowrap">施設管理画面</p>
                   {facilityName && (
                     <p className="text-xs text-blue-400 mt-1 truncate" title={facilityName}>

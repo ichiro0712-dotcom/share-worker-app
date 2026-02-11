@@ -41,18 +41,18 @@ export async function POST() {
         await client.emails.send({
             from: FROM_EMAIL,
             to: toAddresses,
-            subject: '【テスト】TASTAS エラー通知設定の確認',
+            subject: '【テスト】タスタス エラー通知設定の確認',
             html: `
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
-    <title>テスト通知 - TASTAS</title>
+    <title>テスト通知 - タスタス</title>
 </head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f3f4f6; padding: 20px;">
     <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
         <div style="background: #4f46e5; color: white; padding: 20px;">
-            <h1 style="margin: 0; font-size: 20px;">✅ テスト通知 - TASTAS</h1>
+            <h1 style="margin: 0; font-size: 20px;">✅ テスト通知 - タスタス</h1>
         </div>
 
         <div style="padding: 20px;">

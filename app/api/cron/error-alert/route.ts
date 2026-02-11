@@ -85,12 +85,12 @@ function generateErrorDigestHtml(errors: {
 <html>
 <head>
     <meta charset="utf-8">
-    <title>エラーアラート - TASTAS</title>
+    <title>エラーアラート - タスタス</title>
 </head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f3f4f6; padding: 20px;">
     <div style="max-width: 800px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
         <div style="background: #dc2626; color: white; padding: 20px;">
-            <h1 style="margin: 0; font-size: 20px;">⚠️ エラーアラート - TASTAS</h1>
+            <h1 style="margin: 0; font-size: 20px;">⚠️ エラーアラート - タスタス</h1>
             <p style="margin: 8px 0 0 0; opacity: 0.9; font-size: 14px;">
                 直近5分間で ${errors.length} 件のエラーが検出されました
             </p>
@@ -185,7 +185,7 @@ export async function GET(request: NextRequest) {
                         const { headers: resendHeaders } = await client.emails.send({
                             from: FROM_EMAIL,
                             to: toAddresses,
-                            subject: `⚠️ [TASTAS] ${newErrors.length}件のエラーが検出されました`,
+                            subject: `⚠️ [タスタス] ${newErrors.length}件のエラーが検出されました`,
                             html: emailHtml,
                         });
 

@@ -398,7 +398,7 @@ export default function DevPortalPage() {
                         </div>
                         開発ポータル ダッシュボード
                     </h1>
-                    <p className="text-sm text-gray-500">+TASTAS Development Hub - クイックアクセス＆デバッグツール</p>
+                    <p className="text-sm text-gray-500">+タスタス Development Hub - クイックアクセス＆デバッグツール</p>
                 </header>
 
                 {/* クイックステータス */}

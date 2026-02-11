@@ -153,7 +153,7 @@ export default function SystemAdminLayout({ children }: SystemAdminLayoutProps) 
                             <Shield className={`text-indigo-500 flex-shrink-0 transition-all duration-300 ${isCollapsed ? 'w-6 h-6' : 'w-5 h-5'}`} />
                             {!isCollapsed && (
                                 <div className="overflow-hidden">
-                                    <h1 className="text-lg font-bold text-white whitespace-nowrap">+TASTAS System</h1>
+                                    <h1 className="text-lg font-bold text-white whitespace-nowrap">+タスタス System</h1>
                                     <p className="text-xs text-slate-500 whitespace-nowrap">システム管理画面</p>
                                 </div>
                             )}

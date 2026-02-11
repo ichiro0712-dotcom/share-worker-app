@@ -55,7 +55,7 @@ export default function SystemAdminLoginPage() {
                         </div>
                     </div>
                     <h1 className="text-3xl font-bold text-slate-800 mb-2">システム管理</h1>
-                    <p className="text-slate-500">+TASTAS System Administration</p>
+                    <p className="text-slate-500">+タスタス System Administration</p>
                 </div>
 
                 {/* Login Form */}

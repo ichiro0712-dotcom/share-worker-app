@@ -126,7 +126,7 @@ export function PWAInstallModal() {
 
         {/* タイトル */}
         <h2 className="text-xl font-bold text-center text-gray-900 mb-2">
-          +TASTASをホーム画面に追加
+          +タスタスをホーム画面に追加
         </h2>
 
         {/* メリット説明 */}

@@ -18,9 +18,9 @@ test.describe('表示・UI修正の検証', () => {
 
     // ロゴまたはヘッダー画像/テキストの存在確認
     const hasLogo =
-      (await page.locator('img[alt*="logo"], img[alt*="ロゴ"], img[alt*="TASTAS"], img[alt*="タスタス"]').count()) > 0;
+      (await page.locator('img[alt*="logo"], img[alt*="ロゴ"], img[alt*="タスタス"], img[alt*="タスタス"]').count()) > 0;
     const hasHeaderText =
-      (await page.locator('h1, h2').filter({ hasText: /TASTAS|タスタス|ログイン/ }).count()) > 0;
+      (await page.locator('h1, h2').filter({ hasText: /タスタス|タスタス|ログイン/ }).count()) > 0;
 
     expect(hasLogo || hasHeaderText).toBeTruthy();
   });

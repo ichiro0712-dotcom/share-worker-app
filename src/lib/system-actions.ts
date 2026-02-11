@@ -3043,7 +3043,7 @@ const DEFAULT_TEMPLATE_CONTENT = `労働条件通知書
 
 ---
 本書は労働基準法第15条に基づき、労働条件を明示するものです。
-発行: +TASTAS`;
+発行: +タスタス`;
 
 export interface LaborDocumentTemplateData {
     id?: number;
