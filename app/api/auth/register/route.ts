@@ -10,6 +10,8 @@ interface RegisterBody {
   email: string;
   password: string;
   name?: string;
+  lastName?: string;
+  firstName?: string;
   phoneNumber: string;
   birthDate?: string;
   qualifications?: string[];
@@ -39,6 +41,8 @@ export async function POST(request: NextRequest) {
       email,
       password,
       name,
+      lastName,
+      firstName,
       phoneNumber,
       birthDate,
       qualifications,
@@ -58,6 +62,11 @@ export async function POST(request: NextRequest) {
       registrationCampaignCode,
       registrationGenrePrefix,
     } = body;
+
+    // lastName/firstNameが渡された場合はnameに結合
+    const resolvedName = (lastName && firstName)
+      ? `${lastName} ${firstName}`
+      : name?.trim() || '';
 
     // バリデーション（name は任意）
     if (!email || !password || !phoneNumber) {
@@ -92,9 +101,9 @@ export async function POST(request: NextRequest) {
       data: {
         email,
         password_hash: hashedPassword,
-        name: name?.trim() || '',
+        name: resolvedName,
         phone_number: phoneNumber,
-        birth_date: birthDate ? new Date(birthDate) : null,
+        birth_date: birthDate ? new Date(birthDate + 'T00:00:00+09:00') : null,
         qualifications: qualifications || [],
         last_name_kana: lastNameKana || null,
         first_name_kana: firstNameKana || null,

@@ -2,6 +2,7 @@
  * 入力フィールドのバリデーション・フォーマット関数
  * Task #13: 入力フィールドバリデーション強化
  */
+import { PhoneNumberUtil, PhoneNumberFormat } from 'google-libphonenumber';
 
 // カタカナのみを許可（ひらがな、英数字、記号を除外）
 export function isKatakanaOnly(value: string): boolean {
@@ -53,10 +54,34 @@ export function formatPhoneNumber(value: string): string {
   return digitsOnly.slice(0, 11);
 }
 
-// 電話番号バリデーション（10桁または11桁）
+// 電話番号バリデーション（google-libphonenumberで日本の番号として有効か判定）
 export function isValidPhoneNumber(value: string): boolean {
   const digitsOnly = value.replace(/\D/g, '');
-  return /^[0-9]{10,11}$/.test(digitsOnly);
+  // 基本的な桁数チェック（10-11桁）
+  if (!/^[0-9]{10,11}$/.test(digitsOnly)) return false;
+
+  try {
+    const phoneUtil = PhoneNumberUtil.getInstance();
+    const number = phoneUtil.parse(digitsOnly, 'JP');
+    return phoneUtil.isValidNumberForRegion(number, 'JP');
+  } catch {
+    return false;
+  }
+}
+
+// 電話番号をフォーマット済み文字列で返す（表示用）
+export function formatPhoneNumberDisplay(value: string): string {
+  const digitsOnly = value.replace(/\D/g, '');
+  try {
+    const phoneUtil = PhoneNumberUtil.getInstance();
+    const number = phoneUtil.parse(digitsOnly, 'JP');
+    if (phoneUtil.isValidNumberForRegion(number, 'JP')) {
+      return phoneUtil.format(number, PhoneNumberFormat.NATIONAL);
+    }
+  } catch {
+    // パース失敗時はそのまま返す
+  }
+  return digitsOnly;
 }
 
 // メールアドレスバリデーション

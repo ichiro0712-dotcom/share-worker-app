@@ -501,65 +501,30 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
     // 既に保存中の場合は何もしない
     if (isSaving) return;
 
-    // 必須フィールドのバリデーション
+    // バリデーション: フォーマットチェックのみ（部分保存を許可）
+    // 応募時の必須チェックは checkProfileComplete() で行う
     const errors: string[] = [];
 
-    if (!formData.lastName) errors.push('姓');
-    if (!formData.firstName) errors.push('名');
-    if (!formData.lastNameKana) errors.push('姓（カナ）');
-    if (!formData.firstNameKana) errors.push('名（カナ）');
-    if (!formData.birthDate) errors.push('生年月日');
-    if (!formData.gender) errors.push('性別');
-    if (!formData.nationality) errors.push('国籍');
-    if (!formData.currentWorkStyle) errors.push('現在の働き方');
-    if (!formData.desiredWorkStyle) errors.push('希望の働き方');
-    if (!formData.jobChangeDesire) errors.push('転職意欲');
-    if (!formData.phone) errors.push('電話番号');
-    if (!formData.email) errors.push('メールアドレス');
-    if (!formData.prefecture) errors.push('都道府県');
-    if (!formData.city) errors.push('市区町村');
-    if (!formData.address) errors.push('町名・番地');
-    // 緊急連絡先は必須項目（応募時にバックエンドでもチェック）
-    if (!formData.emergencyContactName) errors.push('緊急連絡先氏名');
-    if (!formData.emergencyContactPhone) errors.push('緊急連絡先電話番号');
-    if (formData.qualifications.length === 0) errors.push('保有資格');
-    if (formData.experienceFields.length === 0) errors.push('経験分野');
-    if (!formData.bankName) errors.push('銀行名');
-    if (!formData.branchName) errors.push('支店名');
-    if (!formData.accountName) errors.push('口座名義');
-    if (!formData.accountNumber) errors.push('口座番号');
-    if (!bankBookImage) errors.push('通帳コピー');
-    if (!idDocument) errors.push('身分証明書');
+    // 姓名: どちらか入力されたら両方必須
+    if ((formData.lastName || formData.firstName) && (!formData.lastName || !formData.firstName)) {
+      errors.push('姓名は両方入力してください');
+    }
 
-    // 資格証明書の確認（「その他」以外の資格は証明書必須）
-    const qualificationsNeedingCertificates = formData.qualifications.filter(qual => qual !== 'その他');
-    const missingCertificates = qualificationsNeedingCertificates.filter(qual => !qualificationCertificates[qual]);
-    if (missingCertificates.length > 0) {
-      errors.push(`資格証明書（${missingCertificates.join('、')}）`);
+    // フリガナのカタカナチェック（入力されている場合のみ）
+    if (formData.lastNameKana && !isKatakanaOnly(formData.lastNameKana)) {
+      errors.push('姓（カナ）はカタカナで入力してください');
+    }
+    if (formData.firstNameKana && !isKatakanaOnly(formData.firstNameKana)) {
+      errors.push('名（カナ）はカタカナで入力してください');
+    }
+
+    // 口座名義のカタカナチェック（入力されている場合のみ）
+    if (formData.accountName && !isKatakanaWithSpaceOnly(formData.accountName)) {
+      errors.push('口座名義はカタカナで入力してください');
     }
 
     if (errors.length > 0) {
-      toast.error(`以下の項目を入力してください: ${errors.join('、')}`);
-      // 最初のエラー項目までスクロール
-      const firstErrorElement = document.querySelector('.border-red-500');
-      if (firstErrorElement) {
-        firstErrorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-      return;
-    }
-
-    // フリガナのカタカナチェック
-    if (formData.lastNameKana && !isKatakanaOnly(formData.lastNameKana)) {
-      toast.error('姓（カナ）はカタカナで入力してください');
-      return;
-    }
-    if (formData.firstNameKana && !isKatakanaOnly(formData.firstNameKana)) {
-      toast.error('名（カナ）はカタカナで入力してください');
-      return;
-    }
-    // 口座名義のカタカナチェック
-    if (formData.accountName && !isKatakanaWithSpaceOnly(formData.accountName)) {
-      toast.error('口座名義はカタカナで入力してください');
+      toast.error(errors.join('、'));
       return;
     }
 
