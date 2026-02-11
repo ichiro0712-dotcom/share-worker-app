@@ -2,11 +2,12 @@
 
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { useSession } from 'next-auth/react';
-import { getWorkerFooterBadges } from '@/src/lib/actions';
+import { getWorkerFooterBadges, getMissingProfileFields } from '@/src/lib/actions';
 
 interface BadgeContextType {
   unreadMessages: number;
   unreadAnnouncements: number;
+  profileMissingCount: number;
   refreshBadges: () => Promise<void>;
   decrementMessages: (count?: number) => void;
   decrementAnnouncements: (count?: number) => void;
@@ -20,16 +21,21 @@ export function BadgeProvider({ children }: { children: ReactNode }) {
   const { data: session } = useSession();
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadAnnouncements, setUnreadAnnouncements] = useState(0);
+  const [profileMissingCount, setProfileMissingCount] = useState(0);
 
   const refreshBadges = useCallback(async () => {
     if (session?.user?.id) {
       try {
         const userId = parseInt(session.user.id, 10);
-        const data = await getWorkerFooterBadges(userId);
+        const [data, profileData] = await Promise.all([
+          getWorkerFooterBadges(userId),
+          getMissingProfileFields(),
+        ]);
         if (data) {
           setUnreadMessages(data.unreadMessages ?? 0);
           setUnreadAnnouncements(data.unreadAnnouncements ?? 0);
         }
+        setProfileMissingCount(profileData.missingCount);
       } catch (error) {
         console.error('[BadgeContext] Failed to refresh badges:', error);
       }
@@ -68,6 +74,7 @@ export function BadgeProvider({ children }: { children: ReactNode }) {
       value={{
         unreadMessages,
         unreadAnnouncements,
+        profileMissingCount,
         refreshBadges,
         decrementMessages,
         decrementAnnouncements,

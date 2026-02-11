@@ -7,7 +7,7 @@ import { useBadge } from '@/contexts/BadgeContext';
 
 export const BottomNav = () => {
   const pathname = usePathname();
-  const { unreadMessages, unreadAnnouncements } = useBadge();
+  const { unreadMessages, unreadAnnouncements, profileMissingCount } = useBadge();
 
   const messageBadge = unreadMessages + unreadAnnouncements;
 
@@ -21,7 +21,7 @@ export const BottomNav = () => {
       { href: '/bookmarks', icon: Bookmark, label: '保存済み' },
       { href: '/messages', icon: MessageSquare, label: 'メッセージ', badge: messageBadge > 0 ? messageBadge : undefined },
       { href: '/my-jobs', icon: Briefcase, label: '仕事管理' },
-      { href: '/mypage', icon: User, label: 'マイページ' }
+      { href: '/mypage', icon: User, label: 'マイページ', badge: profileMissingCount > 0 ? profileMissingCount : undefined }
     ];
 
   return (

@@ -1422,21 +1422,23 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
 
       {/* 申し込みボタン（プレビューモードと公開版では非表示、公開版はレイアウトのフッターを使用） */}
       {!isPreviewMode && !isPublic && (
-        <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-200 p-4 z-10" style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom))' }}>
-          <Button
-            onClick={handleApplyButtonClick}
-            size="lg"
-            className="w-full"
-            disabled={isApplying || selectedWorkDateIds.length === 0}
-          >
-            {isApplying
-              ? (job.jobType === 'OFFER' ? '受諾中...' : '応募中...')
-              : selectedWorkDateIds.length > 0
-                ? (job.jobType === 'OFFER' ? 'オファーを受ける' : `${selectedWorkDateIds.length}件の日程に応募する`)
-                : !hasAvailableDates
-                  ? '応募できる日程がありません'
-                  : '日程を選択してください'}
-          </Button>
+        <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-200 z-10" style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom))' }}>
+          <div className="p-4">
+            <Button
+              onClick={handleApplyButtonClick}
+              size="lg"
+              className="w-full"
+              disabled={isApplying || selectedWorkDateIds.length === 0}
+            >
+              {isApplying
+                ? (job.jobType === 'OFFER' ? '受諾中...' : '応募中...')
+                : selectedWorkDateIds.length > 0
+                  ? (job.jobType === 'OFFER' ? 'オファーを受ける' : `${selectedWorkDateIds.length}件の日程に応募する`)
+                  : !hasAvailableDates
+                    ? '応募できる日程がありません'
+                    : '日程を選択してください'}
+            </Button>
+          </div>
         </div>
       )}
 

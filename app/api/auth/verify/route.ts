@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
       const autoLoginUrl = new URL('/api/auth/auto-login', origin);
       autoLoginUrl.searchParams.set('token', result.autoLoginToken);
       autoLoginUrl.searchParams.set('email', result.email);
-      autoLoginUrl.searchParams.set('redirect', '/mypage/profile');
+      autoLoginUrl.searchParams.set('redirect', '/job-list');
       return secureRedirect(autoLoginUrl);
     }
 
