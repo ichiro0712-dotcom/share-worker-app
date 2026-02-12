@@ -69,9 +69,9 @@ export async function sendVerificationEmail(
     }
 
     const { error, headers } = await client.emails.send({
-      from: `+TASTAS <${FROM_EMAIL}>`,
+      from: `+タスタス <${FROM_EMAIL}>`,
       to: [email],
-      subject: '【+TASTAS】メールアドレスの確認',
+      subject: '【+タスタス】メールアドレスの確認',
       html: formatVerificationEmailHtml(name, verificationUrl),
       text: formatVerificationEmailText(name, verificationUrl),
     });
@@ -215,7 +215,7 @@ function formatVerificationEmailHtml(name: string, verificationUrl: string): str
 
         <p>${name} 様</p>
 
-        <p>+TASTASへのご登録ありがとうございます。</p>
+        <p>+タスタスへのご登録ありがとうございます。</p>
 
         <p>下記のボタンをクリックして、メールアドレスの確認を完了してください。</p>
 
@@ -239,7 +239,7 @@ function formatVerificationEmailHtml(name: string, verificationUrl: string): str
     </div>
 
     <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #666;">
-        <p>このメールは +TASTAS より自動送信されています。</p>
+        <p>このメールは +タスタス より自動送信されています。</p>
     </div>
 </body>
 </html>`;
@@ -252,7 +252,7 @@ function formatVerificationEmailText(name: string, verificationUrl: string): str
   return `
 ${name} 様
 
-+TASTASへのご登録ありがとうございます。
++タスタスへのご登録ありがとうございます。
 
 下記のURLをクリックして、メールアドレスの確認を完了してください：
 
@@ -262,6 +262,6 @@ ${verificationUrl}
 ※このメールに心当たりがない場合は、お手数ですが削除してください。
 
 ---
-このメールは +TASTAS より自動送信されています。
+このメールは +タスタス より自動送信されています。
 `;
 }

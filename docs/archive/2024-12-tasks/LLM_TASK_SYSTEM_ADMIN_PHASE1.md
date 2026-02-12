@@ -588,7 +588,7 @@ export default function SystemAdminLayout({
       {/* サイドバー */}
       <aside className="w-64 bg-gray-800 text-white flex flex-col">
         <div className="p-4 border-b border-gray-700">
-          <h1 className="text-lg font-bold">+TASTAS 管理</h1>
+          <h1 className="text-lg font-bold">+タスタス 管理</h1>
           <p className="text-xs text-gray-400 mt-1">{admin?.name}</p>
         </div>
         <nav className="flex-1 overflow-y-auto p-2">

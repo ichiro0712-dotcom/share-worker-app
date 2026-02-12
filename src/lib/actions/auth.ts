@@ -227,9 +227,9 @@ async function sendPasswordResetEmail(
         }
 
         const { error } = await client.emails.send({
-            from: `+TASTAS <${FROM_EMAIL}>`,
+            from: `+タスタス <${FROM_EMAIL}>`,
             to: [email],
-            subject: '【+TASTAS】パスワードリセットのご案内',
+            subject: '【+タスタス】パスワードリセットのご案内',
             html: formatPasswordResetEmailHtml(name, resetUrl),
             text: formatPasswordResetEmailText(name, resetUrl),
         });
@@ -288,7 +288,7 @@ function formatPasswordResetEmailHtml(name: string, resetUrl: string): string {
     </div>
 
     <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #666;">
-        <p>このメールは +TASTAS より自動送信されています。</p>
+        <p>このメールは +タスタス より自動送信されています。</p>
     </div>
 </body>
 </html>`;
@@ -311,7 +311,7 @@ ${resetUrl}
 ※このメールに心当たりがない場合は、お手数ですが削除してください。パスワードは変更されません。
 
 ---
-このメールは +TASTAS より自動送信されています。
+このメールは +タスタス より自動送信されています。
 `;
 }
 

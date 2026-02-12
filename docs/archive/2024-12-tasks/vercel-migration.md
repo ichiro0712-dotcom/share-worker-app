@@ -4,7 +4,7 @@
 
 ## 移行ステータス: ✅ 完了（2024年12月）
 
-share-worker-app（+TASTAS）はVercelへの移行が完了しました。
+share-worker-app（+タスタス）はVercelへの移行が完了しました。
 
 ## 現在の本番環境（2026年1月更新）
 

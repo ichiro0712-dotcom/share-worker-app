@@ -30,13 +30,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
     if (!data) {
         return {
-            title: '労働条件通知書が見つかりません | +TASTAS',
+            title: '労働条件通知書が見つかりません | +タスタス',
             robots: { index: false, follow: false },
         };
     }
 
     return {
-        title: `労働条件通知書 - ${data.job.title} | +TASTAS`,
+        title: `労働条件通知書 - ${data.job.title} | +タスタス`,
         description: `${data.facility.facility_name}の求人「${data.job.title}」の労働条件通知書プレビュー。時給${data.job.hourly_wage.toLocaleString()}円、勤務時間${data.job.start_time}〜${data.job.end_time}。`,
         robots: {
             index: true,
@@ -271,7 +271,7 @@ export default async function PublicLaborDocumentPage({ params }: Props) {
                     {/* フッター */}
                     <div className="pt-6 border-t text-center text-sm text-gray-500">
                         <p>本書は労働基準法第15条に基づき、労働条件を明示するものです。</p>
-                        <p className="mt-2">発行: +TASTAS</p>
+                        <p className="mt-2">発行: +タスタス</p>
                     </div>
                 </div>
             </div>

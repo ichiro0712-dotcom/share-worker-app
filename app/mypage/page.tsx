@@ -86,7 +86,7 @@ export default function MyPage() {
 
       {/* バージョン情報 - 静的 */}
       <div className="text-center py-4 text-xs text-gray-500">
-        +TASTAS v1.0.0 (Phase 1)
+        +タスタス v1.0.0 (Phase 1)
       </div>
     </div>
   );

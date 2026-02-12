@@ -157,7 +157,7 @@ export default function AttendanceQRPrintPage() {
         <div className="relative py-4 border-b-2 border-[#66cc99]">
           {/* 右上ロゴ（印刷時のみ表示） */}
           <div className="hidden print:block absolute top-2 right-4">
-            <span className="text-xl font-bold text-[#66cc99]">+TASTAS</span>
+            <span className="text-xl font-bold text-[#66cc99]">+タスタス</span>
           </div>
           {/* 施設名（中央） */}
           <h1 className="text-2xl font-bold text-[#66cc99] text-center">{facilityName}</h1>
@@ -216,14 +216,14 @@ export default function AttendanceQRPrintPage() {
 
           {/* 右側: 出退勤方法 */}
           <div className="p-6 bg-[#fff8e6]">
-            <h2 className="text-lg font-bold text-gray-800 mb-4">出退勤方法（+TASTASアプリ）</h2>
+            <h2 className="text-lg font-bold text-gray-800 mb-4">出退勤方法（+タスタスアプリ）</h2>
 
             <div className="space-y-4">
               <div className="flex items-start gap-3">
                 <span className="flex-shrink-0 w-6 h-6 bg-[#e6b422] text-white rounded-full flex items-center justify-center text-sm font-bold">1</span>
                 <div>
                   <p className="font-bold text-gray-800">ログイン</p>
-                  <p className="text-sm text-gray-600">+TASTASアプリからログイン</p>
+                  <p className="text-sm text-gray-600">+タスタスアプリからログイン</p>
                 </div>
               </div>
 
@@ -319,10 +319,10 @@ export default function AttendanceQRPrintPage() {
         {/* フッター */}
         <div className="p-6 bg-[#3a3a4a] text-white flex justify-between items-start">
           <div>
-            <h3 className="text-lg font-bold text-[#66cc99] mb-2">+TASTASよりワーカーの皆様へ</h3>
+            <h3 className="text-lg font-bold text-[#66cc99] mb-2">+タスタスよりワーカーの皆様へ</h3>
             <p className="text-sm mb-2">本日はご勤務くださり誠にありがとうございます</p>
             <p className="text-sm">
-              ご不明な点がありましたら、+TASTASアプリのマイページもしくは右のQRコードから「お問い合わせ」をご覧ください
+              ご不明な点がありましたら、+タスタスアプリのマイページもしくは右のQRコードから「お問い合わせ」をご覧ください
             </p>
           </div>
           <div className="text-right flex-shrink-0 ml-4">

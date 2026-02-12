@@ -376,16 +376,16 @@ export default function LPGuidePage() {
           <CodeBlock code={`<head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ページタイトル | TASTAS</title>
+  <title>ページタイトル | タスタス</title>
   <meta name="description" content="ページの説明文">
 
   <!-- OGP設定 -->
-  <meta property="og:title" content="ページタイトル | TASTAS">
+  <meta property="og:title" content="ページタイトル | タスタス">
   <meta property="og:description" content="ページの説明文">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://tastas.work/api/lp/X">
   <meta property="og:image" content="https://tastas.work/lp/images/ogp.png">
-  <meta property="og:site_name" content="TASTAS">
+  <meta property="og:site_name" content="タスタス">
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">

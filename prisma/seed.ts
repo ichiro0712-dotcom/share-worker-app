@@ -124,7 +124,7 @@ const notificationSettings = [
 {{job_url}}
 
 {{status_message}}`,
-    email_subject: '【+TASTAS】応募受付のお知らせ',
+    email_subject: '【+タスタス】応募受付のお知らせ',
     email_body: `{{worker_name}}様
 
 求人への応募を受け付けました。
@@ -143,7 +143,7 @@ const notificationSettings = [
 {{job_url}}
 
 ──────────────────────────
-+TASTAS 運営
++タスタス 運営
 ──────────────────────────`,
     push_title: '応募を受け付けました',
     push_body: '{{facility_name}}への応募を受け付けました',
@@ -168,7 +168,7 @@ const notificationSettings = [
 ※労働条件通知書は労働基準法第15条に基づき、労働条件を明示するものです。
 
 当日はよろしくお願いいたします。`,
-    email_subject: '【+TASTAS】マッチング成立のお知らせ',
+    email_subject: '【+タスタス】マッチング成立のお知らせ',
     email_body: `{{worker_name}}様
 
 お仕事のマッチングが成立しました。
@@ -184,7 +184,7 @@ const notificationSettings = [
 {{my_job_url}}
 
 ──────────────────────────
-+TASTAS 運営
++タスタス 運営
 ──────────────────────────`,
     push_title: 'マッチング成立',
     push_body: '{{facility_name}}の勤務が確定しました',
@@ -208,7 +208,7 @@ const notificationSettings = [
 ※労働条件通知書は労働基準法第15条に基づき、労働条件を明示するものです。
 
 当日はよろしくお願いいたします。`,
-    email_subject: '【+TASTAS】採用決定のお知らせ',
+    email_subject: '【+タスタス】採用決定のお知らせ',
     email_body: `{{worker_name}}様
 
 {{facility_name}}への応募が承認され、採用が決定しました。
@@ -224,7 +224,7 @@ const notificationSettings = [
 {{my_job_url}}
 
 ──────────────────────────
-+TASTAS 運営
++タスタス 運営
 ──────────────────────────`,
     push_title: '採用決定',
     push_body: '{{facility_name}}への応募が承認されました',
@@ -241,7 +241,7 @@ const notificationSettings = [
 
 選考の結果、今回はご縁がありませんでした。
 また別の求人でお会いできることを楽しみにしております。`,
-    email_subject: '【+TASTAS】選考結果のお知らせ',
+    email_subject: '【+タスタス】選考結果のお知らせ',
     email_body: `{{worker_name}}様
 
 この度は{{facility_name}}へのご応募ありがとうございました。
@@ -249,10 +249,10 @@ const notificationSettings = [
 選考の結果、今回はご縁がありませんでした。
 また別の求人でお会いできることを楽しみにしております。
 
-引き続き+TASTASをよろしくお願いいたします。
+引き続き+タスタスをよろしくお願いいたします。
 
 ──────────────────────────
-+TASTAS 運営
++タスタス 運営
 ──────────────────────────`,
     push_title: null,
     push_body: null,
@@ -271,7 +271,7 @@ const notificationSettings = [
 
 ご不便をおかけして申し訳ございません。
 他の求人をお探しください。`,
-    email_subject: '【+TASTAS】勤務キャンセルのお知らせ',
+    email_subject: '【+タスタス】勤務キャンセルのお知らせ',
     email_body: `{{worker_name}}様
 
 ご予約いただいていた勤務がキャンセルされました。
@@ -285,7 +285,7 @@ const notificationSettings = [
 ご不便をおかけして申し訳ございません。
 
 ──────────────────────────
-+TASTAS 運営
++タスタス 運営
 ──────────────────────────`,
     push_title: '勤務キャンセル',
     push_body: '{{facility_name}}の勤務がキャンセルされました',
@@ -304,7 +304,7 @@ const notificationSettings = [
 日時: {{work_date}} {{start_time}}〜{{end_time}}
 
 持ち物や服装をご確認の上、お気をつけてお越しください。`,
-    email_subject: '【+TASTAS】明日の勤務リマインド',
+    email_subject: '【+タスタス】明日の勤務リマインド',
     email_body: `{{worker_name}}様
 
 明日の勤務についてお知らせいたします。
@@ -318,7 +318,7 @@ const notificationSettings = [
 持ち物や服装をご確認の上、お気をつけてお越しください。
 
 ──────────────────────────
-+TASTAS 運営
++タスタス 運営
 ──────────────────────────`,
     push_title: '明日の勤務',
     push_body: '{{facility_name}} {{start_time}}〜',
@@ -332,7 +332,7 @@ const notificationSettings = [
     email_enabled: true,
     push_enabled: true,
     chat_message: null,
-    email_subject: '【+TASTAS】本日の勤務リマインド',
+    email_subject: '【+タスタス】本日の勤務リマインド',
     email_body: `{{worker_name}}様
 
 本日の勤務リマインドです。
@@ -343,7 +343,7 @@ const notificationSettings = [
 お気をつけてお越しください。
 
 ──────────────────────────
-+TASTAS 運営
++タスタス 運営
 ──────────────────────────`,
     push_title: '本日の勤務',
     push_body: '{{facility_name}} {{start_time}}〜 お気をつけて！',
@@ -362,7 +362,7 @@ const notificationSettings = [
 ぜひレビューを投稿してください。
 
 {{review_url}}`,
-    email_subject: '【+TASTAS】レビューのお願い',
+    email_subject: '【+タスタス】レビューのお願い',
     email_body: `{{worker_name}}様
 
 {{facility_name}}での勤務お疲れ様でした。
@@ -371,7 +371,7 @@ const notificationSettings = [
 {{review_url}}
 
 ──────────────────────────
-+TASTAS 運営
++タスタス 運営
 ──────────────────────────`,
     push_title: null,
     push_body: null,
@@ -389,7 +389,7 @@ const notificationSettings = [
 {{facility_name}}でのお仕事について、ぜひご感想をお聞かせください。
 
 {{review_url}}`,
-    email_subject: '【+TASTAS】レビュー投稿のリマインド',
+    email_subject: '【+タスタス】レビュー投稿のリマインド',
     email_body: `{{worker_name}}様
 
 {{facility_name}}でのお仕事のレビューはお済みですか？
@@ -398,7 +398,7 @@ const notificationSettings = [
 {{review_url}}
 
 ──────────────────────────
-+TASTAS 運営
++タスタス 運営
 ──────────────────────────`,
     push_title: null,
     push_body: null,
@@ -414,7 +414,7 @@ const notificationSettings = [
     chat_message: `{{worker_name}}さん、{{facility_name}}からレビューが届きました！
 
 マイページでご確認ください。`,
-    email_subject: '【+TASTAS】レビューが届きました',
+    email_subject: '【+タスタス】レビューが届きました',
     email_body: `{{worker_name}}様
 
 {{facility_name}}からレビューが届きました。
@@ -422,7 +422,7 @@ const notificationSettings = [
 マイページよりご確認ください。
 
 ──────────────────────────
-+TASTAS 運営
++タスタス 運営
 ──────────────────────────`,
     push_title: null,
     push_body: null,
@@ -436,9 +436,9 @@ const notificationSettings = [
     email_enabled: true,
     push_enabled: true,
     chat_message: null,
-    email_subject: '【+TASTAS】運営からのお知らせ',
+    email_subject: '【+タスタス】運営からのお知らせ',
     email_body: '{{announcement_title}}\n\n{{announcement_body}}',
-    push_title: '+TASTASからのお知らせ',
+    push_title: '+タスタスからのお知らせ',
     push_body: '{{announcement_title}}',
   },
   {
@@ -450,7 +450,7 @@ const notificationSettings = [
     email_enabled: true,
     push_enabled: true,
     chat_message: null,
-    email_subject: '【+TASTAS】お気に入り求人の締切間近',
+    email_subject: '【+タスタス】お気に入り求人の締切間近',
     email_body: '{{facility_name}}の求人があと{{remaining_hours}}時間で締切です。\n\nマイページをご確認ください。',
     push_title: '締切間近',
     push_body: '{{facility_name}}の求人があと{{remaining_hours}}時間で締切です',
@@ -464,7 +464,7 @@ const notificationSettings = [
     email_enabled: true,
     push_enabled: true,
     chat_message: null,
-    email_subject: '【+TASTAS】新着求人のお知らせ',
+    email_subject: '【+タスタス】新着求人のお知らせ',
     email_body: '{{facility_name}}に新しい求人が追加されました。\n\nマイページをご確認ください。',
     push_title: '新着求人',
     push_body: '{{facility_name}}に新しい求人が追加されました',
@@ -478,7 +478,7 @@ const notificationSettings = [
     email_enabled: true,
     push_enabled: true,
     chat_message: null,
-    email_subject: '【+TASTAS】近くで新着求人があります',
+    email_subject: '【+タスタス】近くで新着求人があります',
     email_body: `{{worker_last_name}}様
 
 近くのエリアで新しい求人が追加されました。
@@ -494,7 +494,7 @@ const notificationSettings = [
 {{job_url}}
 
 ──────────────────────────
-+TASTAS 運営
++タスタス 運営
 ──────────────────────────`,
     push_title: '近くで新着求人',
     push_body: '{{facility_name}}で新しい求人が追加されました',
@@ -508,7 +508,7 @@ const notificationSettings = [
     email_enabled: true,
     push_enabled: true,
     chat_message: null,
-    email_subject: '【+TASTAS】近くで空き枠が出ました',
+    email_subject: '【+タスタス】近くで空き枠が出ました',
     email_body: `{{worker_last_name}}様
 
 近くのエリアでキャンセル枠が発生しました。
@@ -524,7 +524,7 @@ const notificationSettings = [
 {{job_url}}
 
 ──────────────────────────
-+TASTAS 運営
++タスタス 運営
 ──────────────────────────`,
     push_title: '近くで空き枠発生',
     push_body: '{{facility_name}}でキャンセル枠が出ました',
@@ -540,7 +540,7 @@ const notificationSettings = [
     chat_message: `{{facility_name}}からメッセージが届きました。
 
 メッセージを確認してください。`,
-    email_subject: '【+TASTAS】新しいメッセージが届きました',
+    email_subject: '【+タスタス】新しいメッセージが届きました',
     email_body: `{{worker_name}}様
 
 {{facility_name}}から新しいメッセージが届きました。
@@ -553,7 +553,7 @@ const notificationSettings = [
 メッセージ画面でご確認・ご返信ください。
 
 ──────────────────────────
-+TASTAS 運営
++タスタス 運営
 ──────────────────────────`,
     push_title: '新着メッセージ',
     push_body: '{{facility_name}}からメッセージが届きました',
@@ -581,7 +581,7 @@ const notificationSettings = [
 
 施設コメント:
 {{admin_comment}}`,
-    email_subject: '【+TASTAS】勤怠変更申請が承認されました',
+    email_subject: '【+タスタス】勤怠変更申請が承認されました',
     email_body: `{{worker_name}}様
 
 勤怠変更申請が承認されました。
@@ -608,7 +608,7 @@ const notificationSettings = [
 給与は承認されたタイミングで給与管理に反映されます。
 
 ──────────────────────────
-+TASTAS 運営
++タスタス 運営
 ──────────────────────────`,
     push_title: '勤怠変更申請が承認されました',
     push_body: '{{facility_name}}の勤怠変更申請が承認されました',
@@ -633,7 +633,7 @@ const notificationSettings = [
 
 内容を修正して再申請してください。
 {{resubmit_url}}`,
-    email_subject: '【+TASTAS】勤怠変更申請が却下されました',
+    email_subject: '【+タスタス】勤怠変更申請が却下されました',
     email_body: `{{worker_name}}様
 
 勤怠変更申請が却下されました。
@@ -660,7 +660,7 @@ const notificationSettings = [
 ご不明点があれば、施設にメッセージでお問い合わせください。
 
 ──────────────────────────
-+TASTAS 運営
++タスタス 運営
 ──────────────────────────`,
     push_title: '勤怠変更申請が却下されました',
     push_body: '{{facility_name}}の勤怠変更申請が却下されました。再申請してください。',
@@ -682,7 +682,7 @@ const notificationSettings = [
 勤務希望日: {{work_date}}
 
 応募管理画面でご確認ください。`,
-    email_subject: '【+TASTAS】新しい応募がありました',
+    email_subject: '【+タスタス】新しい応募がありました',
     email_body: `{{facility_name}}様
 
 新しい応募がありました。
@@ -697,7 +697,7 @@ const notificationSettings = [
 応募管理画面でご確認ください。
 
 ──────────────────────────
-+TASTAS 運営
++タスタス 運営
 ──────────────────────────`,
     push_title: '新規応募',
     push_body: '{{worker_name}}さんから応募がありました',
@@ -716,7 +716,7 @@ const notificationSettings = [
 日時: {{work_date}}
 
 代わりのワーカーをお探しください。`,
-    email_subject: '【+TASTAS】勤務キャンセルのお知らせ',
+    email_subject: '【+タスタス】勤務キャンセルのお知らせ',
     email_body: `{{facility_name}}様
 
 ワーカーから勤務キャンセルの連絡がありました。
@@ -731,7 +731,7 @@ const notificationSettings = [
 代わりのワーカーをお探しください。
 
 ──────────────────────────
-+TASTAS 運営
++タスタス 運営
 ──────────────────────────`,
     push_title: 'キャンセル通知',
     push_body: '{{worker_name}}さんが勤務をキャンセルしました',
@@ -785,7 +785,7 @@ const notificationSettings = [
 日時: {{work_date}} {{start_time}}〜{{end_time}}
 
 ワーカーの受け入れ準備をお願いいたします。`,
-    email_subject: '【+TASTAS】明日の勤務リマインド',
+    email_subject: '【+タスタス】明日の勤務リマインド',
     email_body: `{{facility_name}}様
 
 明日の勤務についてお知らせいたします。
@@ -800,7 +800,7 @@ const notificationSettings = [
 ワーカーの受け入れ準備をお願いいたします。
 
 ──────────────────────────
-+TASTAS 運営
++タスタス 運営
 ──────────────────────────`,
     push_title: '明日の勤務',
     push_body: '{{worker_name}}さんが出勤予定です',
@@ -819,7 +819,7 @@ const notificationSettings = [
 今後のマッチングの参考になります。
 
 {{review_url}}`,
-    email_subject: '【+TASTAS】レビューのお願い',
+    email_subject: '【+タスタス】レビューのお願い',
     email_body: `{{facility_name}}様
 
 {{worker_name}}さんの勤務が完了しました。
@@ -828,7 +828,7 @@ const notificationSettings = [
 {{review_url}}
 
 ──────────────────────────
-+TASTAS 運営
++タスタス 運営
 ──────────────────────────`,
     push_title: null,
     push_body: null,
@@ -844,7 +844,7 @@ const notificationSettings = [
     chat_message: `{{worker_name}}さんからレビューが届きました！
 
 管理画面でご確認ください。`,
-    email_subject: '【+TASTAS】レビューが届きました',
+    email_subject: '【+タスタス】レビューが届きました',
     email_body: `{{facility_name}}様
 
 {{worker_name}}さんからレビューが届きました。
@@ -852,7 +852,7 @@ const notificationSettings = [
 管理画面よりご確認ください。
 
 ──────────────────────────
-+TASTAS 運営
++タスタス 運営
 ──────────────────────────`,
     push_title: null,
     push_body: null,
@@ -868,7 +868,7 @@ const notificationSettings = [
     chat_message: `{{worker_name}}さんからメッセージが届きました。
 
 メッセージを確認してください。`,
-    email_subject: '【+TASTAS】新しいメッセージが届きました',
+    email_subject: '【+タスタス】新しいメッセージが届きました',
     email_body: `{{facility_name}}様
 
 {{worker_name}}さんから新しいメッセージが届きました。
@@ -881,7 +881,7 @@ const notificationSettings = [
 管理画面でご確認・ご返信ください。
 
 ──────────────────────────
-+TASTAS 運営
++タスタス 運営
 ──────────────────────────`,
     push_title: '新着メッセージ',
     push_body: '{{worker_name}}さんからメッセージが届きました',
@@ -897,7 +897,7 @@ const notificationSettings = [
     push_enabled: true,
     dashboard_enabled: true,
     chat_message: null,
-    email_subject: '【+TASTAS】勤怠変更申請がありました',
+    email_subject: '【+タスタス】勤怠変更申請がありました',
     email_body: `{{facility_name}}様
 
 {{worker_name}}様から勤怠変更申請がありました。
@@ -927,7 +927,7 @@ const notificationSettings = [
 {{approval_url}}
 
 ──────────────────────────
-+TASTAS 運営
++タスタス 運営
 ──────────────────────────`,
     push_title: '勤怠変更申請',
     push_body: '{{worker_name}}様から勤怠変更申請がありました',
@@ -941,7 +941,7 @@ const notificationSettings = [
     email_enabled: true,
     push_enabled: false,
     chat_message: null,
-    email_subject: '【+TASTAS】求人の締切が近づいています',
+    email_subject: '【+タスタス】求人の締切が近づいています',
     email_body: `{{facility_name}}様
 
 以下の求人の締切が近づいています。
@@ -958,7 +958,7 @@ const notificationSettings = [
 必要に応じて求人内容の見直しをご検討ください。
 
 ──────────────────────────
-+TASTAS 運営
++タスタス 運営
 ──────────────────────────`,
     push_title: null,
     push_body: null,
@@ -972,7 +972,7 @@ const notificationSettings = [
     email_enabled: true,
     push_enabled: true,
     chat_message: null,
-    email_subject: '【+TASTAS】募集枠が埋まりました',
+    email_subject: '【+タスタス】募集枠が埋まりました',
     email_body: '{{job_title}}の募集枠が全て埋まりました。\n\n管理画面をご確認ください。',
     push_title: '募集完了',
     push_body: '{{job_title}}の募集枠が埋まりました',
@@ -986,9 +986,9 @@ const notificationSettings = [
     email_enabled: true,
     push_enabled: true,
     chat_message: null,
-    email_subject: '【+TASTAS】運営からのお知らせ',
+    email_subject: '【+タスタス】運営からのお知らせ',
     email_body: '{{announcement_title}}\n\n{{announcement_body}}',
-    push_title: '+TASTASからのお知らせ',
+    push_title: '+タスタスからのお知らせ',
     push_body: '{{announcement_title}}',
   },
 
@@ -1002,7 +1002,7 @@ const notificationSettings = [
     email_enabled: true,
     push_enabled: false,
     chat_message: null,
-    email_subject: '【+TASTAS管理】新規施設登録',
+    email_subject: '【+タスタス管理】新規施設登録',
     email_body: `新しい施設が登録されました。
 
 施設名: {{facility_name}}
@@ -1022,7 +1022,7 @@ const notificationSettings = [
     email_enabled: true,
     push_enabled: false,
     chat_message: null,
-    email_subject: '【+TASTAS管理】新規ワーカー登録',
+    email_subject: '【+タスタス管理】新規ワーカー登録',
     email_body: '新しいワーカーが登録されました。\n\n氏名: {{user_name}}\nメール: {{user_email}}\n登録日時: {{registered_at}}\n\n確認をお願いします。',
     push_title: null,
     push_body: null,
@@ -1036,7 +1036,7 @@ const notificationSettings = [
     email_enabled: true,
     push_enabled: false,
     chat_message: null,
-    email_subject: '【+TASTAS管理】キャンセル率アラート',
+    email_subject: '【+タスタス管理】キャンセル率アラート',
     email_body: `キャンセル率が高いユーザーを検知しました。
 
 ユーザー: {{user_name}}
@@ -1056,7 +1056,7 @@ const notificationSettings = [
     email_enabled: true,
     push_enabled: false,
     chat_message: null,
-    email_subject: '【+TASTAS管理】低評価アラート',
+    email_subject: '【+タスタス管理】低評価アラート',
     email_body: `連続で低評価を受けているユーザーを検知しました。
 
 ユーザー: {{user_name}}
@@ -1076,7 +1076,7 @@ const notificationSettings = [
     email_enabled: true,
     push_enabled: false,
     chat_message: null,
-    email_subject: '【+TASTAS管理】不正アクセスアラート',
+    email_subject: '【+タスタス管理】不正アクセスアラート',
     email_body: `不審なアクセスを検知しました。
 
 ユーザー: {{user_name}}
@@ -1579,7 +1579,7 @@ async function main() {
       belongings: ['筆記用具', '上履き'],
       images: ['/images/samples/facility_top_7.png'],
       notes: '初めての方も丁寧に指導します',
-      tags: ['制服貸与', '+TASTAS初心者歓迎', '交通費支給'],
+      tags: ['制服貸与', '+タスタス初心者歓迎', '交通費支給'],
     },
     {
       facility_id: createdFacilities[2].id,
@@ -1639,7 +1639,7 @@ async function main() {
       belongings: ['筆記用具', '上履き', 'エプロン'],
       images: ['/images/samples/facility_top_7.png'],
       notes: 'まかない付き。未経験者でも研修制度が充実しています',
-      tags: ['制服貸与', '+TASTAS初心者歓迎', '交通費支給'],
+      tags: ['制服貸与', '+タスタス初心者歓迎', '交通費支給'],
     },
     {
       facility_id: createdFacilities[4].id,

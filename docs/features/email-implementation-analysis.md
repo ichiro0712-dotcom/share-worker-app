@@ -216,7 +216,7 @@ export async function requestPasswordReset(email: string) {
   const { error } = await resend.emails.send({
     from: 'noreply@tastas.jp',
     to: email,
-    subject: '【+TASTAS】パスワードリセットのご案内',
+    subject: '【+タスタス】パスワードリセットのご案内',
     html: `
       <p>${user.name}様</p>
       <p>パスワードリセットのリクエストを受け付けました。</p>
@@ -277,10 +277,10 @@ export async function POST(request: NextRequest) {
   await resend.emails.send({
     from: 'noreply@tastas.jp',
     to: email,
-    subject: '【+TASTAS】メールアドレスの確認',
+    subject: '【+タスタス】メールアドレスの確認',
     html: `
       <p>${name}様</p>
-      <p>+TASTASへのご登録ありがとうございます。</p>
+      <p>+タスタスへのご登録ありがとうございます。</p>
       <p>以下のリンクをクリックしてメールアドレスを確認してください：</p>
       <p><a href="${process.env.NEXTAUTH_URL}/verify-email?token=${verificationToken}">
         メールアドレスを確認する

@@ -51,7 +51,7 @@
 
 施設コメント:
 {{admin_comment}}`,
-  email_subject: '【+TASTAS】勤怠変更申請が承認されました',
+  email_subject: '【+タスタス】勤怠変更申請が承認されました',
   email_body: `{{worker_name}}様
 
 勤怠変更申請が承認されました。
@@ -94,7 +94,7 @@
 
 内容を修正して再申請してください。
 {{resubmit_url}}`,
-  email_subject: '【+TASTAS】勤怠変更申請が却下されました',
+  email_subject: '【+タスタス】勤怠変更申請が却下されました',
   email_body: `{{worker_name}}様
 
 勤怠変更申請が却下されました。
@@ -132,7 +132,7 @@
   push_enabled: true,
   dashboard_enabled: true,
   chat_message: null,
-  email_subject: '【+TASTAS】勤怠変更申請がありました',
+  email_subject: '【+タスタス】勤怠変更申請がありました',
   email_body: `{{worker_name}}様から勤怠変更申請がありました。
 
 ■ 勤務情報
@@ -398,7 +398,7 @@ const statusConfig = {
 
 ## 7. 参考：カイテクとの機能比較
 
-| 機能 | カイテク | +TASTAS（現状） | +TASTAS（改善後） |
+| 機能 | カイテク | +タスタス（現状） | +タスタス（改善後） |
 |------|---------|----------------|------------------|
 | QRコード出退勤 | ○ | ○ | ○ |
 | 緊急番号出退勤 | ○ | ○ | ○ |

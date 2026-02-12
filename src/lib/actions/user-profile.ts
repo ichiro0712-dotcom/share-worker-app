@@ -89,6 +89,29 @@ export async function checkProfileComplete(userId: number) {
     };
 }
 
+/**
+ * 現在ログインしているワーカーの未入力プロフィール項目を取得する
+ * BadgeContextやバナー表示用
+ */
+export async function getMissingProfileFields(): Promise<{
+    isComplete: boolean;
+    missingFields: string[];
+    missingCount: number;
+}> {
+    try {
+        const user = await getAuthenticatedUser();
+        const result = await checkProfileComplete(user.id);
+        return {
+            isComplete: result.isComplete,
+            missingFields: result.missingFields,
+            missingCount: result.missingFields.length,
+        };
+    } catch {
+        // 未ログインやエラーの場合
+        return { isComplete: true, missingFields: [], missingCount: 0 };
+    }
+}
+
 export async function getUserProfile() {
     try {
         // テスト運用中の認証済みユーザーを取得

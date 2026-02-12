@@ -11,7 +11,7 @@ import type { ShiftWithJobAndFacility } from '@/app/system-admin/csv-export/shif
  */
 const SHIFT_INFO_HEADERS = [
   '取引先ID',           // 1. 必須 - 未対応（CROSSNAVI連携ID）
-  '取引先番号',         // 2. 必須 - 未対応（TASTAS管理番号）
+  '取引先番号',         // 2. 必須 - 未対応（タスタス管理番号）
   'シフト区分',         // 3. 必須 - 固定「1」（通常）
   '案件 No.',           // 4. 必須 - 空欄
   '取引先案件番号',     // 5. 必須 - 未対応

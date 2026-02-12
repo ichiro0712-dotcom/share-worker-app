@@ -2,7 +2,7 @@
 
 ## 概要
 
-+TASTASの検索エンジン最適化（SEO）に関する仕様を定義する。
++タスタスの検索エンジン最適化（SEO）に関する仕様を定義する。
 主に公開求人ページのSEO対策と、Google for Jobs対応を含む。
 
 ---
@@ -40,12 +40,12 @@
 
 **フォーマット:**
 ```
-【{職種}】{都道府県}{市区町村}の求人 | 時給{時給}円 | +TASTAS
+【{職種}】{都道府県}{市区町村}の求人 | 時給{時給}円 | +タスタス
 ```
 
 **例:**
 ```html
-<title>【介護福祉士】東京都新宿区の求人 | 時給1,500円 | +TASTAS</title>
+<title>【介護福祉士】東京都新宿区の求人 | 時給1,500円 | +タスタス</title>
 ```
 
 **職種の決定ロジック:**
@@ -78,7 +78,7 @@
 ```html
 <meta name="robots" content="index, follow">
 <meta name="googlebot" content="index, follow, max-video-preview:-1, max-image-preview:large, max-snippet:-1">
-<meta name="author" content="+TASTAS">
+<meta name="author" content="+タスタス">
 <meta name="format-detection" content="telephone=no">
 ```
 
@@ -89,11 +89,11 @@
 ### 3.1 基本設定
 
 ```html
-<meta property="og:title" content="【介護福祉士】東京都新宿区の求人 | 時給1,500円 | +TASTAS">
+<meta property="og:title" content="【介護福祉士】東京都新宿区の求人 | 時給1,500円 | +タスタス">
 <meta property="og:description" content="東京都新宿区で介護福祉士の求人募集中！...">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://share-worker-app.vercel.app/public/jobs/123">
-<meta property="og:site_name" content="+TASTAS（タスタス）">
+<meta property="og:site_name" content="+タスタス（タスタス）">
 <meta property="og:locale" content="ja_JP">
 ```
 
@@ -114,7 +114,7 @@
 
 ```html
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="【介護福祉士】東京都新宿区の求人 | 時給1,500円 | +TASTAS">
+<meta name="twitter:title" content="【介護福祉士】東京都新宿区の求人 | 時給1,500円 | +タスタス">
 <meta name="twitter:description" content="東京都新宿区で介護福祉士の求人募集中！...">
 <meta name="twitter:site" content="@tastas_jp">
 ```
@@ -139,7 +139,7 @@ Google検索の求人検索機能に対応するため、JSON-LD形式の構造�
   "description": "施設での介護業務全般...",
   "identifier": {
     "@type": "PropertyValue",
-    "name": "+TASTAS",
+    "name": "+タスタス",
     "value": "tastas-job-123"
   },
   "datePosted": "2026-01-10T00:00:00.000Z",

@@ -18,7 +18,7 @@ self.addEventListener('push', (event) => {
     data = { title: '新着通知', body: event.data.text() };
   }
 
-  const title = data.title || '+TASTAS';
+  const title = data.title || '+タスタス';
   const options: NotificationOptions = {
     body: data.body || '',
     icon: '/icons/icon-192x192.png',

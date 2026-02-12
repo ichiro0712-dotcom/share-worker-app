@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
         }
 
         const payload = JSON.stringify({
-            title: title || '+TASTAS',
+            title: title || '+タスタス',
             body: message || '新しいお知らせがあります',
             url: url || '/',
         });

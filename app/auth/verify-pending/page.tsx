@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Mail, RefreshCw, CheckCircle } from 'lucide-react';
+import { Mail, RefreshCw, CheckCircle, Eye, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 
@@ -11,6 +11,14 @@ export default function VerifyPendingPage() {
   const email = searchParams?.get('email') || '';
   const [isResending, setIsResending] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
+
+  // ローカル開発用: メールプレビュー
+  const [showEmailPreview, setShowEmailPreview] = useState(false);
+  const [emailPreviewHtml, setEmailPreviewHtml] = useState('');
+  const [verifyUrl, setVerifyUrl] = useState('');
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState('');
+  const isDev = process.env.NODE_ENV === 'development';
 
   const handleResend = async () => {
     if (!email) {
@@ -38,6 +46,35 @@ export default function VerifyPendingPage() {
       toast.error('再送信中にエラーが発生しました');
     } finally {
       setIsResending(false);
+    }
+  };
+
+  const handlePreviewEmail = async () => {
+    if (!email) return;
+    setPreviewLoading(true);
+    setPreviewError('');
+    try {
+      const res = await fetch(`/api/auth/preview-verification-email?email=${encodeURIComponent(email)}`);
+      const data = await res.json();
+      if (!res.ok) {
+        setPreviewError(data.error || 'プレビューの取得に失敗しました');
+        return;
+      }
+      if (data.status === 'already_verified') {
+        setPreviewError('このユーザーは既にメール認証済みです。');
+        return;
+      }
+      if (data.status === 'no_token') {
+        setPreviewError('認証トークンが見つかりません。');
+        return;
+      }
+      setEmailPreviewHtml(data.emailHtml);
+      setVerifyUrl(data.verifyUrl);
+      setShowEmailPreview(true);
+    } catch {
+      setPreviewError('プレビューの取得中にエラーが発生しました');
+    } finally {
+      setPreviewLoading(false);
     }
   };
 
@@ -98,6 +135,33 @@ export default function VerifyPendingPage() {
           </button>
         )}
 
+        {/* ローカル開発用: メール内容プレビュー */}
+        {isDev && (
+          <div className="border-t border-dashed border-orange-300 pt-4 mt-4 mb-4">
+            <p className="text-xs text-orange-600 font-medium mb-2">[ 開発用 ] ローカルではメールが送信されません</p>
+            <div className="flex flex-col gap-2 items-center">
+              <button
+                onClick={handlePreviewEmail}
+                disabled={previewLoading || !email}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Eye className="w-4 h-4" />
+                {previewLoading ? '取得中...' : 'メール内容を表示'}
+              </button>
+              <Link
+                href="/job-list"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-medium text-sm"
+              >
+                <ExternalLink className="w-4 h-4" />
+                メール認証後のページ
+              </Link>
+            </div>
+            {previewError && (
+              <p className="text-red-500 text-xs mt-2">{previewError}</p>
+            )}
+          </div>
+        )}
+
         <div className="border-t pt-4">
           <Link
             href="/login"
@@ -107,6 +171,43 @@ export default function VerifyPendingPage() {
           </Link>
         </div>
       </div>
+
+      {/* メールプレビューモーダル */}
+      {showEmailPreview && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-auto">
+            <div className="sticky top-0 bg-orange-50 border-b border-orange-200 px-4 py-3 flex items-center justify-between">
+              <span className="text-sm font-medium text-orange-800">[ 開発用 ] 認証メール プレビュー</span>
+              <button
+                onClick={() => setShowEmailPreview(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-4">
+              {/* 認証リンク直接アクセスボタン */}
+              {verifyUrl && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+                  <p className="text-xs text-green-700 mb-2">このボタンで認証フローをそのままテストできます:</p>
+                  <a
+                    href={verifyUrl}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium text-sm"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    メールアドレスを確認する（認証リンク）
+                  </a>
+                </div>
+              )}
+              {/* メールHTML内容 */}
+              <div
+                className="border rounded-lg p-4"
+                dangerouslySetInnerHTML={{ __html: emailPreviewHtml }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

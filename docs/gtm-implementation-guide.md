@@ -1,6 +1,6 @@
 # GTM dataLayer 実装ガイド
 
-このドキュメントは、+TASTAS LP トラッキングシステムをGoogle Tag Manager (GTM) / GA4 / Facebook広告と連携させるための実装ガイドです。
+このドキュメントは、+タスタス LP トラッキングシステムをGoogle Tag Manager (GTM) / GA4 / Facebook広告と連携させるための実装ガイドです。
 
 ---
 

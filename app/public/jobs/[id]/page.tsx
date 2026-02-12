@@ -22,7 +22,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
     if (!job) {
         return {
-            title: '求人が見つかりません | +TASTAS',
+            title: '求人が見つかりません | +タスタス',
             robots: { index: false, follow: false },
         };
     }
@@ -35,8 +35,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     // 地域名
     const location = `${job.facility.prefecture || ''}${job.facility.city || ''}`;
 
-    // SEO最適化されたタイトル: [職種] [地域]の求人 | 時給○○円 | +TASTAS
-    const seoTitle = `【${jobType}】${location}の求人 | 時給${job.hourly_wage.toLocaleString()}円 | +TASTAS`;
+    // SEO最適化されたタイトル: [職種] [地域]の求人 | 時給○○円 | +タスタス
+    const seoTitle = `【${jobType}】${location}の求人 | 時給${job.hourly_wage.toLocaleString()}円 | +タスタス`;
 
     // 詳細なdescription
     const description = `${location}で${jobType}の求人募集中！時給${job.hourly_wage.toLocaleString()}円、${job.start_time}〜${job.end_time}勤務。${job.facility.name}での${job.qualifications?.join('・') || '資格不問'}のお仕事です。単発・スポットバイトをお探しの方におすすめ。`;
@@ -58,7 +58,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
         title: seoTitle,
         description,
         keywords,
-        authors: [{ name: '+TASTAS' }],
+        authors: [{ name: '+タスタス' }],
         robots: {
             index: true,
             follow: true,
@@ -77,8 +77,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
             url: `${baseUrl}/public/jobs/${id}`,
             images: job.images?.[0]
                 ? [{ url: job.images[0], width: 1200, height: 630, alt: job.title }]
-                : [{ url: `${baseUrl}/images/og-default.png`, width: 1200, height: 630, alt: '+TASTAS 求人' }],
-            siteName: '+TASTAS（タスタス）',
+                : [{ url: `${baseUrl}/images/og-default.png`, width: 1200, height: 630, alt: '+タスタス 求人' }],
+            siteName: '+タスタス（タスタス）',
             locale: 'ja_JP',
         },
         twitter: {
@@ -123,7 +123,7 @@ export default async function PublicJobDetailPage({ params }: PageProps) {
         description: jobData.description || `${jobData.facility.name}での${jobType}のお仕事です。`,
         identifier: {
             '@type': 'PropertyValue',
-            name: '+TASTAS',
+            name: '+タスタス',
             value: `tastas-job-${jobData.id}`,
         },
         datePosted: jobData.created_at,

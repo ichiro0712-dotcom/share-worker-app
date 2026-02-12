@@ -3,6 +3,9 @@
 import { usePathname } from 'next/navigation';
 import { BottomNav } from './BottomNav';
 import { WorkerNotificationPrompt } from '@/components/pwa/WorkerNotificationPrompt';
+import { PWAInstallModal } from '@/components/pwa/PWAInstallModal';
+import { PWAInstallBanner } from '@/components/pwa/PWAInstallBanner';
+import { ProfileIncompleteBanner } from '@/components/profile/ProfileIncompleteBanner';
 
 interface WorkerLayoutProps {
   children: React.ReactNode;
@@ -43,10 +46,16 @@ export function WorkerLayout({ children }: WorkerLayoutProps) {
 
   return (
     <>
+      {/* PWAインストールリマインドバナー（上部固定） */}
+      <PWAInstallBanner />
+      {/* プロフィール未入力リマインドバナー（PWAバナーの下） */}
+      <ProfileIncompleteBanner />
       <div className="pb-20" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}>
         {children}
       </div>
       <BottomNav />
+      {/* PWAインストールモーダル（初回のみ） */}
+      <PWAInstallModal />
       {/* プッシュ通知許可プロンプト（ログイン済みワーカーのみ） */}
       <WorkerNotificationPrompt />
     </>

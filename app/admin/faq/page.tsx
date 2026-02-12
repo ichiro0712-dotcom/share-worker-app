@@ -94,7 +94,7 @@ export default function FacilityFaqPage() {
                         <div className="flex-1">
                             <h2 className="text-lg font-bold mb-1">ご利用ガイド</h2>
                             <p className="text-indigo-100 text-sm">
-                                +TASTASの使い方をまとめたPDFガイドです。初めての方はぜひご覧ください。
+                                +タスタスの使い方をまとめたPDFガイドです。初めての方はぜひご覧ください。
                             </p>
                             {userGuide && (
                                 <p className="text-indigo-200 text-xs mt-1">

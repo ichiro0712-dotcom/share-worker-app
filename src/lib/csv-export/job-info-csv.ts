@@ -13,7 +13,7 @@ import type { JobWithFacility } from '@/app/system-admin/csv-export/job-info/typ
 const JOB_INFO_HEADERS = [
   // 1-10: 基本情報
   '取引先ID',              // 1. 必須 - 未対応（CROSSNAVI連携ID）
-  '取引先番号',            // 2. 必須 - 未対応（TASTAS管理番号）
+  '取引先番号',            // 2. 必須 - 未対応（タスタス管理番号）
   '取引先案件番号',        // 3. 未対応
   '案件名称',              // 4. 必須 - Job.title
   '取引先事業所',          // 5. 必須 - Facility.facility_name
