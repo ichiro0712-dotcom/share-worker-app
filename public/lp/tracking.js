@@ -11,13 +11,6 @@
     API_ENDPOINT: '/api/lp-tracking',
     SECTION_TRACK_INTERVAL: 1000, // セクション滞在計測間隔（ミリ秒）
     MAX_DWELL_TIME_SECONDS: 300, // 滞在時間の上限（5分）- 異常値対策
-    // LINE友だち追加URL（広告プラットフォーム別）
-    // 動的注入: window.__LP_LINE_TAGS からDB管理されたURLを取得
-    // フォールバック: 注入がない場合のデフォルトURL
-    LINE_URLS_FALLBACK: {
-      google: 'https://liff.line.me/2009053059-UzfNXDJd/landing?follow=%40894ipobi&lp=4Ghdqp&liff_id=2009053059-UzfNXDJd',
-      meta: 'https://liff.line.me/2009053059-UzfNXDJd/landing?follow=%40894ipobi&lp=GQbsFI&liff_id=2009053059-UzfNXDJd',
-    },
   };
 
   // ========== 状態管理 ==========
@@ -55,7 +48,10 @@
     const params = new URLSearchParams(window.location.search);
     const pathMatch = window.location.pathname.match(/\/lp\/(\d+)/);
 
-    const lpId = pathMatch ? pathMatch[1] : null;
+    // LP番号: メタタグ優先（配信APIが埋め込むDB上のlp_number）、なければURLパスから
+    const metaLpNumber = document.querySelector('meta[name="lp-number"]');
+    const lpId = metaLpNumber ? metaLpNumber.getAttribute('content') : (pathMatch ? pathMatch[1] : null);
+
     const cParam = params.get('c');
     const utmSource = params.get('utm_source');
     const utmMedium = params.get('utm_medium');
@@ -314,60 +310,6 @@
     });
   }
 
-  // LINE URLを取得（utm_sourceに基づいて切り替え）
-  // window.__LP_LINE_TAGS（DB管理）を優先、なければフォールバック
-  function getLineUrl() {
-    var tags = window.__LP_LINE_TAGS || {};
-    var defaultKey = window.__LP_LINE_TAG_DEFAULT || '';
-    var utmSource = state.utmSource ? state.utmSource.toLowerCase() : '';
-
-    // 1. utm_sourceで完全一致
-    if (utmSource && tags[utmSource]) {
-      return tags[utmSource];
-    }
-
-    // 2. facebook/instagram → meta フォールバック
-    if ((utmSource === 'facebook' || utmSource === 'instagram') && tags['meta']) {
-      return tags['meta'];
-    }
-
-    // 3. デフォルトタグ
-    if (defaultKey && tags[defaultKey]) {
-      return tags[defaultKey];
-    }
-
-    // 4. タグの先頭
-    var keys = Object.keys(tags);
-    if (keys.length > 0) {
-      return tags[keys[0]];
-    }
-
-    // 5. フォールバック（動的注入がない古いHTML用）
-    if (utmSource === 'meta' || utmSource === 'facebook' || utmSource === 'instagram') {
-      return CONFIG.LINE_URLS_FALLBACK.meta;
-    }
-    return CONFIG.LINE_URLS_FALLBACK.google;
-  }
-
-  // LINEボタンのURLを設定
-  function initLineButtons() {
-    const lineButtons = document.querySelectorAll('.btn-line-cta, .btn-line-header');
-    const lineUrl = getLineUrl();
-
-    lineButtons.forEach(function(button) {
-      // href属性を設定
-      button.setAttribute('href', lineUrl);
-      // data-cats属性を追加（CATS計測用）
-      button.setAttribute('data-cats', 'lineFriendsFollowLink');
-    });
-
-    console.log('[LP Tracking] LINE buttons initialized', {
-      utmSource: state.utmSource,
-      lineUrl: lineUrl,
-      buttonCount: lineButtons.length,
-    });
-  }
-
   // CTAクリックトラッキング
   function initClickTracking() {
     document.addEventListener('click', function(e) {
@@ -545,7 +487,6 @@
     initClickTracking();
     initSectionTracking();
     initPageUnloadHandler();
-    initLineButtons(); // LINEボタンのURL設定（utm_sourceに基づく）
 
     console.log('[LP Tracking] Initialized', {
       lpId: state.lpId,

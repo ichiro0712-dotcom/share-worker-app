@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { AlertTriangle, RefreshCw, Eye, CheckCircle, XCircle, Trash2, Download } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Eye, CheckCircle, XCircle, Trash2, Download, Code } from 'lucide-react';
 import LPUploadModal from './LPUploadModal';
 import GenreSelectModal from './GenreSelectModal';
 import GenreEditModal from './GenreEditModal';
-import LineTagEditModal from './LineTagEditModal';
+import HtmlEditModal from './HtmlEditModal';
 import { getLandingPages, deleteLandingPage, updateLandingPageName } from '@/lib/lp-actions';
 import type { LandingPage } from '@prisma/client';
 
@@ -19,15 +19,6 @@ type Campaign = {
 
 type DBLPListProps = {
   initialPages: LandingPage[];
-};
-
-// LINEタグ（広告プラットフォーム）の型
-type LineTagOption = {
-  id: number;
-  key: string;
-  label: string;
-  url: string;
-  is_default: boolean;
 };
 
 export default function DBLPList({ initialPages }: DBLPListProps) {
@@ -45,14 +36,13 @@ export default function DBLPList({ initialPages }: DBLPListProps) {
   // キャンペーンコード（LP番号→コード配列のマップ）
   const [campaignsByLp, setCampaignsByLp] = useState<Record<number, Campaign[]>>({});
 
-  // LINEタグ状態
-  const [lineTagOptions, setLineTagOptions] = useState<LineTagOption[]>([]);
-  const [selectedLineTag, setSelectedLineTag] = useState<string>('');
-  const [appliedLineTag, setAppliedLineTag] = useState<string>('');
-  const [lineTagEditModalOpen, setLineTagEditModalOpen] = useState(false);
-
   // クライアント側のoriginを保持
   const [origin, setOrigin] = useState('');
+
+  // HTML編集モーダル状態
+  const [htmlEditModalOpen, setHtmlEditModalOpen] = useState(false);
+  const [htmlEditLpNumber, setHtmlEditLpNumber] = useState<number>(0);
+  const [htmlEditLpName, setHtmlEditLpName] = useState<string>('');
 
   // モーダル状態
   const [genreSelectModalOpen, setGenreSelectModalOpen] = useState(false);
@@ -65,24 +55,43 @@ export default function DBLPList({ initialPages }: DBLPListProps) {
     setOrigin(window.location.origin);
   }, []);
 
-  // LINEタグを取得
-  useEffect(() => {
-    const fetchLineTags = async () => {
-      try {
-        const res = await fetch('/api/lp-line-tags');
+  // タグ再チェック（手動トリガー）
+  const [isCheckingTags, setIsCheckingTags] = useState(false);
+  const recheckTags = async () => {
+    const lpNumbers = pages.map(p => p.lp_number);
+    if (lpNumbers.length === 0) return;
+    setIsCheckingTags(true);
+    try {
+      const res = await fetch('/api/lp/check-tags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lpNumbers }),
+      });
+      if (res.ok) {
         const data = await res.json();
-        if (data.tags && data.tags.length > 0) {
-          setLineTagOptions(data.tags);
-          const defaultTag = data.tags.find((t: LineTagOption) => t.is_default) || data.tags[0];
-          setSelectedLineTag(defaultTag.key);
-          setAppliedLineTag(defaultTag.key);
-        }
-      } catch (e) {
-        console.error('Failed to fetch line tags:', e);
+        setPages(prev =>
+          prev.map(p => {
+            const result = data.results?.find(
+              (r: { lpNumber: number }) => r.lpNumber === p.lp_number
+            );
+            if (result?.checks) {
+              return {
+                ...p,
+                has_gtm: result.checks.has_gtm,
+                has_line_tag: result.checks.has_line_tag,
+                has_tracking: result.checks.has_tracking,
+              };
+            }
+            return p;
+          })
+        );
       }
-    };
-    fetchLineTags();
-  }, []);
+    } catch (e) {
+      console.error('Failed to check tags:', e);
+    } finally {
+      setIsCheckingTags(false);
+    }
+  };
 
   // キャンペーンコードを一括取得（N+1問題の解消）
   useEffect(() => {
@@ -141,10 +150,6 @@ export default function DBLPList({ initialPages }: DBLPListProps) {
   const openUploadModal = (lpNumber?: number) => {
     setEditLpNumber(lpNumber);
     setIsUploadModalOpen(true);
-  };
-
-  const applyLineTag = () => {
-    setAppliedLineTag(selectedLineTag);
   };
 
   const handleDelete = async (lpNumber: number, name: string) => {
@@ -291,20 +296,19 @@ export default function DBLPList({ initialPages }: DBLPListProps) {
     setTimeout(() => setCopiedCode(null), 2000);
   };
 
-  const getFullUrl = (lpNumber: number, code?: string) => {
-    const basePath = `/api/lp/${lpNumber}`;
-    return code ? `${origin}${basePath}?c=${code}` : `${origin}${basePath}`;
-  };
-
-  // LINEタグ付きURLを生成
-  const getUrlWithLineTag = (lpNumber: number, code?: string) => {
-    const basePath = `/api/lp/${lpNumber}`;
+  // 配信URLを生成（delivery_lp_number + delivery_utm_source がある場合はそちらを使用）
+  const getDeliveryUrl = (lp: LandingPage, code?: string) => {
+    const deliveryLp = lp.delivery_lp_number ?? lp.lp_number;
+    const basePath = `/api/lp/${deliveryLp}`;
     const params = new URLSearchParams();
-    params.set('utm_source', appliedLineTag);
+    if (lp.delivery_utm_source) {
+      params.set('utm_source', lp.delivery_utm_source);
+    }
     if (code) {
       params.set('c', code);
     }
-    return `${origin}${basePath}?${params.toString()}`;
+    const qs = params.toString();
+    return qs ? `${origin}${basePath}?${qs}` : `${origin}${basePath}`;
   };
 
   // タグの警告を表示するかどうか
@@ -397,18 +401,26 @@ export default function DBLPList({ initialPages }: DBLPListProps) {
 
               {/* メタ情報 */}
               {editingId !== lp.id && (
-                <div className="mt-1 flex items-center gap-3 text-xs text-gray-500">
-                  <span className="flex items-center gap-1">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                    </svg>
-                    {campaigns.length} コード
-                  </span>
-                  {/* タグステータス */}
-                  <div className="flex items-center gap-1">
-                    <TagBadge label="GTM" hasTag={lp.has_gtm} />
-                    <TagBadge label="LINE" hasTag={lp.has_line_tag} />
-                    <TagBadge label="Track" hasTag={lp.has_tracking} />
+                <div className="mt-1 space-y-1">
+                  <div className="flex items-center gap-3 text-xs text-gray-500">
+                    {/* 配信URL */}
+                    {lp.delivery_lp_number != null && lp.delivery_utm_source && (
+                      <span className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded font-mono text-[10px]">
+                        /api/lp/{lp.delivery_lp_number}?utm_source={lp.delivery_utm_source}
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                      </svg>
+                      {campaigns.length} コード
+                    </span>
+                    {/* タグステータス */}
+                    <div className="flex items-center gap-1">
+                      <TagBadge label="GTM" hasTag={lp.has_gtm} />
+                      <TagBadge label="LINE" hasTag={lp.has_line_tag} />
+                      <TagBadge label="Track" hasTag={lp.has_tracking} />
+                    </div>
                   </div>
                 </div>
               )}
@@ -426,18 +438,18 @@ export default function DBLPList({ initialPages }: DBLPListProps) {
               <div className="flex items-center gap-2">
                 {/* プレビューボタン（LINEタグ付きURL） */}
                 <a
-                  href={getUrlWithLineTag(lp.lp_number)}
+                  href={getDeliveryUrl(lp)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="p-2 rounded-md text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
-                  title={`プレビュー (${appliedLineTag})`}
+                  title="プレビュー"
                 >
                   <Eye className="w-4 h-4" />
                 </a>
 
                 {/* URLコピーボタン（LINEタグ付きURL） */}
                 <button
-                  onClick={() => copyToClipboard(getUrlWithLineTag(lp.lp_number), `lp-${lp.lp_number}`)}
+                  onClick={() => copyToClipboard(getDeliveryUrl(lp), `lp-${lp.lp_number}`)}
                   className={`
                     p-2 rounded-md transition-colors
                     ${copiedCode === `lp-${lp.lp_number}`
@@ -445,7 +457,7 @@ export default function DBLPList({ initialPages }: DBLPListProps) {
                       : 'text-gray-500 hover:text-blue-600 hover:bg-blue-50'
                     }
                   `}
-                  title={copiedCode === `lp-${lp.lp_number}` ? 'コピーしました' : `URLをコピー (${appliedLineTag})`}
+                  title={copiedCode === `lp-${lp.lp_number}` ? 'コピーしました' : 'URLをコピー'}
                 >
                   {copiedCode === `lp-${lp.lp_number}` ? (
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -491,6 +503,18 @@ export default function DBLPList({ initialPages }: DBLPListProps) {
                   {/* ドロップダウンメニュー */}
                   {menuOpenId === lp.lp_number && (
                     <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
+                      <button
+                        onClick={() => {
+                          setHtmlEditLpNumber(lp.lp_number);
+                          setHtmlEditLpName(lp.name);
+                          setHtmlEditModalOpen(true);
+                          setMenuOpenId(null);
+                        }}
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                      >
+                        <Code className="w-4 h-4" />
+                        HTML編集
+                      </button>
                       <button
                         onClick={() => {
                           openUploadModal(lp.lp_number);
@@ -576,7 +600,7 @@ export default function DBLPList({ initialPages }: DBLPListProps) {
                       {campaign.name}
                     </span>
                     <button
-                      onClick={() => copyToClipboard(getUrlWithLineTag(lp.lp_number, campaign.code), campaign.code)}
+                      onClick={() => copyToClipboard(getDeliveryUrl(lp, campaign.code), campaign.code)}
                       className={`
                         p-1.5 rounded transition-colors
                         ${copiedCode === campaign.code
@@ -617,60 +641,31 @@ export default function DBLPList({ initialPages }: DBLPListProps) {
 
   return (
     <>
-      {/* LINEタグ選択（全LP共通） */}
-      <div className="mb-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border border-green-200">
-        <div className="flex items-center gap-4">
-          <svg className="w-6 h-6 text-green-600" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63h2.386c.349 0 .63.285.63.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63.349 0 .631.285.631.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.281.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/>
-          </svg>
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-medium text-gray-700">LINEタグ:</span>
-            <select
-              value={selectedLineTag}
-              onChange={(e) => setSelectedLineTag(e.target.value)}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
-            >
-              {lineTagOptions.map(opt => (
-                <option key={opt.key} value={opt.key}>{opt.label}</option>
-              ))}
-            </select>
-            <button
-              onClick={applyLineTag}
-              disabled={selectedLineTag === appliedLineTag}
-              className={`
-                px-4 py-1.5 text-sm font-medium rounded-md transition-colors
-                ${selectedLineTag === appliedLineTag
-                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  : 'bg-green-600 text-white hover:bg-green-700'
-                }
-              `}
-            >
-              適用
-            </button>
-            <button
-              onClick={() => setLineTagEditModalOpen(true)}
-              className="px-3 py-1.5 text-sm font-medium text-green-700 bg-green-100 rounded-md hover:bg-green-200 transition-colors"
-            >
-              LINEタグ管理
-            </button>
-          </div>
-          {appliedLineTag && (
-            <span className="ml-auto text-xs text-green-700 bg-green-100 px-2 py-1 rounded">
-              適用中: {lineTagOptions.find(opt => opt.key === appliedLineTag)?.label}
-            </span>
-          )}
-        </div>
-        <p className="mt-2 text-xs text-gray-500">
-          適用ボタンを押すと、全LP・全キャンペーンコードのURLに反映されます
-        </p>
-      </div>
-
       {/* ヘッダー */}
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold text-gray-700">
           DB管理LP ({pages.length})
         </h3>
         <div className="flex items-center gap-2">
+          <button
+            onClick={recheckTags}
+            disabled={isCheckingTags}
+            className={`
+              px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5
+              ${isCheckingTags
+                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+              }
+            `}
+            title="全LPのHTMLをスキャンしてタグフラグを更新"
+          >
+            {isCheckingTags ? (
+              <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-amber-400 border-t-transparent" />
+            ) : (
+              <RefreshCw className="w-3.5 h-3.5" />
+            )}
+            タグ再チェック
+          </button>
           <button
             onClick={refreshPages}
             className="p-2 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100"
@@ -762,26 +757,15 @@ export default function DBLPList({ initialPages }: DBLPListProps) {
         onClose={() => setGenreEditModalOpen(false)}
       />
 
-      {/* LINEタグ管理モーダル */}
-      <LineTagEditModal
-        isOpen={lineTagEditModalOpen}
-        onClose={() => {
-          setLineTagEditModalOpen(false);
-          // タグを再取得して最新状態に
-          fetch('/api/lp-line-tags').then(r => r.json()).then(data => {
-            if (data.tags && data.tags.length > 0) {
-              setLineTagOptions(data.tags);
-              // 現在選択中のタグが削除されていたらデフォルトに戻す
-              const currentExists = data.tags.some((t: LineTagOption) => t.key === appliedLineTag);
-              if (!currentExists) {
-                const defaultTag = data.tags.find((t: LineTagOption) => t.is_default) || data.tags[0];
-                setSelectedLineTag(defaultTag.key);
-                setAppliedLineTag(defaultTag.key);
-              }
-            }
-          });
-        }}
+      {/* HTML編集モーダル */}
+      <HtmlEditModal
+        isOpen={htmlEditModalOpen}
+        onClose={() => setHtmlEditModalOpen(false)}
+        lpNumber={htmlEditLpNumber}
+        lpName={htmlEditLpName}
+        onSaved={refreshPages}
       />
+
     </>
   );
 }

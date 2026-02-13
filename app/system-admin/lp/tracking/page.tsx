@@ -108,6 +108,7 @@ interface LPConfig {
   [key: string]: {
     title: string;
     isActive?: boolean;
+    isDbManaged?: boolean;
     campaigns: Array<{
       code: string;
       name: string;
@@ -340,7 +341,8 @@ export default function TrackingPage() {
   }, [selectedRows]);
 
   const getLpTitle = (lpId: string) => {
-    return lpConfig?.[lpId]?.title || `LP ${lpId}`;
+    const title = lpConfig?.[lpId]?.title || `LP ${lpId}`;
+    return `LP${lpId} ${title}`;
   };
 
   const getCampaignName = (lpId: string, campaignCode: string | null) => {
@@ -426,9 +428,19 @@ export default function TrackingPage() {
     const rows: RowData[] = [];
     let totalPv = 0, totalSessions = 0, totalClicks = 0, totalRegistrations = 0;
 
-    // LP設定から有効なLPのみを取得してソート（LP番号順）
-    const activeLpIds = Object.keys(lpConfig)
-      .filter(lpId => lpConfig[lpId].isActive !== false) // isActive === undefined も有効扱い
+    // DB管理LPのみを表示（isDbManaged=true）。DB管理LPがない場合は全LP表示（後方互換）
+    // genresなど非LPキーを除外（数値IDのキーのみ対象）
+    const lpKeys = Object.keys(lpConfig).filter(key => /^\d+$/.test(key));
+    const hasDbManagedLps = lpKeys.some(lpId => lpConfig[lpId]?.isDbManaged);
+    const activeLpIds = lpKeys
+      .filter(lpId => {
+        const lp = lpConfig[lpId];
+        if (!lp) return false;
+        if (hasDbManagedLps) {
+          return lp.isDbManaged && lp.isActive !== false;
+        }
+        return lp.isActive !== false;
+      })
       .sort((a, b) => parseInt(a) - parseInt(b));
 
     activeLpIds.forEach((lpId) => {
@@ -450,7 +462,7 @@ export default function TrackingPage() {
         type: 'lp',
         lpId,
         campaignCode: null,
-        label: lpData.title || `LP ${lpId}`,
+        label: `LP${lpId} ${lpData.title || ''}`.trim(),
         pv,
         sessions,
         events: clickCount,
