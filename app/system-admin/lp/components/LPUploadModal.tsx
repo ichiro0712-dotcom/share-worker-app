@@ -213,8 +213,9 @@ export default function LPUploadModal({
             <p className="text-xs text-blue-700">
               <strong>自動挿入されるタグ：</strong>
               <br />
-              GTMスニペット、LINE Tag、tracking.js が自動的に挿入されます。
+              GTMスニペット、LINE CTA属性（data-cats）、tracking.js が自動的に挿入されます。
               既にタグが含まれている場合はスキップされます。
+              LINEボタンのURLはHTML編集から直接設定してください。
             </p>
           </div>
 

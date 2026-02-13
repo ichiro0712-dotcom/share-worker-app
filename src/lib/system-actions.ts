@@ -2184,22 +2184,6 @@ export async function updateSystemAdminNotificationEmail(id: number, notificatio
 }
 
 /**
- * システム管理者の通知先メールアドレスを更新
- */
-export async function updateSystemAdminNotificationEmail(id: number, notificationEmail: string | null) {
-    try {
-        await prisma.systemAdmin.update({
-            where: { id },
-            data: { notification_email: notificationEmail || null },
-        });
-        return { success: true };
-    } catch (error) {
-        console.error('Update SystemAdmin notification_email Error:', error);
-        return { success: false, error: '通知先メールの更新に失敗しました' };
-    }
-}
-
-/**
  * 求人強制停止
  */
 export async function forceStopJob(id: number) {

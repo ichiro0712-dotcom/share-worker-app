@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { prisma } from '@/lib/prisma';
 
 const configPath = path.join(process.cwd(), 'public', 'lp', 'lp-config.json');
 
@@ -19,6 +20,7 @@ type Genre = {
 type LPConfig = {
   title: string;
   isActive: boolean;
+  isDbManaged?: boolean;
   campaigns: Campaign[];
 };
 
@@ -118,6 +120,52 @@ export async function GET(request: NextRequest) {
         .sort((a, b) => parseInt(a.id) - parseInt(b.id));
 
       return NextResponse.json({ pages, genres: config.genres || DEFAULT_GENRES }, { headers: noCacheHeaders });
+    }
+
+    // DB管理LP（LandingPageテーブル）の情報をマージ
+    // トラッキングページでDB管理のLP1-4も表示するため
+    try {
+      const dbLps = await prisma.landingPage.findMany({
+        where: { is_published: true },
+        orderBy: { lp_number: 'asc' },
+      });
+
+      // LP番号ごとのキャンペーンコードをDBから取得
+      const allCampaignCodes = await prisma.lpCampaignCode.findMany({
+        where: { is_active: true },
+        include: { genre: { select: { prefix: true, name: true } } },
+      });
+
+      // lp_idごとにグループ化
+      const campaignsByLpId = new Map<string, typeof allCampaignCodes>();
+      for (const cc of allCampaignCodes) {
+        if (!campaignsByLpId.has(cc.lp_id)) {
+          campaignsByLpId.set(cc.lp_id, []);
+        }
+        campaignsByLpId.get(cc.lp_id)!.push(cc);
+      }
+
+      for (const lp of dbLps) {
+        const key = String(lp.lp_number);
+        const codes = campaignsByLpId.get(key) || [];
+        const dbCampaigns = codes.map(c => ({
+          code: c.code,
+          name: c.name || c.code,
+          createdAt: c.created_at.toISOString(),
+          genrePrefix: c.genre?.prefix,
+          genreName: c.genre?.name,
+        }));
+
+        // DB管理LPは常にDBの情報で上書き（DB側が正）
+        config[key] = {
+          title: lp.name,
+          isActive: lp.is_published,
+          isDbManaged: true,
+          campaigns: dbCampaigns,
+        };
+      }
+    } catch (dbError) {
+      console.error('LP config: DB merge failed (using file only):', dbError);
     }
 
     return NextResponse.json(config, { headers: noCacheHeaders });
