@@ -3,15 +3,7 @@
 import { prisma } from './prisma';
 import { uploadFile, deleteFolder, STORAGE_BUCKETS, getPublicUrl } from './supabase';
 import JSZip from 'jszip';
-
-// タグ検出用の正規表現パターン
-const TAG_PATTERNS = {
-  GTM: /googletagmanager\.com|GTM-[A-Z0-9]+/i,
-  // LINE Tag自体はGTM経由で設置されるため検知不可
-  // 代わりに、友だち登録ボタンのdata-cats属性を検知する（markecats連携用）
-  LINE_CATS_ATTRIBUTE: /data-cats=["']lineFriendsFollowLink["']/i,
-  TRACKING: /tracking\.js|\/api\/lp-tracking/i,
-};
+import { TAG_PATTERNS } from './lp-tag-utils';
 
 // GTMスニペット
 const GTM_HEAD_SNIPPET = `<!-- Google Tag Manager -->

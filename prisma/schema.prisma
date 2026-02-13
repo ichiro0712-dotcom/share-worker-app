@@ -10,103 +10,103 @@ datasource db {
 }
 
 model User {
-  id                     Int            @id @default(autoincrement())
-  email                  String         @unique
-  password_hash          String         @map("password_hash")
-  name                   String         @default("")
-  birth_date             DateTime?      @map("birth_date")
-  phone_number           String         @map("phone_number")
-  profile_image          String?        @map("profile_image")
-  qualifications         String[]
-  created_at             DateTime       @default(now()) @map("created_at")
-  updated_at             DateTime       @updatedAt @map("updated_at")
-  last_name_kana         String?        @map("last_name_kana")
-  first_name_kana        String?        @map("first_name_kana")
-  gender                 String?
-  nationality            String?
-  postal_code            String?        @map("postal_code")
-  prefecture             String?
-  city                   String?
-  address_line           String?        @map("address_line")
-  building               String?
+  id                         Int                     @id @default(autoincrement())
+  email                      String                  @unique
+  password_hash              String                  @map("password_hash")
+  name                       String                  @default("")
+  birth_date                 DateTime?               @map("birth_date")
+  phone_number               String                  @map("phone_number")
+  profile_image              String?                 @map("profile_image")
+  qualifications             String[]
+  created_at                 DateTime                @default(now()) @map("created_at")
+  updated_at                 DateTime                @updatedAt @map("updated_at")
+  last_name_kana             String?                 @map("last_name_kana")
+  first_name_kana            String?                 @map("first_name_kana")
+  gender                     String?
+  nationality                String?
+  postal_code                String?                 @map("postal_code")
+  prefecture                 String?
+  city                       String?
+  address_line               String?                 @map("address_line")
+  building                   String?
   /// ワーカー住所の緯度（距離検索用）
-  lat                    Float?
+  lat                        Float?
   /// ワーカー住所の経度（距離検索用）
-  lng                    Float?
-  emergency_name         String?        @map("emergency_name")
-  emergency_relation     String?        @map("emergency_relation")
-  emergency_phone        String?        @map("emergency_phone")
-  emergency_address      String?        @map("emergency_address")
-  current_work_style     String?        @map("current_work_style")
-  desired_work_style     String?        @map("desired_work_style")
-  job_change_desire      String?        @map("job_change_desire")
-  desired_work_days_week String?        @map("desired_work_days_week")
-  desired_work_period    String?        @map("desired_work_period")
-  desired_work_days      String[]       @default([]) @map("desired_work_days")
-  desired_start_time     String?        @map("desired_start_time")
-  desired_end_time       String?        @map("desired_end_time")
-  experience_fields      Json?          @map("experience_fields")
-  work_histories         String[]       @default([]) @map("work_histories")
-  self_pr                String?        @map("self_pr")
-  bank_code              String?        @map("bank_code") @db.VarChar(4)
-  bank_name              String?        @map("bank_name")
-  branch_code            String?        @map("branch_code") @db.VarChar(3)
-  branch_name            String?        @map("branch_name")
-  account_name           String?        @map("account_name")
-  account_number         String?        @map("account_number")
-  pension_number         String?        @map("pension_number")
-  id_document            String?        @map("id_document")
-  bank_book_image        String?        @map("bank_book_image")
-  qualification_certificates Json?      @map("qualification_certificates")
-  applications           Application[]
-  bookmarkedBy           Bookmark[]     @relation("BookmarkedUsers")
-  bookmarks              Bookmark[]     @relation("UserBookmarks")
-  sentMessages           Message[]      @relation("UserSentMessages")
-  receivedMessages       Message[]      @relation("UserReceivedMessages")
-  notifications          Notification[]
-  reviews                Review[]
-  pushSubscriptions      PushSubscription[]
-  nearbyNotificationLogs NearbyNotificationLog[]
+  lng                        Float?
+  emergency_name             String?                 @map("emergency_name")
+  emergency_relation         String?                 @map("emergency_relation")
+  emergency_phone            String?                 @map("emergency_phone")
+  emergency_address          String?                 @map("emergency_address")
+  current_work_style         String?                 @map("current_work_style")
+  desired_work_style         String?                 @map("desired_work_style")
+  job_change_desire          String?                 @map("job_change_desire")
+  desired_work_days_week     String?                 @map("desired_work_days_week")
+  desired_work_period        String?                 @map("desired_work_period")
+  desired_work_days          String[]                @default([]) @map("desired_work_days")
+  desired_start_time         String?                 @map("desired_start_time")
+  desired_end_time           String?                 @map("desired_end_time")
+  experience_fields          Json?                   @map("experience_fields")
+  work_histories             String[]                @default([]) @map("work_histories")
+  self_pr                    String?                 @map("self_pr")
+  bank_code                  String?                 @map("bank_code") @db.VarChar(4)
+  bank_name                  String?                 @map("bank_name")
+  branch_code                String?                 @map("branch_code") @db.VarChar(3)
+  branch_name                String?                 @map("branch_name")
+  account_name               String?                 @map("account_name")
+  account_number             String?                 @map("account_number")
+  pension_number             String?                 @map("pension_number")
+  id_document                String?                 @map("id_document")
+  bank_book_image            String?                 @map("bank_book_image")
+  qualification_certificates Json?                   @map("qualification_certificates")
+  applications               Application[]
+  bookmarkedBy               Bookmark[]              @relation("BookmarkedUsers")
+  bookmarks                  Bookmark[]              @relation("UserBookmarks")
+  sentMessages               Message[]               @relation("UserSentMessages")
+  receivedMessages           Message[]               @relation("UserReceivedMessages")
+  notifications              Notification[]
+  reviews                    Review[]
+  pushSubscriptions          PushSubscription[]
+  nearbyNotificationLogs     NearbyNotificationLog[]
   /// オファー対象として設定された求人
-  offeredJobs            Job[]          @relation("OfferTargetWorker")
+  offeredJobs                Job[]                   @relation("OfferTargetWorker")
   /// メッセージスレッド
-  messageThreads         MessageThread[]
+  messageThreads             MessageThread[]
   /// 出退勤記録
-  attendances            Attendance[]
+  attendances                Attendance[]
 
   /// メール認証済みフラグ
-  email_verified            Boolean        @default(false) @map("email_verified")
+  email_verified             Boolean   @default(false) @map("email_verified")
   /// メール認証トークン
-  verification_token        String?        @map("verification_token")
+  verification_token         String?   @map("verification_token")
   /// 認証トークンの有効期限
-  verification_token_expires DateTime?     @map("verification_token_expires")
+  verification_token_expires DateTime? @map("verification_token_expires")
   /// 自動ログイン用一時トークン（メール認証後5分間有効）
-  auto_login_token          String?        @map("auto_login_token")
+  auto_login_token           String?   @map("auto_login_token")
   /// 自動ログイントークンの有効期限
-  auto_login_token_expires  DateTime?      @map("auto_login_token_expires")
+  auto_login_token_expires   DateTime? @map("auto_login_token_expires")
 
-  is_suspended           Boolean        @default(false) @map("is_suspended")
-  suspended_at           DateTime?      @map("suspended_at")
+  is_suspended  Boolean   @default(false) @map("is_suspended")
+  suspended_at  DateTime? @map("suspended_at")
   /// 退会日時（nullなら退会していない）
-  deleted_at             DateTime?      @map("deleted_at")
+  deleted_at    DateTime? @map("deleted_at")
   /// 退会理由
-  delete_reason          String?        @map("delete_reason")
+  delete_reason String?   @map("delete_reason")
 
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
-  updated_by_type        String?        @map("updated_by_type")
+  updated_by_type String? @map("updated_by_type")
   /// 更新者ID
-  updated_by_id          Int?           @map("updated_by_id")
+  updated_by_id   Int?    @map("updated_by_id")
 
   /// 銀行口座情報（構造化データ）
-  bankAccount            BankAccount?
+  bankAccount BankAccount?
 
   /// LP経由登録情報
   /// 登録時にアクセスしたLP番号（"0", "1", "2" など）
-  registration_lp_id     String?        @map("registration_lp_id")
+  registration_lp_id         String? @map("registration_lp_id")
   /// 登録時に使用されたキャンペーンコード（例: "AAA-X4Y5Z6"）
-  registration_campaign_code String?    @map("registration_campaign_code")
+  registration_campaign_code String? @map("registration_campaign_code")
   /// 登録時のキャンペーンコードのジャンルプレフィックス（例: "AAA"）
-  registration_genre_prefix String?     @map("registration_genre_prefix") @db.VarChar(3)
+  registration_genre_prefix  String? @map("registration_genre_prefix") @db.VarChar(3)
 
   @@index([registration_lp_id])
   @@index([registration_genre_prefix])
@@ -114,107 +114,107 @@ model User {
 }
 
 model FacilityAdmin {
-  id            Int      @id @default(autoincrement())
-  email         String   @unique
-  password_hash String   @map("password_hash")
-  facility_id   Int      @map("facility_id")
-  name          String
-  phone_number  String?  @map("phone_number")
-  role          String   @default("admin")
-  is_primary    Boolean  @default(false) @map("is_primary")
-  created_at    DateTime @default(now()) @map("created_at")
-  updated_at    DateTime @updatedAt @map("updated_at")
-  facility      Facility @relation(fields: [facility_id], references: [id], onDelete: Cascade)
-  pushSubscriptions  PushSubscription[]
+  id                Int                @id @default(autoincrement())
+  email             String             @unique
+  password_hash     String             @map("password_hash")
+  facility_id       Int                @map("facility_id")
+  name              String
+  phone_number      String?            @map("phone_number")
+  role              String             @default("admin")
+  is_primary        Boolean            @default(false) @map("is_primary")
+  created_at        DateTime           @default(now()) @map("created_at")
+  updated_at        DateTime           @updatedAt @map("updated_at")
+  facility          Facility           @relation(fields: [facility_id], references: [id], onDelete: Cascade)
+  pushSubscriptions PushSubscription[]
 
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
-  updated_by_type  String?  @map("updated_by_type")
+  updated_by_type String? @map("updated_by_type")
   /// 更新者ID
-  updated_by_id    Int?     @map("updated_by_id")
+  updated_by_id   Int?    @map("updated_by_id")
 
   /// 利用規約同意日時
-  terms_agreed_at  DateTime?  @map("terms_agreed_at")
+  terms_agreed_at DateTime? @map("terms_agreed_at")
 
   @@map("facility_admins")
 }
 
 model Facility {
-  id               Int              @id @default(autoincrement())
-  corporation_name String           @map("corporation_name")
-  facility_name    String           @map("facility_name")
-  facility_type    String           @map("facility_type")
+  id               Int      @id @default(autoincrement())
+  corporation_name String   @map("corporation_name")
+  facility_name    String   @map("facility_name")
+  facility_type    String   @map("facility_type")
   address          String?
-  postal_code      String?          @map("postal_code") // 施設住所の郵便番号
+  postal_code      String?  @map("postal_code") // 施設住所の郵便番号
   prefecture       String?
   city             String?
-  address_line     String?   @map("address_line")
-  lat              Float     @default(0)
-  lng              Float     @default(0)
-  phone_number     String?          @map("phone_number")
+  address_line     String?  @map("address_line")
+  lat              Float    @default(0)
+  lng              Float    @default(0)
+  phone_number     String?  @map("phone_number")
   description      String?
   images           String[]
-  map_image        String?          @map("map_image")
-  rating           Float            @default(0)
-  review_count     Int              @default(0) @map("review_count")
-  initial_message  String?          @map("initial_message")
-  created_at       DateTime         @default(now()) @map("created_at")
-  updated_at       DateTime         @updatedAt @map("updated_at")
+  map_image        String?  @map("map_image")
+  rating           Float    @default(0)
+  review_count     Int      @default(0) @map("review_count")
+  initial_message  String?  @map("initial_message")
+  created_at       DateTime @default(now()) @map("created_at")
+  updated_at       DateTime @updatedAt @map("updated_at")
 
   // ========== 以下を追加 ==========
   // システムテンプレート（初期値設定）
-  systemTemplates  SystemTemplate[]
+  systemTemplates SystemTemplate[]
 
   // 法人情報
-  representative_last_name   String?   @map("representative_last_name")
-  representative_first_name  String?   @map("representative_first_name")
-  address_detail             String?   @map("address_detail")
-  email                      String?
-  contact_person_last_name   String?   @map("contact_person_last_name")
-  contact_person_first_name  String?   @map("contact_person_first_name")
-  corporation_number         String?   @map("corporation_number") // 法人番号（13桁）
+  representative_last_name  String? @map("representative_last_name")
+  representative_first_name String? @map("representative_first_name")
+  address_detail            String? @map("address_detail")
+  email                     String?
+  contact_person_last_name  String? @map("contact_person_last_name")
+  contact_person_first_name String? @map("contact_person_first_name")
+  corporation_number        String? @map("corporation_number") // 法人番号（13桁）
 
   // 法人住所（どこにも紐づかない、登記上の住所）
-  corp_postal_code           String?   @map("corp_postal_code")
-  corp_prefecture            String?   @map("corp_prefecture")
-  corp_city                  String?   @map("corp_city")
-  corp_address_line          String?   @map("corp_address_line")
+  corp_postal_code  String? @map("corp_postal_code")
+  corp_prefecture   String? @map("corp_prefecture")
+  corp_city         String? @map("corp_city")
+  corp_address_line String? @map("corp_address_line")
 
   // 責任者情報
-  manager_last_name          String?   @map("manager_last_name")
-  manager_first_name         String?   @map("manager_first_name")
-  manager_phone              String?   @map("manager_phone")
-  manager_email              String?   @map("manager_email")
+  manager_last_name  String? @map("manager_last_name")
+  manager_first_name String? @map("manager_first_name")
+  manager_phone      String? @map("manager_phone")
+  manager_email      String? @map("manager_email")
 
   // 担当者情報
-  staff_same_as_manager      Boolean   @default(false) @map("staff_same_as_manager")
-  staff_last_name            String?   @map("staff_last_name")
-  staff_first_name           String?   @map("staff_first_name")
-  staff_phone                String?   @map("staff_phone")
-  staff_email                String?   @map("staff_email")
-  emergency_contact          String?   @map("emergency_contact")
-  staff_emails               String[]  @default([]) @map("staff_emails")
-  staff_photo                String?   @map("staff_photo")
-  staff_greeting             String?   @map("staff_greeting")
+  staff_same_as_manager Boolean  @default(false) @map("staff_same_as_manager")
+  staff_last_name       String?  @map("staff_last_name")
+  staff_first_name      String?  @map("staff_first_name")
+  staff_phone           String?  @map("staff_phone")
+  staff_email           String?  @map("staff_email")
+  emergency_contact     String?  @map("emergency_contact")
+  staff_emails          String[] @default([]) @map("staff_emails")
+  staff_photo           String?  @map("staff_photo")
+  staff_greeting        String?  @map("staff_greeting")
 
   // アクセス情報
-  stations                   Json?     // [{ name: string, minutes: number }]
-  access_description         String?   @map("access_description")
-  transportation             String[]  @default([])
-  parking                    String?
-  transportation_note        String?   @map("transportation_note")
+  stations            Json? // [{ name: string, minutes: number }]
+  access_description  String?  @map("access_description")
+  transportation      String[] @default([])
+  parking             String?
+  transportation_note String?  @map("transportation_note")
 
   // 服装情報
-  dresscode_items            String[]  @default([]) @map("dresscode_items")
-  dresscode_images           String[]  @default([]) @map("dresscode_images")
+  dresscode_items  String[] @default([]) @map("dresscode_items")
+  dresscode_images String[] @default([]) @map("dresscode_images")
 
   // 喫煙情報
-  smoking_measure            String?   @map("smoking_measure")
-  work_in_smoking_area       String?   @map("work_in_smoking_area")
+  smoking_measure      String? @map("smoking_measure")
+  work_in_smoking_area String? @map("work_in_smoking_area")
 
   // 勤怠関連
-  emergency_attendance_code  String?   @map("emergency_attendance_code") // 4桁の緊急時出退勤番号
-  qr_secret_token           String?   @map("qr_secret_token")           // QRコード検証用トークン
-  qr_generated_at           DateTime? @map("qr_generated_at")          // QRコード生成日時
+  emergency_attendance_code String?   @map("emergency_attendance_code") // 4桁の緊急時出退勤番号
+  qr_secret_token           String?   @map("qr_secret_token") // QRコード検証用トークン
+  qr_generated_at           DateTime? @map("qr_generated_at") // QRコード生成日時
 
   // ========== 追加ここまで ==========
   bookmarks        Bookmark[]       @relation("FacilityOwners")
@@ -240,9 +240,9 @@ model Facility {
   is_pending       Boolean          @default(false) @map("is_pending")
 
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
-  updated_by_type  String?          @map("updated_by_type")
+  updated_by_type String? @map("updated_by_type")
   /// 更新者ID
-  updated_by_id    Int?             @map("updated_by_id")
+  updated_by_id   Int?    @map("updated_by_id")
 
   // パフォーマンス最適化用インデックス
   @@index([facility_type])
@@ -280,99 +280,99 @@ model JobTemplate {
   jobs               Job[]
 
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
-  updated_by_type    String?  @map("updated_by_type")
+  updated_by_type String? @map("updated_by_type")
   /// 更新者ID
-  updated_by_id      Int?     @map("updated_by_id")
+  updated_by_id   Int?    @map("updated_by_id")
 
   @@map("job_templates")
 }
 
 model Job {
-  id                      Int           @id @default(autoincrement())
-  facility_id             Int           @map("facility_id")
-  template_id             Int?          @map("template_id")
-  status                  JobStatus     @default(DRAFT)
+  id                           Int                  @id @default(autoincrement())
+  facility_id                  Int                  @map("facility_id")
+  template_id                  Int?                 @map("template_id")
+  status                       JobStatus            @default(DRAFT)
   /// 求人種別（NORMAL, ORIENTATION, LIMITED_WORKED, LIMITED_FAVORITE, OFFER）
-  job_type                JobType       @default(NORMAL) @map("job_type")
-  title                   String
-  start_time              String        @map("start_time")
-  end_time                String        @map("end_time")
-  break_time              String        @map("break_time")
-  wage                    Int
-  hourly_wage             Int           @map("hourly_wage")
-  transportation_fee      Int           @map("transportation_fee")
-  deadline_days_before    Int           @default(1) @map("deadline_days_before")
+  job_type                     JobType              @default(NORMAL) @map("job_type")
+  title                        String
+  start_time                   String               @map("start_time")
+  end_time                     String               @map("end_time")
+  break_time                   String               @map("break_time")
+  wage                         Int
+  hourly_wage                  Int                  @map("hourly_wage")
+  transportation_fee           Int                  @map("transportation_fee")
+  deadline_days_before         Int                  @default(1) @map("deadline_days_before")
   /// 募集開始日（0=公開時、-1=勤務当日、-2=勤務1日前、-3=勤務2日前...）
-  recruitment_start_day   Int           @default(0) @map("recruitment_start_day")
+  recruitment_start_day        Int                  @default(0) @map("recruitment_start_day")
   /// 募集開始時刻（HH:MM形式、nullの場合は0時）
-  recruitment_start_time  String?       @map("recruitment_start_time")
-  tags                    String[]
-  address                 String?
-  prefecture              String?
-  city                    String?
-  address_line            String?       @map("address_line")
-  access                  String
-  recruitment_count       Int           @map("recruitment_count")
-  overview                String
-  work_content            String[]      @map("work_content")
-  required_qualifications String[]      @map("required_qualifications")
-  required_experience     String[]      @map("required_experience")
-  dresscode               String[]
-  dresscode_images        String[]      @map("dresscode_images")
-  belongings              String[]
-  attachments             String[]
-  manager_name            String        @map("manager_name")
-  manager_message         String?       @map("manager_message")
-  manager_avatar          String?       @map("manager_avatar")
-  images                  String[]
+  recruitment_start_time       String?              @map("recruitment_start_time")
+  tags                         String[]
+  address                      String?
+  prefecture                   String?
+  city                         String?
+  address_line                 String?              @map("address_line")
+  access                       String
+  recruitment_count            Int                  @map("recruitment_count")
+  overview                     String
+  work_content                 String[]             @map("work_content")
+  required_qualifications      String[]             @map("required_qualifications")
+  required_experience          String[]             @map("required_experience")
+  dresscode                    String[]
+  dresscode_images             String[]             @map("dresscode_images")
+  belongings                   String[]
+  attachments                  String[]
+  manager_name                 String               @map("manager_name")
+  manager_message              String?              @map("manager_message")
+  manager_avatar               String?              @map("manager_avatar")
+  images                       String[]
   /// 未経験者歓迎
-  inexperienced_ok        Boolean       @default(false) @map("inexperienced_ok")
+  inexperienced_ok             Boolean              @default(false) @map("inexperienced_ok")
   /// ブランク歓迎
-  blank_ok                Boolean       @default(false) @map("blank_ok")
+  blank_ok                     Boolean              @default(false) @map("blank_ok")
   /// 髪型・髪色自由
-  hair_style_free         Boolean       @default(false) @map("hair_style_free")
+  hair_style_free              Boolean              @default(false) @map("hair_style_free")
   /// ネイルOK
-  nail_ok                 Boolean       @default(false) @map("nail_ok")
+  nail_ok                      Boolean              @default(false) @map("nail_ok")
   /// 制服貸与
-  uniform_provided        Boolean       @default(false) @map("uniform_provided")
+  uniform_provided             Boolean              @default(false) @map("uniform_provided")
   /// 車通勤OK
-  allow_car               Boolean       @default(false) @map("allow_car")
+  allow_car                    Boolean              @default(false) @map("allow_car")
   /// 食事補助
-  meal_support            Boolean       @default(false) @map("meal_support")
+  meal_support                 Boolean              @default(false) @map("meal_support")
   /// 週N回以上勤務（2, 3, 4など。nullの場合は条件なし）
-  weekly_frequency        Int?          @map("weekly_frequency")
+  weekly_frequency             Int?                 @map("weekly_frequency")
   /// 面接してからマッチング（true: 応募後に施設が手動でマッチング決定、false: 即時マッチング）
-  requires_interview      Boolean       @default(false) @map("requires_interview")
+  requires_interview           Boolean              @default(false) @map("requires_interview")
   /// 限定求人の自動切り替え日数（勤務開始日の何日前に通常求人に切り替えるか）
-  switch_to_normal_days_before Int?     @map("switch_to_normal_days_before")
+  switch_to_normal_days_before Int?                 @map("switch_to_normal_days_before")
   /// オファー対象ワーカーID（オファー求人のみ使用）
-  target_worker_id        Int?          @map("target_worker_id")
+  target_worker_id             Int?                 @map("target_worker_id")
   /// オファーメッセージ（オファー求人のみ使用）
-  offer_message           String?       @db.Text @map("offer_message")
+  offer_message                String?              @map("offer_message") @db.Text
   /// 親求人ID（限定求人から切り出された子求人の場合に設定）
-  parent_job_id           Int?          @map("parent_job_id")
-  created_at              DateTime      @default(now()) @map("created_at")
-  updated_at              DateTime      @updatedAt @map("updated_at")
-  bookmarks               Bookmark[]
-  workDates               JobWorkDate[]
-  facility                Facility      @relation(fields: [facility_id], references: [id], onDelete: Cascade)
-  template                JobTemplate?  @relation(fields: [template_id], references: [id])
+  parent_job_id                Int?                 @map("parent_job_id")
+  created_at                   DateTime             @default(now()) @map("created_at")
+  updated_at                   DateTime             @updatedAt @map("updated_at")
+  bookmarks                    Bookmark[]
+  workDates                    JobWorkDate[]
+  facility                     Facility             @relation(fields: [facility_id], references: [id], onDelete: Cascade)
+  template                     JobTemplate?         @relation(fields: [template_id], references: [id])
   /// オファー対象ワーカー
-  targetWorker            User?         @relation("OfferTargetWorker", fields: [target_worker_id], references: [id])
+  targetWorker                 User?                @relation("OfferTargetWorker", fields: [target_worker_id], references: [id])
   /// 親求人（切り出し元）
-  parentJob               Job?          @relation("ChildJobs", fields: [parent_job_id], references: [id])
+  parentJob                    Job?                 @relation("ChildJobs", fields: [parent_job_id], references: [id])
   /// 子求人（切り出し先）
-  childJobs               Job[]         @relation("ChildJobs")
-  messages                Message[]
-  reviews                 Review[]
-  systemNotifications     SystemNotification[]
+  childJobs                    Job[]                @relation("ChildJobs")
+  messages                     Message[]
+  reviews                      Review[]
+  systemNotifications          SystemNotification[]
   /// 出退勤記録
-  attendances             Attendance[]
+  attendances                  Attendance[]
 
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
-  updated_by_type         String?       @map("updated_by_type")
+  updated_by_type String? @map("updated_by_type")
   /// 更新者ID
-  updated_by_id           Int?          @map("updated_by_id")
+  updated_by_id   Int?    @map("updated_by_id")
 
   // パフォーマンス最適化用インデックス
   @@index([status, facility_id])
@@ -404,9 +404,9 @@ model JobWorkDate {
   reviews           Review[]
 
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
-  updated_by_type   String?       @map("updated_by_type")
+  updated_by_type String? @map("updated_by_type")
   /// 更新者ID
-  updated_by_id     Int?          @map("updated_by_id")
+  updated_by_id   Int?    @map("updated_by_id")
 
   @@unique([job_id, work_date])
   @@index([visible_from])
@@ -415,24 +415,24 @@ model JobWorkDate {
 }
 
 model Application {
-  id                     Int            @id @default(autoincrement())
-  work_date_id           Int            @map("work_date_id")
-  user_id                Int            @map("user_id")
-  status                 WorkerStatus   @default(APPLIED)
-  worker_review_status   ReviewStatus   @default(PENDING) @map("worker_review_status")
-  facility_review_status ReviewStatus   @default(PENDING) @map("facility_review_status")
+  id                     Int                  @id @default(autoincrement())
+  work_date_id           Int                  @map("work_date_id")
+  user_id                Int                  @map("user_id")
+  status                 WorkerStatus         @default(APPLIED)
+  worker_review_status   ReviewStatus         @default(PENDING) @map("worker_review_status")
+  facility_review_status ReviewStatus         @default(PENDING) @map("facility_review_status")
   message                String?
   /// キャンセル実行者（WORKER: ワーカー、FACILITY: 施設）
-  cancelled_by           CancelledBy?   @map("cancelled_by")
-  cancelled_at           DateTime?      @map("cancelled_at")
+  cancelled_by           CancelledBy?         @map("cancelled_by")
+  cancelled_at           DateTime?            @map("cancelled_at")
   /// 施設キャンセル通知の既読日時（nullなら未読）
-  cancel_notified_at     DateTime?      @map("cancel_notified_at")
+  cancel_notified_at     DateTime?            @map("cancel_notified_at")
   /// 施設が応募を確認した日時（nullなら未確認）
-  facility_viewed_at     DateTime?      @map("facility_viewed_at")
-  created_at             DateTime       @default(now()) @map("created_at")
-  updated_at             DateTime       @updatedAt @map("updated_at")
-  user                   User           @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  workDate               JobWorkDate    @relation(fields: [work_date_id], references: [id], onDelete: Cascade)
+  facility_viewed_at     DateTime?            @map("facility_viewed_at")
+  created_at             DateTime             @default(now()) @map("created_at")
+  updated_at             DateTime             @updatedAt @map("updated_at")
+  user                   User                 @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  workDate               JobWorkDate          @relation(fields: [work_date_id], references: [id], onDelete: Cascade)
   messages               Message[]
   reviews                Review[]
   laborDocument          LaborDocument?
@@ -441,9 +441,9 @@ model Application {
   attendances            Attendance[]
 
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
-  updated_by_type        String?        @map("updated_by_type")
+  updated_by_type String? @map("updated_by_type")
   /// 更新者ID
-  updated_by_id          Int?           @map("updated_by_id")
+  updated_by_id   Int?    @map("updated_by_id")
 
   @@unique([work_date_id, user_id])
   // パフォーマンス最適化用インデックス
@@ -454,62 +454,62 @@ model Application {
 
 /// 労働条件通知書データ（マッチング時に生成）
 model LaborDocument {
-  id               Int         @id @default(autoincrement())
-  application_id   Int         @unique @map("application_id")
+  id             Int         @id @default(autoincrement())
+  application_id Int         @unique @map("application_id")
   /// 労働条件通知書のデータをJSONで保存（PDF生成用）
-  document_data    Json        @map("document_data")
+  document_data  Json        @map("document_data")
   /// PDF生成済みフラグ
-  pdf_generated    Boolean     @default(false) @map("pdf_generated")
+  pdf_generated  Boolean     @default(false) @map("pdf_generated")
   /// PDFファイルパス（生成済みの場合）
-  pdf_path         String?     @map("pdf_path")
+  pdf_path       String?     @map("pdf_path")
   /// チャット送信済みフラグ
-  sent_to_chat     Boolean     @default(false) @map("sent_to_chat")
+  sent_to_chat   Boolean     @default(false) @map("sent_to_chat")
   /// チャット送信日時
-  sent_at          DateTime?   @map("sent_at")
-  created_at       DateTime    @default(now()) @map("created_at")
-  updated_at       DateTime    @updatedAt @map("updated_at")
-  application      Application @relation(fields: [application_id], references: [id], onDelete: Cascade)
+  sent_at        DateTime?   @map("sent_at")
+  created_at     DateTime    @default(now()) @map("created_at")
+  updated_at     DateTime    @updatedAt @map("updated_at")
+  application    Application @relation(fields: [application_id], references: [id], onDelete: Cascade)
 
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
-  updated_by_type  String?     @map("updated_by_type")
+  updated_by_type String? @map("updated_by_type")
   /// 更新者ID
-  updated_by_id    Int?        @map("updated_by_id")
+  updated_by_id   Int?    @map("updated_by_id")
 
   @@map("labor_documents")
 }
 
 /// 労働条件通知書ダウンロードトークン
 model LaborDocumentDownloadToken {
-  id                      Int      @id @default(autoincrement())
-  token                   String   @unique
+  id                     Int       @id @default(autoincrement())
+  token                  String    @unique
   /// リクエストした施設管理者のID
-  facility_admin_id       Int      @map("facility_admin_id")
+  facility_admin_id      Int       @map("facility_admin_id")
   /// 対象ワーカーのID
-  worker_id               Int      @map("worker_id")
+  worker_id              Int       @map("worker_id")
   /// 対象施設のID
-  facility_id             Int      @map("facility_id")
+  facility_id            Int       @map("facility_id")
   /// 対象期間（開始）
-  start_date              DateTime @map("start_date")
+  start_date             DateTime  @map("start_date")
   /// 対象期間（終了）
-  end_date                DateTime @map("end_date")
+  end_date               DateTime  @map("end_date")
   /// 資格証明書を含むか
-  include_qualifications  Boolean  @default(false) @map("include_qualifications")
+  include_qualifications Boolean   @default(false) @map("include_qualifications")
   /// 送信先メールアドレス
-  email                   String
+  email                  String
   /// 有効期限（72時間）
-  expires_at              DateTime @map("expires_at")
+  expires_at             DateTime  @map("expires_at")
   /// ダウンロード済みフラグ
-  downloaded              Boolean  @default(false)
+  downloaded             Boolean   @default(false)
   /// ダウンロード日時
-  downloaded_at           DateTime? @map("downloaded_at")
+  downloaded_at          DateTime? @map("downloaded_at")
   /// ZIPファイルパス（生成済みの場合）
-  zip_path                String?  @map("zip_path")
+  zip_path               String?   @map("zip_path")
   /// 処理状態（PENDING: 処理中, COMPLETED: 完了, FAILED: 失敗）
-  status                  String   @default("PENDING")
+  status                 String    @default("PENDING")
   /// エラーメッセージ（失敗時）
-  error_message           String?  @map("error_message")
-  created_at              DateTime @default(now()) @map("created_at")
-  updated_at              DateTime @updatedAt @map("updated_at")
+  error_message          String?   @map("error_message")
+  created_at             DateTime  @default(now()) @map("created_at")
+  updated_at             DateTime  @updatedAt @map("updated_at")
 
   @@map("labor_document_download_tokens")
 }
@@ -539,9 +539,9 @@ model Review {
   workDate             JobWorkDate? @relation(fields: [work_date_id], references: [id], onDelete: Cascade)
 
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
-  updated_by_type      String?      @map("updated_by_type")
+  updated_by_type String? @map("updated_by_type")
   /// 更新者ID
-  updated_by_id        Int?         @map("updated_by_id")
+  updated_by_id   Int?    @map("updated_by_id")
 
   @@unique([job_id, user_id, reviewer_type])
   @@map("reviews")
@@ -557,9 +557,9 @@ model ReviewTemplate {
   facility    Facility @relation(fields: [facility_id], references: [id], onDelete: Cascade)
 
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
-  updated_by_type  String?  @map("updated_by_type")
+  updated_by_type String? @map("updated_by_type")
   /// 更新者ID
-  updated_by_id    Int?     @map("updated_by_id")
+  updated_by_id   Int?    @map("updated_by_id")
 
   @@map("review_templates")
 }
@@ -581,9 +581,9 @@ model Bookmark {
   user               User?        @relation("UserBookmarks", fields: [user_id], references: [id], onDelete: Cascade)
 
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
-  updated_by_type    String?      @map("updated_by_type")
+  updated_by_type String? @map("updated_by_type")
   /// 更新者ID
-  updated_by_id      Int?         @map("updated_by_id")
+  updated_by_id   Int?    @map("updated_by_id")
 
   // パフォーマンス最適化用インデックス
   @@index([user_id, type])
@@ -592,33 +592,33 @@ model Bookmark {
 }
 
 model Message {
-  id               Int         @id @default(autoincrement())
-  from_user_id     Int?        @map("from_user_id")
-  to_user_id       Int?        @map("to_user_id")
-  from_facility_id Int?        @map("from_facility_id")
-  to_facility_id   Int?        @map("to_facility_id")
-  application_id   Int?        @map("application_id") /// nullable化（スレッドベースメッセージ対応）
-  job_id           Int?        @map("job_id") /// nullable化（スレッドベースメッセージ対応）
+  id               Int            @id @default(autoincrement())
+  from_user_id     Int?           @map("from_user_id")
+  to_user_id       Int?           @map("to_user_id")
+  from_facility_id Int?           @map("from_facility_id")
+  to_facility_id   Int?           @map("to_facility_id")
+  application_id   Int?           @map("application_id") /// nullable化（スレッドベースメッセージ対応）
+  job_id           Int?           @map("job_id") /// nullable化（スレッドベースメッセージ対応）
   /// メッセージスレッドID（段階的移行: 新規オファーチャットで使用）
-  thread_id        Int?        @map("thread_id")
+  thread_id        Int?           @map("thread_id")
   content          String
   /// 添付ファイルのURL配列（画像、PDF等）
-  attachments      String[]    @default([])
-  read_at          DateTime?   @map("read_at")
-  created_at       DateTime    @default(now()) @map("created_at")
-  updated_at       DateTime    @default(now()) @updatedAt @map("updated_at")
-  application      Application? @relation(fields: [application_id], references: [id], onDelete: Cascade)
-  fromFacility     Facility?   @relation("FacilitySentMessages", fields: [from_facility_id], references: [id], onDelete: Cascade)
-  fromUser         User?       @relation("UserSentMessages", fields: [from_user_id], references: [id], onDelete: Cascade)
-  job              Job?        @relation(fields: [job_id], references: [id], onDelete: Cascade)
-  toFacility       Facility?   @relation("FacilityReceivedMessages", fields: [to_facility_id], references: [id], onDelete: Cascade)
-  toUser           User?       @relation("UserReceivedMessages", fields: [to_user_id], references: [id], onDelete: Cascade)
+  attachments      String[]       @default([])
+  read_at          DateTime?      @map("read_at")
+  created_at       DateTime       @default(now()) @map("created_at")
+  updated_at       DateTime       @default(now()) @updatedAt @map("updated_at")
+  application      Application?   @relation(fields: [application_id], references: [id], onDelete: Cascade)
+  fromFacility     Facility?      @relation("FacilitySentMessages", fields: [from_facility_id], references: [id], onDelete: Cascade)
+  fromUser         User?          @relation("UserSentMessages", fields: [from_user_id], references: [id], onDelete: Cascade)
+  job              Job?           @relation(fields: [job_id], references: [id], onDelete: Cascade)
+  toFacility       Facility?      @relation("FacilityReceivedMessages", fields: [to_facility_id], references: [id], onDelete: Cascade)
+  toUser           User?          @relation("UserReceivedMessages", fields: [to_user_id], references: [id], onDelete: Cascade)
   thread           MessageThread? @relation(fields: [thread_id], references: [id], onDelete: Cascade)
 
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
-  updated_by_type  String?        @map("updated_by_type")
+  updated_by_type String? @map("updated_by_type")
   /// 更新者ID
-  updated_by_id    Int?           @map("updated_by_id")
+  updated_by_id   Int?    @map("updated_by_id")
 
   // パフォーマンス最適化用インデックス
   @@index([application_id, created_at])
@@ -635,19 +635,19 @@ model Message {
 
 // システム通知（運営からの自動通知）
 model SystemNotification {
-  id                Int       @id @default(autoincrement())
-  notification_key  String    // 通知種別（例: FACILITY_NEW_APPLICATION）
-  target_type       String    // WORKER または FACILITY
-  recipient_id      Int       // ワーカーID または 施設ID
-  content           String    @db.Text // 通知本文
-  application_id    Int?      // 関連する応募ID（参照用）
-  job_id            Int?      // 関連する求人ID（参照用）
-  read_at           DateTime? // 既読日時
-  created_at        DateTime  @default(now())
+  id               Int       @id @default(autoincrement())
+  notification_key String // 通知種別（例: FACILITY_NEW_APPLICATION）
+  target_type      String // WORKER または FACILITY
+  recipient_id     Int // ワーカーID または 施設ID
+  content          String    @db.Text // 通知本文
+  application_id   Int? // 関連する応募ID（参照用）
+  job_id           Int? // 関連する求人ID（参照用）
+  read_at          DateTime? // 既読日時
+  created_at       DateTime  @default(now())
 
   // リレーション
-  application       Application? @relation(fields: [application_id], references: [id], onDelete: SetNull)
-  job               Job?         @relation(fields: [job_id], references: [id], onDelete: SetNull)
+  application Application? @relation(fields: [application_id], references: [id], onDelete: SetNull)
+  job         Job?         @relation(fields: [job_id], references: [id], onDelete: SetNull)
 
   @@index([target_type, recipient_id])
   @@index([target_type, recipient_id, read_at]) // 未読カウント用複合インデックス
@@ -669,9 +669,9 @@ model Notification {
   user       User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
-  updated_by_type  String?    @map("updated_by_type")
+  updated_by_type String? @map("updated_by_type")
   /// 更新者ID
-  updated_by_id    Int?       @map("updated_by_id")
+  updated_by_id   Int?    @map("updated_by_id")
 
   @@map("notifications")
 }
@@ -689,11 +689,11 @@ enum JobStatus {
 
 /// 求人種別
 enum JobType {
-  NORMAL           // 通常求人
-  ORIENTATION      // 説明会
-  LIMITED_WORKED   // 限定求人（勤務済みの方）
+  NORMAL // 通常求人
+  ORIENTATION // 説明会
+  LIMITED_WORKED // 限定求人（勤務済みの方）
   LIMITED_FAVORITE // 限定求人（お気に入りのみ）
-  OFFER            // オファー
+  OFFER // オファー
 
   @@map("job_type")
 }
@@ -773,9 +773,9 @@ model FaqCategory {
   faqs        Faq[]
 
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
-  updated_by_type  String?  @map("updated_by_type")
+  updated_by_type String? @map("updated_by_type")
   /// 更新者ID
-  updated_by_id    Int?     @map("updated_by_id")
+  updated_by_id   Int?    @map("updated_by_id")
 
   @@map("faq_categories")
 }
@@ -793,9 +793,9 @@ model Faq {
   category     FaqCategory @relation(fields: [category_id], references: [id], onDelete: Cascade)
 
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
-  updated_by_type  String?  @map("updated_by_type")
+  updated_by_type String? @map("updated_by_type")
   /// 更新者ID
-  updated_by_id    Int?     @map("updated_by_id")
+  updated_by_id   Int?    @map("updated_by_id")
 
   @@map("faqs")
 }
@@ -812,9 +812,9 @@ model UserGuide {
   updated_at  DateTime @default(now()) @updatedAt @map("updated_at")
 
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
-  updated_by_type  String?  @map("updated_by_type")
+  updated_by_type String? @map("updated_by_type")
   /// 更新者ID
-  updated_by_id    Int?     @map("updated_by_id")
+  updated_by_id   Int?    @map("updated_by_id")
 
   @@map("user_guides")
 }
@@ -833,9 +833,9 @@ model LegalDocument {
   updated_at   DateTime  @updatedAt @map("updated_at")
 
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
-  updated_by_type  String?  @map("updated_by_type")
+  updated_by_type String? @map("updated_by_type")
   /// 更新者ID
-  updated_by_id    Int?     @map("updated_by_id")
+  updated_by_id   Int?    @map("updated_by_id")
 
   @@index([doc_type, target_type, is_current])
   @@map("legal_documents")
@@ -844,8 +844,8 @@ model LegalDocument {
 model SystemLog {
   id          Int      @id @default(autoincrement())
   admin_id    Int      @map("admin_id")
-  action      String   // e.g., "LOGIN", "UPDATE_USER", "DELETE_JOB"
-  target_type String   @map("target_type")   // "User", "Facility", "Job"
+  action      String // e.g., "LOGIN", "UPDATE_USER", "DELETE_JOB"
+  target_type String   @map("target_type") // "User", "Facility", "Job"
   target_id   Int?     @map("target_id")
   details     Json?
   created_at  DateTime @default(now()) @map("created_at")
@@ -855,16 +855,16 @@ model SystemLog {
 }
 
 model Announcement {
-  id          Int      @id @default(autoincrement())
-  title       String
-  content     String   @db.Text
-  category    String   // "NEWS", "MAINTENANCE", "EVENT", "IMPORTANT"
-  target_type String   @map("target_type")   // "WORKER", "FACILITY", "BOTH"
-  published   Boolean  @default(false)
+  id           Int       @id @default(autoincrement())
+  title        String
+  content      String    @db.Text
+  category     String // "NEWS", "MAINTENANCE", "EVENT", "IMPORTANT"
+  target_type  String    @map("target_type") // "WORKER", "FACILITY", "BOTH"
+  published    Boolean   @default(false)
   published_at DateTime? @map("published_at")
   scheduled_at DateTime? @map("scheduled_at") // 予約公開日時（この時間になったら自動公開）
-  created_at  DateTime @default(now()) @map("created_at")
-  updated_at  DateTime @updatedAt @map("updated_at")
+  created_at   DateTime  @default(now()) @map("created_at")
+  updated_at   DateTime  @updatedAt @map("updated_at")
 
   // フィルター条件（JSON形式で保存）
   // ワーカー向け: { regionIds: [], ageRanges: [], genders: [], qualifications: [], selectAll: true/false }
@@ -875,22 +875,22 @@ model Announcement {
   recipients AnnouncementRecipient[]
 
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
-  updated_by_type  String?  @map("updated_by_type")
+  updated_by_type String? @map("updated_by_type")
   /// 更新者ID
-  updated_by_id    Int?     @map("updated_by_id")
+  updated_by_id   Int?    @map("updated_by_id")
 
   @@map("announcements")
 }
 
 /// お知らせ配信先（配信時にフィルター条件を満たすユーザー/施設を記録）
 model AnnouncementRecipient {
-  id              Int      @id @default(autoincrement())
-  announcement_id Int      @map("announcement_id")
-  recipient_type  String   @map("recipient_type") // "WORKER" | "FACILITY"
-  recipient_id    Int      @map("recipient_id")   // User.id or Facility.id
-  is_read         Boolean  @default(false) @map("is_read")
+  id              Int       @id @default(autoincrement())
+  announcement_id Int       @map("announcement_id")
+  recipient_type  String    @map("recipient_type") // "WORKER" | "FACILITY"
+  recipient_id    Int       @map("recipient_id") // User.id or Facility.id
+  is_read         Boolean   @default(false) @map("is_read")
   read_at         DateTime? @map("read_at")
-  created_at      DateTime @default(now()) @map("created_at")
+  created_at      DateTime  @default(now()) @map("created_at")
 
   announcement Announcement @relation(fields: [announcement_id], references: [id], onDelete: Cascade)
 
@@ -903,16 +903,16 @@ model AnnouncementRecipient {
 
 /// 分析用地域マスタ
 model AnalyticsRegion {
-  id               Int      @id @default(autoincrement())
-  name             String   // 表示名（例: "関東エリア"）
-  prefecture_cities Json    @default("{}") @map("prefecture_cities") // { "東京都": [], "神奈川県": ["横浜市", "川崎市"] }
-  created_at       DateTime @default(now()) @map("created_at")
-  updated_at       DateTime @updatedAt @map("updated_at")
+  id                Int      @id @default(autoincrement())
+  name              String // 表示名（例: "関東エリア"）
+  prefecture_cities Json     @default("{}") @map("prefecture_cities") // { "東京都": [], "神奈川県": ["横浜市", "川崎市"] }
+  created_at        DateTime @default(now()) @map("created_at")
+  updated_at        DateTime @updatedAt @map("updated_at")
 
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
-  updated_by_type  String?  @map("updated_by_type")
+  updated_by_type String? @map("updated_by_type")
   /// 更新者ID
-  updated_by_id    Int?     @map("updated_by_id")
+  updated_by_id   Int?    @map("updated_by_id")
 
   @@map("analytics_regions")
 }
@@ -923,7 +923,7 @@ model AnalyticsDailyCache {
   date        DateTime // 集計対象日
   metric_type String   @map("metric_type") // "worker", "facility", "matching"
   filter_key  String   @default("all") @map("filter_key") // フィルター条件のキー（"all", "age_20", "region_1" 等）
-  data        Json     // 集計データ
+  data        Json // 集計データ
   created_at  DateTime @default(now()) @map("created_at")
 
   @@unique([date, metric_type, filter_key])
@@ -947,21 +947,21 @@ model RegistrationTracking {
 /// 労働条件通知書テンプレート設定
 // 労働条件通知書テンプレート設定
 model LaborDocumentTemplate {
-  id         Int      @id @default(autoincrement())
-  
+  id Int @id @default(autoincrement())
+
   // テンプレート本文（変数は {{変数名}} 形式で埋め込み）
-  template_content String @db.Text @map("template_content")
-  
+  template_content String @map("template_content") @db.Text
+
   // スタイル設定
-  accent_color    String  @default("#3B82F6") @map("accent_color")
-  
+  accent_color String @default("#3B82F6") @map("accent_color")
+
   created_at DateTime @default(now()) @map("created_at")
   updated_at DateTime @updatedAt @map("updated_at")
 
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
-  updated_by_type  String?  @map("updated_by_type")
+  updated_by_type String? @map("updated_by_type")
   /// 更新者ID
-  updated_by_id    Int?     @map("updated_by_id")
+  updated_by_id   Int?    @map("updated_by_id")
 
   @@map("labor_document_templates")
 }
@@ -976,54 +976,54 @@ model SystemTemplate {
   updated_at  DateTime @updatedAt @map("updated_at")
 
   // 施設とのリレーション（オプション：特定の施設に関連する場合など、現仕様では不要だが将来的な拡張のため）
-  facility_id Int?     @map("facility_id")
+  facility_id Int?      @map("facility_id")
   facility    Facility? @relation(fields: [facility_id], references: [id])
 
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
-  updated_by_type  String?  @map("updated_by_type")
+  updated_by_type String? @map("updated_by_type")
   /// 更新者ID
-  updated_by_id    Int?     @map("updated_by_id")
+  updated_by_id   Int?    @map("updated_by_id")
 
   @@map("system_templates")
 }
 
 // 仕事詳細フォーマット
 model JobDescriptionFormat {
-  id          Int      @id @default(autoincrement())
-  label       String   // 例: "介護：日勤"
-  content     String   @db.Text // テンプレート本文
-  sort_order  Int      @default(0) // 表示順
-  is_active   Boolean  @default(true) // 有効/無効
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
+  id         Int      @id @default(autoincrement())
+  label      String // 例: "介護：日勤"
+  content    String   @db.Text // テンプレート本文
+  sort_order Int      @default(0) // 表示順
+  is_active  Boolean  @default(true) // 有効/無効
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
-  updated_by_type  String?  @map("updated_by_type")
+  updated_by_type String? @map("updated_by_type")
   /// 更新者ID
-  updated_by_id    Int?     @map("updated_by_id")
+  updated_by_id   Int?    @map("updated_by_id")
 
   @@map("job_description_formats")
 }
 
 model PushSubscription {
-  id         Int       @id @default(autoincrement())
-  user_id    Int?      @map("user_id")
-  admin_id   Int?      @map("admin_id")
-  user_type  String    @map("user_type")  // "worker" | "facility_admin"
-  endpoint   String    @unique
+  id         Int      @id @default(autoincrement())
+  user_id    Int?     @map("user_id")
+  admin_id   Int?     @map("admin_id")
+  user_type  String   @map("user_type") // "worker" | "facility_admin"
+  endpoint   String   @unique
   p256dh     String
   auth       String
-  user_agent String?   @map("user_agent")
-  created_at DateTime  @default(now()) @map("created_at")
-  updated_at DateTime  @updatedAt @map("updated_at")
+  user_agent String?  @map("user_agent")
+  created_at DateTime @default(now()) @map("created_at")
+  updated_at DateTime @updatedAt @map("updated_at")
 
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
-  updated_by_type  String?  @map("updated_by_type")
+  updated_by_type String? @map("updated_by_type")
   /// 更新者ID
-  updated_by_id    Int?     @map("updated_by_id")
+  updated_by_id   Int?    @map("updated_by_id")
 
-  user       User?          @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  admin      FacilityAdmin? @relation(fields: [admin_id], references: [id], onDelete: Cascade)
+  user  User?          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  admin FacilityAdmin? @relation(fields: [admin_id], references: [id], onDelete: Cascade)
 
   @@map("push_subscriptions")
 }
@@ -1032,83 +1032,83 @@ model PushSubscription {
 
 /// 通知設定（ON/OFF・テンプレート）
 model NotificationSetting {
-  id               Int      @id @default(autoincrement())
-  notification_key String   @unique @map("notification_key")
+  id               Int     @id @default(autoincrement())
+  notification_key String  @unique @map("notification_key")
   name             String
   description      String?
-  target_type      String   @map("target_type") // "WORKER" | "FACILITY" | "SYSTEM_ADMIN"
+  target_type      String  @map("target_type") // "WORKER" | "FACILITY" | "SYSTEM_ADMIN"
 
   // チャンネル別ON/OFF
-  chat_enabled      Boolean  @default(true) @map("chat_enabled")
-  email_enabled     Boolean  @default(true) @map("email_enabled")
-  push_enabled      Boolean  @default(true) @map("push_enabled")
-  dashboard_enabled Boolean  @default(true) @map("dashboard_enabled") // システム管理者向けダッシュボードアラート用
+  chat_enabled      Boolean @default(true) @map("chat_enabled")
+  email_enabled     Boolean @default(true) @map("email_enabled")
+  push_enabled      Boolean @default(true) @map("push_enabled")
+  dashboard_enabled Boolean @default(true) @map("dashboard_enabled") // システム管理者向けダッシュボードアラート用
 
   // チャット通知テンプレート
-  chat_message     String?  @db.Text @map("chat_message")
+  chat_message String? @map("chat_message") @db.Text
 
   // メールテンプレート
-  email_subject    String?  @map("email_subject")
-  email_body       String?  @db.Text @map("email_body")
+  email_subject String? @map("email_subject")
+  email_body    String? @map("email_body") @db.Text
 
   // プッシュ通知テンプレート
-  push_title       String?  @map("push_title")
-  push_body        String?  @map("push_body")
+  push_title String? @map("push_title")
+  push_body  String? @map("push_body")
 
   // アラート閾値設定（システム管理者向けアラート用）
   // JSON形式で閾値条件を保存
   // 例: {"avg_rating_threshold": 2.5, "consecutive_low_rating_count": 3, "low_rating_threshold": 2}
   // 例: {"cancel_rate_threshold": 30, "consecutive_cancel_count": 3}
-  alert_thresholds Json?    @map("alert_thresholds")
+  alert_thresholds Json? @map("alert_thresholds")
 
-  created_at       DateTime @default(now()) @map("created_at")
-  updated_at       DateTime @updatedAt @map("updated_at")
+  created_at DateTime @default(now()) @map("created_at")
+  updated_at DateTime @updatedAt @map("updated_at")
 
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
-  updated_by_type  String?  @map("updated_by_type")
+  updated_by_type String? @map("updated_by_type")
   /// 更新者ID
-  updated_by_id    Int?     @map("updated_by_id")
+  updated_by_id   Int?    @map("updated_by_id")
 
   @@map("notification_settings")
 }
 
 /// 通知送信ログ（メールボックス確認用）
 model NotificationLog {
-  id                  Int      @id @default(autoincrement())
-  notification_key    String   @map("notification_key")
-  channel             String   // "CHAT" | "EMAIL" | "PUSH"
-  target_type         String   @map("target_type") // "WORKER" | "FACILITY" | "SYSTEM_ADMIN"
+  id               Int    @id @default(autoincrement())
+  notification_key String @map("notification_key")
+  channel          String // "CHAT" | "EMAIL" | "PUSH"
+  target_type      String @map("target_type") // "WORKER" | "FACILITY" | "SYSTEM_ADMIN"
 
   // 宛先
-  recipient_id        Int      @map("recipient_id")
-  recipient_name      String?  @map("recipient_name")
-  recipient_email     String?  @map("recipient_email")
+  recipient_id    Int     @map("recipient_id")
+  recipient_name  String? @map("recipient_name")
+  recipient_email String? @map("recipient_email")
 
   // メール用
-  from_address        String?  @map("from_address")
-  to_addresses        String[] @default([]) @map("to_addresses")
-  subject             String?
-  body                String?  @db.Text
+  from_address String?  @map("from_address")
+  to_addresses String[] @default([]) @map("to_addresses")
+  subject      String?
+  body         String?  @db.Text
 
   // チャット用
-  chat_application_id Int?     @map("chat_application_id")
-  chat_message        String?  @db.Text @map("chat_message")
+  chat_application_id Int?    @map("chat_application_id")
+  chat_message        String? @map("chat_message") @db.Text
 
   // プッシュ用
-  push_title          String?  @map("push_title")
-  push_body           String?  @map("push_body")
-  push_url            String?  @map("push_url")
+  push_title String? @map("push_title")
+  push_body  String? @map("push_body")
+  push_url   String? @map("push_url")
 
-  status              String   @default("SENT") // "SENT" | "FAILED"
-  error_message       String?  @map("error_message")
+  status        String  @default("SENT") // "SENT" | "FAILED"
+  error_message String? @map("error_message")
 
   // バージョン情報（デバッグ用）
   /// Git Commit SHA（短縮7桁）- コード特定用
-  app_version         String?  @map("app_version") @db.VarChar(40)
+  app_version   String? @map("app_version") @db.VarChar(40)
   /// Vercel Deployment ID - デプロイ特定用
-  deployment_id       String?  @map("deployment_id") @db.VarChar(50)
+  deployment_id String? @map("deployment_id") @db.VarChar(50)
 
-  created_at          DateTime @default(now()) @map("created_at")
+  created_at DateTime @default(now()) @map("created_at")
 
   @@index([target_type, created_at])
   @@index([notification_key])
@@ -1118,12 +1118,12 @@ model NotificationLog {
 
 /// 近隣通知の送信履歴（頻度制限用）
 model NearbyNotificationLog {
-  id              Int      @id @default(autoincrement())
-  user_id         Int      @map("user_id")
-  notification_key String  @map("notification_key")
-  sent_at         DateTime @default(now()) @map("sent_at")
+  id               Int      @id @default(autoincrement())
+  user_id          Int      @map("user_id")
+  notification_key String   @map("notification_key")
+  sent_at          DateTime @default(now()) @map("sent_at")
 
-  user            User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@index([user_id, notification_key, sent_at])
   @@map("nearby_notification_logs")
@@ -1131,48 +1131,48 @@ model NearbyNotificationLog {
 
 /// 出退勤記録
 model Attendance {
-  id              Int       @id @default(autoincrement())
-  user_id         Int       @map("user_id")
-  facility_id     Int       @map("facility_id")
-  application_id  Int?      @map("application_id")
-  job_id          Int?      @map("job_id")
+  id             Int  @id @default(autoincrement())
+  user_id        Int  @map("user_id")
+  facility_id    Int  @map("facility_id")
+  application_id Int? @map("application_id")
+  job_id         Int? @map("job_id")
 
   // 打刻時間
-  check_in_time   DateTime  @map("check_in_time")
-  check_out_time  DateTime? @map("check_out_time")
+  check_in_time  DateTime  @map("check_in_time")
+  check_out_time DateTime? @map("check_out_time")
 
   // 位置情報
-  check_in_lat    Float?    @map("check_in_lat")
-  check_in_lng    Float?    @map("check_in_lng")
-  check_out_lat   Float?    @map("check_out_lat")
-  check_out_lng   Float?    @map("check_out_lng")
+  check_in_lat  Float? @map("check_in_lat")
+  check_in_lng  Float? @map("check_in_lng")
+  check_out_lat Float? @map("check_out_lat")
+  check_out_lng Float? @map("check_out_lng")
 
   // 打刻方法
-  check_in_method   String    @default("QR") @map("check_in_method")   // "QR" | "EMERGENCY_CODE"
-  check_out_method  String?   @map("check_out_method")                 // "QR" | "EMERGENCY_CODE"
+  check_in_method  String  @default("QR") @map("check_in_method") // "QR" | "EMERGENCY_CODE"
+  check_out_method String? @map("check_out_method") // "QR" | "EMERGENCY_CODE"
 
   // 退勤タイプ
-  check_out_type    String?   @map("check_out_type")  // "ON_TIME" | "MODIFICATION_REQUIRED"
+  check_out_type String? @map("check_out_type") // "ON_TIME" | "MODIFICATION_REQUIRED"
 
   // ステータス
-  status          String    @default("CHECKED_IN") // "CHECKED_IN" | "CHECKED_OUT"
+  status String @default("CHECKED_IN") // "CHECKED_IN" | "CHECKED_OUT"
 
   // 実績時間（承認後に設定）
   actual_start_time DateTime? @map("actual_start_time")
   actual_end_time   DateTime? @map("actual_end_time")
-  actual_break_time Int?      @map("actual_break_time")  // 分単位
+  actual_break_time Int?      @map("actual_break_time") // 分単位
 
   // 給与計算結果（承認後に設定）
-  calculated_wage   Int?      @map("calculated_wage")
+  calculated_wage Int? @map("calculated_wage")
 
-  created_at      DateTime  @default(now()) @map("created_at")
-  updated_at      DateTime  @updatedAt @map("updated_at")
+  created_at DateTime @default(now()) @map("created_at")
+  updated_at DateTime @updatedAt @map("updated_at")
 
   // リレーション
-  user            User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  facility        Facility    @relation(fields: [facility_id], references: [id], onDelete: Cascade)
-  application     Application? @relation(fields: [application_id], references: [id], onDelete: SetNull)
-  job             Job?        @relation(fields: [job_id], references: [id], onDelete: SetNull)
+  user                User                           @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  facility            Facility                       @relation(fields: [facility_id], references: [id], onDelete: Cascade)
+  application         Application?                   @relation(fields: [application_id], references: [id], onDelete: SetNull)
+  job                 Job?                           @relation(fields: [job_id], references: [id], onDelete: SetNull)
   modificationRequest AttendanceModificationRequest?
   editHistories       AttendanceEditHistory[]
 
@@ -1185,39 +1185,39 @@ model Attendance {
 
 /// 勤怠変更申請
 model AttendanceModificationRequest {
-  id                    Int       @id @default(autoincrement())
-  attendance_id         Int       @unique @map("attendance_id")
+  id            Int @id @default(autoincrement())
+  attendance_id Int @unique @map("attendance_id")
 
   // 申請内容
-  requested_start_time  DateTime  @map("requested_start_time")
-  requested_end_time    DateTime  @map("requested_end_time")
-  requested_break_time  Int       @default(0) @map("requested_break_time") // 分単位
-  worker_comment        String    @db.Text @map("worker_comment")
+  requested_start_time DateTime @map("requested_start_time")
+  requested_end_time   DateTime @map("requested_end_time")
+  requested_break_time Int      @default(0) @map("requested_break_time") // 分単位
+  worker_comment       String   @map("worker_comment") @db.Text
 
   // ステータス
   // PENDING: 申請中
   // APPROVED: 承認済み
   // REJECTED: 却下済み
   // RESUBMITTED: 再申請
-  status                String    @default("PENDING")
+  status String @default("PENDING")
 
   // 承認情報
-  admin_comment         String?   @db.Text @map("admin_comment")
-  reviewed_by           Int?      @map("reviewed_by")
-  reviewed_at           DateTime? @map("reviewed_at")
+  admin_comment String?   @map("admin_comment") @db.Text
+  reviewed_by   Int?      @map("reviewed_by")
+  reviewed_at   DateTime? @map("reviewed_at")
 
   // 金額計算
-  original_amount       Int       @map("original_amount")    // 定刻での金額
-  requested_amount      Int       @map("requested_amount")   // 申請での金額
+  original_amount  Int @map("original_amount") // 定刻での金額
+  requested_amount Int @map("requested_amount") // 申請での金額
 
   // 再申請回数
-  resubmit_count        Int       @default(0) @map("resubmit_count")
+  resubmit_count Int @default(0) @map("resubmit_count")
 
-  created_at            DateTime  @default(now()) @map("created_at")
-  updated_at            DateTime  @updatedAt @map("updated_at")
+  created_at DateTime @default(now()) @map("created_at")
+  updated_at DateTime @updatedAt @map("updated_at")
 
   // リレーション
-  attendance            Attendance @relation(fields: [attendance_id], references: [id], onDelete: Cascade)
+  attendance Attendance @relation(fields: [attendance_id], references: [id], onDelete: Cascade)
 
   @@index([status])
   @@index([created_at])
@@ -1226,60 +1226,60 @@ model AttendanceModificationRequest {
 
 /// システム管理者による勤怠編集履歴
 model AttendanceEditHistory {
-  id                      Int       @id @default(autoincrement())
-  attendance_id           Int       @map("attendance_id")
+  id            Int @id @default(autoincrement())
+  attendance_id Int @map("attendance_id")
 
   // 変更者情報
-  edited_by               String    @map("edited_by") // "SYSTEM_ADMIN" or admin email
+  edited_by String @map("edited_by") // "SYSTEM_ADMIN" or admin email
 
   // 変更前の値
-  prev_actual_start_time  DateTime? @map("prev_actual_start_time")
-  prev_actual_end_time    DateTime? @map("prev_actual_end_time")
-  prev_actual_break_time  Int?      @map("prev_actual_break_time")
-  prev_calculated_wage    Int?      @map("prev_calculated_wage")
-  prev_status             String?   @map("prev_status")
+  prev_actual_start_time DateTime? @map("prev_actual_start_time")
+  prev_actual_end_time   DateTime? @map("prev_actual_end_time")
+  prev_actual_break_time Int?      @map("prev_actual_break_time")
+  prev_calculated_wage   Int?      @map("prev_calculated_wage")
+  prev_status            String?   @map("prev_status")
 
   // 変更後の値
-  new_actual_start_time   DateTime? @map("new_actual_start_time")
-  new_actual_end_time     DateTime? @map("new_actual_end_time")
-  new_actual_break_time   Int?      @map("new_actual_break_time")
-  new_calculated_wage     Int?      @map("new_calculated_wage")
-  new_status              String?   @map("new_status")
+  new_actual_start_time DateTime? @map("new_actual_start_time")
+  new_actual_end_time   DateTime? @map("new_actual_end_time")
+  new_actual_break_time Int?      @map("new_actual_break_time")
+  new_calculated_wage   Int?      @map("new_calculated_wage")
+  new_status            String?   @map("new_status")
 
   // 変更理由（必須）
-  reason                  String    @db.Text
+  reason String @db.Text
 
   // 給与手動上書きフラグ
-  wage_manually_set       Boolean   @default(false) @map("wage_manually_set")
+  wage_manually_set Boolean @default(false) @map("wage_manually_set")
 
-  created_at              DateTime  @default(now()) @map("created_at")
+  created_at DateTime @default(now()) @map("created_at")
 
   // リレーション
-  attendance              Attendance @relation(fields: [attendance_id], references: [id], onDelete: Cascade)
+  attendance Attendance @relation(fields: [attendance_id], references: [id], onDelete: Cascade)
 
   @@index([attendance_id, created_at])
   @@map("attendance_edit_histories")
 }
 
 model ErrorMessageSetting {
-  id          Int      @id @default(autoincrement())
-  key         String   @unique // APPLY_ERROR, MATCH_ERROR, SAVE_ERROR, SYSTEM_ERROR
-  title       String
-  banner_message String   @db.Text
-  detail_message String   @db.Text @default("")
-  is_active   Boolean  @default(true)
+  id             Int     @id @default(autoincrement())
+  key            String  @unique // APPLY_ERROR, MATCH_ERROR, SAVE_ERROR, SYSTEM_ERROR
+  title          String
+  banner_message String  @db.Text
+  detail_message String  @default("") @db.Text
+  is_active      Boolean @default(true)
   banner_enabled Boolean @default(true)
   chat_enabled   Boolean @default(false)
   email_enabled  Boolean @default(false)
   push_enabled   Boolean @default(false)
 
-  created_at  DateTime @default(now()) @map("created_at")
-  updated_at  DateTime @updatedAt @map("updated_at")
+  created_at DateTime @default(now()) @map("created_at")
+  updated_at DateTime @updatedAt @map("updated_at")
 
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
-  updated_by_type  String?  @map("updated_by_type")
+  updated_by_type String? @map("updated_by_type")
   /// 更新者ID
-  updated_by_id    Int?     @map("updated_by_id")
+  updated_by_id   Int?    @map("updated_by_id")
 
   @@map("error_message_settings")
 }
@@ -1288,18 +1288,18 @@ model ErrorMessageSetting {
 
 /// システム全体の設定（キーバリュー形式）
 model SystemSetting {
-  id          Int      @id @default(autoincrement())
-  key         String   @unique // 設定キー
-  value       String   @db.Text // 設定値（JSON形式も可）
-  description String?  // 設定の説明
+  id          Int     @id @default(autoincrement())
+  key         String  @unique // 設定キー
+  value       String  @db.Text // 設定値（JSON形式も可）
+  description String? // 設定の説明
 
-  created_at  DateTime @default(now()) @map("created_at")
-  updated_at  DateTime @updatedAt @map("updated_at")
+  created_at DateTime @default(now()) @map("created_at")
+  updated_at DateTime @updatedAt @map("updated_at")
 
   /// 更新者種別 ("SYSTEM_ADMIN")
-  updated_by_type  String?  @map("updated_by_type")
+  updated_by_type String? @map("updated_by_type")
   /// 更新者ID
-  updated_by_id    Int?     @map("updated_by_id")
+  updated_by_id   Int?    @map("updated_by_id")
 
   @@map("system_settings")
 }
@@ -1316,13 +1316,13 @@ model MinimumWage {
   /// 適用開始日
   effective_from DateTime @map("effective_from")
 
-  created_at     DateTime @default(now()) @map("created_at")
-  updated_at     DateTime @updatedAt @map("updated_at")
+  created_at DateTime @default(now()) @map("created_at")
+  updated_at DateTime @updatedAt @map("updated_at")
 
   /// 更新者種別 ("SYSTEM_ADMIN")
-  updated_by_type  String?  @map("updated_by_type")
+  updated_by_type String? @map("updated_by_type")
   /// 更新者ID
-  updated_by_id    Int?     @map("updated_by_id")
+  updated_by_id   Int?    @map("updated_by_id")
 
   @@unique([prefecture, effective_from], name: "prefecture_effective_from")
   @@index([prefecture])
@@ -1351,10 +1351,10 @@ model MinimumWageHistory {
 
 /// デバッグチェック進捗（A〜Jさんの10人固定）
 model DebugCheckProgress {
-  id        Int      @id @default(autoincrement())
-  user_name String   @map("user_name") // "A", "B", "C", ..., "J"
-  item_key  String   @map("item_key")  // チェック項目のキー
-  checked   Boolean  @default(true)
+  id         Int      @id @default(autoincrement())
+  user_name  String   @map("user_name") // "A", "B", "C", ..., "J"
+  item_key   String   @map("item_key") // チェック項目のキー
+  checked    Boolean  @default(true)
   updated_at DateTime @updatedAt @map("updated_at")
 
   @@unique([user_name, item_key])
@@ -1367,22 +1367,22 @@ model DebugCheckProgress {
 /// メッセージスレッド（ワーカー×施設の1対1チャット）
 /// 段階的移行: Phase 1では新規オファー時のみ使用、将来的に既存Messageを移行
 model MessageThread {
-  id           Int       @id @default(autoincrement())
-  worker_id    Int       @map("worker_id")
-  facility_id  Int       @map("facility_id")
+  id              Int       @id @default(autoincrement())
+  worker_id       Int       @map("worker_id")
+  facility_id     Int       @map("facility_id")
   /// 最終メッセージ日時（ソート用）
   last_message_at DateTime? @map("last_message_at")
-  created_at   DateTime  @default(now()) @map("created_at")
-  updated_at   DateTime  @updatedAt @map("updated_at")
+  created_at      DateTime  @default(now()) @map("created_at")
+  updated_at      DateTime  @updatedAt @map("updated_at")
 
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
-  updated_by_type  String?  @map("updated_by_type")
+  updated_by_type String? @map("updated_by_type")
   /// 更新者ID
-  updated_by_id    Int?     @map("updated_by_id")
+  updated_by_id   Int?    @map("updated_by_id")
 
-  worker       User      @relation(fields: [worker_id], references: [id], onDelete: Cascade)
-  facility     Facility  @relation(fields: [facility_id], references: [id], onDelete: Cascade)
-  messages     Message[]
+  worker   User      @relation(fields: [worker_id], references: [id], onDelete: Cascade)
+  facility Facility  @relation(fields: [facility_id], references: [id], onDelete: Cascade)
+  messages Message[]
 
   @@unique([worker_id, facility_id])
   @@index([worker_id])
@@ -1395,18 +1395,18 @@ model MessageThread {
 model OfferTemplate {
   id          Int      @id @default(autoincrement())
   facility_id Int      @map("facility_id")
-  name        String   /// テンプレート名（例: "通常オファー"、"緊急募集用"）
+  name        String /// テンプレート名（例: "通常オファー"、"緊急募集用"）
   message     String   @db.Text /// オファーメッセージ本文
   sort_order  Int      @default(0) @map("sort_order")
   created_at  DateTime @default(now()) @map("created_at")
   updated_at  DateTime @updatedAt @map("updated_at")
 
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
-  updated_by_type  String?  @map("updated_by_type")
+  updated_by_type String? @map("updated_by_type")
   /// 更新者ID
-  updated_by_id    Int?     @map("updated_by_id")
+  updated_by_id   Int?    @map("updated_by_id")
 
-  facility    Facility @relation(fields: [facility_id], references: [id], onDelete: Cascade)
+  facility Facility @relation(fields: [facility_id], references: [id], onDelete: Cascade)
 
   @@index([facility_id])
   @@map("offer_templates")
@@ -1417,39 +1417,39 @@ model OfferTemplate {
 /// ユーザー操作ログ（デバッグ・調査用）
 /// Vercel Logs（3日）+ DB（長期保存）の二重記録
 model UserActivityLog {
-  id            Int      @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
   // 誰が
-  user_type     String   @map("user_type")    // "WORKER" | "FACILITY" | "GUEST"
-  user_id       Int?     @map("user_id")      // User.id or FacilityAdmin.id
-  user_email    String?  @map("user_email")   // 特定しやすいように
+  user_type  String  @map("user_type") // "WORKER" | "FACILITY" | "GUEST"
+  user_id    Int?    @map("user_id") // User.id or FacilityAdmin.id
+  user_email String? @map("user_email") // 特定しやすいように
 
   // 何をした
-  action        String                        // "LOGIN", "PROFILE_UPDATE", "JOB_APPLY", etc.
-  target_type   String?  @map("target_type")  // "Job", "Application", "Message", etc.
-  target_id     Int?     @map("target_id")    // 対象のID
+  action      String // "LOGIN", "PROFILE_UPDATE", "JOB_APPLY", etc.
+  target_type String? @map("target_type") // "Job", "Application", "Message", etc.
+  target_id   Int?    @map("target_id") // 対象のID
 
   // どんなデータ
-  request_data  Json?    @map("request_data")  // 送信されたデータ
-  response_data Json?    @map("response_data") // レスポンス（あれば）
+  request_data  Json? @map("request_data") // 送信されたデータ
+  response_data Json? @map("response_data") // レスポンス（あれば）
 
   // 結果
-  result        String   @default("SUCCESS")   // "SUCCESS" | "ERROR"
-  error_message String?  @map("error_message")
-  error_stack   String?  @db.Text @map("error_stack")
+  result        String  @default("SUCCESS") // "SUCCESS" | "ERROR"
+  error_message String? @map("error_message")
+  error_stack   String? @map("error_stack") @db.Text
 
   // コンテキスト
-  url           String?                        // リクエストURL
-  user_agent    String?  @map("user_agent")
-  ip_address    String?  @map("ip_address")
+  url        String? // リクエストURL
+  user_agent String? @map("user_agent")
+  ip_address String? @map("ip_address")
 
   // バージョン情報（デバッグ用）
   /// Git Commit SHA（短縮7桁）- コード特定用
-  app_version   String?  @map("app_version") @db.VarChar(40)
+  app_version   String? @map("app_version") @db.VarChar(40)
   /// Vercel Deployment ID - デプロイ特定用
-  deployment_id String?  @map("deployment_id") @db.VarChar(50)
+  deployment_id String? @map("deployment_id") @db.VarChar(50)
 
-  created_at    DateTime @default(now()) @map("created_at")
+  created_at DateTime @default(now()) @map("created_at")
 
   @@index([user_type, user_id])
   @@index([action])
@@ -1496,9 +1496,9 @@ model Branch {
 
 /// ワーカー銀行口座情報（構造化データ）
 model BankAccount {
-  id                String      @id @default(cuid())
-  userId            Int         @unique @map("user_id")
-  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId Int    @unique @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   bankCode          String      @map("bank_code") @db.VarChar(4)
   bankName          String      @map("bank_name") @db.VarChar(100)
@@ -1508,21 +1508,21 @@ model BankAccount {
   accountNumber     String      @map("account_number") @db.VarChar(7)
   accountHolderName String      @map("account_holder_name") @db.VarChar(100)
 
-  createdAt         DateTime    @default(now()) @map("created_at")
-  updatedAt         DateTime    @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
-  updatedByType     String?     @map("updated_by_type")
+  updatedByType String? @map("updated_by_type")
   /// 更新者ID
-  updatedById       Int?        @map("updated_by_id")
+  updatedById   Int?    @map("updated_by_id")
 
   @@map("bank_accounts")
 }
 
 /// 口座種別
 enum AccountType {
-  ORDINARY  // 普通
-  CURRENT   // 当座
+  ORDINARY // 普通
+  CURRENT // 当座
 
   @@map("account_type")
 }
@@ -1532,9 +1532,9 @@ enum AccountType {
 /// LPページビュー（アクセス記録）
 model LpPageView {
   id            Int      @id @default(autoincrement())
-  lp_id         String   @map("lp_id")           // LP番号（"0", "1", "2"...）
-  campaign_code String?  @map("campaign_code")   // キャンペーンコード（nullなら直接アクセス）
-  session_id    String   @map("session_id")      // セッション識別子
+  lp_id         String   @map("lp_id") // LP番号（"0", "1", "2"...）
+  campaign_code String?  @map("campaign_code") // キャンペーンコード（nullなら直接アクセス）
+  session_id    String   @map("session_id") // セッション識別子
   user_agent    String?  @map("user_agent")
   referrer      String?
   ip_address    String?  @map("ip_address")
@@ -1548,11 +1548,11 @@ model LpPageView {
 /// LPクリックイベント（ボタンクリック記録）
 model LpClickEvent {
   id            Int      @id @default(autoincrement())
-  lp_id         String   @map("lp_id")           // LP番号
-  campaign_code String?  @map("campaign_code")   // キャンペーンコード
-  session_id    String   @map("session_id")      // セッション識別子
-  button_id     String   @map("button_id")       // クリックされたボタンの識別子
-  button_text   String?  @map("button_text")     // ボタンのテキスト
+  lp_id         String   @map("lp_id") // LP番号
+  campaign_code String?  @map("campaign_code") // キャンペーンコード
+  session_id    String   @map("session_id") // セッション識別子
+  button_id     String   @map("button_id") // クリックされたボタンの識別子
+  button_text   String?  @map("button_text") // ボタンのテキスト
   created_at    DateTime @default(now()) @map("created_at")
 
   @@index([lp_id, campaign_code])
@@ -1564,11 +1564,11 @@ model LpClickEvent {
 /// LPスクロールイベント（スクロール到達記録）
 model LpScrollEvent {
   id            Int      @id @default(autoincrement())
-  lp_id         String   @map("lp_id")           // LP番号
-  campaign_code String?  @map("campaign_code")   // キャンペーンコード
-  session_id    String   @map("session_id")      // セッション識別子
-  scroll_depth  Int      @map("scroll_depth")    // 到達スクロール深度（25, 50, 75, 90）
-  time_to_reach Int?     @map("time_to_reach")   // 到達までの秒数
+  lp_id         String   @map("lp_id") // LP番号
+  campaign_code String?  @map("campaign_code") // キャンペーンコード
+  session_id    String   @map("session_id") // セッション識別子
+  scroll_depth  Int      @map("scroll_depth") // 到達スクロール深度（25, 50, 75, 90）
+  time_to_reach Int?     @map("time_to_reach") // 到達までの秒数
   created_at    DateTime @default(now()) @map("created_at")
 
   @@index([lp_id, campaign_code])
@@ -1581,10 +1581,10 @@ model LpScrollEvent {
 /// LP滞在時間イベント（滞在時間閾値到達記録）
 model LpDwellEvent {
   id            Int      @id @default(autoincrement())
-  lp_id         String   @map("lp_id")           // LP番号
-  campaign_code String?  @map("campaign_code")   // キャンペーンコード
-  session_id    String   @map("session_id")      // セッション識別子
-  dwell_seconds Int      @map("dwell_seconds")   // 到達秒数（5, 10）
+  lp_id         String   @map("lp_id") // LP番号
+  campaign_code String?  @map("campaign_code") // キャンペーンコード
+  session_id    String   @map("session_id") // セッション識別子
+  dwell_seconds Int      @map("dwell_seconds") // 到達秒数（5, 10）
   created_at    DateTime @default(now()) @map("created_at")
 
   @@index([lp_id, campaign_code])
@@ -1597,12 +1597,12 @@ model LpDwellEvent {
 /// LPセクション別滞在時間（ヒートスポット用）
 model LpSectionDwell {
   id            Int      @id @default(autoincrement())
-  lp_id         String   @map("lp_id")           // LP番号
-  campaign_code String?  @map("campaign_code")   // キャンペーンコード
-  session_id    String   @map("session_id")      // セッション識別子
-  section_id    String   @map("section_id")      // セクションの識別子
-  section_name  String?  @map("section_name")    // セクション名（表示用）
-  dwell_seconds Float    @map("dwell_seconds")   // 滞在秒数
+  lp_id         String   @map("lp_id") // LP番号
+  campaign_code String?  @map("campaign_code") // キャンペーンコード
+  session_id    String   @map("session_id") // セッション識別子
+  section_id    String   @map("section_id") // セクションの識別子
+  section_name  String?  @map("section_name") // セクション名（表示用）
+  dwell_seconds Float    @map("dwell_seconds") // 滞在秒数
   created_at    DateTime @default(now()) @map("created_at")
 
   @@index([lp_id, campaign_code])
@@ -1613,18 +1613,18 @@ model LpSectionDwell {
 
 /// LPエンゲージメントサマリー（セッション終了時に集計）
 model LpEngagementSummary {
-  id                Int      @id @default(autoincrement())
-  lp_id             String   @map("lp_id")              // LP番号
-  campaign_code     String?  @map("campaign_code")      // キャンペーンコード
-  session_id        String   @unique @map("session_id") // セッション識別子（ユニーク）
-  max_scroll_depth  Int      @map("max_scroll_depth")   // 最大到達スクロール深度（0-100）
-  total_dwell_time  Int      @map("total_dwell_time")   // 総滞在時間（秒）
-  engagement_level  Int      @map("engagement_level")   // エンゲージメントレベル（1-5）
-  cta_clicked       Boolean  @default(false) @map("cta_clicked") // CTAクリックしたか
-  utm_source        String?  @map("utm_source")
-  utm_medium        String?  @map("utm_medium")
-  utm_campaign      String?  @map("utm_campaign")
-  created_at        DateTime @default(now()) @map("created_at")
+  id               Int      @id @default(autoincrement())
+  lp_id            String   @map("lp_id") // LP番号
+  campaign_code    String?  @map("campaign_code") // キャンペーンコード
+  session_id       String   @unique @map("session_id") // セッション識別子（ユニーク）
+  max_scroll_depth Int      @map("max_scroll_depth") // 最大到達スクロール深度（0-100）
+  total_dwell_time Int      @map("total_dwell_time") // 総滞在時間（秒）
+  engagement_level Int      @map("engagement_level") // エンゲージメントレベル（1-5）
+  cta_clicked      Boolean  @default(false) @map("cta_clicked") // CTAクリックしたか
+  utm_source       String?  @map("utm_source")
+  utm_medium       String?  @map("utm_medium")
+  utm_campaign     String?  @map("utm_campaign")
+  created_at       DateTime @default(now()) @map("created_at")
 
   @@index([lp_id, campaign_code])
   @@index([engagement_level])
@@ -1635,15 +1635,15 @@ model LpEngagementSummary {
 
 /// LPキャンペーンコードのジャンル（広告媒体）
 model LpCodeGenre {
-  id         Int       @id @default(autoincrement())
+  id         Int      @id @default(autoincrement())
   /// 3文字のプレフィックス（例: "AAA", "AAB"）
-  prefix     String    @unique @db.VarChar(3)
+  prefix     String   @unique @db.VarChar(3)
   /// ジャンル名（例: "LINE", "Meta広告"）
   name       String
   /// 表示順序
-  sort_order Int       @default(0) @map("sort_order")
-  created_at DateTime  @default(now()) @map("created_at")
-  updated_at DateTime  @updatedAt @map("updated_at")
+  sort_order Int      @default(0) @map("sort_order")
+  created_at DateTime @default(now()) @map("created_at")
+  updated_at DateTime @updatedAt @map("updated_at")
 
   /// このジャンルに属するキャンペーンコード
   campaignCodes LpCampaignCode[]
@@ -1654,24 +1654,24 @@ model LpCodeGenre {
 
 /// LPキャンペーンコード
 model LpCampaignCode {
-  id           Int       @id @default(autoincrement())
+  id         Int      @id @default(autoincrement())
   /// コード（例: "AAA-X4Y5Z6"）
-  code         String    @unique
+  code       String   @unique
   /// LP番号（"0", "1", "2" など）
-  lp_id        String    @map("lp_id")
+  lp_id      String   @map("lp_id")
   /// ジャンルID
-  genre_id     Int       @map("genre_id")
+  genre_id   Int      @map("genre_id")
   /// 表示名（例: "LINE - AAA-X4Y5Z6"）
-  name         String?
+  name       String?
   /// メモ
-  memo         String?
+  memo       String?
   /// 有効フラグ
-  is_active    Boolean   @default(true) @map("is_active")
-  created_at   DateTime  @default(now()) @map("created_at")
-  updated_at   DateTime  @updatedAt @map("updated_at")
+  is_active  Boolean  @default(true) @map("is_active")
+  created_at DateTime @default(now()) @map("created_at")
+  updated_at DateTime @updatedAt @map("updated_at")
 
   /// ジャンル
-  genre        LpCodeGenre @relation(fields: [genre_id], references: [id])
+  genre LpCodeGenre @relation(fields: [genre_id], references: [id])
 
   @@index([lp_id])
   @@index([genre_id])
@@ -1681,44 +1681,49 @@ model LpCampaignCode {
 
 /// ランディングページ管理
 model LandingPage {
-  id          Int      @id @default(autoincrement())
+  id                 Int      @id @default(autoincrement())
   /// LP番号（0, 1, 2...）。削除されても再利用しない
-  lp_number   Int      @unique @map("lp_number")
+  lp_number          Int      @unique @map("lp_number")
   /// LP名（管理用）
-  name        String
+  name               String
   /// GTMタグが存在するか
-  has_gtm     Boolean  @default(false) @map("has_gtm")
+  has_gtm            Boolean  @default(false) @map("has_gtm")
   /// LINE Tagが存在するか
-  has_line_tag Boolean @default(false) @map("has_line_tag")
+  has_line_tag       Boolean  @default(false) @map("has_line_tag")
   /// tracking.jsが存在するか
-  has_tracking Boolean @default(false) @map("has_tracking")
+  has_tracking       Boolean  @default(false) @map("has_tracking")
   /// Supabase Storage内のパス（例: "lp/0/"）
-  storage_path String  @map("storage_path")
+  storage_path       String   @map("storage_path")
   /// 公開中かどうか
-  is_published Boolean @default(true) @map("is_published")
-  created_at  DateTime @default(now()) @map("created_at")
-  updated_at  DateTime @updatedAt @map("updated_at")
+  is_published       Boolean  @default(true) @map("is_published")
+  /// 配信用LP番号（広告URLのLP番号。例: LP2のdelivery_lp_number=1ならURLは/api/lp/1）
+  delivery_lp_number Int?     @map("delivery_lp_number")
+  /// 配信用utm_source（例: "google", "meta"）
+  delivery_utm_source String? @map("delivery_utm_source") @db.VarChar(50)
+  created_at         DateTime @default(now()) @map("created_at")
+  updated_at         DateTime @updatedAt @map("updated_at")
 
   @@index([lp_number])
   @@index([is_published])
+  @@index([delivery_lp_number, delivery_utm_source])
   @@map("landing_pages")
 }
 
 /// LINEタグ（広告プラットフォーム別LINE友だち追加URL）
 model LpLineTag {
-  id          Int      @id @default(autoincrement())
+  id         Int      @id @default(autoincrement())
   /// 識別キー（utm_sourceの値として使用。例: "meta", "google", "tiktok"）
-  key         String   @unique @db.VarChar(50)
+  key        String   @unique @db.VarChar(50)
   /// 表示名（例: "Meta広告", "Google広告"）
-  label       String
+  label      String
   /// LINE友だち追加URL
-  url         String   @db.Text
+  url        String   @db.Text
   /// 表示順序
-  sort_order  Int      @default(0) @map("sort_order")
+  sort_order Int      @default(0) @map("sort_order")
   /// デフォルト選択フラグ
-  is_default  Boolean  @default(false) @map("is_default")
-  created_at  DateTime @default(now()) @map("created_at")
-  updated_at  DateTime @updatedAt @map("updated_at")
+  is_default Boolean  @default(false) @map("is_default")
+  created_at DateTime @default(now()) @map("created_at")
+  updated_at DateTime @updatedAt @map("updated_at")
 
   @@index([sort_order])
   @@map("lp_line_tags")
