@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getSystemAdmins, createSystemAdmin, deleteSystemAdmin } from '@/src/lib/system-actions';
+import { getSystemAdmins, createSystemAdmin, deleteSystemAdmin, updateSystemAdminNotificationEmail } from '@/src/lib/system-actions';
 import { useSystemAuth } from '@/contexts/SystemAuthContext';
-import { Users, Plus, Trash2, Shield, User } from 'lucide-react';
+import { Users, Plus, Trash2, Shield, User, Mail, Pencil, Check, X } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
@@ -12,6 +12,7 @@ interface SystemAdmin {
     id: number;
     name: string;
     email: string;
+    notification_email: string | null;
     role: string;
     created_at: Date;
 }
@@ -26,6 +27,10 @@ export default function SystemAdminsPage() {
     // Form state
     const [newAdmin, setNewAdmin] = useState({ name: '', email: '', role: 'admin' });
     const [createdCredentials, setCreatedCredentials] = useState<{ password: string } | null>(null);
+
+    // 通知メール編集state
+    const [editingId, setEditingId] = useState<number | null>(null);
+    const [editingEmail, setEditingEmail] = useState('');
 
     const fetchAdmins = async () => {
         setLoading(true);
@@ -122,6 +127,46 @@ export default function SystemAdminsPage() {
         }
     };
 
+    const startEditNotificationEmail = (item: SystemAdmin) => {
+        setEditingId(item.id);
+        setEditingEmail(item.notification_email || '');
+    };
+
+    const cancelEditNotificationEmail = () => {
+        setEditingId(null);
+        setEditingEmail('');
+    };
+
+    const saveNotificationEmail = async (id: number) => {
+        const trimmed = editingEmail.trim();
+        if (trimmed && !isValidEmail(trimmed)) {
+            toast.error('メールアドレスの形式が正しくありません');
+            return;
+        }
+        try {
+            const result = await updateSystemAdminNotificationEmail(id, trimmed || null);
+            if (result.success) {
+                toast.success('通知先メールを更新しました');
+                setEditingId(null);
+                setEditingEmail('');
+                fetchAdmins();
+            } else {
+                toast.error(result.error || '更新に失敗しました');
+            }
+        } catch (e) {
+            const debugInfo = extractDebugInfo(e);
+            showDebugError({
+                type: 'save',
+                operation: '通知先メール更新',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { id, editingEmail }
+            });
+            toast.error('エラーが発生しました');
+        }
+    };
+
     const closeModal = () => {
         setShowModal(false);
         setCreatedCredentials(null);
@@ -149,7 +194,8 @@ export default function SystemAdminsPage() {
                         <tr>
                             <th className="px-6 py-4">ID</th>
                             <th className="px-6 py-4">名前</th>
-                            <th className="px-6 py-4">メールアドレス</th>
+                            <th className="px-6 py-4">ログインメール</th>
+                            <th className="px-6 py-4">通知先メール</th>
                             <th className="px-6 py-4">権限</th>
                             <th className="px-6 py-4">作成日</th>
                             <th className="px-6 py-4 text-right">アクション</th>
@@ -157,18 +203,70 @@ export default function SystemAdminsPage() {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {loading ? (
-                            <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-500">読み込み中...</td></tr>
+                            <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-500">読み込み中...</td></tr>
                         ) : admins.map((item) => (
                             <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                                 <td className="px-6 py-4 text-slate-500">{item.id}</td>
-                                <td className="px-6 py-4 font-medium text-slate-800 flex items-center gap-2">
-                                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
-                                        <User className="w-4 h-4 text-slate-400" />
+                                <td className="px-6 py-4 font-medium text-slate-800">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
+                                            <User className="w-4 h-4 text-slate-400" />
+                                        </div>
+                                        {item.name}
+                                        {admin?.email === item.email && <span className="text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full ml-1">あなた</span>}
                                     </div>
-                                    {item.name}
-                                    {admin?.email === item.email && <span className="text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full ml-1">あなた</span>}
                                 </td>
-                                <td className="px-6 py-4 text-slate-600">{item.email}</td>
+                                <td className="px-6 py-4 text-slate-600 text-sm">{item.email}</td>
+                                <td className="px-6 py-4">
+                                    {editingId === item.id ? (
+                                        <div className="flex items-center gap-1">
+                                            <input
+                                                type="email"
+                                                className="px-2 py-1 border border-slate-300 rounded text-sm w-48 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                                value={editingEmail}
+                                                onChange={e => setEditingEmail(e.target.value)}
+                                                placeholder="空欄でログインメール使用"
+                                                autoFocus
+                                                onKeyDown={e => {
+                                                    if (e.key === 'Enter') saveNotificationEmail(item.id);
+                                                    if (e.key === 'Escape') cancelEditNotificationEmail();
+                                                }}
+                                            />
+                                            <button
+                                                onClick={() => saveNotificationEmail(item.id)}
+                                                className="p-1 text-green-600 hover:bg-green-50 rounded"
+                                                title="保存"
+                                            >
+                                                <Check className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={cancelEditNotificationEmail}
+                                                className="p-1 text-slate-400 hover:bg-slate-100 rounded"
+                                                title="キャンセル"
+                                            >
+                                                <X className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center gap-1">
+                                            {item.notification_email ? (
+                                                <span className="text-sm text-slate-700 flex items-center gap-1">
+                                                    <Mail className="w-3 h-3 text-indigo-500" />
+                                                    {item.notification_email}
+                                                </span>
+                                            ) : (
+                                                <span className="text-xs text-slate-400">（ログインメール使用）</span>
+                                            )}
+                                            <button
+                                                onClick={() => startEditNotificationEmail(item)}
+                                                className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded ml-1"
+                                                title="通知先メールを編集"
+                                            >
+                                                <Pencil className="w-3 h-3" />
+                                            </button>
+                                        </div>
+                                    )}
+                                </td>
                                 <td className="px-6 py-4">
                                     <span className="flex items-center gap-1 text-sm text-slate-600">
                                         <Shield className="w-3 h-3" />

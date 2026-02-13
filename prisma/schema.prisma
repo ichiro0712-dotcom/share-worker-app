@@ -752,8 +752,9 @@ model SystemAdmin {
   id            Int      @id @default(autoincrement())
   email         String   @unique
   password_hash String
-  name          String
-  role          String   @default("admin") // "super_admin", "editor", etc.
+  name                String
+  notification_email  String?  @map("notification_email")
+  role                String   @default("admin") // "super_admin", "editor", etc.
   created_at    DateTime @default(now()) @map("created_at")
   updated_at    DateTime @updatedAt @map("updated_at")
 
@@ -1230,7 +1231,8 @@ model AttendanceEditHistory {
   attendance_id           Int       @map("attendance_id")
 
   // 変更者情報
-  edited_by               String    @map("edited_by") // "SYSTEM_ADMIN" or admin email
+  edited_by               String    @map("edited_by") // admin email（セッションから自動取得）
+  editor_name             String    @default("") @map("editor_name") // 管理者名（セッションから自動取得）
 
   // 変更前の値
   prev_actual_start_time  DateTime? @map("prev_actual_start_time")

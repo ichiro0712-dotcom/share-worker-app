@@ -1035,7 +1035,7 @@ export async function sendAdminNewFacilityNotification(
     try {
         // システム管理者を取得
         const admins = await prisma.systemAdmin.findMany({
-            select: { id: true, name: true, email: true },
+            select: { id: true, name: true, email: true, notification_email: true },
         });
 
         if (admins.length === 0) return null;
@@ -1046,7 +1046,7 @@ export async function sendAdminNewFacilityNotification(
                 targetType: 'SYSTEM_ADMIN',
                 recipientId: admin.id,
                 recipientName: admin.name,
-                recipientEmail: admin.email,
+                recipientEmail: admin.notification_email || admin.email,
                 variables: {
                     facility_name: facilityName,
                     corporation_name: corporationName,
@@ -1072,7 +1072,7 @@ export async function sendAdminNewWorkerNotification(
 ) {
     try {
         const admins = await prisma.systemAdmin.findMany({
-            select: { id: true, name: true, email: true },
+            select: { id: true, name: true, email: true, notification_email: true },
         });
 
         if (admins.length === 0) return null;
@@ -1083,7 +1083,7 @@ export async function sendAdminNewWorkerNotification(
                 targetType: 'SYSTEM_ADMIN',
                 recipientId: admin.id,
                 recipientName: admin.name,
-                recipientEmail: admin.email,
+                recipientEmail: admin.notification_email || admin.email,
                 variables: {
                     worker_name: workerName,
                     worker_email: workerEmail,
@@ -1114,7 +1114,7 @@ export async function sendAdminHighCancelRateNotification(
 ) {
     try {
         const admins = await prisma.systemAdmin.findMany({
-            select: { id: true, name: true, email: true },
+            select: { id: true, name: true, email: true, notification_email: true },
         });
 
         if (admins.length === 0) return null;
@@ -1129,7 +1129,7 @@ export async function sendAdminHighCancelRateNotification(
                 targetType: 'SYSTEM_ADMIN',
                 recipientId: admin.id,
                 recipientName: admin.name,
-                recipientEmail: admin.email,
+                recipientEmail: admin.notification_email || admin.email,
                 variables: {
                     target_type: targetType === 'WORKER' ? 'ワーカー' : '施設',
                     target_name: targetName,
@@ -1158,7 +1158,7 @@ export async function sendAdminLowRatingStreakNotification(
 ) {
     try {
         const admins = await prisma.systemAdmin.findMany({
-            select: { id: true, name: true, email: true },
+            select: { id: true, name: true, email: true, notification_email: true },
         });
 
         if (admins.length === 0) return null;
@@ -1173,7 +1173,7 @@ export async function sendAdminLowRatingStreakNotification(
                 targetType: 'SYSTEM_ADMIN',
                 recipientId: admin.id,
                 recipientName: admin.name,
-                recipientEmail: admin.email,
+                recipientEmail: admin.notification_email || admin.email,
                 variables: {
                     target_type: targetType === 'WORKER' ? 'ワーカー' : '施設',
                     target_name: targetName,
