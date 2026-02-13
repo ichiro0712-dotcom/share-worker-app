@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import { toast } from 'react-hot-toast';
 import { Bell, Mail, MessageCircle, Edit2, Save, X, Copy, Check, Settings, LayoutDashboard, ChevronDown, Pencil, User } from 'lucide-react';
-import { getSystemAdmins, updateSystemAdminNotificationEmail } from '@/src/lib/system-actions';
 
 interface NotificationSetting {
     id: number;
@@ -180,7 +179,9 @@ export default function NotificationManagementPage() {
     const fetchAdmins = async () => {
         setAdminsLoading(true);
         try {
-            const data = await getSystemAdmins();
+            const res = await fetch('/api/system-admin/admins');
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
             setAdmins(data);
         } catch (error) {
             const debugInfo = extractDebugInfo(error);
@@ -219,7 +220,13 @@ export default function NotificationManagementPage() {
             return;
         }
         try {
-            const result = await updateSystemAdminNotificationEmail(id, trimmed || null);
+            const res = await fetch('/api/system-admin/admins', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, notification_email: trimmed || null }),
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const result = await res.json();
             if (result.success) {
                 toast.success('通知先メールを更新しました');
                 setEditingAdminId(null);
