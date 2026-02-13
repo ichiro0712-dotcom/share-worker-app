@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import { toast } from 'react-hot-toast';
-import { Bell, Mail, MessageCircle, Edit2, Save, X, Copy, Check, Settings, LayoutDashboard, ChevronDown } from 'lucide-react';
+import { Bell, Mail, MessageCircle, Edit2, Save, X, Copy, Check, Settings, LayoutDashboard, ChevronDown, Pencil, User } from 'lucide-react';
+import { getSystemAdmins, updateSystemAdminNotificationEmail } from '@/src/lib/system-actions';
 
 interface NotificationSetting {
     id: number;
@@ -48,7 +49,15 @@ const isCancelRateAlert = (key: string) => key.includes('CANCEL_RATE');
 
 
 
-type TabType = 'WORKER' | 'FACILITY' | 'SYSTEM_ADMIN' | 'ERROR_MESSAGE';
+type TabType = 'WORKER' | 'FACILITY' | 'SYSTEM_ADMIN' | 'ERROR_MESSAGE' | 'RECIPIENTS';
+
+interface SystemAdminItem {
+    id: number;
+    name: string;
+    email: string;
+    notification_email: string | null;
+    role: string;
+}
 
 interface ErrorMessageSetting {
     id: number;
@@ -110,9 +119,17 @@ export default function NotificationManagementPage() {
     const [copiedVariable, setCopiedVariable] = useState<string | null>(null);
     const [isVariablesExpanded, setIsVariablesExpanded] = useState(false);
 
+    // 通知先設定タブ用state
+    const [admins, setAdmins] = useState<SystemAdminItem[]>([]);
+    const [adminsLoading, setAdminsLoading] = useState(false);
+    const [editingAdminId, setEditingAdminId] = useState<number | null>(null);
+    const [editingAdminEmail, setEditingAdminEmail] = useState('');
+
     useEffect(() => {
         if (activeTab === 'ERROR_MESSAGE') {
             fetchErrorMessageSettings();
+        } else if (activeTab === 'RECIPIENTS') {
+            fetchAdmins();
         } else {
             fetchSettings();
         }
@@ -157,6 +174,71 @@ export default function NotificationManagementPage() {
             toast.error('エラーメッセージの取得に失敗しました');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchAdmins = async () => {
+        setAdminsLoading(true);
+        try {
+            const data = await getSystemAdmins();
+            setAdmins(data);
+        } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'fetch',
+                operation: '管理者一覧取得',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack
+            });
+            toast.error('管理者一覧の取得に失敗しました');
+        } finally {
+            setAdminsLoading(false);
+        }
+    };
+
+    const isValidEmail = (email: string): boolean => {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email);
+    };
+
+    const startEditAdmin = (item: SystemAdminItem) => {
+        setEditingAdminId(item.id);
+        setEditingAdminEmail(item.notification_email || '');
+    };
+
+    const cancelEditAdmin = () => {
+        setEditingAdminId(null);
+        setEditingAdminEmail('');
+    };
+
+    const saveAdminNotificationEmail = async (id: number) => {
+        const trimmed = editingAdminEmail.trim();
+        if (trimmed && !isValidEmail(trimmed)) {
+            toast.error('メールアドレスの形式が正しくありません');
+            return;
+        }
+        try {
+            const result = await updateSystemAdminNotificationEmail(id, trimmed || null);
+            if (result.success) {
+                toast.success('通知先メールを更新しました');
+                setEditingAdminId(null);
+                setEditingAdminEmail('');
+                fetchAdmins();
+            } else {
+                toast.error(result.error || '更新に失敗しました');
+            }
+        } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'save',
+                operation: '通知先メール更新',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { id, editingAdminEmail }
+            });
+            toast.error('エラーが発生しました');
         }
     };
 
@@ -347,6 +429,7 @@ export default function NotificationManagementPage() {
         { key: 'FACILITY', label: '施設向け' },
         { key: 'SYSTEM_ADMIN', label: 'システム管理者向け' },
         { key: 'ERROR_MESSAGE', label: 'エラーメッセ' },
+        { key: 'RECIPIENTS', label: '通知先設定' },
     ];
 
     if (loading) {
@@ -381,7 +464,100 @@ export default function NotificationManagementPage() {
             </div>
 
             {/* 通知一覧 */}
-            {activeTab !== 'ERROR_MESSAGE' ? (
+            {activeTab === 'RECIPIENTS' ? (
+                /* 通知先設定タブ */
+                <div>
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                        <p className="text-sm text-blue-700">
+                            システム管理者ごとに通知先メールアドレスを設定できます。未設定の場合はログインメールアドレスに送信されます。
+                        </p>
+                    </div>
+
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <table className="w-full text-left border-collapse">
+                            <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold">
+                                <tr>
+                                    <th className="px-6 py-4">管理者</th>
+                                    <th className="px-6 py-4">ログインメール</th>
+                                    <th className="px-6 py-4">通知先メール</th>
+                                    <th className="px-6 py-4 w-20"></th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {adminsLoading ? (
+                                    <tr><td colSpan={4} className="px-6 py-12 text-center text-slate-500">読み込み中...</td></tr>
+                                ) : admins.map((item) => (
+                                    <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                                        <td className="px-6 py-4 font-medium text-slate-800">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
+                                                    <User className="w-4 h-4 text-slate-400" />
+                                                </div>
+                                                {item.name}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-sm text-slate-500">{item.email}</td>
+                                        <td className="px-6 py-4">
+                                            {editingAdminId === item.id ? (
+                                                <div className="flex items-center gap-1">
+                                                    <input
+                                                        type="email"
+                                                        className="px-2 py-1 border border-slate-300 rounded text-sm w-56 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                                        value={editingAdminEmail}
+                                                        onChange={e => setEditingAdminEmail(e.target.value)}
+                                                        placeholder="空欄でログインメール使用"
+                                                        autoFocus
+                                                        onKeyDown={e => {
+                                                            if (e.key === 'Enter') saveAdminNotificationEmail(item.id);
+                                                            if (e.key === 'Escape') cancelEditAdmin();
+                                                        }}
+                                                    />
+                                                    <button
+                                                        onClick={() => saveAdminNotificationEmail(item.id)}
+                                                        className="p-1 text-green-600 hover:bg-green-50 rounded"
+                                                        title="保存"
+                                                    >
+                                                        <Check className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={cancelEditAdmin}
+                                                        className="p-1 text-slate-400 hover:bg-slate-100 rounded"
+                                                        title="キャンセル"
+                                                    >
+                                                        <X className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center gap-1">
+                                                    {item.notification_email ? (
+                                                        <span className="text-sm text-slate-700 flex items-center gap-1">
+                                                            <Mail className="w-3 h-3 text-indigo-500" />
+                                                            {item.notification_email}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-xs text-slate-400">（ログインメール使用）</span>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-4 text-right">
+                                            {editingAdminId !== item.id && (
+                                                <button
+                                                    onClick={() => startEditAdmin(item)}
+                                                    className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                                                    title="通知先メールを編集"
+                                                >
+                                                    <Pencil className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            ) : activeTab !== 'ERROR_MESSAGE' ? (
                 <div className="space-y-4">
                     {filteredSettings.map(setting => (
                         <div
