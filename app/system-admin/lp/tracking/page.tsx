@@ -429,10 +429,13 @@ export default function TrackingPage() {
     let totalPv = 0, totalSessions = 0, totalClicks = 0, totalRegistrations = 0;
 
     // DB管理LPのみを表示（isDbManaged=true）。DB管理LPがない場合は全LP表示（後方互換）
-    const hasDbManagedLps = Object.keys(lpConfig).some(lpId => lpConfig[lpId].isDbManaged);
-    const activeLpIds = Object.keys(lpConfig)
+    // genresなど非LPキーを除外（数値IDのキーのみ対象）
+    const lpKeys = Object.keys(lpConfig).filter(key => /^\d+$/.test(key));
+    const hasDbManagedLps = lpKeys.some(lpId => lpConfig[lpId]?.isDbManaged);
+    const activeLpIds = lpKeys
       .filter(lpId => {
         const lp = lpConfig[lpId];
+        if (!lp) return false;
         if (hasDbManagedLps) {
           return lp.isDbManaged && lp.isActive !== false;
         }
