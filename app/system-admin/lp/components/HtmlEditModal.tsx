@@ -25,7 +25,6 @@ export default function HtmlEditModal({
   const [error, setError] = useState<string | null>(null);
   const [saveResult, setSaveResult] = useState<{
     has_gtm: boolean;
-    has_line_tag: boolean;
     has_tracking: boolean;
   } | null>(null);
 
@@ -138,7 +137,6 @@ export default function HtmlEditModal({
             {saveResult && (
               <div className="flex items-center gap-2 text-xs">
                 <TagStatus label="GTM" ok={saveResult.has_gtm} />
-                <TagStatus label="LINE" ok={saveResult.has_line_tag} />
                 <TagStatus label="Track" ok={saveResult.has_tracking} />
               </div>
             )}

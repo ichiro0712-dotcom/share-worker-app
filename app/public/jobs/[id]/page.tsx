@@ -1,9 +1,11 @@
+import { Suspense } from 'react';
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Script from 'next/script';
 import { headers } from 'next/headers';
 import { getPublicJobById } from '@/src/lib/actions/job-public';
 import { JobDetailClient } from '@/components/job/JobDetailClient';
+import PublicJobsTracker from '@/components/tracking/PublicJobsTracker';
 
 interface PageProps {
     params: Promise<{ id: string }>;
@@ -259,6 +261,9 @@ export default async function PublicJobDetailPage({ params }: PageProps) {
 
     return (
         <>
+            <Suspense fallback={null}>
+                <PublicJobsTracker pageType="detail" jobId={id} />
+            </Suspense>
             {/* Google for Jobs 構造化データ */}
             <Script
                 id="job-posting-jsonld"

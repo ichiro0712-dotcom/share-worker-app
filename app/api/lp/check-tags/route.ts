@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     const results: Array<{
       lpNumber: number;
       name: string;
-      checks: { has_gtm: boolean; has_line_tag: boolean; has_tracking: boolean } | null;
+      checks: { has_gtm: boolean; has_tracking: boolean } | null;
       error?: string;
     }> = [];
 
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
       const storageUrl = `${supabaseUrl}/storage/v1/object/public/${STORAGE_BUCKETS.LP_ASSETS}/${lp.lp_number}/index.html`;
 
       try {
-        const response = await fetch(storageUrl);
+        const response = await fetch(`${storageUrl}?t=${Date.now()}`, { cache: 'no-store' });
         if (!response.ok) {
           results.push({
             lpNumber: lp.lp_number,
@@ -75,7 +75,6 @@ export async function POST(request: NextRequest) {
           where: { lp_number: lp.lp_number },
           data: {
             has_gtm: checks.has_gtm,
-            has_line_tag: checks.has_line_tag,
             has_tracking: checks.has_tracking,
           },
         });

@@ -88,7 +88,7 @@ export async function GET(
   const storageUrl = `${supabaseUrl}/storage/v1/object/public/${STORAGE_BUCKETS.LP_ASSETS}/${lp.lp_number}/${filePath}`;
 
   try {
-    const response = await fetch(storageUrl);
+    const response = await fetch(`${storageUrl}?t=${Date.now()}`, { cache: 'no-store' });
 
     if (!response.ok) {
       return new NextResponse('File not found', { status: 404 });
@@ -109,6 +109,26 @@ export async function GET(
         html = html.replace(/<head\s[^>]*>/, `$&\n${metaTag}`);
       }
 
+      // DBのcta_urlでCTAリンクを動的置換（data-cats="lineFriendsFollowLink"を持つ全<a>タグのhref）
+      if (lp.cta_url) {
+        const isLineUrl = /line\.me|lin\.ee|liff/i.test(lp.cta_url);
+
+        html = html.replace(
+          /(<a\s[^>]*data-cats\s*=\s*"lineFriendsFollowLink"[^>]*href\s*=\s*")([^"]*)(")/gi,
+          `$1${lp.cta_url}$3`
+        );
+        // hrefがdata-catsより前にある場合にも対応
+        html = html.replace(
+          /(<a\s[^>]*href\s*=\s*")([^"]*)("[^>]*data-cats\s*=\s*"lineFriendsFollowLink")/gi,
+          `$1${lp.cta_url}$3`
+        );
+
+        // 非LINE CTAの場合: data-cats属性を除去（GTM経由のmarkecatsがクリックを横取りするのを防止）
+        if (!isLineUrl) {
+          html = html.replace(/\s*data-cats\s*=\s*"lineFriendsFollowLink"/gi, '');
+        }
+      }
+
       const headers: HeadersInit = {
         'Content-Type': contentType,
         'Cache-Control': 'public, max-age=60', // HTMLは1分キャッシュ
@@ -126,7 +146,7 @@ export async function GET(
 
     return new NextResponse(body, { headers });
   } catch (error) {
-    console.error('[LP API] Error fetching file:', error);
+    console.error('[LP API] Error fetching file:', { lpNumber: lp.lp_number, filePath, storageUrl, error });
     return new NextResponse('Internal Server Error', { status: 500 });
   }
 }

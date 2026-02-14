@@ -74,6 +74,9 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
   const selectedFromUrl = searchParams?.get('selected');
   const preselectedIds = selectedFromUrl ? selectedFromUrl.split(',').map(id => parseInt(id, 10)).filter(id => !isNaN(id)) : [];
 
+  // LPからの遷移かどうか（おすすめ求人ウィジェット経由）
+  const fromLp = searchParams?.get('from_lp');
+
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isFavorite, setIsFavorite] = useState(false);
   const [savedForLater, setSavedForLater] = useState(false);
@@ -562,9 +565,22 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
                 <Home className="w-5 h-5 text-gray-600" />
               </button>
             </div>
+          ) : fromLp ? (
+            <Link
+              href={`/api/lp/${fromLp}`}
+              className="flex items-center gap-1 text-sm text-primary"
+            >
+              <ChevronLeft className="w-5 h-5" />
+              <span>戻る</span>
+            </Link>
           ) : (
-            /* 左側のスペーサー */
-            <div className="w-16" />
+            <Link
+              href="/public/jobs"
+              className="flex items-center gap-1 text-sm text-primary"
+            >
+              <ChevronLeft className="w-5 h-5" />
+              <span>求人一覧</span>
+            </Link>
           )}
           <div className="flex-1 text-center text-sm">
             {formatDateTime(selectedDate || job.workDate, job.startTime, job.endTime)}

@@ -29,6 +29,7 @@ const EXCLUDED_PREFIXES = [
   '/password-reset/',
   '/auth/',  // メール認証関連ページ（verify, verify-pending, resend-verification）
   '/public/',  // SEO用公開ページ
+  '/lp/',      // LP関連ページ（ウィジェット等）
   '/terms/facility',  // 施設向け利用規約ページのみ除外
 ];
 

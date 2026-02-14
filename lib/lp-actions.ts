@@ -1,7 +1,7 @@
 'use server';
 
 import { prisma } from './prisma';
-import { uploadFile, deleteFolder, STORAGE_BUCKETS, getPublicUrl } from './supabase';
+import { uploadFile, deleteFolder, listFiles, STORAGE_BUCKETS, getPublicUrl, supabaseAdmin } from './supabase';
 import JSZip from 'jszip';
 import { TAG_PATTERNS } from './lp-tag-utils';
 
@@ -11,26 +11,14 @@ const GTM_HEAD_SNIPPET = `<!-- Google Tag Manager -->
 new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
 j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-})(window,document,'script','dataLayer','GTM-WTXNHD5K');</script>
+})(window,document,'script','dataLayer','GTM-MSBWVNVB');</script>
 <!-- End Google Tag Manager -->`;
 
 const GTM_BODY_SNIPPET = `<!-- Google Tag Manager (noscript) -->
-<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-WTXNHD5K"
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-MSBWVNVB"
 height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <!-- End Google Tag Manager (noscript) -->`;
 
-// LINE友だち登録ボタン検出用パターン（data-cats属性を自動挿入するため）
-// 以下のパターンにマッチするaタグにdata-cats="lineFriendsFollowLink"を自動挿入
-const LINE_CTA_PATTERNS = [
-  // LINE公式のリンクパターン
-  /href=["'][^"']*line\.me[^"']*["']/i,
-  /href=["'][^"']*lin\.ee[^"']*["']/i,
-  // CSSクラスベースのパターン
-  /class=["'][^"']*btn-line[^"']*["']/i,
-  /class=["'][^"']*line-btn[^"']*["']/i,
-  /class=["'][^"']*line-cta[^"']*["']/i,
-  /class=["'][^"']*line-friend[^"']*["']/i,
-];
 
 // tracking.jsスニペット
 const TRACKING_SNIPPET = `<script src="/lp/tracking.js"></script>`;
@@ -46,44 +34,12 @@ const FOOTER_LINKS_SNIPPET = `    <nav class="footer-links">
 const FOOTER_LINKS_PATTERN = /tastas\.work\/terms|tastas\.work\/privacy|careergift\.co\.jp/i;
 
 /**
- * LINE CTAボタンにdata-cats属性を自動挿入する
- * 既にdata-cats属性がある場合はスキップ
- */
-function insertDataCatsAttribute(html: string): { html: string; insertedCount: number } {
-  let modifiedHtml = html;
-  let insertedCount = 0;
-
-  // aタグを検索して、LINE関連かつdata-catsがないものに属性を追加
-  modifiedHtml = modifiedHtml.replace(
-    /<a\s([^>]*?)>/gi,
-    (match, attributes) => {
-      // 既にdata-cats属性がある場合はスキップ
-      if (/data-cats=/i.test(attributes)) {
-        return match;
-      }
-
-      // LINE CTAパターンにマッチするかチェック
-      const isLineCta = LINE_CTA_PATTERNS.some((pattern) => pattern.test(match));
-      if (isLineCta) {
-        insertedCount++;
-        return `<a ${attributes} data-cats="lineFriendsFollowLink">`;
-      }
-
-      return match;
-    }
-  );
-
-  return { html: modifiedHtml, insertedCount };
-}
-
-/**
  * HTMLにタグを自動挿入する
  * 既存のタグがある場合はスキップ
  */
-function insertTagsToHtml(html: string): {
+function insertTagsToHtml(html: string, ctaUrl?: string | null): {
   html: string;
   hasGtm: boolean;
-  hasLineTag: boolean;
   hasTracking: boolean;
 } {
   let modifiedHtml = html;
@@ -91,9 +47,6 @@ function insertTagsToHtml(html: string): {
   // 既存タグの検出
   const hasGtm = TAG_PATTERNS.GTM.test(html);
   const hasTracking = TAG_PATTERNS.TRACKING.test(html);
-
-  // data-cats属性の検出（LINE Tag検知の代替）
-  let hasLineCatsAttribute = TAG_PATTERNS.LINE_CATS_ATTRIBUTE.test(html);
 
   // GTMタグを挿入（なければ）
   if (!hasGtm) {
@@ -103,21 +56,32 @@ function insertTagsToHtml(html: string): {
     modifiedHtml = modifiedHtml.replace(/<body([^>]*)>/i, `<body$1>\n${GTM_BODY_SNIPPET}`);
   }
 
-  // LINE CTAボタンにdata-cats属性を自動挿入
-  // （LINE Tag自体はGTM経由で設置されるため、ここではdata-cats属性のみ挿入）
-  if (!hasLineCatsAttribute) {
-    const result = insertDataCatsAttribute(modifiedHtml);
-    modifiedHtml = result.html;
-    if (result.insertedCount > 0) {
-      hasLineCatsAttribute = true;
-      console.log(`[LP Upload] Inserted data-cats attribute to ${result.insertedCount} LINE CTA button(s)`);
-    }
+  // data-cats="lineFriendsFollowLink" 属性を持つaタグのhrefをCTA URLに置換
+  if (ctaUrl) {
+    // hrefがdata-catsより後にある場合
+    modifiedHtml = modifiedHtml.replace(
+      /(<a\s[^>]*data-cats\s*=\s*"lineFriendsFollowLink"[^>]*href\s*=\s*")([^"]*)(")/gi,
+      `$1${ctaUrl}$3`
+    );
+    // hrefがdata-catsより前にある場合
+    modifiedHtml = modifiedHtml.replace(
+      /(<a\s[^>]*href\s*=\s*")([^"]*)("[^>]*data-cats\s*=\s*"lineFriendsFollowLink")/gi,
+      `$1${ctaUrl}$3`
+    );
+    console.log(`[LP Upload] Replaced data-cats="lineFriendsFollowLink" href with CTA URL: ${ctaUrl}`);
   }
 
   // tracking.jsを挿入（なければ）
   if (!hasTracking) {
     // </body>の直前に挿入
     modifiedHtml = modifiedHtml.replace(/<\/body>/i, `${TRACKING_SNIPPET}\n</body>`);
+  }
+
+  // jobs-widget-loader.jsを挿入（なければ）
+  const JOBS_WIDGET_SNIPPET = `<script src="/lp/jobs-widget-loader.js"></script>`;
+  const hasJobsWidget = /jobs-widget-loader\.js/i.test(modifiedHtml);
+  if (!hasJobsWidget) {
+    modifiedHtml = modifiedHtml.replace(/<\/body>/i, `${JOBS_WIDGET_SNIPPET}\n</body>`);
   }
 
   // フッターリンクを挿入（なければ）
@@ -137,7 +101,6 @@ function insertTagsToHtml(html: string): {
   return {
     html: modifiedHtml,
     hasGtm: true, // 挿入後は必ずtrue
-    hasLineTag: hasLineCatsAttribute, // data-cats属性の有無で判定
     hasTracking: true,
   };
 }
@@ -187,7 +150,7 @@ async function getNextLpNumber(): Promise<number> {
  */
 export async function getLandingPages() {
   return prisma.landingPage.findMany({
-    orderBy: { lp_number: 'asc' },
+    orderBy: [{ sort_order: 'asc' }, { lp_number: 'asc' }],
   });
 }
 
@@ -255,11 +218,13 @@ export async function uploadLandingPage(
     let lpNumber: number;
     let isOverwrite = false;
 
+    let ctaUrl: string | null = null;
     if (lpNumberStr) {
       lpNumber = parseInt(lpNumberStr, 10);
       const existing = await getLandingPageByNumber(lpNumber);
       if (existing) {
         isOverwrite = true;
+        ctaUrl = existing.cta_url;
       }
     } else {
       lpNumber = await getNextLpNumber();
@@ -275,8 +240,8 @@ export async function uploadLandingPage(
 
     let indexHtml = await indexHtmlFile.async('string');
 
-    // タグを自動挿入
-    const tagResult = insertTagsToHtml(indexHtml);
+    // タグを自動挿入（CTA URLがあればdata-cats="lineFriendsFollowLink"のhrefも置換）
+    const tagResult = insertTagsToHtml(indexHtml, ctaUrl);
     indexHtml = tagResult.html;
 
     // 画像パスを変換
@@ -342,7 +307,6 @@ export async function uploadLandingPage(
         data: {
           name,
           has_gtm: tagResult.hasGtm,
-          has_line_tag: tagResult.hasLineTag,
           has_tracking: tagResult.hasTracking,
           storage_path: `${lpNumber}/`,
           updated_at: new Date(),
@@ -354,7 +318,6 @@ export async function uploadLandingPage(
           lp_number: lpNumber,
           name,
           has_gtm: tagResult.hasGtm,
-          has_line_tag: tagResult.hasLineTag,
           has_tracking: tagResult.hasTracking,
           storage_path: `${lpNumber}/`,
         },
@@ -424,6 +387,168 @@ export async function updateLandingPageName(
   } catch (error: any) {
     console.error('[LP Update] Error:', error);
     return { success: false, error: error.message || '更新に失敗しました' };
+  }
+}
+
+/**
+ * LPのCTA URLを更新
+ */
+export async function updateLandingPageCtaUrl(
+  lpNumber: number,
+  ctaUrl: string | null
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await prisma.landingPage.update({
+      where: { lp_number: lpNumber },
+      data: { cta_url: ctaUrl || null },
+    });
+    return { success: true };
+  } catch (error: any) {
+    console.error('[LP CTA URL Update] Error:', error);
+    return { success: false, error: error.message || '更新に失敗しました' };
+  }
+}
+
+/**
+ * LP非表示/再表示を切り替え
+ */
+export async function toggleLpHidden(
+  lpNumber: number,
+  isHidden: boolean
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await prisma.landingPage.update({
+      where: { lp_number: lpNumber },
+      data: { is_hidden: isHidden },
+    });
+    return { success: true };
+  } catch (error: any) {
+    console.error('[LP Toggle Hidden] Error:', error);
+    return { success: false, error: error.message || '更新に失敗しました' };
+  }
+}
+
+/**
+ * LP表示順序を一括更新
+ */
+export async function updateLpSortOrders(
+  orders: { lpNumber: number; sortOrder: number }[]
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await prisma.$transaction(
+      orders.map(({ lpNumber, sortOrder }) =>
+        prisma.landingPage.update({
+          where: { lp_number: lpNumber },
+          data: { sort_order: sortOrder },
+        })
+      )
+    );
+    return { success: true };
+  } catch (error: any) {
+    console.error('[LP Sort Order] Error:', error);
+    return { success: false, error: error.message || '並び替えの保存に失敗しました' };
+  }
+}
+
+/**
+ * LPをコピー（Storageファイル + DB + キャンペーンコード）
+ */
+export async function copyLandingPage(
+  sourceLpNumber: number
+): Promise<{ success: boolean; newLpNumber?: number; error?: string }> {
+  try {
+    // 元LP情報を取得
+    const sourceLp = await getLandingPageByNumber(sourceLpNumber);
+    if (!sourceLp) {
+      return { success: false, error: '元のLPが見つかりません' };
+    }
+
+    // 新LP番号を取得
+    const newLpNumber = await getNextLpNumber();
+
+    // Storageファイルをコピー
+    const { files, error: listError } = await listFiles(STORAGE_BUCKETS.LP_ASSETS, String(sourceLpNumber));
+    if (listError) {
+      console.error('[LP Copy] Failed to list files:', listError);
+    }
+
+    if (files.length > 0) {
+      const copyPromises = files.map(async (filePath) => {
+        try {
+          // ファイルをダウンロード
+          const { data, error } = await supabaseAdmin.storage
+            .from(STORAGE_BUCKETS.LP_ASSETS)
+            .download(filePath);
+          if (error || !data) {
+            console.error(`[LP Copy] Failed to download ${filePath}:`, error);
+            return;
+          }
+
+          // 新しいパスにアップロード
+          const relativePath = filePath.replace(`${sourceLpNumber}/`, '');
+          const ext = relativePath.split('.').pop()?.toLowerCase() || '';
+          const contentType = getContentType(ext);
+          const buffer = Buffer.from(await data.arrayBuffer());
+
+          await uploadFile(
+            STORAGE_BUCKETS.LP_ASSETS,
+            `${newLpNumber}/${relativePath}`,
+            buffer,
+            contentType
+          );
+        } catch (e) {
+          console.error(`[LP Copy] Error copying file ${filePath}:`, e);
+        }
+      });
+      await Promise.all(copyPromises);
+    }
+
+    // 新しいsort_orderを取得（最大値+1）
+    const maxSortOrder = await prisma.landingPage.findFirst({
+      orderBy: { sort_order: 'desc' },
+    });
+    const newSortOrder = (maxSortOrder?.sort_order ?? -1) + 1;
+
+    // DB: 新LPレコード作成
+    await prisma.landingPage.create({
+      data: {
+        lp_number: newLpNumber,
+        name: `${sourceLp.name}（コピー）`,
+        has_gtm: sourceLp.has_gtm,
+        has_line_tag: sourceLp.has_line_tag,
+        has_tracking: sourceLp.has_tracking,
+        storage_path: `${newLpNumber}/`,
+        is_published: true,
+        delivery_lp_number: null,
+        delivery_utm_source: null,
+        cta_url: sourceLp.cta_url,
+        sort_order: newSortOrder,
+      },
+    });
+
+    // キャンペーンコードをコピー
+    const sourceCodes = await prisma.lpCampaignCode.findMany({
+      where: { lp_id: String(sourceLpNumber), is_active: true },
+    });
+
+    for (const code of sourceCodes) {
+      // 新しいユニークコードを生成
+      const newCode = `${code.code.split('-')[0]}-${Math.random().toString(36).substring(2, 8)}`;
+      await prisma.lpCampaignCode.create({
+        data: {
+          lp_id: String(newLpNumber),
+          code: newCode,
+          name: code.name,
+          genre_id: code.genre_id,
+          is_active: true,
+        },
+      });
+    }
+
+    return { success: true, newLpNumber };
+  } catch (error: any) {
+    console.error('[LP Copy] Error:', error);
+    return { success: false, error: error.message || 'コピーに失敗しました' };
   }
 }
 
