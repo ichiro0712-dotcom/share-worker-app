@@ -83,7 +83,7 @@ export async function GET(
       const fileUrl = `${supabaseUrl}/storage/v1/object/public/${STORAGE_BUCKETS.LP_ASSETS}/${filePath}`;
 
       try {
-        const fileResponse = await fetch(fileUrl);
+        const fileResponse = await fetch(`${fileUrl}?t=${Date.now()}`, { cache: 'no-store' });
         if (fileResponse.ok) {
           const fileBuffer = await fileResponse.arrayBuffer();
           // LP番号プレフィックスを除去してZIPに追加
@@ -121,7 +121,7 @@ export async function GET(
           const fileUrl = `${supabaseUrl}/storage/v1/object/public/${STORAGE_BUCKETS.LP_ASSETS}/${filePath}`;
 
           try {
-            const fileResponse = await fetch(fileUrl);
+            const fileResponse = await fetch(`${fileUrl}?t=${Date.now()}`, { cache: 'no-store' });
             if (fileResponse.ok) {
               const fileBuffer = await fileResponse.arrayBuffer();
               zip.file(`${subfolder}/${file.name}`, fileBuffer);

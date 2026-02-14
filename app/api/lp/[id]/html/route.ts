@@ -33,7 +33,7 @@ export async function GET(
   const storageUrl = `${supabaseUrl}/storage/v1/object/public/${STORAGE_BUCKETS.LP_ASSETS}/${lpNumber}/index.html`;
 
   try {
-    const response = await fetch(storageUrl);
+    const response = await fetch(`${storageUrl}?t=${Date.now()}`, { cache: 'no-store' });
     if (!response.ok) {
       return NextResponse.json({ error: 'HTMLファイルが見つかりません' }, { status: 404 });
     }
@@ -119,7 +119,6 @@ export async function PUT(
         where: { lp_number: lpNumber },
         data: {
           has_gtm: checks.has_gtm,
-          has_line_tag: checks.has_line_tag,
           has_tracking: checks.has_tracking,
           updated_at: new Date(),
         },

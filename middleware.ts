@@ -61,6 +61,7 @@ const ignoredPaths = [
   '/api/dev', // 開発用API（テストメール送信など）
   '/api/error-messages', // エラーメッセージ設定（認証不要）
   '/api/jobs', // 求人一覧API（ログイン前でも表示が必要）
+  '/api/public', // 公開API（おすすめ求人など）
   '/api/lp-tracking', // LPトラッキングAPI（POST: 公開、GET: 管理ページから使用）
   '/api/lp-config', // LP設定API
   '/api/lp-code-genres', // LPコードジャンルAPI

@@ -28,12 +28,19 @@ export default function TrackingSpecPage() {
             <Info className="w-5 h-5 text-indigo-600" />
             概要
           </h2>
-          <p className="text-slate-700 leading-relaxed">
+          <p className="text-slate-700 leading-relaxed mb-3">
             LPトラッキングは、各ランディングページへの訪問者の行動を計測し、
             マーケティング効果を分析するためのシステムです。
             ページビュー、スクロール深度、滞在時間、CTAクリックなどを自動で記録し、
             エンゲージメントレベルとして数値化します。
           </p>
+          <div className="p-3 bg-blue-50 rounded-lg">
+            <p className="text-sm text-blue-800">
+              <strong>2種類のトラッキング:</strong> 通常LP（ZIPアップロード方式）と
+              LP0（公開求人検索 <code className="bg-blue-100 px-1 rounded">/public/jobs</code>）では
+              計測項目が異なります。LP0は一覧→詳細の遷移型のため、求人閲覧数や閲覧求人ランキングなどLP0固有の指標があります。
+            </p>
+          </div>
         </div>
 
         {/* Data Collection */}
@@ -112,11 +119,13 @@ export default function TrackingSpecPage() {
                 <Target className="w-4 h-4 text-slate-500" />
                 <h3 className="font-medium text-slate-900">イベント（CTAクリック）</h3>
               </div>
-              <p className="text-sm text-slate-700">
-                LINE登録ボタン等のCTAボタンがクリックされた回数。
-                <code className="bg-slate-100 px-1.5 py-0.5 rounded text-sm">.btn-line-cta</code>クラスを持つ要素、
-                または「LINE」を含むボタンテキストを持つ要素のクリックを計測します。
+              <p className="text-sm text-slate-700 mb-2">
+                CTAボタンがクリックされた回数。LP種別により対象が異なります。
               </p>
+              <ul className="text-sm text-slate-600 list-disc list-inside space-y-1">
+                <li><strong>通常LP:</strong> CTAボタン（<code className="bg-slate-100 px-1 rounded">{'data-cats="lineFriendsFollowLink"'}</code>属性付きリンク、または「LINE」を含むテキスト）</li>
+                <li><strong>LP0（公開求人検索）:</strong> 「会員登録して応募する」ボタン（ボタンID: <code className="bg-slate-100 px-1 rounded">cta_register</code>）</li>
+              </ul>
             </div>
 
             {/* Event CTR */}
@@ -193,9 +202,12 @@ export default function TrackingSpecPage() {
               </ul>
               <div className="mt-3 p-3 bg-slate-50 rounded-lg">
                 <p className="text-sm text-slate-600">
-                  <strong>上限:</strong> 滞在時間は最大300秒（5分）でキャップされます。
-                  タブを開きっぱなしにした場合など、異常値が平均を引き上げることを防ぐための対策です。
+                  <strong>上限:</strong> 滞在時間はタブを開きっぱなしにした場合などの異常値を防ぐためキャップされます。
                 </p>
+                <ul className="text-sm text-slate-600 list-disc list-inside mt-1 space-y-1">
+                  <li>通常LP: 最大300秒（5分）</li>
+                  <li>LP0（公開求人検索）: 最大600秒（10分）※一覧→詳細の遷移があるため長め</li>
+                </ul>
               </div>
             </div>
 
@@ -286,7 +298,7 @@ export default function TrackingSpecPage() {
             <div className="flex items-center gap-3">
               <span className="w-4 h-4 bg-green-600 rounded-sm"></span>
               <span className="text-sm text-slate-700">
-                <strong>CTAクリックあり</strong>: LINE登録ボタン等をクリックしたセッション
+                <strong>CTAクリックあり</strong>: CTAボタン等をクリックしたセッション
               </span>
             </div>
             <div className="flex items-center gap-3">
@@ -486,6 +498,67 @@ export default function TrackingSpecPage() {
             <p className="text-sm text-indigo-800">
               <strong>分析のポイント</strong>: プレフィックスにより広告媒体ごとの流入を識別できるため、
               将来的にトラッキング一覧でジャンル別の絞り込みや比較分析が可能になります。
+            </p>
+          </div>
+        </div>
+
+        {/* LP0 Specific */}
+        <div className="bg-white rounded-xl border border-blue-200 shadow-sm p-6 mb-6">
+          <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+            <BarChart3 className="w-5 h-5 text-blue-600" />
+            LP0（公開求人検索）固有の指標
+          </h2>
+          <p className="text-slate-700 mb-4">
+            LP0は <code className="bg-slate-100 px-1.5 py-0.5 rounded text-sm">/public/jobs</code>（求人一覧）と
+            <code className="bg-slate-100 px-1.5 py-0.5 rounded text-sm">/public/jobs/[id]</code>（求人詳細）を
+            対象とするシステムLPです。通常LPとは異なる指標を計測します。
+          </p>
+
+          <div className="space-y-4">
+            <div className="border-b border-slate-200 pb-4">
+              <h3 className="font-medium text-slate-900 mb-2">求人閲覧数</h3>
+              <p className="text-sm text-slate-700">
+                求人詳細ページ（<code className="bg-slate-100 px-1 rounded">/public/jobs/[id]</code>）が閲覧された合計回数。
+                <code className="bg-slate-100 px-1 rounded">job_pageview</code> イベントで記録されます。
+              </p>
+            </div>
+
+            <div className="border-b border-slate-200 pb-4">
+              <h3 className="font-medium text-slate-900 mb-2">閲覧求人ランキング</h3>
+              <p className="text-sm text-slate-700">
+                どの求人が多く閲覧されているかを、PV数・ユニークセッション数でランキング表示します。
+                上位50件まで表示されます。
+              </p>
+            </div>
+
+            <div className="border-b border-slate-200 pb-4">
+              <h3 className="font-medium text-slate-900 mb-2">計測されない項目</h3>
+              <p className="text-sm text-slate-700 mb-2">
+                LP0では以下の項目は計測されません（一覧→詳細の遷移型ページのため）：
+              </p>
+              <ul className="text-sm text-slate-600 list-disc list-inside space-y-1">
+                <li>スクロール到達率（25/50/75/90%）</li>
+                <li>エンゲージメントレベル（常に0）</li>
+                <li>セクション別滞在時間</li>
+                <li>GTM / dataLayer連携</li>
+              </ul>
+            </div>
+
+            <div className="pb-2">
+              <h3 className="font-medium text-slate-900 mb-2">セッションIDの分離</h3>
+              <p className="text-sm text-slate-700">
+                LP0は通常LPとは別のセッションIDを使用します
+                （<code className="bg-slate-100 px-1 rounded">lp_session_id_0</code>）。
+                同一ブラウザで通常LPとLP0を両方閲覧しても、データが混在することはありません。
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+            <p className="text-sm text-blue-800">
+              <strong>トラッキング画面:</strong> LP0のトラッキングデータは
+              <code className="bg-blue-100 px-1 rounded">/system-admin/lp/tracking/public-jobs</code>
+              で確認できます。通常LPのトラッキング画面とは別ページです。
             </p>
           </div>
         </div>

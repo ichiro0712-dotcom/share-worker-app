@@ -3,7 +3,7 @@ import path from 'path';
 import Link from 'next/link';
 import LPList from './LPList';
 import DBLPList from './components/DBLPList';
-import { BarChart3, Tag, BookOpen, AlertTriangle, Megaphone, Database, FolderOpen } from 'lucide-react';
+import { BarChart3, Tag, BookOpen, AlertTriangle, Megaphone, Database, FolderOpen, Star } from 'lucide-react';
 import { getLandingPages } from '@/lib/lp-actions';
 
 // キャンペーン型
@@ -91,6 +91,13 @@ export default async function LPIndexPage() {
             >
               <Tag className="w-4 h-4" />
               コード編集
+            </Link>
+            <Link
+              href="/system-admin/lp/recommended-jobs"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg text-sm font-medium hover:bg-amber-100 transition-colors"
+            >
+              <Star className="w-4 h-4" />
+              おすすめ求人
             </Link>
             <Link
               href="/system-admin/lp/guide"
