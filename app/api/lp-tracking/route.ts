@@ -15,7 +15,7 @@ function isValidBoolean(value: unknown): value is boolean {
 }
 
 // 許可されたイベントタイプ
-const VALID_EVENT_TYPES = ['pageview', 'click', 'scroll', 'dwell', 'section_dwell', 'engagement_summary'] as const;
+const VALID_EVENT_TYPES = ['pageview', 'click', 'scroll', 'dwell', 'section_dwell', 'engagement_summary', 'job_pageview'] as const;
 type EventType = typeof VALID_EVENT_TYPES[number];
 
 function isValidEventType(value: unknown): value is EventType {
@@ -42,6 +42,8 @@ export async function POST(request: NextRequest) {
       // section_dwell用
       sectionId,
       sectionName,
+      // job_pageview用
+      jobId,
       // engagement_summary用
       maxScrollDepth,
       totalDwellTime,
@@ -183,6 +185,36 @@ export async function POST(request: NextRequest) {
             total_dwell_time: validTotalDwellTime,
             engagement_level: validEngagementLevel,
             cta_clicked: validCtaClicked,
+          },
+        });
+        break;
+
+      case 'job_pageview':
+        // job_pageviewイベントのバリデーション
+        if (!isValidNumber(jobId, 1)) {
+          return NextResponse.json({ success: false, error: 'Invalid jobId for job_pageview event' });
+        }
+        // LpPageViewにも記録（PV集計用）
+        await prisma.lpPageView.create({
+          data: {
+            lp_id: lpId,
+            campaign_code: campaignCode || null,
+            session_id: sessionId,
+            user_agent: userAgent,
+            referrer: referrer,
+            ip_address: ipAddress,
+          },
+        });
+        // PublicJobPageViewに求人ID付きで記録
+        await prisma.publicJobPageView.create({
+          data: {
+            lp_id: lpId,
+            campaign_code: campaignCode || null,
+            session_id: sessionId,
+            job_id: jobId,
+            user_agent: userAgent,
+            referrer: referrer,
+            ip_address: ipAddress,
           },
         });
         break;

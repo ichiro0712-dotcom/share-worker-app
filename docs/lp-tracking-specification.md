@@ -8,12 +8,15 @@
 ### 1.1 目的
 - LP経由の流入元（広告キャンペーン）を特定
 - ユーザーのエンゲージメント度を計測
-- CTAクリック（LINE登録）の効果を測定
+- CTAクリック（LINE登録 / 会員登録）の効果を測定
 - ワーカー登録までのコンバージョンを追跡
 - 広告投資対効果（ROI）の分析
+- 公開求人検索ページ（LP0）の閲覧行動を分析
 
 ### 1.2 対象ページ
-- `/lp/0`, `/lp/1`, `/lp/2`... - 管理画面から追加されるLPページ
+- `/lp/0`, `/lp/1`, `/lp/2`... - 管理画面から追加されるLPページ（ZIPアップロード方式）
+- `/public/jobs` - 公開求人一覧ページ（LP0: 公開求人検索）
+- `/public/jobs/[id]` - 公開求人詳細ページ（LP0: 公開求人検索）
 
 ---
 
@@ -194,22 +197,39 @@ model LandingPage {
 // StorageからHTMLを取得してスキャン → DBフラグ更新
 ```
 
-### 2.10 LINE友だち追加URLの管理
+### 2.10 CTA URL（LINE友だち追加URL等）の管理
 
-LINE友だち追加URLは各LP HTMLの `<a>` タグに直接記述する方式に変更済み。
+CTAボタン（LINE登録ボタン等）のリンク先はLP管理画面のCTA URL設定で一元管理する。
 
 **仕組み:**
-- HTMLの `<a>` タグに `data-line-url-google` / `data-line-url-meta` 属性でURLを埋め込み
-- LP配信API（`/api/lp/[id]`）が `utm_source` パラメータに応じて `href="#"` を実URLに置換
-- LP管理画面の「HTML編集」機能から各LP個別にURLを確認・変更可能
+- HTML内のCTAボタンには `data-cats="lineFriendsFollowLink"` 属性を付与
+- LP配信API（`/api/lp/[id]`）が配信時にDBの `cta_url` で `href` を動的に置換
+- LP管理画面の「CTA:」欄からURLを設定・変更可能（HTML再アップロード不要）
+- アップロード時にも `data-cats="lineFriendsFollowLink"` 属性付きタグの `href` をCTA URLに置換
 
-**広告出稿URL例:**
-| URL | LINE URL |
-|-----|----------|
-| `/api/lp/1?utm_source=google` | `data-line-url-google` の値 |
-| `/api/lp/1?utm_source=meta` | `data-line-url-meta` の値 |
-| `/api/lp/2?utm_source=google` | `data-line-url-google` の値 |
-| `/api/lp/2?utm_source=meta` | `data-line-url-meta` の値 |
+**CTAボタンの記述例:**
+```html
+<a href="#" data-cats="lineFriendsFollowLink" class="btn-line-header">LINE登録</a>
+<a href="#" data-cats="lineFriendsFollowLink" class="btn-line-cta">今すぐ登録</a>
+```
+
+**CTA URLの種類:**
+- LINE系URL（`line.me`, `lin.ee`, `liff`等）: LINE友だち追加に遷移
+- 一般URL（`https://tastas.work/`等）: 自社サイト等に直接遷移
+
+**広告媒体別の分け方:**
+広告媒体ごとにLPを分けて作成し、各LPに異なるCTA URLを設定する。
+
+| LP | CTA URL |
+|----|---------|
+| LP1（Google用） | `https://liff.line.me/xxxxx?lp=CODE1` |
+| LP2（Meta用） | `https://liff.line.me/xxxxx?lp=CODE2` |
+| LP7（直接流入用） | `https://tastas.work/` |
+
+**tracking.jsについて:**
+- LP配信時、HTMLからはSupabase Storage上の `tracking.js` が読み込まれる
+- tracking.jsはクリック計測のみを行い、CTA URLの書き換えは行わない（CTA URLの管理は配信APIが担当）
+- tracking.jsを更新する場合は `public/lp/tracking.js`（ローカル）を編集後、Storageにも反映すること
 
 ---
 
@@ -307,6 +327,8 @@ LINE友だち追加URLは各LP HTMLの `<a>` タグに直接記述する方式�
 
 ### 3.1 自動計測イベント
 
+#### 通常LP（ZIPアップロード方式）
+
 | イベント | トリガー | 記録データ |
 |---------|---------|-----------|
 | `pageview` | ページ読み込み時 | LP ID, キャンペーンコード, セッションID, UA, リファラー, IP |
@@ -318,12 +340,32 @@ LINE友だち追加URLは各LP HTMLの `<a>` タグに直接記述する方式�
 | `dwell_10s` | 10秒滞在 | 同上 |
 | `cta_click` | LINE登録ボタンクリック | LP ID, キャンペーンコード, セッションID, ボタンID, ボタンテキスト |
 
+#### LP0（公開求人検索）
+
+| イベント | トリガー | 記録データ |
+|---------|---------|-----------|
+| `pageview` | 求人一覧ページ読み込み時 | LP ID("0"), キャンペーンコード, セッションID, UA, リファラー, IP |
+| `job_pageview` | 求人詳細ページ読み込み時 | LP ID("0"), キャンペーンコード, セッションID, UA, リファラー, IP, 求人ID |
+| `click` | 「会員登録して応募する」ボタンクリック | LP ID("0"), キャンペーンコード, セッションID, ボタンID("cta_register") |
+| `engagement_summary` | ページ離脱時（visibilitychange/pagehide） | LP ID("0"), セッションID, 総滞在時間, スクロール深度(0固定), エンゲージメントレベル(0固定) |
+
+> **Note:** LP0ではスクロール深度・エンゲージメントレベルの計測は行わない（遷移型のため）。
+> `job_pageview` はLpPageViewとPublicJobPageViewの両テーブルにレコードが作成される。
+
 ### 3.2 CTAクリックの定義
+
+#### 通常LP
 - **CTAクリック = LINE登録ボタンのクリック**
 - 対象セレクタ:
   - `.btn-line-cta`
   - `.btn-line-header`
   - テキストに「LINE」を含むリンク/ボタン
+
+#### LP0（公開求人検索）
+- **CTAクリック = 「会員登録して応募する」ボタンのクリック**
+- 対象: 公開レイアウト（`app/public/layout.tsx`）の固定フッターCTAボタン
+- ボタンID: `cta_register`
+- `/public/jobs`（求人一覧ページ）ではCTAフッターは非表示
 
 ### 3.3 エンゲージメントパターン
 
@@ -356,7 +398,12 @@ LINE友だち追加URLは各LP HTMLの `<a>` タグに直接記述する方式�
 
 | キー | 値 | 用途 |
 |-----|-----|------|
-| `lp_session_id` | `sess_{random}_{timestamp}` | セッション識別 |
+| `lp_session_id` | `sess_{random}_{timestamp}` | 通常LP（ZIPアップロード方式）のセッション識別 |
+| `lp_session_id_0` | `sess_{random}_{timestamp}` | LP0（公開求人検索）専用のセッション識別 |
+
+> **重要:** 通常LPとLP0はsessionStorageのキーを分離している。
+> `LpEngagementSummary` テーブルの `session_id` が `@unique` 制約を持つため、
+> 同一ブラウザセッション内で通常LPとLP0を両方閲覧した場合のデータ衝突を防止する。
 
 ### 4.3 ワーカー登録時のアトリビューション
 
@@ -648,7 +695,33 @@ model LpEngagementSummary {
 }
 ```
 
-### 7.3 Workerテーブル拡張
+### 7.3 LP0用テーブル
+
+```prisma
+// 公開求人詳細ページの閲覧ログ（LP0専用）
+model PublicJobPageView {
+  id            Int      @id @default(autoincrement())
+  lp_id         String   @default("0")
+  campaign_code String?
+  session_id    String
+  job_id        Int
+  user_agent    String?
+  referrer      String?
+  ip_address    String?
+  created_at    DateTime @default(now())
+
+  @@index([lp_id, campaign_code])
+  @@index([job_id])
+  @@index([session_id])
+  @@index([created_at])
+  @@map("public_job_page_views")
+}
+```
+
+> **Note:** `job_pageview` イベント時、LpPageView と PublicJobPageView の両方にレコードが作成される。
+> LpPageView は全体PV集計用、PublicJobPageView は求人別の閲覧ランキング用。
+
+### 7.4 Workerテーブル拡張
 
 ```prisma
 model Worker {
@@ -673,7 +746,7 @@ model Worker {
 ```typescript
 // Request Body
 {
-  type: 'pageview' | 'scroll' | 'dwell' | 'click' | 'section_dwell' | 'engagement_summary',
+  type: 'pageview' | 'scroll' | 'dwell' | 'click' | 'section_dwell' | 'engagement_summary' | 'job_pageview',
   lpId: string,
   campaignCode?: string,
   sessionId: string,
@@ -686,6 +759,9 @@ model Worker {
   buttonText?: string,       // click用
   sectionId?: string,        // section_dwell用
   sectionName?: string,      // section_dwell用
+
+  // job_pageview用（LP0専用）
+  jobId?: number,            // 求人ID
 
   // engagement_summary用
   maxScrollDepth?: number,
@@ -754,6 +830,47 @@ model Worker {
 }
 ```
 
+### 8.3 LP0用ダッシュボードAPI
+
+**GET `/api/lp-tracking/public-jobs`**
+
+```typescript
+// Query Parameters
+{
+  startDate?: string,     // YYYY-MM-DD
+  endDate?: string,       // YYYY-MM-DD
+  genrePrefix?: string    // コードジャンルプレフィックスで絞込
+}
+
+// Response
+{
+  totalPV: number,           // LpPageView (lp_id="0") の件数
+  totalSessions: number,     // ユニークセッション数
+  jobDetailPV: number,       // PublicJobPageView の件数
+  ctaClicks: number,         // LpClickEvent (button_id="cta_register") の件数
+  ctr: number,               // ctaClicks / totalSessions * 100
+  registrations: number,     // User (registration_lp_id="0") の件数
+  cvr: number,               // registrations / totalSessions * 100
+  avgDwellTime: number,      // LpEngagementSummary の平均滞在時間（秒）
+  campaignBreakdown: [{      // キャンペーンコード別の内訳
+    campaignCode: string,
+    pv: number,
+    sessions: number,
+    jobDetailPV: number,
+    ctaClicks: number,
+    ctr: number,
+    registrations: number,
+    cvr: number
+  }],
+  jobRanking: [{             // 閲覧求人ランキング（上位50件）
+    jobId: number,
+    jobTitle: string,
+    pv: number,
+    sessions: number
+  }]
+}
+```
+
 ---
 
 ## 9. クライアントサイド実装
@@ -819,6 +936,52 @@ model Worker {
 })();
 ```
 
+### 9.2 LP0用トラッキング（PublicJobsTracker.tsx）
+
+LP0（公開求人検索）は通常LPと異なり、Next.js App Routerのページ内にクライアントコンポーネントとして配置される。
+
+```
+components/tracking/PublicJobsTracker.tsx
+```
+
+**役割:**
+- セッションID管理（sessionStorage `lp_session_id_0`）
+- キャンペーンコード取得（URLの `?c=` パラメータ → localStorage `lp_tracking_data`）
+- `pageview` 送信（求人一覧ページ）
+- `job_pageview` 送信（求人詳細ページ）
+- 滞在時間計測 → ページ離脱時に `engagement_summary` 送信（Beacon API）
+
+**通常LPとの違い:**
+
+| 項目 | 通常LP (tracking.js) | LP0 (PublicJobsTracker.tsx) |
+|------|---------------------|---------------------------|
+| 実装形式 | 外部JS（ZIPに自動挿入） | Reactクライアントコンポーネント |
+| sessionStorageキー | `lp_session_id` | `lp_session_id_0` |
+| スクロール計測 | あり（25/50/75/90%） | なし |
+| セクション別滞在 | あり | なし |
+| エンゲージメントレベル | 1〜5（滞在+スクロール） | 0固定（滞在時間のみ記録） |
+| 求人詳細PV | なし | あり（PublicJobPageView） |
+| CTAボタン | LINE登録ボタン | 「会員登録して応募する」ボタン |
+| 滞在時間キャップ | 300秒（5分） | 600秒（10分） |
+| GTM/dataLayer連携 | あり | なし |
+
+**ページ配置:**
+```tsx
+// app/public/jobs/page.tsx（求人一覧）
+<Suspense fallback={null}>
+  <PublicJobsTracker pageType="list" />
+</Suspense>
+
+// app/public/jobs/[id]/page.tsx（求人詳細）
+<Suspense fallback={null}>
+  <PublicJobsTracker pageType="detail" jobId={id} />
+</Suspense>
+```
+
+**CTAクリック計測:**
+`app/public/layout.tsx` の固定フッターCTAボタン（`<Link href="/login">`）のonClickで
+`navigator.sendBeacon` を使って `click` イベントを送信。ボタンID は `cta_register`。
+
 ---
 
 ## 10. 外部ツール連携
@@ -870,3 +1033,5 @@ GTM側でdataLayerイベントをGA4イベントに変換する設定が必要�
 - `docs/line-parameter-guide.md` - LINE運用チーム向けパラメータ設定ガイド
 - `docs/system-design.md` - システム設計書（指標定義セクション参照）
 - `/system-admin/lp/guide` - LP作成ガイド（管理画面内）
+- `/system-admin/lp/tracking/public-jobs` - LP0（公開求人検索）トラッキングダッシュボード
+- `/system-admin/lp/tracking/spec` - トラッキング仕様（管理画面内）

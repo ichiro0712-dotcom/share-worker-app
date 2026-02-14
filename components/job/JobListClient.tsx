@@ -36,6 +36,9 @@ interface JobListClientProps {
   jobs?: any[];
   facilities?: any[];
   pagination?: any;
+  // 公開版（認証不要ページ用）
+  isPublic?: boolean;
+  basePath?: string; // ページのベースパス（デフォルト: '/'）
 }
 
 // 件数取得用fetcher
@@ -51,7 +54,9 @@ export function JobListClient({
   initialPagination,
   jobs,
   facilities: propsFacilities,
-  pagination: propsPagination
+  pagination: propsPagination,
+  isPublic = false,
+  basePath = '/',
 }: JobListClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -326,9 +331,9 @@ export function JobListClient({
     }
 
     // router.replaceでURLを更新（履歴を置き換え、スクロール位置維持）
-    const newUrl = params.toString() ? `/?${params.toString()}` : '/';
+    const newUrl = params.toString() ? `${basePath}?${params.toString()}` : basePath;
     router.replace(newUrl, { scroll: false });
-  }, [searchParams, router]);
+  }, [searchParams, router, basePath]);
 
   // 日付ホバー時のプリフェッチ
   const handleDateHover = useCallback((index: number) => {
@@ -380,7 +385,7 @@ export function JobListClient({
     }
 
     const queryString = params.toString();
-    router.push(queryString ? `/?${queryString}` : '/');
+    router.push(queryString ? `${basePath}?${queryString}` : basePath);
   };
 
   const handleListTypeChange = (type: ListType) => {
@@ -490,7 +495,7 @@ export function JobListClient({
     }
 
     const queryString = params.toString();
-    router.push(queryString ? `/?${queryString}` : '/');
+    router.push(queryString ? `${basePath}?${queryString}` : basePath);
     setShowFilterModal(false);
   };
 
@@ -502,7 +507,7 @@ export function JobListClient({
     } else {
       params.set('page', String(page));
     }
-    router.push(`/?${params.toString()}`);
+    router.push(`${basePath}?${params.toString()}`);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -538,48 +543,52 @@ export function JobListClient({
         {/* フィルターエリア */}
         <div className="px-4 py-3 space-y-3">
           <div className="flex items-center justify-between">
-            {/* 左側: 求人リストタイプ選択 */}
-            <div className="relative">
-              <button
-                onClick={() => setShowListTypeMenu(!showListTypeMenu)}
-                className="flex items-center gap-1 text-sm font-medium"
-              >
-                <span>{LIST_TYPE_LABELS[listType]}</span>
-                {/* すべてタブで限定求人・オファーがある場合にドットマークを表示 */}
-                {listType === 'all' && listTypeCounts && (listTypeCounts.limited > 0 || listTypeCounts.offer > 0) && (
-                  <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+            {/* 左側: 求人リストタイプ選択（公開版では非表示） */}
+            {!isPublic ? (
+              <div className="relative">
+                <button
+                  onClick={() => setShowListTypeMenu(!showListTypeMenu)}
+                  className="flex items-center gap-1 text-sm font-medium"
+                >
+                  <span>{LIST_TYPE_LABELS[listType]}</span>
+                  {/* すべてタブで限定求人・オファーがある場合にドットマークを表示 */}
+                  {listType === 'all' && listTypeCounts && (listTypeCounts.limited > 0 || listTypeCounts.offer > 0) && (
+                    <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                  )}
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+                {showListTypeMenu && (
+                  <div className="absolute left-0 mt-2 w-40 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
+                    <button
+                      onClick={() => handleListTypeChange('all')}
+                      className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${listType === 'all' ? 'text-primary font-medium' : ''}`}
+                    >
+                      すべて{listTypeCounts ? ` (${listTypeCounts.all})` : ''}
+                    </button>
+                    <button
+                      onClick={() => handleListTypeChange('limited')}
+                      className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between ${listType === 'limited' ? 'text-primary font-medium' : ''}`}
+                    >
+                      <span>限定求人{listTypeCounts ? ` (${listTypeCounts.limited})` : ''}</span>
+                      {listTypeCounts && listTypeCounts.limited > 0 && (
+                        <span className="w-2 h-2 bg-orange-500 rounded-full" />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => handleListTypeChange('offer')}
+                      className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between ${listType === 'offer' ? 'text-primary font-medium' : ''}`}
+                    >
+                      <span>オファー{listTypeCounts ? ` (${listTypeCounts.offer})` : ''}</span>
+                      {listTypeCounts && listTypeCounts.offer > 0 && (
+                        <span className="w-2 h-2 bg-purple-500 rounded-full" />
+                      )}
+                    </button>
+                  </div>
                 )}
-                <ChevronDown className="w-4 h-4" />
-              </button>
-              {showListTypeMenu && (
-                <div className="absolute left-0 mt-2 w-40 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
-                  <button
-                    onClick={() => handleListTypeChange('all')}
-                    className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${listType === 'all' ? 'text-primary font-medium' : ''}`}
-                  >
-                    すべて{listTypeCounts ? ` (${listTypeCounts.all})` : ''}
-                  </button>
-                  <button
-                    onClick={() => handleListTypeChange('limited')}
-                    className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between ${listType === 'limited' ? 'text-primary font-medium' : ''}`}
-                  >
-                    <span>限定求人{listTypeCounts ? ` (${listTypeCounts.limited})` : ''}</span>
-                    {listTypeCounts && listTypeCounts.limited > 0 && (
-                      <span className="w-2 h-2 bg-orange-500 rounded-full" />
-                    )}
-                  </button>
-                  <button
-                    onClick={() => handleListTypeChange('offer')}
-                    className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between ${listType === 'offer' ? 'text-primary font-medium' : ''}`}
-                  >
-                    <span>オファー{listTypeCounts ? ` (${listTypeCounts.offer})` : ''}</span>
-                    {listTypeCounts && listTypeCounts.offer > 0 && (
-                      <span className="w-2 h-2 bg-purple-500 rounded-full" />
-                    )}
-                  </button>
-                </div>
-              )}
-            </div>
+              </div>
+            ) : (
+              <span className="text-sm font-medium">求人一覧</span>
+            )}
 
             {/* 右側: 絞り込み・ソート */}
             <div className="flex items-center gap-4">
@@ -681,6 +690,8 @@ export function JobListClient({
                     job={job}
                     facility={facility}
                     selectedDate={selectedDateStr}
+                    isPublic={isPublic}
+                    basePath={isPublic ? '/public/jobs' : undefined}
                   />
                 );
               })}

@@ -25,12 +25,14 @@ interface JobCardProps {
   facility: Facility;
   selectedDate?: string; // YYYY-MM-DD形式の選択された日付
   priority?: boolean;
+  isPublic?: boolean; // 公開版（ブックマーク非表示、リンク先変更）
+  basePath?: string;  // リンクベースパス（デフォルト: '/jobs'）
 }
 
 // デフォルトのプレースホルダー画像（実在するサンプル画像を使用）
 const DEFAULT_JOB_IMAGE = '/images/samples/facility_top_1.png';
 
-const JobCardComponent: React.FC<JobCardProps> = ({ job, facility, selectedDate, priority = false }) => {
+const JobCardComponent: React.FC<JobCardProps> = ({ job, facility, selectedDate, priority = false, isPublic = false, basePath }) => {
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -40,9 +42,11 @@ const JobCardComponent: React.FC<JobCardProps> = ({ job, facility, selectedDate,
 
   useEffect(() => {
     setMounted(true);
-    // ブックマーク状態を取得
-    isJobBookmarked(String(job.id), 'WATCH_LATER').then(setIsBookmarked);
-  }, [job.id]);
+    // ブックマーク状態を取得（公開版では認証不要のためスキップ）
+    if (!isPublic) {
+      isJobBookmarked(String(job.id), 'WATCH_LATER').then(setIsBookmarked);
+    }
+  }, [job.id, isPublic]);
 
   const isUrgent = mounted ? isDeadlineUrgent(job.deadline) : false;
   const deadlineText = mounted ? getDeadlineText(job.deadline) : '計算中...';
@@ -99,9 +103,10 @@ const JobCardComponent: React.FC<JobCardProps> = ({ job, facility, selectedDate,
   };
 
   // リンクURLを構築（selectedDateがあればクエリパラメータとして追加）
+  const jobBasePath = basePath || '/jobs';
   const jobDetailUrl = selectedDate
-    ? `/jobs/${job.id}?date=${selectedDate}`
-    : `/jobs/${job.id}`;
+    ? `${jobBasePath}/${job.id}?date=${selectedDate}`
+    : `${jobBasePath}/${job.id}`;
 
   // 表示するかどうかの判定（応募不可でもグレー表示で出す）
   const shouldShowUnavailable = isUnavailable || isRecruitmentEnded;
@@ -154,17 +159,19 @@ const JobCardComponent: React.FC<JobCardProps> = ({ job, facility, selectedDate,
                 </span>
               </div>
             )}
-            <button
-              onClick={handleBookmark}
-              className="absolute top-2 right-2"
-            >
-              <Bookmark
-                className={`w-5 h-5 ${isBookmarked
-                  ? 'fill-blue-500 text-blue-500'
-                  : 'text-white'
-                  }`}
-              />
-            </button>
+            {!isPublic && (
+              <button
+                onClick={handleBookmark}
+                className="absolute top-2 right-2"
+              >
+                <Bookmark
+                  className={`w-5 h-5 ${isBookmarked
+                    ? 'fill-blue-500 text-blue-500'
+                    : 'text-white'
+                    }`}
+                />
+              </button>
+            )}
           </div>
 
           {/* コンテンツ - 右側 */}
@@ -273,17 +280,19 @@ const JobCardComponent: React.FC<JobCardProps> = ({ job, facility, selectedDate,
                 </span>
               </div>
             )}
-            <button
-              onClick={handleBookmark}
-              className="absolute top-2 right-2"
-            >
-              <Bookmark
-                className={`w-5 h-5 ${isBookmarked
-                  ? 'fill-blue-500 text-blue-500'
-                  : 'text-white'
-                  }`}
-              />
-            </button>
+            {!isPublic && (
+              <button
+                onClick={handleBookmark}
+                className="absolute top-2 right-2"
+              >
+                <Bookmark
+                  className={`w-5 h-5 ${isBookmarked
+                    ? 'fill-blue-500 text-blue-500'
+                    : 'text-white'
+                    }`}
+                />
+              </button>
+            )}
           </div>
 
           {/* コンテンツ - 下側 */}

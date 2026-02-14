@@ -368,6 +368,8 @@ model Job {
   systemNotifications          SystemNotification[]
   /// 出退勤記録
   attendances                  Attendance[]
+  /// おすすめ求人登録
+  recommendedJob               RecommendedJob?
 
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
   updated_by_type String? @map("updated_by_type")
@@ -381,6 +383,19 @@ model Job {
   @@index([job_type])
   @@index([target_worker_id])
   @@map("jobs")
+}
+
+model RecommendedJob {
+  id         Int      @id @default(autoincrement())
+  job_id     Int      @unique
+  sort_order Int      @default(0)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  job Job @relation(fields: [job_id], references: [id], onDelete: Cascade)
+
+  @@index([sort_order])
+  @@map("recommended_jobs")
 }
 
 model JobWorkDate {
@@ -1635,6 +1650,25 @@ model LpEngagementSummary {
   @@map("lp_engagement_summaries")
 }
 
+/// 公開求人ページの求人詳細閲覧記録（LP0用）
+model PublicJobPageView {
+  id            Int      @id @default(autoincrement())
+  lp_id         String   @default("0") @map("lp_id")
+  campaign_code String?  @map("campaign_code")
+  session_id    String   @map("session_id")
+  job_id        Int      @map("job_id")
+  user_agent    String?  @map("user_agent")
+  referrer      String?
+  ip_address    String?  @map("ip_address")
+  created_at    DateTime @default(now()) @map("created_at")
+
+  @@index([lp_id, campaign_code])
+  @@index([job_id])
+  @@index([session_id])
+  @@index([created_at])
+  @@map("public_job_page_views")
+}
+
 /// LPキャンペーンコードのジャンル（広告媒体）
 model LpCodeGenre {
   id         Int      @id @default(autoincrement())
@@ -1702,11 +1736,19 @@ model LandingPage {
   delivery_lp_number Int?     @map("delivery_lp_number")
   /// 配信用utm_source（例: "google", "meta"）
   delivery_utm_source String? @map("delivery_utm_source") @db.VarChar(50)
+  /// CTAリンク先URL（LP内のdata-cats="lineFriendsFollowLink"タグおよびおすすめ求人ウィジェットで使用）
+  cta_url            String?  @map("cta_url") @db.Text
+  /// 非表示フラグ（管理画面のリストから隠す）
+  is_hidden          Boolean  @default(false) @map("is_hidden")
+  /// 表示順序（D&D並び替え用、小さい順に表示）
+  sort_order         Int      @default(0) @map("sort_order")
   created_at         DateTime @default(now()) @map("created_at")
   updated_at         DateTime @updatedAt @map("updated_at")
 
   @@index([lp_number])
   @@index([is_published])
+  @@index([is_hidden])
+  @@index([sort_order])
   @@index([delivery_lp_number, delivery_utm_source])
   @@map("landing_pages")
 }

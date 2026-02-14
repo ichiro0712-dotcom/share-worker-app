@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, Upload, FileArchive, CheckCircle, AlertTriangle, Tag, BarChart3, Trash2, Edit3 } from 'lucide-react';
+import { ArrowLeft, Upload, FileArchive, CheckCircle, AlertTriangle, Tag, BarChart3, Trash2, Edit3, Globe, Search } from 'lucide-react';
 import { useState } from 'react';
 
 // コードブロックコンポーネント
@@ -60,7 +60,7 @@ export default function LPGuidePage() {
           <h2 className="text-lg font-semibold text-indigo-900 mb-3">新しいLP管理方式</h2>
           <p className="text-indigo-800 mb-4">
             LPはZIPファイルでアップロードするだけで公開できます。<br />
-            <strong>GTM・LINE・トラッキングのタグは自動で挿入</strong>されるため、手動設定は不要です。
+            <strong>GTM・トラッキングのタグは自動で挿入</strong>されるため、手動設定は不要です。
           </p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
             <div className="bg-white rounded-lg p-4 border border-indigo-100">
@@ -75,7 +75,7 @@ export default function LPGuidePage() {
                 <Tag className="w-4 h-4" />
                 タグ自動挿入
               </div>
-              <p className="text-slate-600">GTM・LINE・トラッキングを自動設定</p>
+              <p className="text-slate-600">GTM・トラッキングを自動設定</p>
             </div>
             <div className="bg-white rounded-lg p-4 border border-indigo-100">
               <div className="flex items-center gap-2 text-indigo-600 font-medium mb-2">
@@ -91,6 +91,7 @@ export default function LPGuidePage() {
         <div className="bg-white rounded-xl border border-slate-200 p-6 mb-8">
           <h2 className="text-lg font-semibold text-slate-900 mb-4">目次</h2>
           <ol className="space-y-2 text-sm">
+            <li><a href="#lp-types" className="text-indigo-600 hover:underline">0. LPの種類</a></li>
             <li><a href="#zip-structure" className="text-indigo-600 hover:underline">1. ZIPファイルの構成</a></li>
             <li><a href="#upload-flow" className="text-indigo-600 hover:underline">2. アップロード手順</a></li>
             <li><a href="#auto-tags" className="text-indigo-600 hover:underline">3. 自動挿入されるタグ</a></li>
@@ -102,6 +103,56 @@ export default function LPGuidePage() {
             <li><a href="#checklist" className="text-indigo-600 hover:underline">9. リリース前チェックリスト</a></li>
           </ol>
         </div>
+
+        {/* セクション0: LPの種類 */}
+        <section id="lp-types" className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center">
+              <Globe className="w-5 h-5 text-slate-600" />
+            </div>
+            <h2 className="text-lg font-semibold text-slate-900">0. LPの種類</h2>
+          </div>
+
+          <p className="text-slate-600 mb-4">
+            LP管理画面では、2種類のLPを管理しています。
+          </p>
+
+          <div className="space-y-4">
+            <div className="p-4 border border-blue-200 bg-blue-50 rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <Search className="w-4 h-4 text-blue-600" />
+                <h3 className="font-medium text-blue-900">LP0 - 公開求人検索（システムLP）</h3>
+                <span className="text-xs bg-blue-200 text-blue-800 px-2 py-0.5 rounded-full">システム</span>
+              </div>
+              <p className="text-sm text-blue-800 mb-2">
+                <code className="bg-blue-100 px-1 rounded">/public/jobs</code>（求人一覧）と
+                <code className="bg-blue-100 px-1 rounded">/public/jobs/[id]</code>（求人詳細）ページ。
+              </p>
+              <ul className="text-sm text-blue-700 list-disc list-inside space-y-1">
+                <li>LP管理画面の最上部に青いカードとして常時表示</li>
+                <li>ZIPアップロード不要（Next.jsアプリの一部として動作）</li>
+                <li>キャンペーンコード発行・トラッキングは通常LPと同じ仕組みで利用可能</li>
+                <li>計測項目: PV、求人閲覧数、CTAクリック（会員登録ボタン）、登録数、滞在時間</li>
+                <li>トラッキング画面: 専用ダッシュボード（閲覧求人ランキング付き）</li>
+              </ul>
+            </div>
+
+            <div className="p-4 border border-slate-200 rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <FileArchive className="w-4 h-4 text-indigo-600" />
+                <h3 className="font-medium text-slate-900">通常LP（ZIPアップロード方式）</h3>
+              </div>
+              <p className="text-sm text-slate-600 mb-2">
+                ZIPファイルでアップロードするLPページ。以降のセクション（1〜9）はこの方式について説明しています。
+              </p>
+              <ul className="text-sm text-slate-600 list-disc list-inside space-y-1">
+                <li>HTMLと画像をZIPでアップロード → 自動タグ挿入 → 公開</li>
+                <li>計測項目: PV、スクロール深度、滞在時間、CTAクリック（LINE登録）、エンゲージメントレベル</li>
+                <li>GTM / Google Analytics連携対応</li>
+              </ul>
+            </div>
+          </div>
+        </section>
 
         {/* セクション1: ZIPファイルの構成 */}
         <section id="zip-structure" className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
@@ -234,16 +285,6 @@ export default function LPGuidePage() {
             </div>
 
             <div className="p-4 border border-slate-200 rounded-lg">
-              <h3 className="font-medium text-slate-900 mb-2">LINE友だち登録ボタン属性</h3>
-              <p className="text-sm text-slate-600 mb-2">
-                LINE CTAボタンの <code className="bg-slate-100 px-1 rounded">&lt;a&gt;</code> タグに挿入
-              </p>
-              <div className="text-xs text-slate-500 bg-slate-50 p-2 rounded">
-                <code>data-cats=&quot;lineFriendsFollowLink&quot;</code> 属性が自動設定されます（markecats連携用）
-              </div>
-            </div>
-
-            <div className="p-4 border border-slate-200 rounded-lg">
               <h3 className="font-medium text-slate-900 mb-2">トラッキングスクリプト</h3>
               <p className="text-sm text-slate-600 mb-2">
                 <code className="bg-slate-100 px-1 rounded">&lt;/body&gt;</code> 直前に挿入
@@ -287,44 +328,58 @@ export default function LPGuidePage() {
           </div>
 
           <p className="text-slate-600 mb-4">
-            LINE登録ボタンは、以下のクラス名を設定するとクリック計測され、URLも自動設定されます。
-            <strong>hrefは「#」でOK</strong> です。
+            CTAボタン（LINE登録ボタン等）のリンク先は、<strong>LP管理画面のCTA URL設定</strong>と<strong>HTMLの <code className="bg-slate-100 px-1 rounded">{'data-cats="lineFriendsFollowLink"'}</code> 属性</strong>で管理します。
           </p>
 
-          <CodeBlock code={`<!-- CTAボタンの推奨設定 -->
-<a href="#" class="btn-line-cta">
+          <div className="space-y-4">
+            <div className="p-4 border border-slate-200 rounded-lg">
+              <h3 className="font-medium text-slate-900 mb-2">Step 1: LP管理画面でCTA URLを設定</h3>
+              <p className="text-sm text-slate-600">
+                LP管理画面の各LPカードの「CTA:」欄をクリックしてリンク先URLを設定します。
+                おすすめ求人ウィジェットのCTAリンク先もここで設定したURLが使われます。
+              </p>
+            </div>
+
+            <div className="p-4 border border-slate-200 rounded-lg">
+              <h3 className="font-medium text-slate-900 mb-2">Step 2: HTML内のCTAボタンに属性を付ける</h3>
+              <p className="text-sm text-slate-600 mb-3">
+                LP HTML内のCTAボタン（<code className="bg-slate-100 px-1 rounded">&lt;a&gt;</code>タグ）に <code className="bg-slate-100 px-1 rounded">{'data-cats="lineFriendsFollowLink"'}</code> 属性を追加します。
+                <strong>hrefは仮の値でOK</strong>です。アップロード時・配信時にCTA URLに自動置換されます。
+              </p>
+              <CodeBlock code={`<!-- CTAボタンの推奨設定 -->
+<a href="#" data-cats="lineFriendsFollowLink">
   今すぐ公式LINEに登録
 </a>
 
-<!-- ヘッダーのLINEボタン -->
-<a href="#" class="btn-line-header">
-  LINE登録
-</a>
+<!-- 複数のCTAボタンを配置可能（すべて同じURLに置換される） -->
+<a href="#" data-cats="lineFriendsFollowLink" class="btn-line-header">LINE登録</a>
+<a href="#" data-cats="lineFriendsFollowLink" class="btn-line-cta">今すぐ登録</a>
+<a href="#" data-cats="lineFriendsFollowLink" class="btn-line-cta">無料で始める</a>
 
-<!-- 自動挿入後（data-cats属性が追加される） -->
-<a href="#" class="btn-line-cta" data-cats="lineFriendsFollowLink">
+<!-- 配信時（hrefが自動的にCTA URLに置換される） -->
+<a href="https://liff.line.me/xxxxx" data-cats="lineFriendsFollowLink">
   今すぐ公式LINEに登録
 </a>`} />
+            </div>
+          </div>
 
           <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
             <h4 className="text-sm font-semibold text-green-800 mb-2">自動処理</h4>
             <ul className="text-sm text-green-700 space-y-1">
-              <li>• <code className="bg-green-100 px-1 rounded">href=&quot;#&quot;</code> は自動でLINE URLに置換されます</li>
-              <li>• <code className="bg-green-100 px-1 rounded">?utm_source=google</code> → Google広告用LINE URL</li>
-              <li>• <code className="bg-green-100 px-1 rounded">?utm_source=meta</code> → Meta広告用LINE URL</li>
-              <li>• その他のタグもLP管理画面の「LINEタグ管理」から追加・編集可能</li>
-              <li>• クリック計測が自動で行われます</li>
-              <li>• <code className="bg-green-100 px-1 rounded">data-cats=&quot;lineFriendsFollowLink&quot;</code> 属性が自動挿入されます（markecats連携用）</li>
+              <li>• <code className="bg-green-100 px-1 rounded">{'data-cats="lineFriendsFollowLink"'}</code> 属性付きの全<code className="bg-green-100 px-1 rounded">&lt;a&gt;</code>タグのhrefがCTA URLに置換されます</li>
+              <li>• LP管理画面でCTA URLが未設定の場合、置換は行われません（hrefがそのまま残ります）</li>
+              <li>• クリック計測はトラッキングスクリプトにより自動で行われます</li>
             </ul>
           </div>
 
-          <div className="mt-4 p-4 bg-indigo-50 border border-blue-200 rounded-lg">
-            <h4 className="text-sm font-semibold text-indigo-800 mb-2">トラッキング対象クラス</h4>
-            <ul className="text-sm text-indigo-700 space-y-1">
-              <li>• <code className="bg-indigo-100 px-1 rounded">.btn-line-cta</code> - メインCTAボタン</li>
-              <li>• <code className="bg-indigo-100 px-1 rounded">.btn-line-header</code> - ヘッダーLINEボタン</li>
-              <li>• テキストに「LINE」を含むリンク/ボタン</li>
-            </ul>
+          <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-amber-800">
+                <strong>重要:</strong> CTAボタンのリンク先は<strong>必ずLP管理画面のCTA URL設定</strong>で管理してください。
+                HTML内にURLをハードコードすると、URL変更時にZIPの再アップロードが必要になります。
+              </div>
+            </div>
           </div>
         </section>
 
@@ -464,11 +519,6 @@ export default function LPGuidePage() {
                   <td className="p-3 border-b text-slate-600">通常は自動挿入されます。既存タグがある場合は維持されます。</td>
                 </tr>
                 <tr>
-                  <td className="p-3 border-b">LINE属性なし</td>
-                  <td className="p-3 border-b"><span className="text-amber-600">⚠️ LINE未設定</span></td>
-                  <td className="p-3 border-b text-slate-600">LINE CTAボタンに<code className="bg-slate-100 px-1 rounded">data-cats</code>属性が設定されていません。CTAボタンのクラス名を確認してください。</td>
-                </tr>
-                <tr>
                   <td className="p-3 border-b">トラッキングなし</td>
                   <td className="p-3 border-b"><span className="text-amber-600">⚠️ トラッキング未設定</span></td>
                   <td className="p-3 border-b text-slate-600">通常は自動挿入されます。</td>
@@ -516,7 +566,7 @@ export default function LPGuidePage() {
               <ul className="space-y-2 text-sm text-slate-600">
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
-                  <span>CTAボタンに <code className="bg-slate-100 px-1 rounded">.btn-line-cta</code> クラスを設定</span>
+                  <span>CTAボタンに <code className="bg-slate-100 px-1 rounded">{'data-cats="lineFriendsFollowLink"'}</code> 属性を設定</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
@@ -546,7 +596,7 @@ export default function LPGuidePage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
-                  <span>CTAボタンをクリックするとLINE URLに遷移する</span>
+                  <span>CTAボタンをクリックすると設定したCTA URLに遷移する</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
@@ -560,21 +610,58 @@ export default function LPGuidePage() {
               <ul className="space-y-2 text-sm text-slate-600">
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
-                  <span>Google広告: <code className="bg-slate-100 px-1 rounded">?utm_source=google</code> 付きURLを使用</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <input type="checkbox" className="mt-1 rounded" />
-                  <span>Meta広告: <code className="bg-slate-100 px-1 rounded">?utm_source=meta</code> 付きURLを使用</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <input type="checkbox" className="mt-1 rounded" />
-                  <span>その他の広告: LINEタグ管理で追加したキーを <code className="bg-slate-100 px-1 rounded">?utm_source=キー</code> で使用</span>
+                  <span>LP管理画面でCTA URLが設定済みであること</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <input type="checkbox" className="mt-1 rounded" />
                   <span>キャンペーンコードが必要な場合は「コード」から発行</span>
                 </li>
+                <li className="flex items-start gap-2">
+                  <input type="checkbox" className="mt-1 rounded" />
+                  <span>広告媒体ごとにLP（Google用/Meta用）を分けている場合、各LPに正しいCTA URLが設定されていること</span>
+                </li>
               </ul>
+            </div>
+          </div>
+        </section>
+
+        {/* CTAボタンとおすすめ求人ウィジェット */}
+        <section className="mb-12">
+          <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+            <Globe className="w-5 h-5 text-indigo-500" />
+            CTAボタンとおすすめ求人ウィジェット
+          </h2>
+
+          <div className="space-y-6">
+            <div className="bg-white border border-slate-200 rounded-lg p-6">
+              <h3 className="font-semibold text-slate-800 mb-3">{'CTAボタン（data-cats="lineFriendsFollowLink"）'}</h3>
+              <p className="text-sm text-slate-600 mb-3">
+                LP HTML内のリンクに <code className="bg-slate-100 px-1 rounded">{'data-cats="lineFriendsFollowLink"'}</code> 属性を付けると、
+                配信時にLP管理画面で設定したCTA URLにリンク先が自動置換されます。
+              </p>
+              <CodeBlock code={`<!-- LP HTML内に記述 -->
+<a href="#" data-cats="lineFriendsFollowLink">会員登録はこちら</a>
+
+<!-- 配信時、hrefが自動的にCTA URLに置換されます -->
+<a href="https://lin.ee/xxxxx" data-cats="lineFriendsFollowLink">会員登録はこちら</a>`} />
+              <div className="mt-3 space-y-2 text-sm text-slate-600">
+                <p><strong>CTA URLの設定方法:</strong> LP管理画面の各LPカードの「CTA:」欄をクリックして設定</p>
+                <p><strong>未設定の場合:</strong> CTA URLの置換は行われません。必ずLP管理画面で設定してください</p>
+                <p><strong>複数ボタン対応:</strong> HTML内の全ての <code className="bg-slate-100 px-1 rounded">{'data-cats="lineFriendsFollowLink"'}</code> 属性付きリンクが同じCTA URLに置換されます</p>
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-lg p-6">
+              <h3 className="font-semibold text-slate-800 mb-3">おすすめ求人ウィジェット（data-tastas-jobs）</h3>
+              <p className="text-sm text-slate-600 mb-3">
+                LP HTML内に以下のタグを配置すると、その位置におすすめ求人カード一覧が表示されます。
+              </p>
+              <CodeBlock code={`<!-- LP HTML内の表示したい位置に記述 -->
+<div data-tastas-jobs></div>`} />
+              <div className="mt-3 space-y-2 text-sm text-slate-600">
+                <p><strong>表示内容:</strong> 管理画面の「おすすめ求人管理」で登録した求人が日付選択付きで表示されます</p>
+                <p><strong>勤務日なし求人:</strong> 全日程で表示され、クリックするとそのLPのCTA URLに遷移します</p>
+              </div>
             </div>
           </div>
         </section>
