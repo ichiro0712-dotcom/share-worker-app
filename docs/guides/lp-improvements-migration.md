@@ -95,7 +95,7 @@ CREATE INDEX IF NOT EXISTS "public_job_page_views_created_at_idx"
     ON "public_job_page_views"("created_at");
 ```
 
-### Step 3: 既存LPデータの移行（cta_url、sort_order の初期化）
+### Step 3: 既存LPデータの移行（cta_url・sort_order の初期化）
 
 本番DBの既存LPレコードに `cta_url` と `sort_order` を設定します。
 
@@ -105,12 +105,12 @@ CREATE INDEX IF NOT EXISTS "public_job_page_views_created_at_idx"
 -- ※ 本番DBの既存LPにCTA URLがまだ設定されていない場合に実行
 -- ========================================
 
--- LP1（Google広告 → LINE）
+-- LP1（Google広告 → LINE / lp=4Ghdqp）
 UPDATE "landing_pages"
 SET "cta_url" = 'https://liff.line.me/2009053059-UzfNXDJd/landing?follow=%40894ipobi&lp=4Ghdqp&liff_id=2009053059-UzfNXDJd'
 WHERE "lp_number" = 1 AND "cta_url" IS NULL;
 
--- LP2（Meta広告 → LINE）
+-- LP2（Meta広告 → LINE / lp=GQbsFI）
 UPDATE "landing_pages"
 SET "cta_url" = 'https://liff.line.me/2009053059-UzfNXDJd/landing?follow=%40894ipobi&lp=GQbsFI&liff_id=2009053059-UzfNXDJd'
 WHERE "lp_number" = 2 AND "cta_url" IS NULL;
@@ -153,6 +153,15 @@ SELECT "lp_number", "name", "cta_url", "is_published", "is_hidden", "sort_order"
        "delivery_lp_number", "delivery_utm_source"
 FROM "landing_pages"
 ORDER BY "sort_order" ASC;
+
+-- 期待される配信URL一覧:
+-- LP1: /api/lp/1?utm_source=google   (delivery_lp_number=1, delivery_utm_source='google')
+-- LP2: /api/lp/1?utm_source=meta     (delivery_lp_number=1, delivery_utm_source='meta')
+-- LP3: /api/lp/2?utm_source=google   (delivery_lp_number=2, delivery_utm_source='google')
+-- LP4: /api/lp/2?utm_source=meta     (delivery_lp_number=2, delivery_utm_source='meta')
+-- LP5: /api/lp/5                     (delivery_lp_number=5, delivery_utm_source=NULL)
+-- LP6: /api/lp/6                     (delivery_lp_number=NULL, delivery_utm_source=NULL)
+-- LP7: /api/lp/7                     (delivery_lp_number=NULL, delivery_utm_source=NULL)
 ```
 
 ### Step 4: ローカルで追加したLP（LP5, LP6, LP7）の本番登録
