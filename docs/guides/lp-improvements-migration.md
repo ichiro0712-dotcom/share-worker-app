@@ -95,11 +95,36 @@ CREATE INDEX IF NOT EXISTS "public_job_page_views_created_at_idx"
     ON "public_job_page_views"("created_at");
 ```
 
-### Step 3: 既存LPデータの移行（cta_url・sort_order の初期化）
+### Step 3: 既存LPデータの移行（配信URL・cta_url・sort_order の初期化）
 
-本番DBの既存LPレコードに `cta_url` と `sort_order` を設定します。
+本番DBの既存LPレコードの配信URL設定と `cta_url`、`sort_order` を設定します。
 
 ```sql
+-- ========================================
+-- LP1-4の配信URL設定（delivery_lp_number / delivery_utm_source）
+-- ※ 本番DBでNULLの場合、管理画面のURLが正しく生成されない
+-- ========================================
+
+-- LP1: /api/lp/1?utm_source=google
+UPDATE "landing_pages"
+SET "delivery_lp_number" = 1, "delivery_utm_source" = 'google'
+WHERE "lp_number" = 1;
+
+-- LP2: /api/lp/1?utm_source=meta
+UPDATE "landing_pages"
+SET "delivery_lp_number" = 1, "delivery_utm_source" = 'meta'
+WHERE "lp_number" = 2;
+
+-- LP3: /api/lp/2?utm_source=google
+UPDATE "landing_pages"
+SET "delivery_lp_number" = 2, "delivery_utm_source" = 'google'
+WHERE "lp_number" = 3;
+
+-- LP4: /api/lp/2?utm_source=meta
+UPDATE "landing_pages"
+SET "delivery_lp_number" = 2, "delivery_utm_source" = 'meta'
+WHERE "lp_number" = 4;
+
 -- ========================================
 -- 既存LPのcta_urlを設定
 -- ※ 本番DBの既存LPにCTA URLがまだ設定されていない場合に実行
