@@ -20,6 +20,7 @@ export default function NotificationSettingsClient() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showIOSHint, setShowIOSHint] = useState(false);
+  const [dbSynced, setDbSynced] = useState(false);
 
   useEffect(() => {
     checkPermissionState();
@@ -56,6 +57,8 @@ export default function NotificationSettingsClient() {
         const subscription = await registration.pushManager.getSubscription();
         if (subscription) {
           setPermissionState('subscribed');
+          // DBとの同期を確実にする（ブラウザに購読があってもDBにない場合がある）
+          ensureDbSync();
           return;
         }
       }
@@ -64,6 +67,21 @@ export default function NotificationSettingsClient() {
     }
 
     setPermissionState('default');
+  };
+
+  // ブラウザの購読情報をDBに確実に登録する
+  const ensureDbSync = async () => {
+    try {
+      const result = await subscribeToPushNotifications('worker');
+      if (result.success) {
+        console.log('[NotificationSettings] DB sync completed');
+        setDbSynced(true);
+      } else {
+        console.warn('[NotificationSettings] DB sync failed:', result.error, result.message);
+      }
+    } catch (err) {
+      console.warn('[NotificationSettings] DB sync error:', err);
+    }
   };
 
   const handleEnableNotifications = async () => {
