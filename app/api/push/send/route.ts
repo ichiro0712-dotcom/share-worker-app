@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
             }).catch((e) => console.error('[Push] Log save failed:', e));
 
             return NextResponse.json(
-                { error: 'No subscriptions found' },
+                { error: 'プッシュ通知の購読がDBに登録されていません。ユーザーがサイトにアクセスすると自動で再登録されます。' },
                 { status: 404 }
             );
         }
