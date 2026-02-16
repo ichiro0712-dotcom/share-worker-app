@@ -227,6 +227,30 @@ export async function subscribeToPushNotifications(
         // 既存の購読があるか確認
         let subscription = await registration.pushManager.getSubscription();
 
+        if (subscription) {
+            // 既存subscriptionのVAPID公開鍵が現在の鍵と一致するか確認
+            const currentKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+            const existingKey = subscription.options?.applicationServerKey
+                ? new Uint8Array(subscription.options.applicationServerKey)
+                : null;
+
+            const keysMatch = existingKey && currentKey.length === existingKey.length &&
+                currentKey.every((val, i) => val === existingKey[i]);
+
+            if (!keysMatch) {
+                console.log('[Push] VAPID key mismatch detected, re-subscribing...');
+                await subscription.unsubscribe().catch(() => {});
+                subscription = null;
+            }
+
+            // expirationTimeチェック
+            if (subscription && subscription.expirationTime && subscription.expirationTime < Date.now()) {
+                console.log('[Push] Subscription expired, re-subscribing...');
+                await subscription.unsubscribe().catch(() => {});
+                subscription = null;
+            }
+        }
+
         if (!subscription) {
             // 新規購読
             try {
