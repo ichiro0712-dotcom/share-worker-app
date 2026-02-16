@@ -134,10 +134,21 @@ export default function TestNotificationsPage() {
           details: data.results,
         });
       } else {
-        setResult({ success: false, message: data.error || '送信に失敗しました' });
+        // APIエラーを日本語に変換
+        let errorMessage = '送信に失敗しました';
+        if (res.status === 404 || data.error === 'No subscriptions found') {
+          errorMessage = 'このユーザーにはプッシュ通知の購読が登録されていません。ユーザーが通知を許可していないか、購読が期限切れ/削除済みです。';
+        } else if (res.status === 401) {
+          errorMessage = 'システム管理者の認証が必要です。ログインし直してください。';
+        } else if (res.status === 500 && data.error === 'VAPID keys are not configured') {
+          errorMessage = 'VAPID鍵が設定されていません。環境変数を確認してください。';
+        } else if (data.error) {
+          errorMessage = data.error;
+        }
+        setResult({ success: false, message: errorMessage });
       }
     } catch (error: any) {
-      setResult({ success: false, message: error.message });
+      setResult({ success: false, message: `通信エラー: ${error.message}` });
     } finally {
       setIsSending(false);
     }
@@ -170,10 +181,18 @@ export default function TestNotificationsPage() {
           details: { messageId: data.messageId },
         });
       } else {
-        setResult({ success: false, message: data.error || '送信に失敗しました' });
+        let errorMessage = 'メール送信に失敗しました';
+        if (res.status === 401) {
+          errorMessage = 'システム管理者の認証が必要です。ログインし直してください。';
+        } else if (data.error?.includes('RESEND_API_KEY')) {
+          errorMessage = 'メール送信サービス（Resend）のAPIキーが設定されていません。';
+        } else if (data.error) {
+          errorMessage = data.error;
+        }
+        setResult({ success: false, message: errorMessage });
       }
     } catch (error: any) {
-      setResult({ success: false, message: error.message });
+      setResult({ success: false, message: `通信エラー: ${error.message}` });
     } finally {
       setIsSending(false);
     }
@@ -204,10 +223,10 @@ export default function TestNotificationsPage() {
           details: { notificationId: data.notificationId },
         });
       } else {
-        setResult({ success: false, message: data.error || '送信に失敗しました' });
+        setResult({ success: false, message: data.error || 'チャット送信に失敗しました' });
       }
     } catch (error: any) {
-      setResult({ success: false, message: error.message });
+      setResult({ success: false, message: `通信エラー: ${error.message}` });
     } finally {
       setIsSending(false);
     }

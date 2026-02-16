@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
 
         if (subscriptions.length === 0) {
             return NextResponse.json(
-                { error: 'No subscriptions found' },
+                { error: 'プッシュ通知の購読が見つかりません。このユーザーは通知を許可していないか、購読が削除されています。' },
                 { status: 404 }
             );
         }
