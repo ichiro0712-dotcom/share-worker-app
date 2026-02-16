@@ -107,29 +107,87 @@ function insertTagsToHtml(html: string, ctaUrl?: string | null): {
 }
 
 /**
- * HTML内の相対画像パスをSupabase Storageの絶対URLに変換
+ * 相対パスを正規化
+ * - ./ ../ を除去し、パストラバーサルを防止
+ * - クエリ文字列・フラグメントは保持
+ */
+function normalizePath(relativePath: string): string {
+  // クエリ文字列・フラグメントを分離
+  const qIdx = relativePath.indexOf('?');
+  const hIdx = relativePath.indexOf('#');
+  let suffixStart = -1;
+  if (qIdx >= 0 && hIdx >= 0) suffixStart = Math.min(qIdx, hIdx);
+  else if (qIdx >= 0) suffixStart = qIdx;
+  else if (hIdx >= 0) suffixStart = hIdx;
+
+  const pathPart = suffixStart >= 0 ? relativePath.slice(0, suffixStart) : relativePath;
+  const suffix = suffixStart >= 0 ? relativePath.slice(suffixStart) : '';
+
+  // パスセグメントを正規化（. と .. を解決、LP root より上には行かない）
+  const segments = pathPart.split('/');
+  const normalized: string[] = [];
+  for (const seg of segments) {
+    if (seg === '.' || seg === '') continue;
+    if (seg === '..') {
+      normalized.pop(); // 上に行きすぎても空配列なので安全
+    } else {
+      normalized.push(seg);
+    }
+  }
+
+  return normalized.join('/') + suffix;
+}
+
+/**
+ * HTML内の相対パスをSupabase Storageの絶対URLに変換
+ * - src, srcset, href, url() を対象
+ * - /始まりの絶対パス（例: /lp/tracking.js）は変換しない
+ * - ./ ../ を正規化してからURLを構築
  */
 function convertImagePaths(html: string, lpNumber: number, supabaseUrl: string): string {
-  // 相対パスの画像を絶対パスに変換
-  // 例: src="images/hero.jpg" → src="https://xxx.supabase.co/storage/v1/object/public/lp-assets/0/images/hero.jpg"
   const baseUrl = `${supabaseUrl}/storage/v1/object/public/${STORAGE_BUCKETS.LP_ASSETS}/${lpNumber}`;
 
-  // src属性の相対パス変換
+  // src属性の相対パス変換（/始まりの絶対パスは除外）
   let modifiedHtml = html.replace(
-    /src="(?!http|\/\/|data:)([^"]+)"/gi,
-    `src="${baseUrl}/$1"`
+    /src="(?!http|\/\/|\/|data:)([^"]+)"/gi,
+    (_match, path) => `src="${baseUrl}/${normalizePath(path)}"`
   );
 
-  // href属性の相対パス変換（CSSファイルなど）
+  // srcset属性の相対パス変換（各URLエントリを個別に変換）
   modifiedHtml = modifiedHtml.replace(
-    /href="(?!http|\/\/|data:|#|mailto:)([^"]+\.(?:css|ico|png|jpg|jpeg|gif|svg|webp))"/gi,
-    `href="${baseUrl}/$1"`
+    /srcset="([^"]+)"/gi,
+    (_match, srcsetValue: string) => {
+      // srcsetはカンマ区切りだが、data:URL内のカンマと区別するため
+      // 「カンマ+空白+非空白」のパターンで分割
+      const entries = srcsetValue.split(/,(?=\s*[^\s])/);
+      const converted = entries.map((entry: string) => {
+        const trimmed = entry.trim();
+        // 末尾のディスクリプタ（1x, 2x, 480w等）を分離
+        const match = trimmed.match(/^(.+?)(\s+[\d.]+[wx])?\s*$/i);
+        if (!match) return trimmed;
+        const url = match[1].trim();
+        const descriptor = match[2] ? match[2].trim() : '';
+        // 絶対URL・データURL・/始まりはそのまま
+        if (/^(https?:|\/\/|\/|data:)/i.test(url)) {
+          return trimmed;
+        }
+        const newUrl = `${baseUrl}/${normalizePath(url)}`;
+        return descriptor ? `${newUrl} ${descriptor}` : newUrl;
+      }).join(', ');
+      return `srcset="${converted}"`;
+    }
   );
 
-  // CSS内のurl()パス変換
+  // href属性の相対パス変換（CSSファイルなど、/始まりは除外、クエリ文字列対応）
   modifiedHtml = modifiedHtml.replace(
-    /url\(['"]?(?!http|\/\/|data:)([^'")]+)['"]?\)/gi,
-    `url('${baseUrl}/$1')`
+    /href="(?!http|\/\/|\/|data:|#|mailto:)([^"]+\.(?:css|ico|png|jpg|jpeg|gif|svg|webp)(?:\?[^"]*)?)"/gi,
+    (_match, path) => `href="${baseUrl}/${normalizePath(path)}"`
+  );
+
+  // CSS内のurl()パス変換（/始まりおよび#始まり（SVGフィルタ参照）は除外）
+  modifiedHtml = modifiedHtml.replace(
+    /url\(['"]?(?!http|\/\/|\/|data:|#)([^'")]+)['"]?\)/gi,
+    (_match, path) => `url('${baseUrl}/${normalizePath(path)}')`
   );
 
   return modifiedHtml;
