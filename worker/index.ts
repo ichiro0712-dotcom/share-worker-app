@@ -7,7 +7,15 @@ self.addEventListener('push', (event) => {
   console.log('[SW] Push notification received:', event);
 
   if (!event.data) {
-    console.log('[SW] No push data');
+    console.log('[SW] No push data, showing fallback notification');
+    event.waitUntil(
+      self.registration.showNotification('+タスタス', {
+        body: '新しいお知らせがあります',
+        icon: '/icons/icon-192x192.png',
+        tag: `fallback-${Date.now()}`,
+        data: { url: '/' },
+      })
+    );
     return;
   }
 
