@@ -2,7 +2,10 @@
 
 import { useState, useRef } from 'react';
 import { X, Upload, FileArchive, AlertCircle, CheckCircle, AlertTriangle } from 'lucide-react';
-import { uploadLandingPage } from '@/lib/lp-actions';
+import { processLandingPageZip } from '@/lib/lp-actions';
+import { directUpload } from '@/utils/directUpload';
+
+const MAX_ZIP_SIZE = 50 * 1024 * 1024; // 50MB
 
 type LPUploadModalProps = {
   isOpen: boolean;
@@ -20,6 +23,7 @@ export default function LPUploadModal({
   const [name, setName] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadStep, setUploadStep] = useState<'idle' | 'uploading' | 'processing'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -27,17 +31,26 @@ export default function LPUploadModal({
 
   if (!isOpen) return null;
 
+  const validateFile = (selectedFile: File): boolean => {
+    if (!selectedFile.name.endsWith('.zip')) {
+      setError('ZIPファイルを選択してください');
+      setFile(null);
+      return false;
+    }
+    if (selectedFile.size > MAX_ZIP_SIZE) {
+      setError(`ZIPファイルは50MB以下にしてください（現在: ${(selectedFile.size / 1024 / 1024).toFixed(1)}MB）`);
+      setFile(null);
+      return false;
+    }
+    return true;
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
-      if (!selectedFile.name.endsWith('.zip')) {
-        setError('ZIPファイルを選択してください');
-        setFile(null);
-        return;
-      }
+      if (!validateFile(selectedFile)) return;
       setFile(selectedFile);
       setError(null);
-      // ファイル名からデフォルトのLP名を設定
       if (!name) {
         setName(selectedFile.name.replace('.zip', ''));
       }
@@ -63,14 +76,26 @@ export default function LPUploadModal({
     setIsUploading(true);
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('name', name.trim());
-      if (editLpNumber !== undefined) {
-        formData.append('lpNumber', editLpNumber.toString());
+      // Step 1: ZIPファイルをStorageに直接アップロード
+      setUploadStep('uploading');
+
+      const uploadResult = await directUpload(file, {
+        uploadType: 'lp-zip',
+      });
+
+      if (!uploadResult.success || !uploadResult.key) {
+        setError(uploadResult.error || 'ZIPファイルのアップロードに失敗しました');
+        return;
       }
 
-      const result = await uploadLandingPage(formData);
+      // Step 2: サーバーでZIPを処理
+      setUploadStep('processing');
+
+      const result = await processLandingPageZip({
+        zipKey: uploadResult.key,
+        name: name.trim(),
+        lpNumber: editLpNumber,
+      });
 
       if (result.success) {
         setSuccess(
@@ -78,14 +103,13 @@ export default function LPUploadModal({
             ? `LP ${editLpNumber} を更新しました`
             : `LP ${result.lpNumber} を作成しました`
         );
-        // 一部ファイル失敗時の警告を表示
         if (result.warning) {
           setWarning(result.warning);
         }
         setTimeout(() => {
           onSuccess();
           handleClose();
-        }, result.warning ? 3000 : 1500); // 警告がある場合は長めに表示
+        }, result.warning ? 3000 : 1500);
       } else {
         setError(result.error || 'アップロードに失敗しました');
       }
@@ -93,6 +117,7 @@ export default function LPUploadModal({
       setError(err.message || 'アップロードに失敗しました');
     } finally {
       setIsUploading(false);
+      setUploadStep('idle');
     }
   };
 
@@ -102,6 +127,7 @@ export default function LPUploadModal({
     setError(null);
     setWarning(null);
     setSuccess(null);
+    setUploadStep('idle');
     onClose();
   };
 
@@ -109,10 +135,7 @@ export default function LPUploadModal({
     e.preventDefault();
     const droppedFile = e.dataTransfer.files[0];
     if (droppedFile) {
-      if (!droppedFile.name.endsWith('.zip')) {
-        setError('ZIPファイルを選択してください');
-        return;
-      }
+      if (!validateFile(droppedFile)) return;
       setFile(droppedFile);
       setError(null);
       if (!name) {
@@ -163,7 +186,7 @@ export default function LPUploadModal({
           {/* ファイルアップロード */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              ZIPファイル
+              ZIPファイル（最大50MB）
             </label>
             <div
               onDrop={handleDrop}
@@ -219,6 +242,20 @@ export default function LPUploadModal({
             </p>
           </div>
 
+          {/* 進捗表示 */}
+          {isUploading && (
+            <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+              <div className="flex items-center gap-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-rose-500 border-t-transparent" />
+                <p className="text-sm text-gray-700">
+                  {uploadStep === 'uploading'
+                    ? 'ステップ 1/2: ZIPファイルをアップロード中...'
+                    : 'ステップ 2/2: HTMLの処理とファイルの展開中...'}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* エラー表示 */}
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
@@ -260,7 +297,7 @@ export default function LPUploadModal({
               {isUploading ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
-                  アップロード中...
+                  {uploadStep === 'uploading' ? 'アップロード中...' : 'LP処理中...'}
                 </>
               ) : (
                 <>

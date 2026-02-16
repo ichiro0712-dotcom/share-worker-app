@@ -11,6 +11,8 @@ const ALLOWED_EXTENSIONS = [
   'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif', 'bmp', 'tiff', 'tif', 'svg',
   // ドキュメント
   'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'csv',
+  // アーカイブ（LP ZIPアップロード用）
+  'zip',
 ];
 
 // 許可するMIMEタイプ
@@ -24,6 +26,8 @@ const ALLOWED_MIME_TYPES = [
   'application/vnd.ms-excel',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'text/plain', 'text/csv',
+  // アーカイブ（LP ZIPアップロード用）
+  'application/zip', 'application/x-zip-compressed',
 ];
 
 // 最大ファイルサイズ（10MB）
@@ -34,6 +38,9 @@ const MAX_USER_GUIDE_FILE_SIZE = 100 * 1024 * 1024;
 
 // メッセージ添付用最大ファイルサイズ（15MB）
 const MAX_MESSAGE_FILE_SIZE = 15 * 1024 * 1024;
+
+// LP ZIPファイル用最大サイズ（50MB）
+const MAX_LP_ZIP_FILE_SIZE = 50 * 1024 * 1024;
 
 // S3 Client for presigned URL generation
 const s3Client = new S3Client({
@@ -97,6 +104,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { fileName, contentType, fileSize, uploadType } = body;
 
+    // LP ZIPアップロードはシステム管理者のみ許可
+    if (uploadType === 'lp-zip' && !systemAdminCookie) {
+      return NextResponse.json({ error: 'システム管理者のみ利用できます' }, { status: 403 });
+    }
+
     if (!fileName || !contentType || !fileSize) {
       return NextResponse.json(
         { error: 'fileName, contentType, fileSize は必須です' },
@@ -109,7 +121,9 @@ export async function POST(request: NextRequest) {
       ? MAX_USER_GUIDE_FILE_SIZE
       : uploadType === 'message'
         ? MAX_MESSAGE_FILE_SIZE
-        : MAX_FILE_SIZE;
+        : uploadType === 'lp-zip'
+          ? MAX_LP_ZIP_FILE_SIZE
+          : MAX_FILE_SIZE;
 
     // ファイルサイズチェック
     if (fileSize > maxFileSize) {
@@ -146,6 +160,8 @@ export async function POST(request: NextRequest) {
       folder = 'profiles';
     } else if (uploadType === 'facility') {
       folder = 'facilities';
+    } else if (uploadType === 'lp-zip') {
+      folder = 'lp-temp';
     }
 
     // ユニークなファイル名を生成
