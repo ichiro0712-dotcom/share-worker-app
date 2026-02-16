@@ -423,8 +423,8 @@ async function sendPushNotification(params: {
                 console.error(`[Push] Failed to send to ${platform} (sub:${sub.id}, status:${statusCode}):`, error.message);
                 errors.push(`sub:${sub.id}(${platform}):${statusCode}`);
 
-                // 無効な購読は削除
-                if (error.statusCode === 404 || error.statusCode === 410) {
+                // 無効な購読は削除（404: Not Found, 410: Gone, 403: Forbidden/VAPID不一致）
+                if (error.statusCode === 404 || error.statusCode === 410 || error.statusCode === 403) {
                     await prisma.pushSubscription.delete({ where: { id: sub.id } }).catch((delErr) => {
                         console.warn(`[Push] Failed to delete stale subscription ${sub.id}:`, delErr.message);
                     });
@@ -457,23 +457,27 @@ async function sendPushNotification(params: {
         });
     } catch (error: any) {
         console.error('Push notification failed:', error);
-        const versionInfo = getVersionForLog();
-        await prisma.notificationLog.create({
-            data: {
-                notification_key: notificationKey,
-                channel: 'PUSH',
-                target_type: targetType,
-                recipient_id: recipientId,
-                recipient_name: recipientName,
-                push_title: title,
-                push_body: body,
-                push_url: url,
-                status: 'FAILED',
-                error_message: error.message,
-                app_version: versionInfo.app_version,
-                deployment_id: versionInfo.deployment_id,
-            },
-        });
+        try {
+            const versionInfo = getVersionForLog();
+            await prisma.notificationLog.create({
+                data: {
+                    notification_key: notificationKey,
+                    channel: 'PUSH',
+                    target_type: targetType,
+                    recipient_id: recipientId,
+                    recipient_name: recipientName,
+                    push_title: title,
+                    push_body: body,
+                    push_url: url,
+                    status: 'FAILED',
+                    error_message: error.message,
+                    app_version: versionInfo.app_version,
+                    deployment_id: versionInfo.deployment_id,
+                },
+            });
+        } catch (logError) {
+            console.error('[Push] Failed to write error log:', logError);
+        }
     }
 }
 

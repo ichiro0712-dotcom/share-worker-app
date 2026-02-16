@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import webPush from 'web-push';
+import { getSystemAdminSessionData } from '@/lib/system-admin-session-server';
 
 // VAPID設定をリクエスト時に遅延初期化
 let vapidConfigured = false;
@@ -10,7 +11,7 @@ function ensureVapidConfig() {
 
     const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
     const privateKey = process.env.VAPID_PRIVATE_KEY;
-    const subject = process.env.VAPID_SUBJECT || 'mailto:support@example.com';
+    const subject = process.env.VAPID_SUBJECT || 'mailto:support@tastas.jp';
 
     if (!publicKey || !privateKey) {
         return false;
@@ -23,6 +24,15 @@ function ensureVapidConfig() {
 
 export async function POST(request: NextRequest) {
     try {
+        // システム管理者認証チェック
+        const session = await getSystemAdminSessionData();
+        if (!session?.isLoggedIn) {
+            return NextResponse.json(
+                { error: 'Unauthorized: system admin only' },
+                { status: 401 }
+            );
+        }
+
         // VAPID設定をリクエスト時に確認
         if (!ensureVapidConfig()) {
             return NextResponse.json(
@@ -78,8 +88,8 @@ export async function POST(request: NextRequest) {
                     );
                     return { success: true, endpoint: sub.endpoint };
                 } catch (error: any) {
-                    // 無効な購読は削除
-                    if (error.statusCode === 404 || error.statusCode === 410) {
+                    // 無効な購読は削除（404: Not Found, 410: Gone, 403: Forbidden/VAPID不一致）
+                    if (error.statusCode === 404 || error.statusCode === 410 || error.statusCode === 403) {
                         await prisma.pushSubscription.delete({
                             where: { id: sub.id },
                         }).catch((delErr: any) => {
