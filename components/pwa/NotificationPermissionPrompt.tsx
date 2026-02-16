@@ -8,6 +8,7 @@ import {
     getNotificationPermission,
     requestNotificationPermission,
     subscribeToPushNotifications,
+    isIOSNonStandalone,
 } from '@/lib/push-notification';
 
 interface Props {
@@ -74,19 +75,31 @@ export function NotificationPermissionPrompt({ userType }: Props) {
 
     // 「通知を有効化」ボタン
     const handleEnable = async () => {
+        // iOSブラウザ（非PWA）の場合は早期にガイド表示
+        if (isIOSNonStandalone()) {
+            toast.error(
+                'iOSではホーム画面に追加してから通知を有効にしてください。\n共有ボタン → 「ホーム画面に追加」',
+                { duration: 6000 }
+            );
+            setIsVisible(false);
+            return;
+        }
+
         setIsLoading(true);
         try {
             const permission = await requestNotificationPermission();
             if (permission === 'granted') {
-                const subscription = await subscribeToPushNotifications(userType);
-                if (subscription) {
+                const result = await subscribeToPushNotifications(userType);
+                if (result.success) {
                     toast.success('通知を有効にしました');
-                    // 成功したらストレージをクリア
                     localStorage.removeItem(STORAGE_KEYS.PROMPT_COUNT);
                     localStorage.removeItem(STORAGE_KEYS.DISMISSED_AT);
                 } else {
-                    toast.error('通知の登録に失敗しました。後でもう一度お試しください。');
+                    console.error('Push subscription failed:', result.error, result.message);
+                    toast.error(result.message, { duration: 5000 });
                 }
+            } else if (permission === 'denied') {
+                toast.error('通知がブロックされています。ブラウザの設定から許可してください。', { duration: 5000 });
             } else {
                 toast.error('通知が許可されませんでした');
             }
@@ -94,7 +107,6 @@ export function NotificationPermissionPrompt({ userType }: Props) {
             console.error('Notification enable error:', error);
             toast.error('エラーが発生しました');
         } finally {
-            // エラー時も含め、必ずローディング解除とモーダル閉じる
             setIsLoading(false);
             setIsVisible(false);
         }

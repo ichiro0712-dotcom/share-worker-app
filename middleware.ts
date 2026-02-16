@@ -67,6 +67,7 @@ const ignoredPaths = [
   '/api/lp-code-genres', // LPコードジャンルAPI
   '/api/lp-campaign-codes', // LPキャンペーンコードAPI
   '/api/lp', // LP配信API（公開アクセス必須）
+  '/api/push', // プッシュ通知API（API側でセッション認証を実施）
   '/api/cron', // Cron API（Vercel CronがCRON_SECRET認証を使用）
   '/api/upload', // アップロードAPI（API側で独自認証を実施）
   '/rogo', // ロゴ画像

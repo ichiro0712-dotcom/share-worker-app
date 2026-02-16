@@ -82,11 +82,11 @@ export default function NotificationSettingsClient() {
 
       if (permission === 'granted') {
         // プッシュ通知を購読
-        const subscription = await subscribeToPushNotifications('worker');
-        if (subscription) {
+        const result = await subscribeToPushNotifications('worker');
+        if (result.success) {
           setPermissionState('subscribed');
         } else {
-          setError('プッシュ通知の登録に失敗しました。もう一度お試しください。');
+          setError(result.message);
         }
       }
     } catch (err) {
