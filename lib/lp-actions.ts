@@ -4,6 +4,7 @@ import { prisma } from './prisma';
 import { uploadFile, deleteFolder, listFiles, STORAGE_BUCKETS, getPublicUrl, supabaseAdmin } from './supabase';
 import JSZip from 'jszip';
 import { TAG_PATTERNS } from './lp-tag-utils';
+import { requireSystemAdminAuth } from './system-admin-session-server';
 
 // GTMスニペット
 const GTM_HEAD_SNIPPET = `<!-- Google Tag Manager -->
@@ -164,32 +165,47 @@ export async function getLandingPageByNumber(lpNumber: number) {
 }
 
 /**
- * ZIPファイルからLPをアップロード
+ * Storageに直接アップロードされたZIPファイルからLPを処理
+ * クライアントがPresigned URLでuploads/lp-temp/にZIPをアップロード後、この関数で処理する
  */
-export async function uploadLandingPage(
-  formData: FormData
-): Promise<{ success: boolean; lpNumber?: number; error?: string; warning?: string }> {
+export async function processLandingPageZip({
+  zipKey,
+  name,
+  lpNumber: editLpNumber,
+}: {
+  zipKey: string;
+  name: string;
+  lpNumber?: number;
+}): Promise<{ success: boolean; lpNumber?: number; error?: string; warning?: string }> {
+  // システム管理者認証チェック
   try {
-    const file = formData.get('file') as File;
-    const name = formData.get('name') as string;
-    const lpNumberStr = formData.get('lpNumber') as string | null;
+    await requireSystemAdminAuth();
+  } catch {
+    return { success: false, error: 'システム管理者認証が必要です' };
+  }
 
-    if (!file) {
-      return { success: false, error: 'ファイルが選択されていません' };
-    }
+  // zipKeyのバリデーション（パストラバーサル防止）
+  if (!zipKey.startsWith('lp-temp/') || !zipKey.endsWith('.zip') || zipKey.includes('..')) {
+    return { success: false, error: '無効なファイルパスです' };
+  }
 
-    if (!name) {
-      return { success: false, error: 'LP名を入力してください' };
-    }
+  if (!name?.trim()) {
+    return { success: false, error: 'LP名を入力してください' };
+  }
 
-    // ファイルサイズ検証（最大50MB）
-    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
-    if (file.size > MAX_FILE_SIZE) {
-      return { success: false, error: `ファイルサイズが大きすぎます（最大50MB）。現在: ${Math.round(file.size / 1024 / 1024)}MB` };
+  try {
+    // StorageからZIPをダウンロード
+    const { data: zipBlob, error: downloadError } = await supabaseAdmin.storage
+      .from(STORAGE_BUCKETS.UPLOADS)
+      .download(zipKey);
+
+    if (downloadError || !zipBlob) {
+      console.error('[LP Process] Failed to download ZIP:', downloadError);
+      return { success: false, error: 'ZIPファイルのダウンロードに失敗しました' };
     }
 
     // ZIPファイルを解析
-    const arrayBuffer = await file.arrayBuffer();
+    const arrayBuffer = await zipBlob.arrayBuffer();
     const zip = await JSZip.loadAsync(arrayBuffer);
 
     // index.htmlを探す
@@ -198,10 +214,8 @@ export async function uploadLandingPage(
 
     zip.forEach((relativePath, zipEntry) => {
       if (!zipEntry.dir && relativePath.endsWith('index.html')) {
-        // 最も浅い階層のindex.htmlを使用
         if (!indexHtmlPath || relativePath.split('/').length < indexHtmlPath.split('/').length) {
           indexHtmlPath = relativePath;
-          // ルートプレフィックスを抽出（例: "lp-folder/index.html" → "lp-folder/"）
           const parts = relativePath.split('/');
           if (parts.length > 1) {
             rootPrefix = parts.slice(0, -1).join('/') + '/';
@@ -219,8 +233,8 @@ export async function uploadLandingPage(
     let isOverwrite = false;
 
     let ctaUrl: string | null = null;
-    if (lpNumberStr) {
-      lpNumber = parseInt(lpNumberStr, 10);
+    if (editLpNumber !== undefined) {
+      lpNumber = editLpNumber;
       const existing = await getLandingPageByNumber(lpNumber);
       if (existing) {
         isOverwrite = true;
@@ -240,19 +254,19 @@ export async function uploadLandingPage(
 
     let indexHtml = await indexHtmlFile.async('string');
 
-    // タグを自動挿入（CTA URLがあればdata-cats="lineFriendsFollowLink"のhrefも置換）
+    // タグを自動挿入
     const tagResult = insertTagsToHtml(indexHtml, ctaUrl);
     indexHtml = tagResult.html;
 
     // 画像パスを変換
     indexHtml = convertImagePaths(indexHtml, lpNumber, supabaseUrl);
 
-    // ファイルをSupabase Storageにアップロード
-    const uploadPromises: Promise<any>[] = [];
+    // アップロードタスクを遅延実行関数として準備
+    const uploadTasks: (() => Promise<any>)[] = [];
 
     // index.htmlをアップロード
     const indexHtmlBuffer = Buffer.from(indexHtml, 'utf-8');
-    uploadPromises.push(
+    uploadTasks.push(() =>
       uploadFile(
         STORAGE_BUCKETS.LP_ASSETS,
         `${lpNumber}/index.html`,
@@ -265,22 +279,18 @@ export async function uploadLandingPage(
     const fileEntries = Object.entries(zip.files);
     for (const [relativePath, zipEntry] of fileEntries) {
       if (zipEntry.dir) continue;
-      if (relativePath === indexHtmlPath) continue; // index.htmlは既に処理済み
+      if (relativePath === indexHtmlPath) continue;
 
-      // ルートプレフィックスを除去してパスを正規化
       let normalizedPath = relativePath;
       if (rootPrefix && relativePath.startsWith(rootPrefix)) {
         normalizedPath = relativePath.slice(rootPrefix.length);
       }
 
-      // ファイルを読み込み
       const content = await zipEntry.async('nodebuffer');
-
-      // Content-Typeを決定
       const ext = normalizedPath.split('.').pop()?.toLowerCase() || '';
       const contentType = getContentType(ext);
 
-      uploadPromises.push(
+      uploadTasks.push(() =>
         uploadFile(
           STORAGE_BUCKETS.LP_ASSETS,
           `${lpNumber}/${normalizedPath}`,
@@ -290,14 +300,21 @@ export async function uploadLandingPage(
       );
     }
 
-    // 全ファイルをアップロード
-    const results = await Promise.all(uploadPromises);
-    const errors = results.filter((r) => 'error' in r);
-    const totalFiles = uploadPromises.length;
+    // 全ファイルをアップロード（10ファイルずつバッチ実行）
+    const BATCH_SIZE = 10;
+    let allResults: any[] = [];
+    for (let i = 0; i < uploadTasks.length; i += BATCH_SIZE) {
+      const batch = uploadTasks.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.all(batch.map(fn => fn()));
+      allResults = allResults.concat(batchResults);
+    }
+
+    const errors = allResults.filter((r) => 'error' in r);
+    const totalFiles = uploadTasks.length;
     const failedFiles = errors.length;
 
     if (errors.length > 0) {
-      console.error('[LP Upload] Some files failed to upload:', errors);
+      console.error('[LP Process] Some files failed to upload:', errors);
     }
 
     // DBに登録/更新
@@ -305,7 +322,7 @@ export async function uploadLandingPage(
       await prisma.landingPage.update({
         where: { lp_number: lpNumber },
         data: {
-          name,
+          name: name.trim(),
           has_gtm: tagResult.hasGtm,
           has_tracking: tagResult.hasTracking,
           storage_path: `${lpNumber}/`,
@@ -316,7 +333,7 @@ export async function uploadLandingPage(
       await prisma.landingPage.create({
         data: {
           lp_number: lpNumber,
-          name,
+          name: name.trim(),
           has_gtm: tagResult.hasGtm,
           has_tracking: tagResult.hasTracking,
           storage_path: `${lpNumber}/`,
@@ -324,15 +341,22 @@ export async function uploadLandingPage(
       });
     }
 
-    // 一部ファイル失敗時は警告を返す
     const warning = failedFiles > 0
       ? `${totalFiles}ファイル中${failedFiles}ファイルのアップロードに失敗しました。LP自体は保存されましたが、一部の画像やアセットが欠けている可能性があります。`
       : undefined;
 
     return { success: true, lpNumber, warning };
   } catch (error: any) {
-    console.error('[LP Upload] Error:', error);
+    console.error('[LP Process] Error:', error);
     return { success: false, error: error.message || 'アップロードに失敗しました' };
+  } finally {
+    // 一時ZIPファイルを削除（成功/失敗問わず）
+    try {
+      await supabaseAdmin.storage.from(STORAGE_BUCKETS.UPLOADS).remove([zipKey]);
+      console.log(`[LP Process] Cleaned up temp ZIP: ${zipKey}`);
+    } catch (cleanupError) {
+      console.error('[LP Process] Failed to cleanup temp ZIP:', cleanupError);
+    }
   }
 }
 

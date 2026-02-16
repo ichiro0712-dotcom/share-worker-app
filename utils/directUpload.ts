@@ -14,7 +14,10 @@ export const MAX_USER_GUIDE_FILE_SIZE = 100 * 1024 * 1024;
 // メッセージ添付用最大ファイルサイズ（15MB）
 export const MAX_MESSAGE_FILE_SIZE = 15 * 1024 * 1024;
 
-export type UploadType = 'job' | 'profile' | 'facility' | 'message' | 'user-guide';
+// LP ZIPファイル用最大サイズ（50MB）
+export const MAX_LP_ZIP_FILE_SIZE = 50 * 1024 * 1024;
+
+export type UploadType = 'job' | 'profile' | 'facility' | 'message' | 'user-guide' | 'lp-zip';
 
 interface UploadOptions {
   /** アップロードタイプ（フォルダ決定に使用） */
@@ -28,6 +31,7 @@ interface UploadOptions {
 interface UploadResult {
   success: boolean;
   url?: string;
+  key?: string;
   error?: string;
 }
 
@@ -40,6 +44,8 @@ export function getMaxFileSize(uploadType?: UploadType): number {
       return MAX_USER_GUIDE_FILE_SIZE;
     case 'message':
       return MAX_MESSAGE_FILE_SIZE;
+    case 'lp-zip':
+      return MAX_LP_ZIP_FILE_SIZE;
     default:
       return MAX_FILE_SIZE;
   }
@@ -108,7 +114,7 @@ export async function directUpload(
       return { success: false, error: 'サーバーエラーが発生しました' };
     }
 
-    const { presignedUrl, publicUrl } = await presignedResponse.json();
+    const { presignedUrl, publicUrl, key } = await presignedResponse.json();
 
     // 2. 署名付きURLを使って直接アップロード
     const uploadResponse = await fetch(presignedUrl, {
@@ -129,7 +135,7 @@ export async function directUpload(
       onProgress(100);
     }
 
-    return { success: true, url: publicUrl };
+    return { success: true, url: publicUrl, key };
   } catch (error) {
     console.error('Direct upload error:', error);
     return {
