@@ -8,14 +8,31 @@ export async function POST(request: NextRequest) {
         const body = await request.json();
         const { subscription, userType } = body;
 
+        const VALID_USER_TYPES = ['worker', 'facility_admin'] as const;
+
         if (!subscription || !userType) {
             return NextResponse.json(
-                { error: 'Missing required fields' },
+                { error: 'Missing required fields: subscription and userType are required' },
+                { status: 400 }
+            );
+        }
+
+        if (!VALID_USER_TYPES.includes(userType)) {
+            return NextResponse.json(
+                { error: 'Invalid userType: must be "worker" or "facility_admin"' },
                 { status: 400 }
             );
         }
 
         const { endpoint, keys } = subscription;
+
+        if (!endpoint || !keys?.p256dh || !keys?.auth) {
+            return NextResponse.json(
+                { error: 'Invalid subscription: endpoint, p256dh, and auth are required' },
+                { status: 400 }
+            );
+        }
+
         const { p256dh, auth } = keys;
 
         // セッションからユーザー情報を取得
@@ -26,10 +43,15 @@ export async function POST(request: NextRequest) {
         let adminId: number | null = null;
 
         if (session?.user) {
-            if (userType === 'worker') {
-                userId = parseInt(session.user.id as string, 10);
-            } else if (userType === 'facility_admin') {
-                adminId = parseInt(session.user.id as string, 10);
+            const parsedId = parseInt(session.user.id as string, 10);
+            if (!isNaN(parsedId)) {
+                if (userType === 'worker') {
+                    userId = parsedId;
+                } else if (userType === 'facility_admin') {
+                    adminId = parsedId;
+                }
+            } else {
+                console.warn('Push subscribe: session.user.id is not a valid number:', session.user.id);
             }
         }
 
