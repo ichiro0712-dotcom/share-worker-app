@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const tag = `test-${Date.now()}`;
+        const tag = `test-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
         const payload = JSON.stringify({
             title: title || '+タスタス',
             body: message || '新しいお知らせがあります',
@@ -82,6 +82,8 @@ export async function POST(request: NextRequest) {
                     if (error.statusCode === 404 || error.statusCode === 410) {
                         await prisma.pushSubscription.delete({
                             where: { id: sub.id },
+                        }).catch((delErr: any) => {
+                            console.warn(`[Push] Failed to delete stale subscription ${sub.id}:`, delErr.message);
                         });
                     }
                     return { success: false, endpoint: sub.endpoint, statusCode: error.statusCode, error: error.message };

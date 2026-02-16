@@ -391,7 +391,7 @@ async function sendPushNotification(params: {
         }
 
         // 通知ごとにユニークなtagを生成（同じtagの通知は上書きされるため）
-        const tag = `${notificationKey}-${Date.now()}`;
+        const tag = `${notificationKey}-${recipientId}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
         const payload = JSON.stringify({ title, body, url, tag });
 
         // 送信オプション（TTL: 24時間、urgency: high で即時配信）
@@ -425,7 +425,9 @@ async function sendPushNotification(params: {
 
                 // 無効な購読は削除
                 if (error.statusCode === 404 || error.statusCode === 410) {
-                    await prisma.pushSubscription.delete({ where: { id: sub.id } }).catch(() => {});
+                    await prisma.pushSubscription.delete({ where: { id: sub.id } }).catch((delErr) => {
+                        console.warn(`[Push] Failed to delete stale subscription ${sub.id}:`, delErr.message);
+                    });
                 }
             }
         }
@@ -434,7 +436,7 @@ async function sendPushNotification(params: {
         const versionInfo = getVersionForLog();
         const status = successCount > 0 ? 'SENT' : 'FAILED';
         const errorMessage = failedCount > 0
-            ? `${successCount}/${successCount + failedCount} succeeded. Errors: ${errors.join(', ')}`
+            ? JSON.stringify({ ok: successCount, fail: failedCount, details: errors })
             : null;
 
         await prisma.notificationLog.create({
