@@ -1050,6 +1050,7 @@ export async function sendAdminNewFacilityNotification(
                 variables: {
                     facility_name: facilityName,
                     corporation_name: corporationName,
+                    registered_at: new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }),
                     facility_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://tastas.jp'}/system-admin/facilities/${facilityId}`,
                 },
             });
@@ -1085,8 +1086,9 @@ export async function sendAdminNewWorkerNotification(
                 recipientName: admin.name,
                 recipientEmail: admin.notification_email || admin.email,
                 variables: {
-                    worker_name: workerName,
-                    worker_email: workerEmail,
+                    user_name: workerName,
+                    user_email: workerEmail,
+                    registered_at: new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }),
                     worker_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://tastas.jp'}/system-admin/workers/${workerId}`,
                 },
             });
