@@ -16,6 +16,7 @@ import {
     Book,
     ArrowLeft,
     LucideIcon,
+    SendHorizonal,
 } from 'lucide-react';
 
 interface MenuItem {
@@ -47,6 +48,7 @@ const menuItems: MenuSection[] = [
         items: [
             { href: '/system-admin/dev-portal/logs', icon: Bug, label: 'バグ調査', description: 'エラーログ・操作追跡', color: 'red' },
             { href: '/system-admin/dev-portal/notification-logs', icon: BellRing, label: '通知ログ', description: '送信済み通知', color: 'orange' },
+            { href: '/system-admin/dev-portal/test-notifications', icon: SendHorizonal, label: 'テスト通知', description: '通知送信テスト', color: 'green' },
             { href: '/system-admin/dev-portal/debug-checklist', icon: ListChecks, label: 'デバッグ項目', description: '機能検証チェック', color: 'blue' },
             { href: '/system-admin/dev-portal/debug-time', icon: Clock, label: 'デバッグ時刻', description: 'システム時刻変更', color: 'indigo' },
             { href: '/system-admin/dev-portal/sample-images', icon: ImageIcon, label: 'サンプル画像', description: 'モック用素材', color: 'pink' },
