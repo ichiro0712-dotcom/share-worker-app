@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef } from 'react';
-import { searchUsersForNotification, sendTestSystemNotification } from '@/src/lib/actions/test-notification';
+import { searchUsersForNotification, sendTestAnnouncement } from '@/src/lib/actions/test-notification';
 import {
   Search, Send, Bell, Mail, MessageCircle,
   CheckCircle, AlertCircle, X, User, Building2,
@@ -179,7 +179,7 @@ export default function TestNotificationsPage() {
     }
   };
 
-  // チャット送信
+  // チャット（お知らせ）送信
   const handleSendChat = async () => {
     if (!selectedUser || !chatMessage.trim()) return;
     setIsSending(true);
@@ -187,11 +187,9 @@ export default function TestNotificationsPage() {
 
     try {
       const targetType = selectedUser.userType === 'worker' ? 'WORKER' : 'FACILITY';
-      const recipientId = selectedUser.userType === 'worker'
-        ? selectedUser.id
-        : selectedUser.facilityId!;
+      const recipientId = selectedUser.id;
 
-      const data = await sendTestSystemNotification({
+      const data = await sendTestAnnouncement({
         targetType: targetType as 'WORKER' | 'FACILITY',
         recipientId,
         content: chatMessage,
@@ -200,11 +198,11 @@ export default function TestNotificationsPage() {
       if (data.success) {
         setResult({
           success: true,
-          message: `システム通知送信成功（ID: ${data.notificationId}）`,
-          details: { notificationId: data.notificationId },
+          message: `お知らせ送信成功（ID: ${data.announcementId}）`,
+          details: { announcementId: data.announcementId },
         });
       } else {
-        setResult({ success: false, message: data.error || '送信に失敗しました' });
+        setResult({ success: false, message: data.error || 'お知らせ送信に失敗しました' });
       }
     } catch (error: any) {
       setResult({ success: false, message: error.message });
@@ -493,7 +491,7 @@ export default function TestNotificationsPage() {
           {activeTab === 'chat' && (
             <>
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-                SystemNotification として送信されます。ユーザーの「運営からのお知らせ」に表示されます。
+                「運営からのお知らせ」として送信されます。ユーザーのお知らせ一覧に即時表示されます。
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">メッセージ <span className="text-red-500">*</span></label>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import webPush from 'web-push';
 import { getSystemAdminSessionData } from '@/lib/system-admin-session-server';
+import { getVersionForLog } from '@/lib/version';
 
 // VAPID設定をリクエスト時に遅延初期化
 let vapidConfigured = false;
@@ -52,6 +53,25 @@ export async function POST(request: NextRequest) {
         });
 
         if (subscriptions.length === 0) {
+            // 購読なしでもログに記録
+            const versionInfo = getVersionForLog();
+            await prisma.notificationLog.create({
+                data: {
+                    notification_key: 'SYSTEM_ADMIN_TEST_PUSH',
+                    channel: 'PUSH',
+                    target_type: userType === 'worker' ? 'WORKER' : 'FACILITY',
+                    recipient_id: userId,
+                    recipient_name: '',
+                    push_title: title || '+タスタス',
+                    push_body: message || '新しいお知らせがあります',
+                    push_url: url || '/',
+                    status: 'FAILED',
+                    error_message: 'DB上にプッシュ購読情報がありません',
+                    app_version: versionInfo.app_version,
+                    deployment_id: versionInfo.deployment_id,
+                },
+            }).catch((e) => console.error('[Push] Log save failed:', e));
+
             return NextResponse.json(
                 { error: 'No subscriptions found' },
                 { status: 404 }
@@ -100,6 +120,27 @@ export async function POST(request: NextRequest) {
                 }
             })
         );
+
+        // 送信結果をログに記録
+        const successCount = results.filter(r => r.status === 'fulfilled' && (r.value as any).success).length;
+        const failCount = results.length - successCount;
+        const versionInfoResult = getVersionForLog();
+        await prisma.notificationLog.create({
+            data: {
+                notification_key: 'SYSTEM_ADMIN_TEST_PUSH',
+                channel: 'PUSH',
+                target_type: userType === 'worker' ? 'WORKER' : 'FACILITY',
+                recipient_id: userId,
+                recipient_name: '',
+                push_title: title || '+タスタス',
+                push_body: message || '新しいお知らせがあります',
+                push_url: url || '/',
+                status: failCount === results.length ? 'FAILED' : 'SENT',
+                error_message: failCount > 0 ? `${successCount}/${results.length}デバイスに送信成功` : null,
+                app_version: versionInfoResult.app_version,
+                deployment_id: versionInfoResult.deployment_id,
+            },
+        }).catch((e) => console.error('[Push] Log save failed:', e));
 
         return NextResponse.json({
             success: true,
