@@ -23,7 +23,7 @@ self.addEventListener('push', (event) => {
     body: data.body || '',
     icon: '/icons/icon-192x192.png',
     badge: '/icons/badge-72x72.png',
-    tag: data.tag || 'default',
+    tag: data.tag || `notification-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     data: {
       url: data.url || '/',
     },
