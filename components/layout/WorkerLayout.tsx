@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation';
 import { BottomNav } from './BottomNav';
 import { WorkerNotificationPrompt } from '@/components/pwa/WorkerNotificationPrompt';
+import { PushSubscriptionSync } from '@/components/pwa/PushSubscriptionSync';
 import { PWAInstallModal } from '@/components/pwa/PWAInstallModal';
 import { PWAInstallBanner } from '@/components/pwa/PWAInstallBanner';
 import { ProfileIncompleteBanner } from '@/components/profile/ProfileIncompleteBanner';
@@ -59,6 +60,8 @@ export function WorkerLayout({ children }: WorkerLayoutProps) {
       <PWAInstallModal />
       {/* プッシュ通知許可プロンプト（ログイン済みワーカーのみ） */}
       <WorkerNotificationPrompt />
+      {/* プッシュ通知の購読状態をサイレント同期（VAPID鍵変更・期限切れ対応） */}
+      <PushSubscriptionSync userType="worker" />
     </>
   );
 }

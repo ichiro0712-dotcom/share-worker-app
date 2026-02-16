@@ -34,6 +34,7 @@ import {
   FileSpreadsheet,
 } from 'lucide-react';
 import { NotificationPermissionPrompt } from '@/components/pwa/NotificationPermissionPrompt';
+import { PushSubscriptionSync } from '@/components/pwa/PushSubscriptionSync';
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -635,7 +636,10 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
       {/* プッシュ通知許可プロンプト（ログイン済み施設管理者のみ） */}
       {admin && !isPending && !isMasquerade && (
-        <NotificationPermissionPrompt userType="facility_admin" />
+        <>
+          <NotificationPermissionPrompt userType="facility_admin" />
+          <PushSubscriptionSync userType="facility_admin" />
+        </>
       )}
 
       {/* 利用規約同意モーダル */}
