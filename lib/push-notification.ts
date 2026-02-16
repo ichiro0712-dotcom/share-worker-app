@@ -35,26 +35,44 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 
 // Service Workerがactivated状態になるまで待機するヘルパー
 function waitForSWActivation(sw: ServiceWorker, timeoutMs: number): Promise<boolean> {
+    // リスナー登録前に即座チェック（レースコンディション防止）
     if (sw.state === 'activated') return Promise.resolve(true);
+    if (sw.state === 'redundant') return Promise.resolve(false);
     return new Promise((resolve) => {
-        const timer = setTimeout(() => {
+        let resolved = false;
+        const cleanup = () => {
+            if (resolved) return;
+            resolved = true;
+            clearTimeout(timer);
             sw.removeEventListener('statechange', onStateChange);
+        };
+        const timer = setTimeout(() => {
+            cleanup();
             resolve(false);
         }, timeoutMs);
         const onStateChange = () => {
             if (sw.state === 'activated') {
-                clearTimeout(timer);
-                sw.removeEventListener('statechange', onStateChange);
+                cleanup();
                 resolve(true);
             } else if (sw.state === 'redundant') {
-                clearTimeout(timer);
-                sw.removeEventListener('statechange', onStateChange);
+                cleanup();
                 resolve(false);
             }
         };
         sw.addEventListener('statechange', onStateChange);
+        // リスナー登録後に再チェック（登録中に状態が変わった場合のレース対策）
+        if (sw.state === 'activated') {
+            cleanup();
+            resolve(true);
+        } else if (sw.state === 'redundant') {
+            cleanup();
+            resolve(false);
+        }
     });
 }
+
+// 全体タイムアウト予算（秒）
+const SW_TOTAL_TIMEOUT_MS = 15000;
 
 // Service Workerの登録状態を取得（タイムアウト付き）
 export async function getServiceWorkerRegistration(): Promise<ServiceWorkerRegistration | null> {
@@ -63,13 +81,15 @@ export async function getServiceWorkerRegistration(): Promise<ServiceWorkerRegis
         return null;
     }
 
+    const deadline = Date.now() + SW_TOTAL_TIMEOUT_MS;
+    const remainingMs = () => Math.max(0, deadline - Date.now());
+
     try {
         // PWAプラグインが自動登録中の場合があるため、リトライ付きで取得
         let registration = await navigator.serviceWorker.getRegistration();
 
         if (!registration) {
             console.log('[SW] No registration found, waiting for PWA plugin...');
-            // PWAプラグインの自動登録を少し待つ
             await new Promise(r => setTimeout(r, 1500));
             registration = await navigator.serviceWorker.getRegistration();
         }
@@ -93,31 +113,38 @@ export async function getServiceWorkerRegistration(): Promise<ServiceWorkerRegis
         }
 
         const pendingSW = registration.installing || registration.waiting || registration.active;
-        if (pendingSW) {
+        if (pendingSW && remainingMs() > 0) {
             console.log('[SW] Waiting for activation, current state:', pendingSW.state);
-            const activated = await waitForSWActivation(pendingSW, 20000);
+            const activated = await waitForSWActivation(pendingSW, remainingMs());
             if (activated) {
                 console.log('[SW] Activation complete');
-                // registration.activeが更新されるのを待つため再取得
                 const freshReg = await navigator.serviceWorker.getRegistration();
                 return freshReg || registration;
             }
-            console.error('[SW] Activation timed out');
+            console.warn('[SW] Activation wait finished without success');
         }
 
-        // フォールバック: navigator.serviceWorker.readyを待機（20秒タイムアウト）
-        console.log('[SW] Falling back to navigator.serviceWorker.ready');
-        const readyRegistration = await Promise.race([
-            navigator.serviceWorker.ready,
-            new Promise<null>(resolve => setTimeout(() => resolve(null), 20000))
-        ]);
+        // フォールバック: navigator.serviceWorker.readyを待機（残りの予算内）
+        if (remainingMs() > 0) {
+            console.log('[SW] Falling back to navigator.serviceWorker.ready');
+            let fallbackTimer: ReturnType<typeof setTimeout>;
+            const readyRegistration = await Promise.race([
+                navigator.serviceWorker.ready.then(reg => {
+                    clearTimeout(fallbackTimer);
+                    return reg;
+                }),
+                new Promise<null>(resolve => {
+                    fallbackTimer = setTimeout(() => resolve(null), remainingMs());
+                })
+            ]);
 
-        if (!readyRegistration) {
-            console.error('[SW] ready timed out after 20s');
-            return null;
+            if (readyRegistration) {
+                return readyRegistration;
+            }
         }
 
-        return readyRegistration;
+        console.error('[SW] Total timeout exceeded (' + SW_TOTAL_TIMEOUT_MS + 'ms)');
+        return null;
     } catch (error) {
         console.error('[SW] Registration error:', error);
         return null;
@@ -270,7 +297,7 @@ export async function unsubscribeFromPushNotifications(): Promise<boolean> {
 
         if (subscription) {
             // サーバーから購読情報を削除
-            await fetch('/api/push/unsubscribe', {
+            const response = await fetch('/api/push/unsubscribe', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -279,6 +306,11 @@ export async function unsubscribeFromPushNotifications(): Promise<boolean> {
                     endpoint: subscription.endpoint,
                 }),
             });
+
+            if (!response.ok) {
+                console.error('[Push] Unsubscribe API failed:', response.status);
+                return false;
+            }
 
             // ブラウザの購読を解除
             await subscription.unsubscribe();

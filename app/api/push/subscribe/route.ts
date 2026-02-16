@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { getFacilityAdminSessionData } from '@/lib/admin-session-server';
 
 export async function POST(request: NextRequest) {
     try {
@@ -35,24 +36,26 @@ export async function POST(request: NextRequest) {
 
         const { p256dh, auth } = keys;
 
-        // セッションからユーザー情報を取得
-        const session = await getServerSession(authOptions);
-
-        // ユーザーIDの取得（認証されていない場合はnull）
+        // userTypeに応じたセッション認証
         let userId: number | null = null;
         let adminId: number | null = null;
 
-        if (session?.user) {
-            const parsedId = parseInt(session.user.id as string, 10);
-            if (!isNaN(parsedId)) {
-                if (userType === 'worker') {
-                    userId = parsedId;
-                } else if (userType === 'facility_admin') {
-                    adminId = parsedId;
-                }
-            } else {
-                console.warn('Push subscribe: session.user.id is not a valid number:', session.user.id);
+        if (userType === 'worker') {
+            const session = await getServerSession(authOptions);
+            if (!session?.user?.id) {
+                return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
             }
+            const parsedId = parseInt(session.user.id as string, 10);
+            if (isNaN(parsedId)) {
+                return NextResponse.json({ error: 'Invalid user ID' }, { status: 400 });
+            }
+            userId = parsedId;
+        } else if (userType === 'facility_admin') {
+            const adminSession = await getFacilityAdminSessionData();
+            if (!adminSession?.adminId) {
+                return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+            }
+            adminId = adminSession.adminId;
         }
 
         // 既存の購読を更新、なければ作成
