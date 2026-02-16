@@ -33,50 +33,93 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
     return outputArray;
 }
 
+// Service Workerがactivated状態になるまで待機するヘルパー
+function waitForSWActivation(sw: ServiceWorker, timeoutMs: number): Promise<boolean> {
+    if (sw.state === 'activated') return Promise.resolve(true);
+    return new Promise((resolve) => {
+        const timer = setTimeout(() => {
+            sw.removeEventListener('statechange', onStateChange);
+            resolve(false);
+        }, timeoutMs);
+        const onStateChange = () => {
+            if (sw.state === 'activated') {
+                clearTimeout(timer);
+                sw.removeEventListener('statechange', onStateChange);
+                resolve(true);
+            } else if (sw.state === 'redundant') {
+                clearTimeout(timer);
+                sw.removeEventListener('statechange', onStateChange);
+                resolve(false);
+            }
+        };
+        sw.addEventListener('statechange', onStateChange);
+    });
+}
+
 // Service Workerの登録状態を取得（タイムアウト付き）
 export async function getServiceWorkerRegistration(): Promise<ServiceWorkerRegistration | null> {
     if (!('serviceWorker' in navigator)) {
-        console.log('Service Worker not supported');
+        console.log('[SW] Service Worker not supported');
         return null;
     }
 
     try {
-        // 既に登録済みのService Workerがあるか確認
-        const existingRegistration = await navigator.serviceWorker.getRegistration();
+        // PWAプラグインが自動登録中の場合があるため、リトライ付きで取得
+        let registration = await navigator.serviceWorker.getRegistration();
 
-        if (!existingRegistration) {
-            console.log('No Service Worker registered, attempting to register...');
-            // Service Workerが登録されていない場合は登録を試みる
+        if (!registration) {
+            console.log('[SW] No registration found, waiting for PWA plugin...');
+            // PWAプラグインの自動登録を少し待つ
+            await new Promise(r => setTimeout(r, 1500));
+            registration = await navigator.serviceWorker.getRegistration();
+        }
+
+        if (!registration) {
+            console.log('[SW] Still no registration, manually registering...');
             try {
-                await navigator.serviceWorker.register('/sw.js', { scope: '/' });
-                console.log('Service Worker registered successfully');
+                registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+                console.log('[SW] Manual registration succeeded');
             } catch (regError) {
-                console.error('Service Worker registration failed:', regError);
+                console.error('[SW] Manual registration failed:', regError);
                 return null;
             }
         }
 
-        // タイムアウト付きでreadyを待機（10秒）
-        const timeoutPromise = new Promise<null>((resolve) => {
-            setTimeout(() => {
-                console.error('Service Worker ready timeout - took too long to activate');
-                resolve(null);
-            }, 10000);
-        });
+        // SWがまだinstalling/waiting状態なら、activatedになるまで待つ
+        const activeSW = registration.active;
+        if (activeSW && activeSW.state === 'activated') {
+            console.log('[SW] Already activated');
+            return registration;
+        }
 
-        const registration = await Promise.race([
+        const pendingSW = registration.installing || registration.waiting || registration.active;
+        if (pendingSW) {
+            console.log('[SW] Waiting for activation, current state:', pendingSW.state);
+            const activated = await waitForSWActivation(pendingSW, 20000);
+            if (activated) {
+                console.log('[SW] Activation complete');
+                // registration.activeが更新されるのを待つため再取得
+                const freshReg = await navigator.serviceWorker.getRegistration();
+                return freshReg || registration;
+            }
+            console.error('[SW] Activation timed out');
+        }
+
+        // フォールバック: navigator.serviceWorker.readyを待機（20秒タイムアウト）
+        console.log('[SW] Falling back to navigator.serviceWorker.ready');
+        const readyRegistration = await Promise.race([
             navigator.serviceWorker.ready,
-            timeoutPromise
+            new Promise<null>(resolve => setTimeout(() => resolve(null), 20000))
         ]);
 
-        if (!registration) {
-            console.error('Service Worker did not become ready in time');
+        if (!readyRegistration) {
+            console.error('[SW] ready timed out after 20s');
             return null;
         }
 
-        return registration;
+        return readyRegistration;
     } catch (error) {
-        console.error('Service Worker registration error:', error);
+        console.error('[SW] Registration error:', error);
         return null;
     }
 }
