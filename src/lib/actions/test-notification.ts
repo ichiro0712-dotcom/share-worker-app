@@ -2,6 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { getSystemAdminSessionData } from '@/lib/system-admin-session-server';
+import { getVersionForLog } from '@/lib/version';
 
 interface SearchableUser {
   id: number;
@@ -105,14 +106,14 @@ export async function searchUsersForNotification(
 }
 
 /**
- * テスト用システム通知（チャット）を送信
- * SystemNotificationテーブルに直接作成（ユーザーの「運営」会話に表示される）
+ * テスト用お知らせ送信
+ * Announcement + AnnouncementRecipient を作成し、ワーカー/施設の「運営からのお知らせ」に表示する
  */
-export async function sendTestSystemNotification(params: {
+export async function sendTestAnnouncement(params: {
   targetType: 'WORKER' | 'FACILITY';
   recipientId: number;
   content: string;
-}): Promise<{ success: boolean; error?: string; notificationId?: number }> {
+}): Promise<{ success: boolean; error?: string; announcementId?: number }> {
   const session = await getSystemAdminSessionData();
   if (!session) throw new Error('Unauthorized');
 
@@ -122,19 +123,61 @@ export async function sendTestSystemNotification(params: {
     return { success: false, error: 'メッセージ内容を入力してください' };
   }
 
+  const versionInfo = getVersionForLog();
+
   try {
-    const notification = await prisma.systemNotification.create({
+    const announcement = await prisma.announcement.create({
       data: {
-        notification_key: 'SYSTEM_ADMIN_TEST',
-        target_type: targetType,
-        recipient_id: recipientId,
+        title: '【テスト】運営からのお知らせ',
         content: content.trim(),
+        category: 'NEWS',
+        target_type: targetType === 'WORKER' ? 'WORKER' : 'FACILITY',
+        published: true,
+        published_at: new Date(),
+        recipients: {
+          create: {
+            recipient_type: targetType === 'WORKER' ? 'WORKER' : 'FACILITY',
+            recipient_id: recipientId,
+          },
+        },
       },
     });
 
-    return { success: true, notificationId: notification.id };
+    // NotificationLogに記録
+    await prisma.notificationLog.create({
+      data: {
+        notification_key: 'SYSTEM_ADMIN_TEST_CHAT',
+        channel: 'CHAT',
+        target_type: targetType,
+        recipient_id: recipientId,
+        recipient_name: '',
+        chat_message: content.trim(),
+        status: 'SENT',
+        app_version: versionInfo.app_version,
+        deployment_id: versionInfo.deployment_id,
+      },
+    }).catch((e) => console.error('[Test Chat] Log save failed:', e));
+
+    return { success: true, announcementId: announcement.id };
   } catch (error: any) {
-    console.error('[sendTestSystemNotification] Error:', error);
+    console.error('[sendTestAnnouncement] Error:', error);
+
+    // 失敗ログ
+    await prisma.notificationLog.create({
+      data: {
+        notification_key: 'SYSTEM_ADMIN_TEST_CHAT',
+        channel: 'CHAT',
+        target_type: targetType,
+        recipient_id: recipientId,
+        recipient_name: '',
+        chat_message: content.trim(),
+        status: 'FAILED',
+        error_message: error.message,
+        app_version: versionInfo.app_version,
+        deployment_id: versionInfo.deployment_id,
+      },
+    }).catch((e) => console.error('[Test Chat] Log save failed:', e));
+
     return { success: false, error: error.message };
   }
 }
