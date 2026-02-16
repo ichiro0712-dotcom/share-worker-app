@@ -68,17 +68,17 @@ export function NotificationButton({ userType }: Props) {
             setPermission(perm);
 
             if (perm === 'granted') {
-                const subscription = await subscribeToPushNotifications(userType);
-                if (subscription) {
+                const result = await subscribeToPushNotifications(userType);
+                if (result.success) {
                     toast.success('通知を有効にしました');
                 } else {
                     showDebugError({
                         type: 'save',
                         operation: 'プッシュ通知登録',
-                        message: '通知の登録に失敗しました',
-                        context: { userType }
+                        message: result.message,
+                        context: { userType, error: result.error }
                     });
-                    toast.error('通知の登録に失敗しました');
+                    toast.error(result.message, { duration: 5000 });
                 }
             } else {
                 toast.error('通知が許可されませんでした');

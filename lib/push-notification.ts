@@ -2,6 +2,21 @@
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 
+// プッシュ通知サブスクリプションのエラー種別
+export type PushSubscriptionError =
+    | 'VAPID_KEY_MISSING'
+    | 'SW_NOT_SUPPORTED'
+    | 'SW_REGISTRATION_FAILED'
+    | 'SW_TIMEOUT'
+    | 'PUSH_NOT_ALLOWED'
+    | 'PUSH_SUBSCRIBE_FAILED'
+    | 'API_FAILED'
+    | 'UNKNOWN';
+
+export type PushSubscriptionResult =
+    | { success: true; subscription: PushSubscription }
+    | { success: false; error: PushSubscriptionError; message: string };
+
 // Base64をUint8Arrayに変換
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
     const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -102,18 +117,40 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
     return permission;
 }
 
-// プッシュ通知を購読
+// iOSかつスタンドアロンモードでないかチェック
+// iPadOS（デスクトップUAモード）も検出する
+export function isIOSNonStandalone(): boolean {
+    if (typeof window === 'undefined') return false;
+    const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    // iPadOSはデスクトップ版SafariのUAを返すため、タッチポイント数で判定
+    const isIPadOS = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+    if (!isIOSDevice && !isIPadOS) return false;
+    const standalone = window.matchMedia('(display-mode: standalone)').matches ||
+        (window.navigator as any).standalone === true;
+    return !standalone;
+}
+
+// プッシュ通知を購読（結果オブジェクトで返す）
 export async function subscribeToPushNotifications(
     userType: 'worker' | 'facility_admin'
-): Promise<PushSubscription | null> {
+): Promise<PushSubscriptionResult> {
     if (!VAPID_PUBLIC_KEY) {
         console.error('VAPID public key not found');
-        return null;
+        return { success: false, error: 'VAPID_KEY_MISSING', message: 'VAPID公開鍵が設定されていません' };
+    }
+
+    // iOSブラウザ（非PWA）ではプッシュ通知が使えない
+    if (isIOSNonStandalone()) {
+        return {
+            success: false,
+            error: 'PUSH_NOT_ALLOWED',
+            message: 'iOSでは「ホーム画面に追加」してからお試しください',
+        };
     }
 
     const registration = await getServiceWorkerRegistration();
     if (!registration) {
-        return null;
+        return { success: false, error: 'SW_REGISTRATION_FAILED', message: 'サービスワーカーの準備に失敗しました。ページを再読み込みしてください。' };
     }
 
     try {
@@ -122,10 +159,26 @@ export async function subscribeToPushNotifications(
 
         if (!subscription) {
             // 新規購読
-            subscription = await registration.pushManager.subscribe({
-                userVisibleOnly: true,
-                applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
-            });
+            try {
+                subscription = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
+                });
+            } catch (subscribeError: any) {
+                console.error('pushManager.subscribe() failed:', subscribeError);
+                if (subscribeError?.name === 'NotAllowedError') {
+                    return {
+                        success: false,
+                        error: 'PUSH_NOT_ALLOWED',
+                        message: 'プッシュ通知が許可されていません。ブラウザの設定を確認してください。',
+                    };
+                }
+                return {
+                    success: false,
+                    error: 'PUSH_SUBSCRIBE_FAILED',
+                    message: `通知の購読に失敗しました: ${subscribeError?.message || '不明なエラー'}`,
+                };
+            }
         }
 
         // サーバーに購読情報を送信
@@ -141,14 +194,24 @@ export async function subscribeToPushNotifications(
         });
 
         if (!response.ok) {
-            throw new Error('Failed to save subscription on server');
+            const errorBody = await response.text().catch(() => '');
+            console.error('Push subscribe API error:', response.status, errorBody);
+            return {
+                success: false,
+                error: 'API_FAILED',
+                message: 'サーバーへの登録に失敗しました。しばらくしてからお試しください。',
+            };
         }
 
-        console.log('Push notification subscribed:', subscription);
-        return subscription;
-    } catch (error) {
+        console.log('Push notification subscribed successfully');
+        return { success: true, subscription };
+    } catch (error: any) {
         console.error('Push subscription error:', error);
-        return null;
+        return {
+            success: false,
+            error: 'UNKNOWN',
+            message: `通知の登録中にエラーが発生しました: ${error?.message || '不明なエラー'}`,
+        };
     }
 }
 
