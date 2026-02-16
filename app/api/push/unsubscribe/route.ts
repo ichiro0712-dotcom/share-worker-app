@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { getFacilityAdminSessionData } from '@/lib/admin-session-server';
 
 export async function POST(request: NextRequest) {
     try {
@@ -13,11 +16,28 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        await prisma.pushSubscription.deleteMany({
-            where: { endpoint },
-        });
+        // worker(NextAuth) または facility_admin(iron-session) のいずれかで認証
+        const session = await getServerSession(authOptions);
+        const adminSession = await getFacilityAdminSessionData();
 
-        return NextResponse.json({ success: true });
+        if (session?.user?.id) {
+            const userId = parseInt(session.user.id);
+            if (!isNaN(userId)) {
+                await prisma.pushSubscription.deleteMany({
+                    where: { endpoint, user_id: userId },
+                });
+                return NextResponse.json({ success: true });
+            }
+        }
+
+        if (adminSession?.adminId) {
+            await prisma.pushSubscription.deleteMany({
+                where: { endpoint, admin_id: adminSession.adminId },
+            });
+            return NextResponse.json({ success: true });
+        }
+
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     } catch (error) {
         console.error('Push unsubscribe error:', error);
         return NextResponse.json(
