@@ -48,11 +48,18 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        const tag = `test-${Date.now()}`;
         const payload = JSON.stringify({
             title: title || '+タスタス',
             body: message || '新しいお知らせがあります',
             url: url || '/',
+            tag,
         });
+
+        const pushOptions = {
+            TTL: 24 * 60 * 60,
+            urgency: 'high' as const,
+        };
 
         // 全デバイスに通知を送信
         const results = await Promise.allSettled(
@@ -66,7 +73,8 @@ export async function POST(request: NextRequest) {
                                 auth: sub.auth,
                             },
                         },
-                        payload
+                        payload,
+                        pushOptions
                     );
                     return { success: true, endpoint: sub.endpoint };
                 } catch (error: any) {
@@ -76,7 +84,7 @@ export async function POST(request: NextRequest) {
                             where: { id: sub.id },
                         });
                     }
-                    return { success: false, endpoint: sub.endpoint, error: error.message };
+                    return { success: false, endpoint: sub.endpoint, statusCode: error.statusCode, error: error.message };
                 }
             })
         );

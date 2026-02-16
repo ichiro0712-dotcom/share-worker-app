@@ -390,9 +390,21 @@ async function sendPushNotification(params: {
             return;
         }
 
-        const payload = JSON.stringify({ title, body, url });
+        // 通知ごとにユニークなtagを生成（同じtagの通知は上書きされるため）
+        const tag = `${notificationKey}-${Date.now()}`;
+        const payload = JSON.stringify({ title, body, url, tag });
 
-        // 全デバイスに送信
+        // 送信オプション（TTL: 24時間、urgency: high で即時配信）
+        const pushOptions = {
+            TTL: 24 * 60 * 60,
+            urgency: 'high' as const,
+        };
+
+        // 全デバイスに送信（結果を追跡）
+        let successCount = 0;
+        let failedCount = 0;
+        const errors: string[] = [];
+
         for (const sub of subscriptions) {
             try {
                 await webPush.sendNotification(
@@ -400,18 +412,31 @@ async function sendPushNotification(params: {
                         endpoint: sub.endpoint,
                         keys: { p256dh: sub.p256dh, auth: sub.auth },
                     },
-                    payload
+                    payload,
+                    pushOptions
                 );
+                successCount++;
             } catch (error: any) {
+                failedCount++;
+                const statusCode = error.statusCode || 'unknown';
+                const platform = sub.endpoint.includes('apple') ? 'iOS' : sub.endpoint.includes('fcm') ? 'FCM' : 'other';
+                console.error(`[Push] Failed to send to ${platform} (sub:${sub.id}, status:${statusCode}):`, error.message);
+                errors.push(`sub:${sub.id}(${platform}):${statusCode}`);
+
                 // 無効な購読は削除
                 if (error.statusCode === 404 || error.statusCode === 410) {
-                    await prisma.pushSubscription.delete({ where: { id: sub.id } });
+                    await prisma.pushSubscription.delete({ where: { id: sub.id } }).catch(() => {});
                 }
             }
         }
 
-        // ログ記録（バージョン情報付き）
+        // ログ記録（成功が1件以上あればSENT、全滅ならFAILED）
         const versionInfo = getVersionForLog();
+        const status = successCount > 0 ? 'SENT' : 'FAILED';
+        const errorMessage = failedCount > 0
+            ? `${successCount}/${successCount + failedCount} succeeded. Errors: ${errors.join(', ')}`
+            : null;
+
         await prisma.notificationLog.create({
             data: {
                 notification_key: notificationKey,
@@ -422,7 +447,8 @@ async function sendPushNotification(params: {
                 push_title: title,
                 push_body: body,
                 push_url: url,
-                status: 'SENT',
+                status,
+                error_message: errorMessage,
                 app_version: versionInfo.app_version,
                 deployment_id: versionInfo.deployment_id,
             },
