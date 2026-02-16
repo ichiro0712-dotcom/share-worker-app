@@ -107,29 +107,59 @@ function insertTagsToHtml(html: string, ctaUrl?: string | null): {
 }
 
 /**
- * HTML内の相対画像パスをSupabase Storageの絶対URLに変換
+ * 相対パスを正規化（先頭の ./ ../ を除去）
+ */
+function normalizePath(relativePath: string): string {
+  return relativePath
+    .replace(/^(\.\/)+/, '')    // 先頭の ./ を除去
+    .replace(/^(\.\.\/)+/, ''); // 先頭の ../ を除去（LP root より上には行けない）
+}
+
+/**
+ * HTML内の相対パスをSupabase Storageの絶対URLに変換
+ * - src, srcset, href, url() を対象
+ * - /始まりの絶対パス（例: /lp/tracking.js）は変換しない
+ * - ./ ../ を正規化してからURLを構築
  */
 function convertImagePaths(html: string, lpNumber: number, supabaseUrl: string): string {
-  // 相対パスの画像を絶対パスに変換
-  // 例: src="images/hero.jpg" → src="https://xxx.supabase.co/storage/v1/object/public/lp-assets/0/images/hero.jpg"
   const baseUrl = `${supabaseUrl}/storage/v1/object/public/${STORAGE_BUCKETS.LP_ASSETS}/${lpNumber}`;
 
-  // src属性の相対パス変換
+  // src属性の相対パス変換（/始まりの絶対パスは除外）
   let modifiedHtml = html.replace(
-    /src="(?!http|\/\/|data:)([^"]+)"/gi,
-    `src="${baseUrl}/$1"`
+    /src="(?!http|\/\/|\/|data:)([^"]+)"/gi,
+    (_match, path) => `src="${baseUrl}/${normalizePath(path)}"`
   );
 
-  // href属性の相対パス変換（CSSファイルなど）
+  // srcset属性の相対パス変換（カンマ区切りの各エントリを個別に変換）
   modifiedHtml = modifiedHtml.replace(
-    /href="(?!http|\/\/|data:|#|mailto:)([^"]+\.(?:css|ico|png|jpg|jpeg|gif|svg|webp))"/gi,
-    `href="${baseUrl}/$1"`
+    /srcset="([^"]+)"/gi,
+    (_match, srcsetValue: string) => {
+      const converted = srcsetValue.split(',').map((entry: string) => {
+        const trimmed = entry.trim();
+        const parts = trimmed.split(/\s+/);
+        const url = parts[0];
+        const descriptor = parts.slice(1).join(' ');
+        // 絶対URL・データURL・/始まりはそのまま
+        if (/^(https?:|\/\/|\/|data:)/i.test(url)) {
+          return trimmed;
+        }
+        const newUrl = `${baseUrl}/${normalizePath(url)}`;
+        return descriptor ? `${newUrl} ${descriptor}` : newUrl;
+      }).join(', ');
+      return `srcset="${converted}"`;
+    }
   );
 
-  // CSS内のurl()パス変換
+  // href属性の相対パス変換（CSSファイルなど、/始まりは除外）
   modifiedHtml = modifiedHtml.replace(
-    /url\(['"]?(?!http|\/\/|data:)([^'")]+)['"]?\)/gi,
-    `url('${baseUrl}/$1')`
+    /href="(?!http|\/\/|\/|data:|#|mailto:)([^"]+\.(?:css|ico|png|jpg|jpeg|gif|svg|webp))"/gi,
+    (_match, path) => `href="${baseUrl}/${normalizePath(path)}"`
+  );
+
+  // CSS内のurl()パス変換（/始まりは除外）
+  modifiedHtml = modifiedHtml.replace(
+    /url\(['"]?(?!http|\/\/|\/|data:)([^'")]+)['"]?\)/gi,
+    (_match, path) => `url('${baseUrl}/${normalizePath(path)}')`
   );
 
   return modifiedHtml;
