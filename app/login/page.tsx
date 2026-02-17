@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -11,7 +11,16 @@ import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBa
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 
 export default function WorkerLogin() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-white flex items-center justify-center"><LoadingSpinner size="lg" /></div>}>
+      <WorkerLoginInner />
+    </Suspense>
+  );
+}
+
+function WorkerLoginInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { login, isLoading: authLoading } = useAuth();
   const { showDebugError } = useDebugError();
   const [email, setEmail] = useState('');
@@ -185,13 +194,23 @@ export default function WorkerLogin() {
             </button>
           </form>
 
-          {/* 新規登録リンク */}
+          {/* 新規登録リンク（LP情報をクエリパラメータで引き継ぐ） */}
           <div className="mt-6 pt-6 border-t border-white/30 text-center">
             <p className="text-sm text-white/90 mb-3">
               アカウントをお持ちでない方
             </p>
             <Link
-              href="/register/worker"
+              href={(() => {
+                const params = new URLSearchParams();
+                const lp = searchParams?.get('lp');
+                const c = searchParams?.get('c');
+                const g = searchParams?.get('g');
+                if (lp) params.set('lp', lp);
+                if (c) params.set('c', c);
+                if (g) params.set('g', g);
+                const qs = params.toString();
+                return `/register/worker${qs ? `?${qs}` : ''}`;
+              })()}
               className="block w-full py-3 border-2 border-white text-white rounded-lg font-medium hover:bg-white/10 transition-colors"
             >
               新規登録はこちら

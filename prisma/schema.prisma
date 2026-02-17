@@ -1559,6 +1559,7 @@ model LpPageView {
 
   @@index([lp_id, campaign_code])
   @@index([created_at])
+  @@index([ip_address, created_at])
   @@map("lp_page_views")
 }
 

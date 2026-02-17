@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Check } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
@@ -17,7 +17,16 @@ import { WORKER_TERMS_OF_SERVICE, TERMS_LAST_UPDATED, WORKER_PRIVACY_POLICY, PRI
 import { QUALIFICATION_GROUPS } from '@/constants/qualifications';
 
 export default function WorkerRegisterPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-50 py-8"><div className="max-w-xl mx-auto px-4 text-center text-gray-500">読み込み中...</div></div>}>
+      <WorkerRegisterPageInner />
+    </Suspense>
+  );
+}
+
+function WorkerRegisterPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { showDebugError } = useDebugError();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showErrors, setShowErrors] = useState(false);
@@ -48,17 +57,21 @@ export default function WorkerRegisterPage() {
     qualifications: [] as string[],
   });
 
-  // LP経由登録情報（localStorageから取得）
+  // LP経由登録情報（localStorage → URLパラメータ のフォールバックチェーン）
   const [lpInfo, setLpInfo] = useState<{ lpId: string | null; campaignCode: string | null; genrePrefix: string | null }>({
     lpId: null,
     campaignCode: null,
     genrePrefix: null,
   });
+  const [lpSource, setLpSource] = useState<'localStorage' | 'urlParams' | 'none'>('none');
 
-  // ページロード時にlocalStorageからLP情報を取得
+  // ページロード時にLP情報を取得（localStorage優先、URLパラメータフォールバック）
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      let fromLocalStorage = false;
+
       try {
+        // 第1優先: localStorage（lp_tracking_data）
         const trackingDataStr = localStorage.getItem('lp_tracking_data');
         if (trackingDataStr) {
           const trackingData = JSON.parse(trackingDataStr);
@@ -68,30 +81,50 @@ export default function WorkerRegisterPage() {
               campaignCode: trackingData.campaignCode || null,
               genrePrefix: trackingData.genrePrefix || null,
             });
-            return;
+            fromLocalStorage = true;
           }
         }
-        const storedLpId = localStorage.getItem('lp_id');
-        const storedCampaignCode = localStorage.getItem('lp_campaign_code');
-        if (storedLpId) {
-          let genrePrefix = null;
-          if (storedCampaignCode) {
-            const match = storedCampaignCode.match(/^([A-Z]{3})-/);
-            if (match) {
-              genrePrefix = match[1];
+        // 第1優先: localStorage（個別キー）
+        if (!fromLocalStorage) {
+          const storedLpId = localStorage.getItem('lp_id');
+          const storedCampaignCode = localStorage.getItem('lp_campaign_code');
+          if (storedLpId) {
+            let genrePrefix = null;
+            if (storedCampaignCode) {
+              const match = storedCampaignCode.match(/^([A-Z]{3})-/);
+              if (match) {
+                genrePrefix = match[1];
+              }
             }
+            setLpInfo({
+              lpId: storedLpId,
+              campaignCode: storedCampaignCode,
+              genrePrefix,
+            });
+            fromLocalStorage = true;
           }
-          setLpInfo({
-            lpId: storedLpId,
-            campaignCode: storedCampaignCode,
-            genrePrefix,
-          });
         }
       } catch (e) {
         console.error('Failed to get LP info from localStorage:', e);
       }
+
+      if (fromLocalStorage) {
+        setLpSource('localStorage');
+        return;
+      }
+
+      // 第2優先: URLクエリパラメータ（CTAリンク経由で引き継がれた情報）
+      const urlLp = searchParams?.get('lp');
+      if (urlLp) {
+        setLpInfo({
+          lpId: urlLp,
+          campaignCode: searchParams?.get('c') || null,
+          genrePrefix: searchParams?.get('g') || null,
+        });
+        setLpSource('urlParams');
+      }
     }
-  }, []);
+  }, [searchParams]);
 
   // 資格チェックボックスのトグル
   const handleQualificationToggle = (qualification: string) => {
@@ -235,10 +268,11 @@ export default function WorkerRegisterPage() {
           addressLine: formData.addressLine,
           building: formData.building,
           qualifications: formData.qualifications,
-          // LP経由登録情報
+          // LP経由登録情報（フォールバックチェーン: localStorage → URLパラメータ → サーバーサイドIP照合）
           registrationLpId: lpInfo.lpId,
           registrationCampaignCode: lpInfo.campaignCode,
           registrationGenrePrefix: lpInfo.genrePrefix,
+          lpAttributionSource: lpSource,
         }),
       });
 

@@ -5,6 +5,8 @@ import prisma from '@/lib/prisma';
 import { sendAdminNewWorkerNotification } from '@/src/lib/actions/notification';
 import { sendVerificationEmail } from '@/src/lib/auth/email-verification';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
+import { findLpByIpAddress } from '@/src/lib/lp-attribution';
+import { getClientIpAddress } from '@/src/lib/device-info';
 
 interface RegisterBody {
   email: string;
@@ -31,6 +33,8 @@ interface RegisterBody {
   registrationLpId?: string;
   registrationCampaignCode?: string;
   registrationGenrePrefix?: string;
+  // LP帰属ソース（クライアント側で判定: 'localStorage' | 'urlParams' | 'none'）
+  lpAttributionSource?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -61,7 +65,32 @@ export async function POST(request: NextRequest) {
       registrationLpId,
       registrationCampaignCode,
       registrationGenrePrefix,
+      lpAttributionSource: clientLpSource,
     } = body;
+
+    // LP帰属のフォールバックチェーン
+    // 1. localStorage / URLパラメータ（クライアントから送信）
+    // 2. IPアドレス照合（サーバーサイド）
+    let resolvedLpId = registrationLpId || null;
+    let resolvedCampaignCode = registrationCampaignCode || null;
+    let resolvedGenrePrefix = registrationGenrePrefix || null;
+    let lpAttributionSource = clientLpSource || (resolvedLpId ? 'client' : 'none');
+
+    if (!resolvedLpId) {
+      try {
+        const clientIp = await getClientIpAddress();
+        const ipResult = await findLpByIpAddress(clientIp);
+        if (ipResult) {
+          resolvedLpId = ipResult.lpId;
+          resolvedCampaignCode = ipResult.campaignCode;
+          resolvedGenrePrefix = ipResult.genrePrefix;
+          lpAttributionSource = 'ipFallback';
+        }
+      } catch (e) {
+        // IPフォールバックのエラーは登録処理に影響させない
+        console.error('LP IP fallback error (non-blocking):', e);
+      }
+    }
 
     // lastName/firstNameが渡された場合はnameに結合
     const resolvedName = (lastName && firstName)
@@ -117,10 +146,10 @@ export async function POST(request: NextRequest) {
         experience_fields: experienceFields && Object.keys(experienceFields).length > 0 ? experienceFields as Prisma.InputJsonValue : Prisma.DbNull,
         work_histories: workHistoriesArray,
         qualification_certificates: qualificationCertificates && Object.keys(qualificationCertificates).length > 0 ? qualificationCertificates as Prisma.InputJsonValue : Prisma.DbNull,
-        // LP経由登録情報
-        registration_lp_id: registrationLpId || null,
-        registration_campaign_code: registrationCampaignCode || null,
-        registration_genre_prefix: registrationGenrePrefix || null,
+        // LP経由登録情報（フォールバックチェーン適用済み）
+        registration_lp_id: resolvedLpId,
+        registration_campaign_code: resolvedCampaignCode,
+        registration_genre_prefix: resolvedGenrePrefix,
       },
     });
 
@@ -132,7 +161,7 @@ export async function POST(request: NextRequest) {
       action: 'REGISTER',
       targetType: 'User',
       targetId: user.id,
-      requestData: { name, email, phoneNumber, prefecture, city },
+      requestData: { name, email, phoneNumber, prefecture, city, lpAttributionSource, lpId: resolvedLpId },
       result: 'SUCCESS',
       url: '/api/auth/register',
     });
