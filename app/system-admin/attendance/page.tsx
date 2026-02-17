@@ -5,6 +5,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Download, Filter, RefreshCw, Calendar, Users, Clock, CircleDollarSign, Pencil } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
@@ -410,9 +411,9 @@ export default function SystemAdminAttendancePage() {
                       </div>
                     </td>
                     <td className="px-3 py-3">
-                      <div className="text-sm font-medium text-slate-900">
+                      <Link href={`/system-admin/workers/${item.userId}`} className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline">
                         {item.userName}
-                      </div>
+                      </Link>
                       <div className="text-xs text-slate-500">{item.userEmail}</div>
                     </td>
                     <td className="px-3 py-3">
