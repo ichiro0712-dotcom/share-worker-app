@@ -197,7 +197,7 @@ export async function subscribeToPushNotifications(
         try {
             subscription = await registration.pushManager.subscribe({
                 userVisibleOnly: true,
-                applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
+                applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY).buffer as ArrayBuffer,
             });
             console.log('[Push] New subscription created');
         } catch (subscribeError: any) {
