@@ -65,8 +65,8 @@ export function JobListClient({
 
   // URLパラメータから初期値を取得
   const dateIndexFromUrl = searchParams?.get('dateIndex');
-  const urlDateIndex = dateIndexFromUrl ? parseInt(dateIndexFromUrl, 10) : 0;
-  const safeUrlDateIndex = isNaN(urlDateIndex) ? 0 : urlDateIndex;
+  const urlDateIndex = dateIndexFromUrl ? parseInt(dateIndexFromUrl, 10) : 1;
+  const safeUrlDateIndex = isNaN(urlDateIndex) ? 1 : urlDateIndex;
 
   // ローカルステートで日付インデックスを管理（URL遷移なし）
   const [selectedDateIndex, setSelectedDateIndex] = useState(safeUrlDateIndex);

@@ -15,9 +15,9 @@ export default async function JobListPage() {
     // 現在時刻を取得（デバッグ時刻対応）
     const currentTime = getCurrentTime();
 
-    // 今日の日付を取得（dateIndex = 0）
+    // 翌日の日付を取得（dateIndex = 1）
     const dates = generateDatesFromBase(currentTime, 90);
-    const targetDate = dates[0]; // 今日
+    const targetDate = dates[1]; // 翌日
 
     // サーバーサイドで求人データを事前取得
     // 注意: SSRでは位置情報が取得できないため、距離ソートは使用しない
@@ -101,6 +101,7 @@ export default async function JobListPage() {
         effectiveWeeklyFrequency: job.effectiveWeeklyFrequency,
         availableWorkDateCount: job.availableWorkDateCount,
         jobType: job.jobType,
+        isExpired: job.isExpired || false,
       };
     });
 

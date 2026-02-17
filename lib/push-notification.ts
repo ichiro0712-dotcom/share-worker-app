@@ -218,7 +218,14 @@ export async function subscribeToPushNotifications(
         };
     }
 
-    const registration = await getServiceWorkerRegistration();
+    // SWの取得を試行（失敗時は3秒待ってリトライ）
+    // iOS PWAでは通知許可直後にSWコンテキストが不安定になることがある
+    let registration = await getServiceWorkerRegistration();
+    if (!registration) {
+        console.log('[Push] SW registration failed, retrying in 3s...');
+        await new Promise(r => setTimeout(r, 3000));
+        registration = await getServiceWorkerRegistration();
+    }
     if (!registration) {
         return { success: false, error: 'SW_REGISTRATION_FAILED', message: 'サービスワーカーの準備に失敗しました。ページを再読み込みしてください。' };
     }
