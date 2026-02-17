@@ -96,9 +96,9 @@ self.addEventListener('pushsubscriptionchange', ((event: Event) => {
   const resubscribe = async () => {
     try {
       const oldOptions = pushEvent.oldSubscription?.options;
-      const applicationServerKey =
-        oldOptions?.applicationServerKey ||
-        (VAPID_PUBLIC_KEY ? urlBase64ToUint8Array(VAPID_PUBLIC_KEY) : undefined);
+      const applicationServerKey: ArrayBuffer | undefined =
+        (oldOptions?.applicationServerKey as ArrayBuffer | null) ??
+        (VAPID_PUBLIC_KEY ? urlBase64ToUint8Array(VAPID_PUBLIC_KEY).buffer as ArrayBuffer : undefined);
 
       if (!applicationServerKey) {
         console.error('[SW] Re-subscription skipped: applicationServerKey is missing');
