@@ -42,10 +42,12 @@ export default function VerifyPendingPage() {
     script.src = "//tastas.ac01.l-ad.net/ac/p18d92c360ebf6x3/action.js";
     script.id = "ac_p18d92c360ebf6x3";
     script.addEventListener("load", () => {
-      (window as any).CATS_GroupAction(
-        gid, sid, uid1, uid2, uqid, uid3, uid4, uid5, uid6, uid7, uid8,
-        catsPoint, amount, trackingUserId, firstCookie, catsOptions
-      );
+      if (typeof (window as any).CATS_GroupAction === 'function') {
+        (window as any).CATS_GroupAction(
+          gid, sid, uid1, uid2, uqid, uid3, uid4, uid5, uid6, uid7, uid8,
+          catsPoint, amount, trackingUserId, firstCookie, catsOptions
+        );
+      }
     });
     document.body.appendChild(script);
 
