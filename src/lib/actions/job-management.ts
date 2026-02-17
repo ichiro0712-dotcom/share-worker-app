@@ -10,6 +10,7 @@ import { sendFavoriteNewJobNotification } from './notification';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 import { getFacilityAdminSessionData } from '@/lib/admin-session-server';
 import { getMinimumWageForPrefecture } from '@/src/lib/actions/minimumWage';
+import { notifyJobUpdated, notifyJobsUpdated, notifyJobsDeleted } from '@/src/lib/google-indexing';
 
 /**
  * ローカル用の日付フォーマット関数 (M/D形式)
@@ -139,6 +140,7 @@ export async function getFacilityJobs(
                 appliedCount: wd.applied_count,
                 matchedCount: wd.matched_count,
                 deadline: wd.deadline.toISOString(),
+                visibleUntil: wd.visible_until?.toISOString() || null,
             })),
             totalWorkDates: job.workDates.length,
             totalApplied,
@@ -259,6 +261,7 @@ export async function getAdminJobsList(facilityId: number) {
                 appliedCount: wd.applied_count,
                 matchedCount: wd.matched_count,
                 deadline: wd.deadline.toISOString(),
+                visibleUntil: wd.visible_until?.toISOString() || null,
             })),
             totalWorkDates: job.workDates.length,
             totalApplied: totalApplied,
@@ -628,6 +631,9 @@ export async function createJobs(input: CreateJobInput) {
         result: 'SUCCESS',
     }).catch(() => {});
 
+    // Google Indexing API に通知（求人作成時は常にPUBLISHED）
+    notifyJobUpdated(job.id);
+
     return { success: true, jobId: job.id };
 }
 
@@ -716,6 +722,9 @@ export async function deleteJobs(jobIds: number[], facilityId: number): Promise<
             },
             result: 'SUCCESS',
         }).catch(() => {});
+
+        // Google Indexing API に削除を通知
+        notifyJobsDeleted(validJobIds);
 
         return {
             success: true,
@@ -837,6 +846,13 @@ export async function updateJobsStatus(
             },
             result: 'SUCCESS',
         }).catch(() => {});
+
+        // Google Indexing API に通知（公開=更新通知、停止=削除通知）
+        if (status === 'PUBLISHED') {
+            notifyJobsUpdated(validJobIds);
+        } else {
+            notifyJobsDeleted(validJobIds);
+        }
 
         return {
             success: true,
@@ -1123,6 +1139,9 @@ export async function updateJob(
             },
             result: 'SUCCESS',
         }).catch(() => {});
+
+        // Google Indexing API に更新を通知
+        notifyJobUpdated(jobId);
 
         return { success: true };
     } catch (error) {

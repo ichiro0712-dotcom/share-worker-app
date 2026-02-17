@@ -58,22 +58,24 @@ const JobCardComponent: React.FC<JobCardProps> = ({ job, facility, selectedDate,
     : null;
 
   // 選択日付が応募不可、または全ての日付が応募不可の場合
-  const isUnavailable = selectedWorkDate
+  const isUnavailable = job.isExpired || (selectedWorkDate
     ? !selectedWorkDate.canApply
-    : job.hasAvailableWorkDate === false;
+    : job.hasAvailableWorkDate === false);
 
   // 応募不可の理由を特定
-  const unavailableReason = selectedWorkDate
-    ? selectedWorkDate.isApplied
-      ? '応募済み'
-      : selectedWorkDate.hasTimeConflict
-        ? '時間重複'
-        : selectedWorkDate.isFull
-          ? '募集終了'
-          : null
-    : job.hasAvailableWorkDate === false
-      ? '応募できません'
-      : null;
+  const unavailableReason = job.isExpired
+    ? '募集終了'
+    : selectedWorkDate
+      ? selectedWorkDate.isApplied
+        ? '応募済み'
+        : selectedWorkDate.hasTimeConflict
+          ? '時間重複'
+          : selectedWorkDate.isFull
+            ? '募集終了'
+            : null
+      : job.hasAvailableWorkDate === false
+        ? '募集終了'
+        : null;
 
   // 旧ロジック（互換性のため残す）
   const isRecruitmentEnded = !job.requiresInterview && (job.matchedCount ?? 0) >= job.recruitmentCount;

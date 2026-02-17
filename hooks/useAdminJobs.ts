@@ -12,6 +12,7 @@ interface WorkDateData {
     appliedCount: number;
     matchedCount: number;
     deadline: string;
+    visibleUntil: string | null;
 }
 
 type JobType = 'NORMAL' | 'LIMITED_WORKED' | 'LIMITED_FAVORITE' | 'ORIENTATION' | 'OFFER';

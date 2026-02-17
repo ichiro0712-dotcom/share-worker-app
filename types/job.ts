@@ -58,4 +58,6 @@ export interface Job {
   weeklyFrequency?: number | null; // 2-5回以上勤務条件
   effectiveWeeklyFrequency?: number | null; // 有効なN回以上勤務条件（応募可能日数がN未満なら単発扱いでnull）
   availableWorkDateCount?: number; // 応募可能な勤務日数
+  // 募集終了フラグ（期限切れ・定員満了で通常検索から除外された求人）
+  isExpired?: boolean;
 }

@@ -1017,6 +1017,77 @@ export async function getJobsListWithPagination(
     }),
     ]);
 
+    // 募集終了求人を追加取得（該当日にwork_dateがあるが、visible_until切れ or 定員満了で通常クエリから除外された求人）
+    let expiredJobs: typeof jobs = [];
+    if (targetDate) {
+        const expiredStartOfDay = targetDate;
+        const expiredEndOfDay = new Date(targetDate.getTime() + 24 * 60 * 60 * 1000 - 1);
+        const normalJobIds = jobs.map(j => j.id);
+
+        // whereConditionsからworkDates条件を除いたベース条件を構築
+        const { workDates: _wd, ...baseWhereWithoutWorkDates } = whereConditions;
+
+        expiredJobs = await prisma.job.findMany({
+            where: {
+                ...baseWhereWithoutWorkDates,
+                // 通常クエリの結果に含まれないもの
+                id: { notIn: normalJobIds },
+                // 該当日にwork_dateがあるが、visible_until条件を問わない
+                workDates: {
+                    some: {
+                        work_date: { gte: expiredStartOfDay, lte: expiredEndOfDay },
+                        OR: [
+                            { visible_from: { lte: now } },
+                            { visible_from: null }
+                        ],
+                    }
+                },
+            },
+            include: {
+                facility: {
+                    select: {
+                        id: true,
+                        facility_name: true,
+                        facility_type: true,
+                        prefecture: true,
+                        city: true,
+                        address: true,
+                        address_line: true,
+                        lat: true,
+                        lng: true,
+                        rating: true,
+                        review_count: true,
+                        created_at: true,
+                        updated_at: true,
+                    },
+                },
+                workDates: {
+                    select: {
+                        id: true,
+                        work_date: true,
+                        deadline: true,
+                        applied_count: true,
+                        matched_count: true,
+                        recruitment_count: true,
+                        visible_from: true,
+                        visible_until: true,
+                        created_at: true,
+                        updated_at: true,
+                    },
+                    orderBy: { work_date: 'asc' },
+                    // 該当日のwork_dateのみ取得（visible_until条件なし）
+                    where: {
+                        AND: [
+                            { work_date: { gte: expiredStartOfDay, lte: expiredEndOfDay } },
+                            { OR: [{ visible_from: { lte: now } }, { visible_from: null }] },
+                        ]
+                    }
+                },
+            },
+            take: 10,
+        });
+    }
+
     // ユーザーの応募済み情報を取得
     let userAppliedWorkDateIds: number[] = [];
     let userScheduledJobs: { date: string; startTime: string; endTime: string; workDateId: number }[] = [];
@@ -1128,8 +1199,72 @@ export async function getJobsListWithPagination(
         };
     });
 
+    // 募集終了求人のデータ整形（通常求人と同じ形式 + isExpiredフラグ）
+    const formattedExpiredJobs = expiredJobs.map((job) => {
+        const nearestWorkDate = job.workDates.length > 0 ? job.workDates[0] : null;
+        const totalAppliedCount = job.workDates.reduce((sum, wd) => sum + wd.applied_count, 0);
+        const totalMatchedCount = job.workDates.reduce((sum, wd) => sum + wd.matched_count, 0);
+        const totalRecruitmentCount = job.workDates.reduce((sum, wd) => sum + wd.recruitment_count, 0);
+
+        const workDatesWithAvailability = job.workDates.map((wd) => {
+            const dateStr = wd.work_date.toISOString().split('T')[0];
+            const isApplied = userAppliedWorkDateIds.includes(wd.id);
+            const isFull = !job.requires_interview && wd.matched_count >= wd.recruitment_count;
+            const hasTimeConflict = userScheduledJobs.some(scheduled => {
+                if (scheduled.date !== dateStr) return false;
+                if (scheduled.workDateId === wd.id) return false;
+                return isTimeOverlapping(
+                    job.start_time,
+                    job.end_time,
+                    scheduled.startTime,
+                    scheduled.endTime
+                );
+            });
+            const canApply = false; // 募集終了のため常にfalse
+
+            return {
+                ...wd,
+                work_date: wd.work_date.toISOString(),
+                workDate: wd.work_date.toISOString().split('T')[0],
+                deadline: wd.deadline.toISOString(),
+                created_at: wd.created_at.toISOString(),
+                updated_at: wd.updated_at.toISOString(),
+                isApplied,
+                isFull,
+                hasTimeConflict,
+                canApply,
+            };
+        });
+
+        return {
+            ...job,
+            work_date: nearestWorkDate ? nearestWorkDate.work_date.toISOString() : null,
+            deadline: nearestWorkDate ? nearestWorkDate.deadline.toISOString() : null,
+            applied_count: totalAppliedCount,
+            matched_count: totalMatchedCount,
+            recruitment_count: totalRecruitmentCount,
+            workDates: workDatesWithAvailability,
+            created_at: job.created_at.toISOString(),
+            updated_at: job.updated_at.toISOString(),
+            facility: {
+                ...job.facility,
+                created_at: job.facility.created_at.toISOString(),
+                updated_at: job.facility.updated_at.toISOString(),
+            },
+            requires_interview: job.requires_interview,
+            hasAvailableWorkDate: false,
+            availableWorkDateCount: 0,
+            effectiveWeeklyFrequency: null,
+            jobType: job.job_type,
+            isExpired: true,
+        };
+    });
+
+    // 通常求人 + 募集終了求人をマージ（通常求人が先、募集終了求人が後）
+    const allFormattedJobs = [...formattedJobs, ...formattedExpiredJobs];
+
     // 距離フィルタリングとソート
-    let filteredJobsWithDistance: (any & { _distance?: number })[] = formattedJobs;
+    let filteredJobsWithDistance: (any & { _distance?: number })[] = allFormattedJobs;
     let filteredTotalCount = totalCount;
 
     if (distanceFilterEnabled && distanceCenter) {
