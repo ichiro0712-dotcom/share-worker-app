@@ -284,15 +284,9 @@ function WorkerRegisterPageInner() {
 
       toast.success('登録が完了しました。メールをご確認ください。');
 
-      // ステージング環境はLIFF URLへリダイレクト
-      const isStaging = window.location.hostname === 'stg-share-worker.vercel.app';
-      if (isStaging) {
-        window.location.href = 'https://liff.line.me/2009053059-NTgazj13';
-        return;
-      }
-
-      router.push(`/auth/verify-pending?email=${encodeURIComponent(formData.email)}`);
-      router.refresh();
+      // 登録後はLIFF URLへリダイレクト
+      window.location.href = 'https://liff.line.me/2009053059-NTgazj13';
+      return;
     } catch (error) {
       const debugInfo = extractDebugInfo(error);
       showDebugError({
