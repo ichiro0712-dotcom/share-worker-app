@@ -69,6 +69,11 @@ function PublicLayoutInner({ children }: { children: ReactNode }) {
   const fromLp = searchParams?.get('from_lp');
   const [lineUrl, setLineUrl] = useState<string | null>(null);
 
+  // LP情報（localStorageから取得、CTAリンクのクエリパラメータに埋め込む用）
+  const [lpParams, setLpParams] = useState<{ lpId: string | null; campaignCode: string | null; genrePrefix: string | null }>({
+    lpId: null, campaignCode: null, genrePrefix: null,
+  });
+
   // LP経由の場合、LINE URLを取得
   useEffect(() => {
     if (!fromLp) return;
@@ -80,6 +85,25 @@ function PublicLayoutInner({ children }: { children: ReactNode }) {
       })
       .catch(() => {});
   }, [fromLp]);
+
+  // localStorageからLP情報を取得（CTAリンクにクエリパラメータとして付与するため）
+  useEffect(() => {
+    try {
+      const data = localStorage.getItem('lp_tracking_data');
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (parsed.expiry && Date.now() < parsed.expiry) {
+          setLpParams({
+            lpId: parsed.lpId || null,
+            campaignCode: parsed.campaignCode || null,
+            genrePrefix: parsed.genrePrefix || null,
+          });
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
 
   // CTAクリック計測
   const handleCtaClick = useCallback(() => {
@@ -127,8 +151,18 @@ function PublicLayoutInner({ children }: { children: ReactNode }) {
   }, [fromLp]);
 
   // LP経由でLINE URLが取得できた場合は<a>タグで外部遷移
-  const ctaHref = fromLp && lineUrl ? lineUrl : '/login';
+  // それ以外は/loginにLP情報をクエリパラメータとして引き継ぎ
   const isExternalLink = !!(fromLp && lineUrl);
+  const ctaHref = (() => {
+    if (isExternalLink) return lineUrl!;
+    const params = new URLSearchParams();
+    const lpId = fromLp || lpParams.lpId;
+    if (lpId) params.set('lp', lpId);
+    if (lpParams.campaignCode) params.set('c', lpParams.campaignCode);
+    if (lpParams.genrePrefix) params.set('g', lpParams.genrePrefix);
+    const qs = params.toString();
+    return `/login${qs ? `?${qs}` : ''}`;
+  })();
 
   return (
     <div className="min-h-screen bg-background">

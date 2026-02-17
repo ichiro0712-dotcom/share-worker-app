@@ -237,15 +237,17 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get('endDate');
     const includeEngagement = searchParams.get('includeEngagement') === 'true';
 
-    // 日付フィルター
+    // 日付フィルター（JST基準）
+    // フロントエンドから "2026-02-17" のようなJST日付が送られるため、
+    // JST 00:00:00 〜 23:59:59 の範囲でフィルタする
     const dateFilter: { created_at?: { gte?: Date; lte?: Date } } = {};
     if (startDate) {
-      dateFilter.created_at = { ...dateFilter.created_at, gte: new Date(startDate) };
+      // "2026-02-17" → JST 00:00:00 = UTC前日15:00:00
+      dateFilter.created_at = { ...dateFilter.created_at, gte: new Date(`${startDate}T00:00:00+09:00`) };
     }
     if (endDate) {
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-      dateFilter.created_at = { ...dateFilter.created_at, lte: end };
+      // "2026-02-17" → JST 23:59:59.999 = UTC 14:59:59.999
+      dateFilter.created_at = { ...dateFilter.created_at, lte: new Date(`${endDate}T23:59:59.999+09:00`) };
     }
 
     // LP別の集計
@@ -267,8 +269,9 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // ユニークセッション数（セッションごとにカウント）
-    // Prisma groupByでは DISTINCT が使えないため、生データを取得して集計
+    // ユニークセッション数（LP・キャンペーン別）
+    // distinct: ['session_id'] は返る行のlp_id/campaign_codeが不定のため使用しない
+    // 代わりに全PVを取得し、(lp_id, campaign_code, session_id) の組み合わせで正確にカウント
     const sessionData = await prisma.lpPageView.findMany({
       where: {
         ...(lpId && { lp_id: lpId }),
@@ -279,26 +282,29 @@ export async function GET(request: NextRequest) {
         campaign_code: true,
         session_id: true,
       },
-      distinct: ['session_id'], // セッションごとに1件のみ取得
     });
 
     // LP・キャンペーン別にユニークセッション数を集計
-    const sessionCountMap = new Map<string, number>();
+    // 同一session_idでもlp_id/campaign_codeが異なればそれぞれカウント
+    const sessionCountMap = new Map<string, Set<string>>();
     sessionData.forEach(s => {
       const key = `${s.lp_id}|${s.campaign_code || ''}`;
-      sessionCountMap.set(key, (sessionCountMap.get(key) || 0) + 1);
+      if (!sessionCountMap.has(key)) {
+        sessionCountMap.set(key, new Set());
+      }
+      sessionCountMap.get(key)!.add(s.session_id);
     });
 
-    const uniqueSessionsByLp = Array.from(sessionCountMap.entries()).map(([key, count]) => {
+    const uniqueSessionsByLp = Array.from(sessionCountMap.entries()).map(([key, sessions]) => {
       const [lp_id, campaign_code] = key.split('|');
       return {
         lp_id,
         campaign_code: campaign_code || null,
-        _count: { session_id: count },
+        _count: { session_id: sessions.size },
       };
     });
 
-    // 日別推移（Prisma groupByを使用）
+    // 日別推移（全件取得して正確に集計）
     const dailyPageViewsRaw = await prisma.lpPageView.findMany({
       where: {
         ...(lpId && { lp_id: lpId }),
@@ -310,13 +316,16 @@ export async function GET(request: NextRequest) {
         created_at: true,
       },
       orderBy: { created_at: 'desc' },
-      take: 1000, // 最新1000件から日別集計
     });
 
-    // 日別に集計
+    // 日別に集計（JST基準で日付を決定）
+    const toJSTDateStr = (d: Date) => {
+      const jst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+      return jst.toISOString().split('T')[0];
+    };
     const dailyMap = new Map<string, { date: string; lpId: string; campaignCode: string | null; count: number }>();
     dailyPageViewsRaw.forEach(pv => {
-      const date = pv.created_at.toISOString().split('T')[0];
+      const date = toJSTDateStr(pv.created_at);
       const key = `${date}_${pv.lp_id}_${pv.campaign_code || 'null'}`;
       const existing = dailyMap.get(key);
       if (existing) {
@@ -329,15 +338,13 @@ export async function GET(request: NextRequest) {
       .sort((a, b) => b.date.localeCompare(a.date))
       .slice(0, 100);
 
-    // LP経由登録数の集計（登録日時でフィルター）
+    // LP経由登録数の集計（登録日時でフィルター、JST基準）
     const registrationDateFilter: { created_at?: { gte?: Date; lte?: Date } } = {};
     if (startDate) {
-      registrationDateFilter.created_at = { ...registrationDateFilter.created_at, gte: new Date(startDate) };
+      registrationDateFilter.created_at = { ...registrationDateFilter.created_at, gte: new Date(`${startDate}T00:00:00+09:00`) };
     }
     if (endDate) {
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-      registrationDateFilter.created_at = { ...registrationDateFilter.created_at, lte: end };
+      registrationDateFilter.created_at = { ...registrationDateFilter.created_at, lte: new Date(`${endDate}T23:59:59.999+09:00`) };
     }
 
     const registrationsByLp = await prisma.user.groupBy({
