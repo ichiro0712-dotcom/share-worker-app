@@ -224,55 +224,37 @@ export async function subscribeToPushNotifications(
     }
 
     try {
-        // 既存の購読があるか確認
-        let subscription = await registration.pushManager.getSubscription();
-
-        if (subscription) {
-            // 既存subscriptionのVAPID公開鍵が現在の鍵と一致するか確認
-            const currentKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
-            const existingKey = subscription.options?.applicationServerKey
-                ? new Uint8Array(subscription.options.applicationServerKey)
-                : null;
-
-            const keysMatch = existingKey && currentKey.length === existingKey.length &&
-                currentKey.every((val, i) => val === existingKey[i]);
-
-            if (!keysMatch) {
-                console.log('[Push] VAPID key mismatch detected, re-subscribing...');
-                await subscription.unsubscribe().catch(() => {});
-                subscription = null;
-            }
-
-            // expirationTimeチェック
-            if (subscription && subscription.expirationTime && subscription.expirationTime < Date.now()) {
-                console.log('[Push] Subscription expired, re-subscribing...');
-                await subscription.unsubscribe().catch(() => {});
-                subscription = null;
-            }
+        // 既存の購読を常に破棄して新規作成する
+        // 理由: ブラウザが保持している購読がプッシュサービス側(Apple/Google)で
+        // 無効化されている場合、再利用すると常に403エラーになる。
+        // ブラウザ側からは無効化を検知できないため、毎回新規作成が最も確実。
+        const existingSubscription = await registration.pushManager.getSubscription();
+        if (existingSubscription) {
+            console.log('[Push] Unsubscribing existing subscription for fresh re-subscribe');
+            await existingSubscription.unsubscribe().catch(() => {});
         }
 
-        if (!subscription) {
-            // 新規購読
-            try {
-                subscription = await registration.pushManager.subscribe({
-                    userVisibleOnly: true,
-                    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
-                });
-            } catch (subscribeError: any) {
-                console.error('pushManager.subscribe() failed:', subscribeError);
-                if (subscribeError?.name === 'NotAllowedError') {
-                    return {
-                        success: false,
-                        error: 'PUSH_NOT_ALLOWED',
-                        message: 'プッシュ通知が許可されていません。ブラウザの設定を確認してください。',
-                    };
-                }
+        let subscription: PushSubscription;
+        try {
+            subscription = await registration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
+            });
+            console.log('[Push] New subscription created successfully');
+        } catch (subscribeError: any) {
+            console.error('pushManager.subscribe() failed:', subscribeError);
+            if (subscribeError?.name === 'NotAllowedError') {
                 return {
                     success: false,
-                    error: 'PUSH_SUBSCRIBE_FAILED',
-                    message: `通知の購読に失敗しました: ${subscribeError?.message || '不明なエラー'}`,
+                    error: 'PUSH_NOT_ALLOWED',
+                    message: 'プッシュ通知が許可されていません。ブラウザの設定を確認してください。',
                 };
             }
+            return {
+                success: false,
+                error: 'PUSH_SUBSCRIBE_FAILED',
+                message: `通知の購読に失敗しました: ${subscribeError?.message || '不明なエラー'}`,
+            };
         }
 
         // サーバーに購読情報を送信
