@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     const city = searchParams.get('city') || undefined;
     const minWage = searchParams.get('minWage') ? parseInt(searchParams.get('minWage')!, 10) : undefined;
     const page = searchParams.get('page') ? parseInt(searchParams.get('page')!, 10) : 1;
-    const dateIndex = searchParams.get('dateIndex') ? parseInt(searchParams.get('dateIndex')!, 10) : 0;
+    const dateIndex = searchParams.get('dateIndex') ? parseInt(searchParams.get('dateIndex')!, 10) : 1;
     let sort = (searchParams.get('sort') as 'distance' | 'wage' | 'deadline') || undefined;
 
     // 配列パラメータ
@@ -174,6 +174,7 @@ export async function GET(request: NextRequest) {
         effectiveWeeklyFrequency: job.effectiveWeeklyFrequency,
         availableWorkDateCount: job.availableWorkDateCount,
         jobType: job.jobType,
+        isExpired: job.isExpired || false,
       };
     });
 

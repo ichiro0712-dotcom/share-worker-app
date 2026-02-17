@@ -30,7 +30,7 @@ import { Tag } from '@/components/ui/tag';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
-type JobStatus = 'all' | 'recruiting' | 'paused' | 'working' | 'review' | 'completed' | 'failed';
+type JobStatus = 'all' | 'recruiting' | 'paused' | 'working' | 'review' | 'completed' | 'failed' | 'expired';
 
 interface WorkDateData {
   id: number;
@@ -40,6 +40,7 @@ interface WorkDateData {
   appliedCount: number;
   matchedCount: number;
   deadline: string;
+  visibleUntil: string | null;
 }
 
 type JobType = 'NORMAL' | 'LIMITED_WORKED' | 'LIMITED_FAVORITE' | 'ORIENTATION' | 'OFFER';
@@ -242,10 +243,21 @@ export default function AdminJobsList() {
       return 'paused';
     }
 
-    // 公開中（PUBLISHED）の場合は募集中として表示
-    if (job.status === 'PUBLISHED') {
-      return 'recruiting';
+    // 全workDateの表示期限チェック（ワーカーに見えなくなった求人 = 公開終了）
+    const now = new Date();
+    const hasActiveWorkDate = job.workDates.length === 0 || job.workDates.some(wd => {
+      if (!wd.visibleUntil) return true;
+      return new Date(wd.visibleUntil) >= now;
+    });
+
+    if (!hasActiveWorkDate) {
+      return 'expired';
     }
+
+    // 期限内の場合はDB statusに基づく表示
+    if (job.status === 'PUBLISHED') return 'recruiting';
+    if (job.status === 'WORKING') return 'working';
+    if (job.status === 'COMPLETED') return 'completed';
 
     // その他（DRAFT等）の場合もデフォルトで募集中
     return 'recruiting';
@@ -271,6 +283,7 @@ export default function AdminJobsList() {
   // フィルターボタン用: ドットインジケーター風
   const statusConfig = {
     recruiting: { label: '公開中', badge: 'bg-blue-600 text-white', dotColor: 'bg-blue-600' },
+    expired: { label: '公開終了', badge: 'bg-gray-400 text-white', dotColor: 'bg-gray-400' },
     paused: { label: '停止中', badge: 'bg-blue-100 text-blue-400', dotColor: 'bg-blue-300' },
     working: { label: '勤務中', badge: 'bg-blue-800 text-white', dotColor: 'bg-blue-500' },
     review: { label: '評価待ち', badge: 'bg-blue-300 text-blue-900', dotColor: 'bg-amber-500' },
@@ -775,11 +788,16 @@ export default function AdminJobsList() {
               }
 
               // 通常の求人カード
+              const isExpiredJob = status === 'expired';
               return (
                 <div
                   key={job.id}
                   onClick={() => handleCheckboxChange(job.id)}
-                  className="bg-white rounded-admin-card border border-gray-200 hover:border-admin-primary hover:shadow-md transition-all p-3 flex items-center gap-3 cursor-pointer"
+                  className={`rounded-admin-card border transition-all p-3 flex items-center gap-3 cursor-pointer ${
+                    isExpiredJob
+                      ? 'bg-gray-50 border-gray-200 opacity-60'
+                      : 'bg-white border-gray-200 hover:border-admin-primary hover:shadow-md'
+                  }`}
                 >
                   {/* チェックボックス（カードの縦方向中央） */}
                   <div className="flex-shrink-0">

@@ -1,7 +1,6 @@
 import { Suspense } from 'react';
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import Script from 'next/script';
 import { headers } from 'next/headers';
 import { getPublicJobById } from '@/src/lib/actions/job-public';
 import { JobDetailClient } from '@/components/job/JobDetailClient';
@@ -118,18 +117,41 @@ export default async function PublicJobDetailPage({ params }: PageProps) {
         : '介護・看護スタッフ';
 
     // Google for Jobs 構造化データ (JSON-LD)
+    // description: HTMLフォーマットで詳しい職務説明を生成（Google推奨）
+    const descriptionParts: string[] = [];
+    descriptionParts.push(`<p>${jobData.facility.name}での${jobType}のお仕事です。</p>`);
+    if (jobData.overview) {
+        descriptionParts.push(`<p>${jobData.overview}</p>`);
+    }
+    if (jobData.work_content && jobData.work_content.length > 0) {
+        descriptionParts.push(`<p><strong>仕事内容:</strong></p><ul>${jobData.work_content.map((c: string) => `<li>${c}</li>`).join('')}</ul>`);
+    }
+    if (jobData.qualifications && jobData.qualifications.length > 0) {
+        descriptionParts.push(`<p><strong>必要な資格:</strong> ${jobData.qualifications.join('、')}</p>`);
+    }
+    if (jobData.required_experience && jobData.required_experience.length > 0) {
+        descriptionParts.push(`<p><strong>必要な経験:</strong> ${jobData.required_experience.join('、')}</p>`);
+    }
+    const jobDescription = descriptionParts.join('');
+
+    // validThrough: 最も早い勤務日のdeadline（応募締切）を使用
+    const earliestDeadline = jobData.workDates
+        ?.map((wd: any) => wd.deadline)
+        .filter(Boolean)
+        .sort()[0];
+
     const jobPostingJsonLd = {
         '@context': 'https://schema.org/',
         '@type': 'JobPosting',
         title: jobData.title,
-        description: jobData.description || `${jobData.facility.name}での${jobType}のお仕事です。`,
+        description: jobDescription,
         identifier: {
             '@type': 'PropertyValue',
             name: '+タスタス',
             value: `tastas-job-${jobData.id}`,
         },
         datePosted: jobData.created_at,
-        validThrough: jobData.workDates[jobData.workDates.length - 1]?.work_date || jobData.work_date,
+        validThrough: earliestDeadline || jobData.workDates[0]?.work_date || jobData.work_date,
         employmentType: 'TEMPORARY',
         hiringOrganization: {
             '@type': 'Organization',
@@ -264,9 +286,8 @@ export default async function PublicJobDetailPage({ params }: PageProps) {
             <Suspense fallback={null}>
                 <PublicJobsTracker pageType="detail" jobId={id} />
             </Suspense>
-            {/* Google for Jobs 構造化データ */}
-            <Script
-                id="job-posting-jsonld"
+            {/* Google for Jobs 構造化データ（SSR時にHTML内に直接出力してクローラーに確実に読ませる） */}
+            <script
                 type="application/ld+json"
                 dangerouslySetInnerHTML={{ __html: JSON.stringify(jobPostingJsonLd) }}
             />
