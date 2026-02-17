@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Mail, RefreshCw, CheckCircle, Eye, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
@@ -12,50 +12,36 @@ export default function VerifyPendingPage() {
   const [isResending, setIsResending] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
 
-  // CATS/L-ad コンバージョンタグ
-  useEffect(() => {
-    if (window.location.hostname !== 'stg-share-worker.vercel.app') return;
-
-    const gid = 1;
-    const sid = "";
-    const uid1 = "";
-    const uid2 = "";
-    const uid3 = "";
-    const uid4 = "";
-    const uid5 = "";
-    const uid6 = "";
-    const uid7 = "";
-    const uid8 = "";
-    const catsPoint = "2";
-    const amount = "";
-    const uqid = "p18d92c360ebf6x3";
-    const trackingUserId = "";
-    const firstCookie = document.cookie;
-    const catsOptions = {
-      fpc_id: "",
-      fb: { eventId: "" },
-      googleAdsClick: { order_id: "" },
-      L_ad: { liff_id: "2009053059-NTgazj13" },
-    };
-
-    const script = document.createElement("script");
-    script.src = "//tastas.ac01.l-ad.net/ac/p18d92c360ebf6x3/action.js";
-    script.id = "ac_p18d92c360ebf6x3";
-    script.addEventListener("load", () => {
-      if (typeof (window as any).CATS_GroupAction === 'function') {
-        (window as any).CATS_GroupAction(
-          gid, sid, uid1, uid2, uqid, uid3, uid4, uid5, uid6, uid7, uid8,
-          catsPoint, amount, trackingUserId, firstCookie, catsOptions
-        );
-      }
-    });
-    document.body.appendChild(script);
-
-    return () => {
-      const el = document.getElementById("ac_p18d92c360ebf6x3");
-      if (el) el.remove();
-    };
-  }, []);
+  // CATS/L-ad コンバージョンタグ（一時無効化）
+  // TODO: 有効化する際はコメントアウトを解除する
+  // useEffect(() => {
+  //   if (window.location.hostname !== 'stg-share-worker.vercel.app') return;
+  //   const gid = 1; const sid = ""; const uid1 = ""; const uid2 = "";
+  //   const uid3 = ""; const uid4 = ""; const uid5 = ""; const uid6 = "";
+  //   const uid7 = ""; const uid8 = ""; const catsPoint = "2"; const amount = "";
+  //   const uqid = "p18d92c360ebf6x3"; const trackingUserId = "";
+  //   const firstCookie = document.cookie;
+  //   const catsOptions = {
+  //     fpc_id: "", fb: { eventId: "" }, googleAdsClick: { order_id: "" },
+  //     L_ad: { liff_id: "2009053059-NTgazj13" },
+  //   };
+  //   const script = document.createElement("script");
+  //   script.src = "//tastas.ac01.l-ad.net/ac/p18d92c360ebf6x3/action.js";
+  //   script.id = "ac_p18d92c360ebf6x3";
+  //   script.addEventListener("load", () => {
+  //     if (typeof (window as any).CATS_GroupAction === 'function') {
+  //       (window as any).CATS_GroupAction(
+  //         gid, sid, uid1, uid2, uqid, uid3, uid4, uid5, uid6, uid7, uid8,
+  //         catsPoint, amount, trackingUserId, firstCookie, catsOptions
+  //       );
+  //     }
+  //   });
+  //   document.body.appendChild(script);
+  //   return () => {
+  //     const el = document.getElementById("ac_p18d92c360ebf6x3");
+  //     if (el) el.remove();
+  //   };
+  // }, []);
 
   // ローカル開発用: メールプレビュー
   const [showEmailPreview, setShowEmailPreview] = useState(false);
