@@ -1,6 +1,7 @@
 /// <reference lib="webworker" />
 
 declare const self: ServiceWorkerGlobalScope;
+console.log('[SW] Service Worker v2026-02-18');
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '';
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
