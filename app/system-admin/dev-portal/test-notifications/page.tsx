@@ -126,7 +126,7 @@ export default function TestNotificationsPage() {
 
       const data = await res.json();
       if (res.ok) {
-        const successCount = data.results?.filter((r: any) => r.success).length || 0;
+        const successCount = data.results?.filter((r: any) => r?.success === true || r?.value?.success === true).length || 0;
         const totalCount = data.results?.length || 0;
         setResult({
           success: successCount > 0,
