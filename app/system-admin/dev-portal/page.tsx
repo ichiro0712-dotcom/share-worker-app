@@ -242,6 +242,7 @@ const SYSTEM_ADMIN_TREE: SiteMapNode[] = [
             { name: 'debug-checklist', title: 'デバッグチェックリスト', href: '/system-admin/dev-portal/debug-checklist' },
             { name: 'debug-time', title: 'デバッグ時刻設定', href: '/system-admin/dev-portal/debug-time' },
             { name: 'error-alert', title: 'エラー通知設定', href: '/system-admin/dev-portal/error-alert' },
+            { name: 'test-notifications', title: 'テスト通知送信', href: '/system-admin/dev-portal/test-notifications' },
         ]
     },
 ];
