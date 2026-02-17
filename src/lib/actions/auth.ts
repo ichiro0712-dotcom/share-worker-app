@@ -202,9 +202,6 @@ export async function authenticateSystemAdmin(email: string, password: string) {
 
 // ========== パスワードリセット ==========
 
-// パスワードリセット用のトークンを保存するMap（ローカル開発用、本番ではDBに保存）
-const passwordResetTokens = new Map<string, { email: string; expires: number }>();
-
 /**
  * パスワードリセットメールを送信
  */
@@ -335,10 +332,16 @@ export async function requestPasswordReset(email: string): Promise<{ success: bo
 
         // トークンを生成（簡易的なランダム文字列）
         const token = crypto.randomUUID();
-        const expires = Date.now() + 60 * 60 * 1000; // 1時間有効
+        const expires = new Date(Date.now() + 60 * 60 * 1000); // 1時間有効
 
-        // トークンを保存
-        passwordResetTokens.set(token, { email, expires });
+        // トークンをDBに保存
+        await prisma.user.update({
+            where: { id: user.id },
+            data: {
+                password_reset_token: token,
+                password_reset_token_expires: expires,
+            },
+        });
 
         console.log(`[Password Reset] Token generated for ${email}`);
 
@@ -387,19 +390,26 @@ export async function requestPasswordReset(email: string): Promise<{ success: bo
  */
 export async function validateResetToken(token: string): Promise<{ valid: boolean; email?: string }> {
     try {
-        const tokenData = passwordResetTokens.get(token);
+        const user = await prisma.user.findFirst({
+            where: { password_reset_token: token },
+            select: { id: true, email: true, password_reset_token_expires: true },
+        });
 
-        if (!tokenData) {
+        if (!user) {
             return { valid: false };
         }
 
         // 有効期限チェック
-        if (Date.now() > tokenData.expires) {
-            passwordResetTokens.delete(token);
+        if (!user.password_reset_token_expires || new Date() > user.password_reset_token_expires) {
+            // 期限切れトークンをクリア
+            await prisma.user.update({
+                where: { id: user.id },
+                data: { password_reset_token: null, password_reset_token_expires: null },
+            });
             return { valid: false };
         }
 
-        return { valid: true, email: tokenData.email };
+        return { valid: true, email: user.email };
     } catch (error) {
         console.error('[validateResetToken] Error:', error);
         return { valid: false };
@@ -411,9 +421,12 @@ export async function validateResetToken(token: string): Promise<{ valid: boolea
  */
 export async function resetPassword(token: string, newPassword: string): Promise<{ success: boolean; message?: string }> {
     try {
-        const tokenData = passwordResetTokens.get(token);
+        const user = await prisma.user.findFirst({
+            where: { password_reset_token: token },
+            select: { id: true, email: true, password_hash: true, password_reset_token_expires: true },
+        });
 
-        if (!tokenData) {
+        if (!user) {
             logActivity({
                 userType: 'WORKER',
                 action: 'PASSWORD_RESET_FAILED',
@@ -424,11 +437,14 @@ export async function resetPassword(token: string, newPassword: string): Promise
         }
 
         // 有効期限チェック
-        if (Date.now() > tokenData.expires) {
-            passwordResetTokens.delete(token);
+        if (!user.password_reset_token_expires || new Date() > user.password_reset_token_expires) {
+            await prisma.user.update({
+                where: { id: user.id },
+                data: { password_reset_token: null, password_reset_token_expires: null },
+            });
             logActivity({
                 userType: 'WORKER',
-                userEmail: tokenData.email,
+                userEmail: user.email,
                 action: 'PASSWORD_RESET_FAILED',
                 result: 'ERROR',
                 errorMessage: 'トークン有効期限切れ',
@@ -436,21 +452,21 @@ export async function resetPassword(token: string, newPassword: string): Promise
             return { success: false, message: 'トークンの有効期限が切れています。再度パスワードリセットをリクエストしてください。' };
         }
 
+        // サーバーサイドのパスワード長チェック
+        if (!newPassword || newPassword.length < 8) {
+            return { success: false, message: 'パスワードは8文字以上で入力してください' };
+        }
+
         const bcrypt = await import('bcryptjs');
 
         // 現在のパスワードと同じかチェック
-        const currentUser = await prisma.user.findUnique({
-            where: { email: tokenData.email },
-            select: { id: true, password_hash: true },
-        });
-
-        if (currentUser?.password_hash) {
-            const isSamePassword = await bcrypt.compare(newPassword, currentUser.password_hash);
+        if (user.password_hash) {
+            const isSamePassword = await bcrypt.compare(newPassword, user.password_hash);
             if (isSamePassword) {
                 logActivity({
                     userType: 'WORKER',
-                    userId: currentUser.id,
-                    userEmail: tokenData.email,
+                    userId: user.id,
+                    userEmail: user.email,
                     action: 'PASSWORD_RESET_FAILED',
                     result: 'ERROR',
                     errorMessage: '現在と同じパスワード',
@@ -459,24 +475,25 @@ export async function resetPassword(token: string, newPassword: string): Promise
             }
         }
 
-        // パスワードをハッシュ化して更新
+        // パスワードをハッシュ化して更新 + トークンクリア
         const password_hash = await bcrypt.hash(newPassword, 12);
 
         await prisma.user.update({
-            where: { email: tokenData.email },
-            data: { password_hash },
+            where: { id: user.id },
+            data: {
+                password_hash,
+                password_reset_token: null,
+                password_reset_token_expires: null,
+            },
         });
 
-        // 使用済みトークンを削除
-        passwordResetTokens.delete(token);
-
-        console.log(`[Password Reset] Password updated for: ${tokenData.email}`);
+        console.log(`[Password Reset] Password updated for: ${user.email}`);
 
         // パスワードリセット完了をログ記録
         logActivity({
             userType: 'WORKER',
-            userId: currentUser?.id,
-            userEmail: tokenData.email,
+            userId: user.id,
+            userEmail: user.email,
             action: 'PASSWORD_RESET_COMPLETE',
             result: 'SUCCESS',
         }).catch(() => {});
