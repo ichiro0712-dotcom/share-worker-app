@@ -81,6 +81,25 @@ export async function POST(request: NextRequest) {
             },
         });
 
+        // 同じユーザーの古い購読を削除（1ユーザー=1エンドポイントに保つ）
+        const ownerFilter = userId
+            ? { user_id: userId, user_type: userType as string }
+            : adminId
+            ? { admin_id: adminId, user_type: userType as string }
+            : null;
+
+        if (ownerFilter) {
+            const deleted = await prisma.pushSubscription.deleteMany({
+                where: {
+                    ...ownerFilter,
+                    id: { not: pushSubscription.id },
+                },
+            });
+            if (deleted.count > 0) {
+                console.log(`[Push] Cleaned up ${deleted.count} old subscription(s) for ${userType}:${userId || adminId}`);
+            }
+        }
+
         return NextResponse.json({
             success: true,
             id: pushSubscription.id
