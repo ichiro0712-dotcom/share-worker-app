@@ -14,14 +14,9 @@ interface Props {
 /**
  * プッシュ通知の購読状態をサイレントに同期するコンポーネント
  *
- * ページアクセスのたびにDBとの同期を行い、以下のケースを自動修復する:
- * - サーバー側で購読が削除された（403/404/410クリーンアップ）が、ブラウザ側は残っている場合
- * - VAPID鍵がローテーションされ、既存subscriptionが無効になった場合
- * - subscriptionのexpirationTimeが過ぎている場合
- * - 初回登録時にDB保存が失敗していた場合
- *
- * subscribeToPushNotifications() は内部でupsertを行うため、
- * 毎回呼んでも安全（冪等）。
+ * ページアクセス時に既存の購読をサーバーDBと同期する。
+ * 既存の購読は破棄せずそのまま再利用する（APNsのエンドポイント伝播問題を回避）。
+ * 購読がない場合のみ新規作成する。
  */
 export function PushSubscriptionSync({ userType }: Props) {
     const syncAttempted = useRef(false);

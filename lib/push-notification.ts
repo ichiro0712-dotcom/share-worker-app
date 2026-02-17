@@ -33,118 +33,52 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
     return outputArray;
 }
 
-// Service Workerがactivated状態になるまで待機するヘルパー
-function waitForSWActivation(sw: ServiceWorker, timeoutMs: number): Promise<boolean> {
-    // リスナー登録前に即座チェック（レースコンディション防止）
-    if (sw.state === 'activated') return Promise.resolve(true);
-    if (sw.state === 'redundant') return Promise.resolve(false);
-    return new Promise((resolve) => {
-        let resolved = false;
-        const cleanup = () => {
-            if (resolved) return;
-            resolved = true;
-            clearTimeout(timer);
-            sw.removeEventListener('statechange', onStateChange);
-        };
-        const timer = setTimeout(() => {
-            cleanup();
-            resolve(false);
-        }, timeoutMs);
-        const onStateChange = () => {
-            if (sw.state === 'activated') {
-                cleanup();
-                resolve(true);
-            } else if (sw.state === 'redundant') {
-                cleanup();
-                resolve(false);
-            }
-        };
-        sw.addEventListener('statechange', onStateChange);
-        // リスナー登録後に再チェック（登録中に状態が変わった場合のレース対策）
-        if (sw.state === 'activated') {
-            cleanup();
-            resolve(true);
-        } else if (sw.state === 'redundant') {
-            cleanup();
-            resolve(false);
-        }
-    });
-}
+// SW取得タイムアウト（5秒に短縮）
+const SW_READY_TIMEOUT_MS = 5000;
 
-// 全体タイムアウト予算（秒）
-const SW_TOTAL_TIMEOUT_MS = 15000;
-
-// Service Workerの登録状態を取得（タイムアウト付き）
+// Service Workerの登録状態を取得（シンプル版）
 export async function getServiceWorkerRegistration(): Promise<ServiceWorkerRegistration | null> {
     if (!('serviceWorker' in navigator)) {
         console.log('[SW] Service Worker not supported');
         return null;
     }
 
-    const deadline = Date.now() + SW_TOTAL_TIMEOUT_MS;
-    const remainingMs = () => Math.max(0, deadline - Date.now());
-
     try {
-        // PWAプラグインが自動登録中の場合があるため、リトライ付きで取得
-        let registration = await navigator.serviceWorker.getRegistration();
-
-        if (!registration) {
-            console.log('[SW] No registration found, waiting for PWA plugin...');
-            await new Promise(r => setTimeout(r, 1500));
-            registration = await navigator.serviceWorker.getRegistration();
+        // まず既存の登録を即座にチェック（待機なし）
+        const existing = await navigator.serviceWorker.getRegistration();
+        if (existing?.active) {
+            console.log('[SW] Already active');
+            return existing;
         }
 
-        if (!registration) {
-            console.log('[SW] Still no registration, manually registering...');
-            try {
-                registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
-                console.log('[SW] Manual registration succeeded');
-            } catch (regError) {
-                console.error('[SW] Manual registration failed:', regError);
-                return null;
-            }
-        }
+        // なければnavigator.serviceWorker.readyを使う（ブラウザが自動で待ってくれる）
+        console.log('[SW] Waiting for ready...');
+        const registration = await Promise.race([
+            navigator.serviceWorker.ready,
+            new Promise<null>(resolve =>
+                setTimeout(() => resolve(null), SW_READY_TIMEOUT_MS)
+            ),
+        ]);
 
-        // SWがまだinstalling/waiting状態なら、activatedになるまで待つ
-        const activeSW = registration.active;
-        if (activeSW && activeSW.state === 'activated') {
-            console.log('[SW] Already activated');
+        if (registration) {
+            console.log('[SW] Ready');
             return registration;
         }
 
-        const pendingSW = registration.installing || registration.waiting || registration.active;
-        if (pendingSW && remainingMs() > 0) {
-            console.log('[SW] Waiting for activation, current state:', pendingSW.state);
-            const activated = await waitForSWActivation(pendingSW, remainingMs());
-            if (activated) {
-                console.log('[SW] Activation complete');
-                const freshReg = await navigator.serviceWorker.getRegistration();
-                return freshReg || registration;
-            }
-            console.warn('[SW] Activation wait finished without success');
-        }
-
-        // フォールバック: navigator.serviceWorker.readyを待機（残りの予算内）
-        if (remainingMs() > 0) {
-            console.log('[SW] Falling back to navigator.serviceWorker.ready');
-            let fallbackTimer: ReturnType<typeof setTimeout>;
-            const readyRegistration = await Promise.race([
-                navigator.serviceWorker.ready.then(reg => {
-                    clearTimeout(fallbackTimer);
-                    return reg;
-                }),
-                new Promise<null>(resolve => {
-                    fallbackTimer = setTimeout(() => resolve(null), remainingMs());
-                })
+        // タイムアウト時: 手動登録を試みる
+        console.log('[SW] Timeout, manually registering...');
+        try {
+            const manualReg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+            // 登録後にreadyを短時間待つ
+            const readyReg = await Promise.race([
+                navigator.serviceWorker.ready,
+                new Promise<null>(resolve => setTimeout(() => resolve(null), 3000)),
             ]);
-
-            if (readyRegistration) {
-                return readyRegistration;
-            }
+            return readyReg || manualReg;
+        } catch (regError) {
+            console.error('[SW] Manual registration failed:', regError);
+            return null;
         }
-
-        console.error('[SW] Total timeout exceeded (' + SW_TOTAL_TIMEOUT_MS + 'ms)');
-        return null;
     } catch (error) {
         console.error('[SW] Registration error:', error);
         return null;
@@ -200,6 +134,27 @@ export function isIOSNonStandalone(): boolean {
     return !standalone;
 }
 
+// サーバーに購読情報を同期
+async function syncSubscriptionToServer(
+    subscription: PushSubscription,
+    userType: 'worker' | 'facility_admin'
+): Promise<boolean> {
+    const response = await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            subscription: subscription.toJSON(),
+            userType,
+        }),
+    });
+    if (!response.ok) {
+        const errorBody = await response.text().catch(() => '');
+        console.error('[Push] Subscribe API error:', response.status, errorBody);
+        return false;
+    }
+    return true;
+}
+
 // プッシュ通知を購読（結果オブジェクトで返す）
 export async function subscribeToPushNotifications(
     userType: 'worker' | 'facility_admin'
@@ -218,36 +173,33 @@ export async function subscribeToPushNotifications(
         };
     }
 
-    // SWの取得を試行（失敗時は3秒待ってリトライ）
-    // iOS PWAでは通知許可直後にSWコンテキストが不安定になることがある
-    let registration = await getServiceWorkerRegistration();
-    if (!registration) {
-        console.log('[Push] SW registration failed, retrying in 3s...');
-        await new Promise(r => setTimeout(r, 3000));
-        registration = await getServiceWorkerRegistration();
-    }
+    const registration = await getServiceWorkerRegistration();
     if (!registration) {
         return { success: false, error: 'SW_REGISTRATION_FAILED', message: 'サービスワーカーの準備に失敗しました。ページを再読み込みしてください。' };
     }
 
     try {
-        // 既存の購読を常に破棄して新規作成する
-        // 理由: ブラウザが保持している購読がプッシュサービス側(Apple/Google)で
-        // 無効化されている場合、再利用すると常に403エラーになる。
-        // ブラウザ側からは無効化を検知できないため、毎回新規作成が最も確実。
+        // 既存の購読があればそのまま再利用（破棄しない）
         const existingSubscription = await registration.pushManager.getSubscription();
         if (existingSubscription) {
-            console.log('[Push] Unsubscribing existing subscription for fresh re-subscribe');
+            console.log('[Push] Reusing existing subscription');
+            const synced = await syncSubscriptionToServer(existingSubscription, userType);
+            if (synced) {
+                return { success: true, subscription: existingSubscription };
+            }
+            // サーバー同期失敗時のみ、新規作成にフォールバック
+            console.warn('[Push] Server sync failed, creating new subscription');
             await existingSubscription.unsubscribe().catch(() => {});
         }
 
+        // 新規購読を作成
         let subscription: PushSubscription;
         try {
             subscription = await registration.pushManager.subscribe({
                 userVisibleOnly: true,
                 applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
             });
-            console.log('[Push] New subscription created successfully');
+            console.log('[Push] New subscription created');
         } catch (subscribeError: any) {
             console.error('pushManager.subscribe() failed:', subscribeError);
             if (subscribeError?.name === 'NotAllowedError') {
@@ -265,20 +217,8 @@ export async function subscribeToPushNotifications(
         }
 
         // サーバーに購読情報を送信
-        const response = await fetch('/api/push/subscribe', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                subscription: subscription.toJSON(),
-                userType,
-            }),
-        });
-
-        if (!response.ok) {
-            const errorBody = await response.text().catch(() => '');
-            console.error('Push subscribe API error:', response.status, errorBody);
+        const synced = await syncSubscriptionToServer(subscription, userType);
+        if (!synced) {
             return {
                 success: false,
                 error: 'API_FAILED',
@@ -286,7 +226,7 @@ export async function subscribeToPushNotifications(
             };
         }
 
-        console.log('Push notification subscribed successfully');
+        console.log('[Push] Subscription registered successfully');
         return { success: true, subscription };
     } catch (error: any) {
         console.error('Push subscription error:', error);
