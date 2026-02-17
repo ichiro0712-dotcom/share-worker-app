@@ -284,8 +284,8 @@ function WorkerRegisterPageInner() {
 
       toast.success('登録が完了しました。メールをご確認ください。');
 
-      // 登録後はLIFF URLへリダイレクト
-      window.location.href = 'https://liff.line.me/2009053059-NTgazj13';
+      // メール認証待ちページへリダイレクト
+      router.push(`/auth/verify-pending?email=${encodeURIComponent(formData.email)}`);
       return;
     } catch (error) {
       const debugInfo = extractDebugInfo(error);
