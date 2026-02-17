@@ -574,17 +574,17 @@ export default function SystemAdminWorkerDetailPage({ params }: { params: { id: 
                             </div>
                         </div>
 
-                        {/* Bank Info (Masked) */}
+                        {/* Bank Info */}
                         <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
                             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                                <CreditCard className="w-4 h-4" /> 銀行口座情報
+                                <CreditCard className="w-4 h-4" /> 銀行口座情報（振込用）
                             </h3>
                             {worker.bank_name ? (
                                 <div className="space-y-2 text-sm text-gray-600">
-                                    <div><span className="text-gray-400">銀行名:</span> {worker.bank_name}</div>
-                                    <div><span className="text-gray-400">支店名:</span> {worker.branch_name || '未登録'}</div>
+                                    <div><span className="text-gray-400">銀行名:</span> {worker.bank_name}{worker.bank_code ? ` (${worker.bank_code})` : ''}</div>
+                                    <div><span className="text-gray-400">支店名:</span> {worker.branch_name || '未登録'}{worker.branch_code ? ` (${worker.branch_code})` : ''}</div>
                                     <div><span className="text-gray-400">口座名義:</span> {worker.account_name || '未登録'}</div>
-                                    <div><span className="text-gray-400">口座番号:</span> ****{worker.account_number?.slice(-4) || '****'}</div>
+                                    <div><span className="text-gray-400">口座番号:</span> {worker.account_number || '未登録'}</div>
                                 </div>
                             ) : (
                                 <p className="text-sm text-gray-400 italic">銀行口座情報は未登録です</p>
