@@ -118,6 +118,7 @@ export async function POST(request: NextRequest) {
                         accepted,
                         endpoint: sub.endpoint,
                         platform,
+                        contentEncoding: 'aes128gcm',
                         statusCode,
                     };
                 } catch (error: any) {
@@ -134,6 +135,7 @@ export async function POST(request: NextRequest) {
                         accepted: false,
                         endpoint: sub.endpoint,
                         platform,
+                        contentEncoding: 'aes128gcm',
                         statusCode: error.statusCode ?? null,
                         error: error.message,
                     };
