@@ -130,7 +130,7 @@ export default function TestNotificationsPage() {
         const totalCount = data.results?.length || 0;
         setResult({
           success: successCount > 0,
-          message: `プッシュ通知送信完了: ${successCount}/${totalCount} デバイスに成功`,
+          message: `プッシュ通知送信受理: ${successCount}/${totalCount} デバイス（端末表示は端末設定・OS状態に依存）`,
           details: data.results,
         });
       } else {
