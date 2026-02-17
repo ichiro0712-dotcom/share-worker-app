@@ -81,6 +81,8 @@ export default function NotificationSettingsClient() {
       }
 
       if (permission === 'granted') {
+        // iOS PWAでは許可直後にSWが不安定なため少し待つ
+        await new Promise(r => setTimeout(r, 1500));
         // プッシュ通知を購読
         const result = await subscribeToPushNotifications('worker');
         if (result.success) {
