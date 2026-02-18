@@ -531,7 +531,7 @@ export async function getSystemWorkerDetail(id: number) {
     const completedApplications = worker.applications.filter(app =>
         app.status === 'COMPLETED_PENDING' || app.status === 'COMPLETED_RATED'
     );
-    const canceledApplications = worker.applications.filter(app => app.status === 'CANCELLED');
+    const canceledApplications = worker.applications.filter(app => app.status === 'CANCELLED' && app.cancelled_by === 'WORKER');
     const totalWorkDays = completedApplications.length;
     const cancelRate = worker.applications.length > 0
         ? (canceledApplications.length / worker.applications.length) * 100
