@@ -10,9 +10,9 @@ export default function AdminRootLayout({
 }) {
   const pathname = usePathname();
 
-  // ログインページとマスカレードページではレイアウトを適用しない
+  // ログインページ、マスカレードページ、パスワードリセットページではレイアウトを適用しない
   const noLayoutPages = ['/admin/login', '/admin/masquerade'];
-  const shouldShowLayout = !noLayoutPages.includes(pathname || '');
+  const shouldShowLayout = !noLayoutPages.includes(pathname || '') && !(pathname || '').startsWith('/admin/password-reset');
 
   if (!shouldShowLayout) {
     return <>{children}</>;
