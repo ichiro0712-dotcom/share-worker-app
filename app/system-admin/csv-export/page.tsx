@@ -2,21 +2,26 @@
 
 /**
  * CSV出力メインページ
- * CROSSNAVI連携用のCSVデータエクスポート
+ * タスタス独自データ + CROSSNAVI連携用のCSVデータエクスポート
  */
 
 import { useState } from 'react';
-import { Building2, Briefcase, Calendar, Users, Clock } from 'lucide-react';
+import { Building2, Briefcase, Calendar, Users, Clock, UserCheck } from 'lucide-react';
 import CsvExportTabs from './components/CsvExportTabs';
+import WorkerInfoExport from './worker-info/WorkerInfoExport';
 import ClientInfoExport from './client-info/ClientInfoExport';
 import JobInfoExport from './job-info/JobInfoExport';
 import ShiftInfoExport from './shift-info/ShiftInfoExport';
 import StaffInfoExport from './staff-info/StaffInfoExport';
 import AttendanceInfoExport from './attendance-info/AttendanceInfoExport';
 
-type ExportTab = 'client' | 'job' | 'shift' | 'staff' | 'attendance';
+type ExportTab = 'worker' | 'client' | 'job' | 'shift' | 'staff' | 'attendance';
 
-const TABS = [
+const TASTAS_TABS = [
+  { id: 'worker' as const, label: 'ワーカー情報', icon: UserCheck, ready: true },
+] as const;
+
+const CROSSNAVI_TABS = [
   { id: 'client' as const, label: '取引先情報', icon: Building2, ready: true },
   { id: 'job' as const, label: '案件情報(代理)', icon: Briefcase, ready: true },
   { id: 'shift' as const, label: '案件シフト表(代理)', icon: Calendar, ready: true },
@@ -25,10 +30,12 @@ const TABS = [
 ] as const;
 
 export default function CsvExportPage() {
-  const [activeTab, setActiveTab] = useState<ExportTab>('client');
+  const [activeTab, setActiveTab] = useState<ExportTab>('worker');
 
   const renderContent = () => {
     switch (activeTab) {
+      case 'worker':
+        return <WorkerInfoExport />;
       case 'client':
         return <ClientInfoExport />;
       case 'job':
@@ -51,14 +58,15 @@ export default function CsvExportPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-800">CSV出力</h1>
           <p className="text-sm text-slate-500 mt-1">
-            CROSSNAVI連携用データをCSV形式でエクスポート
+            各種データをCSV形式でエクスポート
           </p>
         </div>
       </div>
 
-      {/* タブナビゲーション */}
+      {/* タブナビゲーション（2段構成） */}
       <CsvExportTabs
-        tabs={TABS}
+        tastasTabs={TASTAS_TABS}
+        crossnaviTabs={CROSSNAVI_TABS}
         activeTab={activeTab}
         onTabChange={(tab) => setActiveTab(tab as ExportTab)}
       />
