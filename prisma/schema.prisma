@@ -84,7 +84,7 @@ model User {
   auto_login_token           String?   @map("auto_login_token")
   /// 自動ログイントークンの有効期限
   auto_login_token_expires   DateTime? @map("auto_login_token_expires")
-  password_reset_token           String?   @map("password_reset_token")
+  password_reset_token           String?   @unique @map("password_reset_token")
   password_reset_token_expires   DateTime? @map("password_reset_token_expires")
 
   is_suspended  Boolean   @default(false) @map("is_suspended")
@@ -136,7 +136,7 @@ model FacilityAdmin {
 
   /// 利用規約同意日時
   terms_agreed_at DateTime? @map("terms_agreed_at")
-  password_reset_token           String?   @map("password_reset_token")
+  password_reset_token           String?   @unique @map("password_reset_token")
   password_reset_token_expires   DateTime? @map("password_reset_token_expires")
 
   @@map("facility_admins")

@@ -244,10 +244,20 @@ async function sendPasswordResetEmail(
     }
 }
 
+function escapeHtml(str: string): string {
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
 /**
  * パスワードリセットメールのHTML本文
  */
 function formatPasswordResetEmailHtml(name: string, resetUrl: string): string {
+    const safeName = escapeHtml(name);
+    const safeUrl = escapeHtml(resetUrl);
     return `
 <!DOCTYPE html>
 <html lang="ja">
@@ -259,14 +269,14 @@ function formatPasswordResetEmailHtml(name: string, resetUrl: string): string {
     <div style="background-color: #f8f9fa; padding: 30px; border-radius: 8px;">
         <h2 style="color: #2563eb; margin-bottom: 20px;">パスワードリセット</h2>
 
-        <p>${name} 様</p>
+        <p>${safeName} 様</p>
 
         <p>パスワードリセットのリクエストを受け付けました。</p>
 
         <p>下記のボタンをクリックして、新しいパスワードを設定してください。</p>
 
         <div style="text-align: center; margin: 30px 0;">
-            <a href="${resetUrl}"
+            <a href="${safeUrl}"
                style="display: inline-block; background-color: #2563eb; color: white; text-decoration: none;
                       padding: 14px 28px; border-radius: 6px; font-weight: bold;">
                 パスワードを再設定する
@@ -275,7 +285,7 @@ function formatPasswordResetEmailHtml(name: string, resetUrl: string): string {
 
         <p style="font-size: 14px; color: #666;">
             ボタンがクリックできない場合は、以下のURLをブラウザにコピー＆ペーストしてください：<br>
-            <a href="${resetUrl}" style="color: #2563eb; word-break: break-all;">${resetUrl}</a>
+            <a href="${safeUrl}" style="color: #2563eb; word-break: break-all;">${safeUrl}</a>
         </p>
 
         <p style="font-size: 14px; color: #666; margin-top: 20px;">
@@ -390,7 +400,7 @@ export async function requestPasswordReset(email: string): Promise<{ success: bo
  */
 export async function validateResetToken(token: string): Promise<{ valid: boolean; email?: string }> {
     try {
-        const user = await prisma.user.findFirst({
+        const user = await prisma.user.findUnique({
             where: { password_reset_token: token },
             select: { id: true, email: true, password_reset_token_expires: true },
         });
@@ -417,41 +427,10 @@ export async function validateResetToken(token: string): Promise<{ valid: boolea
 }
 
 /**
- * パスワードをリセット
+ * パスワードをリセット（アトミック: トークン消費とパスワード更新を同時に行う）
  */
 export async function resetPassword(token: string, newPassword: string): Promise<{ success: boolean; message?: string }> {
     try {
-        const user = await prisma.user.findFirst({
-            where: { password_reset_token: token },
-            select: { id: true, email: true, password_hash: true, password_reset_token_expires: true },
-        });
-
-        if (!user) {
-            logActivity({
-                userType: 'WORKER',
-                action: 'PASSWORD_RESET_FAILED',
-                result: 'ERROR',
-                errorMessage: '無効なトークン',
-            }).catch(() => {});
-            return { success: false, message: '無効なトークンです。再度パスワードリセットをリクエストしてください。' };
-        }
-
-        // 有効期限チェック
-        if (!user.password_reset_token_expires || new Date() > user.password_reset_token_expires) {
-            await prisma.user.update({
-                where: { id: user.id },
-                data: { password_reset_token: null, password_reset_token_expires: null },
-            });
-            logActivity({
-                userType: 'WORKER',
-                userEmail: user.email,
-                action: 'PASSWORD_RESET_FAILED',
-                result: 'ERROR',
-                errorMessage: 'トークン有効期限切れ',
-            }).catch(() => {});
-            return { success: false, message: 'トークンの有効期限が切れています。再度パスワードリセットをリクエストしてください。' };
-        }
-
         // サーバーサイドのパスワード長チェック
         if (!newPassword || newPassword.length < 8) {
             return { success: false, message: 'パスワードは8文字以上で入力してください' };
@@ -459,46 +438,61 @@ export async function resetPassword(token: string, newPassword: string): Promise
 
         const bcrypt = await import('bcryptjs');
 
-        // 現在のパスワードと同じかチェック
-        if (user.password_hash) {
-            const isSamePassword = await bcrypt.compare(newPassword, user.password_hash);
-            if (isSamePassword) {
-                logActivity({
-                    userType: 'WORKER',
-                    userId: user.id,
-                    userEmail: user.email,
-                    action: 'PASSWORD_RESET_FAILED',
-                    result: 'ERROR',
-                    errorMessage: '現在と同じパスワード',
-                }).catch(() => {});
-                return { success: false, message: '現在のパスワードと同じパスワードは使用できません。別のパスワードを設定してください。' };
+        // アトミックにトークンを消費してパスワードを更新
+        const result = await prisma.$transaction(async (tx) => {
+            const user = await tx.user.findUnique({
+                where: { password_reset_token: token },
+                select: { id: true, email: true, password_hash: true, password_reset_token_expires: true },
+            });
+
+            if (!user) {
+                return { success: false as const, message: '無効なトークンです。再度パスワードリセットをリクエストしてください。' };
             }
-        }
 
-        // パスワードをハッシュ化して更新 + トークンクリア
-        const password_hash = await bcrypt.hash(newPassword, 12);
+            // 有効期限チェック
+            if (!user.password_reset_token_expires || new Date() > user.password_reset_token_expires) {
+                await tx.user.update({
+                    where: { id: user.id },
+                    data: { password_reset_token: null, password_reset_token_expires: null },
+                });
+                return { success: false as const, message: 'トークンの有効期限が切れています。再度パスワードリセットをリクエストしてください。' };
+            }
 
-        await prisma.user.update({
-            where: { id: user.id },
-            data: {
-                password_hash,
-                password_reset_token: null,
-                password_reset_token_expires: null,
-            },
+            // 現在のパスワードと同じかチェック
+            if (user.password_hash) {
+                const isSamePassword = await bcrypt.compare(newPassword, user.password_hash);
+                if (isSamePassword) {
+                    return { success: false as const, message: '現在のパスワードと同じパスワードは使用できません。別のパスワードを設定してください。' };
+                }
+            }
+
+            // パスワードをハッシュ化して更新 + トークンクリア（アトミック）
+            const password_hash = await bcrypt.hash(newPassword, 12);
+
+            await tx.user.update({
+                where: { id: user.id },
+                data: {
+                    password_hash,
+                    password_reset_token: null,
+                    password_reset_token_expires: null,
+                },
+            });
+
+            console.log(`[Password Reset] Password updated for: ${user.email}`);
+
+            // パスワードリセット完了をログ記録
+            logActivity({
+                userType: 'WORKER',
+                userId: user.id,
+                userEmail: user.email,
+                action: 'PASSWORD_RESET_COMPLETE',
+                result: 'SUCCESS',
+            }).catch(() => {});
+
+            return { success: true as const, message: 'パスワードを変更しました' };
         });
 
-        console.log(`[Password Reset] Password updated for: ${user.email}`);
-
-        // パスワードリセット完了をログ記録
-        logActivity({
-            userType: 'WORKER',
-            userId: user.id,
-            userEmail: user.email,
-            action: 'PASSWORD_RESET_COMPLETE',
-            result: 'SUCCESS',
-        }).catch(() => {});
-
-        return { success: true, message: 'パスワードを変更しました' };
+        return result;
     } catch (error) {
         console.error('[resetPassword] Error:', error);
         logActivity({

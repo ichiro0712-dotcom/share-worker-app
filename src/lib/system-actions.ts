@@ -2992,6 +2992,8 @@ function escapeHtml(str: string): string {
  */
 export async function sendFacilityPasswordResetEmail(adminId: number) {
     try {
+        await requireSystemAdminAuth();
+
         const admin = await prisma.facilityAdmin.findUnique({
             where: { id: adminId },
             select: { id: true, email: true, name: true }
@@ -3112,7 +3114,7 @@ export async function requestFacilityPasswordReset(email: string): Promise<{ suc
  */
 export async function validateFacilityResetToken(token: string): Promise<{ valid: boolean; email?: string }> {
     try {
-        const admin = await prisma.facilityAdmin.findFirst({
+        const admin = await prisma.facilityAdmin.findUnique({
             where: { password_reset_token: token },
             select: { id: true, email: true, password_reset_token_expires: true },
         });
@@ -3138,53 +3140,59 @@ export async function validateFacilityResetToken(token: string): Promise<{ valid
 }
 
 /**
- * 施設管理者パスワードリセット実行
+ * 施設管理者パスワードリセット実行（アトミック: トークン消費とパスワード更新を同時に行う）
  */
 export async function resetFacilityPassword(token: string, newPassword: string): Promise<{ success: boolean; message?: string }> {
     try {
-        const admin = await prisma.facilityAdmin.findFirst({
-            where: { password_reset_token: token },
-            select: { id: true, email: true, password_hash: true, password_reset_token_expires: true },
-        });
-
-        if (!admin) {
-            return { success: false, message: '無効なトークンです。再度パスワードリセットをリクエストしてください。' };
-        }
-
-        // 有効期限チェック
-        if (!admin.password_reset_token_expires || new Date() > admin.password_reset_token_expires) {
-            await prisma.facilityAdmin.update({
-                where: { id: admin.id },
-                data: { password_reset_token: null, password_reset_token_expires: null },
-            });
-            return { success: false, message: 'トークンの有効期限が切れています。再度パスワードリセットをリクエストしてください。' };
-        }
-
         // サーバーサイドのパスワード長チェック
         if (!newPassword || newPassword.length < 8) {
             return { success: false, message: 'パスワードは8文字以上で入力してください' };
         }
 
-        // 現在のパスワードと同じかチェック
-        const isSamePassword = await bcrypt.compare(newPassword, admin.password_hash);
-        if (isSamePassword) {
-            return { success: false, message: '現在のパスワードと同じパスワードは使用できません。別のパスワードを設定してください。' };
-        }
+        // アトミックにトークンを消費してパスワードを更新
+        const result = await prisma.$transaction(async (tx) => {
+            // トークンでアドミンを検索（@uniqueなのでfindUnique使用）
+            const admin = await tx.facilityAdmin.findUnique({
+                where: { password_reset_token: token },
+                select: { id: true, email: true, password_hash: true, password_reset_token_expires: true },
+            });
 
-        // パスワードハッシュ化 + トークンクリア
-        const password_hash = await bcrypt.hash(newPassword, 12);
+            if (!admin) {
+                return { success: false as const, message: '無効なトークンです。再度パスワードリセットをリクエストしてください。' };
+            }
 
-        await prisma.facilityAdmin.update({
-            where: { id: admin.id },
-            data: {
-                password_hash,
-                password_reset_token: null,
-                password_reset_token_expires: null,
-            },
+            // 有効期限チェック
+            if (!admin.password_reset_token_expires || new Date() > admin.password_reset_token_expires) {
+                await tx.facilityAdmin.update({
+                    where: { id: admin.id },
+                    data: { password_reset_token: null, password_reset_token_expires: null },
+                });
+                return { success: false as const, message: 'トークンの有効期限が切れています。再度パスワードリセットをリクエストしてください。' };
+            }
+
+            // 現在のパスワードと同じかチェック
+            const isSamePassword = await bcrypt.compare(newPassword, admin.password_hash);
+            if (isSamePassword) {
+                return { success: false as const, message: '現在のパスワードと同じパスワードは使用できません。別のパスワードを設定してください。' };
+            }
+
+            // パスワードハッシュ化 + トークンクリア（アトミック）
+            const password_hash = await bcrypt.hash(newPassword, 12);
+
+            await tx.facilityAdmin.update({
+                where: { id: admin.id },
+                data: {
+                    password_hash,
+                    password_reset_token: null,
+                    password_reset_token_expires: null,
+                },
+            });
+
+            console.log(`[Facility Password Reset] Password updated for: ${admin.email}`);
+            return { success: true as const, message: 'パスワードを変更しました' };
         });
 
-        console.log(`[Facility Password Reset] Password updated for: ${admin.email}`);
-        return { success: true, message: 'パスワードを変更しました' };
+        return result;
     } catch (error) {
         console.error('[resetFacilityPassword] Error:', error);
         return { success: false, message: 'エラーが発生しました' };
