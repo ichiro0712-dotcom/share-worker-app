@@ -7,7 +7,43 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **以下のサービスは使用禁止：**
 
 1. **Netlify** - 使用禁止。デプロイ先はVercelのみ。
-2. **`npx prisma db push`** - **絶対禁止**。データベースをリセット・破壊するリスクがある。スキーマ変更はユーザーが手動で行う。Claude Codeは`prisma db push`、`prisma migrate reset`、`prisma migrate dev`などDB破壊の可能性があるPrismaコマンドを一切実行してはならない。
+2. **本番・ステージングDBへの直接操作** - 絶対禁止。下記「DB操作の絶対禁止事項」参照。
+
+### 🔴 DB操作の絶対禁止事項（最重要・例外なし）
+
+**Claude Codeは本番・ステージングのデータベースに対して、直接的にも間接的にも一切の変更操作を行ってはならない。**
+
+**禁止されるコマンド（環境を問わず実行禁止）:**
+- `npx prisma db push`（ローカルDocker以外）
+- `npx prisma migrate deploy`
+- `npx prisma migrate reset`
+- `npx prisma db seed`（ローカルDocker以外）
+- `supabase db reset`
+- `supabase link`
+- `vercel env pull --environment=production`
+- `.env.production.local` の作成・読み取り
+- 本番/ステージングの `DATABASE_URL` を環境変数に設定する行為
+
+**禁止される間接操作:**
+- `.env.production.local` を参照した状態での `npm run build`
+- シェル環境変数に本番/ステージングDBのURLが設定された状態でのPrisma操作
+
+**DB変更が必要な場合の正しい手順:**
+1. スキーマ変更（`prisma/schema.prisma`）のコード修正のみ行う
+2. 必要なSQLまたはPrismaコマンドをユーザーに提示する
+3. **ユーザーが自分の手で直接実行する**
+4. Claude Codeは実行結果の確認のみ行う
+
+**報告テンプレート（DB変更時）:**
+```
+【DB変更が必要です】
+- 変更内容: （具体的な変更）
+- 対象環境: 本番 / ステージング / 両方
+- 実行コマンド:
+  npx prisma db push
+  （または具体的なSQL）
+- ⚠️ このコマンドはユーザーが直接実行してください
+```
 
 **正しい環境:**
 

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, BarChart3, Clock, MousePointer, Scroll, Activity, Target, Info } from 'lucide-react';
+import { ArrowLeft, BarChart3, Clock, MousePointer, Scroll, Activity, Target, Info, Users, FileText } from 'lucide-react';
 
 export default function TrackingSpecPage() {
   return (
@@ -223,6 +223,93 @@ export default function TrackingSpecPage() {
                 画面に50%以上表示されている間の滞在時間を累積します。
               </p>
             </div>
+          </div>
+        </div>
+
+        {/* Post-Registration Funnel Metrics */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-6">
+          <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+            <Users className="w-5 h-5 text-teal-600" />
+            登録後ファネル指標（LP帰属）
+          </h2>
+          <p className="text-slate-700 mb-4">
+            LP経由で登録したワーカーが、プラットフォーム内でどの程度アクティブに行動しているかを計測する指標です。
+            <code className="bg-slate-100 px-1.5 py-0.5 rounded text-sm">User.registration_lp_id</code> で
+            登録元LPを特定し、LP/キャンペーンコード別に集計します。
+          </p>
+
+          <div className="space-y-6">
+            <div className="border-b border-slate-200 pb-4">
+              <div className="flex items-center gap-2 mb-2">
+                <FileText className="w-4 h-4 text-slate-500" />
+                <h3 className="font-medium text-slate-900">親求人PV</h3>
+              </div>
+              <p className="text-sm text-slate-700 mb-2">
+                LP経由で登録したワーカーが、プラットフォーム内の求人詳細ページ（<code className="bg-slate-100 px-1 rounded">/jobs/[id]</code>）を
+                閲覧した回数。ログイン済みワーカーの閲覧のみ計測されます。
+              </p>
+              <div className="bg-slate-50 p-3 rounded text-sm text-slate-600">
+                <p className="font-medium mb-1">計測の仕組み:</p>
+                <ol className="list-decimal list-inside space-y-1">
+                  <li>ワーカーが求人詳細ページにアクセス</li>
+                  <li><code className="bg-slate-100 px-1 rounded">JobDetailTracker</code> コンポーネントがサーバーにPOST</li>
+                  <li>サーバー側で <code className="bg-slate-100 px-1 rounded">getServerSession</code> でユーザーIDを取得（改ざん防止）</li>
+                  <li><code className="bg-slate-100 px-1 rounded">job_detail_page_views</code> テーブルにレコード作成</li>
+                  <li>集計時に <code className="bg-slate-100 px-1 rounded">User.registration_lp_id</code> でLP帰属を逆引き</li>
+                </ol>
+              </div>
+            </div>
+
+            <div className="border-b border-slate-200 pb-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Users className="w-4 h-4 text-slate-500" />
+                <h3 className="font-medium text-slate-900">親求人セッション</h3>
+              </div>
+              <p className="text-sm text-slate-700">
+                LP経由で登録したワーカーのうち、求人詳細ページを1回以上閲覧したユニークユーザー数。
+                計算式: <code className="bg-slate-100 px-1 rounded">job_detail_page_views</code> テーブルで対象LP帰属ユーザーのユニーク user_id 数
+              </p>
+            </div>
+
+            <div className="border-b border-slate-200 pb-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Target className="w-4 h-4 text-slate-500" />
+                <h3 className="font-medium text-slate-900">応募数（LP帰属）</h3>
+              </div>
+              <p className="text-sm text-slate-700 mb-2">
+                LP経由で登録したワーカーが行った応募の総数。
+                応募・マッチング分析タブの「応募数」と同じ <code className="bg-slate-100 px-1 rounded">applications</code> テーブルを使用しますが、
+                <code className="bg-slate-100 px-1 rounded">User.registration_lp_id</code> によるLP帰属フィルターで絞り込みます。
+              </p>
+            </div>
+
+            <div className="border-b border-slate-200 pb-4">
+              <div className="flex items-center gap-2 mb-2">
+                <BarChart3 className="w-4 h-4 text-slate-500" />
+                <h3 className="font-medium text-slate-900">応募率</h3>
+              </div>
+              <p className="text-sm text-slate-700">
+                LP経由の登録者のうち、1回以上応募したユニークユーザーの割合（100%を超えない）。計算式: 応募ユニークユーザー数（LP帰属） ÷ 登録数 × 100
+              </p>
+            </div>
+
+            <div className="pb-2">
+              <div className="flex items-center gap-2 mb-2">
+                <Clock className="w-4 h-4 text-slate-500" />
+                <h3 className="font-medium text-slate-900">平均応募日数</h3>
+              </div>
+              <p className="text-sm text-slate-700">
+                LP経由で登録したワーカー1人あたりの平均応募日数（何日分のシフトに応募したか）。
+                計算式: 応募数（LP帰属） ÷ ユニーク応募ワーカー数
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 p-4 bg-teal-50 rounded-lg">
+            <p className="text-sm text-teal-800">
+              <strong>分析のポイント</strong>: 登録率が高くても応募率が低い場合、LPの訴求内容と実際の求人内容にギャップがある可能性があります。
+              平均応募日数が少ない場合、ワーカーの継続利用促進やリピート応募の施策改善余地を示唆します。
+            </p>
           </div>
         </div>
 
@@ -542,6 +629,15 @@ export default function TrackingSpecPage() {
                 <li>セクション別滞在時間</li>
                 <li>GTM / dataLayer連携</li>
               </ul>
+            </div>
+
+            <div className="border-b border-slate-200 pb-4">
+              <h3 className="font-medium text-slate-900 mb-2">登録後ファネル指標（LP0帰属）</h3>
+              <p className="text-sm text-slate-700 mb-2">
+                LP0（公開求人検索）でも、登録後ファネル指標（親求人PV、親求人セッション、応募数、応募率、平均応募日数）を
+                キャンペーンコード別に集計しています。
+                <code className="bg-slate-100 px-1 rounded">User.registration_lp_id = &apos;0&apos;</code> のユーザーが対象です。
+              </p>
             </div>
 
             <div className="pb-2">

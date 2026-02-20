@@ -75,15 +75,15 @@ export default async function LPIndexPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-slate-800">LP管理</h1>
-            <p className="text-slate-500">ランディングページの管理・トラッキング</p>
+            <p className="text-slate-500">ランディングページの管理・分析</p>
           </div>
           <div className="flex items-center gap-2">
             <Link
-              href="/system-admin/lp/tracking"
+              href="/system-admin/analytics?tab=lp"
               className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
             >
               <BarChart3 className="w-4 h-4" />
-              トラッキング
+              アナリティクス
             </Link>
             <Link
               href="/system-admin/lp/genres"
@@ -170,7 +170,7 @@ export default async function LPIndexPage() {
           </div>
           <div className="flex items-center gap-2">
             <BarChart3 className="w-3.5 h-3.5 text-slate-400" />
-            トラッキングで効果測定
+            アナリティクスで効果測定
           </div>
         </div>
       </div>

@@ -1,22 +1,49 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import WorkerAnalytics from './tabs/WorkerAnalytics';
 import FacilityAnalytics from './tabs/FacilityAnalytics';
 import MatchingAnalytics from './tabs/MatchingAnalytics';
+import JobAnalytics from './tabs/JobAnalytics';
+import LpTracking from './tabs/LpTracking';
 import MetricDefinitions from './tabs/MetricDefinitions';
 import Link from 'next/link';
-import { Book } from 'lucide-react';
+import { Book, BarChart3 } from 'lucide-react';
 
 const TABS = [
     { id: 'worker', label: 'ワーカー分析' },
     { id: 'facility', label: '施設分析' },
     { id: 'matching', label: '応募・マッチング' },
+    { id: 'jobs', label: '求人' },
+    { id: 'lp', label: 'LP', icon: BarChart3 },
     { id: 'definitions', label: '定義一覧', icon: Book },
 ] as const;
 
+// 後方互換: 旧タブIDを新IDにマッピング
+const TAB_ALIASES: Record<string, string> = {
+    'lp-tracking': 'lp',
+    'public-jobs': 'lp',
+};
+
+const resolveTab = (tab: string | null): string => {
+    if (!tab) return 'worker';
+    const resolved = TAB_ALIASES[tab] || tab;
+    return TABS.some(t => t.id === resolved) ? resolved : 'worker';
+};
+
 export default function AnalyticsPage() {
-    const [activeTab, setActiveTab] = useState<string>('worker');
+    const searchParams = useSearchParams();
+    const [activeTab, setActiveTab] = useState<string>(() => resolveTab(searchParams?.get('tab')));
+
+    // URLのtabパラメータが変更された場合に追従
+    useEffect(() => {
+        const tab = searchParams?.get('tab');
+        if (tab) {
+            const resolved = resolveTab(tab);
+            setActiveTab(resolved);
+        }
+    }, [searchParams]);
 
     return (
         <div className="p-8">
@@ -48,7 +75,7 @@ export default function AnalyticsPage() {
             </div>
 
             {/* Tabs */}
-            <div className="flex border-b border-slate-200 mb-6 space-x-6">
+            <div className="flex border-b border-slate-200 mb-6 space-x-6 overflow-x-auto">
                 {TABS.map(tab => {
                     const Icon = 'icon' in tab ? tab.icon : null;
                     return (
@@ -72,6 +99,8 @@ export default function AnalyticsPage() {
                 {activeTab === 'worker' && <WorkerAnalytics />}
                 {activeTab === 'facility' && <FacilityAnalytics />}
                 {activeTab === 'matching' && <MatchingAnalytics />}
+                {activeTab === 'jobs' && <JobAnalytics />}
+                {activeTab === 'lp' && <LpTracking />}
                 {activeTab === 'definitions' && <MetricDefinitions />}
             </div>
         </div>
