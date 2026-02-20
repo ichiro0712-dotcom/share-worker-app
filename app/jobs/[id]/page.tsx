@@ -1,5 +1,6 @@
 import { getJobById, getJobs, hasUserAppliedForJob, getFacilityReviews, getUserApplicationStatuses, getUserScheduledJobs, getFacilityInterviewPassRate } from '@/src/lib/actions';
 import { JobDetailClient } from '@/components/job/JobDetailClient';
+import JobDetailTracker from '@/components/tracking/JobDetailTracker';
 import { notFound } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { DEBUG_TIME_COOKIE_NAME, parseDebugTimeCookie, getCurrentTimeFromSettings } from '@/utils/debugTime.server';
@@ -176,17 +177,20 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
   }
 
   return (
-    <JobDetailClient
-      job={job}
-      facility={facility}
-      relatedJobs={relatedJobs}
-      facilityReviews={facilityReviews}
-      initialHasApplied={initialHasApplied}
-      initialAppliedWorkDateIds={appliedWorkDateIds}
-      selectedDate={selectedDate}
-      isPreviewMode={isPreviewMode}
-      scheduledJobs={scheduledJobs}
-      interviewPassRate={interviewPassRate}
-    />
+    <>
+      <JobDetailTracker jobId={jobData.id} />
+      <JobDetailClient
+        job={job}
+        facility={facility}
+        relatedJobs={relatedJobs}
+        facilityReviews={facilityReviews}
+        initialHasApplied={initialHasApplied}
+        initialAppliedWorkDateIds={appliedWorkDateIds}
+        selectedDate={selectedDate}
+        isPreviewMode={isPreviewMode}
+        scheduledJobs={scheduledJobs}
+        interviewPassRate={interviewPassRate}
+      />
+    </>
   );
 }

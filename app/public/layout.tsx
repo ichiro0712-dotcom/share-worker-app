@@ -105,6 +105,12 @@ function PublicLayoutInner({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // 現在のURLから求人IDを取得（/public/jobs/[id] パターン）
+  const currentJobId = (() => {
+    const match = pathname.match(/^\/public\/jobs\/(\d+)/);
+    return match ? parseInt(match[1], 10) : null;
+  })();
+
   // CTAクリック計測
   const handleCtaClick = useCallback(() => {
     try {
@@ -132,6 +138,7 @@ function PublicLayoutInner({ children }: { children: ReactNode }) {
         sessionId,
         buttonId: fromLp ? 'line_register' : 'cta_register',
         buttonText: '会員登録して応募する',
+        jobId: currentJobId,
       });
 
       if (navigator.sendBeacon) {
@@ -148,7 +155,7 @@ function PublicLayoutInner({ children }: { children: ReactNode }) {
     } catch {
       // トラッキングエラーはサイレントに無視
     }
-  }, [fromLp]);
+  }, [fromLp, currentJobId]);
 
   // LP経由でLINE URLが取得できた場合は<a>タグで外部遷移
   // それ以外は/loginにLP情報をクエリパラメータとして引き継ぎ

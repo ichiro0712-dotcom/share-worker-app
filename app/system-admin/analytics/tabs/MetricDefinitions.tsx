@@ -86,6 +86,20 @@ export const METRIC_DEFINITIONS = {
                 usedIn: ['ダッシュボード トレンド', '施設分析']
             },
             {
+                key: 'withdrawnFacilityCount',
+                label: '退会施設数',
+                definition: '指定期間内に退会した施設の数',
+                calculation: '指定期間の deleted_at を持つ facilities レコード数',
+                usedIn: ['施設分析']
+            },
+            {
+                key: 'facilityWithdrawalRate',
+                label: '施設退会率',
+                definition: '期間開始時の登録施設数に対する退会施設の割合',
+                calculation: '退会施設数 ÷ 期間開始時の登録施設数 × 100',
+                usedIn: ['施設分析']
+            },
+            {
                 key: 'facilityReviewCount',
                 label: 'レビュー数（施設受領）',
                 definition: '施設がワーカーから受けたレビューの数',
@@ -98,6 +112,34 @@ export const METRIC_DEFINITIONS = {
                 definition: '施設がワーカーから受けたレビューの平均評価',
                 calculation: 'レビュー合計点 ÷ レビュー数',
                 usedIn: ['施設分析', 'アラート判定']
+            },
+            {
+                key: 'parentJobInterviewCount',
+                label: '親求人数（面接あり）',
+                definition: '面接ありの親求人の数',
+                calculation: 'jobs テーブルで requires_interview = true のレコード数',
+                usedIn: ['施設分析']
+            },
+            {
+                key: 'childJobInterviewCount',
+                label: '子求人数（面接あり）',
+                definition: '面接ありの親求人に紐づく子求人の数',
+                calculation: 'job_work_dates テーブルで紐づく job の requires_interview = true のレコード数',
+                usedIn: ['施設分析']
+            },
+            {
+                key: 'withdrawnFacilityCount',
+                label: '退会施設数',
+                definition: '指定期間内に退会した施設の数',
+                calculation: '指定期間の deleted_at を持つ facilities レコード数',
+                usedIn: ['施設分析']
+            },
+            {
+                key: 'facilityWithdrawalRate',
+                label: '施設退会率',
+                definition: '期間開始時の登録施設数に対する退会施設の割合',
+                calculation: '退会施設数 ÷ 期間開始時の登録施設数 × 100',
+                usedIn: ['施設分析']
             }
         ]
     },
@@ -179,6 +221,62 @@ export const METRIC_DEFINITIONS = {
         ]
     },
 
+    // ========== LP基本トラッキング関連 ==========
+    lpBasicTracking: {
+        title: 'LP基本トラッキング関連',
+        metrics: [
+            {
+                key: 'lpPV',
+                label: 'PV（ページビュー）',
+                definition: 'LPページが読み込まれた回数。同一ユーザーが複数回訪問した場合も、それぞれ1PVとしてカウント',
+                calculation: 'lp_page_views テーブルで対象LP・期間のレコード数',
+                usedIn: ['LP分析（公開求人）', 'LP分析（LP別アクセス状況）', 'LPトラッキング']
+            },
+            {
+                key: 'lpSessions',
+                label: 'セッション',
+                definition: 'ユニークな訪問数。sessionStorageベースのセッションIDで識別。同一ブラウザの同一タブでの複数PVは1セッション',
+                calculation: 'lp_page_views テーブルで対象LP・期間のユニーク session_id 数',
+                usedIn: ['LP分析（公開求人）', 'LP分析（LP別アクセス状況）', 'LPトラッキング']
+            },
+            {
+                key: 'lpEvents',
+                label: 'イベント（CTAクリック）',
+                definition: 'CTAボタンがクリックされた回数。通常LP: LINE友だち追加リンク等、LP0: 「会員登録して応募する」ボタン',
+                calculation: 'lp_click_events テーブルで対象LP・期間のレコード数',
+                usedIn: ['LP分析（公開求人）', 'LP分析（LP別アクセス状況）', 'LPトラッキング']
+            },
+            {
+                key: 'lpEventCTR',
+                label: 'イベントCTR',
+                definition: 'セッションあたりのCTAクリック率',
+                calculation: 'イベント数 ÷ セッション数 × 100',
+                usedIn: ['LP分析（LP別アクセス状況）', 'LPトラッキング']
+            },
+            {
+                key: 'lpRegistrations',
+                label: '登録数',
+                definition: 'LP経由での会員登録数。LP訪問時にlocalStorageに保存されたLP ID・キャンペーンコードが登録時にユーザーレコードに紐付け',
+                calculation: 'users テーブルで registration_lp_id が対象LP のレコード数',
+                usedIn: ['LP分析（公開求人）', 'LP分析（LP別アクセス状況）', 'LPトラッキング']
+            },
+            {
+                key: 'lpJobDetailPV',
+                label: '求人閲覧数（LP0）',
+                definition: 'LP0の求人詳細ページ（/public/jobs/[id]）が閲覧された合計回数。LP0固有の指標',
+                calculation: 'public_job_page_views テーブルで lp_id=0・期間のレコード数',
+                usedIn: ['LP分析（公開求人）']
+            },
+            {
+                key: 'lpAvgDwellTime',
+                label: '平均滞在時間',
+                definition: 'LP滞在時間の平均。通常LP: 最大300秒、LP0: 最大600秒でキャップ',
+                calculation: 'lp_engagement_summaries テーブルで total_dwell_time の平均',
+                usedIn: ['LP分析（公開求人）', 'LPトラッキング']
+            }
+        ]
+    },
+
     // ========== 応募・マッチング関連 ==========
     matching: {
         title: '応募・マッチング関連',
@@ -251,6 +349,69 @@ export const METRIC_DEFINITIONS = {
                 label: '施設あたりレビュー数',
                 definition: 'アクティブ施設1施設あたりの平均レビュー受領数',
                 calculation: '施設受領レビュー数 ÷ アクティブ施設数',
+                usedIn: ['応募・マッチング分析']
+            }
+        ]
+    },
+
+    // ========== LPトラッキング関連 ==========
+    lpTracking: {
+        title: 'LPトラッキング関連',
+        metrics: [
+            {
+                key: 'registrationRate',
+                label: '登録率',
+                definition: 'LP閲覧セッションのうち、ワーカー登録に至った割合。旧名称「CVR」と同一指標',
+                calculation: '登録数 ÷ セッション数 × 100',
+                usedIn: ['LP分析（公開求人）', 'LP分析（LP別アクセス状況）']
+            },
+            {
+                key: 'parentJobPV',
+                label: '親求人PV',
+                definition: 'LP経由で登録したワーカーが、プラットフォーム内で求人詳細ページを閲覧した回数',
+                calculation: 'job_detail_page_views テーブルで、対象LP帰属ユーザー（User.registration_lp_id）に該当するレコード数',
+                usedIn: ['LP分析（公開求人）', 'LP分析（LP別アクセス状況）']
+            },
+            {
+                key: 'parentJobSessions',
+                label: '親求人セッション',
+                definition: 'LP経由で登録したワーカーのうち、求人詳細ページを1回以上閲覧したユニークユーザー数',
+                calculation: 'job_detail_page_views テーブルで対象LP帰属ユーザーのユニーク user_id 数',
+                usedIn: ['LP分析（公開求人）', 'LP分析（LP別アクセス状況）']
+            },
+            {
+                key: 'lpApplicationCount',
+                label: '応募数（LP帰属）',
+                definition: 'LP経由で登録したワーカーが行った応募の総数。応募・マッチングタブの応募数と同じ Application テーブルを使用し、LP帰属フィルター（User.registration_lp_id）で絞り込む',
+                calculation: 'applications テーブルで user.registration_lp_id が対象LP のレコード数',
+                usedIn: ['LP分析（公開求人）', 'LP分析（LP別アクセス状況）']
+            },
+            {
+                key: 'applicationRate',
+                label: '応募率',
+                definition: 'LP経由で登録したワーカーのうち、1回以上応募したユニークユーザーの割合（登録数基準、100%を超えない）',
+                calculation: '応募ユニークユーザー数（LP帰属） ÷ 登録数 × 100',
+                usedIn: ['LP分析（公開求人）', 'LP分析（LP別アクセス状況）']
+            },
+            {
+                key: 'avgDaysToApplication',
+                label: '平均応募日数',
+                definition: 'LP経由で登録したワーカー1人あたりの平均応募日数（何日分のシフトに応募したか）',
+                calculation: '応募数（LP帰属） ÷ ユニーク応募ワーカー数',
+                usedIn: ['LP分析（公開求人）', 'LP分析（LP別アクセス状況）']
+            },
+            {
+                key: 'applicationDays',
+                label: '応募日数',
+                definition: '期間内の応募総数（1応募=1勤務日）',
+                calculation: 'applicationCountと同値',
+                usedIn: ['応募・マッチング分析']
+            },
+            {
+                key: 'avgApplicationDays',
+                label: '平均応募日数（応募・マッチング）',
+                definition: 'ワーカー1人あたりの平均応募日数',
+                calculation: '応募数 ÷ ユニーク応募ワーカー数',
                 usedIn: ['応募・マッチング分析']
             }
         ]

@@ -610,7 +610,7 @@ NEXTAUTH_URL="http://localhost:3000"
 | `workerReviewCount` | レビュー数（ワーカー受領） | ワーカーが施設から受けたレビューの数 | reviews テーブルで reviewer_type = FACILITY のレコード数 | ワーカー分析 |
 | `workerReviewAvg` | レビュー平均点（ワーカー） | ワーカーが施設から受けたレビューの平均評価 | レビュー合計点 ÷ レビュー数 | ワーカー分析、アラート判定 |
 | `cancelRate` | キャンセル率 | ワーカーによる応募キャンセルの割合 | ワーカーキャンセル数 ÷ 総応募数 × 100 | ワーカー分析、アラート判定 |
-| `lastMinuteCancelRate` | 直前キャンセル率 | 勤務日24時間以内にキャンセルした割合 | 直前キャンセル数 ÷ ワーカーキャンセル総数 × 100 | ワーカー分析 |
+| `lastMinuteCancelRate` | 直前キャンセル率 | 勤務前日以降にキャンセルした割合（全応募数に対する比率） | 勤務前日以降のキャンセル数 ÷ 全応募数 × 100 | ワーカー分析 |
 
 ### 9.2 施設関連
 
@@ -620,6 +620,10 @@ NEXTAUTH_URL="http://localhost:3000"
 | `newFacilityCount` | 施設登録数 | 指定期間内に新規登録した施設の数 | 指定期間の created_at を持つ facilities レコード数 | ダッシュボード トレンド、施設分析 |
 | `facilityReviewCount` | レビュー数（施設受領） | 施設がワーカーから受けたレビューの数 | reviews テーブルで reviewer_type = WORKER のレコード数 | 施設分析 |
 | `facilityReviewAvg` | レビュー平均点（施設） | 施設がワーカーから受けたレビューの平均評価 | レビュー合計点 ÷ レビュー数 | 施設分析、アラート判定 |
+| `parentJobInterviewCount` | 親求人数（面接あり） | 面接ありの親求人の数 | jobs テーブルで requires_interview = true のレコード数 | 施設分析 |
+| `childJobInterviewCount` | 子求人数（面接あり） | 面接ありの親求人に紐づく子求人の数 | job_work_dates テーブルで紐づく job の requires_interview = true のレコード数 | 施設分析 |
+| `withdrawnFacilityCount` | 退会施設数 | 指定期間内に退会した施設の数 | 指定期間の deleted_at を持つ facilities レコード数 | 施設分析 |
+| `facilityWithdrawalRate` | 施設退会率 | 期間開始時の登録施設数に対する退会施設の割合 | 退会施設数 ÷ 期間開始時の登録施設数 × 100 | 施設分析 |
 
 ### 9.3 求人関連
 
@@ -631,6 +635,10 @@ NEXTAUTH_URL="http://localhost:3000"
 | `remainingSlots` | 応募枠数（残り） | 全ての子求人で、まだ埋まっていない応募枠の合計 | Σ (各子求人の recruitment_count - 確定済み応募数) | ダッシュボード KPI、応募・マッチング分析 |
 | `parentJobsPerFacility` | 施設あたり親求人数 | 1施設あたりの平均親求人数 | 親求人数 ÷ アクティブ施設数 | 応募・マッチング分析 |
 | `childJobsPerFacility` | 施設あたり子求人数 | 1施設あたりの平均子求人数 | 子求人数 ÷ アクティブ施設数 | 応募・マッチング分析 |
+| `limitedJobCount` | 限定求人数 | 勤務済みワーカー限定またはお気に入りワーカー限定の求人数 | jobs テーブルで job_type IN (LIMITED_WORKED, LIMITED_FAVORITE) のレコード数 | 応募・マッチング分析 |
+| `offerJobCount` | オファー数 | 施設から特定ワーカーへ送られた個別オファーの数 | jobs テーブルで job_type = OFFER のレコード数 | 応募・マッチング分析 |
+| `offerAcceptanceRate` | オファー承諾率 | オファー求人のうち、ワーカーが承諾した割合 | オファー承諾数 ÷ オファー求人数 × 100 | 応募・マッチング分析 |
+| `limitedJobApplicationRate` | 限定求人応募率 | 限定求人に対して応募があった割合 | 限定求人への応募数 ÷ 限定求人数 × 100 | 応募・マッチング分析 |
 
 ### 9.4 応募・マッチング関連
 
@@ -647,7 +655,32 @@ NEXTAUTH_URL="http://localhost:3000"
 | `matchingsPerFacility` | 施設あたりマッチング数 | アクティブ施設1施設あたりの平均マッチング数 | マッチング数 ÷ アクティブ施設数 | 応募・マッチング分析 |
 | `reviewsPerFacility` | 施設あたりレビュー数 | アクティブ施設1施設あたりの平均レビュー受領数 | 施設受領レビュー数 ÷ アクティブ施設数 | 応募・マッチング分析 |
 
-### 9.5 アラート判定
+### 9.5 LP基本トラッキング関連
+
+| 指標キー | 指標名 | 定義 | 計算方法 | 使用箇所 |
+|----------|--------|------|----------|----------|
+| `lpPV` | PV（ページビュー） | LPページが読み込まれた回数。同一ユーザーが複数回訪問してもそれぞれ1PV | lp_page_views テーブルで対象LP・期間のレコード数 | LP分析（公開求人）、LP分析（LP別アクセス状況）、LPトラッキング |
+| `lpSessions` | セッション | ユニークな訪問数。sessionStorageベースのセッションIDで識別 | lp_page_views テーブルで対象LP・期間のユニーク session_id 数 | LP分析（公開求人）、LP分析（LP別アクセス状況）、LPトラッキング |
+| `lpEvents` | イベント（CTAクリック） | CTAボタンがクリックされた回数。通常LP: LINE友だち追加リンク等、LP0: 会員登録ボタン | lp_click_events テーブルで対象LP・期間のレコード数 | LP分析（公開求人）、LP分析（LP別アクセス状況）、LPトラッキング |
+| `lpEventCTR` | イベントCTR | セッションあたりのCTAクリック率 | イベント数 ÷ セッション数 × 100 | LP分析（LP別アクセス状況）、LPトラッキング |
+| `lpRegistrations` | 登録数 | LP経由での会員登録数。LP訪問時にlocalStorageに保存されたLP IDが登録時に紐付け | users テーブルで registration_lp_id が対象LP のレコード数 | LP分析（公開求人）、LP分析（LP別アクセス状況）、LPトラッキング |
+| `lpJobDetailPV` | 求人閲覧数（LP0） | LP0の求人詳細ページ（/public/jobs/[id]）の閲覧回数。LP0固有 | public_job_page_views テーブルで lp_id=0・期間のレコード数 | LP分析（公開求人） |
+| `lpAvgDwellTime` | 平均滞在時間 | LP滞在時間の平均。通常LP: 最大300秒、LP0: 最大600秒でキャップ | lp_engagement_summaries テーブルで total_dwell_time の平均 | LP分析（公開求人）、LPトラッキング |
+
+### 9.6 LP帰属トラッキング関連
+
+| 指標キー | 指標名 | 定義 | 計算方法 | 使用箇所 |
+|----------|--------|------|----------|----------|
+| `registrationRate` | 登録率 | LP閲覧セッションのうち、ワーカー登録に至った割合。旧名称「CVR」と同一指標 | 登録数 ÷ セッション数 × 100 | LP分析（公開求人）、LP分析（LP別アクセス状況） |
+| `parentJobPV` | 親求人PV | LP経由で登録したワーカーがプラットフォーム内で求人詳細ページを閲覧した回数 | job_detail_page_views テーブルで対象LP帰属ユーザー（User.registration_lp_id）のレコード数 | LP分析（公開求人）、LP分析（LP別アクセス状況） |
+| `parentJobSessions` | 親求人セッション | LP経由で登録したワーカーのうち、求人詳細ページを1回以上閲覧したユニークユーザー数 | job_detail_page_views テーブルで対象LP帰属ユーザーのユニーク user_id 数 | LP分析（公開求人）、LP分析（LP別アクセス状況） |
+| `lpApplicationCount` | 応募数（LP帰属） | LP経由で登録したワーカーが行った応募の総数。Application テーブルをLP帰属フィルターで絞り込み | applications テーブルで user.registration_lp_id が対象LP のレコード数 | LP分析（公開求人）、LP分析（LP別アクセス状況） |
+| `applicationRate` | 応募率 | LP経由で登録したワーカーのうち、1回以上応募したユニークユーザーの割合（登録数基準、100%を超えない） | 応募ユニークユーザー数（LP帰属） ÷ 登録数 × 100 | LP分析（公開求人）、LP分析（LP別アクセス状況） |
+| `avgDaysToApplication` | 平均応募日数 | LP経由で登録したワーカー1人あたりの平均応募日数（何日分のシフトに応募したか） | 応募数（LP帰属） ÷ ユニーク応募ワーカー数 | LP分析（公開求人）、LP分析（LP別アクセス状況） |
+| `applicationDays` | 応募日数 | 期間内の応募総数（1応募=1勤務日） | applicationCountと同値 | 応募・マッチング分析 |
+| `avgApplicationDays` | 平均応募日数（応募・マッチング） | ワーカー1人あたりの平均応募日数 | 応募数 ÷ ユニーク応募ワーカー数 | 応募・マッチング分析 |
+
+### 9.7 アラート判定
 
 | 指標キー | 指標名 | 定義 | 計算方法 | 使用箇所 |
 |----------|--------|------|----------|----------|
