@@ -134,6 +134,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
       const validIds = preselectedIds.filter(id => {
         const wd = job.workDates?.find((w: any) => w.id === id);
         if (!wd) return false;
+        if (wd.isRecruitmentClosed) return false;
         const isApplied = initialAppliedWorkDateIds.includes(id);
         const matchedCount = wd.matchedCount || 0;
         const recruitmentCount = wd.recruitmentCount || job.recruitmentCount || 1;
@@ -165,7 +166,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
         const matchedCount = selected.matchedCount || 0;
         const recruitmentCount = selected.recruitmentCount || job.recruitmentCount || 1;
         const isFull = !job.requiresInterview && matchedCount >= recruitmentCount;
-        if (!isApplied && !isFull) {
+        if (!isApplied && !isFull && !selected.isRecruitmentClosed) {
           setSelectedWorkDateIds([selected.id]);
           return;
         }
@@ -1447,10 +1448,10 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
               onClick={handleApplyButtonClick}
               size="lg"
               className="w-full"
-              disabled={isApplying || selectedWorkDateIds.length === 0 || job.isRecruitmentClosed}
+              disabled={isApplying || selectedWorkDateIds.length === 0 || !hasAvailableDates}
             >
-              {job.isRecruitmentClosed
-                ? 'この求人は募集を終了しました'
+              {!hasAvailableDates
+                ? '応募できる日程がありません'
                 : isApplying
                   ? (job.jobType === 'OFFER' ? '受諾中...' : '応募中...')
                   : selectedWorkDateIds.length > 0

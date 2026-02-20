@@ -208,18 +208,18 @@ export default function SystemAdminJobsPage() {
         try {
             await toggleWorkDateRecruitmentClosed(workDateId, isClosed);
             toast.success(isClosed ? '募集完了にしました' : '募集再開しました');
-            // モーダル内のデータを更新
-            if (workDateModalJob) {
-                setWorkDateModalJob({
-                    ...workDateModalJob,
-                    workDates: workDateModalJob.workDates.map(wd =>
-                        wd.id === workDateId ? { ...wd, isRecruitmentClosed: isClosed } : wd
-                    ),
-                    isRecruitmentClosed: workDateModalJob.workDates.every(wd =>
-                        wd.id === workDateId ? isClosed : wd.isRecruitmentClosed
-                    ),
-                });
-            }
+            // モーダル内のデータを更新（functional updateでrace condition回避）
+            setWorkDateModalJob(prev => {
+                if (!prev) return prev;
+                const updatedWorkDates = prev.workDates.map(wd =>
+                    wd.id === workDateId ? { ...wd, isRecruitmentClosed: isClosed } : wd
+                );
+                return {
+                    ...prev,
+                    workDates: updatedWorkDates,
+                    isRecruitmentClosed: updatedWorkDates.every(wd => wd.isRecruitmentClosed),
+                };
+            });
             fetchJobs();
         } catch (error) {
             const debugInfo = extractDebugInfo(error);
@@ -243,13 +243,14 @@ export default function SystemAdminJobsPage() {
         try {
             await toggleAllWorkDatesRecruitmentClosed(jobId, isClosed);
             toast.success(`${action}にしました`);
-            if (workDateModalJob) {
-                setWorkDateModalJob({
-                    ...workDateModalJob,
-                    workDates: workDateModalJob.workDates.map(wd => ({ ...wd, isRecruitmentClosed: isClosed })),
+            setWorkDateModalJob(prev => {
+                if (!prev) return prev;
+                return {
+                    ...prev,
+                    workDates: prev.workDates.map(wd => ({ ...wd, isRecruitmentClosed: isClosed })),
                     isRecruitmentClosed: isClosed,
-                });
-            }
+                };
+            });
             fetchJobs();
         } catch (error) {
             const debugInfo = extractDebugInfo(error);
