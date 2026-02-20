@@ -1,6 +1,23 @@
 /// <reference lib="webworker" />
 
 declare const self: ServiceWorkerGlobalScope;
+console.log('[SW] Service Worker v2026-02-18');
+const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '';
+
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding)
+    .replace(/-/g, '+')
+    .replace(/_/g, '/');
+
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
 
 // プッシュ通知受信イベント
 self.addEventListener('push', (event) => {
@@ -79,9 +96,20 @@ self.addEventListener('pushsubscriptionchange', ((event: Event) => {
 
   const resubscribe = async () => {
     try {
+      const oldOptions = pushEvent.oldSubscription?.options;
+      const applicationServerKey: ArrayBuffer | undefined =
+        (oldOptions?.applicationServerKey as ArrayBuffer | null) ??
+        (VAPID_PUBLIC_KEY ? urlBase64ToUint8Array(VAPID_PUBLIC_KEY).buffer as ArrayBuffer : undefined);
+
+      if (!applicationServerKey) {
+        console.error('[SW] Re-subscription skipped: applicationServerKey is missing');
+        return;
+      }
+
       const newSubscription = await self.registration.pushManager.subscribe(
-        pushEvent.oldSubscription?.options || {
+        {
           userVisibleOnly: true,
+          applicationServerKey,
         }
       );
       // サーバーに新しい購読を送信

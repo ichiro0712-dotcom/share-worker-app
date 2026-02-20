@@ -94,8 +94,13 @@ export async function POST(request: NextRequest) {
         // 全デバイスに通知を送信
         const results = await Promise.allSettled(
             subscriptions.map(async (sub) => {
+                const platform = sub.endpoint.includes('apple')
+                    ? 'iOS'
+                    : sub.endpoint.includes('fcm')
+                    ? 'FCM'
+                    : 'other';
                 try {
-                    await webPush.sendNotification(
+                    const response = await webPush.sendNotification(
                         {
                             endpoint: sub.endpoint,
                             keys: {
@@ -106,7 +111,16 @@ export async function POST(request: NextRequest) {
                         payload,
                         pushOptions
                     );
-                    return { success: true, endpoint: sub.endpoint };
+                    const statusCode = response?.statusCode ?? null;
+                    const accepted = statusCode === null || (statusCode >= 200 && statusCode < 300);
+                    return {
+                        success: accepted,
+                        accepted,
+                        endpoint: sub.endpoint,
+                        platform,
+                        contentEncoding: 'aes128gcm',
+                        statusCode,
+                    };
                 } catch (error: any) {
                     // 無効な購読は削除（404: Not Found, 410: Gone, 403: Forbidden/VAPID不一致）
                     if (error.statusCode === 404 || error.statusCode === 410 || error.statusCode === 403) {
@@ -116,13 +130,23 @@ export async function POST(request: NextRequest) {
                             console.warn(`[Push] Failed to delete stale subscription ${sub.id}:`, delErr.message);
                         });
                     }
-                    return { success: false, endpoint: sub.endpoint, statusCode: error.statusCode, error: error.message };
+                    return {
+                        success: false,
+                        accepted: false,
+                        endpoint: sub.endpoint,
+                        platform,
+                        contentEncoding: 'aes128gcm',
+                        statusCode: error.statusCode ?? null,
+                        error: error.message,
+                    };
                 }
             })
         );
 
         // 送信結果をログに記録
-        const successCount = results.filter(r => r.status === 'fulfilled' && (r.value as any).success).length;
+        const successCount = results.filter(
+            r => r.status === 'fulfilled' && (r.value as any).success
+        ).length;
         const failCount = results.length - successCount;
         const versionInfoResult = getVersionForLog();
         await prisma.notificationLog.create({

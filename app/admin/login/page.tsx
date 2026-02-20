@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { Mail, Lock, Eye, EyeOff, Building2 } from 'lucide-react';
 
@@ -124,6 +125,12 @@ export default function AdminLogin() {
               {isLoading ? 'ログイン中...' : '管理者としてログイン'}
             </button>
           </form>
+
+          <div className="text-center mt-4">
+            <Link href="/admin/password-reset" className="text-sm text-blue-600 hover:underline">
+              パスワードをお忘れですか？
+            </Link>
+          </div>
         </div>
       </div>
     </div>
