@@ -416,6 +416,13 @@ async function sendPushNotification(params: {
                     pushOptions
                 );
                 successCount++;
+                // Reset failure counter on success (only if there were previous failures)
+                if (sub.consecutive_failures > 0) {
+                    await prisma.pushSubscription.update({
+                        where: { id: sub.id },
+                        data: { consecutive_failures: 0, last_failure_at: null },
+                    }).catch(() => {});
+                }
             } catch (error: any) {
                 failedCount++;
                 const statusCode = error.statusCode || 'unknown';
@@ -428,6 +435,15 @@ async function sendPushNotification(params: {
                     await prisma.pushSubscription.delete({ where: { id: sub.id } }).catch((delErr) => {
                         console.warn(`[Push] Failed to delete stale subscription ${sub.id}:`, delErr.message);
                     });
+                } else {
+                    // Track non-fatal failures
+                    await prisma.pushSubscription.update({
+                        where: { id: sub.id },
+                        data: {
+                            consecutive_failures: { increment: 1 },
+                            last_failure_at: new Date(),
+                        },
+                    }).catch(() => {});
                 }
             }
         }
