@@ -176,6 +176,9 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
 
   // 応募可能な日程があるかチェック
   const hasAvailableDates = useMemo(() => {
+    // 募集完了フラグが立っている場合は応募不可
+    if (job.isRecruitmentClosed) return false;
+
     if (!job.workDates || job.workDates.length === 0) {
       // 旧形式
       const matchedCount = job.matchedCount || 0;
@@ -191,7 +194,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
       const isFull = !job.requiresInterview && matchedCount >= recruitmentCount;
       return !isApplied && !isFull;
     });
-  }, [job.workDates, job.matchedCount, job.recruitmentCount, appliedWorkDateIds]);
+  }, [job.workDates, job.matchedCount, job.recruitmentCount, appliedWorkDateIds, job.isRecruitmentClosed]);
 
   // 選択された日付と他の日付を分離
   const { selectedWorkDates, otherWorkDates } = useMemo(() => {
@@ -1444,15 +1447,17 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
               onClick={handleApplyButtonClick}
               size="lg"
               className="w-full"
-              disabled={isApplying || selectedWorkDateIds.length === 0}
+              disabled={isApplying || selectedWorkDateIds.length === 0 || job.isRecruitmentClosed}
             >
-              {isApplying
-                ? (job.jobType === 'OFFER' ? '受諾中...' : '応募中...')
-                : selectedWorkDateIds.length > 0
-                  ? (job.jobType === 'OFFER' ? 'オファーを受ける' : `${selectedWorkDateIds.length}件の日程に応募する`)
-                  : !hasAvailableDates
-                    ? '応募できる日程がありません'
-                    : '日程を選択してください'}
+              {job.isRecruitmentClosed
+                ? 'この求人は募集を終了しました'
+                : isApplying
+                  ? (job.jobType === 'OFFER' ? '受諾中...' : '応募中...')
+                  : selectedWorkDateIds.length > 0
+                    ? (job.jobType === 'OFFER' ? 'オファーを受ける' : `${selectedWorkDateIds.length}件の日程に応募する`)
+                    : !hasAvailableDates
+                      ? '応募できる日程がありません'
+                      : '日程を選択してください'}
             </Button>
           </div>
         </div>

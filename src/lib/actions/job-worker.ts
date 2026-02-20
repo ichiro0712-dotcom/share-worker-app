@@ -437,7 +437,7 @@ export async function getJobs(
             });
 
             // 応募可否（いずれかに該当したら応募不可）
-            const canApply = !isApplied && !isFull && !hasTimeConflict;
+            const canApply = !isApplied && !isFull && !hasTimeConflict && !job.is_recruitment_closed;
 
             return {
                 ...wd,
@@ -484,13 +484,15 @@ export async function getJobs(
             },
             requires_interview: job.requires_interview,
             // 親求人の応募可否
-            hasAvailableWorkDate,
+            hasAvailableWorkDate: job.is_recruitment_closed ? false : hasAvailableWorkDate,
             // 応募可能日数
             availableWorkDateCount,
             // 有効なN回以上勤務条件（応募可能日数がN未満なら単発扱いでnull）
             effectiveWeeklyFrequency,
             // 求人種別
             jobType: job.job_type,
+            // 募集完了フラグ
+            isRecruitmentClosed: job.is_recruitment_closed,
         };
     });
 }
@@ -1154,7 +1156,7 @@ export async function getJobsListWithPagination(
                     scheduled.endTime
                 );
             });
-            const canApply = !isApplied && !isFull && !hasTimeConflict;
+            const canApply = !isApplied && !isFull && !hasTimeConflict && !job.is_recruitment_closed;
 
             return {
                 ...wd,
@@ -1192,10 +1194,11 @@ export async function getJobsListWithPagination(
                 updated_at: job.facility.updated_at.toISOString(),
             },
             requires_interview: job.requires_interview,
-            hasAvailableWorkDate,
+            hasAvailableWorkDate: job.is_recruitment_closed ? false : hasAvailableWorkDate,
             availableWorkDateCount,
             effectiveWeeklyFrequency,
             jobType: job.job_type,
+            isRecruitmentClosed: job.is_recruitment_closed,
         };
     });
 
@@ -1257,6 +1260,7 @@ export async function getJobsListWithPagination(
             effectiveWeeklyFrequency: null,
             jobType: job.job_type,
             isExpired: true,
+            isRecruitmentClosed: job.is_recruitment_closed,
         };
     });
 
@@ -1418,6 +1422,8 @@ export async function getJobById(id: string, options?: { currentTime?: Date }) {
         // オファー・限定求人対応
         job_type: job.job_type,
         target_worker_id: job.target_worker_id,
+        // 募集完了フラグ
+        isRecruitmentClosed: job.is_recruitment_closed,
     };
 }
 

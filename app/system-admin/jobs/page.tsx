@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import {
     getSystemJobsExtended,
-    generateMasqueradeToken
+    generateMasqueradeToken,
+    toggleJobRecruitmentClosed
 } from '@/src/lib/system-actions';
 import { useSystemAuth } from '@/contexts/SystemAuthContext';
 import {
@@ -14,7 +15,9 @@ import {
     ArrowUpDown,
     Briefcase,
     RefreshCw,
-    Building2
+    Building2,
+    XCircle,
+    RotateCcw
 } from 'lucide-react';
 import { PREFECTURES } from '@/constants/job';
 import { getCitiesByPrefecture, Prefecture } from '@/constants/prefectureCities';
@@ -33,6 +36,7 @@ interface Job {
     facilityType: string;
     templateName: string | null;
     requiresInterview: boolean;
+    isRecruitmentClosed: boolean;
     applicationSlots: number;    // 応募枠（全勤務日の募集人数合計）
     applicationCount: number;    // 応募数
     matchingPeriod: number | null;  // マッチング期間（時間）
@@ -181,6 +185,28 @@ export default function SystemAdminJobsPage() {
                 context: { facilityId: job.facilityId, jobId: job.id }
             });
             toast.error('編集画面を開けませんでした');
+        }
+    };
+
+    const handleToggleRecruitmentClosed = async (job: Job) => {
+        const newState = !job.isRecruitmentClosed;
+        const action = newState ? '募集完了' : '募集再開';
+        if (!confirm(`求人「${job.title}」を${action}にしますか？`)) return;
+        try {
+            await toggleJobRecruitmentClosed(job.id, newState);
+            toast.success(`${action}にしました`);
+            fetchJobs();
+        } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'other',
+                operation: `求人${action}`,
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { jobId: job.id }
+            });
+            toast.error(`${action}に失敗しました`);
         }
     };
 
@@ -452,6 +478,11 @@ export default function SystemAdminJobsPage() {
                                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[job.status] || 'bg-gray-100 text-gray-500'}`}>
                                             {statusLabels[job.status] || job.status}
                                         </span>
+                                        {job.isRecruitmentClosed && (
+                                            <div className="mt-1">
+                                                <span className="text-[10px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-medium">募集完了</span>
+                                            </div>
+                                        )}
                                         {job.requiresInterview && (
                                             <div className="mt-1">
                                                 <span className="text-[10px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded">審査あり</span>
@@ -474,6 +505,17 @@ export default function SystemAdminJobsPage() {
                                     </td>
                                     <td className="px-4 py-4 text-right">
                                         <div className="flex items-center justify-end gap-1">
+                                            {/* 募集完了/再開トグル */}
+                                            <button
+                                                onClick={() => handleToggleRecruitmentClosed(job)}
+                                                className={`p-1.5 rounded-lg transition-colors ${job.isRecruitmentClosed
+                                                    ? 'text-green-600 hover:text-green-700 hover:bg-green-50'
+                                                    : 'text-slate-400 hover:text-red-600 hover:bg-red-50'
+                                                }`}
+                                                title={job.isRecruitmentClosed ? '募集再開' : '募集完了にする'}
+                                            >
+                                                {job.isRecruitmentClosed ? <RotateCcw className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                                            </button>
                                             {/* 閲覧アイコン */}
                                             <a
                                                 href={`/jobs/${job.id}`}

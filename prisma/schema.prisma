@@ -310,6 +310,8 @@ model Job {
   recruitment_start_day        Int                  @default(0) @map("recruitment_start_day")
   /// 募集開始時刻（HH:MM形式、nullの場合は0時）
   recruitment_start_time       String?              @map("recruitment_start_time")
+  /// 募集完了フラグ（システム管理者が手動で設定）
+  is_recruitment_closed        Boolean              @default(false) @map("is_recruitment_closed")
   tags                         String[]
   address                      String?
   prefecture                   String?

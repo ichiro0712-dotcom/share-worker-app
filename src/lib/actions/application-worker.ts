@@ -214,6 +214,10 @@ export async function applyForJob(jobId: string, workDateId?: number) {
             return { success: false, error: '求人が見つかりません' };
         }
 
+        if (job.is_recruitment_closed) {
+            return { success: false, error: 'この求人は募集を終了しています' };
+        }
+
         if (job.workDates.length === 0) {
             console.error('[applyForJob] No work dates found for job:', jobIdNum);
             return { success: false, error: '勤務日が設定されていません' };
@@ -420,6 +424,7 @@ export async function applyForJobMultipleDates(jobId: string, workDateIds: numbe
         });
 
         if (!job) return { success: false, error: '求人が見つかりません' };
+        if (job.is_recruitment_closed) return { success: false, error: 'この求人は募集を終了しています' };
 
         const user = await getAuthenticatedUser();
         if (user.is_suspended) return { success: false, error: 'アカウントが停止されているため、応募できません' };
@@ -927,6 +932,8 @@ export async function acceptOffer(jobId: string, workDateId: number) {
             console.error('[acceptOffer] Job not found:', jobIdNum);
             return { success: false, error: '求人が見つかりません' };
         }
+
+        if (job.is_recruitment_closed) return { success: false, error: 'この求人は募集を終了しています' };
 
         // オファー求人かどうか確認
         if (job.job_type !== 'OFFER') {
