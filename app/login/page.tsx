@@ -31,6 +31,15 @@ function WorkerLoginInner() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [csrfReady, setCsrfReady] = useState(false);
 
+  // URLにerrorパラメータがあればクリーンなURLに置き換え（NextAuthの自己循環バグ防止）
+  useEffect(() => {
+    if (searchParams?.get('error')) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('error');
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, [searchParams]);
+
   // CSRFトークンを事前取得（1回目ログイン失敗問題の対策）
   useEffect(() => {
     getCsrfToken().then(() => {

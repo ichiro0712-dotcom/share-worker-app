@@ -133,10 +133,12 @@ function AuthContextProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string) => {
     try {
       console.log('[AuthContext] login started', { email });
+      // callbackUrlを明示指定（URLにerrorパラメータが含まれるとsignInが誤判定するため）
       const result = await signIn('credentials', {
         email,
         password,
         redirect: false,
+        callbackUrl: '/',
       });
       console.log('[AuthContext] signIn result:', result);
 
