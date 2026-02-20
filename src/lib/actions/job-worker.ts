@@ -10,6 +10,7 @@ import {
     getAuthenticatedUser,
     isTimeOverlapping,
     calculateDistanceKm,
+    filterValidImages,
     JobSearchParams,
     JobListType
 } from './helpers';
@@ -468,6 +469,7 @@ export async function getJobs(
 
         return {
             ...job,
+            images: filterValidImages(job.images as string[]),
             // 互換性のため、一番近い勤務日の情報を work_date と deadline に設定
             work_date: nearestWorkDate ? nearestWorkDate.work_date.toISOString() : null,
             deadline: nearestWorkDate ? nearestWorkDate.deadline.toISOString() : null,
@@ -1184,6 +1186,7 @@ export async function getJobsListWithPagination(
 
         return {
             ...job,
+            images: filterValidImages(job.images as string[]),
             work_date: nearestWorkDate ? nearestWorkDate.work_date.toISOString() : null,
             deadline: nearestWorkDate ? nearestWorkDate.deadline.toISOString() : null,
             applied_count: totalAppliedCount,
@@ -1246,6 +1249,7 @@ export async function getJobsListWithPagination(
 
         return {
             ...job,
+            images: filterValidImages(job.images as string[]),
             work_date: nearestWorkDate ? nearestWorkDate.work_date.toISOString() : null,
             deadline: nearestWorkDate ? nearestWorkDate.deadline.toISOString() : null,
             applied_count: totalAppliedCount,
@@ -1402,6 +1406,7 @@ export async function getJobById(id: string, options?: { currentTime?: Date }) {
 
     return {
         ...job,
+        images: filterValidImages(job.images as string[]),
         work_date: nearestWorkDate ? nearestWorkDate.work_date.toISOString() : null,
         deadline: nearestWorkDate ? nearestWorkDate.deadline.toISOString() : null,
         applied_count: totalAppliedCount,

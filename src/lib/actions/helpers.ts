@@ -317,3 +317,21 @@ export async function createNotification(data: {
     return null;
   }
 }
+
+/**
+ * 画像URL配列から無効なローカルパスを除外する
+ * - 外部URL（http/https）はそのまま通す
+ * - ローカルパスは /images/samples/ 配下のみ有効
+ * - /images/anken.png 等のダミーデータはフィルタアウト
+ */
+export function filterValidImages(images: string[] | null | undefined): string[] {
+  if (!images || images.length === 0) return [];
+  return images.filter((img: string) => {
+    if (img.startsWith('http://') || img.startsWith('https://')) return true;
+    if (img.startsWith('blob:')) return true;
+    if (img.startsWith('/images/samples/')) return true;
+    if (img.startsWith('/images/users/')) return true;
+    if (img.startsWith('/images/logo')) return true;
+    return false;
+  });
+}
