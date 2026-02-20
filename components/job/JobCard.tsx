@@ -38,8 +38,13 @@ const JobCardComponent: React.FC<JobCardProps> = ({ job, facility, selectedDate,
   const [mounted, setMounted] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // 画像URLを取得（空配列の場合はフォールバック）
-  const jobImage = job.images && job.images.length > 0 ? job.images[0] : DEFAULT_JOB_IMAGE;
+  // 画像URLを取得（空配列の場合やロードエラー時はフォールバック）
+  const [imgError, setImgError] = useState(false);
+  const imgSrc = job.images && job.images.length > 0 ? job.images[0] : null;
+  const jobImage = (!imgError && imgSrc) ? imgSrc : DEFAULT_JOB_IMAGE;
+
+  // job変更時にエラー状態をリセット
+  useEffect(() => { setImgError(false); }, [job.id]);
 
   useEffect(() => {
     setMounted(true);
@@ -130,6 +135,7 @@ const JobCardComponent: React.FC<JobCardProps> = ({ job, facility, selectedDate,
               alt={facility.name}
               fill
               className={`object-cover ${shouldShowUnavailable ? 'opacity-60 grayscale' : ''}`}
+              onError={() => { if (!imgError) setImgError(true); }}
             />
             {/* バッジ - 画像左上（求人種別 + 審査あり） */}
             <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
@@ -251,6 +257,7 @@ const JobCardComponent: React.FC<JobCardProps> = ({ job, facility, selectedDate,
               placeholder="blur"
               blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFgABAQEAAAAAAAAAAAAAAAAAAAUH/8QAIhAAAgIBAwQDAAAAAAAAAAAAAQIDBAAFERIGEyExQVFh/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAZEQACAwEAAAAAAAAAAAAAAAABAgADESH/2gAMAwAAhEDEQA/A/8A0="
               priority={priority}
+              onError={() => { if (!imgError) setImgError(true); }}
             />
             {/* バッジ - 画像左上（求人種別 + 審査あり） */}
             <div className="absolute top-2 left-2 flex flex-col gap-0.5 z-10">
