@@ -2546,6 +2546,7 @@ export async function getSystemJobsExtended(
                 facilityType: job.facility.facility_type,
                 templateName: job.template?.name || null,
                 requiresInterview: job.requires_interview,
+                isRecruitmentClosed: job.is_recruitment_closed,
                 applicationSlots,
                 applicationCount,
                 matchingPeriod,
@@ -2648,6 +2649,7 @@ export async function getSystemJobsExtended(
                 facilityType: job.facility.facility_type,
                 templateName: job.template?.name || null,
                 requiresInterview: job.requires_interview,
+                isRecruitmentClosed: job.is_recruitment_closed,
                 applicationSlots,
                 applicationCount,
                 matchingPeriod,
@@ -2662,6 +2664,19 @@ export async function getSystemJobsExtended(
             totalPages: Math.ceil(total / limit),
         };
     }
+}
+
+/**
+ * 求人の募集完了フラグを切り替え（システム管理者専用）
+ */
+export async function toggleJobRecruitmentClosed(jobId: number, isClosed: boolean) {
+    await requireSystemAdminAuth();
+    const job = await prisma.job.update({
+        where: { id: jobId },
+        data: { is_recruitment_closed: isClosed },
+        select: { id: true, title: true, is_recruitment_closed: true },
+    });
+    return { success: true, job };
 }
 
 /**
