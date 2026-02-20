@@ -328,7 +328,7 @@ export function filterValidImages(images: string[] | null | undefined): string[]
   if (!images || images.length === 0) return [];
   return images.filter((img: string) => {
     if (img.startsWith('http://') || img.startsWith('https://')) return true;
-    if (img.startsWith('blob:')) return true;
+
     if (img.startsWith('/images/samples/')) return true;
     if (img.startsWith('/images/users/')) return true;
     if (img.startsWith('/images/logo')) return true;

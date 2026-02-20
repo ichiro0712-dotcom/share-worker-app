@@ -122,7 +122,10 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
     setFailedImages(prev => prev.has(src) ? prev : new Set(prev).add(src));
   }, []);
 
-  // carousel indexが範囲外にならないようクランプ
+  // レンダー時に安全なインデックスを算出（useEffectは1フレーム遅れるため）
+  const safeImageIndex = currentImageIndex < jobImages.length ? currentImageIndex : 0;
+
+  // carousel indexが範囲外にならないようクランプ（次回レンダー以降のため）
   useEffect(() => {
     if (currentImageIndex >= jobImages.length) {
       setCurrentImageIndex(0);
@@ -675,22 +678,22 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
             )}
           </div>
           <div className="relative aspect-video rounded-card overflow-hidden">
-            {jobImages[currentImageIndex].startsWith('blob:') ? (
+            {jobImages[safeImageIndex].startsWith('blob:') ? (
               <img
-                src={jobImages[currentImageIndex]}
+                src={jobImages[safeImageIndex]}
                 alt="施設画像"
                 className="object-cover w-full h-full"
               />
             ) : (
               <Image
-                src={jobImages[currentImageIndex]}
+                src={jobImages[safeImageIndex]}
                 alt="施設画像"
                 fill
                 className="object-cover"
                 placeholder="blur"
                 blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFgABAQEAAAAAAAAAAAAAAAAAAAUH/8QAIhAAAgIBAwQDAAAAAAAAAAAAAQIDBAAFERIGEyExQVFh/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAZEQACAwEAAAAAAAAAAAAAAAABAgADESH/2gAMAwEAAhEDEEQA/8A0="
-                priority={currentImageIndex === 0}
-                onError={() => handleImageError(jobImages[currentImageIndex])}
+                priority={safeImageIndex === 0}
+                onError={() => handleImageError(jobImages[safeImageIndex])}
               />
             )}
             {/* 面接ありバッジ - 画像左上 */}
@@ -717,7 +720,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
               {jobImages.map((_: any, index: number) => (
                 <div
                   key={index}
-                  className={`h-1 rounded-full transition-all ${index === currentImageIndex ? 'w-6 bg-gray-800' : 'w-1 bg-gray-300'
+                  className={`h-1 rounded-full transition-all ${index === safeImageIndex ? 'w-6 bg-gray-800' : 'w-1 bg-gray-300'
                     }`}
                 />
               ))}
@@ -1199,7 +1202,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
 
             <div className="relative aspect-video overflow-hidden rounded-lg bg-gray-100 mb-2">
               {/* 地図は常に住所ベースで表示（lat/lngは信頼性が低いため）ID-7 */}
-              {job.address && process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ? (
+              {job.address && process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY && process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY !== 'undefined' ? (
                 <iframe
                   src={`https://www.google.com/maps/embed/v1/place?q=${encodeURIComponent(job.address)}&zoom=16&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`}
                   width="100%"
