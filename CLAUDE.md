@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **以下のサービスは使用禁止：**
 
 1. **Netlify** - 使用禁止。デプロイ先はVercelのみ。
+2. **`npx prisma db push`** - **絶対禁止**。データベースをリセット・破壊するリスクがある。スキーマ変更はユーザーが手動で行う。Claude Codeは`prisma db push`、`prisma migrate reset`、`prisma migrate dev`などDB破壊の可能性があるPrismaコマンドを一切実行してはならない。
 
 **正しい環境:**
 

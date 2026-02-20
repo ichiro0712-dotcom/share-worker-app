@@ -20,6 +20,7 @@ interface JobCardProps {
       isApplied?: boolean;
       isFull?: boolean;
       hasTimeConflict?: boolean;
+      isRecruitmentClosed?: boolean;
     }>;
   };
   facility: Facility;
@@ -68,13 +69,15 @@ const JobCardComponent: React.FC<JobCardProps> = ({ job, facility, selectedDate,
     : job.isRecruitmentClosed
       ? '募集終了'
       : selectedWorkDate
-        ? selectedWorkDate.isApplied
-          ? '応募済み'
-          : selectedWorkDate.hasTimeConflict
-            ? '時間重複'
-            : selectedWorkDate.isFull
-              ? '募集終了'
-              : null
+        ? selectedWorkDate.isRecruitmentClosed
+          ? '募集終了'
+          : selectedWorkDate.isApplied
+            ? '応募済み'
+            : selectedWorkDate.hasTimeConflict
+              ? '時間重複'
+              : selectedWorkDate.isFull
+                ? '募集終了'
+                : null
         : job.hasAvailableWorkDate === false
           ? '募集終了'
           : null;

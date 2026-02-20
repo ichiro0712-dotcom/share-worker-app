@@ -134,6 +134,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
       const validIds = preselectedIds.filter(id => {
         const wd = job.workDates?.find((w: any) => w.id === id);
         if (!wd) return false;
+        if (wd.isRecruitmentClosed) return false;
         const isApplied = initialAppliedWorkDateIds.includes(id);
         const matchedCount = wd.matchedCount || 0;
         const recruitmentCount = wd.recruitmentCount || job.recruitmentCount || 1;
@@ -165,7 +166,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
         const matchedCount = selected.matchedCount || 0;
         const recruitmentCount = selected.recruitmentCount || job.recruitmentCount || 1;
         const isFull = !job.requiresInterview && matchedCount >= recruitmentCount;
-        if (!isApplied && !isFull) {
+        if (!isApplied && !isFull && !selected.isRecruitmentClosed) {
           setSelectedWorkDateIds([selected.id]);
           return;
         }
@@ -176,9 +177,6 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
 
   // 応募可能な日程があるかチェック
   const hasAvailableDates = useMemo(() => {
-    // 募集完了フラグが立っている場合は応募不可
-    if (job.isRecruitmentClosed) return false;
-
     if (!job.workDates || job.workDates.length === 0) {
       // 旧形式
       const matchedCount = job.matchedCount || 0;
@@ -187,6 +185,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
     }
 
     return job.workDates.some((wd: any) => {
+      if (wd.isRecruitmentClosed) return false;
       const isApplied = appliedWorkDateIds.includes(wd.id);
       const matchedCount = wd.matchedCount || 0;
       const recruitmentCount = wd.recruitmentCount || job.recruitmentCount || 1;
@@ -194,7 +193,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
       const isFull = !job.requiresInterview && matchedCount >= recruitmentCount;
       return !isApplied && !isFull;
     });
-  }, [job.workDates, job.matchedCount, job.recruitmentCount, appliedWorkDateIds, job.isRecruitmentClosed]);
+  }, [job.workDates, job.matchedCount, job.recruitmentCount, appliedWorkDateIds, job.requiresInterview]);
 
   // 選択された日付と他の日付を分離
   const { selectedWorkDates, otherWorkDates } = useMemo(() => {
@@ -766,6 +765,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
               const matchedCount = wd.matchedCount || 0;
               // 面接ありの場合は満員でも応募可能
               const isFull = !job.requiresInterview && matchedCount >= recruitmentCount;
+              const isDateClosed = wd.isRecruitmentClosed === true;
 
               // 時間重複チェック
               const hasTimeConflict = scheduledJobs.some((scheduled) => {
@@ -780,8 +780,8 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
                 );
               });
 
-              const isDisabled = isApplied || isFull || hasTimeConflict;
-              const unavailableReason = isApplied ? '応募済み' : hasTimeConflict ? '時間重複' : isFull ? '募集終了' : null;
+              const isDisabled = isApplied || isFull || hasTimeConflict || isDateClosed;
+              const unavailableReason = isDateClosed ? '募集終了' : isApplied ? '応募済み' : hasTimeConflict ? '時間重複' : isFull ? '募集終了' : null;
 
               return (
                 <div
@@ -866,6 +866,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
                   // 面接ありの場合は満員でも応募可能
                   const isFull = !job.requiresInterview && matchedCount >= recruitmentCount;
                   const remainingSlots = Math.max(0, recruitmentCount - matchedCount);
+                  const isDateClosed = wd.isRecruitmentClosed === true;
 
                   // 時間重複チェック
                   const hasTimeConflict = scheduledJobs.some((scheduled) => {
@@ -880,8 +881,8 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
                     );
                   });
 
-                  const isDisabled = isApplied || isFull || hasTimeConflict;
-                  const unavailableReason = isApplied ? '応募済み' : hasTimeConflict ? '時間重複' : isFull ? '募集終了' : null;
+                  const isDisabled = isApplied || isFull || hasTimeConflict || isDateClosed;
+                  const unavailableReason = isDateClosed ? '募集終了' : isApplied ? '応募済み' : hasTimeConflict ? '時間重複' : isFull ? '募集終了' : null;
 
                   return (
                     <div
@@ -1447,10 +1448,10 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
               onClick={handleApplyButtonClick}
               size="lg"
               className="w-full"
-              disabled={isApplying || selectedWorkDateIds.length === 0 || job.isRecruitmentClosed}
+              disabled={isApplying || selectedWorkDateIds.length === 0 || !hasAvailableDates}
             >
-              {job.isRecruitmentClosed
-                ? 'この求人は募集を終了しました'
+              {!hasAvailableDates
+                ? '応募できる日程がありません'
                 : isApplying
                   ? (job.jobType === 'OFFER' ? '受諾中...' : '応募中...')
                   : selectedWorkDateIds.length > 0

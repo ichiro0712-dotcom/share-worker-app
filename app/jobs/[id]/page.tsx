@@ -69,6 +69,7 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
       appliedCount: wd.applied_count,
       matchedCount: wd.matched_count,
       recruitmentCount: wd.recruitment_count,
+      isRecruitmentClosed: wd.isRecruitmentClosed || wd.is_recruitment_closed || false,
     })) || [],
     startTime: jobData.start_time,
     endTime: jobData.end_time,
