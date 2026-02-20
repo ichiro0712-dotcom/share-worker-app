@@ -11,7 +11,7 @@ import toast from 'react-hot-toast';
 import { getStaffInfoList, exportStaffInfoCsv } from '@/src/lib/actions/csv-export';
 import type { StaffInfoItem, StaffInfoFilter } from './types';
 
-const ITEMS_PER_PAGE = 20;
+const PAGE_SIZE_OPTIONS = [30, 50] as const;
 
 const initialFilters: StaffInfoFilter = {
   search: '',
@@ -31,13 +31,14 @@ export default function StaffInfoExport() {
   const [isExporting, setIsExporting] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<StaffInfoFilter>(initialFilters);
+  const [pageSize, setPageSize] = useState<number>(PAGE_SIZE_OPTIONS[0]);
 
-  const totalPages = Math.ceil(total / ITEMS_PER_PAGE);
+  const totalPages = Math.ceil(total / pageSize);
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const result = await getStaffInfoList({ page, limit: ITEMS_PER_PAGE, filters });
+      const result = await getStaffInfoList({ page, limit: pageSize, filters });
       setItems(result.items);
       setTotal(result.total);
     } catch (error) {
@@ -46,7 +47,7 @@ export default function StaffInfoExport() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, filters]);
+  }, [page, pageSize, filters]);
 
   useEffect(() => {
     fetchData();
@@ -193,13 +194,20 @@ export default function StaffInfoExport() {
 
       {!isLoading && items.length > 0 && (
         <div className="flex items-center justify-between">
-          <div className="text-sm text-slate-500">{total.toLocaleString()}件中 {((page - 1) * ITEMS_PER_PAGE + 1).toLocaleString()} - {Math.min(page * ITEMS_PER_PAGE, total).toLocaleString()}件を表示</div>
+          <div className="flex items-center gap-3">
+            <div className="text-sm text-slate-500">{total.toLocaleString()}件中 {((page - 1) * pageSize + 1).toLocaleString()} - {Math.min(page * pageSize, total).toLocaleString()}件を表示</div>
+            <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden">
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <button key={size} onClick={() => { setPageSize(size); setPage(1); }} className={`px-3 py-1 text-xs font-medium transition-colors ${pageSize === size ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>{size}件</button>
+              ))}
+            </div>
+          </div>
           <div className="flex items-center gap-1">
-            <button onClick={() => setPage(1)} disabled={page === 1} className="p-2 text-sm border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed" title="最初"><ChevronLeft className="w-4 h-4" /><ChevronLeft className="w-4 h-4 -ml-3" /></button>
+            <button onClick={() => setPage(1)} disabled={page === 1} className="flex items-center p-2 text-sm border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed" title="最初"><ChevronLeft className="w-4 h-4" /><ChevronLeft className="w-4 h-4 -ml-2" /></button>
             <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="p-2 text-sm border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed" title="前へ"><ChevronLeft className="w-4 h-4" /></button>
             <span className="px-4 py-2 text-sm text-slate-700">{page} / {totalPages}</span>
             <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="p-2 text-sm border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed" title="次へ"><ChevronRight className="w-4 h-4" /></button>
-            <button onClick={() => setPage(totalPages)} disabled={page >= totalPages} className="p-2 text-sm border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed" title="最後"><ChevronRight className="w-4 h-4" /><ChevronRight className="w-4 h-4 -ml-3" /></button>
+            <button onClick={() => setPage(totalPages)} disabled={page >= totalPages} className="flex items-center p-2 text-sm border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed" title="最後"><ChevronRight className="w-4 h-4" /><ChevronRight className="w-4 h-4 -ml-2" /></button>
           </div>
         </div>
       )}
