@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { X, ChevronLeft, Heart, Clock, MapPin, ChevronRight, ChevronLeft as ChevronLeftIcon, Bookmark, VolumeX, Volume2, ExternalLink, Building2, Train, Car, Bike, Bus, Edit2, AlertTriangle, Home, FileText } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -108,8 +108,32 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
   const [passRatePeriod, setPassRatePeriod] = useState<'current' | 'last' | 'two_months_ago'>('current');
   const [passRateLoading, setPassRateLoading] = useState(false);
 
-  // 画像配列を安全に取得（空配列の場合はプレースホルダーを使用）
-  const jobImages = job.images && job.images.length > 0 ? job.images : [DEFAULT_JOB_IMAGE];
+  // 画像配列を安全に取得（空配列の場合やロードエラー時はフォールバック）
+  const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
+  const jobImages = useMemo(() => {
+    const images = job.images && job.images.length > 0 ? job.images : [DEFAULT_JOB_IMAGE];
+    const valid = images.filter((img: string) => !failedImages.has(img));
+    return valid.length > 0 ? valid : [DEFAULT_JOB_IMAGE];
+  }, [job.images, failedImages]);
+
+  // 画像エラー時のフォールバック（同じsrcの重複更新を防止）
+  const handleImageError = useCallback((src: string) => {
+    if (src === DEFAULT_JOB_IMAGE) return; // デフォルト画像のエラーは無視（無限ループ防止）
+    setFailedImages(prev => prev.has(src) ? prev : new Set(prev).add(src));
+  }, []);
+
+  // carousel indexが範囲外にならないようクランプ
+  useEffect(() => {
+    if (currentImageIndex >= jobImages.length) {
+      setCurrentImageIndex(0);
+    }
+  }, [jobImages.length, currentImageIndex]);
+
+  // job変更時にエラー状態をリセット
+  useEffect(() => {
+    setFailedImages(new Set());
+    setCurrentImageIndex(0);
+  }, [job.id]);
 
   useEffect(() => {
     // 公開版では認証が必要な機能をスキップ
@@ -666,6 +690,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
                 placeholder="blur"
                 blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFgABAQEAAAAAAAAAAAAAAAAAAAUH/8QAIhAAAgIBAwQDAAAAAAAAAAAAAQIDBAAFERIGEyExQVFh/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAZEQACAwEAAAAAAAAAAAAAAAABAgADESH/2gAMAwEAAhEDEEQA/8A0="
                 priority={currentImageIndex === 0}
+                onError={() => handleImageError(jobImages[currentImageIndex])}
               />
             )}
             {/* 面接ありバッジ - 画像左上 */}
