@@ -2,7 +2,7 @@
 
 /**
  * CSV出力用 Server Actions
- * CROSSNAVI連携用のデータエクスポート機能
+ * タスタス独自データ + CROSSNAVI連携用のデータエクスポート機能
  */
 
 import { prisma } from '@/lib/prisma';
@@ -13,6 +13,11 @@ import { generateJobInfoCsv } from '@/src/lib/csv-export/job-info-csv';
 import { generateShiftInfoCsv } from '@/src/lib/csv-export/shift-info-csv';
 import { generateStaffInfoCsv } from '@/src/lib/csv-export/staff-info-csv';
 import { generateAttendanceInfoCsv } from '@/src/lib/csv-export/attendance-info-csv';
+import type {
+  WorkerInfoFilter,
+  GetWorkerInfoListParams,
+  GetWorkerInfoListResult,
+} from '@/app/system-admin/csv-export/worker-info/types';
 import type {
   ClientInfoFilter,
   ClientInfoItem,
@@ -1017,4 +1022,87 @@ export async function exportAttendanceInfoCsv(
 
     return { success: false, error: 'CSV出力に失敗しました' };
   }
+}
+
+// ============================================
+// ワーカー情報出力（タスタス独自）
+// ============================================
+
+function buildWorkerInfoWhere(filters: WorkerInfoFilter) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const where: any = {
+    deleted_at: null,
+  };
+
+  if (filters.search) {
+    where.OR = [
+      { name: { contains: filters.search, mode: 'insensitive' } },
+      { email: { contains: filters.search, mode: 'insensitive' } },
+      { phone_number: { contains: filters.search } },
+    ];
+  }
+
+  if (filters.name) {
+    where.name = { contains: filters.name, mode: 'insensitive' };
+  }
+
+  if (filters.email) {
+    where.email = { contains: filters.email, mode: 'insensitive' };
+  }
+
+  if (filters.phoneNumber) {
+    where.phone_number = { contains: filters.phoneNumber };
+  }
+
+  if (filters.dateFrom) {
+    where.created_at = { ...where.created_at, gte: new Date(filters.dateFrom) };
+  }
+
+  if (filters.dateTo) {
+    where.created_at = { ...where.created_at, lte: new Date(filters.dateTo + 'T23:59:59') };
+  }
+
+  return where;
+}
+
+export async function getWorkerInfoList(
+  params: GetWorkerInfoListParams
+): Promise<GetWorkerInfoListResult> {
+  await requireSystemAdminAuth();
+
+  const { page, limit, filters } = params;
+  const skip = (page - 1) * limit;
+  const where = buildWorkerInfoWhere(filters);
+
+  const [users, total] = await Promise.all([
+    prisma.user.findMany({
+      where,
+      select: {
+        id: true,
+        created_at: true,
+        name: true,
+        phone_number: true,
+        email: true,
+        prefecture: true,
+        city: true,
+        address_line: true,
+        building: true,
+      },
+      orderBy: { created_at: 'desc' },
+      skip,
+      take: limit,
+    }),
+    prisma.user.count({ where }),
+  ]);
+
+  const items = users.map((u) => ({
+    id: u.id,
+    createdAt: u.created_at,
+    name: u.name,
+    phoneNumber: u.phone_number,
+    email: u.email,
+    address: [u.prefecture, u.city, u.address_line, u.building].filter(Boolean).join(''),
+  }));
+
+  return { items, total };
 }
