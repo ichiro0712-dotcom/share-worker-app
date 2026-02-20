@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import {
     getSystemJobsExtended,
     generateMasqueradeToken,
-    toggleJobRecruitmentClosed
+    toggleWorkDateRecruitmentClosed,
+    toggleAllWorkDatesRecruitmentClosed,
 } from '@/src/lib/system-actions';
 import { useSystemAuth } from '@/contexts/SystemAuthContext';
 import {
@@ -16,8 +17,8 @@ import {
     Briefcase,
     RefreshCw,
     Building2,
-    XCircle,
-    RotateCcw
+    CalendarDays,
+    X,
 } from 'lucide-react';
 import { PREFECTURES } from '@/constants/job';
 import { getCitiesByPrefecture, Prefecture } from '@/constants/prefectureCities';
@@ -27,6 +28,15 @@ import toast from 'react-hot-toast';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 // 返されるデータ型
+interface WorkDateInfo {
+    id: number;
+    workDate: string; // YYYY-MM-DD
+    recruitmentCount: number;
+    isRecruitmentClosed: boolean;
+    applicationCount: number;
+    matchedCount: number;
+}
+
 interface Job {
     id: number;
     title: string;
@@ -37,6 +47,7 @@ interface Job {
     templateName: string | null;
     requiresInterview: boolean;
     isRecruitmentClosed: boolean;
+    workDates: WorkDateInfo[];
     applicationSlots: number;    // 応募枠（全勤務日の募集人数合計）
     applicationCount: number;    // 応募数
     matchingPeriod: number | null;  // マッチング期間（時間）
@@ -188,23 +199,67 @@ export default function SystemAdminJobsPage() {
         }
     };
 
-    const handleToggleRecruitmentClosed = async (job: Job) => {
-        const newState = !job.isRecruitmentClosed;
-        const action = newState ? '募集完了' : '募集再開';
-        if (!confirm(`求人「${job.title}」を${action}にしますか？`)) return;
+    // 勤務日管理モーダル
+    const [workDateModalJob, setWorkDateModalJob] = useState<Job | null>(null);
+    const [workDateUpdating, setWorkDateUpdating] = useState<number | null>(null);
+
+    const handleToggleWorkDate = async (workDateId: number, isClosed: boolean) => {
+        setWorkDateUpdating(workDateId);
         try {
-            await toggleJobRecruitmentClosed(job.id, newState);
-            toast.success(`${action}にしました`);
+            await toggleWorkDateRecruitmentClosed(workDateId, isClosed);
+            toast.success(isClosed ? '募集完了にしました' : '募集再開しました');
+            // モーダル内のデータを更新
+            if (workDateModalJob) {
+                setWorkDateModalJob({
+                    ...workDateModalJob,
+                    workDates: workDateModalJob.workDates.map(wd =>
+                        wd.id === workDateId ? { ...wd, isRecruitmentClosed: isClosed } : wd
+                    ),
+                    isRecruitmentClosed: workDateModalJob.workDates.every(wd =>
+                        wd.id === workDateId ? isClosed : wd.isRecruitmentClosed
+                    ),
+                });
+            }
             fetchJobs();
         } catch (error) {
             const debugInfo = extractDebugInfo(error);
             showDebugError({
                 type: 'other',
-                operation: `求人${action}`,
+                operation: '勤務日募集状態変更',
                 message: debugInfo.message,
                 details: debugInfo.details,
                 stack: debugInfo.stack,
-                context: { jobId: job.id }
+                context: { workDateId }
+            });
+            toast.error('変更に失敗しました');
+        } finally {
+            setWorkDateUpdating(null);
+        }
+    };
+
+    const handleToggleAllWorkDates = async (jobId: number, isClosed: boolean) => {
+        const action = isClosed ? '全て募集完了' : '全て募集再開';
+        if (!confirm(`${action}にしますか？`)) return;
+        try {
+            await toggleAllWorkDatesRecruitmentClosed(jobId, isClosed);
+            toast.success(`${action}にしました`);
+            if (workDateModalJob) {
+                setWorkDateModalJob({
+                    ...workDateModalJob,
+                    workDates: workDateModalJob.workDates.map(wd => ({ ...wd, isRecruitmentClosed: isClosed })),
+                    isRecruitmentClosed: isClosed,
+                });
+            }
+            fetchJobs();
+        } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'other',
+                operation: action,
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { jobId }
             });
             toast.error(`${action}に失敗しました`);
         }
@@ -478,9 +533,15 @@ export default function SystemAdminJobsPage() {
                                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[job.status] || 'bg-gray-100 text-gray-500'}`}>
                                             {statusLabels[job.status] || job.status}
                                         </span>
-                                        {job.isRecruitmentClosed && (
+                                        {job.isRecruitmentClosed ? (
                                             <div className="mt-1">
-                                                <span className="text-[10px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-medium">募集完了</span>
+                                                <span className="text-[10px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-medium">全日程募集完了</span>
+                                            </div>
+                                        ) : job.workDates?.some(wd => wd.isRecruitmentClosed) && (
+                                            <div className="mt-1">
+                                                <span className="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded font-medium">
+                                                    一部募集完了({job.workDates.filter(wd => wd.isRecruitmentClosed).length}/{job.workDates.length})
+                                                </span>
                                             </div>
                                         )}
                                         {job.requiresInterview && (
@@ -505,16 +566,13 @@ export default function SystemAdminJobsPage() {
                                     </td>
                                     <td className="px-4 py-4 text-right">
                                         <div className="flex items-center justify-end gap-1">
-                                            {/* 募集完了/再開トグル */}
+                                            {/* 勤務日管理 */}
                                             <button
-                                                onClick={() => handleToggleRecruitmentClosed(job)}
-                                                className={`p-1.5 rounded-lg transition-colors ${job.isRecruitmentClosed
-                                                    ? 'text-green-600 hover:text-green-700 hover:bg-green-50'
-                                                    : 'text-slate-400 hover:text-red-600 hover:bg-red-50'
-                                                }`}
-                                                title={job.isRecruitmentClosed ? '募集再開' : '募集完了にする'}
+                                                onClick={() => setWorkDateModalJob(job)}
+                                                className="p-1.5 text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                                                title="勤務日管理"
                                             >
-                                                {job.isRecruitmentClosed ? <RotateCcw className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                                                <CalendarDays className="w-4 h-4" />
                                             </button>
                                             {/* 閲覧アイコン */}
                                             <a
@@ -585,6 +643,111 @@ export default function SystemAdminJobsPage() {
                     </button>
                 </div>
             </div>
+
+            {/* 勤務日管理モーダル */}
+            {workDateModalJob && (
+                <div
+                    className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+                    onClick={() => setWorkDateModalJob(null)}
+                    onKeyDown={(e) => e.key === 'Escape' && setWorkDateModalJob(null)}
+                >
+                    <div
+                        className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* ヘッダー */}
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-800">勤務日管理</h3>
+                                <p className="text-sm text-slate-500 mt-0.5 line-clamp-1">{workDateModalJob.title}（ID: {workDateModalJob.id}）</p>
+                            </div>
+                            <button
+                                onClick={() => setWorkDateModalJob(null)}
+                                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                                aria-label="閉じる"
+                            >
+                                <X className="w-5 h-5 text-slate-500" />
+                            </button>
+                        </div>
+
+                        {/* 一括操作 */}
+                        <div className="px-6 py-3 bg-slate-50 border-b border-slate-200 flex gap-2">
+                            <button
+                                onClick={() => handleToggleAllWorkDates(workDateModalJob.id, true)}
+                                className="px-3 py-1.5 text-xs font-medium bg-red-50 text-red-700 hover:bg-red-100 rounded-lg transition-colors"
+                            >
+                                全て募集完了
+                            </button>
+                            <button
+                                onClick={() => handleToggleAllWorkDates(workDateModalJob.id, false)}
+                                className="px-3 py-1.5 text-xs font-medium bg-green-50 text-green-700 hover:bg-green-100 rounded-lg transition-colors"
+                            >
+                                全て募集再開
+                            </button>
+                        </div>
+
+                        {/* 勤務日一覧 */}
+                        <div className="overflow-auto max-h-[50vh]">
+                            <table className="w-full">
+                                <thead className="bg-slate-50 sticky top-0">
+                                    <tr>
+                                        <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">日付</th>
+                                        <th className="px-4 py-2 text-center text-xs font-medium text-slate-500">募集数</th>
+                                        <th className="px-4 py-2 text-center text-xs font-medium text-slate-500">応募数</th>
+                                        <th className="px-4 py-2 text-center text-xs font-medium text-slate-500">マッチ</th>
+                                        <th className="px-4 py-2 text-center text-xs font-medium text-slate-500">状態</th>
+                                        <th className="px-4 py-2 text-right text-xs font-medium text-slate-500">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {workDateModalJob.workDates.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={6} className="px-4 py-8 text-center text-sm text-slate-400">
+                                                勤務日が設定されていません
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        workDateModalJob.workDates.map((wd) => (
+                                            <tr key={wd.id} className="hover:bg-slate-50">
+                                                <td className="px-4 py-3 text-sm font-medium text-slate-700">
+                                                    {new Date(wd.workDate + 'T00:00:00+09:00').toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })}
+                                                </td>
+                                                <td className="px-4 py-3 text-center text-sm text-slate-600">{wd.recruitmentCount}</td>
+                                                <td className="px-4 py-3 text-center text-sm text-slate-600">{wd.applicationCount}</td>
+                                                <td className="px-4 py-3 text-center text-sm text-slate-600">{wd.matchedCount}</td>
+                                                <td className="px-4 py-3 text-center">
+                                                    {wd.isRecruitmentClosed ? (
+                                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">募集完了</span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">募集中</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-4 py-3 text-right">
+                                                    <button
+                                                        onClick={() => handleToggleWorkDate(wd.id, !wd.isRecruitmentClosed)}
+                                                        disabled={workDateUpdating === wd.id}
+                                                        className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors disabled:opacity-50 ${
+                                                            wd.isRecruitmentClosed
+                                                                ? 'bg-green-50 text-green-700 hover:bg-green-100'
+                                                                : 'bg-red-50 text-red-700 hover:bg-red-100'
+                                                        }`}
+                                                    >
+                                                        {workDateUpdating === wd.id
+                                                            ? '更新中...'
+                                                            : wd.isRecruitmentClosed
+                                                                ? '募集再開'
+                                                                : '募集完了'}
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -310,8 +310,6 @@ model Job {
   recruitment_start_day        Int                  @default(0) @map("recruitment_start_day")
   /// 募集開始時刻（HH:MM形式、nullの場合は0時）
   recruitment_start_time       String?              @map("recruitment_start_time")
-  /// 募集完了フラグ（システム管理者が手動で設定）
-  is_recruitment_closed        Boolean              @default(false) @map("is_recruitment_closed")
   tags                         String[]
   address                      String?
   prefecture                   String?
@@ -423,6 +421,9 @@ model JobWorkDate {
   applications      Application[]
   job               Job           @relation(fields: [job_id], references: [id], onDelete: Cascade)
   reviews           Review[]
+
+  /// 募集完了フラグ（システム管理者が手動で設定）
+  is_recruitment_closed Boolean @default(false) @map("is_recruitment_closed")
 
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
   updated_by_type String? @map("updated_by_type")
