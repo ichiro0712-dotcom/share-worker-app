@@ -193,4 +193,13 @@ export const authOptions: NextAuthOptions = {
     },
   },
   secret: process.env.NEXTAUTH_SECRET,
+  logger: {
+    error(code, metadata) {
+      if (code === 'NO_SECRET') {
+        console.error('[auth] NEXTAUTH_SECRET is not set. Worker login will not work.');
+      } else {
+        console.error('[auth]', code, metadata);
+      }
+    },
+  },
 };
