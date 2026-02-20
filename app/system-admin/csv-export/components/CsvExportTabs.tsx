@@ -47,34 +47,36 @@ function TabButton({ tab, isActive, onClick }: { tab: Tab; isActive: boolean; on
 
 export default function CsvExportTabs({ tastasTabs, crossnaviTabs, activeTab, onTabChange }: CsvExportTabsProps) {
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 space-y-3">
-      {/* 一段目: タスタス用 */}
-      <div className="flex flex-wrap gap-2">
-        {tastasTabs.map((tab) => (
-          <TabButton
-            key={tab.id}
-            tab={tab}
-            isActive={activeTab === tab.id}
-            onClick={() => onTabChange(tab.id)}
-          />
-        ))}
+    <div className="space-y-3">
+      {/* 通常データ出力 */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
+        <p className="text-sm font-semibold text-slate-700 mb-3">通常データ出力</p>
+        <div className="flex flex-wrap gap-2">
+          {tastasTabs.map((tab) => (
+            <TabButton
+              key={tab.id}
+              tab={tab}
+              isActive={activeTab === tab.id}
+              onClick={() => onTabChange(tab.id)}
+            />
+          ))}
+        </div>
       </div>
 
-      {/* 区切り線 */}
-      <div className="border-t border-slate-100" />
-
-      {/* 二段目: CROSSNAVI連携用 */}
-      <div className="flex flex-wrap gap-2">
-        {crossnaviTabs.map((tab) => (
-          <TabButton
-            key={tab.id}
-            tab={tab}
-            isActive={activeTab === tab.id}
-            onClick={() => onTabChange(tab.id)}
-          />
-        ))}
+      {/* CROSSNAVI連携用出力 */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
+        <p className="text-sm font-semibold text-slate-700 mb-3">CROSSNAVI連携用出力<span className="ml-2 text-xs font-normal text-amber-600">（開発中）</span></p>
+        <div className="flex flex-wrap gap-2">
+          {crossnaviTabs.map((tab) => (
+            <TabButton
+              key={tab.id}
+              tab={tab}
+              isActive={activeTab === tab.id}
+              onClick={() => onTabChange(tab.id)}
+            />
+          ))}
+        </div>
       </div>
-      <p className="text-xs text-slate-400 pl-1">※ CROSSNAVI連携用</p>
     </div>
   );
 }
