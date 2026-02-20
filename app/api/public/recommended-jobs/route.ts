@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { generateDatesFromBase } from '@/utils/date';
+import { filterValidImages } from '@/src/lib/actions/helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -136,7 +137,7 @@ export async function GET(request: NextRequest) {
         managerName: job.manager_name,
         managerMessage: job.manager_message || '',
         managerAvatar: job.manager_avatar || '',
-        images: job.images,
+        images: filterValidImages(job.images as string[]),
         badges: [],
         otherConditions: [],
         mapImage: '',

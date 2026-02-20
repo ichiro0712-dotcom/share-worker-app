@@ -14,7 +14,7 @@ export type PushSubscriptionError =
     | 'UNKNOWN';
 
 export type PushSubscriptionResult =
-    | { success: true; subscription: PushSubscription }
+    | { success: true; subscription: PushSubscription; needsRepair?: boolean; repairReason?: 'age' | 'version' | 'failures' }
     | { success: false; error: PushSubscriptionError; message: string };
 
 // Base64をUint8Arrayに変換
@@ -138,7 +138,7 @@ export function isIOSNonStandalone(): boolean {
 async function syncSubscriptionToServer(
     subscription: PushSubscription,
     userType: 'worker' | 'facility_admin'
-): Promise<boolean> {
+): Promise<{ synced: boolean; needsRepair: boolean; repairReason?: 'age' | 'version' | 'failures' }> {
     const response = await fetch('/api/push/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -150,9 +150,14 @@ async function syncSubscriptionToServer(
     if (!response.ok) {
         const errorBody = await response.text().catch(() => '');
         console.error('[Push] Subscribe API error:', response.status, errorBody);
-        return false;
+        return { synced: false, needsRepair: false };
     }
-    return true;
+    const data = await response.json();
+    return {
+        synced: true,
+        needsRepair: data.needs_repair === true,
+        repairReason: data.repair_reason,
+    };
 }
 
 // プッシュ通知を購読（結果オブジェクトで返す）
@@ -183,9 +188,9 @@ export async function subscribeToPushNotifications(
         const existingSubscription = await registration.pushManager.getSubscription();
         if (existingSubscription) {
             console.log('[Push] Reusing existing subscription');
-            const synced = await syncSubscriptionToServer(existingSubscription, userType);
+            const { synced, needsRepair, repairReason } = await syncSubscriptionToServer(existingSubscription, userType);
             if (synced) {
-                return { success: true, subscription: existingSubscription };
+                return { success: true, subscription: existingSubscription, needsRepair, repairReason };
             }
             // サーバー同期失敗時のみ、新規作成にフォールバック
             console.warn('[Push] Server sync failed, creating new subscription');
@@ -217,7 +222,7 @@ export async function subscribeToPushNotifications(
         }
 
         // サーバーに購読情報を送信
-        const synced = await syncSubscriptionToServer(subscription, userType);
+        const { synced } = await syncSubscriptionToServer(subscription, userType);
         if (!synced) {
             return {
                 success: false,
@@ -235,6 +240,116 @@ export async function subscribeToPushNotifications(
             error: 'UNKNOWN',
             message: `通知の登録中にエラーが発生しました: ${error?.message || '不明なエラー'}`,
         };
+    }
+}
+
+// ===== Push Subscription 修復機能 =====
+
+const REPAIR_LOCK_KEY = 'push_repair_in_progress';
+const REPAIR_LOCK_TTL_MS = 30_000;
+
+function acquireLocalLock(): boolean {
+    const existing = localStorage.getItem(REPAIR_LOCK_KEY);
+    if (existing) {
+        const lockTime = parseInt(existing, 10);
+        if (Date.now() - lockTime < REPAIR_LOCK_TTL_MS) {
+            return false;
+        }
+    }
+    localStorage.setItem(REPAIR_LOCK_KEY, String(Date.now()));
+    return true;
+}
+
+function releaseLocalLock(): void {
+    localStorage.removeItem(REPAIR_LOCK_KEY);
+}
+
+async function doRepair(
+    registration: ServiceWorkerRegistration,
+    userType: 'worker' | 'facility_admin'
+): Promise<void> {
+    const existing = await registration.pushManager.getSubscription();
+    if (!existing) {
+        await subscribeToPushNotifications(userType);
+        return;
+    }
+
+    const oldEndpoint = existing.endpoint;
+
+    try {
+        await existing.unsubscribe();
+    } catch (e) {
+        console.error('[PushRepair] unsubscribe failed, aborting:', e);
+        return;
+    }
+
+    let newSubscription: PushSubscription;
+    try {
+        newSubscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY!).buffer as ArrayBuffer,
+        });
+    } catch (e) {
+        console.error('[PushRepair] re-subscribe failed:', e);
+        return;
+    }
+
+    try {
+        const resp = await fetch('/api/push/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                subscription: newSubscription.toJSON(),
+                userType,
+                replaceEndpoint: oldEndpoint,
+            }),
+        });
+        if (resp.ok) {
+            console.log('[PushRepair] Repair completed successfully');
+        } else {
+            console.warn('[PushRepair] API returned error, will retry on next visit');
+        }
+    } catch (e) {
+        console.error('[PushRepair] API call failed:', e);
+    }
+}
+
+export async function safeRepairSubscription(
+    userType: 'worker' | 'facility_admin'
+): Promise<void> {
+    const registration = await getServiceWorkerRegistration();
+    if (!registration?.active) {
+        console.warn('[PushRepair] SW not active, deferring');
+        return;
+    }
+
+    if ('locks' in navigator) {
+        try {
+            await (navigator as any).locks.request(
+                'push-subscription-repair',
+                { ifAvailable: true },
+                async (lock: any) => {
+                    if (!lock) {
+                        console.log('[PushRepair] Another tab is repairing (locks), skipping');
+                        return;
+                    }
+                    await doRepair(registration, userType);
+                }
+            );
+            return;
+        } catch {
+            // locks API error → fallback
+        }
+    }
+
+    if (!acquireLocalLock()) {
+        console.log('[PushRepair] Another tab is repairing (localStorage), skipping');
+        return;
+    }
+    try {
+        await doRepair(registration, userType);
+    } finally {
+        releaseLocalLock();
     }
 }
 

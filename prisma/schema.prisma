@@ -422,6 +422,9 @@ model JobWorkDate {
   job               Job           @relation(fields: [job_id], references: [id], onDelete: Cascade)
   reviews           Review[]
 
+  /// 募集完了フラグ（システム管理者が手動で設定）
+  is_recruitment_closed Boolean @default(false) @map("is_recruitment_closed")
+
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
   updated_by_type String? @map("updated_by_type")
   /// 更新者ID
@@ -1041,6 +1044,13 @@ model PushSubscription {
   updated_by_type String? @map("updated_by_type")
   /// 更新者ID
   updated_by_id   Int?    @map("updated_by_id")
+
+  /// サブスクリプション基盤バージョン（修復トリガーT2用）
+  subscription_version String @default("1") @map("subscription_version")
+  /// 連続送信失敗回数（修復トリガーT3用）
+  consecutive_failures Int    @default(0)   @map("consecutive_failures")
+  /// 最後に送信失敗した日時（72時間窓付き判定用）
+  last_failure_at      DateTime?            @map("last_failure_at")
 
   user  User?          @relation(fields: [user_id], references: [id], onDelete: Cascade)
   admin FacilityAdmin? @relation(fields: [admin_id], references: [id], onDelete: Cascade)

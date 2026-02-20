@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { X, ChevronLeft, Heart, Clock, MapPin, ChevronRight, ChevronLeft as ChevronLeftIcon, Bookmark, VolumeX, Volume2, ExternalLink, Building2, Train, Car, Bike, Bus, Edit2, AlertTriangle, Home, FileText } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -108,8 +108,35 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
   const [passRatePeriod, setPassRatePeriod] = useState<'current' | 'last' | 'two_months_ago'>('current');
   const [passRateLoading, setPassRateLoading] = useState(false);
 
-  // 画像配列を安全に取得（空配列の場合はプレースホルダーを使用）
-  const jobImages = job.images && job.images.length > 0 ? job.images : [DEFAULT_JOB_IMAGE];
+  // 画像配列を安全に取得（空配列の場合やロードエラー時はフォールバック）
+  const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
+  const jobImages = useMemo(() => {
+    const images = job.images && job.images.length > 0 ? job.images : [DEFAULT_JOB_IMAGE];
+    const valid = images.filter((img: string) => !failedImages.has(img));
+    return valid.length > 0 ? valid : [DEFAULT_JOB_IMAGE];
+  }, [job.images, failedImages]);
+
+  // 画像エラー時のフォールバック（同じsrcの重複更新を防止）
+  const handleImageError = useCallback((src: string) => {
+    if (src === DEFAULT_JOB_IMAGE) return; // デフォルト画像のエラーは無視（無限ループ防止）
+    setFailedImages(prev => prev.has(src) ? prev : new Set(prev).add(src));
+  }, []);
+
+  // レンダー時に安全なインデックスを算出（useEffectは1フレーム遅れるため）
+  const safeImageIndex = currentImageIndex < jobImages.length ? currentImageIndex : 0;
+
+  // carousel indexが範囲外にならないようクランプ（次回レンダー以降のため）
+  useEffect(() => {
+    if (currentImageIndex >= jobImages.length) {
+      setCurrentImageIndex(0);
+    }
+  }, [jobImages.length, currentImageIndex]);
+
+  // job変更時にエラー状態をリセット
+  useEffect(() => {
+    setFailedImages(new Set());
+    setCurrentImageIndex(0);
+  }, [job.id]);
 
   useEffect(() => {
     // 公開版では認証が必要な機能をスキップ
@@ -134,6 +161,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
       const validIds = preselectedIds.filter(id => {
         const wd = job.workDates?.find((w: any) => w.id === id);
         if (!wd) return false;
+        if (wd.isRecruitmentClosed) return false;
         const isApplied = initialAppliedWorkDateIds.includes(id);
         const matchedCount = wd.matchedCount || 0;
         const recruitmentCount = wd.recruitmentCount || job.recruitmentCount || 1;
@@ -165,7 +193,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
         const matchedCount = selected.matchedCount || 0;
         const recruitmentCount = selected.recruitmentCount || job.recruitmentCount || 1;
         const isFull = !job.requiresInterview && matchedCount >= recruitmentCount;
-        if (!isApplied && !isFull) {
+        if (!isApplied && !isFull && !selected.isRecruitmentClosed) {
           setSelectedWorkDateIds([selected.id]);
           return;
         }
@@ -184,6 +212,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
     }
 
     return job.workDates.some((wd: any) => {
+      if (wd.isRecruitmentClosed) return false;
       const isApplied = appliedWorkDateIds.includes(wd.id);
       const matchedCount = wd.matchedCount || 0;
       const recruitmentCount = wd.recruitmentCount || job.recruitmentCount || 1;
@@ -191,7 +220,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
       const isFull = !job.requiresInterview && matchedCount >= recruitmentCount;
       return !isApplied && !isFull;
     });
-  }, [job.workDates, job.matchedCount, job.recruitmentCount, appliedWorkDateIds]);
+  }, [job.workDates, job.matchedCount, job.recruitmentCount, appliedWorkDateIds, job.requiresInterview]);
 
   // 選択された日付と他の日付を分離
   const { selectedWorkDates, otherWorkDates } = useMemo(() => {
@@ -649,21 +678,22 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
             )}
           </div>
           <div className="relative aspect-video rounded-card overflow-hidden">
-            {jobImages[currentImageIndex].startsWith('blob:') ? (
+            {jobImages[safeImageIndex].startsWith('blob:') ? (
               <img
-                src={jobImages[currentImageIndex]}
+                src={jobImages[safeImageIndex]}
                 alt="施設画像"
                 className="object-cover w-full h-full"
               />
             ) : (
               <Image
-                src={jobImages[currentImageIndex]}
+                src={jobImages[safeImageIndex]}
                 alt="施設画像"
                 fill
                 className="object-cover"
                 placeholder="blur"
                 blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFgABAQEAAAAAAAAAAAAAAAAAAAUH/8QAIhAAAgIBAwQDAAAAAAAAAAAAAQIDBAAFERIGEyExQVFh/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAZEQACAwEAAAAAAAAAAAAAAAABAgADESH/2gAMAwEAAhEDEEQA/8A0="
-                priority={currentImageIndex === 0}
+                priority={safeImageIndex === 0}
+                onError={() => handleImageError(jobImages[safeImageIndex])}
               />
             )}
             {/* 面接ありバッジ - 画像左上 */}
@@ -690,7 +720,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
               {jobImages.map((_: any, index: number) => (
                 <div
                   key={index}
-                  className={`h-1 rounded-full transition-all ${index === currentImageIndex ? 'w-6 bg-gray-800' : 'w-1 bg-gray-300'
+                  className={`h-1 rounded-full transition-all ${index === safeImageIndex ? 'w-6 bg-gray-800' : 'w-1 bg-gray-300'
                     }`}
                 />
               ))}
@@ -763,6 +793,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
               const matchedCount = wd.matchedCount || 0;
               // 面接ありの場合は満員でも応募可能
               const isFull = !job.requiresInterview && matchedCount >= recruitmentCount;
+              const isDateClosed = wd.isRecruitmentClosed === true;
 
               // 時間重複チェック
               const hasTimeConflict = scheduledJobs.some((scheduled) => {
@@ -777,8 +808,8 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
                 );
               });
 
-              const isDisabled = isApplied || isFull || hasTimeConflict;
-              const unavailableReason = isApplied ? '応募済み' : hasTimeConflict ? '時間重複' : isFull ? '募集終了' : null;
+              const isDisabled = isApplied || isFull || hasTimeConflict || isDateClosed;
+              const unavailableReason = isDateClosed ? '募集終了' : isApplied ? '応募済み' : hasTimeConflict ? '時間重複' : isFull ? '募集終了' : null;
 
               return (
                 <div
@@ -863,6 +894,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
                   // 面接ありの場合は満員でも応募可能
                   const isFull = !job.requiresInterview && matchedCount >= recruitmentCount;
                   const remainingSlots = Math.max(0, recruitmentCount - matchedCount);
+                  const isDateClosed = wd.isRecruitmentClosed === true;
 
                   // 時間重複チェック
                   const hasTimeConflict = scheduledJobs.some((scheduled) => {
@@ -877,8 +909,8 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
                     );
                   });
 
-                  const isDisabled = isApplied || isFull || hasTimeConflict;
-                  const unavailableReason = isApplied ? '応募済み' : hasTimeConflict ? '時間重複' : isFull ? '募集終了' : null;
+                  const isDisabled = isApplied || isFull || hasTimeConflict || isDateClosed;
+                  const unavailableReason = isDateClosed ? '募集終了' : isApplied ? '応募済み' : hasTimeConflict ? '時間重複' : isFull ? '募集終了' : null;
 
                   return (
                     <div
@@ -1170,7 +1202,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
 
             <div className="relative aspect-video overflow-hidden rounded-lg bg-gray-100 mb-2">
               {/* 地図は常に住所ベースで表示（lat/lngは信頼性が低いため）ID-7 */}
-              {job.address ? (
+              {job.address && process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY && process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY !== 'undefined' ? (
                 <iframe
                   src={`https://www.google.com/maps/embed/v1/place?q=${encodeURIComponent(job.address)}&zoom=16&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`}
                   width="100%"
@@ -1444,15 +1476,17 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
               onClick={handleApplyButtonClick}
               size="lg"
               className="w-full"
-              disabled={isApplying || selectedWorkDateIds.length === 0}
+              disabled={isApplying || selectedWorkDateIds.length === 0 || !hasAvailableDates}
             >
-              {isApplying
-                ? (job.jobType === 'OFFER' ? '受諾中...' : '応募中...')
-                : selectedWorkDateIds.length > 0
-                  ? (job.jobType === 'OFFER' ? 'オファーを受ける' : `${selectedWorkDateIds.length}件の日程に応募する`)
-                  : !hasAvailableDates
-                    ? '応募できる日程がありません'
-                    : '日程を選択してください'}
+              {!hasAvailableDates
+                ? '応募できる日程がありません'
+                : isApplying
+                  ? (job.jobType === 'OFFER' ? '受諾中...' : '応募中...')
+                  : selectedWorkDateIds.length > 0
+                    ? (job.jobType === 'OFFER' ? 'オファーを受ける' : `${selectedWorkDateIds.length}件の日程に応募する`)
+                    : !hasAvailableDates
+                      ? '応募できる日程がありません'
+                      : '日程を選択してください'}
             </Button>
           </div>
         </div>

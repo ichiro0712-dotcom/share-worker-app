@@ -70,6 +70,7 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
       appliedCount: wd.applied_count,
       matchedCount: wd.matched_count,
       recruitmentCount: wd.recruitment_count,
+      isRecruitmentClosed: wd.isRecruitmentClosed || wd.is_recruitment_closed || false,
     })) || [],
     startTime: jobData.start_time,
     endTime: jobData.end_time,
@@ -118,6 +119,8 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
     // 求人種別（オファー対応）
     jobType: jobData.job_type as 'NORMAL' | 'LIMITED_WORKED' | 'LIMITED_FAVORITE' | 'OFFER' | 'ORIENTATION',
     targetWorkerId: jobData.target_worker_id,
+    // 募集完了フラグ
+    isRecruitmentClosed: jobData.isRecruitmentClosed || false,
   };
 
   const facility = {

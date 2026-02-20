@@ -60,4 +60,6 @@ export interface Job {
   availableWorkDateCount?: number; // 応募可能な勤務日数
   // 募集終了フラグ（期限切れ・定員満了で通常検索から除外された求人）
   isExpired?: boolean;
+  // 募集完了フラグ（システム管理者が手動で設定）
+  isRecruitmentClosed?: boolean;
 }

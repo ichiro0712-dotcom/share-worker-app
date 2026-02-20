@@ -2490,7 +2490,9 @@ export async function getSystemJobsExtended(
                 workDates: {
                     select: {
                         id: true,
+                        work_date: true,
                         recruitment_count: true,
+                        is_recruitment_closed: true,
                         applications: {
                             select: {
                                 id: true,
@@ -2499,6 +2501,7 @@ export async function getSystemJobsExtended(
                             },
                         },
                     },
+                    orderBy: { work_date: 'asc' as const },
                 },
             },
         });
@@ -2546,6 +2549,17 @@ export async function getSystemJobsExtended(
                 facilityType: job.facility.facility_type,
                 templateName: job.template?.name || null,
                 requiresInterview: job.requires_interview,
+                isRecruitmentClosed: job.workDates.length > 0 && job.workDates.every(wd => wd.is_recruitment_closed),
+                workDates: job.workDates.map(wd => ({
+                    id: wd.id,
+                    workDate: wd.work_date.toISOString().split('T')[0],
+                    recruitmentCount: wd.recruitment_count,
+                    isRecruitmentClosed: wd.is_recruitment_closed,
+                    applicationCount: wd.applications.length,
+                    matchedCount: wd.applications.filter(a =>
+                        ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'].includes(a.status)
+                    ).length,
+                })),
                 applicationSlots,
                 applicationCount,
                 matchingPeriod,
@@ -2594,7 +2608,9 @@ export async function getSystemJobsExtended(
                     workDates: {
                         select: {
                             id: true,
+                            work_date: true,
                             recruitment_count: true,
+                            is_recruitment_closed: true,
                             applications: {
                                 select: {
                                     id: true,
@@ -2603,6 +2619,7 @@ export async function getSystemJobsExtended(
                                 },
                             },
                         },
+                        orderBy: { work_date: 'asc' as const },
                     },
                 },
             }),
@@ -2648,6 +2665,17 @@ export async function getSystemJobsExtended(
                 facilityType: job.facility.facility_type,
                 templateName: job.template?.name || null,
                 requiresInterview: job.requires_interview,
+                isRecruitmentClosed: job.workDates.length > 0 && job.workDates.every(wd => wd.is_recruitment_closed),
+                workDates: job.workDates.map(wd => ({
+                    id: wd.id,
+                    workDate: wd.work_date.toISOString().split('T')[0],
+                    recruitmentCount: wd.recruitment_count,
+                    isRecruitmentClosed: wd.is_recruitment_closed,
+                    applicationCount: wd.applications.length,
+                    matchedCount: wd.applications.filter(a =>
+                        ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'].includes(a.status)
+                    ).length,
+                })),
                 applicationSlots,
                 applicationCount,
                 matchingPeriod,
@@ -2662,6 +2690,31 @@ export async function getSystemJobsExtended(
             totalPages: Math.ceil(total / limit),
         };
     }
+}
+
+/**
+ * 勤務日の募集完了フラグを切り替え（システム管理者専用）
+ */
+export async function toggleWorkDateRecruitmentClosed(workDateId: number, isClosed: boolean) {
+    await requireSystemAdminAuth();
+    const workDate = await prisma.jobWorkDate.update({
+        where: { id: workDateId },
+        data: { is_recruitment_closed: isClosed },
+        select: { id: true, work_date: true, is_recruitment_closed: true, job_id: true },
+    });
+    return { success: true, workDate };
+}
+
+/**
+ * 求人の全勤務日の募集完了フラグを一括切り替え（システム管理者専用）
+ */
+export async function toggleAllWorkDatesRecruitmentClosed(jobId: number, isClosed: boolean) {
+    await requireSystemAdminAuth();
+    await prisma.jobWorkDate.updateMany({
+        where: { job_id: jobId },
+        data: { is_recruitment_closed: isClosed },
+    });
+    return { success: true };
 }
 
 /**
