@@ -11,7 +11,7 @@ import toast from 'react-hot-toast';
 import { getClientInfoList, exportClientInfoCsv } from '@/src/lib/actions/csv-export';
 import type { ClientInfoItem, ClientInfoFilter } from './types';
 
-const ITEMS_PER_PAGE = 20;
+const PAGE_SIZE_OPTIONS = [30, 50] as const;
 
 const initialFilters: ClientInfoFilter = {
   search: '',
@@ -33,8 +33,9 @@ export default function ClientInfoExport() {
 
   // フィルター
   const [filters, setFilters] = useState<ClientInfoFilter>(initialFilters);
+  const [pageSize, setPageSize] = useState<number>(PAGE_SIZE_OPTIONS[0]);
 
-  const totalPages = Math.ceil(total / ITEMS_PER_PAGE);
+  const totalPages = Math.ceil(total / pageSize);
 
   // データ取得
   const fetchData = useCallback(async () => {
@@ -42,7 +43,7 @@ export default function ClientInfoExport() {
     try {
       const result = await getClientInfoList({
         page,
-        limit: ITEMS_PER_PAGE,
+        limit: pageSize,
         filters,
       });
       setItems(result.items);
@@ -53,7 +54,7 @@ export default function ClientInfoExport() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, filters]);
+  }, [page, pageSize, filters]);
 
   useEffect(() => {
     fetchData();
@@ -277,18 +278,25 @@ export default function ClientInfoExport() {
       {/* ページネーション */}
       {!isLoading && items.length > 0 && (
         <div className="flex items-center justify-between">
-          <div className="text-sm text-slate-500">
-            {total.toLocaleString()}件中 {((page - 1) * ITEMS_PER_PAGE + 1).toLocaleString()} - {Math.min(page * ITEMS_PER_PAGE, total).toLocaleString()}件を表示
+          <div className="flex items-center gap-3">
+            <div className="text-sm text-slate-500">
+              {total.toLocaleString()}件中 {((page - 1) * pageSize + 1).toLocaleString()} - {Math.min(page * pageSize, total).toLocaleString()}件を表示
+            </div>
+            <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden">
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <button key={size} onClick={() => { setPageSize(size); setPage(1); }} className={`px-3 py-1 text-xs font-medium transition-colors ${pageSize === size ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>{size}件</button>
+              ))}
+            </div>
           </div>
           <div className="flex items-center gap-1">
             <button
               onClick={() => setPage(1)}
               disabled={page === 1}
-              className="p-2 text-sm border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center p-2 text-sm border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
               title="最初"
             >
               <ChevronLeft className="w-4 h-4" />
-              <ChevronLeft className="w-4 h-4 -ml-3" />
+              <ChevronLeft className="w-4 h-4 -ml-2" />
             </button>
             <button
               onClick={() => setPage(p => Math.max(1, p - 1))}
@@ -312,11 +320,11 @@ export default function ClientInfoExport() {
             <button
               onClick={() => setPage(totalPages)}
               disabled={page >= totalPages}
-              className="p-2 text-sm border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center p-2 text-sm border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
               title="最後"
             >
               <ChevronRight className="w-4 h-4" />
-              <ChevronRight className="w-4 h-4 -ml-3" />
+              <ChevronRight className="w-4 h-4 -ml-2" />
             </button>
           </div>
         </div>

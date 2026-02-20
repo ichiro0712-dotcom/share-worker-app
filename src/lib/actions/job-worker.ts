@@ -10,6 +10,7 @@ import {
     getAuthenticatedUser,
     isTimeOverlapping,
     calculateDistanceKm,
+    filterValidImages,
     JobSearchParams,
     JobListType
 } from './helpers';
@@ -437,7 +438,7 @@ export async function getJobs(
             });
 
             // 応募可否（いずれかに該当したら応募不可）
-            const canApply = !isApplied && !isFull && !hasTimeConflict;
+            const canApply = !isApplied && !isFull && !hasTimeConflict && !wd.is_recruitment_closed;
 
             return {
                 ...wd,
@@ -451,6 +452,7 @@ export async function getJobs(
                 isFull,
                 hasTimeConflict,
                 canApply,
+                isRecruitmentClosed: wd.is_recruitment_closed,
             };
         });
 
@@ -467,6 +469,7 @@ export async function getJobs(
 
         return {
             ...job,
+            images: filterValidImages(job.images as string[]),
             // 互換性のため、一番近い勤務日の情報を work_date と deadline に設定
             work_date: nearestWorkDate ? nearestWorkDate.work_date.toISOString() : null,
             deadline: nearestWorkDate ? nearestWorkDate.deadline.toISOString() : null,
@@ -491,6 +494,8 @@ export async function getJobs(
             effectiveWeeklyFrequency,
             // 求人種別
             jobType: job.job_type,
+            // 募集完了フラグ（全勤務日がclosedの場合にtrue）
+            isRecruitmentClosed: workDatesWithAvailability.length > 0 && workDatesWithAvailability.every(wd => wd.isRecruitmentClosed),
         };
     });
 }
@@ -1002,6 +1007,7 @@ export async function getJobsListWithPagination(
                     applied_count: true,
                     matched_count: true,
                     recruitment_count: true,
+                    is_recruitment_closed: true,
                     visible_from: true,
                     visible_until: true,
                     created_at: true,
@@ -1069,6 +1075,7 @@ export async function getJobsListWithPagination(
                         applied_count: true,
                         matched_count: true,
                         recruitment_count: true,
+                        is_recruitment_closed: true,
                         visible_from: true,
                         visible_until: true,
                         created_at: true,
@@ -1154,7 +1161,7 @@ export async function getJobsListWithPagination(
                     scheduled.endTime
                 );
             });
-            const canApply = !isApplied && !isFull && !hasTimeConflict;
+            const canApply = !isApplied && !isFull && !hasTimeConflict && !wd.is_recruitment_closed;
 
             return {
                 ...wd,
@@ -1167,6 +1174,7 @@ export async function getJobsListWithPagination(
                 isFull,
                 hasTimeConflict,
                 canApply,
+                isRecruitmentClosed: wd.is_recruitment_closed,
             };
         });
 
@@ -1178,6 +1186,7 @@ export async function getJobsListWithPagination(
 
         return {
             ...job,
+            images: filterValidImages(job.images as string[]),
             work_date: nearestWorkDate ? nearestWorkDate.work_date.toISOString() : null,
             deadline: nearestWorkDate ? nearestWorkDate.deadline.toISOString() : null,
             applied_count: totalAppliedCount,
@@ -1196,6 +1205,7 @@ export async function getJobsListWithPagination(
             availableWorkDateCount,
             effectiveWeeklyFrequency,
             jobType: job.job_type,
+            isRecruitmentClosed: workDatesWithAvailability.length > 0 && workDatesWithAvailability.every(wd => wd.isRecruitmentClosed),
         };
     });
 
@@ -1233,11 +1243,13 @@ export async function getJobsListWithPagination(
                 isFull,
                 hasTimeConflict,
                 canApply,
+                isRecruitmentClosed: wd.is_recruitment_closed,
             };
         });
 
         return {
             ...job,
+            images: filterValidImages(job.images as string[]),
             work_date: nearestWorkDate ? nearestWorkDate.work_date.toISOString() : null,
             deadline: nearestWorkDate ? nearestWorkDate.deadline.toISOString() : null,
             applied_count: totalAppliedCount,
@@ -1257,6 +1269,7 @@ export async function getJobsListWithPagination(
             effectiveWeeklyFrequency: null,
             jobType: job.job_type,
             isExpired: true,
+            isRecruitmentClosed: workDatesWithAvailability.length > 0 && workDatesWithAvailability.every(wd => wd.isRecruitmentClosed),
         };
     });
 
@@ -1393,6 +1406,7 @@ export async function getJobById(id: string, options?: { currentTime?: Date }) {
 
     return {
         ...job,
+        images: filterValidImages(job.images as string[]),
         work_date: nearestWorkDate ? nearestWorkDate.work_date.toISOString() : null,
         deadline: nearestWorkDate ? nearestWorkDate.deadline.toISOString() : null,
         applied_count: totalAppliedCount,
@@ -1404,6 +1418,7 @@ export async function getJobById(id: string, options?: { currentTime?: Date }) {
             deadline: wd.deadline.toISOString(),
             created_at: wd.created_at.toISOString(),
             updated_at: wd.updated_at.toISOString(),
+            isRecruitmentClosed: wd.is_recruitment_closed,
         })),
         created_at: job.created_at.toISOString(),
         updated_at: job.updated_at.toISOString(),
@@ -1418,6 +1433,8 @@ export async function getJobById(id: string, options?: { currentTime?: Date }) {
         // オファー・限定求人対応
         job_type: job.job_type,
         target_worker_id: job.target_worker_id,
+        // 募集完了フラグ（全勤務日がclosedの場合にtrue）
+        isRecruitmentClosed: job.workDates.length > 0 && job.workDates.every(wd => wd.is_recruitment_closed),
     };
 }
 

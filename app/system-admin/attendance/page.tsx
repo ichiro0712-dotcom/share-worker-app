@@ -4,9 +4,9 @@
  * 勤怠管理ページ（システム管理者向け）
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { Download, Filter, RefreshCw, Calendar, Users, Clock, CircleDollarSign, Pencil } from 'lucide-react';
+import { Download, Filter, RefreshCw, Calendar, Users, Clock, CircleDollarSign, Pencil, ChevronLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
   getAllAttendances,
@@ -15,6 +15,8 @@ import {
 import { formatCurrency } from '@/src/lib/salary-calculator';
 import type { AttendanceFilter, AttendanceSortOption } from '@/src/types/attendance';
 import AttendanceEditModal from './AttendanceEditModal';
+
+const PAGE_SIZE_OPTIONS = [30, 50] as const;
 
 type StatusFilter = 'all' | 'CHECKED_IN' | 'CHECKED_OUT';
 
@@ -66,6 +68,8 @@ export default function SystemAdminAttendancePage() {
     pendingModifications: 0,
     totalWage: 0,
   });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(PAGE_SIZE_OPTIONS[0]);
   const [isLoading, setIsLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
 
@@ -81,7 +85,9 @@ export default function SystemAdminAttendancePage() {
   const [corporationNameFilter, setCorporationNameFilter] = useState<string>('');
   const [workerSearchFilter, setWorkerSearchFilter] = useState<string>('');
 
-  const fetchData = async () => {
+  const totalPages = Math.ceil(total / pageSize);
+
+  const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
       const filter: AttendanceFilter = {};
@@ -105,8 +111,10 @@ export default function SystemAdminAttendancePage() {
         filter.workerSearch = workerSearchFilter.trim();
       }
 
+      const offset = (page - 1) * pageSize;
+
       const [attendanceResult, statsResult] = await Promise.all([
-        getAllAttendances({ filter, limit: 100 }),
+        getAllAttendances({ filter, limit: pageSize, offset }),
         getAttendanceStats({
           dateFrom: dateFrom ? new Date(dateFrom) : undefined,
           dateTo: dateTo ? new Date(dateTo + 'T23:59:59') : undefined,
@@ -122,10 +130,15 @@ export default function SystemAdminAttendancePage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [page, pageSize, statusFilter, dateFrom, dateTo, facilityNameFilter, corporationNameFilter, workerSearchFilter]);
 
   useEffect(() => {
     fetchData();
+  }, [fetchData]);
+
+  // フィルター変更時はページを1に戻す
+  useEffect(() => {
+    setPage(1);
   }, [statusFilter, dateFrom, dateTo, facilityNameFilter, corporationNameFilter, workerSearchFilter]);
 
   const handleExport = async () => {
@@ -546,10 +559,24 @@ export default function SystemAdminAttendancePage() {
         )}
       </div>
 
-      {/* ページネーション情報 */}
+      {/* ページネーション */}
       {!isLoading && items.length > 0 && (
-        <div className="mt-4 text-sm text-slate-500 text-center">
-          {total}件中 {items.length}件を表示
+        <div className="mt-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="text-sm text-slate-500">{total.toLocaleString()}件中 {((page - 1) * pageSize + 1).toLocaleString()} - {Math.min(page * pageSize, total).toLocaleString()}件を表示</div>
+            <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden">
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <button key={size} onClick={() => { setPageSize(size); setPage(1); }} className={`px-3 py-1 text-xs font-medium transition-colors ${pageSize === size ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>{size}件</button>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setPage(1)} disabled={page === 1} className="flex items-center p-2 text-sm border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed" title="最初"><ChevronLeft className="w-4 h-4" /><ChevronLeft className="w-4 h-4 -ml-2" /></button>
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="p-2 text-sm border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed" title="前へ"><ChevronLeft className="w-4 h-4" /></button>
+            <span className="px-4 py-2 text-sm text-slate-700">{page} / {totalPages}</span>
+            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="p-2 text-sm border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed" title="次へ"><ChevronRight className="w-4 h-4" /></button>
+            <button onClick={() => setPage(totalPages)} disabled={page >= totalPages} className="flex items-center p-2 text-sm border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed" title="最後"><ChevronRight className="w-4 h-4" /><ChevronRight className="w-4 h-4 -ml-2" /></button>
+          </div>
         </div>
       )}
 

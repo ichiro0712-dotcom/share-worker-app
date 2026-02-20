@@ -20,6 +20,7 @@ interface JobCardProps {
       isApplied?: boolean;
       isFull?: boolean;
       hasTimeConflict?: boolean;
+      isRecruitmentClosed?: boolean;
     }>;
   };
   facility: Facility;
@@ -37,8 +38,13 @@ const JobCardComponent: React.FC<JobCardProps> = ({ job, facility, selectedDate,
   const [mounted, setMounted] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // 画像URLを取得（空配列の場合はフォールバック）
-  const jobImage = job.images && job.images.length > 0 ? job.images[0] : DEFAULT_JOB_IMAGE;
+  // 画像URLを取得（空配列の場合やロードエラー時はフォールバック）
+  const [imgError, setImgError] = useState(false);
+  const imgSrc = job.images && job.images.length > 0 ? job.images[0] : null;
+  const jobImage = (!imgError && imgSrc) ? imgSrc : DEFAULT_JOB_IMAGE;
+
+  // job変更時にエラー状態をリセット
+  useEffect(() => { setImgError(false); }, [job.id]);
 
   useEffect(() => {
     setMounted(true);
@@ -58,24 +64,28 @@ const JobCardComponent: React.FC<JobCardProps> = ({ job, facility, selectedDate,
     : null;
 
   // 選択日付が応募不可、または全ての日付が応募不可の場合
-  const isUnavailable = job.isExpired || (selectedWorkDate
+  const isUnavailable = job.isExpired || job.isRecruitmentClosed || (selectedWorkDate
     ? !selectedWorkDate.canApply
     : job.hasAvailableWorkDate === false);
 
   // 応募不可の理由を特定
   const unavailableReason = job.isExpired
     ? '募集終了'
-    : selectedWorkDate
-      ? selectedWorkDate.isApplied
-        ? '応募済み'
-        : selectedWorkDate.hasTimeConflict
-          ? '時間重複'
-          : selectedWorkDate.isFull
-            ? '募集終了'
-            : null
-      : job.hasAvailableWorkDate === false
-        ? '募集終了'
-        : null;
+    : job.isRecruitmentClosed
+      ? '募集終了'
+      : selectedWorkDate
+        ? selectedWorkDate.isRecruitmentClosed
+          ? '募集終了'
+          : selectedWorkDate.isApplied
+            ? '応募済み'
+            : selectedWorkDate.hasTimeConflict
+              ? '時間重複'
+              : selectedWorkDate.isFull
+                ? '募集終了'
+                : null
+        : job.hasAvailableWorkDate === false
+          ? '募集終了'
+          : null;
 
   // 旧ロジック（互換性のため残す）
   const isRecruitmentEnded = !job.requiresInterview && (job.matchedCount ?? 0) >= job.recruitmentCount;
@@ -125,6 +135,7 @@ const JobCardComponent: React.FC<JobCardProps> = ({ job, facility, selectedDate,
               alt={facility.name}
               fill
               className={`object-cover ${shouldShowUnavailable ? 'opacity-60 grayscale' : ''}`}
+              onError={() => { if (!imgError) setImgError(true); }}
             />
             {/* バッジ - 画像左上（求人種別 + 審査あり） */}
             <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
@@ -246,6 +257,7 @@ const JobCardComponent: React.FC<JobCardProps> = ({ job, facility, selectedDate,
               placeholder="blur"
               blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFgABAQEAAAAAAAAAAAAAAAAAAAUH/8QAIhAAAgIBAwQDAAAAAAAAAAAAAQIDBAAFERIGEyExQVFh/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAZEQACAwEAAAAAAAAAAAAAAAABAgADESH/2gAMAwAAhEDEQA/A/8A0="
               priority={priority}
+              onError={() => { if (!imgError) setImgError(true); }}
             />
             {/* バッジ - 画像左上（求人種別 + 審査あり） */}
             <div className="absolute top-2 left-2 flex flex-col gap-0.5 z-10">

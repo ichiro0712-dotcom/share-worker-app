@@ -113,6 +113,13 @@ export async function POST(request: NextRequest) {
                     );
                     const statusCode = response?.statusCode ?? null;
                     const accepted = statusCode === null || (statusCode >= 200 && statusCode < 300);
+                    // Reset failure counter on success (only if there were previous failures)
+                    if (sub.consecutive_failures > 0) {
+                        await prisma.pushSubscription.update({
+                            where: { id: sub.id },
+                            data: { consecutive_failures: 0, last_failure_at: null },
+                        }).catch(() => {});
+                    }
                     return {
                         success: accepted,
                         accepted,
@@ -129,6 +136,15 @@ export async function POST(request: NextRequest) {
                         }).catch((delErr: any) => {
                             console.warn(`[Push] Failed to delete stale subscription ${sub.id}:`, delErr.message);
                         });
+                    } else {
+                        // Track non-fatal failures
+                        await prisma.pushSubscription.update({
+                            where: { id: sub.id },
+                            data: {
+                                consecutive_failures: { increment: 1 },
+                                last_failure_at: new Date(),
+                            },
+                        }).catch(() => {});
                     }
                     return {
                         success: false,

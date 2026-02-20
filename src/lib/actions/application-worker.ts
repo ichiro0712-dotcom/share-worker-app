@@ -245,6 +245,10 @@ export async function applyForJob(jobId: string, workDateId?: number) {
             return { success: false, error: '勤務日が見つかりません' };
         }
 
+        if (targetWorkDate.is_recruitment_closed) {
+            return { success: false, error: 'この勤務日は募集を終了しています' };
+        }
+
         if (!job.requires_interview && targetWorkDate.matched_count >= targetWorkDate.recruitment_count) {
             return { success: false, error: 'この勤務日は既に募集人数に達しています' };
         }
@@ -436,15 +440,27 @@ export async function applyForJobMultipleDates(jobId: string, workDateIds: numbe
         const targetWorkDates = job.workDates.filter(wd => workDateIds.includes(wd.id));
         if (targetWorkDates.length === 0) return { success: false, error: '指定された勤務日が見つかりません' };
 
+        // 全てのworkDateIdsが対象求人に属することを検証（他求人のIDが混入していないか）
+        const validatedWorkDateIds = targetWorkDates.map(wd => wd.id);
+        if (validatedWorkDateIds.length !== workDateIds.length) {
+            return { success: false, error: '無効な勤務日が含まれています' };
+        }
+
+        // 募集完了の勤務日がある場合はエラー
+        const closedDates = targetWorkDates.filter(wd => wd.is_recruitment_closed);
+        if (closedDates.length > 0) {
+            return { success: false, error: '選択された勤務日の中に募集を終了した日程が含まれています' };
+        }
+
         const existingApplications = await prisma.application.findMany({
             where: {
-                work_date_id: { in: workDateIds },
+                work_date_id: { in: validatedWorkDateIds },
                 user_id: user.id,
                 status: { not: 'CANCELLED' },
             },
         });
         const alreadyAppliedIds = existingApplications.map(a => a.work_date_id);
-        const newWorkDateIds = workDateIds.filter(id => !alreadyAppliedIds.includes(id));
+        const newWorkDateIds = validatedWorkDateIds.filter(id => !alreadyAppliedIds.includes(id));
 
         if (newWorkDateIds.length === 0) return { success: false, error: '選択された勤務日にはすべて応募済みです' };
 
@@ -962,6 +978,10 @@ export async function acceptOffer(jobId: string, workDateId: number) {
         if (!targetWorkDate) {
             console.error('[acceptOffer] Target work date not found:', workDateId);
             return { success: false, error: '勤務日が見つかりません' };
+        }
+
+        if (targetWorkDate.is_recruitment_closed) {
+            return { success: false, error: 'この勤務日は募集を終了しています' };
         }
 
         // 既に募集人数に達していないか確認
