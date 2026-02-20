@@ -941,11 +941,11 @@ export default function DBLPList({ initialPages }: DBLPListProps) {
 
             {/* トラッキング */}
             <Link
-              href="/system-admin/lp/tracking/public-jobs"
+              href="/system-admin/analytics?tab=lp"
               className="px-3 py-1.5 text-xs font-medium rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors flex items-center gap-1"
             >
               <BarChart3 className="w-3.5 h-3.5" />
-              トラッキング
+              アナリティクス
             </Link>
           </div>
         </div>

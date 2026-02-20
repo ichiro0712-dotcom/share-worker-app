@@ -104,6 +104,7 @@ export async function POST(request: NextRequest) {
             session_id: sessionId,
             button_id: buttonId,
             button_text: typeof buttonText === 'string' ? buttonText.slice(0, 500) : null,
+            job_id: typeof jobId === 'number' && jobId > 0 ? jobId : null,
           },
         });
         break;
@@ -125,44 +126,53 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'dwell':
-        // dwellイベントのバリデーション（最大24時間=86400秒）
+        // dwellイベントのバリデーション + 防衛的キャップ（LP0: 600秒, 通常LP: 300秒）
         if (!isValidNumber(dwellSeconds, 0, 86400)) {
-          return NextResponse.json({ success: false, error: 'Invalid dwellSeconds (must be 0-86400)' });
+          return NextResponse.json({ success: false, error: 'Invalid dwellSeconds' });
         }
-        await prisma.lpDwellEvent.create({
-          data: {
-            lp_id: lpId,
-            campaign_code: campaignCode || null,
-            session_id: sessionId,
-            dwell_seconds: dwellSeconds,
-          },
-        });
+        {
+          const dwellCap = lpId === '0' ? 600 : 300;
+          const cappedDwell = Math.min(dwellSeconds, dwellCap);
+          await prisma.lpDwellEvent.create({
+            data: {
+              lp_id: lpId,
+              campaign_code: campaignCode || null,
+              session_id: sessionId,
+              dwell_seconds: cappedDwell,
+            },
+          });
+        }
         break;
 
       case 'section_dwell':
-        // section_dwellイベントのバリデーション
+        // section_dwellイベントのバリデーション + 防衛的キャップ
         if (!isValidString(sectionId, 200)) {
           return NextResponse.json({ success: false, error: 'Invalid sectionId for section_dwell event' });
         }
         if (!isValidNumber(dwellSeconds, 0, 86400)) {
-          return NextResponse.json({ success: false, error: 'Invalid dwellSeconds (must be 0-86400)' });
+          return NextResponse.json({ success: false, error: 'Invalid dwellSeconds' });
         }
-        await prisma.lpSectionDwell.create({
-          data: {
-            lp_id: lpId,
-            campaign_code: campaignCode || null,
-            session_id: sessionId,
-            section_id: sectionId,
-            section_name: typeof sectionName === 'string' ? sectionName.slice(0, 200) : null,
-            dwell_seconds: dwellSeconds,
-          },
-        });
+        {
+          const sectionDwellCap = lpId === '0' ? 600 : 300;
+          const cappedSectionDwell = Math.min(dwellSeconds, sectionDwellCap);
+          await prisma.lpSectionDwell.create({
+            data: {
+              lp_id: lpId,
+              campaign_code: campaignCode || null,
+              session_id: sessionId,
+              section_id: sectionId,
+              section_name: typeof sectionName === 'string' ? sectionName.slice(0, 200) : null,
+              dwell_seconds: cappedSectionDwell,
+            },
+          });
+        }
         break;
 
       case 'engagement_summary':
-        // engagement_summaryイベントのバリデーション
+        // engagement_summaryイベントのバリデーション + 防衛的キャップ
         const validMaxScrollDepth = isValidNumber(maxScrollDepth, 0, 100) ? maxScrollDepth : 0;
-        const validTotalDwellTime = isValidNumber(totalDwellTime, 0, 86400) ? totalDwellTime : 0;
+        const engagementDwellCap = lpId === '0' ? 600 : 300;
+        const validTotalDwellTime = isValidNumber(totalDwellTime, 0, 86400) ? Math.min(totalDwellTime, engagementDwellCap) : 0;
         const validEngagementLevel = isValidNumber(engagementLevel, 0, 5) ? engagementLevel : 0;
         const validCtaClicked = isValidBoolean(ctaClicked) ? ctaClicked : false;
 
@@ -334,9 +344,15 @@ export async function GET(request: NextRequest) {
         dailyMap.set(key, { date, lpId: pv.lp_id, campaignCode: pv.campaign_code, count: 1 });
       }
     });
-    const dailyPageViews = Array.from(dailyMap.values())
-      .sort((a, b) => b.date.localeCompare(a.date))
+    // 日付でユニーク化し、最新100日分の日付を取得してからフィルタ
+    const allDailyEntries = Array.from(dailyMap.values());
+    const uniqueDates = Array.from(new Set(allDailyEntries.map(e => e.date)))
+      .sort((a, b) => b.localeCompare(a))
       .slice(0, 100);
+    const allowedDates = new Set(uniqueDates);
+    const dailyPageViews = allDailyEntries
+      .filter(e => allowedDates.has(e.date))
+      .sort((a, b) => b.date.localeCompare(a.date));
 
     // LP経由登録数の集計（登録日時でフィルター、JST基準）
     const registrationDateFilter: { created_at?: { gte?: Date; lte?: Date } } = {};
@@ -355,6 +371,96 @@ export async function GET(request: NextRequest) {
         ...(lpId && { registration_lp_id: lpId }),
         ...registrationDateFilter,
       },
+    });
+
+    // ========== 新指標: 親求人PV/セッション（LP帰属） ==========
+    // 先にLP帰属ユーザーを取得し、そのIDでjobDetailPageViewをフィルタ（メモリ最適化）
+    const lpRegisteredUsers = await prisma.user.findMany({
+      where: {
+        registration_lp_id: { not: null },
+        ...(lpId && { registration_lp_id: lpId }),
+      },
+      select: { id: true, registration_lp_id: true, registration_campaign_code: true, created_at: true },
+    });
+    const userLpMap = new Map(lpRegisteredUsers.map(u => [u.id, {
+      lpId: u.registration_lp_id,
+      campaignCode: u.registration_campaign_code,
+    }]));
+    const lpUserIds = lpRegisteredUsers.map(u => u.id);
+
+    const jobDetailViewsRaw = lpUserIds.length > 0
+      ? await prisma.jobDetailPageView.findMany({
+          where: {
+            ...dateFilter,
+            user_id: { in: lpUserIds },
+          },
+          select: { user_id: true },
+        })
+      : [];
+
+    const parentJobPvMap = new Map<string, { pv: number; users: Set<number> }>();
+    jobDetailViewsRaw.forEach(v => {
+      const userLp = userLpMap.get(v.user_id);
+      if (!userLp?.lpId) return;
+      const key = `${userLp.lpId}|${userLp.campaignCode || ''}`;
+      if (!parentJobPvMap.has(key)) {
+        parentJobPvMap.set(key, { pv: 0, users: new Set() });
+      }
+      const entry = parentJobPvMap.get(key)!;
+      entry.pv++;
+      entry.users.add(v.user_id);
+    });
+
+    const parentJobStats = Array.from(parentJobPvMap.entries()).map(([key, data]) => {
+      const [lpIdVal, campaignCodeVal] = key.split('|');
+      return { lpId: lpIdVal, campaignCode: campaignCodeVal || null, pv: data.pv, sessions: data.users.size };
+    });
+
+    // ========== 新指標: 応募数（LP帰属） ==========
+    const appDateFilter: { created_at?: { gte?: Date; lte?: Date } } = {};
+    if (startDate) {
+      appDateFilter.created_at = { gte: new Date(`${startDate}T00:00:00+09:00`) };
+    }
+    if (endDate) {
+      appDateFilter.created_at = { ...appDateFilter.created_at, lte: new Date(`${endDate}T23:59:59.999+09:00`) };
+    }
+
+    // LP帰属ユーザーの応募だけ取得（全応募を取得しない → メモリ最適化）
+    const applicationsRaw = lpUserIds.length > 0
+      ? await prisma.application.findMany({
+          where: {
+            ...appDateFilter,
+            user_id: { in: lpUserIds },
+          },
+          select: { user_id: true, created_at: true },
+        })
+      : [];
+
+    // lpRegisteredUsersにcreated_atも含まれているのでそのまま使用
+    const appUserMap = new Map(lpRegisteredUsers.map(u => [u.id, u]));
+
+    const appCountMap = new Map<string, { total: number; users: Set<number> }>();
+    applicationsRaw.forEach(a => {
+      const user = appUserMap.get(a.user_id);
+      if (!user?.registration_lp_id) return;
+      const key = `${user.registration_lp_id}|${user.registration_campaign_code || ''}`;
+      if (!appCountMap.has(key)) appCountMap.set(key, { total: 0, users: new Set() });
+      const entry = appCountMap.get(key)!;
+      entry.total++;
+      entry.users.add(a.user_id);
+    });
+
+    const applicationsByLpResult = Array.from(appCountMap.entries()).map(([key, data]) => {
+      const [lpIdVal, campaignCodeVal] = key.split('|');
+      return { lpId: lpIdVal, campaignCode: campaignCodeVal || null, count: data.total, userCount: data.users.size };
+    });
+
+    // ========== 新指標: 平均応募日数（LP帰属） ==========
+    // ワーカー1人あたりの平均応募日数 = 応募数 / ユニーク応募ワーカー数
+    const daysToApplicationByLpResult = Array.from(appCountMap.entries()).map(([key, data]) => {
+      const [lpIdVal, campaignCodeVal] = key.split('|');
+      const avg = data.users.size > 0 ? Math.round((data.total / data.users.size) * 10) / 10 : 0;
+      return { lpId: lpIdVal, campaignCode: campaignCodeVal || null, avgDays: avg };
     });
 
     // 基本レスポンス
@@ -382,6 +488,10 @@ export async function GET(request: NextRequest) {
         campaignCode: r.registration_campaign_code,
         count: r._count.id,
       })),
+      // 新指標
+      parentJobStats,
+      applicationsByLp: applicationsByLpResult,
+      daysToApplicationByLp: daysToApplicationByLpResult,
     };
 
     // エンゲージメントデータを含める場合

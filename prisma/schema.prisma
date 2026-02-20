@@ -1585,10 +1585,12 @@ model LpClickEvent {
   session_id    String   @map("session_id") // セッション識別子
   button_id     String   @map("button_id") // クリックされたボタンの識別子
   button_text   String?  @map("button_text") // ボタンのテキスト
+  job_id        Int?     @map("job_id") // クリック時に閲覧していた求人ID（公開求人詳細ページ用）
   created_at    DateTime @default(now()) @map("created_at")
 
   @@index([lp_id, campaign_code])
   @@index([button_id])
+  @@index([job_id])
   @@index([created_at])
   @@map("lp_click_events")
 }
@@ -1682,6 +1684,20 @@ model PublicJobPageView {
   @@index([session_id])
   @@index([created_at])
   @@map("public_job_page_views")
+}
+
+/// ログイン済みワーカーの求人詳細閲覧記録（LP帰属用）
+model JobDetailPageView {
+  id         Int      @id @default(autoincrement())
+  user_id    Int      @map("user_id")
+  job_id     Int      @map("job_id")
+  created_at DateTime @default(now()) @map("created_at")
+
+  @@index([user_id])
+  @@index([job_id])
+  @@index([created_at])
+  @@index([user_id, created_at])
+  @@map("job_detail_page_views")
 }
 
 /// LPキャンペーンコードのジャンル（広告媒体）

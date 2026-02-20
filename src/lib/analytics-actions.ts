@@ -77,6 +77,8 @@ export interface MatchingMetrics {
     childJobsPerFacility: number;
     matchingsPerFacility: number;
     reviewsPerFacility: number;
+    applicationDays: number;      // 応募日数（= applicationCountと同値。1応募=1勤務日）
+    avgApplicationDays: number;   // 平均応募日数（= applicationsPerWorkerと同値。ワーカー1人あたり）
     // 限定求人・オファー関連指標
     limitedJobCount: number;      // 限定求人数（LIMITED_WORKED + LIMITED_FAVORITE）
     offerJobCount: number;        // オファー求人数
@@ -451,7 +453,8 @@ export async function getFacilityAnalyticsData(filter: AnalyticsFilter): Promise
         prisma.job.findMany({
             where: {
                 ...periodWhere,
-                ...facilityTypeCondition
+                ...facilityTypeCondition,
+                status: 'PUBLISHED'
             },
             select: { id: true, created_at: true, requires_interview: true }
         }),
@@ -527,7 +530,7 @@ export async function getMatchingAnalyticsData(filter: AnalyticsFilter): Promise
     const regionWhere = await getRegionWhere(filter.regionId);
 
     // フィルター条件構築
-    const jobWhere: any = { ...periodWhere };
+    const jobWhere: any = { ...periodWhere, status: 'PUBLISHED' };
     const facilityWhere: any = { ...regionWhere };
 
     // 施設種類フィルター（配列対応）
@@ -798,6 +801,8 @@ export async function getMatchingAnalyticsData(filter: AnalyticsFilter): Promise
             applicationCount,
             matchingCount,
             avgMatchingHours: Math.round(avgMatchingHours * 10) / 10,
+            applicationDays: applicationCount,
+            avgApplicationDays: Math.round(applicationsPerWorker * 10) / 10,
             applicationsPerWorker: Math.round(applicationsPerWorker * 100) / 100,
             matchingsPerWorker: Math.round(matchingsPerWorker * 100) / 100,
             reviewsPerWorker: Math.round(reviewsPerWorker * 100) / 100,
