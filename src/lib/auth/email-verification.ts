@@ -128,6 +128,7 @@ export async function verifyEmailToken(
       where: { id: user.id },
       data: {
         email_verified: true,
+        email_verified_at: new Date(),
         verification_token: null,
         verification_token_expires: null,
         auto_login_token: autoLoginToken,
