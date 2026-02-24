@@ -58,6 +58,7 @@ export default function LegalEditPage() {
     const [historyTargetType, setHistoryTargetType] = useState<TargetType | null>(null);
     const [historyDocType, setHistoryDocType] = useState<DocType | null>(null);
     const editorRef = useRef<HTMLDivElement>(null);
+    const editorContentRef = useRef<string>('');
 
     const getDocTitle = (targetType: TargetType, docType: DocType) => {
         const prefix = targetType === 'WORKER' ? '【ワーカー向け】' : '【施設向け】';
@@ -109,8 +110,16 @@ export default function LegalEditPage() {
     const handleEdit = (targetType: TargetType, docType: DocType) => {
         setSelectedTargetType(targetType);
         setSelectedDocType(docType);
-        setEditContent(allDocs[targetType][docType]?.content || '');
+        const content = allDocs[targetType][docType]?.content || '';
+        setEditContent(content);
+        editorContentRef.current = content;
         setEditModalOpen(true);
+        // モーダルが開いた後にエディタの内容を設定
+        setTimeout(() => {
+            if (editorRef.current) {
+                editorRef.current.innerHTML = content;
+            }
+        }, 0);
     };
 
     const handlePreview = (content: string, title: string) => {
@@ -147,10 +156,11 @@ export default function LegalEditPage() {
         if (!selectedDocType || !selectedTargetType) return;
         setSaving(true);
         try {
+            const content = editorContentRef.current;
             await createLegalDocument({
                 docType: selectedDocType,
                 targetType: selectedTargetType,
-                content: editContent,
+                content,
                 createdBy: 1, // システム管理者ID（実際の認証から取得すべき）
             });
             await loadData();
@@ -410,15 +420,17 @@ export default function LegalEditPage() {
                             <div
                                 ref={editorRef}
                                 contentEditable
+                                suppressContentEditableWarning
                                 className="min-h-[400px] p-4 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 prose prose-sm max-w-none"
-                                dangerouslySetInnerHTML={{ __html: editContent }}
-                                onInput={(e) => setEditContent(e.currentTarget.innerHTML)}
+                                onInput={(e) => {
+                                    editorContentRef.current = e.currentTarget.innerHTML;
+                                }}
                             />
                         </div>
 
                         <div className="flex justify-end gap-3 p-4 border-t border-slate-200">
                             <button
-                                onClick={() => handlePreview(editContent, getDocTitle(selectedTargetType, selectedDocType))}
+                                onClick={() => handlePreview(editorContentRef.current, getDocTitle(selectedTargetType, selectedDocType))}
                                 className="px-4 py-2 border border-slate-300 text-slate-600 rounded-lg hover:bg-slate-50"
                             >
                                 <Eye className="w-4 h-4 inline mr-2" />
