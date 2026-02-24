@@ -437,8 +437,11 @@ export async function getJobs(
                 );
             });
 
+            // 締切チェック
+            const isDeadlinePassed = wd.deadline < now;
+
             // 応募可否（いずれかに該当したら応募不可）
-            const canApply = !isApplied && !isFull && !hasTimeConflict && !wd.is_recruitment_closed;
+            const canApply = !isApplied && !isFull && !hasTimeConflict && !isDeadlinePassed && !wd.is_recruitment_closed;
 
             return {
                 ...wd,
@@ -451,6 +454,7 @@ export async function getJobs(
                 isApplied,
                 isFull,
                 hasTimeConflict,
+                isDeadlinePassed,
                 canApply,
                 isRecruitmentClosed: wd.is_recruitment_closed,
             };
@@ -1161,7 +1165,8 @@ export async function getJobsListWithPagination(
                     scheduled.endTime
                 );
             });
-            const canApply = !isApplied && !isFull && !hasTimeConflict && !wd.is_recruitment_closed;
+            const isDeadlinePassed = wd.deadline < now;
+            const canApply = !isApplied && !isFull && !hasTimeConflict && !isDeadlinePassed && !wd.is_recruitment_closed;
 
             return {
                 ...wd,
@@ -1173,6 +1178,7 @@ export async function getJobsListWithPagination(
                 isApplied,
                 isFull,
                 hasTimeConflict,
+                isDeadlinePassed,
                 canApply,
                 isRecruitmentClosed: wd.is_recruitment_closed,
             };
