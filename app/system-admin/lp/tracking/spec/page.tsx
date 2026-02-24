@@ -230,7 +230,7 @@ export default function TrackingSpecPage() {
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-6">
           <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
             <Users className="w-5 h-5 text-teal-600" />
-            登録後ファネル指標（LP帰属）
+            登録後動線指標（LP帰属）
           </h2>
           <p className="text-slate-700 mb-4">
             LP経由で登録したワーカーが、プラットフォーム内でどの程度アクティブに行動しているかを計測する指標です。
@@ -632,9 +632,9 @@ export default function TrackingSpecPage() {
             </div>
 
             <div className="border-b border-slate-200 pb-4">
-              <h3 className="font-medium text-slate-900 mb-2">登録後ファネル指標（LP0帰属）</h3>
+              <h3 className="font-medium text-slate-900 mb-2">登録後動線指標（LP0帰属）</h3>
               <p className="text-sm text-slate-700 mb-2">
-                LP0（公開求人検索）でも、登録後ファネル指標（親求人PV、親求人セッション、応募数、応募率、平均応募日数）を
+                LP0（公開求人検索）でも、登録後動線指標（親求人PV、親求人セッション、応募数、応募率、平均応募日数）を
                 キャンペーンコード別に集計しています。
                 <code className="bg-slate-100 px-1 rounded">User.registration_lp_id = &apos;0&apos;</code> のユーザーが対象です。
               </p>

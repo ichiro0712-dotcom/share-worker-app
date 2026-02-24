@@ -18,7 +18,7 @@ const TABS = [
     { id: 'matching', label: '応募・マッチング' },
     { id: 'jobs', label: '求人' },
     { id: 'lp', label: 'LP', icon: BarChart3 },
-    { id: 'funnel', label: 'ファネル', icon: Filter },
+    { id: 'funnel', label: '登録動線', icon: Filter },
     { id: 'definitions', label: '定義一覧', icon: Book },
 ] as const;
 

@@ -13,14 +13,12 @@ function toJSTMonthStr(date: Date): string {
   return `${jst.getFullYear()}-${String(jst.getMonth() + 1).padStart(2, '0')}`;
 }
 
-type SourceFilter = 'all' | 'direct' | string; // 'all', 'direct', or lp_id like '0', '1', '2'
-
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
-    const source: SourceFilter = searchParams.get('source') || 'all';
+    const source = searchParams.get('source') || 'all'; // 'all' | カンマ区切り（例: 'direct,0,1'）
     const breakdown = searchParams.get('breakdown'); // 'daily' | 'monthly' | null
 
     // 日付フィルター（JST基準）- ユーザー登録日で絞り込み
@@ -35,18 +33,31 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    // ソースフィルター
+    // ソースフィルター（複数選択対応）
     const sourceFilter: Record<string, unknown> = {};
-    if (source === 'direct') {
-      sourceFilter.registration_lp_id = null;
-    } else if (source !== 'all') {
-      sourceFilter.registration_lp_id = source;
+    if (source !== 'all') {
+      const sources = source.split(',').map(s => s.trim());
+      const hasDirect = sources.includes('direct');
+      const lpIds = sources.filter(s => s !== 'direct');
+
+      if (hasDirect && lpIds.length > 0) {
+        // direct + LP指定 → OR条件
+        sourceFilter.OR = [
+          { registration_lp_id: null },
+          { registration_lp_id: { in: lpIds } },
+        ];
+      } else if (hasDirect) {
+        sourceFilter.registration_lp_id = null;
+      } else if (lpIds.length === 1) {
+        sourceFilter.registration_lp_id = lpIds[0];
+      } else if (lpIds.length > 1) {
+        sourceFilter.registration_lp_id = { in: lpIds };
+      }
     }
 
     // ========== Step 1: 登録ユーザー取得 ==========
     const registeredUsers = await prisma.user.findMany({
       where: {
-        deleted_at: null,
         ...registrationDateFilter,
         ...sourceFilter,
       },
@@ -159,6 +170,27 @@ export async function GET(request: NextRequest) {
         }
         return periodMap.get(key)!;
       };
+
+      // 期間内の全日付/全月を事前にマップに追加（データ0の日も表示するため）
+      if (startDate && endDate) {
+        const start = new Date(`${startDate}T00:00:00+09:00`);
+        const end = new Date(`${endDate}T23:59:59.999+09:00`);
+        if (breakdown === 'daily') {
+          const cursor = new Date(start);
+          while (cursor <= end) {
+            ensurePeriod(toJSTDateStr(cursor));
+            cursor.setDate(cursor.getDate() + 1);
+          }
+        } else {
+          // monthly: 各月の1日を生成
+          const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+          const endMonth = new Date(end.getFullYear(), end.getMonth(), 1);
+          while (cursor <= endMonth) {
+            ensurePeriod(toJSTMonthStr(cursor));
+            cursor.setMonth(cursor.getMonth() + 1);
+          }
+        }
+      }
 
       // 登録日ベースでブレイクダウン
       registeredUsers.forEach(u => {
@@ -291,9 +323,18 @@ export async function GET(request: NextRequest) {
         }
       });
 
-      // LP名のラベル
+      // LP名をLandingPageテーブルから取得
+      const allLpKeys = Array.from(sourceMap.keys()).filter(k => k !== 'direct');
+      const lpNumbers = allLpKeys.map(Number).filter(n => !isNaN(n));
+      const landingPages = lpNumbers.length > 0
+        ? await prisma.landingPage.findMany({
+            where: { lp_number: { in: lpNumbers } },
+            select: { lp_number: true, name: true },
+          })
+        : [];
+      const lpNameMap = new Map(landingPages.map(lp => [String(lp.lp_number), lp.name]));
+
       const sourceLabels: Record<string, string> = {
-        '0': '公開求人検索',
         'direct': '直接流入',
       };
 
@@ -303,7 +344,7 @@ export async function GET(request: NextRequest) {
           const app = d.applied.size;
           return {
             source: key,
-            sourceLabel: sourceLabels[key] || `LP${key}`,
+            sourceLabel: sourceLabels[key] || lpNameMap.get(key) || `LP${key}`,
             registered: reg,
             verified: d.verified.size,
             searchReached: d.searchReached.size,
@@ -315,6 +356,17 @@ export async function GET(request: NextRequest) {
         })
         .sort((a, b) => b.registered - a.registered);
     }
+
+    // ========== LP一覧（フィルターUI用、常に返す） ==========
+    const allLandingPages = await prisma.landingPage.findMany({
+      where: { is_published: true },
+      select: { lp_number: true, name: true },
+      orderBy: { lp_number: 'asc' },
+    });
+    const lpSources = allLandingPages.map(lp => ({
+      value: String(lp.lp_number),
+      label: lp.name,
+    }));
 
     // ========== レスポンス ==========
     const overallConversionRate = registeredCount > 0
@@ -334,6 +386,7 @@ export async function GET(request: NextRequest) {
       },
       overallConversionRate,
       avgRegistrationToVerifyHours,
+      lpSources,
       ...(bySource ? { bySource } : {}),
       ...(breakdownData ? { breakdown: breakdownData } : {}),
     }, {

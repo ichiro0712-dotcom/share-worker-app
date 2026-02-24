@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { ChevronRight, ChevronLeft, Search, AlertTriangle, Info } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { ChevronRight, ChevronLeft, Filter, AlertTriangle, Info, Check } from 'lucide-react';
 
 // 日付ユーティリティ
 const getFirstDayOfMonth = (date: Date): Date => {
@@ -96,11 +96,9 @@ function formatMonthlyPeriod(period: string): string {
   return period;
 }
 
-// ソース選択肢
-const SOURCE_OPTIONS = [
-  { value: 'all', label: '全体' },
+// 固定の流入元選択肢
+const FIXED_SOURCE_OPTIONS = [
   { value: 'direct', label: '直接流入' },
-  { value: '0', label: '公開求人検索' },
 ];
 
 export default function FunnelAnalytics() {
@@ -110,29 +108,13 @@ export default function FunnelAnalytics() {
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
   const [customBreakdown, setCustomBreakdown] = useState<'daily' | 'monthly'>('daily');
-  const [source, setSource] = useState('all');
+  const [selectedSources, setSelectedSources] = useState<string[]>([]); // 空=全選択
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [lpOptions, setLpOptions] = useState<Array<{ value: string; label: string }>>([]);
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [showDataNotes, setShowDataNotes] = useState(false);
-
-  // LP一覧を取得してソース選択肢に追加
-  useEffect(() => {
-    fetch('/api/lp-tracking?startDate=2020-01-01&endDate=2030-12-31')
-      .then(res => res.json())
-      .then(json => {
-        if (json.registrations) {
-          const lpIds = new Set<string>();
-          json.registrations.forEach((r: { lpId: string }) => {
-            if (r.lpId && r.lpId !== '0') lpIds.add(r.lpId);
-          });
-          setLpOptions(
-            Array.from(lpIds).sort().map(id => ({ value: id, label: `LP${id}` }))
-          );
-        }
-      })
-      .catch(() => {});
-  }, []);
+  const filterRef = useRef<HTMLDivElement>(null);
 
   const getDateRange = useCallback((): { startDate: string; endDate: string; breakdown: 'daily' | 'monthly' } => {
     switch (periodMode) {
@@ -159,16 +141,21 @@ export default function FunnelAnalytics() {
         setLoading(false);
         return;
       }
-      const params = new URLSearchParams({ startDate, endDate, breakdown, source });
+      const sourceParam = selectedSources.length === 0 ? 'all' : selectedSources.join(',');
+      const params = new URLSearchParams({ startDate, endDate, breakdown, source: sourceParam });
       const res = await fetch(`/api/funnel-analytics?${params}`);
       const json = await res.json();
       setData(json);
+      // LP一覧をレスポンスから取得
+      if (json.lpSources && json.lpSources.length > 0) {
+        setLpOptions(json.lpSources);
+      }
     } catch (error) {
       console.error('Failed to fetch funnel data:', error);
     } finally {
       setLoading(false);
     }
-  }, [getDateRange, source]);
+  }, [getDateRange, selectedSources]);
 
   useEffect(() => {
     fetchData();
@@ -186,7 +173,7 @@ export default function FunnelAnalytics() {
     setCurrentYear(next);
   };
 
-  // ファネルバーの幅を計算
+  // 登録動線バーの幅を計算
   const getBarWidth = (value: number, max: number): number => {
     if (max === 0) return 0;
     return Math.max(4, (value / max) * 100);
@@ -305,22 +292,94 @@ export default function FunnelAnalytics() {
               )}
             </div>
 
-            {/* ソースフィルター */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-500">流入元:</span>
-              <select
-                value={source}
-                onChange={e => setSource(e.target.value)}
-                className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            {/* ソースフィルター（複数選択） */}
+            <div>
+              <button
+                onClick={() => setShowFilterDropdown(true)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                  selectedSources.length > 0
+                    ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
+                    : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                }`}
               >
-                {SOURCE_OPTIONS.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-                {lpOptions.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
+                <Filter className="w-3.5 h-3.5" />
+                絞り込み
+                {selectedSources.length > 0 && (
+                  <span className="ml-1 bg-indigo-600 text-white text-xs rounded-full px-1.5 py-0.5 leading-none">
+                    {selectedSources.length}
+                  </span>
+                )}
+              </button>
             </div>
+
+            {/* フィルターモーダル */}
+            {showFilterDropdown && (
+              <div className="fixed inset-0 z-[9999] flex items-center justify-center">
+                <div className="fixed inset-0 bg-black/30" onClick={() => setShowFilterDropdown(false)} />
+                <div ref={filterRef} className="relative bg-white rounded-xl shadow-2xl w-80 max-h-[70vh] flex flex-col">
+                  <div className="px-5 py-4 border-b border-slate-200">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-semibold text-slate-800">流入元で絞り込み</h3>
+                      <button
+                        onClick={() => setShowFilterDropdown(false)}
+                        className="text-slate-400 hover:text-slate-600 text-lg leading-none"
+                      >
+                        &times;
+                      </button>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-1">未選択の場合は全体が表示されます</p>
+                  </div>
+                  <div className="flex-1 overflow-y-auto py-2">
+                    {[...FIXED_SOURCE_OPTIONS, ...lpOptions].map(opt => {
+                      const isSelected = selectedSources.includes(opt.value);
+                      return (
+                        <label
+                          key={opt.value}
+                          className="flex items-center gap-3 px-5 py-2.5 hover:bg-slate-50 cursor-pointer"
+                          onClick={() => {
+                            setSelectedSources(prev =>
+                              isSelected
+                                ? prev.filter(s => s !== opt.value)
+                                : [...prev, opt.value]
+                            );
+                          }}
+                        >
+                          <div className={`w-4.5 h-4.5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                            isSelected
+                              ? 'bg-indigo-600 border-indigo-600'
+                              : 'border-slate-300'
+                          }`}>
+                            {isSelected && <Check className="w-3 h-3 text-white" />}
+                          </div>
+                          <span className="text-sm text-slate-700">{opt.label}</span>
+                        </label>
+                      );
+                    })}
+                    {lpOptions.length === 0 && (
+                      <div className="px-5 py-3 text-xs text-slate-400">LP情報を読み込み中...</div>
+                    )}
+                  </div>
+                  <div className="px-5 py-3 border-t border-slate-200 flex items-center justify-between">
+                    {selectedSources.length > 0 ? (
+                      <button
+                        onClick={() => setSelectedSources([])}
+                        className="text-xs text-slate-500 hover:text-slate-700"
+                      >
+                        全解除
+                      </button>
+                    ) : (
+                      <span className="text-xs text-slate-400">{[...FIXED_SOURCE_OPTIONS, ...lpOptions].length}件の流入元</span>
+                    )}
+                    <button
+                      onClick={() => setShowFilterDropdown(false)}
+                      className="px-4 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors"
+                    >
+                      閉じる
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -335,11 +394,11 @@ export default function FunnelAnalytics() {
 
       {!loading && data && (
         <>
-          {/* ==================== ファネル概要 ==================== */}
+          {/* ==================== 登録動線概要 ==================== */}
           <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
             <div className="px-6 py-4 border-b border-slate-200">
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-slate-900">ファネル概要</h2>
+                <h2 className="text-lg font-semibold text-slate-900">登録動線概要</h2>
                 {data.avgRegistrationToVerifyHours !== null && (
                   <span className="text-xs text-slate-500">
                     登録→認証 平均: <strong>{data.avgRegistrationToVerifyHours}時間</strong>
@@ -349,7 +408,7 @@ export default function FunnelAnalytics() {
             </div>
 
             <div className="p-6">
-              {/* ファネルバー */}
+              {/* 登録動線バー */}
               <div className="space-y-3 mb-6">
                 {FUNNEL_STEPS.map((step, i) => {
                   const value = data.funnel[step.key as keyof FunnelData] as number;
