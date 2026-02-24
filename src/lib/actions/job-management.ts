@@ -448,7 +448,7 @@ export async function createJobs(input: CreateJobInput) {
             wage: wage,
             hourly_wage: input.hourlyWage,
             transportation_fee: input.transportationFee,
-            deadline_days_before: input.recruitmentEndDay || 1,
+            deadline_days_before: input.recruitmentEndDay ?? -2,
             recruitment_start_day: input.recruitmentStartDay,
             recruitment_start_time: input.recruitmentStartTime || null,
             tags: input.icons,
@@ -500,7 +500,10 @@ export async function createJobs(input: CreateJobInput) {
             }
         } else {
             const deadlineBase = new Date(workDate);
-            deadlineBase.setDate(deadlineBase.getDate() - (input.recruitmentEndDay || 1));
+            // 負数の選択値をdays_beforeに変換: -1→0日前(当日), -2→1日前, -3→2日前
+            const endDay = input.recruitmentEndDay ?? -2; // デフォルト: 1日前
+            const daysBefore = -(endDay + 1);
+            deadlineBase.setDate(deadlineBase.getDate() - daysBefore);
             deadline = setJSTHours(deadlineBase, 23, 59, 59);
         }
 
@@ -997,6 +1000,7 @@ export async function updateJob(
                 ...(data.weeklyFrequency !== undefined && { weekly_frequency: data.weeklyFrequency }),
                 ...(data.recruitmentStartDay !== undefined && { recruitment_start_day: data.recruitmentStartDay }),
                 ...(data.recruitmentStartTime !== undefined && { recruitment_start_time: data.recruitmentStartTime || null }),
+                ...(data.recruitmentEndDay !== undefined && { deadline_days_before: data.recruitmentEndDay }),
                 ...((data.prefecture && data.city && data.addressLine) && {
                     address: `${data.prefecture}${data.city}${data.addressLine}`
                 }),
@@ -1013,10 +1017,24 @@ export async function updateJob(
             const newWorkDates = data.addWorkDates.map(dateStr => {
                 const workDate = new Date(dateStr);
 
-                // 締切日時を計算（JST）：前日の23:59:59
-                const deadlineBase = new Date(workDate);
-                deadlineBase.setDate(deadlineBase.getDate() - 1);
-                const deadline = setJSTHours(deadlineBase, 23, 59, 59);
+                // 締切日時を計算（JST）
+                let deadline: Date;
+                // レガシーデータ（正の値: 1=1日前）を新仕様（負の値: -2=1日前）に変換
+                const rawEndDay = data.recruitmentEndDay ?? existingJob.deadline_days_before ?? -2;
+                const endDay = rawEndDay > 0 ? -(rawEndDay + 1) : rawEndDay;
+                if (endDay === 0) {
+                    if (data.recruitmentEndTime) {
+                        const [h, m] = data.recruitmentEndTime.split(':').map(Number);
+                        deadline = setJSTHours(new Date(workDate), h, m);
+                    } else {
+                        deadline = setJSTHours(new Date(workDate), 5);
+                    }
+                } else {
+                    const deadlineBase = new Date(workDate);
+                    const daysBefore = -(endDay + 1);
+                    deadlineBase.setDate(deadlineBase.getDate() - daysBefore);
+                    deadline = setJSTHours(deadlineBase, 23, 59, 59);
+                }
 
                 // 表示終了日時を計算（JST）：勤務開始時刻の2時間前
                 const [startHour, startMin] = data.startTime.split(':').map(Number);
@@ -1060,16 +1078,17 @@ export async function updateJob(
             });
         }
 
-        // 開始時刻または募集開始日時が変更された場合、既存の勤務日を更新
+        // 開始時刻、募集開始日時、または募集終了日が変更された場合、既存の勤務日を更新
         const shouldUpdateVisibility =
             existingJob.start_time !== data.startTime ||
-            data.recruitmentStartDay !== undefined;
+            data.recruitmentStartDay !== undefined ||
+            data.recruitmentEndDay !== undefined;
 
         if (shouldUpdateVisibility) {
             const workDatesToUpdate = existingJob.workDates;
 
             await Promise.all(workDatesToUpdate.map(async (wd) => {
-                const updateData: { visible_until?: Date; visible_from?: Date | null } = {};
+                const updateData: { visible_until?: Date; visible_from?: Date | null; deadline?: Date } = {};
 
                 // 開始時刻変更時はvisible_untilを再計算（JST）
                 if (existingJob.start_time !== data.startTime) {
@@ -1096,6 +1115,25 @@ export async function updateJob(
                         } else {
                             updateData.visible_from = setJSTHours(baseDate, 0);
                         }
+                    }
+                }
+
+                // 募集終了日が変更された場合はdeadlineを再計算
+                if (data.recruitmentEndDay !== undefined) {
+                    const endDay = data.recruitmentEndDay;
+                    if (endDay === 0) {
+                        // 勤務開始時
+                        if (data.recruitmentEndTime) {
+                            const [h, m] = data.recruitmentEndTime.split(':').map(Number);
+                            updateData.deadline = setJSTHours(new Date(wd.work_date), h, m);
+                        } else {
+                            updateData.deadline = setJSTHours(new Date(wd.work_date), 5);
+                        }
+                    } else {
+                        const deadlineBase = new Date(wd.work_date);
+                        const daysBefore = -(endDay + 1);
+                        deadlineBase.setDate(deadlineBase.getDate() - daysBefore);
+                        updateData.deadline = setJSTHours(deadlineBase, 23, 59, 59);
                     }
                 }
 
