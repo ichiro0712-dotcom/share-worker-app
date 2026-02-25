@@ -9,8 +9,9 @@ import JobAnalytics from './tabs/JobAnalytics';
 import LpTracking from './tabs/LpTracking';
 import FunnelAnalytics from './tabs/FunnelAnalytics';
 import MetricDefinitions from './tabs/MetricDefinitions';
+import GA4Analytics from './tabs/GA4Analytics';
 import Link from 'next/link';
-import { Book, BarChart3, Filter } from 'lucide-react';
+import { Table, BarChart3, Filter, LineChart, ExternalLink } from 'lucide-react';
 
 const TABS = [
     { id: 'worker', label: 'ワーカー分析' },
@@ -19,7 +20,8 @@ const TABS = [
     { id: 'jobs', label: '求人' },
     { id: 'lp', label: 'LP', icon: BarChart3 },
     { id: 'funnel', label: '登録動線', icon: Filter },
-    { id: 'definitions', label: '定義一覧', icon: Book },
+    { id: 'ga4', label: 'GA4', icon: LineChart },
+    { id: 'definitions', label: '全指標一覧', icon: Table },
 ] as const;
 
 // 後方互換: 旧タブIDを新IDにマッピング
@@ -55,6 +57,15 @@ export default function AnalyticsPage() {
                     <p className="text-slate-500">プラットフォームの利用状況を分析します</p>
                 </div>
                 <div className="flex gap-3">
+                    <a
+                        href="https://analytics.google.com/analytics/web/#/p522574288/reports/intelligenthome"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition text-sm flex items-center gap-1.5"
+                    >
+                        GA4
+                        <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
                     <Link
                         href="/system-admin/analytics/regions"
                         className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition text-sm"
@@ -104,6 +115,7 @@ export default function AnalyticsPage() {
                 {activeTab === 'jobs' && <JobAnalytics />}
                 {activeTab === 'lp' && <LpTracking />}
                 {activeTab === 'funnel' && <FunnelAnalytics />}
+                {activeTab === 'ga4' && <GA4Analytics />}
                 {activeTab === 'definitions' && <MetricDefinitions />}
             </div>
         </div>

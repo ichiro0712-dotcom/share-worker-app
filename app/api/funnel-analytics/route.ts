@@ -23,25 +23,27 @@ export async function GET(request: NextRequest) {
 
     // 日付フィルター（JST基準）- ユーザー登録日で絞り込み
     const registrationDateFilter: { created_at?: { gte?: Date; lte?: Date } } = {};
-    if (startDate) {
-      registrationDateFilter.created_at = { gte: new Date(`${startDate}T00:00:00+09:00`) };
+    const startDateObj = startDate ? new Date(`${startDate}T00:00:00+09:00`) : undefined;
+    const endDateObj = endDate ? new Date(`${endDate}T23:59:59.999+09:00`) : undefined;
+    if (startDateObj) {
+      registrationDateFilter.created_at = { gte: startDateObj };
     }
-    if (endDate) {
+    if (endDateObj) {
       registrationDateFilter.created_at = {
         ...registrationDateFilter.created_at,
-        lte: new Date(`${endDate}T23:59:59.999+09:00`),
+        lte: endDateObj,
       };
     }
 
     // ソースフィルター（複数選択対応）
     const sourceFilter: Record<string, unknown> = {};
-    if (source !== 'all') {
+    const hasSourceFilter = source !== 'all';
+    if (hasSourceFilter) {
       const sources = source.split(',').map(s => s.trim());
       const hasDirect = sources.includes('direct');
       const lpIds = sources.filter(s => s !== 'direct');
 
       if (hasDirect && lpIds.length > 0) {
-        // direct + LP指定 → OR条件
         sourceFilter.OR = [
           { registration_lp_id: null },
           { registration_lp_id: { in: lpIds } },
@@ -54,6 +56,19 @@ export async function GET(request: NextRequest) {
         sourceFilter.registration_lp_id = { in: lpIds };
       }
     }
+
+    // ========== Step 0: 新規登録ページPV/UU（session_idベース、ソースフィルター不可） ==========
+    // 未ログインユーザーのため、ソースフィルターとは独立。日付フィルターのみ適用。
+    const dateFilter: { created_at?: { gte?: Date; lte?: Date } } = {};
+    if (startDateObj) dateFilter.created_at = { gte: startDateObj };
+    if (endDateObj) dateFilter.created_at = { ...dateFilter.created_at, lte: endDateObj };
+
+    const registrationPageViews = await prisma.registrationPageView.findMany({
+      where: dateFilter,
+      select: { session_id: true, created_at: true },
+    });
+    const registrationPagePV = registrationPageViews.length;
+    const registrationPageUU = new Set(registrationPageViews.map(v => v.session_id)).size;
 
     // ========== Step 1: 登録ユーザー取得 ==========
     const registeredUsers = await prisma.user.findMany({
@@ -86,6 +101,7 @@ export async function GET(request: NextRequest) {
       : [];
     const searchReachedUserIds = new Set(jobSearchViews.map(v => v.user_id));
     const searchReachedCount = searchReachedUserIds.size;
+    const searchPV = jobSearchViews.length;
 
     // ========== Step 4: 求人詳細閲覧 ==========
     const jobDetailViews = userIds.length > 0
@@ -99,16 +115,33 @@ export async function GET(request: NextRequest) {
     const jobViewedPV = jobDetailViews.length;
 
     // ========== Step 5: お気に入り登録 ==========
+    // type: FAVORITE かつ target_job_id が存在するもののみ
+    // （施設お気に入り = target_facility_id のレコードを除外）
     const bookmarks = userIds.length > 0
       ? await prisma.bookmark.findMany({
-          where: { user_id: { in: userIds } },
+          where: {
+            user_id: { in: userIds },
+            type: 'FAVORITE',
+            target_job_id: { not: null },
+          },
           select: { user_id: true, created_at: true },
         })
       : [];
     const bookmarkedUserIds = new Set(bookmarks.filter(b => b.user_id !== null).map(b => b.user_id!));
     const bookmarkedCount = bookmarkedUserIds.size;
 
+    // ========== Step 5.5: 応募ボタンクリック ==========
+    const applicationClicks = userIds.length > 0
+      ? await prisma.applicationClickEvent.findMany({
+          where: { user_id: { in: userIds } },
+          select: { user_id: true, created_at: true },
+        })
+      : [];
+    const applicationClickUserIds = new Set(applicationClicks.map(c => c.user_id));
+    const applicationClickUU = applicationClickUserIds.size;
+
     // ========== Step 6: 応募完了 ==========
+    // キャンセル済み（CANCELLED）も含む — 「応募した」という行動自体を記録するため
     const applications = userIds.length > 0
       ? await prisma.application.findMany({
           where: { user_id: { in: userIds } },
@@ -120,7 +153,6 @@ export async function GET(request: NextRequest) {
     const applicationTotal = applications.length;
 
     // ========== 所要時間の計算 ==========
-    // 登録→認証の平均時間（時間単位）
     let avgRegistrationToVerifyHours: number | null = null;
     const verifyDeltas: number[] = [];
     verifiedUsers.forEach(u => {
@@ -135,13 +167,21 @@ export async function GET(request: NextRequest) {
     }
 
     // ========== ブレイクダウン ==========
+    // 注意: 登録日は「登録した日」ベース、それ以外は「行動した日」ベースでブレイクダウン。
+    // そのため、2月に登録→3月にお気に入り の場合、3月行に「お気に入り」は入るが「登録」は入らない。
+    // 各行で「お気に入り > 登録」のような逆転が起きうるが、これは仕様（コホート分析ではなく行動日ベース）。
     let breakdownData: Array<{
       period: string;
+      registrationPagePV: number;
+      registrationPageUU: number;
       registered: number;
       verified: number;
+      searchPV: number;
       searchReached: number;
+      jobViewedPV: number;
       jobViewed: number;
       bookmarked: number;
+      applicationClickUU: number;
       applied: number;
     }> | null = null;
 
@@ -149,29 +189,39 @@ export async function GET(request: NextRequest) {
       const keyFn = breakdown === 'daily' ? toJSTDateStr : toJSTMonthStr;
 
       const periodMap = new Map<string, {
+        regPageSessions: Set<string>;
+        regPageCount: number;
         registered: Set<number>;
         verified: Set<number>;
+        searchPVCount: number;
         searchReached: Set<number>;
+        jobViewedPVCount: number;
         jobViewed: Set<number>;
         bookmarked: Set<number>;
+        applicationClick: Set<number>;
         applied: Set<number>;
       }>();
 
       const ensurePeriod = (key: string) => {
         if (!periodMap.has(key)) {
           periodMap.set(key, {
+            regPageSessions: new Set(),
+            regPageCount: 0,
             registered: new Set(),
             verified: new Set(),
+            searchPVCount: 0,
             searchReached: new Set(),
+            jobViewedPVCount: 0,
             jobViewed: new Set(),
             bookmarked: new Set(),
+            applicationClick: new Set(),
             applied: new Set(),
           });
         }
         return periodMap.get(key)!;
       };
 
-      // 期間内の全日付/全月を事前にマップに追加（データ0の日も表示するため）
+      // 期間内の全日付/全月を事前にマップに追加
       if (startDate && endDate) {
         const start = new Date(`${startDate}T00:00:00+09:00`);
         const end = new Date(`${endDate}T23:59:59.999+09:00`);
@@ -182,7 +232,6 @@ export async function GET(request: NextRequest) {
             cursor.setDate(cursor.getDate() + 1);
           }
         } else {
-          // monthly: 各月の1日を生成
           const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
           const endMonth = new Date(end.getFullYear(), end.getMonth(), 1);
           while (cursor <= endMonth) {
@@ -192,29 +241,41 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // 登録日ベースでブレイクダウン
+      // 登録ページPV
+      registrationPageViews.forEach(v => {
+        const key = keyFn(v.created_at);
+        const p = ensurePeriod(key);
+        p.regPageCount++;
+        p.regPageSessions.add(v.session_id);
+      });
+
+      // 登録日ベース
       registeredUsers.forEach(u => {
         const key = keyFn(u.created_at);
         ensurePeriod(key).registered.add(u.id);
       });
 
-      // 認証: email_verified_at がある場合はその日付、ない場合は登録日
+      // 認証
       verifiedUsers.forEach(u => {
         const date = u.email_verified_at || u.created_at;
         const key = keyFn(date);
         ensurePeriod(key).verified.add(u.id);
       });
 
-      // 求人検索到達
+      // 求人検索
       jobSearchViews.forEach(v => {
         const key = keyFn(v.created_at);
-        ensurePeriod(key).searchReached.add(v.user_id);
+        const p = ensurePeriod(key);
+        p.searchPVCount++;
+        p.searchReached.add(v.user_id);
       });
 
       // 求人詳細閲覧
       jobDetailViews.forEach(v => {
         const key = keyFn(v.created_at);
-        ensurePeriod(key).jobViewed.add(v.user_id);
+        const p = ensurePeriod(key);
+        p.jobViewedPVCount++;
+        p.jobViewed.add(v.user_id);
       });
 
       // お気に入り
@@ -223,6 +284,12 @@ export async function GET(request: NextRequest) {
           const key = keyFn(b.created_at);
           ensurePeriod(key).bookmarked.add(b.user_id);
         }
+      });
+
+      // 応募ボタンクリック
+      applicationClicks.forEach(c => {
+        const key = keyFn(c.created_at);
+        ensurePeriod(key).applicationClick.add(c.user_id);
       });
 
       // 応募
@@ -234,11 +301,16 @@ export async function GET(request: NextRequest) {
       breakdownData = Array.from(periodMap.entries())
         .map(([period, d]) => ({
           period,
+          registrationPagePV: d.regPageCount,
+          registrationPageUU: d.regPageSessions.size,
           registered: d.registered.size,
           verified: d.verified.size,
+          searchPV: d.searchPVCount,
           searchReached: d.searchReached.size,
+          jobViewedPV: d.jobViewedPVCount,
           jobViewed: d.jobViewed.size,
           bookmarked: d.bookmarked.size,
+          applicationClickUU: d.applicationClick.size,
           applied: d.applied.size,
         }))
         .sort((a, b) => a.period.localeCompare(b.period));
@@ -250,9 +322,12 @@ export async function GET(request: NextRequest) {
       sourceLabel: string;
       registered: number;
       verified: number;
+      searchPV: number;
       searchReached: number;
+      jobViewedPV: number;
       jobViewed: number;
       bookmarked: number;
+      applicationClickUU: number;
       applied: number;
       conversionRate: number;
     }> | null = null;
@@ -261,9 +336,12 @@ export async function GET(request: NextRequest) {
       const sourceMap = new Map<string, {
         registered: Set<number>;
         verified: Set<number>;
+        searchPVCount: number;
         searchReached: Set<number>;
+        jobViewedPVCount: number;
         jobViewed: Set<number>;
         bookmarked: Set<number>;
+        applicationClick: Set<number>;
         applied: Set<number>;
       }>();
 
@@ -272,17 +350,23 @@ export async function GET(request: NextRequest) {
           sourceMap.set(key, {
             registered: new Set(),
             verified: new Set(),
+            searchPVCount: 0,
             searchReached: new Set(),
+            jobViewedPVCount: 0,
             jobViewed: new Set(),
             bookmarked: new Set(),
+            applicationClick: new Set(),
             applied: new Set(),
           });
         }
         return sourceMap.get(key)!;
       };
 
+      // ユーザーID → 流入元キーのルックアップMap（O(1)検索）
+      const userSourceMap = new Map<number, string>();
       registeredUsers.forEach(u => {
         const key = u.registration_lp_id || 'direct';
+        userSourceMap.set(u.id, key);
         ensureSource(key).registered.add(u.id);
         if (u.email_verified) {
           ensureSource(key).verified.add(u.id);
@@ -290,35 +374,42 @@ export async function GET(request: NextRequest) {
       });
 
       jobSearchViews.forEach(v => {
-        const user = registeredUsers.find(u => u.id === v.user_id);
-        if (user) {
-          const key = user.registration_lp_id || 'direct';
-          ensureSource(key).searchReached.add(v.user_id);
+        const key = userSourceMap.get(v.user_id);
+        if (key) {
+          const s = ensureSource(key);
+          s.searchPVCount++;
+          s.searchReached.add(v.user_id);
         }
       });
 
       jobDetailViews.forEach(v => {
-        const user = registeredUsers.find(u => u.id === v.user_id);
-        if (user) {
-          const key = user.registration_lp_id || 'direct';
-          ensureSource(key).jobViewed.add(v.user_id);
+        const key = userSourceMap.get(v.user_id);
+        if (key) {
+          const s = ensureSource(key);
+          s.jobViewedPVCount++;
+          s.jobViewed.add(v.user_id);
         }
       });
 
       bookmarks.forEach(b => {
         if (b.user_id !== null) {
-          const user = registeredUsers.find(u => u.id === b.user_id);
-          if (user) {
-            const key = user.registration_lp_id || 'direct';
+          const key = userSourceMap.get(b.user_id!);
+          if (key) {
             ensureSource(key).bookmarked.add(b.user_id!);
           }
         }
       });
 
+      applicationClicks.forEach(c => {
+        const key = userSourceMap.get(c.user_id);
+        if (key) {
+          ensureSource(key).applicationClick.add(c.user_id);
+        }
+      });
+
       applications.forEach(a => {
-        const user = registeredUsers.find(u => u.id === a.user_id);
-        if (user) {
-          const key = user.registration_lp_id || 'direct';
+        const key = userSourceMap.get(a.user_id);
+        if (key) {
           ensureSource(key).applied.add(a.user_id);
         }
       });
@@ -347,9 +438,12 @@ export async function GET(request: NextRequest) {
             sourceLabel: sourceLabels[key] || lpNameMap.get(key) || `LP${key}`,
             registered: reg,
             verified: d.verified.size,
+            searchPV: d.searchPVCount,
             searchReached: d.searchReached.size,
+            jobViewedPV: d.jobViewedPVCount,
             jobViewed: d.jobViewed.size,
             bookmarked: d.bookmarked.size,
+            applicationClickUU: d.applicationClick.size,
             applied: app,
             conversionRate: reg > 0 ? Math.round((app / reg) * 1000) / 10 : 0,
           };
@@ -375,17 +469,22 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       funnel: {
+        registrationPagePV,
+        registrationPageUU,
         registered: registeredCount,
         verified: verifiedCount,
+        searchPV,
         searchReached: searchReachedCount,
+        jobViewedPV,
         jobViewed: jobViewedCount,
-        jobViewedPV: jobViewedPV,
         bookmarked: bookmarkedCount,
+        applicationClickUU,
         applied: appliedCount,
-        applicationTotal: applicationTotal,
+        applicationTotal,
       },
       overallConversionRate,
       avgRegistrationToVerifyHours,
+      hasSourceFilter,
       lpSources,
       ...(bySource ? { bySource } : {}),
       ...(breakdownData ? { breakdown: breakdownData } : {}),

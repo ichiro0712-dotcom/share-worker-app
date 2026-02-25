@@ -1835,3 +1835,28 @@ model ErrorAlertRecipient {
   @@index([is_active])
   @@map("error_alert_recipients")
 }
+
+/// 新規登録ページ（/register/worker）閲覧記録（未ログインユーザー対象）
+model RegistrationPageView {
+  id         Int      @id @default(autoincrement())
+  session_id String   @map("session_id")
+  created_at DateTime @default(now()) @map("created_at")
+
+  @@index([session_id])
+  @@index([created_at])
+  @@map("registration_page_views")
+}
+
+/// 応募ボタンクリック記録（確認モーダル表示時に記録）
+model ApplicationClickEvent {
+  id         Int      @id @default(autoincrement())
+  user_id    Int      @map("user_id")
+  job_id     Int      @map("job_id")
+  created_at DateTime @default(now()) @map("created_at")
+
+  @@index([user_id])
+  @@index([job_id])
+  @@index([created_at])
+  @@index([user_id, created_at])
+  @@map("application_click_events")
+}

@@ -13,6 +13,7 @@ import { applyForJobMultipleDates, acceptOffer, addJobBookmark, removeJobBookmar
 import { useBadge } from '@/contexts/BadgeContext';
 import toast from 'react-hot-toast';
 import { useErrorToast } from '@/components/ui/PersistentErrorToast';
+import { trackGA4Event } from '@/src/lib/ga4-events';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
 // デフォルトのプレースホルダー画像（実在するサンプル画像を使用）
@@ -292,12 +293,14 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
         if (result.success) {
           setIsJobBookmarkedState(false);
           toast.success('求人ブックマークから削除しました');
+          trackGA4Event('bookmark', { action: 'remove', job_id: job.id });
         }
       } else {
         const result = await addJobBookmark(String(job.id), 'FAVORITE');
         if (result.success) {
           setIsJobBookmarkedState(true);
           toast.success('求人ブックマークに追加しました');
+          trackGA4Event('bookmark', { action: 'add', job_id: job.id });
         }
       }
     } finally {
@@ -367,6 +370,14 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
       toast.error('選択された勤務日の中に、既に応募済みのものが含まれています');
       return;
     }
+
+    // 応募ボタンクリック記録（バックグラウンド、失敗無視）
+    fetch('/api/application-click-tracking', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jobId: job.id }),
+    }).catch(() => {});
+    trackGA4Event('application_click', { job_id: job.id });
 
     // 自己PRを取得
     setSelfPRLoading(true);
@@ -442,6 +453,11 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
         : await applyForJobMultipleDates(String(job.id), selectedWorkDateIds);
 
       if (result.success) {
+        trackGA4Event('application_complete', {
+          job_id: job.id,
+          is_offer: isOffer,
+          is_matched: !!result.isMatched,
+        });
         // マッチング成立の場合は追加メッセージを表示
         if (result.isMatched) {
           toast.success('マッチングが成立しました！');

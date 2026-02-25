@@ -11,6 +11,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Pagination } from '@/components/ui/Pagination';
 import { JobListSkeleton } from '@/components/job/JobCardSkeleton';
 import { useJobsSearch, prefetchJobsForDate } from '@/hooks/useJobsSearch';
+import { trackGA4Event } from '@/src/lib/ga4-events';
 
 type ListType = 'all' | 'limited' | 'offer';
 type SortOrder = 'distance' | 'wage' | 'deadline';
@@ -497,6 +498,20 @@ export function JobListClient({
     const queryString = params.toString();
     router.push(queryString ? `${basePath}?${queryString}` : basePath);
     setShowFilterModal(false);
+
+    // フィルター適用をGA4に送信
+    const activeFilters: string[] = [];
+    if (filters.prefecture) activeFilters.push('prefecture');
+    if (filters.city) activeFilters.push('city');
+    if (filters.minWage) activeFilters.push('minWage');
+    if (filters.serviceTypes?.length) activeFilters.push('serviceType');
+    if (filters.transportations?.length) activeFilters.push('transportation');
+    if (filters.jobTypes?.length) activeFilters.push('jobType');
+    if (filters.workTimeTypes?.length) activeFilters.push('workTimeType');
+    if (filters.distanceEnabled) activeFilters.push('distance');
+    if (activeFilters.length > 0) {
+      trackGA4Event('search_filter', { filters: activeFilters.join(','), filter_count: activeFilters.length });
+    }
   };
 
   // ページ変更処理
