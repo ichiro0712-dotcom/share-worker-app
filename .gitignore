@@ -39,6 +39,9 @@ yarn-error.log*
 # Local uploads (use cloud storage in production)
 public/uploads/
 
+# Google Analytics credentials
+credentials/
+
 # Local development files
 ichiro/
 claudedocs/

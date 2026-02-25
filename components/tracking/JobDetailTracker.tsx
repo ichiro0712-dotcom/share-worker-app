@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
+import { trackGA4Event } from '@/src/lib/ga4-events';
 
 interface JobDetailTrackerProps {
   jobId: number;
@@ -22,7 +23,10 @@ export default function JobDetailTracker({ jobId }: JobDetailTrackerProps) {
       body: JSON.stringify({ jobId }),
       keepalive: true,
     }).then(() => {
-      if (!cancelled) hasSentRef.current = true;
+      if (!cancelled) {
+        hasSentRef.current = true;
+        trackGA4Event('job_detail_view', { job_id: jobId });
+      }
     }).catch(() => {});
 
     return () => {

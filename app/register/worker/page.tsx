@@ -13,12 +13,15 @@ import { NameWithKanaInput } from '@/components/ui/NameWithKanaInput';
 import AddressSelector from '@/components/ui/AddressSelector';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { trackGA4Event } from '@/src/lib/ga4-events';
 import { getLegalDocument } from '@/src/lib/content-actions';
 import { QUALIFICATION_GROUPS } from '@/constants/qualifications';
+import RegistrationPageTracker from '@/components/tracking/RegistrationPageTracker';
 
 export default function WorkerRegisterPage() {
   return (
     <Suspense fallback={<div className="min-h-screen bg-gray-50 py-8"><div className="max-w-xl mx-auto px-4 text-center text-gray-500">読み込み中...</div></div>}>
+      <RegistrationPageTracker />
       <WorkerRegisterPageInner />
     </Suspense>
   );
@@ -323,6 +326,11 @@ function WorkerRegisterPageInner() {
       }
 
       toast.success('登録が完了しました。メールをご確認ください。');
+      trackGA4Event('sign_up', {
+        method: 'email',
+        lp_id: lpInfo.lpId || undefined,
+        campaign_code: lpInfo.campaignCode || undefined,
+      });
 
       // メール認証待ちページへリダイレクト
       router.push(`/auth/verify-pending?email=${encodeURIComponent(formData.email)}`);
