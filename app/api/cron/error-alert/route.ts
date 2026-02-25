@@ -18,6 +18,20 @@ const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'noreply@tastas.site';
 // システム設定のキー
 const LAST_CHECKED_KEY = 'error_alert_last_checked_at';
 
+// 通知対象外のアクション（ユーザー起因のエラー）
+// これらは正常な操作の範囲内で発生するため、アラート通知しない
+const NON_CRITICAL_ACTIONS = [
+    'LOGIN_FAILED',                  // パスワード間違い
+    'FACILITY_LOGIN_FAILED',         // 施設管理者パスワード間違い
+    'SYSTEM_ADMIN_LOGIN_FAILED',     // システム管理者パスワード間違い
+    'REGISTER_FAILED',               // 登録失敗（メール重複等）
+    'EMAIL_VERIFY_FAILED',           // メール認証失敗（トークン期限切れ等）
+    'PASSWORD_RESET_FAILED',         // パスワードリセット失敗（無効トークン等）
+    'PASSWORD_RESET_REQUEST',        // パスワードリセット要求失敗
+    'ATTENDANCE_CHECK_IN_FAILED',    // 出勤打刻失敗（無効QR/緊急コード）
+    'ATTENDANCE_CHECK_OUT_FAILED',   // 退勤打刻失敗（打刻済み等）
+];
+
 /**
  * Cron APIの認証を検証
  */
@@ -92,7 +106,7 @@ function generateErrorDigestHtml(errors: {
         <div style="background: #dc2626; color: white; padding: 20px;">
             <h1 style="margin: 0; font-size: 20px;">⚠️ エラーアラート - タスタス</h1>
             <p style="margin: 8px 0 0 0; opacity: 0.9; font-size: 14px;">
-                直近5分間で ${errors.length} 件のエラーが検出されました
+                直近5分間で ${errors.length} 件のクリティカルエラーが検出されました
             </p>
         </div>
 
@@ -151,10 +165,11 @@ export async function GET(request: NextRequest) {
 
         console.log('[ERROR_ALERT] Checking errors since:', lastCheckedAt.toISOString());
 
-        // 2. 新しいエラーを取得
+        // 2. 新しいクリティカルエラーを取得（ユーザー起因のエラーは除外）
         const newErrors = await prisma.userActivityLog.findMany({
             where: {
                 result: 'ERROR',
+                action: { notIn: NON_CRITICAL_ACTIONS },
                 created_at: {
                     gt: lastCheckedAt,
                 },
@@ -185,7 +200,7 @@ export async function GET(request: NextRequest) {
                         const { headers: resendHeaders } = await client.emails.send({
                             from: FROM_EMAIL,
                             to: toAddresses,
-                            subject: `⚠️ [タスタス] ${newErrors.length}件のエラーが検出されました`,
+                            subject: `🚨 [タスタス] ${newErrors.length}件のクリティカルエラーが検出されました`,
                             html: emailHtml,
                         });
 
