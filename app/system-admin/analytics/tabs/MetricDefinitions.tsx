@@ -63,6 +63,13 @@ export const METRIC_DEFINITIONS = {
                 definition: '勤務前日以降にキャンセルした割合（全応募数に対する比率）',
                 calculation: '勤務前日以降のキャンセル数 ÷ 全応募数 × 100',
                 usedIn: ['ワーカー分析']
+            },
+            {
+                key: 'dropoutRate',
+                label: '離脱率',
+                definition: '登録後に実質的な活動がないまま離脱したワーカーの割合（将来実装予定）',
+                calculation: '現在は0を返す（将来実装予定）',
+                usedIn: ['ワーカー分析', '施設分析']
             }
         ]
     },
@@ -127,20 +134,6 @@ export const METRIC_DEFINITIONS = {
                 calculation: 'job_work_dates テーブルで紐づく job の requires_interview = true のレコード数',
                 usedIn: ['施設分析']
             },
-            {
-                key: 'withdrawnFacilityCount',
-                label: '退会施設数',
-                definition: '指定期間内に退会した施設の数',
-                calculation: '指定期間の deleted_at を持つ facilities レコード数',
-                usedIn: ['施設分析']
-            },
-            {
-                key: 'facilityWithdrawalRate',
-                label: '施設退会率',
-                definition: '期間開始時の登録施設数に対する退会施設の割合',
-                calculation: '退会施設数 ÷ 期間開始時の登録施設数 × 100',
-                usedIn: ['施設分析']
-            }
         ]
     },
 
@@ -217,6 +210,55 @@ export const METRIC_DEFINITIONS = {
                 definition: '限定求人に対して応募があった割合',
                 calculation: '限定求人への応募数 ÷ 限定求人数 × 100',
                 usedIn: ['応募・マッチング分析']
+            }
+        ]
+    },
+
+    // ========== 求人分析（ログイン後）関連 ==========
+    jobAnalytics: {
+        title: '求人分析（ログイン後）関連',
+        metrics: [
+            {
+                key: 'jobAnalyticsTotalPV',
+                label: '求人PV',
+                definition: 'ログイン後ユーザーが求人詳細ページを閲覧した総回数（退会済みユーザーも含む）',
+                calculation: 'job_detail_page_views テーブルの期間内レコード数（deleted_at 不問）',
+                usedIn: ['求人分析']
+            },
+            {
+                key: 'jobAnalyticsTotalUsers',
+                label: '閲覧ユーザー数',
+                definition: '期間内に求人詳細ページを1回以上閲覧したユニークユーザー数（退会済みユーザーも含む）',
+                calculation: 'job_detail_page_views テーブルの期間内ユニーク user_id 数（deleted_at 不問）',
+                usedIn: ['求人分析']
+            },
+            {
+                key: 'jobAnalyticsApplicationCount',
+                label: '応募数（求人分析）',
+                definition: '期間内の応募総数（退会済みユーザーの応募も含む）',
+                calculation: 'applications テーブルの期間内レコード数（deleted_at 不問）',
+                usedIn: ['求人分析']
+            },
+            {
+                key: 'jobAnalyticsApplicationUserCount',
+                label: '応募ユニークユーザー数',
+                definition: '期間内に1回以上応募したユニークユーザー数（退会済みユーザーも含む）',
+                calculation: 'applications テーブルの期間内ユニーク user_id 数（deleted_at 不問）',
+                usedIn: ['求人分析']
+            },
+            {
+                key: 'jobAnalyticsApplicationRate',
+                label: '応募率（求人分析）',
+                definition: '求人詳細を閲覧したユーザーのうち応募したユーザーの割合',
+                calculation: '応募ユニークユーザー数 ÷ 閲覧ユーザー数 × 100',
+                usedIn: ['求人分析（求人ランキング）']
+            },
+            {
+                key: 'jobAnalyticsAvgApplicationDays',
+                label: '平均応募日数（求人分析）',
+                definition: '応募ユーザー1人あたりの平均応募数',
+                calculation: '応募数 ÷ 応募ユニークユーザー数',
+                usedIn: ['求人分析']
             }
         ]
     },
@@ -413,6 +455,69 @@ export const METRIC_DEFINITIONS = {
                 definition: 'ワーカー1人あたりの平均応募日数',
                 calculation: '応募数 ÷ ユニーク応募ワーカー数',
                 usedIn: ['応募・マッチング分析']
+            }
+        ]
+    },
+
+    // ========== 登録動線分析関連 ==========
+    funnel: {
+        title: '登録動線分析関連',
+        metrics: [
+            {
+                key: 'funnelRegistered',
+                label: '登録数（登録動線）',
+                definition: '期間内に新規登録したユーザー数（退会済みユーザーも含む）',
+                calculation: 'users テーブルで期間内の created_at を持つレコード数（deleted_at 不問）',
+                usedIn: ['登録動線分析']
+            },
+            {
+                key: 'funnelVerified',
+                label: 'メール認証完了数',
+                definition: '登録ユーザーのうちメール認証を完了したユーザー数',
+                calculation: '登録ユーザーのうち email_verified = true のレコード数',
+                usedIn: ['登録動線分析']
+            },
+            {
+                key: 'funnelSearchReached',
+                label: '求人検索到達数',
+                definition: '登録ユーザーのうち求人検索ページ（トップページ）に到達したユーザー数',
+                calculation: 'job_search_page_views テーブルで登録ユーザーの user_id を持つユニーク数。デプロイ後から記録開始',
+                usedIn: ['登録動線分析']
+            },
+            {
+                key: 'funnelJobViewed',
+                label: '求人詳細閲覧数（登録動線）',
+                definition: '登録ユーザーのうち求人詳細ページを1回以上閲覧したユーザー数',
+                calculation: 'job_detail_page_views テーブルで登録ユーザーの user_id を持つユニーク数。2026年2月〜記録開始',
+                usedIn: ['登録動線分析']
+            },
+            {
+                key: 'funnelBookmarked',
+                label: 'お気に入り登録数（登録動線）',
+                definition: '登録ユーザーのうち1件以上お気に入り登録をしたユーザー数',
+                calculation: 'bookmarks テーブルで登録ユーザーの user_id を持つユニーク数',
+                usedIn: ['登録動線分析']
+            },
+            {
+                key: 'funnelApplied',
+                label: '応募完了数（登録動線）',
+                definition: '登録ユーザーのうち1件以上応募したユーザー数',
+                calculation: 'applications テーブルで登録ユーザーの user_id を持つユニーク数',
+                usedIn: ['登録動線分析']
+            },
+            {
+                key: 'overallConversionRate',
+                label: '全体コンバージョン率',
+                definition: '登録ユーザーのうち応募に至ったユーザーの割合',
+                calculation: '応募完了ユーザー数 ÷ 登録ユーザー数 × 100',
+                usedIn: ['登録動線分析']
+            },
+            {
+                key: 'avgRegistrationToVerifyHours',
+                label: '登録→認証 平均所要時間',
+                definition: 'ユーザー登録からメール認証完了までの平均時間（時間単位）',
+                calculation: 'Σ (email_verified_at - created_at) ÷ 認証済みユーザー数。デプロイ後に email_verified_at を記録するユーザーのみ対象',
+                usedIn: ['登録動線分析']
             }
         ]
     },

@@ -7,9 +7,10 @@ import FacilityAnalytics from './tabs/FacilityAnalytics';
 import MatchingAnalytics from './tabs/MatchingAnalytics';
 import JobAnalytics from './tabs/JobAnalytics';
 import LpTracking from './tabs/LpTracking';
+import FunnelAnalytics from './tabs/FunnelAnalytics';
 import MetricDefinitions from './tabs/MetricDefinitions';
 import Link from 'next/link';
-import { Book, BarChart3 } from 'lucide-react';
+import { Book, BarChart3, Filter } from 'lucide-react';
 
 const TABS = [
     { id: 'worker', label: 'ワーカー分析' },
@@ -17,6 +18,7 @@ const TABS = [
     { id: 'matching', label: '応募・マッチング' },
     { id: 'jobs', label: '求人' },
     { id: 'lp', label: 'LP', icon: BarChart3 },
+    { id: 'funnel', label: '登録動線', icon: Filter },
     { id: 'definitions', label: '定義一覧', icon: Book },
 ] as const;
 
@@ -101,6 +103,7 @@ export default function AnalyticsPage() {
                 {activeTab === 'matching' && <MatchingAnalytics />}
                 {activeTab === 'jobs' && <JobAnalytics />}
                 {activeTab === 'lp' && <LpTracking />}
+                {activeTab === 'funnel' && <FunnelAnalytics />}
                 {activeTab === 'definitions' && <MetricDefinitions />}
             </div>
         </div>

@@ -13,28 +13,28 @@ import {
   isStandaloneMode,
 } from '@/lib/push-notification';
 
-type PermissionState = 'loading' | 'unsupported' | 'denied' | 'default' | 'granted' | 'subscribed';
+type PermissionState = 'loading' | 'unsupported' | 'ios-browser' | 'denied' | 'default' | 'granted' | 'subscribed';
 
 export default function NotificationSettingsClient() {
   const [permissionState, setPermissionState] = useState<PermissionState>('loading');
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showIOSHint, setShowIOSHint] = useState(false);
 
   useEffect(() => {
     checkPermissionState();
   }, []);
 
   const checkPermissionState = async () => {
+    // iOS非PWAブラウザチェック（isPushNotificationSupportedより先に判定）
+    if (isIOS() && !isStandaloneMode()) {
+      setPermissionState('ios-browser');
+      return;
+    }
+
     // プッシュ通知サポートチェック
     if (!isPushNotificationSupported()) {
       setPermissionState('unsupported');
       return;
-    }
-
-    // iOS PWAチェック
-    if (isIOS() && !isStandaloneMode()) {
-      setShowIOSHint(true);
     }
 
     // 現在の許可状態を取得
@@ -124,6 +124,32 @@ export default function NotificationSettingsClient() {
         return (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+          </div>
+        );
+
+      case 'ios-browser':
+        return (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <Smartphone className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-blue-800">
+                  ホーム画面に追加してプッシュ通知を有効にしましょう
+                </p>
+                <p className="text-sm text-blue-700 mt-1">
+                  iOSではPWA（ホーム画面に追加したアプリ）からプッシュ通知をご利用いただけます。
+                </p>
+                <div className="mt-3 p-3 bg-white rounded-md border border-blue-100">
+                  <p className="text-xs font-medium text-gray-700 mb-2">追加方法：</p>
+                  <ol className="text-xs text-gray-600 space-y-1 list-decimal list-inside">
+                    <li>Safariでこのページを開く</li>
+                    <li>画面下の共有ボタン（□↑）をタップ</li>
+                    <li>「ホーム画面に追加」を選択</li>
+                    <li>追加したアプリから通知設定を行う</li>
+                  </ol>
+                </div>
+              </div>
+            </div>
           </div>
         );
 
@@ -258,25 +284,6 @@ export default function NotificationSettingsClient() {
           </div>
         )}
       </div>
-
-      {/* iOSヒント */}
-      {showIOSHint && (
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-          <div className="flex items-start gap-3">
-            <Smartphone className="w-5 h-5 text-gray-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-medium text-gray-800">
-                iPhoneでプッシュ通知を受け取るには
-              </p>
-              <ol className="text-sm text-gray-600 mt-2 space-y-1 list-decimal list-inside">
-                <li>Safari下部の共有ボタン(□↑)をタップ</li>
-                <li>「ホーム画面に追加」を選択</li>
-                <li>追加されたアプリから通知を有効化</li>
-              </ol>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 通知の種類説明 */}
       <div className="bg-white rounded-lg border border-gray-200 p-4">

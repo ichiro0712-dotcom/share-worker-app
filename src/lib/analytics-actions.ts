@@ -2,7 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import {
-    startOfDay, endOfDay, startOfMonth, endOfMonth, startOfYear, endOfYear,
+    startOfMonth, endOfMonth, startOfYear, endOfYear,
     format, eachDayOfInterval, eachMonthOfInterval, differenceInHours
 } from 'date-fns';
 
@@ -89,6 +89,30 @@ export interface MatchingMetrics {
 // ========== ヘルパー関数 ==========
 
 /**
+ * JST基準で日の開始時刻を取得（UTC表現で JST 00:00:00 = 前日 15:00:00 UTC）
+ */
+function startOfDayJST(date: Date): Date {
+    // JSTの日付を取得
+    const jst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+    const year = jst.getUTCFullYear();
+    const month = jst.getUTCMonth();
+    const day = jst.getUTCDate();
+    // JSTの00:00:00をUTCに戻す（-9時間）
+    return new Date(Date.UTC(year, month, day, -9, 0, 0, 0));
+}
+
+/**
+ * JST基準で日の終了時刻を取得（UTC表現で JST 23:59:59.999 = 当日 14:59:59.999 UTC）
+ */
+function endOfDayJST(date: Date): Date {
+    const jst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+    const year = jst.getUTCFullYear();
+    const month = jst.getUTCMonth();
+    const day = jst.getUTCDate();
+    return new Date(Date.UTC(year, month, day, -9, 23, 59, 59) + 999);
+}
+
+/**
  * フィルターに基づいて日付リストを生成
  */
 function getDateRanges(filter: AnalyticsFilter) {
@@ -118,14 +142,14 @@ function getDateRanges(filter: AnalyticsFilter) {
 }
 
 /**
- * 期間フィルター用のwhere条件を生成
+ * 期間フィルター用のwhere条件を生成（JST基準）
  */
 function getPeriodWhere(filter: AnalyticsFilter, fieldName: string = 'created_at') {
     if (filter.startDate && filter.endDate) {
         return {
             [fieldName]: {
-                gte: startOfDay(filter.startDate),
-                lte: endOfDay(filter.endDate)
+                gte: startOfDayJST(filter.startDate),
+                lte: endOfDayJST(filter.endDate)
             }
         };
     }
@@ -281,8 +305,8 @@ export async function getWorkerAnalyticsData(filter: AnalyticsFilter): Promise<W
                 deleted_at: { not: null },
                 ...(filter.startDate && filter.endDate ? {
                     deleted_at: {
-                        gte: startOfDay(filter.startDate),
-                        lte: endOfDay(filter.endDate)
+                        gte: startOfDayJST(filter.startDate),
+                        lte: endOfDayJST(filter.endDate)
                     }
                 } : {})
             },
@@ -311,15 +335,15 @@ export async function getWorkerAnalyticsData(filter: AnalyticsFilter): Promise<W
         })
     ]);
 
-    // 日付ごとに集計
+    // 日付ごとに集計（JST基準）
     const results: WorkerMetrics[] = dateList.map(date => {
         const dateStr = format(date, dateFormat);
         const periodStart = filter.viewMode === 'daily'
-            ? startOfDay(date)
-            : startOfMonth(date);
+            ? startOfDayJST(date)
+            : startOfDayJST(startOfMonth(date));
         const periodEnd = filter.viewMode === 'daily'
-            ? endOfDay(date)
-            : endOfMonth(date);
+            ? endOfDayJST(date)
+            : endOfDayJST(endOfMonth(date));
 
         // 登録ワーカー数（期間末時点の累計）
         const registeredCount = allUsers.filter(u => u.created_at <= periodEnd).length;
@@ -434,8 +458,8 @@ export async function getFacilityAnalyticsData(filter: AnalyticsFilter): Promise
                 deleted_at: { not: null },
                 ...(filter.startDate && filter.endDate ? {
                     deleted_at: {
-                        gte: startOfDay(filter.startDate),
-                        lte: endOfDay(filter.endDate)
+                        gte: startOfDayJST(filter.startDate),
+                        lte: endOfDayJST(filter.endDate)
                     }
                 } : {}),
                 ...(facilityTypes.length > 0 ? { facility_type: { in: facilityTypes } } : {})
@@ -469,8 +493,8 @@ export async function getFacilityAnalyticsData(filter: AnalyticsFilter): Promise
 
     const results: FacilityMetrics[] = dateList.map(date => {
         const dateStr = format(date, dateFormat);
-        const periodStart = filter.viewMode === 'daily' ? startOfDay(date) : startOfMonth(date);
-        const periodEnd = filter.viewMode === 'daily' ? endOfDay(date) : endOfMonth(date);
+        const periodStart = filter.viewMode === 'daily' ? startOfDayJST(date) : startOfDayJST(startOfMonth(date));
+        const periodEnd = filter.viewMode === 'daily' ? endOfDayJST(date) : endOfDayJST(endOfMonth(date));
 
         const registeredCount = allFacilities.filter(f => f.created_at <= periodEnd).length;
         const newCount = newFacilities.filter(f =>
@@ -694,8 +718,8 @@ export async function getMatchingAnalyticsData(filter: AnalyticsFilter): Promise
 
     const results: MatchingMetrics[] = dateList.map(date => {
         const dateStr = format(date, dateFormat);
-        const periodStart = filter.viewMode === 'daily' ? startOfDay(date) : startOfMonth(date);
-        const periodEnd = filter.viewMode === 'daily' ? endOfDay(date) : endOfMonth(date);
+        const periodStart = filter.viewMode === 'daily' ? startOfDayJST(date) : startOfDayJST(startOfMonth(date));
+        const periodEnd = filter.viewMode === 'daily' ? endOfDayJST(date) : endOfDayJST(endOfMonth(date));
 
         const periodJobs = jobs.filter(j =>
             j.created_at >= periodStart && j.created_at <= periodEnd
@@ -730,13 +754,17 @@ export async function getMatchingAnalyticsData(filter: AnalyticsFilter): Promise
 
         // マッチング期間（求人作成〜マッチングまでの平均時間）
         let totalMatchingHours = 0;
+        let matchingHoursCount = 0;
         matchedApps.forEach(app => {
             if (app.workDate?.job?.created_at) {
                 const hours = differenceInHours(app.updated_at, app.workDate.job.created_at);
-                if (hours > 0) totalMatchingHours += hours;
+                if (hours > 0) {
+                    totalMatchingHours += hours;
+                    matchingHoursCount++;
+                }
             }
         });
-        const avgMatchingHours = matchingCount > 0 ? totalMatchingHours / matchingCount : 0;
+        const avgMatchingHours = matchingHoursCount > 0 ? totalMatchingHours / matchingHoursCount : 0;
 
         // ワーカーあたり指標
         const periodUserIds = new Set(periodApps.map(a => a.user_id));
@@ -751,7 +779,11 @@ export async function getMatchingAnalyticsData(filter: AnalyticsFilter): Promise
         const reviewsPerWorker = workerReviewCount / activeWorkerCount;
 
         // 施設あたり指標
-        const periodFacilityIds = new Set(periodApps.map(a => a.workDate?.job?.facility_id).filter(Boolean));
+        const periodFacilityIds = new Set(
+            periodApps
+                .map(a => a.workDate?.job?.facility_id)
+                .filter((id): id is number => id != null && id > 0)
+        );
         const activeFacilityCount = periodFacilityIds.size || 1;
         const parentJobsPerFacility = parentJobCount / activeFacilityCount;
         const childJobsPerFacility = childJobCount / activeFacilityCount;
