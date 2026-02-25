@@ -2,6 +2,7 @@ import { JobListClient } from '@/components/job/JobListClient';
 import { getJobsListWithPagination } from '@/src/lib/actions';
 import { generateDatesFromBase } from '@/utils/date';
 import { getCurrentTime } from '@/utils/debugTime';
+import JobSearchTracker from '@/components/tracking/JobSearchTracker';
 
 /**
  * 求人一覧ページ（SSR対応）
@@ -121,15 +122,23 @@ export default async function JobListPage() {
     }));
 
     return (
-      <JobListClient
-        initialJobs={jobs}
-        initialFacilities={facilities}
-        initialPagination={pagination}
-      />
+      <>
+        <JobSearchTracker />
+        <JobListClient
+          initialJobs={jobs}
+          initialFacilities={facilities}
+          initialPagination={pagination}
+        />
+      </>
     );
   } catch (error) {
     console.error('[SSR] Failed to fetch initial jobs:', error);
     // エラー時はクライアントサイドフェッチにフォールバック
-    return <JobListClient />;
+    return (
+      <>
+        <JobSearchTracker />
+        <JobListClient />
+      </>
+    );
   }
 }

@@ -33,8 +33,8 @@ export async function getDashboardStats() {
         activeJobs,
         totalApplications
     ] = await Promise.all([
-        prisma.user.count(),
-        prisma.facility.count(),
+        prisma.user.count({ where: { deleted_at: null } }),
+        prisma.facility.count({ where: { deleted_at: null } }),
         prisma.job.count({ where: { status: 'PUBLISHED' } }),
         prisma.application.count()
     ]);

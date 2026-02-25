@@ -76,6 +76,8 @@ model User {
 
   /// メール認証済みフラグ
   email_verified             Boolean   @default(false) @map("email_verified")
+  /// メール認証完了日時
+  email_verified_at          DateTime? @map("email_verified_at")
   /// メール認証トークン
   verification_token         String?   @map("verification_token")
   /// 認証トークンの有効期限
@@ -1684,6 +1686,18 @@ model PublicJobPageView {
   @@index([session_id])
   @@index([created_at])
   @@map("public_job_page_views")
+}
+
+/// ログイン済みワーカーの求人検索ページ（トップページ）閲覧記録
+model JobSearchPageView {
+  id         Int      @id @default(autoincrement())
+  user_id    Int      @map("user_id")
+  created_at DateTime @default(now()) @map("created_at")
+
+  @@index([user_id])
+  @@index([created_at])
+  @@index([user_id, created_at])
+  @@map("job_search_page_views")
 }
 
 /// ログイン済みワーカーの求人詳細閲覧記録（LP帰属用）

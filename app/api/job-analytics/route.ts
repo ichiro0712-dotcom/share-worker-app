@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
       dateFilter.created_at = { ...dateFilter.created_at, lte: new Date(`${endDate}T23:59:59.999+09:00`) };
     }
 
-    // 1. 求人詳細PV（JobDetailPageView - ログイン後ユーザー全体）
+    // 1. 求人詳細PV（JobDetailPageView - ログイン後ユーザー全体、削除済みユーザーも含む）
     const jobDetailViews = await prisma.jobDetailPageView.findMany({
       where: { ...dateFilter },
       select: { user_id: true, job_id: true, created_at: true },
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
     const totalPV = jobDetailViews.length;
     const totalUsers = new Set(jobDetailViews.map(v => v.user_id)).size;
 
-    // 2. 応募データ（全ユーザー）
+    // 2. 応募データ（削除済みユーザーも含む ― LPタブと統一）
     const applications = await prisma.application.findMany({
       where: { ...dateFilter },
       select: { user_id: true, workDate: { select: { job_id: true } }, created_at: true },
@@ -132,7 +132,7 @@ export async function GET(request: NextRequest) {
     // 応募集計
     applications.forEach(a => {
       const jobId = a.workDate?.job_id;
-      if (jobId) {
+      if (jobId != null && jobId > 0) {
         const entry = ensureEntry(jobId);
         entry.applicationCount++;
         entry.applicationUsers.add(a.user_id);
