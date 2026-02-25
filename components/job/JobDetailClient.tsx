@@ -219,7 +219,8 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
       const recruitmentCount = wd.recruitmentCount || job.recruitmentCount || 1;
       // 面接ありの場合は満員でも応募可能
       const isFull = !job.requiresInterview && matchedCount >= recruitmentCount;
-      return !isApplied && !isFull;
+      const isDeadlinePassed = new Date(wd.deadline) < new Date();
+      return !isApplied && !isFull && !isDeadlinePassed;
     });
   }, [job.workDates, job.matchedCount, job.recruitmentCount, appliedWorkDateIds, job.requiresInterview]);
 

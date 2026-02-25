@@ -14,7 +14,7 @@ import AddressSelector from '@/components/ui/AddressSelector';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { trackGA4Event } from '@/src/lib/ga4-events';
-import { WORKER_TERMS_OF_SERVICE, TERMS_LAST_UPDATED, WORKER_PRIVACY_POLICY, PRIVACY_LAST_UPDATED } from '@/constants/terms';
+import { getLegalDocument } from '@/src/lib/content-actions';
 import { QUALIFICATION_GROUPS } from '@/constants/qualifications';
 import RegistrationPageTracker from '@/components/tracking/RegistrationPageTracker';
 
@@ -38,6 +38,13 @@ function WorkerRegisterPageInner() {
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [agreedToPrivacy, setAgreedToPrivacy] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+
+  // 利用規約・PPのDB取得
+  const [termsContent, setTermsContent] = useState<string>('');
+  const [privacyContent, setPrivacyContent] = useState<string>('');
+  const [termsLastUpdated, setTermsLastUpdated] = useState<string>('');
+  const [privacyLastUpdated, setPrivacyLastUpdated] = useState<string>('');
+  const [isLoadingLegal, setIsLoadingLegal] = useState(true);
 
   const [formData, setFormData] = useState({
     // ステップ1: アカウント情報・基本情報
@@ -128,6 +135,39 @@ function WorkerRegisterPageInner() {
       }
     }
   }, [searchParams]);
+
+  // 利用規約・PPをDBから取得
+  useEffect(() => {
+    const fetchLegalDocs = async () => {
+      try {
+        const [termsDoc, privacyDoc] = await Promise.all([
+          getLegalDocument('TERMS', 'WORKER'),
+          getLegalDocument('PRIVACY', 'WORKER'),
+        ]);
+        if (termsDoc) {
+          setTermsContent(termsDoc.content);
+          setTermsLastUpdated(
+            termsDoc.published_at
+              ? new Date(termsDoc.published_at).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })
+              : ''
+          );
+        }
+        if (privacyDoc) {
+          setPrivacyContent(privacyDoc.content);
+          setPrivacyLastUpdated(
+            privacyDoc.published_at
+              ? new Date(privacyDoc.published_at).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })
+              : ''
+          );
+        }
+      } catch (error) {
+        console.error('Failed to fetch legal documents:', error);
+      } finally {
+        setIsLoadingLegal(false);
+      }
+    };
+    fetchLegalDocs();
+  }, []);
 
   // 資格チェックボックスのトグル
   const handleQualificationToggle = (qualification: string) => {
@@ -666,9 +706,11 @@ function WorkerRegisterPageInner() {
                         <span className="text-sm">
                           <span className="font-medium">利用規約に同意します</span>
                           <span className="text-red-500 ml-1">*</span>
+                          {termsLastUpdated && (
                           <span className="text-gray-500 block text-xs mt-1">
-                            （最終更新日: {TERMS_LAST_UPDATED}）
+                            （最終更新日: {termsLastUpdated}）
                           </span>
+                        )}
                         </span>
                       </label>
                       {showErrors && !agreedToTerms && (
@@ -695,9 +737,11 @@ function WorkerRegisterPageInner() {
                         <span className="text-sm">
                           <span className="font-medium">プライバシーポリシーに同意します</span>
                           <span className="text-red-500 ml-1">*</span>
+                          {privacyLastUpdated && (
                           <span className="text-gray-500 block text-xs mt-1">
-                            （最終更新日: {PRIVACY_LAST_UPDATED}）
+                            （最終更新日: {privacyLastUpdated}）
                           </span>
+                        )}
                         </span>
                       </label>
                       {showErrors && !agreedToPrivacy && (
@@ -756,10 +800,17 @@ function WorkerRegisterPageInner() {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-4">
-              <p className="text-xs text-gray-500 mb-4">最終更新日: {TERMS_LAST_UPDATED}</p>
-              <pre className="whitespace-pre-wrap text-sm text-gray-700 font-sans leading-relaxed">
-                {WORKER_TERMS_OF_SERVICE}
-              </pre>
+              {termsLastUpdated && <p className="text-xs text-gray-500 mb-4">最終更新日: {termsLastUpdated}</p>}
+              {isLoadingLegal ? (
+                <p className="text-sm text-gray-500">読み込み中...</p>
+              ) : termsContent ? (
+                <div
+                  className="prose prose-sm max-w-none prose-h2:text-base prose-h2:font-bold prose-h2:text-gray-900 prose-h2:mt-6 prose-h2:mb-3 prose-p:text-gray-700 prose-p:leading-relaxed prose-p:my-2 prose-ul:my-2 prose-li:text-gray-700"
+                  dangerouslySetInnerHTML={{ __html: termsContent }}
+                />
+              ) : (
+                <p className="text-sm text-gray-500">利用規約を読み込めませんでした。</p>
+              )}
             </div>
             <div className="p-4 border-t flex justify-end gap-3">
               <button
@@ -802,10 +853,17 @@ function WorkerRegisterPageInner() {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-4">
-              <p className="text-xs text-gray-500 mb-4">最終更新日: {PRIVACY_LAST_UPDATED}</p>
-              <pre className="whitespace-pre-wrap text-sm text-gray-700 font-sans leading-relaxed">
-                {WORKER_PRIVACY_POLICY}
-              </pre>
+              {privacyLastUpdated && <p className="text-xs text-gray-500 mb-4">最終更新日: {privacyLastUpdated}</p>}
+              {isLoadingLegal ? (
+                <p className="text-sm text-gray-500">読み込み中...</p>
+              ) : privacyContent ? (
+                <div
+                  className="prose prose-sm max-w-none prose-h2:text-base prose-h2:font-bold prose-h2:text-gray-900 prose-h2:mt-6 prose-h2:mb-3 prose-p:text-gray-700 prose-p:leading-relaxed prose-p:my-2 prose-ul:my-2 prose-li:text-gray-700"
+                  dangerouslySetInnerHTML={{ __html: privacyContent }}
+                />
+              ) : (
+                <p className="text-sm text-gray-500">プライバシーポリシーを読み込めませんでした。</p>
+              )}
             </div>
             <div className="p-4 border-t flex justify-end gap-3">
               <button

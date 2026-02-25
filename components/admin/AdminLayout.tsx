@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { getFacilityStaffName, getFacilitySidebarBadges, getFacilityInfo, getTermsAgreementStatus, agreeToTerms } from '@/src/lib/actions';
-import { FACILITY_TERMS_OF_SERVICE, TERMS_LAST_UPDATED } from '@/constants/terms';
+import { getLegalDocument } from '@/src/lib/content-actions';
 import toast from 'react-hot-toast';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import {
@@ -52,6 +52,10 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [isAgreeing, setIsAgreeing] = useState(false);
   const [termsChecked, setTermsChecked] = useState(false);
+  // 施設利用規約のDB取得
+  const [facilityTermsContent, setFacilityTermsContent] = useState<string>('');
+  const [facilityTermsLastUpdated, setFacilityTermsLastUpdated] = useState<string>('');
+  const [isLoadingTerms, setIsLoadingTerms] = useState(false);
 
   // サイドバー折りたたみ状態
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -143,6 +147,23 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           const result = await getTermsAgreementStatus(admin.id);
           if (result.success && !result.hasAgreed) {
             setShowTermsModal(true);
+            // 同意未済の場合、施設利用規約をDBから取得
+            setIsLoadingTerms(true);
+            try {
+              const termsDoc = await getLegalDocument('TERMS', 'FACILITY');
+              if (termsDoc) {
+                setFacilityTermsContent(termsDoc.content);
+                setFacilityTermsLastUpdated(
+                  termsDoc.published_at
+                    ? new Date(termsDoc.published_at).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })
+                    : ''
+                );
+              }
+            } catch (error) {
+              console.error('Failed to fetch facility terms:', error);
+            } finally {
+              setIsLoadingTerms(false);
+            }
           }
         } catch (error) {
           console.error('Failed to check terms agreement status:', error);
@@ -656,11 +677,20 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             </div>
             <div className="flex-1 overflow-y-auto p-6">
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 max-h-[50vh] overflow-y-auto">
-                <pre className="whitespace-pre-wrap text-sm text-gray-700 font-sans leading-relaxed">
-                  {FACILITY_TERMS_OF_SERVICE}
-                </pre>
+                {isLoadingTerms ? (
+                  <p className="text-sm text-gray-500">読み込み中...</p>
+                ) : facilityTermsContent ? (
+                  <div
+                    className="prose prose-sm max-w-none prose-h2:text-base prose-h2:font-bold prose-h2:text-gray-900 prose-h2:mt-6 prose-h2:mb-3 prose-p:text-gray-700 prose-p:leading-relaxed prose-p:my-2 prose-ul:my-2 prose-li:text-gray-700"
+                    dangerouslySetInnerHTML={{ __html: facilityTermsContent }}
+                  />
+                ) : (
+                  <p className="text-sm text-gray-500">利用規約を読み込めませんでした。</p>
+                )}
               </div>
-              <p className="text-xs text-gray-500 mt-2">最終更新日: {TERMS_LAST_UPDATED}</p>
+              {facilityTermsLastUpdated && (
+                <p className="text-xs text-gray-500 mt-2">最終更新日: {facilityTermsLastUpdated}</p>
+              )}
             </div>
             <div className="p-6 border-t border-gray-200">
               <label className="flex items-start gap-3 mb-4">

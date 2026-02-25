@@ -8,6 +8,38 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 1. **Netlify** - 使用禁止。デプロイ先はVercelのみ。
 2. **本番・ステージングDBへの直接操作** - 絶対禁止。下記「DB操作の絶対禁止事項」参照。
+3. **Vercel環境変数の操作** - 絶対禁止。下記「Vercel環境変数の操作禁止」参照。
+
+### 🔴 Vercel環境変数の操作禁止（最重要・例外なし）
+
+**Claude Codeは Vercel の環境変数に対して、CLI経由での追加・変更・削除を一切行ってはならない。**
+
+**禁止されるコマンド:**
+- `vercel env add` - 環境変数の追加
+- `vercel env rm` - 環境変数の削除
+- `vercel env pull` - 環境変数のローカル取得（production環境）
+- `vercel env ls` の結果を元にした変更操作
+- その他 `vercel env` 系の書き込みコマンド全般
+
+**禁止される間接操作:**
+- シェル環境変数の `unset` や `export` で本番に影響する値を操作する行為
+- `.env.production.local` を作成・編集して本番環境変数を上書きする行為
+
+**環境変数の変更が必要な場合の正しい手順:**
+1. 必要な環境変数の名前・値・対象環境をユーザーに報告する
+2. **ユーザーがVercelダッシュボードから手動で操作する**
+3. Claude Codeは操作しない
+
+**報告テンプレート（環境変数変更時）:**
+```
+【Vercel環境変数の変更が必要です】
+- 操作: 追加 / 変更 / 削除
+- 変数名: EXAMPLE_KEY
+- 値: （具体的な値、またはシークレットの場合は生成コマンド）
+- 対象環境: Production / Preview / All Environments
+- ⚠️ Vercelダッシュボードから手動で操作してください
+- ⚠️ 変更後はRedeployが必要です
+```
 
 ### 🔴 DB操作の絶対禁止事項（最重要・例外なし）
 
