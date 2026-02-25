@@ -23,12 +23,16 @@ const formatYearDisplay = (date: Date): string => `${date.getFullYear()}年`;
 type PeriodMode = 'daily' | 'monthly' | 'custom';
 
 interface FunnelData {
+  registrationPagePV: number;
+  registrationPageUU: number;
   registered: number;
   verified: number;
+  searchPV: number;
   searchReached: number;
-  jobViewed: number;
   jobViewedPV: number;
+  jobViewed: number;
   bookmarked: number;
+  applicationClickUU: number;
   applied: number;
   applicationTotal: number;
 }
@@ -38,20 +42,28 @@ interface BySourceItem {
   sourceLabel: string;
   registered: number;
   verified: number;
+  searchPV: number;
   searchReached: number;
+  jobViewedPV: number;
   jobViewed: number;
   bookmarked: number;
+  applicationClickUU: number;
   applied: number;
   conversionRate: number;
 }
 
 interface BreakdownRow {
   period: string;
+  registrationPagePV: number;
+  registrationPageUU: number;
   registered: number;
   verified: number;
+  searchPV: number;
   searchReached: number;
+  jobViewedPV: number;
   jobViewed: number;
   bookmarked: number;
+  applicationClickUU: number;
   applied: number;
 }
 
@@ -59,26 +71,37 @@ interface ApiResponse {
   funnel: FunnelData;
   overallConversionRate: number;
   avgRegistrationToVerifyHours: number | null;
+  hasSourceFilter: boolean;
   bySource?: BySourceItem[];
   breakdown?: BreakdownRow[];
 }
 
 const FUNNEL_STEPS = [
-  { key: 'registered', label: '①登録完了', description: '新規登録を完了したユーザー数' },
-  { key: 'verified', label: '②メール認証', description: 'メールアドレス認証を完了したユーザー数' },
-  { key: 'searchReached', label: '③求人検索到達', description: '求人検索ページ（トップページ）に到達したユーザー数' },
-  { key: 'jobViewed', label: '④求人詳細閲覧', description: '求人詳細ページを1件以上閲覧したユーザー数' },
-  { key: 'bookmarked', label: '⑤お気に入り登録', description: '求人をお気に入りに登録したユーザー数' },
-  { key: 'applied', label: '⑥応募完了', description: '求人に応募を完了したユーザー数' },
+  { key: 'registrationPagePV', label: '新規登録ページPV', description: '新規登録ページの閲覧数', type: 'pv' as const },
+  { key: 'registrationPageUU', label: '新規登録ページUU', description: '新規登録ページのユニーク訪問者数', type: 'uu' as const },
+  { key: 'registered', label: '①登録完了', description: '新規登録を完了したユーザー数', type: 'uu' as const },
+  { key: 'verified', label: '②メール認証', description: 'メールアドレス認証を完了したユーザー数', type: 'uu' as const },
+  { key: 'searchPV', label: '求人検索PV', description: '求人検索ページの閲覧数', type: 'pv' as const },
+  { key: 'searchReached', label: '③求人検索到達UU', description: '求人検索ページに到達したユーザー数', type: 'uu' as const },
+  { key: 'jobViewedPV', label: '求人詳細PV', description: '求人詳細ページの閲覧数', type: 'pv' as const },
+  { key: 'jobViewed', label: '④求人詳細閲覧UU', description: '求人詳細を閲覧したユーザー数', type: 'uu' as const },
+  { key: 'bookmarked', label: '⑤お気に入り登録', description: '求人をお気に入りに登録したユーザー数', type: 'uu' as const },
+  { key: 'applicationClickUU', label: '⑥応募ボタンクリックUU', description: '応募ボタンをクリックしたユーザー数', type: 'uu' as const },
+  { key: 'applied', label: '⑦応募完了UU', description: '応募を完了したユーザー数', type: 'uu' as const },
 ] as const;
+
+// UUステップのみ抽出（転換率計算用）
+const UU_STEPS = FUNNEL_STEPS.filter(s => s.type === 'uu');
 
 // データ収集開始日
 const DATA_TRACKING_START = {
+  registrationPage: '本機能デプロイ後から記録開始',
   registered: '2025年4月〜（サービス開始時点から）',
   verified: '2025年4月〜（サービス開始時点から）',
   searchReached: '本機能デプロイ後から記録開始',
   jobViewed: '2026年2月〜（JobDetailPageViewテーブル作成後）',
   bookmarked: '2025年4月〜（サービス開始時点から）',
+  applicationClick: '本機能デプロイ後から記録開始',
   applied: '2025年4月〜（サービス開始時点から）',
   emailVerifiedAt: '本機能デプロイ後から記録開始（既存ユーザーはタイムスタンプなし）',
 };
@@ -210,9 +233,11 @@ export default function FunnelAnalytics() {
               <div>
                 <p className="font-medium mb-1">各指標のデータ記録開始日</p>
                 <ul className="space-y-0.5">
-                  <li>・<strong>①登録完了 / ②メール認証 / ⑤お気に入り / ⑥応募完了</strong>: {DATA_TRACKING_START.registered}</li>
-                  <li>・<strong>③求人検索到達</strong>: {DATA_TRACKING_START.searchReached}</li>
-                  <li>・<strong>④求人詳細閲覧</strong>: {DATA_TRACKING_START.jobViewed}</li>
+                  <li>・<strong>①登録完了 / ②メール認証 / ⑤お気に入り / ⑦応募完了</strong>: {DATA_TRACKING_START.registered}</li>
+                  <li>・<strong>新規登録ページPV/UU</strong>: {DATA_TRACKING_START.registrationPage}</li>
+                  <li>・<strong>③求人検索到達 / 求人検索PV</strong>: {DATA_TRACKING_START.searchReached}</li>
+                  <li>・<strong>④求人詳細閲覧 / 求人詳細PV</strong>: {DATA_TRACKING_START.jobViewed}</li>
+                  <li>・<strong>⑥応募ボタンクリックUU</strong>: {DATA_TRACKING_START.applicationClick}</li>
                   <li>・<strong>認証所要時間（email_verified_at）</strong>: {DATA_TRACKING_START.emailVerifiedAt}</li>
                 </ul>
                 <p className="mt-1 text-amber-600">※ 記録開始前のデータは0と表示されます。データは時間経過とともに蓄積されます。</p>
@@ -411,32 +436,59 @@ export default function FunnelAnalytics() {
               {/* 登録動線バー */}
               <div className="space-y-3 mb-6">
                 {FUNNEL_STEPS.map((step, i) => {
-                  const value = data.funnel[step.key as keyof FunnelData] as number;
-                  const maxValue = data.funnel.registered;
-                  const prevValue = i === 0
-                    ? value
-                    : data.funnel[FUNNEL_STEPS[i - 1].key as keyof FunnelData] as number;
+                  const value = (data.funnel[step.key as keyof FunnelData] as number) ?? 0;
+                  const isPV = step.type === 'pv';
+                  // ソースフィルター時、登録ページPV/UUは帰属不可のため「-」表示
+                  const isRegPageWithFilter = data.hasSourceFilter && (step.key === 'registrationPagePV' || step.key === 'registrationPageUU');
+                  // PVバーの最大値は最大PV、UUバーの最大値は最初のUU（registrationPageUU）
+                  const maxUU = data.funnel.registrationPageUU || data.funnel.registered || 1;
+                  const maxPV = Math.max(data.funnel.registrationPagePV, data.funnel.searchPV, data.funnel.jobViewedPV, 1);
+                  const maxValue = isPV ? maxPV : maxUU;
+                  // 転換率: UU→UU間のみ（PV行ではスキップ）
+                  // ソースフィルター時、registeredの前ステップ（registrationPageUU）はフィルター非対応のため転換率を出さない
+                  let conversionDisplay = '-';
+                  if (!isPV && !isRegPageWithFilter) {
+                    const uuIndex = UU_STEPS.findIndex(s => s.key === step.key);
+                    if (uuIndex > 0) {
+                      const prevStep = UU_STEPS[uuIndex - 1];
+                      // ソースフィルター時、前ステップがregistrationPageUUなら転換率を出さない（データソース不整合）
+                      const prevIsRegPageUU = prevStep.key === 'registrationPageUU';
+                      if (!(data.hasSourceFilter && prevIsRegPageUU)) {
+                        const prevUUValue = data.funnel[prevStep.key as keyof FunnelData] as number;
+                        conversionDisplay = getConversionRate(value, prevUUValue);
+                      }
+                    }
+                  }
+
+                  const displayValue = isRegPageWithFilter ? '-' : value.toLocaleString();
+                  const barWidth = isRegPageWithFilter ? 0 : getBarWidth(value, maxValue);
+                  const uuIndex = isPV ? -1 : UU_STEPS.findIndex(s => s.key === step.key);
 
                   return (
                     <div key={step.key} className="flex items-center gap-4">
-                      <div className="w-32 flex-shrink-0 text-right">
-                        <span className="text-sm font-medium text-slate-700">{step.label}</span>
+                      <div className="w-40 flex-shrink-0 text-right">
+                        <span className={`text-sm font-medium ${isPV ? 'text-slate-400' : 'text-slate-700'}`}>{step.label}</span>
                       </div>
                       <div className="flex-1 relative">
                         <div
-                          className="h-8 bg-indigo-500 rounded-r-md flex items-center justify-end pr-3 transition-all duration-500"
+                          className={`h-8 rounded-r-md flex items-center justify-end pr-3 transition-all duration-500 ${
+                            isPV ? 'bg-slate-300' : 'bg-indigo-500'
+                          }`}
                           style={{
-                            width: `${getBarWidth(value, maxValue)}%`,
-                            opacity: 1 - (i * 0.12),
+                            width: `${barWidth}%`,
+                            opacity: isPV ? 0.6 : Math.max(0.4, 1 - (uuIndex * 0.08)),
                           }}
                         >
-                          <span className="text-xs font-bold text-white">{value.toLocaleString()}人</span>
+                          {!isRegPageWithFilter && (
+                            <span className="text-xs font-bold text-white">{displayValue}</span>
+                          )}
                         </div>
+                        {isRegPageWithFilter && (
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">-（ソースフィルター時は非対応）</span>
+                        )}
                       </div>
                       <div className="w-20 flex-shrink-0 text-right">
-                        <span className="text-xs text-slate-500">
-                          {i === 0 ? '-' : getConversionRate(value, prevValue)}
-                        </span>
+                        <span className="text-xs text-slate-500">{conversionDisplay}</span>
                       </div>
                     </div>
                   );
@@ -449,24 +501,50 @@ export default function FunnelAnalytics() {
                   <thead>
                     <tr className="bg-slate-50 text-slate-500">
                       <th className="px-4 py-2 text-left text-xs font-medium">ステップ</th>
-                      <th className="px-4 py-2 text-right text-xs font-medium">ユーザー数</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium">数値</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium">種別</th>
                       <th className="px-4 py-2 text-right text-xs font-medium">転換率</th>
                       <th className="px-4 py-2 text-right text-xs font-medium">離脱率</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
-                    {FUNNEL_STEPS.map((step, i) => {
-                      const value = data.funnel[step.key as keyof FunnelData] as number;
-                      const prevValue = i === 0 ? value : data.funnel[FUNNEL_STEPS[i - 1].key as keyof FunnelData] as number;
+                    {FUNNEL_STEPS.map((step) => {
+                      const value = (data.funnel[step.key as keyof FunnelData] as number) ?? 0;
+                      const isPV = step.type === 'pv';
+                      const isRegPageWithFilter = data.hasSourceFilter && (step.key === 'registrationPagePV' || step.key === 'registrationPageUU');
+                      const displayValue = isRegPageWithFilter ? '-' : value.toLocaleString();
+
+                      // 転換率・離脱率はUU→UU間のみ
+                      // ソースフィルター時、前ステップがregistrationPageUUなら転換率を出さない
+                      let convRate = '-';
+                      let dropRate = '-';
+                      if (!isPV && !isRegPageWithFilter) {
+                        const uuIndex = UU_STEPS.findIndex(s => s.key === step.key);
+                        if (uuIndex > 0) {
+                          const prevStep = UU_STEPS[uuIndex - 1];
+                          const prevIsRegPageUU = prevStep.key === 'registrationPageUU';
+                          if (!(data.hasSourceFilter && prevIsRegPageUU)) {
+                            const prevUUValue = data.funnel[prevStep.key as keyof FunnelData] as number;
+                            convRate = getConversionRate(value, prevUUValue);
+                            dropRate = getDropoffRate(value, prevUUValue);
+                          }
+                        }
+                      }
+
                       return (
-                        <tr key={step.key} className="hover:bg-slate-50">
+                        <tr key={step.key} className={`hover:bg-slate-50 ${isPV ? 'bg-slate-50/50' : ''}`}>
                           <td className="px-4 py-2.5">
-                            <span className="font-medium text-slate-700">{step.label}</span>
+                            <span className={`font-medium ${isPV ? 'text-slate-500' : 'text-slate-700'}`}>{step.label}</span>
                             <span className="text-[10px] text-slate-400 ml-2">{step.description}</span>
                           </td>
-                          <td className="px-4 py-2.5 text-right font-semibold text-slate-900">{value.toLocaleString()}</td>
-                          <td className="px-4 py-2.5 text-right text-slate-600">{i === 0 ? '-' : getConversionRate(value, prevValue)}</td>
-                          <td className="px-4 py-2.5 text-right text-slate-600">{i === 0 ? '-' : getDropoffRate(value, prevValue)}</td>
+                          <td className={`px-4 py-2.5 text-right font-semibold ${isPV ? 'text-slate-600' : 'text-slate-900'}`}>{displayValue}</td>
+                          <td className="px-4 py-2.5 text-right">
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${isPV ? 'bg-slate-100 text-slate-500' : 'bg-indigo-50 text-indigo-600'}`}>
+                              {isPV ? 'PV' : 'UU'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2.5 text-right text-slate-600">{convRate}</td>
+                          <td className="px-4 py-2.5 text-right text-slate-600">{dropRate}</td>
                         </tr>
                       );
                     })}
@@ -475,7 +553,7 @@ export default function FunnelAnalytics() {
                     <tr className="bg-indigo-50 font-semibold">
                       <td className="px-4 py-2.5 text-slate-900">全体転換率（登録→応募）</td>
                       <td className="px-4 py-2.5 text-right text-indigo-600">{data.overallConversionRate}%</td>
-                      <td colSpan={2} className="px-4 py-2.5 text-right text-xs text-slate-500">
+                      <td colSpan={3} className="px-4 py-2.5 text-right text-xs text-slate-500">
                         応募{data.funnel.applied}人 / 登録{data.funnel.registered}人
                       </td>
                     </tr>
@@ -497,39 +575,54 @@ export default function FunnelAnalytics() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-slate-50 text-slate-500">
-                      <th className="px-4 py-3 text-left text-xs font-medium">期間</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium">登録</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium">認証</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium">検索到達</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium">詳細閲覧</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium">お気に入り</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium">応募</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium sticky left-0 bg-slate-50 z-10">期間</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium text-slate-400">登録PV</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium text-slate-400">登録UU</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium">登録完了</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium">認証</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium text-slate-400">検索PV</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium">検索UU</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium text-slate-400">詳細PV</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium">詳細UU</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium">お気に入り</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium">応募クリック</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium">応募完了</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
                     {/* 合計行 */}
                     <tr className="bg-indigo-50 font-semibold">
-                      <td className="px-4 py-3 text-slate-900">合計</td>
-                      <td className="px-4 py-3 text-right text-slate-900">{data.funnel.registered}</td>
-                      <td className="px-4 py-3 text-right text-slate-900">{data.funnel.verified}</td>
-                      <td className="px-4 py-3 text-right text-slate-900">{data.funnel.searchReached}</td>
-                      <td className="px-4 py-3 text-right text-slate-900">{data.funnel.jobViewed}</td>
-                      <td className="px-4 py-3 text-right text-slate-900">{data.funnel.bookmarked}</td>
-                      <td className="px-4 py-3 text-right text-slate-900">{data.funnel.applied}</td>
+                      <td className="px-3 py-3 text-slate-900 sticky left-0 bg-indigo-50 z-10">合計</td>
+                      <td className="px-3 py-3 text-right text-slate-500">{data.hasSourceFilter ? '-' : data.funnel.registrationPagePV}</td>
+                      <td className="px-3 py-3 text-right text-slate-500">{data.hasSourceFilter ? '-' : data.funnel.registrationPageUU}</td>
+                      <td className="px-3 py-3 text-right text-slate-900">{data.funnel.registered}</td>
+                      <td className="px-3 py-3 text-right text-slate-900">{data.funnel.verified}</td>
+                      <td className="px-3 py-3 text-right text-slate-500">{data.funnel.searchPV}</td>
+                      <td className="px-3 py-3 text-right text-slate-900">{data.funnel.searchReached}</td>
+                      <td className="px-3 py-3 text-right text-slate-500">{data.funnel.jobViewedPV}</td>
+                      <td className="px-3 py-3 text-right text-slate-900">{data.funnel.jobViewed}</td>
+                      <td className="px-3 py-3 text-right text-slate-900">{data.funnel.bookmarked}</td>
+                      <td className="px-3 py-3 text-right text-slate-900">{data.funnel.applicationClickUU}</td>
+                      <td className="px-3 py-3 text-right text-slate-900">{data.funnel.applied}</td>
                     </tr>
                     {data.breakdown.map(row => (
                       <tr key={row.period} className="hover:bg-slate-50">
-                        <td className="px-4 py-2.5 text-slate-700 font-medium">
+                        <td className="px-3 py-2.5 text-slate-700 font-medium sticky left-0 bg-white z-10">
                           {periodMode === 'daily' || (periodMode === 'custom' && customBreakdown === 'daily')
                             ? formatDailyPeriod(row.period)
                             : formatMonthlyPeriod(row.period)}
                         </td>
-                        <td className="px-4 py-2.5 text-right text-slate-600">{row.registered}</td>
-                        <td className="px-4 py-2.5 text-right text-slate-600">{row.verified}</td>
-                        <td className="px-4 py-2.5 text-right text-slate-600">{row.searchReached}</td>
-                        <td className="px-4 py-2.5 text-right text-slate-600">{row.jobViewed}</td>
-                        <td className="px-4 py-2.5 text-right text-slate-600">{row.bookmarked}</td>
-                        <td className="px-4 py-2.5 text-right text-slate-600">{row.applied}</td>
+                        <td className="px-3 py-2.5 text-right text-slate-400">{data.hasSourceFilter ? '-' : row.registrationPagePV}</td>
+                        <td className="px-3 py-2.5 text-right text-slate-400">{data.hasSourceFilter ? '-' : row.registrationPageUU}</td>
+                        <td className="px-3 py-2.5 text-right text-slate-600">{row.registered}</td>
+                        <td className="px-3 py-2.5 text-right text-slate-600">{row.verified}</td>
+                        <td className="px-3 py-2.5 text-right text-slate-400">{row.searchPV}</td>
+                        <td className="px-3 py-2.5 text-right text-slate-600">{row.searchReached}</td>
+                        <td className="px-3 py-2.5 text-right text-slate-400">{row.jobViewedPV}</td>
+                        <td className="px-3 py-2.5 text-right text-slate-600">{row.jobViewed}</td>
+                        <td className="px-3 py-2.5 text-right text-slate-600">{row.bookmarked}</td>
+                        <td className="px-3 py-2.5 text-right text-slate-600">{row.applicationClickUU}</td>
+                        <td className="px-3 py-2.5 text-right text-slate-600">{row.applied}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -548,27 +641,33 @@ export default function FunnelAnalytics() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-slate-50 text-slate-500">
-                      <th className="px-4 py-3 text-left text-xs font-medium">流入元</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium">登録</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium">認証</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium">検索到達</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium">詳細閲覧</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium">お気に入り</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium">応募</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium">転換率</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium sticky left-0 bg-slate-50 z-10">流入元</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium">登録</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium">認証</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium text-slate-400">検索PV</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium">検索UU</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium text-slate-400">詳細PV</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium">詳細UU</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium">お気に入り</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium">応募クリック</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium">応募完了</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium">転換率</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
                     {data.bySource.map(row => (
                       <tr key={row.source} className="hover:bg-slate-50">
-                        <td className="px-4 py-2.5 font-medium text-slate-700">{row.sourceLabel}</td>
-                        <td className="px-4 py-2.5 text-right text-slate-600">{row.registered}</td>
-                        <td className="px-4 py-2.5 text-right text-slate-600">{row.verified}</td>
-                        <td className="px-4 py-2.5 text-right text-slate-600">{row.searchReached}</td>
-                        <td className="px-4 py-2.5 text-right text-slate-600">{row.jobViewed}</td>
-                        <td className="px-4 py-2.5 text-right text-slate-600">{row.bookmarked}</td>
-                        <td className="px-4 py-2.5 text-right text-slate-600">{row.applied}</td>
-                        <td className="px-4 py-2.5 text-right font-semibold text-indigo-600">{row.conversionRate}%</td>
+                        <td className="px-3 py-2.5 font-medium text-slate-700 sticky left-0 bg-white z-10">{row.sourceLabel}</td>
+                        <td className="px-3 py-2.5 text-right text-slate-600">{row.registered}</td>
+                        <td className="px-3 py-2.5 text-right text-slate-600">{row.verified}</td>
+                        <td className="px-3 py-2.5 text-right text-slate-400">{row.searchPV}</td>
+                        <td className="px-3 py-2.5 text-right text-slate-600">{row.searchReached}</td>
+                        <td className="px-3 py-2.5 text-right text-slate-400">{row.jobViewedPV}</td>
+                        <td className="px-3 py-2.5 text-right text-slate-600">{row.jobViewed}</td>
+                        <td className="px-3 py-2.5 text-right text-slate-600">{row.bookmarked}</td>
+                        <td className="px-3 py-2.5 text-right text-slate-600">{row.applicationClickUU}</td>
+                        <td className="px-3 py-2.5 text-right text-slate-600">{row.applied}</td>
+                        <td className="px-3 py-2.5 text-right font-semibold text-indigo-600">{row.conversionRate}%</td>
                       </tr>
                     ))}
                   </tbody>

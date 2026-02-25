@@ -10,6 +10,7 @@ import { directUpload } from '@/utils/directUpload';
 import { useConversations, useMessagesByFacility, useAnnouncements, type Message, type Conversation, type MessagesResponse, type Announcement } from '@/hooks/useMessages';
 import { MessagesSkeleton, ConversationsSkeleton } from '@/components/MessagesSkeleton';
 import { preload } from 'swr';
+import { trackGA4Event } from '@/src/lib/ga4-events';
 
 type TabType = 'messages' | 'notifications';
 
@@ -262,6 +263,10 @@ export function MessagesContent({ initialConversations, userId, initialTab, init
             }
             : m
         ));
+        trackGA4Event('message_sent', {
+          facility_id: facilityId,
+          has_attachment: attachmentsToSend.length > 0,
+        });
         mutateConversations();
         mutateMessages();
       } else {
