@@ -137,6 +137,7 @@ export async function sendNotification(params: SendNotificationParams): Promise<
             targetType,
             recipientId,
             recipientName,
+            recipientEmail: recipientEmail || undefined,
             title: replaceVariables(setting.push_title, variables),
             body: replaceVariables(setting.push_body, variables),
             url: variables.job_url || variables.review_url || variables.resubmit_url || variables.message_url || '/',
@@ -371,11 +372,12 @@ async function sendPushNotification(params: {
     targetType: string;
     recipientId: number;
     recipientName: string;
+    recipientEmail?: string;
     title: string;
     body: string;
     url: string;
 }): Promise<void> {
-    const { notificationKey, targetType, recipientId, recipientName, title, body, url } = params;
+    const { notificationKey, targetType, recipientId, recipientName, recipientEmail, title, body, url } = params;
 
     try {
         // プッシュ購読情報を取得
@@ -462,6 +464,7 @@ async function sendPushNotification(params: {
                 target_type: targetType,
                 recipient_id: recipientId,
                 recipient_name: recipientName,
+                recipient_email: recipientEmail || null,
                 push_title: title,
                 push_body: body,
                 push_url: url,
@@ -482,6 +485,7 @@ async function sendPushNotification(params: {
                     target_type: targetType,
                     recipient_id: recipientId,
                     recipient_name: recipientName,
+                    recipient_email: recipientEmail || null,
                     push_title: title,
                     push_body: body,
                     push_url: url,
