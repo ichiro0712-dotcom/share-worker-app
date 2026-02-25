@@ -45,6 +45,29 @@ export async function POST(request: NextRequest) {
         const body = await request.json();
         const { userId, userType, title, message, url } = body;
 
+        // 宛先ユーザーのメールアドレスを取得
+        let recipientEmail: string | null = null;
+        let recipientName = '';
+        try {
+            if (userType === 'worker') {
+                const user = await prisma.user.findUnique({
+                    where: { id: userId },
+                    select: { email: true, name: true },
+                });
+                recipientEmail = user?.email || null;
+                recipientName = user?.name || '';
+            } else {
+                const admin = await prisma.facilityAdmin.findUnique({
+                    where: { id: userId },
+                    select: { email: true, name: true },
+                });
+                recipientEmail = admin?.email || null;
+                recipientName = admin?.name || '';
+            }
+        } catch {
+            // メール取得失敗はログ記録に影響しないので続行
+        }
+
         // 対象ユーザーの購読情報を取得
         const subscriptions = await prisma.pushSubscription.findMany({
             where: userType === 'worker'
@@ -61,7 +84,8 @@ export async function POST(request: NextRequest) {
                     channel: 'PUSH',
                     target_type: userType === 'worker' ? 'WORKER' : 'FACILITY',
                     recipient_id: userId,
-                    recipient_name: '',
+                    recipient_name: recipientName,
+                    recipient_email: recipientEmail,
                     push_title: title || '+タスタス',
                     push_body: message || '新しいお知らせがあります',
                     push_url: url || '/',
@@ -171,7 +195,8 @@ export async function POST(request: NextRequest) {
                 channel: 'PUSH',
                 target_type: userType === 'worker' ? 'WORKER' : 'FACILITY',
                 recipient_id: userId,
-                recipient_name: '',
+                recipient_name: recipientName,
+                recipient_email: recipientEmail,
                 push_title: title || '+タスタス',
                 push_body: message || '新しいお知らせがあります',
                 push_url: url || '/',
