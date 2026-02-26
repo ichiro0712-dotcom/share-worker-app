@@ -271,7 +271,7 @@ export async function sendMatchingNotification(
         // 審査あり求人の場合はWORKER_INTERVIEW_ACCEPTED、それ以外はWORKER_MATCHED
         const notificationKey = isInterviewJob ? 'WORKER_INTERVIEW_ACCEPTED' : 'WORKER_MATCHED';
 
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || 'https://tastas.jp';
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || 'https://tastas.work';
         await sendNotification({
             notificationKey,
             targetType: 'WORKER',
@@ -374,7 +374,7 @@ export async function sendApplicationNotification(
                     worker_name: workerName,
                     job_title: jobTitle,
                     work_date: workDate,
-                    job_url: `${process.env.NEXTAUTH_URL || 'https://tastas.jp'}/admin/applications`, // 施設管理画面の応募一覧へ
+                    job_url: `${process.env.NEXTAUTH_URL || 'https://tastas.work'}/admin/applications`, // 施設管理画面の応募一覧へ
                 },
             });
         }
@@ -435,7 +435,7 @@ export async function sendApplicationNotificationMultiple(
                     worker_name: workerName,
                     job_title: jobTitle,
                     work_date: workDateText,
-                    job_url: `${process.env.NEXTAUTH_URL || 'https://tastas.jp'}/admin/applications`,
+                    job_url: `${process.env.NEXTAUTH_URL || 'https://tastas.work'}/admin/applications`,
                 },
             });
         }
@@ -521,7 +521,7 @@ export async function sendFacilityReviewRequestNotification(
                 facility_name: facility.facility_name,
                 worker_name: workerName,
                 job_title: jobTitle,
-                review_url: `${process.env.NEXTAUTH_URL || 'https://tastas.jp'}/admin/reviews`,
+                review_url: `${process.env.NEXTAUTH_URL || 'https://tastas.work'}/admin/reviews`,
             },
         });
 
@@ -572,7 +572,7 @@ export async function sendCancelNotification(
                 facility_name: facilityName,
                 job_title: jobTitle,
                 work_date: workDate,
-                job_url: `${process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || 'https://tastas.jp'}/jobs/${jobId}`,
+                job_url: `${process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || 'https://tastas.work'}/jobs/${jobId}`,
                 start_time: timeInfo?.startTime?.substring(0, 5) || '',
                 end_time: timeInfo?.endTime?.substring(0, 5) || '',
             },
@@ -659,7 +659,7 @@ export async function sendReviewReceivedNotificationToWorker(
             variables: {
                 worker_name: user.name,
                 facility_name: facilityName,
-                review_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://tastas.jp'}/mypage/reviews`,
+                review_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://tastas.work'}/mypage/reviews`,
             },
         });
 
@@ -749,7 +749,7 @@ export async function sendFavoriteNewJobNotification(
                 recipientEmail: bookmark.user.email,
                 variables: {
                     facility_name: facilityName,
-                    job_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://tastas.jp'}/jobs/${jobId}`,
+                    job_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://tastas.work'}/jobs/${jobId}`,
                 },
             });
             sentCount++;
@@ -972,7 +972,7 @@ export async function sendMessageNotificationToWorker(
         variables: {
           facility_name: facilityName,
           worker_name: user.name,
-          message_url: `${process.env.NEXTAUTH_URL || 'https://tastas.jp'}/messages`,
+          message_url: `${process.env.NEXTAUTH_URL || 'https://tastas.work'}/messages`,
         },
       });
     }
@@ -1011,7 +1011,7 @@ export async function sendMessageNotificationToFacility(
         variables: {
           worker_name: workerName,
           facility_name: facility.facility_name,
-          message_url: `${process.env.NEXTAUTH_URL || 'https://tastas.jp'}/admin/messages`,
+          message_url: `${process.env.NEXTAUTH_URL || 'https://tastas.work'}/admin/messages`,
         },
       });
     }
@@ -1051,7 +1051,7 @@ export async function sendAdminNewFacilityNotification(
                     facility_name: facilityName,
                     corporation_name: corporationName,
                     registered_at: new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }),
-                    facility_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://tastas.jp'}/system-admin/facilities/${facilityId}`,
+                    facility_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://tastas.work'}/system-admin/facilities/${facilityId}`,
                 },
             });
         }
@@ -1089,7 +1089,7 @@ export async function sendAdminNewWorkerNotification(
                     user_name: workerName,
                     user_email: workerEmail,
                     registered_at: new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }),
-                    worker_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://tastas.jp'}/system-admin/workers/${workerId}`,
+                    worker_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://tastas.work'}/system-admin/workers/${workerId}`,
                 },
             });
         }
@@ -1122,8 +1122,8 @@ export async function sendAdminHighCancelRateNotification(
         if (admins.length === 0) return null;
 
         const targetUrl = targetType === 'WORKER'
-            ? `${process.env.NEXT_PUBLIC_APP_URL || 'https://tastas.jp'}/system-admin/workers/${targetId}`
-            : `${process.env.NEXT_PUBLIC_APP_URL || 'https://tastas.jp'}/system-admin/facilities/${targetId}`;
+            ? `${process.env.NEXT_PUBLIC_APP_URL || 'https://tastas.work'}/system-admin/workers/${targetId}`
+            : `${process.env.NEXT_PUBLIC_APP_URL || 'https://tastas.work'}/system-admin/facilities/${targetId}`;
 
         for (const admin of admins) {
             await sendNotification({
@@ -1166,8 +1166,8 @@ export async function sendAdminLowRatingStreakNotification(
         if (admins.length === 0) return null;
 
         const targetUrl = targetType === 'WORKER'
-            ? `${process.env.NEXT_PUBLIC_APP_URL || 'https://tastas.jp'}/system-admin/workers/${targetId}`
-            : `${process.env.NEXT_PUBLIC_APP_URL || 'https://tastas.jp'}/system-admin/facilities/${targetId}`;
+            ? `${process.env.NEXT_PUBLIC_APP_URL || 'https://tastas.work'}/system-admin/workers/${targetId}`
+            : `${process.env.NEXT_PUBLIC_APP_URL || 'https://tastas.work'}/system-admin/facilities/${targetId}`;
 
         for (const admin of admins) {
             await sendNotification({
@@ -1220,7 +1220,7 @@ export async function sendApplicationConfirmNotification(
             select: { hourly_wage: true }
         });
 
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || 'https://tastas.jp';
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || 'https://tastas.work';
         const statusMessage = isImmediateMatch
             ? 'マッチングが成立しました。勤務日をお待ちください。'
             : '施設からの返答をお待ちください。';
