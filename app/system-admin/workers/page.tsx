@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { getSystemWorkers, geocodeAddress } from '@/src/lib/system-actions';
-import { Search, Filter, Eye, Ban, ChevronDown, X, ArrowUpDown, Users, MapPin, Star, Briefcase } from 'lucide-react';
+import { Search, Filter, Eye, Ban, ChevronDown, X, ArrowUpDown, Users, MapPin, Star, Briefcase, CheckCircle2 } from 'lucide-react';
 import { PREFECTURES, QUALIFICATION_OPTIONS } from '@/constants/job';
 import { getCitiesByPrefecture, Prefecture } from '@/constants/prefectureCities';
 
@@ -20,6 +20,7 @@ interface Worker {
     gender: string | null;
     birth_date: Date | null;
     isSuspended: boolean;
+    emailVerified: boolean;
     age: number | null;
     avgRating: number | null;
     reviewCount: number;
@@ -44,6 +45,7 @@ export default function SystemAdminWorkersPage() {
     const [prefectureFilter, setPrefectureFilter] = useState('');
     const [cityFilter, setCityFilter] = useState('');
     const [qualificationFilter, setQualificationFilter] = useState('');
+    const [emailVerifiedFilter, setEmailVerifiedFilter] = useState<'all' | 'verified' | 'unverified'>('all');
 
     // 距離検索
     const [distanceSearchEnabled, setDistanceSearchEnabled] = useState(false);
@@ -79,6 +81,7 @@ export default function SystemAdminWorkersPage() {
                 prefecture: prefectureFilter || undefined,
                 city: cityFilter || undefined,
                 qualification: qualificationFilter || undefined,
+                emailVerified: emailVerifiedFilter,
             };
 
             // 距離検索が有効で座標がある場合
@@ -143,6 +146,7 @@ export default function SystemAdminWorkersPage() {
 
     const handleResetFilters = () => {
         setStatusFilter('all');
+        setEmailVerifiedFilter('all');
         setPrefectureFilter('');
         setCityFilter('');
         setQualificationFilter('');
@@ -174,6 +178,7 @@ export default function SystemAdminWorkersPage() {
 
     const activeFilterCount = [
         statusFilter !== 'all',
+        emailVerifiedFilter !== 'all',
         prefectureFilter !== '',
         cityFilter !== '',
         qualificationFilter !== '',
@@ -251,7 +256,7 @@ export default function SystemAdminWorkersPage() {
                 {/* フィルターパネル */}
                 {showFilters && (
                     <div className="mt-4 pt-4 border-t border-slate-200">
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                             {/* ステータス */}
                             <div>
                                 <label className="block text-xs font-medium text-slate-600 mb-1">ステータス</label>
@@ -263,6 +268,20 @@ export default function SystemAdminWorkersPage() {
                                     <option value="all">すべて</option>
                                     <option value="active">有効</option>
                                     <option value="suspended">停止中</option>
+                                </select>
+                            </div>
+
+                            {/* 本登録 */}
+                            <div>
+                                <label className="block text-xs font-medium text-slate-600 mb-1">本登録（メール認証）</label>
+                                <select
+                                    value={emailVerifiedFilter}
+                                    onChange={(e) => setEmailVerifiedFilter(e.target.value as any)}
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                >
+                                    <option value="all">すべて</option>
+                                    <option value="verified">本登録済み</option>
+                                    <option value="unverified">未登録</option>
                                 </select>
                             </div>
 
@@ -409,6 +428,14 @@ export default function SystemAdminWorkersPage() {
                             </button>
                         </span>
                     )}
+                    {emailVerifiedFilter !== 'all' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-100 text-indigo-700 text-xs rounded-full">
+                            {emailVerifiedFilter === 'verified' ? '本登録済み' : '未登録'}
+                            <button onClick={() => { setEmailVerifiedFilter('all'); fetchWorkers(); }}>
+                                <X className="w-3 h-3" />
+                            </button>
+                        </span>
+                    )}
                     {prefectureFilter && (
                         <span className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-100 text-indigo-700 text-xs rounded-full">
                             {prefectureFilter}
@@ -493,11 +520,11 @@ export default function SystemAdminWorkersPage() {
                                 <tr key={worker.id} className="hover:bg-slate-50 transition-colors">
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center overflow-hidden">
+                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center overflow-hidden ${worker.emailVerified ? 'bg-emerald-100' : 'bg-slate-200'}`}>
                                                 {worker.profile_image ? (
                                                     <img src={worker.profile_image} alt={worker.name} className="w-full h-full object-cover" />
                                                 ) : (
-                                                    <span className="text-slate-500 font-bold">{(worker.name || '?').charAt(0)}</span>
+                                                    <span className={`font-bold ${worker.emailVerified ? 'text-emerald-600' : 'text-slate-500'}`}>{(worker.name || '?').charAt(0)}</span>
                                                 )}
                                             </div>
                                             <div>

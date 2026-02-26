@@ -530,7 +530,7 @@ export async function applyForJobMultipleDates(jobId: string, workDateIds: numbe
             appliedWorkDates
         ).catch(err => console.error('[applyForJobMultipleDates] Background notification error:', err));
 
-        const baseUrl = process.env.NEXTAUTH_URL || 'https://tastas.jp';
+        const baseUrl = process.env.NEXTAUTH_URL || 'https://tastas.work';
         const jobDetailUrl = `${baseUrl}/jobs/${jobIdNum}`;
 
         const appliedDatesListStr = appliedWorkDatesFormatted.join('\n');
@@ -1036,7 +1036,7 @@ export async function acceptOffer(jobId: string, workDateId: number) {
         ).catch(err => console.error('[acceptOffer] Background notification error:', err));
 
         // マッチングメッセージの送信
-        const baseUrl = process.env.NEXTAUTH_URL || 'https://tastas.jp';
+        const baseUrl = process.env.NEXTAUTH_URL || 'https://tastas.work';
         const jobDetailUrl = `${baseUrl}/my-jobs/${application.id}`;
 
         const workerLastName = user.name?.split(' ')[0] || user.name || '';

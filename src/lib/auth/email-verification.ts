@@ -12,7 +12,7 @@ function getResendClient(): Resend | null {
     return resend;
 }
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'noreply@tastas.site';
-const APP_URL = process.env.NEXTAUTH_URL || 'https://tastas.jp';
+const APP_URL = process.env.NEXTAUTH_URL || 'https://tastas.work';
 
 // トークン有効期限（24時間）
 const TOKEN_EXPIRY_HOURS = 24;
