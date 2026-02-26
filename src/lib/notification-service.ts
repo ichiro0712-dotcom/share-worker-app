@@ -657,7 +657,7 @@ export async function sendNearbyJobNotifications(
                 : '未定',
             worker_name: worker.name,
             worker_last_name: worker.last_name_kana || worker.name,
-            job_url: `${process.env.NEXTAUTH_URL || 'https://tastas.jp'}/jobs/${job.id}`
+            job_url: `${process.env.NEXTAUTH_URL || 'https://tastas.work'}/jobs/${job.id}`
         };
 
         // 通知送信

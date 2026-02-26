@@ -293,7 +293,7 @@ async function sendWorkerReviewReminders() {
             variables: {
                 facility_name: app.workDate.job.facility.facility_name,
                 job_title: app.workDate.job.title,
-                review_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://tastas.jp'}/worker/applications/${app.id}/review`,
+                review_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://tastas.work'}/worker/applications/${app.id}/review`,
             },
         });
         sentCount++;
@@ -363,7 +363,7 @@ async function sendFavoriteDeadlineReminders() {
                 job_title: job.title,
                 facility_name: job.facility.facility_name,
                 deadline: deadlineStr,
-                job_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://tastas.jp'}/jobs/${job.id}`,
+                job_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://tastas.work'}/jobs/${job.id}`,
             },
         });
         sentCount++;
@@ -451,7 +451,7 @@ async function sendFacilityDeadlineWarnings() {
                 job_title: job.title,
                 deadline: deadlineStr,
                 remaining_slots: String(remainingSlots),
-                job_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://tastas.jp'}/admin/jobs/${job.id}`,
+                job_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://tastas.work'}/admin/jobs/${job.id}`,
             },
         });
         sentCount++;
