@@ -197,6 +197,7 @@ export async function getSystemWorkers(
         prefecture?: string;
         city?: string;
         qualification?: string;
+        emailVerified?: 'all' | 'verified' | 'unverified';
         // 距離検索用
         distanceFrom?: {
             lat: number;
@@ -257,6 +258,13 @@ export async function getSystemWorkers(
                 has: filters.qualification
             };
         }
+
+        // 本登録（メール認証）フィルター
+        if (filters.emailVerified === 'verified') {
+            where.email_verified = true;
+        } else if (filters.emailVerified === 'unverified') {
+            where.email_verified = false;
+        }
     }
 
     // 距離検索または計算フィールドでのソートの場合は全件取得してJS側で処理
@@ -286,6 +294,7 @@ export async function getSystemWorkers(
                 gender: true,
                 birth_date: true,
                 is_suspended: true,
+                email_verified: true,
                 lat: true,
                 lng: true,
                 notifications: false, // 負荷軽減のため除外
@@ -350,6 +359,7 @@ export async function getSystemWorkers(
                 totalWorkCount,
                 distance,
                 isSuspended: w.is_suspended || false,
+                emailVerified: w.email_verified || false,
                 age: null, // 後で計算
             };
         });
@@ -416,6 +426,7 @@ export async function getSystemWorkers(
                     gender: true,
                     birth_date: true,
                     is_suspended: true,
+                    email_verified: true,
                     lat: true,
                     lng: true,
                 },
@@ -476,6 +487,7 @@ export async function getSystemWorkers(
                 return {
                     ...w,
                     isSuspended: w.is_suspended || false,
+                    emailVerified: w.email_verified || false,
                     age: calculateAge(w.birth_date),
                     avgRating: stat ? stat.sum / stat.count : null,
                     reviewCount: stat?.count || 0,
