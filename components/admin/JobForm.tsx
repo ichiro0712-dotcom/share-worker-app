@@ -34,7 +34,6 @@ import {
     END_HOUR_OPTIONS,
     MINUTE_OPTIONS,
     WORK_FREQUENCY_ICONS,
-    JOB_DESCRIPTION_FORMATS,
 } from '@/constants';
 import type { JobTypeValue } from '@/constants/job';
 import { QUALIFICATION_GROUPS } from '@/constants/qualifications';
@@ -286,6 +285,11 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
         formData.workContent.includes('入浴介助(機械浴)') ||
         formData.workContent.includes('入浴介助(個浴)') ||
         formData.workContent.includes('排泄介助');
+
+    // === 仕事詳細フォーマットを常にDBから取得（キャッシュに依存しない） ===
+    useEffect(() => {
+        getJobDescriptionFormats().then(formats => setJobDescriptionFormats(formats));
+    }, []);
 
     // === 初期データ取得 ===
     useEffect(() => {
@@ -2165,17 +2169,17 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
                                 <select
                                     onChange={(e) => {
                                         if (e.target.value) {
-                                            const format = JOB_DESCRIPTION_FORMATS.find(f => f.value === e.target.value);
+                                            const format = jobDescriptionFormats.find(f => f.label === e.target.value);
                                             if (format) {
-                                                handleInputChange('jobDescription', format.text);
+                                                handleInputChange('jobDescription', format.content);
                                             }
                                         }
                                     }}
                                     className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600 mb-2"
                                 >
                                     <option value="">フォーマットを選択</option>
-                                    {JOB_DESCRIPTION_FORMATS.map(format => (
-                                        <option key={format.value} value={format.value}>{format.value}</option>
+                                    {jobDescriptionFormats.map(format => (
+                                        <option key={format.id} value={format.label}>{format.label}</option>
                                     ))}
                                 </select>
                                 <textarea
