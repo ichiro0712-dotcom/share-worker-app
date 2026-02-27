@@ -119,6 +119,7 @@ export async function createJobDescriptionFormat(data: {
             },
         });
         revalidatePath('/system-admin/content/templates');
+        revalidatePath('/admin/jobs', 'layout');
         return { success: true };
     } catch (error) {
         console.error('Failed to create format:', error);
@@ -142,6 +143,7 @@ export async function updateJobDescriptionFormat(
             data,
         });
         revalidatePath('/system-admin/content/templates');
+        revalidatePath('/admin/jobs', 'layout');
         return { success: true };
     } catch (error) {
         console.error('Failed to update format:', error);
@@ -159,6 +161,7 @@ export async function deleteJobDescriptionFormat(
             data: { is_active: false },
         });
         revalidatePath('/system-admin/content/templates');
+        revalidatePath('/admin/jobs', 'layout');
         return { success: true };
     } catch (error) {
         console.error('Failed to delete format:', error);
@@ -180,6 +183,7 @@ export async function updateJobDescriptionFormatOrder(
             )
         );
         revalidatePath('/system-admin/content/templates');
+        revalidatePath('/admin/jobs', 'layout');
         return { success: true };
     } catch (error) {
         console.error('Failed to update order:', error);
