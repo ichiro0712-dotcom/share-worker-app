@@ -38,15 +38,30 @@ const resolveTab = (tab: string | null): string => {
 
 export default function AnalyticsPage() {
     const searchParams = useSearchParams();
-    const [activeTab, setActiveTab] = useState<string>(() => resolveTab(searchParams?.get('tab')));
+    const initialTab = resolveTab(searchParams?.get('tab'));
+    const [activeTab, setActiveTab] = useState<string>(initialTab);
+    // 一度訪問したタブを記録（display:noneで非表示にし、アンマウントしない）
+    const [mountedTabs, setMountedTabs] = useState<Set<string>>(new Set([initialTab]));
+
+    // タブ切り替え時にmountedTabsに追加
+    const handleTabChange = (tabId: string) => {
+        setActiveTab(tabId);
+        setMountedTabs(prev => {
+            if (prev.has(tabId)) return prev;
+            const next = new Set(prev);
+            next.add(tabId);
+            return next;
+        });
+    };
 
     // URLのtabパラメータが変更された場合に追従
     useEffect(() => {
         const tab = searchParams?.get('tab');
         if (tab) {
             const resolved = resolveTab(tab);
-            setActiveTab(resolved);
+            handleTabChange(resolved);
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchParams]);
 
     return (
@@ -94,7 +109,7 @@ export default function AnalyticsPage() {
                     return (
                         <button
                             key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
+                            onClick={() => handleTabChange(tab.id)}
                             className={`pb-4 px-2 text-sm font-medium transition-colors whitespace-nowrap flex items-center gap-1.5 ${activeTab === tab.id
                                     ? 'text-indigo-600 border-b-2 border-indigo-600'
                                     : 'text-slate-500 hover:text-slate-700'
@@ -107,16 +122,16 @@ export default function AnalyticsPage() {
                 })}
             </div>
 
-            {/* Content */}
+            {/* Content — display:noneで非表示にし、タブ切替時にアンマウントしない（期間設定を保持） */}
             <div className="min-h-[500px]">
-                {activeTab === 'worker' && <WorkerAnalytics />}
-                {activeTab === 'facility' && <FacilityAnalytics />}
-                {activeTab === 'matching' && <MatchingAnalytics />}
-                {activeTab === 'jobs' && <JobAnalytics />}
-                {activeTab === 'lp' && <LpTracking />}
-                {activeTab === 'funnel' && <FunnelAnalytics />}
-                {activeTab === 'ga4' && <GA4Analytics />}
-                {activeTab === 'definitions' && <MetricDefinitions />}
+                {mountedTabs.has('worker') && <div style={{ display: activeTab === 'worker' ? 'block' : 'none' }}><WorkerAnalytics /></div>}
+                {mountedTabs.has('facility') && <div style={{ display: activeTab === 'facility' ? 'block' : 'none' }}><FacilityAnalytics /></div>}
+                {mountedTabs.has('matching') && <div style={{ display: activeTab === 'matching' ? 'block' : 'none' }}><MatchingAnalytics /></div>}
+                {mountedTabs.has('jobs') && <div style={{ display: activeTab === 'jobs' ? 'block' : 'none' }}><JobAnalytics /></div>}
+                {mountedTabs.has('lp') && <div style={{ display: activeTab === 'lp' ? 'block' : 'none' }}><LpTracking /></div>}
+                {mountedTabs.has('funnel') && <div style={{ display: activeTab === 'funnel' ? 'block' : 'none' }}><FunnelAnalytics /></div>}
+                {mountedTabs.has('ga4') && <div style={{ display: activeTab === 'ga4' ? 'block' : 'none' }}><GA4Analytics /></div>}
+                {mountedTabs.has('definitions') && <div style={{ display: activeTab === 'definitions' ? 'block' : 'none' }}><MetricDefinitions /></div>}
             </div>
         </div>
     );
