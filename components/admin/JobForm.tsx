@@ -286,6 +286,11 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
         formData.workContent.includes('入浴介助(個浴)') ||
         formData.workContent.includes('排泄介助');
 
+    // === 仕事詳細フォーマットを常にDBから取得（キャッシュに依存しない） ===
+    useEffect(() => {
+        getJobDescriptionFormats().then(formats => setJobDescriptionFormats(formats));
+    }, []);
+
     // === 初期データ取得 ===
     useEffect(() => {
         // 既に初期化済みの場合は何もしない（formDataの上書きを防ぐ）
