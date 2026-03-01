@@ -2423,7 +2423,7 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    アイコン <span className="text-red-500">*</span>
+                                    アイコン
                                 </label>
                                 <p className="text-xs text-blue-600 mb-2">チェックが多いほどより多くのワーカーから応募がきます!</p>
                                 <div className="grid grid-cols-3 gap-2">
