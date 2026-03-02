@@ -1360,7 +1360,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
               </p>
             )}
             <p className="mt-2 text-xs text-gray-500">
-              ※この施設の審査あり求人における面接通過率です
+              ※この施設の審査あり求人における面接通過率です（採用・不採用の結果が出た応募が対象）
             </p>
           </div>
         </div>
