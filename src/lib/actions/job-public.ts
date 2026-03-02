@@ -396,30 +396,7 @@ export async function getFacilityInterviewPassRate(
             break;
     }
 
-    // 施設の審査あり求人の応募データを集計
-    const result = await prisma.application.aggregate({
-        where: {
-            workDate: {
-                job: {
-                    facility_id: facilityId,
-                    requires_interview: true, // 審査あり求人のみ
-                },
-            },
-            created_at: {
-                gte: startDate,
-                lte: endDate,
-            },
-            // キャンセルされていない応募のみ
-            status: {
-                not: 'CANCELLED',
-            },
-        },
-        _count: {
-            id: true,
-        },
-    });
-
-    // マッチング成立数（SCHEDULED以上のステータス）
+    // マッチング成立数（採用 = SCHEDULED以上のステータス）
     const matchedResult = await prisma.application.aggregate({
         where: {
             workDate: {
@@ -441,15 +418,38 @@ export async function getFacilityInterviewPassRate(
         },
     });
 
-    const appliedCount = result._count.id;
-    const matchedCount = matchedResult._count.id;
+    // 不採用数（施設がキャンセル = 不採用）
+    const rejectedResult = await prisma.application.aggregate({
+        where: {
+            workDate: {
+                job: {
+                    facility_id: facilityId,
+                    requires_interview: true,
+                },
+            },
+            created_at: {
+                gte: startDate,
+                lte: endDate,
+            },
+            status: 'CANCELLED',
+            cancelled_by: 'FACILITY',
+        },
+        _count: {
+            id: true,
+        },
+    });
 
-    // 通過率を計算（応募数が0の場合はnull）
-    const passRate = appliedCount > 0 ? Math.round((matchedCount / appliedCount) * 100) : null;
+    const matchedCount = matchedResult._count.id;
+    const rejectedCount = rejectedResult._count.id;
+    // 分母 = 採用数 + 不採用数（施設が判断を下したもののみ。審査中は含めない）
+    const decidedCount = matchedCount + rejectedCount;
+
+    // 通過率を計算（判断済み数が0の場合はnull）
+    const passRate = decidedCount > 0 ? Math.round((matchedCount / decidedCount) * 100) : null;
 
     return {
         passRate,
-        appliedCount,
+        appliedCount: decidedCount,
         matchedCount,
         period: periodLabel,
     };
