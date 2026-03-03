@@ -30,8 +30,8 @@ interface JobCardProps {
   basePath?: string;  // リンクベースパス（デフォルト: '/jobs'）
 }
 
-// デフォルトのプレースホルダー画像（実在するサンプル画像を使用）
-const DEFAULT_JOB_IMAGE = '/images/samples/facility_top_1.png';
+// デフォルトのプレースホルダー画像
+const DEFAULT_JOB_IMAGE = '/images/samples/job_default_noimage.png';
 
 const JobCardComponent: React.FC<JobCardProps> = ({ job, facility, selectedDate, priority = false, isPublic = false, basePath }) => {
   const [isBookmarked, setIsBookmarked] = useState(false);

@@ -16,8 +16,8 @@ import { useErrorToast } from '@/components/ui/PersistentErrorToast';
 import { trackGA4Event } from '@/src/lib/ga4-events';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
-// デフォルトのプレースホルダー画像（実在するサンプル画像を使用）
-const DEFAULT_JOB_IMAGE = '/images/samples/facility_top_1.png';
+// デフォルトのプレースホルダー画像
+const DEFAULT_JOB_IMAGE = '/images/samples/job_default_noimage.png';
 
 interface ScheduledJob {
   date: string;
@@ -1360,7 +1360,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
               </p>
             )}
             <p className="mt-2 text-xs text-gray-500">
-              ※この施設の審査あり求人における面接通過率です
+              ※この施設の審査あり求人における面接通過率です（採用・不採用の結果が出た応募が対象）
             </p>
           </div>
         </div>

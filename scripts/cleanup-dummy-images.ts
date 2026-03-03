@@ -131,7 +131,7 @@ async function main() {
     // 画像が空になった場合はサンプル画像を設定
     const finalImages = cleanedImages.length > 0
       ? cleanedImages
-      : ['/images/samples/facility_top_1.png'];
+      : ['/images/samples/job_default_noimage.png'];
 
     await prisma.facility.update({
       where: { id: facility.id },
@@ -172,7 +172,7 @@ async function main() {
 
     const finalImages = cleanedImages.length > 0
       ? cleanedImages
-      : ['/images/samples/facility_top_1.png'];
+      : ['/images/samples/job_default_noimage.png'];
 
     await prisma.job.update({
       where: { id: job.id },

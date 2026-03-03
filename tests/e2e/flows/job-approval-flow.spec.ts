@@ -63,7 +63,7 @@ async function ensureWorkerProfileComplete(email: string): Promise<void> {
       select: { id: true, images: true },
     });
     const invalidHostPattern = /__mock-upload|127\.0\.0\.1/i;
-    const fallbackImage = '/images/samples/facility_top_1.png';
+    const fallbackImage = '/images/samples/job_default_noimage.png';
 
     for (const job of jobs) {
       if (!job.images?.some((img) => invalidHostPattern.test(img))) {
@@ -217,7 +217,7 @@ async function publishJob(page: Page, jobTitle: string): Promise<void> {
 }
 
 async function mockDirectUpload(page: Page, baseURL: string): Promise<void> {
-  const fallbackPublicUrl = '/images/samples/facility_top_1.png';
+  const fallbackPublicUrl = '/images/samples/job_default_noimage.png';
   const mockUploadEndpoint = `${baseURL}/api/mock-upload`;
 
   // presigned API をモックして、ローカルのモックエンドポイントを返す
@@ -270,7 +270,7 @@ test('審査あり求人の応募→承認がワーカーへ反映される', as
   test.setTimeout(120000);
   const baseURL = test.info().project.use?.baseURL ?? 'http://127.0.0.1:3000';
   const jobTitle = `E2E審査フロー-${Date.now()}`;
-  const imagePath = path.join(process.cwd(), 'public/images/samples/facility_top_1.png');
+  const imagePath = path.join(process.cwd(), 'public/images/samples/job_default_noimage.png');
 
   await ensureWorkerProfileComplete(TEST_ACCOUNTS.worker.email);
 
