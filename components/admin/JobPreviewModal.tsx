@@ -87,7 +87,7 @@ export function JobPreviewModal({ isOpen, onClose, jobData, facilityData }: JobP
     dresscode: jobData.dresscode,
     belongings: jobData.belongings,
     tags: jobData.icons,
-    images: jobData.images.length > 0 ? jobData.images : ['/images/samples/facility_top_1.png'],
+    images: jobData.images.length > 0 ? jobData.images : ['/images/samples/job_default_noimage.png'],
     attachments: jobData.attachments || [],
     status: 'published',
     requiresInterview: jobData.requiresInterview || false,

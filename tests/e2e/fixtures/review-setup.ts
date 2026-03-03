@@ -106,7 +106,7 @@ function buildJobDataFromTemplate(
     manager_name: template?.manager_name ?? 'E2E Manager',
     manager_message: template?.manager_message ?? null,
     manager_avatar: template?.manager_avatar ?? null,
-    images: template?.images?.length ? template.images : ['/images/samples/facility_top_1.png'],
+    images: template?.images?.length ? template.images : ['/images/samples/job_default_noimage.png'],
     inexperienced_ok: template?.inexperienced_ok ?? false,
     blank_ok: template?.blank_ok ?? false,
     hair_style_free: template?.hair_style_free ?? false,

@@ -137,7 +137,7 @@ export async function POST() {
 
       const finalImages = cleanedImages.length > 0
         ? cleanedImages
-        : ['/images/samples/facility_top_1.png'];
+        : ['/images/samples/job_default_noimage.png'];
 
       await prisma.facility.update({
         where: { id: facility.id },
@@ -178,7 +178,7 @@ export async function POST() {
 
       const finalImages = cleanedImages.length > 0
         ? cleanedImages
-        : ['/images/samples/facility_top_1.png'];
+        : ['/images/samples/job_default_noimage.png'];
 
       await prisma.job.update({
         where: { id: job.id },

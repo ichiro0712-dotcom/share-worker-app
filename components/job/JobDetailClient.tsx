@@ -16,8 +16,8 @@ import { useErrorToast } from '@/components/ui/PersistentErrorToast';
 import { trackGA4Event } from '@/src/lib/ga4-events';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
-// デフォルトのプレースホルダー画像（実在するサンプル画像を使用）
-const DEFAULT_JOB_IMAGE = '/images/samples/facility_top_1.png';
+// デフォルトのプレースホルダー画像
+const DEFAULT_JOB_IMAGE = '/images/samples/job_default_noimage.png';
 
 interface ScheduledJob {
   date: string;

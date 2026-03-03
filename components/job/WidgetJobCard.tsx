@@ -24,7 +24,7 @@ interface WidgetJobCardProps {
   lineUrl?: string;
 }
 
-const DEFAULT_JOB_IMAGE = '/images/samples/facility_top_1.png';
+const DEFAULT_JOB_IMAGE = '/images/samples/job_default_noimage.png';
 
 const WidgetJobCardComponent: React.FC<WidgetJobCardProps> = ({ job, facility, selectedDate, lpNumber, lineUrl }) => {
   const [mounted, setMounted] = useState(false);
