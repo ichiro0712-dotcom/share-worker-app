@@ -472,7 +472,7 @@ export async function createJobs(input: CreateJobInput) {
                 : '担当者',
             manager_avatar: facility.staff_photo || null,
             manager_message: facility.staff_greeting || null,
-            images: input.images && input.images.length > 0 ? input.images : (facility.images || []),
+            images: input.images && input.images.length > 0 ? input.images : [],
             dresscode_images: input.dresscodeImages || [],
             attachments: input.attachments || [],
             ...conditionFlags,
