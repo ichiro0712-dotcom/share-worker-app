@@ -118,6 +118,9 @@ export default function LogViewerPage() {
     const [traceUserId, setTraceUserId] = useState('');
     const [traceUserType, setTraceUserType] = useState('WORKER');
 
+    // 詳細検索の開閉
+    const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+
     // 詳細モーダル
     const [selectedActivityLog, setSelectedActivityLog] = useState<ActivityLog | null>(null);
     const [selectedNotificationLog, setSelectedNotificationLog] = useState<NotificationLog | null>(null);
@@ -183,6 +186,8 @@ export default function LogViewerPage() {
 
             if (notificationChannel !== 'ALL') params.append('channel', notificationChannel);
             if (searchQuery) params.append('search', searchQuery);
+            if (dateFrom) params.append('date_from', dateFrom);
+            if (dateTo) params.append('date_to', dateTo);
 
             const res = await fetch(`/api/system-admin/notification-logs?${params}`);
             const data = await res.json();
@@ -203,7 +208,7 @@ export default function LogViewerPage() {
         } finally {
             setNotificationLoading(false);
         }
-    }, [notificationPage, notificationTargetType, notificationChannel, searchQuery, showDebugError]);
+    }, [notificationPage, notificationTargetType, notificationChannel, searchQuery, dateFrom, dateTo, showDebugError]);
 
     // タブ切り替え時のデータ取得
     useEffect(() => {
@@ -372,82 +377,38 @@ export default function LogViewerPage() {
                 </div>
 
                 {/* フィルタエリア */}
-                <div className="p-4 border-b border-slate-200 bg-slate-50">
-                    <div className="flex flex-wrap gap-4 items-end">
-                        {/* エラー一覧・全操作ログ共通フィルタ */}
-                        {(activeTab === 'errors' || activeTab === 'activity') && (
-                            <>
-                                {activeTab === 'activity' && (
-                                    <>
-                                        <div>
-                                            <label className="block text-xs font-medium text-slate-500 mb-1">ユーザー種別</label>
-                                            <select
-                                                value={userTypeFilter}
-                                                onChange={(e) => { setUserTypeFilter(e.target.value); setActivityPage(1); }}
-                                                className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
-                                            >
-                                                <option value="ALL">すべて</option>
-                                                <option value="WORKER">ワーカー</option>
-                                                <option value="FACILITY">施設</option>
-                                                <option value="GUEST">ゲスト</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-medium text-slate-500 mb-1">アクション</label>
-                                            <select
-                                                value={actionFilter}
-                                                onChange={(e) => { setActionFilter(e.target.value); setActivityPage(1); }}
-                                                className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
-                                            >
-                                                <option value="ALL">すべて</option>
-                                                {availableActions.map(action => (
-                                                    <option key={action} value={action}>{action}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-medium text-slate-500 mb-1">デバイス</label>
-                                            <select
-                                                value={deviceTypeFilter}
-                                                onChange={(e) => { setDeviceTypeFilter(e.target.value); setActivityPage(1); }}
-                                                className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
-                                            >
-                                                <option value="ALL">すべて</option>
-                                                <option value="desktop">💻 デスクトップ</option>
-                                                <option value="mobile">📱 スマホ</option>
-                                                <option value="tablet">📲 タブレット</option>
-                                            </select>
-                                        </div>
-                                    </>
-                                )}
-                                <div>
-                                    <label className="block text-xs font-medium text-slate-500 mb-1">
-                                        <Calendar className="w-3 h-3 inline mr-1" />
-                                        開始日
-                                    </label>
-                                    <input
-                                        type="date"
-                                        value={dateFrom}
-                                        onChange={(e) => { setDateFrom(e.target.value); setActivityPage(1); }}
-                                        className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-medium text-slate-500 mb-1">
-                                        <Calendar className="w-3 h-3 inline mr-1" />
-                                        終了日
-                                    </label>
-                                    <input
-                                        type="date"
-                                        value={dateTo}
-                                        onChange={(e) => { setDateTo(e.target.value); setActivityPage(1); }}
-                                        className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
-                                    />
-                                </div>
-                            </>
+                <div className="p-4 border-b border-slate-200 bg-slate-50 space-y-3">
+                    {/* 基本フィルタ行: 検索 + タブ固有の主要フィルタ + ボタン */}
+                    <div className="flex flex-wrap gap-3 items-end">
+                        {/* 全タブ共通: テキスト検索（トレースタブ以外） */}
+                        {activeTab !== 'trace' && (
+                            <div className="flex-1 min-w-[200px]">
+                                <label className="block text-xs font-medium text-slate-500 mb-1">
+                                    <Search className="w-3 h-3 inline mr-1" />
+                                    メール / 名前で検索
+                                </label>
+                                <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            if (activeTab === 'notifications') {
+                                                setNotificationPage(1);
+                                                fetchNotificationLogs();
+                                            } else {
+                                                setActivityPage(1);
+                                                fetchActivityLogs(activeTab === 'errors');
+                                            }
+                                        }
+                                    }}
+                                    placeholder={activeTab === 'notifications' ? '宛先名・メールアドレスで検索...' : 'メールアドレスで検索...'}
+                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                                />
+                            </div>
                         )}
 
-                        {/* 通知ログ専用フィルタ */}
+                        {/* 通知ログ: 主要フィルタ */}
                         {activeTab === 'notifications' && (
                             <>
                                 <div>
@@ -514,7 +475,42 @@ export default function LogViewerPage() {
                             </>
                         )}
 
-                        {/* リロードボタン */}
+                        {/* 詳細検索トグル（トレースタブ以外） */}
+                        {activeTab !== 'trace' && (
+                            <button
+                                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+                                    showAdvancedFilters
+                                        ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
+                                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                                }`}
+                            >
+                                <Filter className="w-4 h-4" />
+                                詳細検索
+                                {(dateFrom || dateTo || (activeTab === 'activity' && (userTypeFilter !== 'ALL' || actionFilter !== 'ALL' || deviceTypeFilter !== 'ALL'))) && (
+                                    <span className="w-2 h-2 bg-indigo-500 rounded-full"></span>
+                                )}
+                            </button>
+                        )}
+
+                        {/* 検索 / リロードボタン */}
+                        <button
+                            onClick={() => {
+                                if (activeTab === 'notifications') {
+                                    setNotificationPage(1);
+                                    fetchNotificationLogs();
+                                } else if (activeTab === 'trace') {
+                                    fetchActivityLogs(false, traceUserId);
+                                } else {
+                                    setActivityPage(1);
+                                    fetchActivityLogs(activeTab === 'errors');
+                                }
+                            }}
+                            className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                        >
+                            <Search className="w-4 h-4" />
+                            検索
+                        </button>
                         <button
                             onClick={() => {
                                 if (activeTab === 'notifications') {
@@ -528,9 +524,103 @@ export default function LogViewerPage() {
                             className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors flex items-center gap-2"
                         >
                             <RefreshCw className="w-4 h-4" />
-                            更新
                         </button>
                     </div>
+
+                    {/* 詳細検索パネル（折りたたみ） */}
+                    {showAdvancedFilters && activeTab !== 'trace' && (
+                        <div className="bg-white p-4 rounded-lg border border-slate-200 space-y-3">
+                            <div className="flex flex-wrap gap-4 items-end">
+                                {/* 日付フィルタ（全タブ共通） */}
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-500 mb-1">
+                                        <Calendar className="w-3 h-3 inline mr-1" />
+                                        開始日
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={dateFrom}
+                                        onChange={(e) => { setDateFrom(e.target.value); setActivityPage(1); setNotificationPage(1); }}
+                                        className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-500 mb-1">
+                                        <Calendar className="w-3 h-3 inline mr-1" />
+                                        終了日
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={dateTo}
+                                        onChange={(e) => { setDateTo(e.target.value); setActivityPage(1); setNotificationPage(1); }}
+                                        className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+
+                                {/* 全操作ログ専用の追加フィルタ */}
+                                {activeTab === 'activity' && (
+                                    <>
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-500 mb-1">ユーザー種別</label>
+                                            <select
+                                                value={userTypeFilter}
+                                                onChange={(e) => { setUserTypeFilter(e.target.value); setActivityPage(1); }}
+                                                className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                                            >
+                                                <option value="ALL">すべて</option>
+                                                <option value="WORKER">ワーカー</option>
+                                                <option value="FACILITY">施設</option>
+                                                <option value="GUEST">ゲスト</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-500 mb-1">アクション</label>
+                                            <select
+                                                value={actionFilter}
+                                                onChange={(e) => { setActionFilter(e.target.value); setActivityPage(1); }}
+                                                className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                                            >
+                                                <option value="ALL">すべて</option>
+                                                {availableActions.map(action => (
+                                                    <option key={action} value={action}>{action}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-500 mb-1">デバイス</label>
+                                            <select
+                                                value={deviceTypeFilter}
+                                                onChange={(e) => { setDeviceTypeFilter(e.target.value); setActivityPage(1); }}
+                                                className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                                            >
+                                                <option value="ALL">すべて</option>
+                                                <option value="desktop">デスクトップ</option>
+                                                <option value="mobile">スマホ</option>
+                                                <option value="tablet">タブレット</option>
+                                            </select>
+                                        </div>
+                                    </>
+                                )}
+
+                                {/* フィルタクリアボタン */}
+                                <button
+                                    onClick={() => {
+                                        setDateFrom('');
+                                        setDateTo('');
+                                        setSearchQuery('');
+                                        setUserTypeFilter('ALL');
+                                        setActionFilter('ALL');
+                                        setDeviceTypeFilter('ALL');
+                                        setActivityPage(1);
+                                        setNotificationPage(1);
+                                    }}
+                                    className="px-3 py-2 text-slate-500 hover:text-slate-700 text-sm hover:bg-slate-100 rounded-lg transition-colors"
+                                >
+                                    クリア
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* テーブル: 操作ログ */}

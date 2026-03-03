@@ -16,6 +16,8 @@ export async function GET(request: NextRequest) {
         const targetType = searchParams.get('target_type') || 'WORKER';
         const channel = searchParams.get('channel');
         const search = searchParams.get('search');
+        const dateFrom = searchParams.get('date_from');
+        const dateTo = searchParams.get('date_to');
         const page = parseInt(searchParams.get('page') || '1');
         const limit = parseInt(searchParams.get('limit') || '20');
 
@@ -32,6 +34,19 @@ export async function GET(request: NextRequest) {
                 { recipient_name: { contains: search, mode: 'insensitive' } },
                 { recipient_email: { contains: search, mode: 'insensitive' } },
             ];
+        }
+
+        // 日付範囲フィルタ（JSTとして解釈）
+        if (dateFrom || dateTo) {
+            where.created_at = {};
+            if (dateFrom) {
+                where.created_at.gte = new Date(`${dateFrom}T00:00:00+09:00`);
+            }
+            if (dateTo) {
+                const endDate = new Date(`${dateTo}T00:00:00+09:00`);
+                endDate.setDate(endDate.getDate() + 1);
+                where.created_at.lt = endDate;
+            }
         }
 
         const [logs, total] = await Promise.all([
