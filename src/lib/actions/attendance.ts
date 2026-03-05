@@ -301,6 +301,15 @@ async function processCheckOut(
     },
   });
 
+  // 7. 定時退勤の場合、ApplicationのステータスをCOMPLETED_PENDINGに更新
+  // ※ 修正申請不要（定時退勤）の場合のみ。修正申請が必要な場合は承認後に更新される
+  if (!requiresModification && attendance.application_id) {
+    await prisma.application.update({
+      where: { id: attendance.application_id },
+      data: { status: 'COMPLETED_PENDING' },
+    });
+  }
+
   // 退勤成功をログ記録
   logActivity({
     userType: 'WORKER',
