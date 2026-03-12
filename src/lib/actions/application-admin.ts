@@ -2,7 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
-import { getCurrentTime } from '@/utils/debugTime';
+import { getCurrentTime, getTodayStart } from '@/utils/debugTime';
 import {
     sendMatchingNotification,
     sendReviewRequestNotification,
@@ -700,9 +700,14 @@ export async function getApplicationsByWorker(
                 where: { user_id: { in: workerIds }, status: { in: ['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED', 'CANCELLED'] } },
                 select: { user_id: true, status: true, updated_at: true, cancelled_by: true, workDate: { select: { work_date: true } } },
             }),
+            // 勤務回数: 勤務日が今日より前（過去）のもののみカウント
             prisma.application.groupBy({
                 by: ['user_id'],
-                where: { user_id: { in: workerIds }, status: { in: ['COMPLETED_PENDING', 'COMPLETED_RATED'] } },
+                where: {
+                    user_id: { in: workerIds },
+                    status: { in: ['COMPLETED_PENDING', 'COMPLETED_RATED'] },
+                    workDate: { work_date: { lt: getTodayStart() } },
+                },
                 _count: true,
             }),
         ]);
