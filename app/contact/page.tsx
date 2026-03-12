@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronLeft, Mail, Phone, Clock } from 'lucide-react';
+import { ChevronLeft, Mail, Phone, Clock, MessageCircle } from 'lucide-react';
 import { getSystemTemplates } from '@/src/lib/content-actions';
 
 export default function ContactPage() {
@@ -12,6 +12,7 @@ export default function ContactPage() {
         phone: '0120-XXX-XXX', // 初期値
         department: 'カスタマーサポート部',
         hours: '平日: 9:00 〜 18:00',
+        lineUrl: '',
     });
 
     useEffect(() => {
@@ -23,6 +24,7 @@ export default function ContactPage() {
                     phone: templates.support_phone || '0120-XXX-XXX',
                     department: templates.support_department || 'カスタマーサポート部',
                     hours: templates.support_hours || '平日: 9:00 〜 18:00',
+                    lineUrl: templates.support_line_url || '',
                 });
             } catch (err) {
                 console.error('Failed to fetch support info:', err);
@@ -81,6 +83,29 @@ export default function ContactPage() {
                         {supportInfo.phone}
                     </a>
                 </div>
+
+                {/* LINEでのお問い合わせ */}
+                {supportInfo.lineUrl && (
+                    <div className="bg-white rounded-lg border border-gray-200 p-6">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="p-2 bg-[#E8F5E9] rounded-lg">
+                                <MessageCircle className="w-5 h-5 text-[#06C755]" />
+                            </div>
+                            <h2 className="font-bold text-gray-800">LINEでのお問い合わせ</h2>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-4">
+                            LINE公式アカウントからもお問い合わせいただけます。友だち追加してお気軽にご連絡ください。
+                        </p>
+                        <a
+                            href={supportInfo.lineUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block w-full text-center px-4 py-3 bg-[#06C755] text-white rounded-lg font-medium hover:bg-[#05b54c] transition-colors"
+                        >
+                            友だち追加する
+                        </a>
+                    </div>
+                )}
 
                 {/* 受付時間 */}
                 <div className="bg-white rounded-lg border border-gray-200 p-6">
