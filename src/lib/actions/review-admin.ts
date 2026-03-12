@@ -1730,7 +1730,7 @@ export async function getWorkerListForFacility(
       // ステータスを判定
       const statuses: WorkerListStatus[] = [];
       const hasCompletedPending = statusSet.has('COMPLETED_PENDING'); // レビュー待ち
-      const hasCompletedRated = hasCompletedPending || statusSet.has('COMPLETED_RATED'); // 勤務完了済み（オファー対象）
+      const hasCompletedRated = statusSet.has('COMPLETED_RATED'); // レビュー完了
       const hasCompleted = hasCompletedPending || hasCompletedRated;
       const hasCancelled = statusSet.has('CANCELLED');
       const hasScheduled = statusSet.has('SCHEDULED');
