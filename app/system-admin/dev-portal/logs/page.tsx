@@ -80,7 +80,20 @@ interface NotificationLog {
     created_at: string;
 }
 
-type TabType = 'errors' | 'activity' | 'notifications' | 'trace';
+interface SystemLog {
+    id: number;
+    admin_id: number;
+    admin_name: string;
+    admin_email: string | null;
+    action: string;
+    target_type: string;
+    target_id: number | null;
+    details: Record<string, unknown> | null;
+    created_at: string;
+    ip_address: string | null;
+}
+
+type TabType = 'errors' | 'activity' | 'notifications' | 'trace' | 'system';
 
 // ========== メインコンポーネント ==========
 
@@ -103,6 +116,20 @@ export default function LogViewerPage() {
     const [notificationPage, setNotificationPage] = useState(1);
     const [notificationTotalPages, setNotificationTotalPages] = useState(1);
     const [notificationTotal, setNotificationTotal] = useState(0);
+
+    // 管理操作ログ状態
+    const [systemLogs, setSystemLogs] = useState<SystemLog[]>([]);
+    const [systemLogsLoading, setSystemLogsLoading] = useState(false);
+    const [systemLogsPage, setSystemLogsPage] = useState(1);
+    const [systemLogsTotalPages, setSystemLogsTotalPages] = useState(1);
+    const [systemLogsTotal, setSystemLogsTotal] = useState(0);
+    const [systemLogsActionFilter, setSystemLogsActionFilter] = useState('ALL');
+    const [systemLogsAvailableActions, setSystemLogsAvailableActions] = useState<string[]>([]);
+    const [systemLogsAvailableAdmins, setSystemLogsAvailableAdmins] = useState<{ id: number; name: string }[]>([]);
+    const [systemLogsAdminFilter, setSystemLogsAdminFilter] = useState('ALL');
+    const [systemLogsDateFrom, setSystemLogsDateFrom] = useState('');
+    const [systemLogsDateTo, setSystemLogsDateTo] = useState('');
+    const [selectedSystemLog, setSelectedSystemLog] = useState<SystemLog | null>(null);
 
     // フィルタ状態
     const [userTypeFilter, setUserTypeFilter] = useState('ALL');
@@ -210,6 +237,42 @@ export default function LogViewerPage() {
         }
     }, [notificationPage, notificationTargetType, notificationChannel, searchQuery, dateFrom, dateTo, showDebugError]);
 
+    const fetchSystemLogs = useCallback(async () => {
+        setSystemLogsLoading(true);
+        try {
+            const params = new URLSearchParams({
+                page: systemLogsPage.toString(),
+                limit: '20',
+            });
+
+            if (systemLogsActionFilter !== 'ALL') params.append('action', systemLogsActionFilter);
+            if (systemLogsAdminFilter !== 'ALL') params.append('admin_id', systemLogsAdminFilter);
+            if (systemLogsDateFrom) params.append('date_from', systemLogsDateFrom);
+            if (systemLogsDateTo) params.append('date_to', systemLogsDateTo);
+
+            const res = await fetch(`/api/system-admin/system-logs?${params}`);
+            const data = await res.json();
+
+            setSystemLogs(data.logs || []);
+            setSystemLogsTotalPages(data.totalPages || 1);
+            setSystemLogsTotal(data.total || 0);
+            setSystemLogsAvailableActions(data.availableActions || []);
+            setSystemLogsAvailableAdmins(data.availableAdmins || []);
+        } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'fetch',
+                operation: '管理操作ログ取得',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+            });
+            toast.error('管理操作ログの取得に失敗しました');
+        } finally {
+            setSystemLogsLoading(false);
+        }
+    }, [systemLogsPage, systemLogsActionFilter, systemLogsAdminFilter, systemLogsDateFrom, systemLogsDateTo, showDebugError]);
+
     // タブ切り替え時のデータ取得
     useEffect(() => {
         if (activeTab === 'errors') {
@@ -220,8 +283,10 @@ export default function LogViewerPage() {
             fetchNotificationLogs();
         } else if (activeTab === 'trace' && traceUserId) {
             fetchActivityLogs(false, traceUserId);
+        } else if (activeTab === 'system') {
+            fetchSystemLogs();
         }
-    }, [activeTab, activityPage, notificationPage, fetchActivityLogs, fetchNotificationLogs, traceUserId]);
+    }, [activeTab, activityPage, notificationPage, systemLogsPage, fetchActivityLogs, fetchNotificationLogs, fetchSystemLogs, traceUserId]);
 
     // ========== ヘルパー関数 ==========
 
@@ -303,6 +368,7 @@ export default function LogViewerPage() {
         { id: 'activity', label: '全操作ログ', icon: <Activity className="w-4 h-4" /> },
         { id: 'notifications', label: '通知ログ', icon: <Bell className="w-4 h-4" /> },
         { id: 'trace', label: 'ユーザー追跡', icon: <UserSearch className="w-4 h-4" /> },
+        { id: 'system', label: '管理操作ログ', icon: <GitCommit className="w-4 h-4" /> },
     ];
 
     return (
@@ -1219,6 +1285,212 @@ export default function LogViewerPage() {
                         <div className="p-6 border-t border-slate-200 bg-slate-50">
                             <button
                                 onClick={() => setSelectedNotificationLog(null)}
+                                className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                            >
+                                閉じる
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ========== 管理操作ログタブ ========== */}
+            {activeTab === 'system' && (
+                <div>
+                    {/* フィルタ */}
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-4">
+                        <div className="flex flex-wrap gap-3 items-end">
+                            <div>
+                                <label className="block text-xs font-medium text-slate-500 mb-1">アクション</label>
+                                <select
+                                    className="px-3 py-2 border border-slate-200 rounded-lg bg-white text-sm"
+                                    value={systemLogsActionFilter}
+                                    onChange={e => { setSystemLogsActionFilter(e.target.value); setSystemLogsPage(1); }}
+                                >
+                                    <option value="ALL">すべて</option>
+                                    {systemLogsAvailableActions.map(a => (
+                                        <option key={a} value={a}>{a}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-slate-500 mb-1">管理者</label>
+                                <select
+                                    className="px-3 py-2 border border-slate-200 rounded-lg bg-white text-sm"
+                                    value={systemLogsAdminFilter}
+                                    onChange={e => { setSystemLogsAdminFilter(e.target.value); setSystemLogsPage(1); }}
+                                >
+                                    <option value="ALL">すべて</option>
+                                    {systemLogsAvailableAdmins.map(a => (
+                                        <option key={a.id} value={a.id.toString()}>{a.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-slate-500 mb-1">開始日</label>
+                                <input
+                                    type="date"
+                                    className="px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                                    value={systemLogsDateFrom}
+                                    onChange={e => { setSystemLogsDateFrom(e.target.value); setSystemLogsPage(1); }}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-slate-500 mb-1">終了日</label>
+                                <input
+                                    type="date"
+                                    className="px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                                    value={systemLogsDateTo}
+                                    onChange={e => { setSystemLogsDateTo(e.target.value); setSystemLogsPage(1); }}
+                                />
+                            </div>
+                            <button
+                                onClick={() => { setSystemLogsActionFilter('ALL'); setSystemLogsAdminFilter('ALL'); setSystemLogsDateFrom(''); setSystemLogsDateTo(''); setSystemLogsPage(1); }}
+                                className="px-3 py-2 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
+                            >
+                                リセット
+                            </button>
+                            <div className="ml-auto text-sm text-slate-500">
+                                {systemLogsTotal.toLocaleString()} 件
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* テーブル */}
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        {systemLogsLoading ? (
+                            <div className="p-12 text-center text-slate-500">読み込み中...</div>
+                        ) : systemLogs.length === 0 ? (
+                            <div className="p-12 text-center text-slate-500">管理操作ログがありません</div>
+                        ) : (
+                            <table className="w-full text-left border-collapse">
+                                <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold">
+                                    <tr>
+                                        <th className="px-4 py-3">日時</th>
+                                        <th className="px-4 py-3">管理者</th>
+                                        <th className="px-4 py-3">アクション</th>
+                                        <th className="px-4 py-3">対象</th>
+                                        <th className="px-4 py-3">詳細</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {systemLogs.map((log) => (
+                                        <tr key={log.id} className="hover:bg-slate-50 transition-colors">
+                                            <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">
+                                                {format(toZonedTime(new Date(log.created_at), 'Asia/Tokyo'), 'MM/dd HH:mm:ss', { locale: ja })}
+                                            </td>
+                                            <td className="px-4 py-3 text-sm text-slate-700">{log.admin_name}</td>
+                                            <td className="px-4 py-3">
+                                                <span className="inline-block px-2 py-0.5 bg-indigo-50 text-indigo-700 text-xs rounded font-mono">
+                                                    {log.action}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3 text-sm text-slate-600">
+                                                {log.target_type}
+                                                {log.target_id != null && <span className="text-slate-400 ml-1">#{log.target_id}</span>}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {log.details ? (
+                                                    <button
+                                                        onClick={() => setSelectedSystemLog(log)}
+                                                        className="text-xs text-indigo-600 hover:text-indigo-800 hover:underline"
+                                                    >
+                                                        詳細を表示
+                                                    </button>
+                                                ) : (
+                                                    <span className="text-xs text-slate-400">-</span>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+
+                        {/* ページネーション */}
+                        {systemLogsTotalPages > 1 && (
+                            <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200">
+                                <button
+                                    onClick={() => setSystemLogsPage(p => Math.max(1, p - 1))}
+                                    disabled={systemLogsPage === 1}
+                                    className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg border border-slate-200 disabled:opacity-50 hover:bg-slate-50"
+                                >
+                                    <ChevronLeft className="w-4 h-4" /> 前へ
+                                </button>
+                                <span className="text-sm text-slate-500">
+                                    {systemLogsPage} / {systemLogsTotalPages}
+                                </span>
+                                <button
+                                    onClick={() => setSystemLogsPage(p => Math.min(systemLogsTotalPages, p + 1))}
+                                    disabled={systemLogsPage === systemLogsTotalPages}
+                                    className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg border border-slate-200 disabled:opacity-50 hover:bg-slate-50"
+                                >
+                                    次へ <ChevronRight className="w-4 h-4" />
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* 管理操作ログ詳細モーダル */}
+            {selectedSystemLog && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setSelectedSystemLog(null)}>
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+                        <div className="p-6 border-b border-slate-200">
+                            <div className="flex justify-between items-center">
+                                <h3 className="text-lg font-bold text-slate-800">操作ログ詳細</h3>
+                                <button
+                                    onClick={() => setSelectedSystemLog(null)}
+                                    className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded"
+                                    aria-label="閉じる"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+                        <div className="p-6 overflow-y-auto space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-xs font-medium text-slate-500">日時</label>
+                                    <p className="text-sm text-slate-800">
+                                        {format(toZonedTime(new Date(selectedSystemLog.created_at), 'Asia/Tokyo'), 'yyyy/MM/dd HH:mm:ss', { locale: ja })}
+                                    </p>
+                                </div>
+                                <div>
+                                    <label className="text-xs font-medium text-slate-500">管理者</label>
+                                    <p className="text-sm text-slate-800">{selectedSystemLog.admin_name}</p>
+                                </div>
+                                <div>
+                                    <label className="text-xs font-medium text-slate-500">アクション</label>
+                                    <p className="text-sm font-mono text-indigo-700">{selectedSystemLog.action}</p>
+                                </div>
+                                <div>
+                                    <label className="text-xs font-medium text-slate-500">対象</label>
+                                    <p className="text-sm text-slate-800">
+                                        {selectedSystemLog.target_type}
+                                        {selectedSystemLog.target_id != null && ` #${selectedSystemLog.target_id}`}
+                                    </p>
+                                </div>
+                            </div>
+                            {selectedSystemLog.details && (
+                                <div>
+                                    <label className="text-xs font-medium text-slate-500 mb-2 block">詳細データ</label>
+                                    <pre className="bg-slate-50 rounded-lg p-4 text-xs text-slate-700 overflow-x-auto font-mono whitespace-pre-wrap">
+                                        {JSON.stringify(selectedSystemLog.details, null, 2)}
+                                    </pre>
+                                </div>
+                            )}
+                            {selectedSystemLog.ip_address && (
+                                <div>
+                                    <label className="text-xs font-medium text-slate-500">IPアドレス</label>
+                                    <p className="text-sm text-slate-600 font-mono">{selectedSystemLog.ip_address}</p>
+                                </div>
+                            )}
+                        </div>
+                        <div className="p-6 border-t border-slate-200 bg-slate-50">
+                            <button
+                                onClick={() => setSelectedSystemLog(null)}
                                 className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
                             >
                                 閉じる
