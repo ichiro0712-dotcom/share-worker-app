@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { getSystemAdmins, createSystemAdmin, deleteSystemAdmin, updateSystemAdminNotificationEmail, updateSystemAdmin } from '@/src/lib/system-actions';
 import { useSystemAuth } from '@/contexts/SystemAuthContext';
-import { Users, Plus, Trash2, Shield, User, Mail, Pencil, Check, X } from 'lucide-react';
+import { Users, Plus, Trash2, Shield, User, Mail, Pencil, Check, X, Settings } from 'lucide-react';
+import Link from 'next/link';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
@@ -270,6 +271,24 @@ export default function SystemAdminsPage() {
 
     return (
         <div className="p-8">
+            {/* サブメニュー */}
+            <div className="flex gap-2 mb-6">
+                <Link
+                    href="/system-admin/settings/system"
+                    className="flex items-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+                >
+                    <Settings className="w-4 h-4" />
+                    システム設定
+                </Link>
+                <Link
+                    href="/system-admin/settings/admins"
+                    className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium"
+                >
+                    <Users className="w-4 h-4" />
+                    管理者管理
+                </Link>
+            </div>
+
             <div className="flex justify-between items-center mb-6">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800">管理者アカウント管理</h1>

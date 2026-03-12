@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Save, Settings, AlertCircle, CheckCircle } from 'lucide-react';
+import { Save, Settings, AlertCircle, CheckCircle, Users } from 'lucide-react';
+import Link from 'next/link';
 
 interface SystemSettings {
   distance_sort_filter_enabled: string;
@@ -79,6 +80,24 @@ export default function SystemSettingsPage() {
       <div className="flex items-center gap-3 mb-6">
         <Settings className="w-8 h-8 text-gray-600" />
         <h1 className="text-2xl font-bold">システム設定</h1>
+      </div>
+
+      {/* サブメニュー */}
+      <div className="flex gap-2 mb-6">
+        <Link
+          href="/system-admin/settings/system"
+          className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium"
+        >
+          <Settings className="w-4 h-4" />
+          システム設定
+        </Link>
+        <Link
+          href="/system-admin/settings/admins"
+          className="flex items-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+        >
+          <Users className="w-4 h-4" />
+          管理者管理
+        </Link>
       </div>
 
       {message && (
