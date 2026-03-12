@@ -733,8 +733,8 @@ export async function getSystemFacilities(
 /**
  * 施設管理者としてログインするためのトークンを生成
  */
-export async function generateMasqueradeToken(facilityId: number, adminId: number) {
-    await requireSystemAdminAuth();
+export async function generateMasqueradeToken(facilityId: number) {
+    const { adminId } = await requireSystemAdminAuth();
     const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 
     await prisma.systemLog.create({
@@ -754,7 +754,7 @@ export async function generateMasqueradeToken(facilityId: number, adminId: numbe
  * ワーカーとしてログインするためのトークンを生成
  */
 export async function generateWorkerMasqueradeToken(workerId: number) {
-    await requireSystemAdminAuth();
+    const { adminId } = await requireSystemAdminAuth();
     const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 
     // ワーカーの存在確認
@@ -770,7 +770,7 @@ export async function generateWorkerMasqueradeToken(workerId: number) {
     // マスカレードログを記録
     await prisma.systemLog.create({
         data: {
-            admin_id: 1, // TODO: 実際のシステム管理者IDを取得
+            admin_id: adminId,
             action: 'WORKER_MASQUERADE_INIT',
             target_type: 'User',
             target_id: workerId,
@@ -1282,7 +1282,7 @@ export async function createFacilityWithAdmin(data: {
     adminPassword: string;
     adminPhone?: string;
 }) {
-    await requireSystemAdminAuth();
+    const { adminId: systemAdminId } = await requireSystemAdminAuth();
     // メールアドレス重複チェック
     const existingAdmin = await prisma.facilityAdmin.findUnique({
         where: { email: data.adminEmail }
@@ -1348,11 +1348,11 @@ export async function createFacilityWithAdmin(data: {
             // ログ記録
             await tx.systemLog.create({
                 data: {
-                    admin_id: 1, // システム管理者ID
+                    admin_id: systemAdminId,
                     action: 'CREATE_FACILITY',
                     target_type: 'Facility',
                     target_id: facility.id,
-                    details: { adminId: admin.id, facilityName: facility.facility_name }
+                    details: { facilityAdminId: admin.id, facilityName: facility.facility_name }
                 }
             });
 
@@ -1377,7 +1377,7 @@ export async function createFacilityWithAdmin(data: {
  * 施設の全求人を停止
  */
 export async function stopAllFacilityJobs(facilityId: number) {
-    await requireSystemAdminAuth();
+    const { adminId } = await requireSystemAdminAuth();
     try {
         await prisma.job.updateMany({
             where: {
@@ -1389,7 +1389,7 @@ export async function stopAllFacilityJobs(facilityId: number) {
 
         await prisma.systemLog.create({
             data: {
-                admin_id: 1,
+                admin_id: adminId,
                 action: 'STOP_ALL_JOBS',
                 target_type: 'Facility',
                 target_id: facilityId,
@@ -1405,21 +1405,21 @@ export async function stopAllFacilityJobs(facilityId: number) {
 /**
  * パスワードリセットメール送信（モック）
  */
-export async function sendPasswordResetEmail(adminId: number) {
-    await requireSystemAdminAuth();
+export async function sendPasswordResetEmail(facilityAdminId: number) {
+    const { adminId } = await requireSystemAdminAuth();
     try {
-        const admin = await prisma.facilityAdmin.findUnique({ where: { id: adminId } });
-        if (!admin) return { success: false, error: '管理者が存在しません' };
+        const facilityAdmin = await prisma.facilityAdmin.findUnique({ where: { id: facilityAdminId } });
+        if (!facilityAdmin) return { success: false, error: '管理者が存在しません' };
 
         // 実際にはここでトークン生成とメール送信を行う
-        console.log(`Sending password reset email to ${admin.email}`);
+        console.log(`Sending password reset email to ${facilityAdmin.email}`);
 
         await prisma.systemLog.create({
             data: {
-                admin_id: 1,
+                admin_id: adminId,
                 action: 'SEND_PASSWORD_RESET',
                 target_type: 'FacilityAdmin',
-                target_id: adminId,
+                target_id: facilityAdminId,
             }
         });
 
@@ -2133,7 +2133,16 @@ export async function markAnnouncementAsRead(
  * システム管理者一覧取得
  */
 export async function getSystemAdmins() {
+    await requireSystemAdminAuth();
     return await prisma.systemAdmin.findMany({
+        select: {
+            id: true,
+            name: true,
+            email: true,
+            notification_email: true,
+            role: true,
+            created_at: true,
+        },
         orderBy: { created_at: 'desc' },
     });
 }
@@ -2146,18 +2155,38 @@ export async function createSystemAdmin(data: {
     email: string;
     role: string;
 }) {
+    const { adminId } = await requireSystemAdminAuth();
     // パスワードは初期ランダム or 固定
     const initialPassword = Math.random().toString(36).slice(-8);
     const hashedPassword = await bcrypt.hash(initialPassword, 10);
 
     try {
-        const admin = await prisma.systemAdmin.create({
-            data: {
-                ...data,
-                password_hash: hashedPassword,
-            },
+        const newAdmin = await prisma.$transaction(async (tx) => {
+            const created = await tx.systemAdmin.create({
+                data: {
+                    ...data,
+                    password_hash: hashedPassword,
+                },
+                select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    role: true,
+                    created_at: true,
+                },
+            });
+            await tx.systemLog.create({
+                data: {
+                    admin_id: adminId,
+                    action: 'CREATE_SYSTEM_ADMIN',
+                    target_type: 'SystemAdmin',
+                    target_id: created.id,
+                    details: { name: data.name, email: data.email, role: data.role },
+                },
+            });
+            return created;
         });
-        return { success: true, admin, initialPassword };
+        return { success: true, admin: newAdmin, initialPassword };
     } catch (error) {
         console.error('Create SystemAdmin Error:', error);
         return { success: false, error: 'システム管理者の作成に失敗しました' };
@@ -2168,12 +2197,48 @@ export async function createSystemAdmin(data: {
  * システム管理者削除
  */
 export async function deleteSystemAdmin(id: number) {
+    const { adminId } = await requireSystemAdminAuth();
+
+    // 自分自身の削除を禁止
+    if (adminId === id) {
+        return { success: false, error: '自分自身を削除することはできません' };
+    }
+
     try {
-        await prisma.systemAdmin.delete({
-            where: { id },
+        await prisma.$transaction(async (tx) => {
+            // トランザクション内で旧データを取得（一貫性保証）
+            const existingAdmin = await tx.systemAdmin.findUnique({
+                where: { id },
+                select: { id: true, name: true, email: true, role: true },
+            });
+
+            if (!existingAdmin) {
+                throw new Error('管理者が見つかりません');
+            }
+
+            await tx.systemAdmin.delete({ where: { id } });
+            await tx.systemLog.create({
+                data: {
+                    admin_id: adminId,
+                    action: 'DELETE_SYSTEM_ADMIN',
+                    target_type: 'SystemAdmin',
+                    target_id: id,
+                    details: {
+                        deletedAdmin: {
+                            name: existingAdmin.name,
+                            email: existingAdmin.email,
+                            role: existingAdmin.role,
+                        },
+                    },
+                },
+            });
         });
         return { success: true };
     } catch (error) {
+        const message = error instanceof Error ? error.message : '';
+        if (message === '管理者が見つかりません') {
+            return { success: false, error: message };
+        }
         console.error('Delete SystemAdmin Error:', error);
         return { success: false, error: '削除に失敗しました' };
     }
@@ -2183,15 +2248,125 @@ export async function deleteSystemAdmin(id: number) {
  * システム管理者の通知先メールアドレスを更新
  */
 export async function updateSystemAdminNotificationEmail(id: number, notificationEmail: string | null) {
+    const { adminId } = await requireSystemAdminAuth();
+
     try {
-        await prisma.systemAdmin.update({
-            where: { id },
-            data: { notification_email: notificationEmail || null },
+        await prisma.$transaction(async (tx) => {
+            // トランザクション内で旧データを取得（一貫性保証）
+            const existingAdmin = await tx.systemAdmin.findUnique({
+                where: { id },
+                select: { id: true, notification_email: true },
+            });
+
+            if (!existingAdmin) {
+                throw new Error('管理者が見つかりません');
+            }
+
+            await tx.systemAdmin.update({
+                where: { id },
+                data: { notification_email: notificationEmail || null },
+            });
+            await tx.systemLog.create({
+                data: {
+                    admin_id: adminId,
+                    action: 'UPDATE_SYSTEM_ADMIN_NOTIFICATION_EMAIL',
+                    target_type: 'SystemAdmin',
+                    target_id: id,
+                    details: {
+                        oldEmail: existingAdmin.notification_email,
+                        newEmail: notificationEmail || null,
+                    },
+                },
+            });
         });
         return { success: true };
     } catch (error) {
+        const message = error instanceof Error ? error.message : '';
+        if (message === '管理者が見つかりません') {
+            return { success: false, error: message };
+        }
         console.error('Update SystemAdmin notification_email Error:', error);
         return { success: false, error: '通知先メールの更新に失敗しました' };
+    }
+}
+
+/**
+ * システム管理者の名前・権限を更新
+ */
+export async function updateSystemAdmin(id: number, data: { name?: string; role?: string }) {
+    const { adminId } = await requireSystemAdminAuth();
+
+    // 自分自身の権限変更を禁止
+    if (data.role !== undefined && adminId === id) {
+        return { success: false, error: '自分自身の権限を変更することはできません' };
+    }
+
+    // roleのホワイトリストバリデーション
+    const ALLOWED_ROLES = ['admin', 'super_admin'];
+    if (data.role !== undefined && !ALLOWED_ROLES.includes(data.role)) {
+        return { success: false, error: '無効な権限です' };
+    }
+
+    try {
+        await prisma.$transaction(async (tx) => {
+            // トランザクション内で旧データを取得（一貫性保証）
+            const existingAdmin = await tx.systemAdmin.findUnique({
+                where: { id },
+                select: { id: true, name: true, role: true },
+            });
+
+            if (!existingAdmin) {
+                throw new Error('管理者が見つかりません');
+            }
+
+            // 変更があるフィールドのみ更新
+            const updateData: Record<string, string> = {};
+            const logEntries: Array<{ action: string; details: { [key: string]: string } }> = [];
+
+            if (data.name !== undefined && data.name !== existingAdmin.name) {
+                updateData.name = data.name;
+                logEntries.push({
+                    action: 'UPDATE_SYSTEM_ADMIN_NAME',
+                    details: { oldName: existingAdmin.name, newName: data.name },
+                });
+            }
+
+            if (data.role !== undefined && data.role !== existingAdmin.role) {
+                updateData.role = data.role;
+                logEntries.push({
+                    action: 'UPDATE_SYSTEM_ADMIN_ROLE',
+                    details: { oldRole: existingAdmin.role, newRole: data.role },
+                });
+            }
+
+            if (Object.keys(updateData).length === 0) {
+                return; // 変更なし
+            }
+
+            await tx.systemAdmin.update({
+                where: { id },
+                data: updateData,
+            });
+            for (const entry of logEntries) {
+                await tx.systemLog.create({
+                    data: {
+                        admin_id: adminId,
+                        action: entry.action,
+                        target_type: 'SystemAdmin',
+                        target_id: id,
+                        details: entry.details,
+                    },
+                });
+            }
+        });
+        return { success: true };
+    } catch (error) {
+        const message = error instanceof Error ? error.message : '';
+        if (message === '管理者が見つかりません') {
+            return { success: false, error: message };
+        }
+        console.error('Update SystemAdmin Error:', error);
+        return { success: false, error: '更新に失敗しました' };
     }
 }
 
@@ -2199,6 +2374,7 @@ export async function updateSystemAdminNotificationEmail(id: number, notificatio
  * 求人強制停止
  */
 export async function forceStopJob(id: number) {
+    await requireSystemAdminAuth();
     try {
         const job = await prisma.job.update({
             where: { id },
@@ -2215,6 +2391,7 @@ export async function forceStopJob(id: number) {
  * 求人停止解除
  */
 export async function forceResumeJob(id: number) {
+    await requireSystemAdminAuth();
     try {
         const job = await prisma.job.update({
             where: { id },
@@ -2231,6 +2408,7 @@ export async function forceResumeJob(id: number) {
  * 求人強制削除
  */
 export async function forceDeleteJob(id: number) {
+    await requireSystemAdminAuth();
     try {
         // 関連データが多いのでDeleteManyが必要だが、Cascade設定されていればOK
         // 今回は単純にDelete
@@ -2248,17 +2426,17 @@ export async function forceDeleteJob(id: number) {
  * マスカレード編集ログを記録
  */
 export async function logMasqueradeEdit(
-    systemAdminId: number,
     workerId: number,
     action: string,
     fieldChanged: string,
     oldValue: string | null,
     newValue: string | null
 ) {
+    const { adminId } = await requireSystemAdminAuth();
     try {
         await prisma.systemLog.create({
             data: {
-                admin_id: systemAdminId,
+                admin_id: adminId,
                 action: 'MASQUERADE_EDIT',
                 target_type: 'User',
                 target_id: workerId,
@@ -2734,10 +2912,10 @@ export async function toggleAllWorkDatesRecruitmentClosed(jobId: number, isClose
  * システム管理者が新規施設を登録する際のマスカレード方式用
  */
 export async function createPendingFacilityWithMasquerade(
-    adminId: number,
     adminEmail: string,
     adminPassword: string
 ) {
+    const { adminId } = await requireSystemAdminAuth();
     // メールアドレス重複チェック
     const existingAdmin = await prisma.facilityAdmin.findUnique({
         where: { email: adminEmail }
@@ -2825,7 +3003,8 @@ export async function createPendingFacilityWithMasquerade(
 /**
  * 仮登録状態の施設を削除（保存せずにキャンセルした場合）
  */
-export async function deletePendingFacility(facilityId: number, adminId: number) {
+export async function deletePendingFacility(facilityId: number) {
+    const { adminId } = await requireSystemAdminAuth();
     try {
         // 施設が仮登録状態か確認
         const facility = await prisma.facility.findUnique({

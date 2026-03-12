@@ -106,7 +106,6 @@ export default function SystemAdminFacilitiesPage() {
         setCreatingFacility(true);
         try {
             const result = await createPendingFacilityWithMasquerade(
-                admin.adminId,
                 newFacilityForm.email,
                 newFacilityForm.password
             );
@@ -158,7 +157,7 @@ export default function SystemAdminFacilitiesPage() {
         }
 
         try {
-            const result = await deletePendingFacility(facilityId, admin.adminId);
+            const result = await deletePendingFacility(facilityId);
             if (result.success) {
                 toast.success('施設を削除しました');
                 fetchFacilities();
@@ -317,7 +316,7 @@ export default function SystemAdminFacilitiesPage() {
         if (!confirm(`「${facilityName}」の管理者としてログインしますか？`)) return;
 
         try {
-            const token = await generateMasqueradeToken(facilityId, admin.adminId);
+            const token = await generateMasqueradeToken(facilityId);
             if (token) {
                 window.open(`/admin/masquerade?token=${token}`, '_blank');
             }

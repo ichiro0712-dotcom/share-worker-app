@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getSystemAdmins, createSystemAdmin, deleteSystemAdmin, updateSystemAdminNotificationEmail } from '@/src/lib/system-actions';
+import { getSystemAdmins, createSystemAdmin, deleteSystemAdmin, updateSystemAdminNotificationEmail, updateSystemAdmin } from '@/src/lib/system-actions';
 import { useSystemAuth } from '@/contexts/SystemAuthContext';
 import { Users, Plus, Trash2, Shield, User, Mail, Pencil, Check, X } from 'lucide-react';
 import { format } from 'date-fns';
@@ -29,8 +29,16 @@ export default function SystemAdminsPage() {
     const [createdCredentials, setCreatedCredentials] = useState<{ password: string } | null>(null);
 
     // 通知メール編集state
-    const [editingId, setEditingId] = useState<number | null>(null);
+    const [editingEmailId, setEditingEmailId] = useState<number | null>(null);
     const [editingEmail, setEditingEmail] = useState('');
+
+    // 名前編集state
+    const [editingNameId, setEditingNameId] = useState<number | null>(null);
+    const [editingName, setEditingName] = useState('');
+
+    // 権限編集state
+    const [editingRoleId, setEditingRoleId] = useState<number | null>(null);
+    const [editingRole, setEditingRole] = useState('');
 
     const fetchAdmins = async () => {
         setLoading(true);
@@ -127,13 +135,15 @@ export default function SystemAdminsPage() {
         }
     };
 
+    // --- 通知メール編集 ---
     const startEditNotificationEmail = (item: SystemAdmin) => {
-        setEditingId(item.id);
+        cancelAllEdits();
+        setEditingEmailId(item.id);
         setEditingEmail(item.notification_email || '');
     };
 
     const cancelEditNotificationEmail = () => {
-        setEditingId(null);
+        setEditingEmailId(null);
         setEditingEmail('');
     };
 
@@ -147,8 +157,7 @@ export default function SystemAdminsPage() {
             const result = await updateSystemAdminNotificationEmail(id, trimmed || null);
             if (result.success) {
                 toast.success('通知先メールを更新しました');
-                setEditingId(null);
-                setEditingEmail('');
+                cancelEditNotificationEmail();
                 fetchAdmins();
             } else {
                 toast.error(result.error || '更新に失敗しました');
@@ -167,6 +176,93 @@ export default function SystemAdminsPage() {
         }
     };
 
+    // --- 名前編集 ---
+    const startEditName = (item: SystemAdmin) => {
+        cancelAllEdits();
+        setEditingNameId(item.id);
+        setEditingName(item.name);
+    };
+
+    const cancelEditName = () => {
+        setEditingNameId(null);
+        setEditingName('');
+    };
+
+    const saveNameEdit = async (id: number) => {
+        const trimmed = editingName.trim();
+        if (!trimmed) {
+            toast.error('名前を入力してください');
+            return;
+        }
+        try {
+            const result = await updateSystemAdmin(id, { name: trimmed });
+            if (result.success) {
+                toast.success('名前を更新しました');
+                cancelEditName();
+                fetchAdmins();
+            } else {
+                toast.error(result.error || '更新に失敗しました');
+            }
+        } catch (e) {
+            const debugInfo = extractDebugInfo(e);
+            showDebugError({
+                type: 'save',
+                operation: '名前更新',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { id, editingName }
+            });
+            toast.error('エラーが発生しました');
+        }
+    };
+
+    // --- 権限編集 ---
+    const startEditRole = (item: SystemAdmin) => {
+        cancelAllEdits();
+        setEditingRoleId(item.id);
+        setEditingRole(item.role);
+    };
+
+    const cancelEditRole = () => {
+        setEditingRoleId(null);
+        setEditingRole('');
+    };
+
+    const saveRoleEdit = async (id: number) => {
+        try {
+            const result = await updateSystemAdmin(id, { role: editingRole });
+            if (result.success) {
+                toast.success('権限を更新しました');
+                cancelEditRole();
+                fetchAdmins();
+            } else {
+                toast.error(result.error || '更新に失敗しました');
+            }
+        } catch (e) {
+            const debugInfo = extractDebugInfo(e);
+            showDebugError({
+                type: 'save',
+                operation: '権限更新',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { id, editingRole }
+            });
+            toast.error('エラーが発生しました');
+        }
+    };
+
+    // 全編集をキャンセル
+    const cancelAllEdits = () => {
+        setEditingEmailId(null);
+        setEditingEmail('');
+        setEditingNameId(null);
+        setEditingName('');
+        setEditingRoleId(null);
+        setEditingRole('');
+    };
+
     const closeModal = () => {
         setShowModal(false);
         setCreatedCredentials(null);
@@ -177,7 +273,7 @@ export default function SystemAdminsPage() {
             <div className="flex justify-between items-center mb-6">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800">管理者アカウント管理</h1>
-                    <p className="text-slate-500">システム管理者の追加・削除</p>
+                    <p className="text-slate-500">システム管理者の追加・編集・削除</p>
                 </div>
                 <button
                     onClick={() => setShowModal(true)}
@@ -208,17 +304,54 @@ export default function SystemAdminsPage() {
                             <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                                 <td className="px-6 py-4 text-slate-500">{item.id}</td>
                                 <td className="px-6 py-4 font-medium text-slate-800">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
-                                            <User className="w-4 h-4 text-slate-400" />
+                                    {editingNameId === item.id ? (
+                                        <div className="flex items-center gap-1">
+                                            <input
+                                                type="text"
+                                                className="px-2 py-1 border border-slate-300 rounded text-sm w-32 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                                value={editingName}
+                                                onChange={e => setEditingName(e.target.value)}
+                                                autoFocus
+                                                onKeyDown={e => {
+                                                    if (e.key === 'Enter') saveNameEdit(item.id);
+                                                    if (e.key === 'Escape') cancelEditName();
+                                                }}
+                                            />
+                                            <button
+                                                onClick={() => saveNameEdit(item.id)}
+                                                className="p-1 text-green-600 hover:bg-green-50 rounded"
+                                                title="保存"
+                                            >
+                                                <Check className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={cancelEditName}
+                                                className="p-1 text-slate-400 hover:bg-slate-100 rounded"
+                                                title="キャンセル"
+                                            >
+                                                <X className="w-4 h-4" />
+                                            </button>
                                         </div>
-                                        {item.name}
-                                        {admin?.email === item.email && <span className="text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full ml-1">あなた</span>}
-                                    </div>
+                                    ) : (
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
+                                                <User className="w-4 h-4 text-slate-400" />
+                                            </div>
+                                            {item.name}
+                                            {admin?.email === item.email && <span className="text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full ml-1">あなた</span>}
+                                            <button
+                                                onClick={() => startEditName(item)}
+                                                className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded ml-1"
+                                                title="名前を編集"
+                                            >
+                                                <Pencil className="w-3 h-3" />
+                                            </button>
+                                        </div>
+                                    )}
                                 </td>
                                 <td className="px-6 py-4 text-slate-600 text-sm">{item.email}</td>
                                 <td className="px-6 py-4">
-                                    {editingId === item.id ? (
+                                    {editingEmailId === item.id ? (
                                         <div className="flex items-center gap-1">
                                             <input
                                                 type="email"
@@ -268,10 +401,52 @@ export default function SystemAdminsPage() {
                                     )}
                                 </td>
                                 <td className="px-6 py-4">
-                                    <span className="flex items-center gap-1 text-sm text-slate-600">
-                                        <Shield className="w-3 h-3" />
-                                        {item.role}
-                                    </span>
+                                    {editingRoleId === item.id ? (
+                                        <div className="flex items-center gap-1">
+                                            <select
+                                                className="px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                                                value={editingRole}
+                                                onChange={e => setEditingRole(e.target.value)}
+                                                autoFocus
+                                                onKeyDown={e => {
+                                                    if (e.key === 'Escape') cancelEditRole();
+                                                }}
+                                            >
+                                                <option value="admin">admin</option>
+                                                <option value="super_admin">super_admin</option>
+                                            </select>
+                                            <button
+                                                onClick={() => saveRoleEdit(item.id)}
+                                                className="p-1 text-green-600 hover:bg-green-50 rounded"
+                                                title="保存"
+                                            >
+                                                <Check className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={cancelEditRole}
+                                                className="p-1 text-slate-400 hover:bg-slate-100 rounded"
+                                                title="キャンセル"
+                                            >
+                                                <X className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center gap-1">
+                                            <span className="flex items-center gap-1 text-sm text-slate-600">
+                                                <Shield className="w-3 h-3" />
+                                                {item.role}
+                                            </span>
+                                            {admin?.email !== item.email && (
+                                                <button
+                                                    onClick={() => startEditRole(item)}
+                                                    className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded ml-1"
+                                                    title="権限を編集"
+                                                >
+                                                    <Pencil className="w-3 h-3" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
                                 </td>
                                 <td className="px-6 py-4 text-sm text-slate-500">
                                     {format(new Date(item.created_at), 'yyyy/MM/dd')}
@@ -294,9 +469,18 @@ export default function SystemAdminsPage() {
 
             {/* Modal */}
             {showModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-                        <h2 className="text-xl font-bold mb-4">管理者を追加</h2>
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={closeModal}>
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-xl font-bold">管理者を追加</h2>
+                            <button
+                                onClick={closeModal}
+                                className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded"
+                                aria-label="閉じる"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
 
                         {createdCredentials ? (
                             <div className="bg-green-50 p-4 rounded-lg mb-6 border border-green-100">

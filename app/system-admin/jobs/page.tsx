@@ -182,7 +182,7 @@ export default function SystemAdminJobsPage() {
         if (!admin) return;
         try {
             // 施設管理者としてマスカレード
-            const token = await generateMasqueradeToken(job.facilityId, admin.adminId || 1);
+            const token = await generateMasqueradeToken(job.facilityId);
             // 編集画面へリダイレクト（正しいパス: /admin/masquerade）
             window.open(`/admin/masquerade?token=${token}&redirect=/admin/jobs/${job.id}/edit`, '_blank');
         } catch (error) {
