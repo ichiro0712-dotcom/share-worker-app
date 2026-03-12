@@ -26,6 +26,7 @@ export default function TemplateManagementPage() {
         support_phone: '',
         support_department: '',
         support_hours: '',
+        support_line_url: '',
         // 初回自動送信メッセージ
         welcome_message_template: '',
         // 解雇事由
@@ -44,6 +45,7 @@ export default function TemplateManagementPage() {
                     support_phone: templates.support_phone || '',
                     support_department: templates.support_department || '',
                     support_hours: templates.support_hours || '',
+                    support_line_url: templates.support_line_url || '',
                     welcome_message_template: templates.welcome_message_template || '',
                 });
                 setAbbreviations(abbrevData);
@@ -290,6 +292,22 @@ export default function TemplateManagementPage() {
                                         placeholder="平日 9:00〜18:00"
                                     />
                                 </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    LINE友だち追加URL
+                                </label>
+                                <input
+                                    type="url"
+                                    value={formData.support_line_url}
+                                    onChange={(e) => handleChange('support_line_url', e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                    placeholder="https://lin.ee/xxxxx または https://line.me/R/ti/p/@xxxxx"
+                                />
+                                <p className="text-xs text-gray-500 mt-1">
+                                    LINE公式アカウントの友だち追加URLを入力してください。空欄の場合はお問い合わせページに表示されません。
+                                </p>
                             </div>
 
                             <div className="bg-gray-50 rounded-lg p-4">
