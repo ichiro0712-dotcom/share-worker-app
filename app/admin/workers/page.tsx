@@ -812,8 +812,8 @@ export default function AdminWorkersPage() {
                       <div className="flex flex-col items-end gap-2 flex-shrink-0">
                         {/* オファー・レビュー・お気に入り・ブロックボタン */}
                         <div className="flex gap-1.5">
-                          {/* オファーボタン（レビュー完了済みワーカーのみ表示） */}
-                          {worker.hasCompletedRated && (
+                          {/* オファーボタン（勤務完了済みワーカーに表示） */}
+                          {worker.hasCompleted && (
                             <Link
                               href={`/admin/jobs/new?mode=offer&workerId=${worker.userId}`}
                               onClick={(e) => e.stopPropagation()}
