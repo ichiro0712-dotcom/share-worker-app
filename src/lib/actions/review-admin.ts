@@ -40,10 +40,11 @@ export async function getWorkerDetail(workerId: number, facilityId: number) {
       isFavoriteBookmark,
       isBlockedBookmark,
     ] = await Promise.all([
+      // 勤務回数カウント: 勤務日が今日より前（過去）のもののみ対象
       prisma.application.findMany({
         where: {
           user_id: workerId,
-          workDate: { job: { facility_id: facilityId } },
+          workDate: { job: { facility_id: facilityId }, work_date: { lt: today } },
           status: { in: ['COMPLETED_PENDING', 'COMPLETED_RATED'] },
         },
         include: { workDate: { include: { job: true } } },
@@ -62,10 +63,11 @@ export async function getWorkerDetail(workerId: number, facilityId: number) {
         where: { user_id: workerId, reviewer_type: 'FACILITY' },
         include: { facility: { select: { facility_type: true } } },
       }),
+      // 他施設の勤務回数も同様に過去のもののみ
       prisma.application.count({
         where: {
           user_id: workerId,
-          workDate: { job: { facility_id: { not: facilityId } } },
+          workDate: { job: { facility_id: { not: facilityId } }, work_date: { lt: today } },
           status: { in: ['COMPLETED_PENDING', 'COMPLETED_RATED'] },
         },
       }),
