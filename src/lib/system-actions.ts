@@ -5,7 +5,7 @@ import { startOfDay, endOfDay, subDays, format, subMonths, startOfMonth, endOfMo
 import bcrypt from 'bcryptjs';
 import { JobStatus } from '@prisma/client';
 import { generateLaborDocumentPdf } from '@/src/lib/laborDocumentPdf';
-import { requireSystemAdminAuth } from '@/lib/system-admin-session-server';
+import { requireSystemAdminAuth, requireSuperAdminAuth } from '@/lib/system-admin-session-server';
 import { createFacilityAdminSession } from '@/lib/admin-session-server';
 import { geocodeAddress } from '@/src/lib/geocoding';
 import { sendAdminNewFacilityNotification, sendAdminNewWorkerNotification, sendAdminHighCancelRateNotification, sendAdminLowRatingStreakNotification } from '@/src/lib/actions/notification';
@@ -2133,7 +2133,7 @@ export async function markAnnouncementAsRead(
  * システム管理者一覧取得
  */
 export async function getSystemAdmins() {
-    await requireSystemAdminAuth();
+    await requireSuperAdminAuth();
     return await prisma.systemAdmin.findMany({
         select: {
             id: true,
@@ -2155,7 +2155,7 @@ export async function createSystemAdmin(data: {
     email: string;
     role: string;
 }) {
-    const { adminId } = await requireSystemAdminAuth();
+    const { adminId } = await requireSuperAdminAuth();
     // パスワードは初期ランダム or 固定
     const initialPassword = Math.random().toString(36).slice(-8);
     const hashedPassword = await bcrypt.hash(initialPassword, 10);
@@ -2197,7 +2197,7 @@ export async function createSystemAdmin(data: {
  * システム管理者削除
  */
 export async function deleteSystemAdmin(id: number) {
-    const { adminId } = await requireSystemAdminAuth();
+    const { adminId } = await requireSuperAdminAuth();
 
     // 自分自身の削除を禁止
     if (adminId === id) {
@@ -2294,7 +2294,7 @@ export async function updateSystemAdminNotificationEmail(id: number, notificatio
  * システム管理者の名前・権限を更新
  */
 export async function updateSystemAdmin(id: number, data: { name?: string; role?: string }) {
-    const { adminId } = await requireSystemAdminAuth();
+    const { adminId } = await requireSuperAdminAuth();
 
     // 自分自身の権限変更を禁止
     if (data.role !== undefined && adminId === id) {

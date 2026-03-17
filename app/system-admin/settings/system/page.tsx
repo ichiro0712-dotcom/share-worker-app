@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Save, Settings, AlertCircle, CheckCircle, Users } from 'lucide-react';
+import { Save, Settings, AlertCircle, CheckCircle, Users, ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
+import { useSystemAuth } from '@/contexts/SystemAuthContext';
 
 interface SystemSettings {
   distance_sort_filter_enabled: string;
@@ -10,6 +11,9 @@ interface SystemSettings {
 }
 
 export default function SystemSettingsPage() {
+  const { admin, isAdminLoading } = useSystemAuth();
+  const isSuperAdmin = admin?.role === 'super_admin';
+
   const [settings, setSettings] = useState<SystemSettings>({
     distance_sort_filter_enabled: 'false',
     distance_sort_default_km: '50',
@@ -18,8 +22,9 @@ export default function SystemSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // 設定を読み込む
+  // 設定を読み込む（super_adminのみ）
   useEffect(() => {
+    if (!isSuperAdmin) return;
     const fetchSettings = async () => {
       try {
         const res = await fetch('/api/system-admin/system-settings');
@@ -34,7 +39,7 @@ export default function SystemSettingsPage() {
       }
     };
     fetchSettings();
-  }, []);
+  }, [isSuperAdmin]);
 
   // 設定を保存する
   const handleSave = async () => {
@@ -60,6 +65,17 @@ export default function SystemSettingsPage() {
       setSaving(false);
     }
   };
+
+  // super_admin以外はアクセス拒否
+  if (!isAdminLoading && !isSuperAdmin) {
+    return (
+      <div className="p-8 flex flex-col items-center justify-center min-h-[400px]">
+        <ShieldAlert className="w-16 h-16 text-red-400 mb-4" />
+        <h1 className="text-xl font-bold text-slate-800 mb-2">アクセス権限がありません</h1>
+        <p className="text-slate-500">このページは特権管理者(super_admin)のみアクセスできます。</p>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

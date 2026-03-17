@@ -124,19 +124,21 @@ export default function SystemAdminLayout({ children }: SystemAdminLayoutProps) 
             href: '/system-admin/lp',
             active: pathname?.startsWith('/system-admin/lp'),
         },
-        {
-            title: 'システム設定',
-            icon: <Settings className="w-5 h-5" />,
-            href: '/system-admin/settings/system',
-            active: pathname?.startsWith('/system-admin/settings'),
-            divider: true,
-        },
-        {
-            title: '開発ポータル',
-            icon: <Code2 className="w-5 h-5" />,
-            href: '/system-admin/dev-portal',
-            active: pathname?.startsWith('/system-admin/dev-portal'),
-        },
+        ...(admin?.role === 'super_admin' ? [
+            {
+                title: 'システム設定',
+                icon: <Settings className="w-5 h-5" />,
+                href: '/system-admin/settings/system',
+                active: pathname?.startsWith('/system-admin/settings'),
+                divider: true,
+            },
+            {
+                title: '開発ポータル',
+                icon: <Code2 className="w-5 h-5" />,
+                href: '/system-admin/dev-portal',
+                active: pathname?.startsWith('/system-admin/dev-portal'),
+            },
+        ] : []),
     ];
 
     return (
