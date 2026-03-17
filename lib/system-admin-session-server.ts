@@ -113,6 +113,25 @@ export async function requireSystemAdminAuth(): Promise<{
 }
 
 /**
+ * super_admin権限が必要な操作用の認証チェック
+ * admin権限では拒否される
+ */
+export async function requireSuperAdminAuth(): Promise<{
+  adminId: number;
+  name: string;
+  email: string;
+  role: string;
+}> {
+  const auth = await requireSystemAdminAuth();
+
+  if (auth.role !== 'super_admin') {
+    throw new Error('この操作には特権管理者(super_admin)権限が必要です');
+  }
+
+  return auth;
+}
+
+/**
  * セッション情報を取得（認証チェックなし）
  */
 export async function getSystemAdminSessionData(): Promise<SystemAdminSessionData | null> {

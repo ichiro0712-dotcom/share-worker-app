@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { getSystemAdmins, createSystemAdmin, deleteSystemAdmin, updateSystemAdminNotificationEmail, updateSystemAdmin } from '@/src/lib/system-actions';
 import { useSystemAuth } from '@/contexts/SystemAuthContext';
-import { Users, Plus, Trash2, Shield, User, Mail, Pencil, Check, X, Settings } from 'lucide-react';
+import { Users, Plus, Trash2, Shield, ShieldAlert, User, Mail, Pencil, Check, X, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -19,7 +19,7 @@ interface SystemAdmin {
 }
 
 export default function SystemAdminsPage() {
-    const { admin } = useSystemAuth();
+    const { admin, isAdminLoading } = useSystemAuth();
     const { showDebugError } = useDebugError();
     const [admins, setAdmins] = useState<SystemAdmin[]>([]);
     const [loading, setLoading] = useState(true);
@@ -40,6 +40,8 @@ export default function SystemAdminsPage() {
     // 権限編集state
     const [editingRoleId, setEditingRoleId] = useState<number | null>(null);
     const [editingRole, setEditingRole] = useState('');
+
+    const isSuperAdmin = admin?.role === 'super_admin';
 
     const fetchAdmins = async () => {
         setLoading(true);
@@ -269,6 +271,17 @@ export default function SystemAdminsPage() {
         setCreatedCredentials(null);
     }
 
+    // super_admin以外はアクセス拒否
+    if (!isAdminLoading && admin?.role !== 'super_admin') {
+        return (
+            <div className="p-8 flex flex-col items-center justify-center min-h-[400px]">
+                <ShieldAlert className="w-16 h-16 text-red-400 mb-4" />
+                <h1 className="text-xl font-bold text-slate-800 mb-2">アクセス権限がありません</h1>
+                <p className="text-slate-500">このページは特権管理者(super_admin)のみアクセスできます。</p>
+            </div>
+        );
+    }
+
     return (
         <div className="p-8">
             {/* サブメニュー */}
@@ -294,13 +307,15 @@ export default function SystemAdminsPage() {
                     <h1 className="text-2xl font-bold text-slate-800">管理者アカウント管理</h1>
                     <p className="text-slate-500">システム管理者の追加・編集・削除</p>
                 </div>
-                <button
-                    onClick={() => setShowModal(true)}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-                >
-                    <Plus className="w-4 h-4" />
-                    管理者を追加
-                </button>
+                {isSuperAdmin && (
+                    <button
+                        onClick={() => setShowModal(true)}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+                    >
+                        <Plus className="w-4 h-4" />
+                        管理者を追加
+                    </button>
+                )}
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
@@ -455,7 +470,7 @@ export default function SystemAdminsPage() {
                                                 <Shield className="w-3 h-3" />
                                                 {item.role}
                                             </span>
-                                            {admin?.email !== item.email && (
+                                            {isSuperAdmin && admin?.email !== item.email && (
                                                 <button
                                                     onClick={() => startEditRole(item)}
                                                     className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded ml-1"
@@ -471,7 +486,7 @@ export default function SystemAdminsPage() {
                                     {format(new Date(item.created_at), 'yyyy/MM/dd')}
                                 </td>
                                 <td className="px-6 py-4 text-right">
-                                    {admin?.email !== item.email && (
+                                    {isSuperAdmin && admin?.email !== item.email && (
                                         <button
                                             onClick={() => handleDelete(item.id)}
                                             className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"

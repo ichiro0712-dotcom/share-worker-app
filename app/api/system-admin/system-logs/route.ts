@@ -16,9 +16,13 @@ function redactSensitiveDetails(details: Record<string, unknown> | null): Record
 }
 
 export async function GET(request: NextRequest) {
+    // super_admin権限チェック
     const session = await getSystemAdminSessionData();
     if (!session) {
         return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+    if (session.role !== 'super_admin') {
+        return NextResponse.json({ error: 'この操作には特権管理者権限が必要です' }, { status: 403 });
     }
 
     try {

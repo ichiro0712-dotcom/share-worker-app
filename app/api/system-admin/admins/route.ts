@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireSystemAdminAuth } from '@/lib/system-admin-session-server';
+import { requireSystemAdminAuth, requireSuperAdminAuth } from '@/lib/system-admin-session-server';
 
 export async function GET() {
     try {
-        await requireSystemAdminAuth();
+        // 管理者一覧はsuper_adminのみ
+        await requireSuperAdminAuth();
 
         const admins = await prisma.systemAdmin.findMany({
             select: {
@@ -26,12 +27,17 @@ export async function GET() {
 
 export async function PATCH(request: Request) {
     try {
-        await requireSystemAdminAuth();
+        const auth = await requireSystemAdminAuth();
 
         const { id, notification_email } = await request.json();
 
         if (!id) {
             return NextResponse.json({ error: 'IDが必要です' }, { status: 400 });
+        }
+
+        // admin権限の場合は自分自身の通知メールのみ変更可能
+        if (auth.role !== 'super_admin' && auth.adminId !== id) {
+            return NextResponse.json({ error: 'この操作には特権管理者権限が必要です' }, { status: 403 });
         }
 
         await prisma.systemAdmin.update({
