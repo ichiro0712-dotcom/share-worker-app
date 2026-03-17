@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { getSystemAdmins, createSystemAdmin, deleteSystemAdmin, updateSystemAdminNotificationEmail, updateSystemAdmin } from '@/src/lib/system-actions';
 import { useSystemAuth } from '@/contexts/SystemAuthContext';
-import { Users, Plus, Trash2, Shield, ShieldAlert, User, Mail, Pencil, Check, X, Settings } from 'lucide-react';
+import { Users, Plus, Trash2, Shield, ShieldAlert, User, Mail, Pencil, Check, X, Settings, HelpCircle } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -40,6 +40,9 @@ export default function SystemAdminsPage() {
     // 権限編集state
     const [editingRoleId, setEditingRoleId] = useState<number | null>(null);
     const [editingRole, setEditingRole] = useState('');
+
+    // 権限ツールチップstate
+    const [showRoleTooltip, setShowRoleTooltip] = useState(false);
 
     const isSuperAdmin = admin?.role === 'super_admin';
 
@@ -326,7 +329,41 @@ export default function SystemAdminsPage() {
                             <th className="px-6 py-4">名前</th>
                             <th className="px-6 py-4">ログインメール</th>
                             <th className="px-6 py-4">通知先メール</th>
-                            <th className="px-6 py-4">権限</th>
+                            <th className="px-6 py-4">
+                                <div className="flex items-center gap-1 relative">
+                                    権限
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowRoleTooltip(!showRoleTooltip)}
+                                        onBlur={() => setTimeout(() => setShowRoleTooltip(false), 150)}
+                                        className="text-slate-400 hover:text-indigo-500 transition-colors"
+                                    >
+                                        <HelpCircle className="w-3.5 h-3.5" />
+                                    </button>
+                                    {showRoleTooltip && (
+                                        <div className="absolute top-full left-0 mt-2 w-72 bg-slate-800 text-white text-xs font-normal normal-case rounded-lg shadow-lg p-4 z-50">
+                                            <div className="mb-3">
+                                                <p className="font-semibold text-indigo-300 mb-1">super_admin（特権管理者）</p>
+                                                <ul className="space-y-0.5 text-slate-300">
+                                                    <li>・全ての管理機能にアクセス可能</li>
+                                                    <li>・管理者アカウントの追加・削除・権限変更</li>
+                                                    <li>・システム設定の変更</li>
+                                                    <li>・開発ポータルへのアクセス</li>
+                                                </ul>
+                                            </div>
+                                            <div>
+                                                <p className="font-semibold text-emerald-300 mb-1">admin（管理者）</p>
+                                                <ul className="space-y-0.5 text-slate-300">
+                                                    <li>・ダッシュボード・アナリティクス</li>
+                                                    <li>・ワーカー・施設・求人・勤怠管理</li>
+                                                    <li>・CSV出力・コンテンツ・LP管理</li>
+                                                </ul>
+                                            </div>
+                                            <div className="absolute -top-1.5 left-4 w-3 h-3 bg-slate-800 rotate-45"></div>
+                                        </div>
+                                    )}
+                                </div>
+                            </th>
                             <th className="px-6 py-4">作成日</th>
                             <th className="px-6 py-4 text-right">アクション</th>
                         </tr>
