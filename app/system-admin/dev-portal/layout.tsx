@@ -19,6 +19,7 @@ import {
     ArrowLeft,
     LucideIcon,
     SendHorizonal,
+    UserCog,
 } from 'lucide-react';
 
 interface MenuItem {
@@ -48,6 +49,7 @@ const menuItems: MenuSection[] = [
     {
         section: 'デバッグツール',
         items: [
+            { href: '/system-admin/dev-portal/admin-logs', icon: UserCog, label: '管理者操作ログ', description: '管理者の操作履歴', color: 'indigo' },
             { href: '/system-admin/dev-portal/logs', icon: Bug, label: 'バグ調査', description: 'エラーログ・操作追跡', color: 'red' },
             { href: '/system-admin/dev-portal/notification-logs', icon: BellRing, label: '通知ログ', description: '送信済み通知', color: 'orange' },
             { href: '/system-admin/dev-portal/test-notifications', icon: SendHorizonal, label: 'テスト通知', description: '通知送信テスト', color: 'green' },
