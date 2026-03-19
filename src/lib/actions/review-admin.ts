@@ -1216,7 +1216,7 @@ export async function submitFacilityReviewForWorker(
   try {
     console.log('[submitFacilityReviewForWorker] Submitting review for application:', applicationId);
 
-    // 応募を取得して検証
+    // 応募を取得して検証（WORKINGは過去データの後方互換性のため含む）
     const application = await prisma.application.findFirst({
       where: {
         id: applicationId,
@@ -1225,7 +1225,7 @@ export async function submitFacilityReviewForWorker(
             facility_id: facilityId,
           },
         },
-        status: 'COMPLETED_PENDING',
+        status: { in: ['WORKING', 'COMPLETED_PENDING'] },
       },
       include: {
         workDate: {
