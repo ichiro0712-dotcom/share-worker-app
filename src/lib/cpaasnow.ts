@@ -28,8 +28,8 @@ export interface VerifyCodeResult {
  */
 export async function sendVerificationCode(phoneNumber: string): Promise<SendCodeResult> {
   if (!API_TOKEN) {
-    console.error('[CPaaS NOW] API token not configured');
-    return { success: false, error: 'SMS送信の設定が完了していません' };
+    console.error('[CPaaS NOW] API token not configured. CPAAS_NOW_API_URL:', API_URL);
+    return { success: false, error: `SMS送信の設定が完了していません（CPAAS_NOW_API_TOKEN未設定, URL=${API_URL}）` };
   }
 
   try {
@@ -64,11 +64,11 @@ export async function sendVerificationCode(phoneNumber: string): Promise<SendCod
     }
 
     const errorBody = await response.text();
-    console.error('[CPaaS NOW] Send failed:', { status: response.status, body: errorBody });
-    return { success: false, error: 'SMS送信に失敗しました。しばらくしてからお試しください。' };
+    console.error('[CPaaS NOW] Send failed:', { status: response.status, body: errorBody, url: `${API_URL}/api/v1/verification_codes/deliveries` });
+    return { success: false, error: `SMS送信に失敗しました（${response.status}）: ${errorBody.slice(0, 200)}` };
   } catch (error) {
     console.error('[CPaaS NOW] Network error:', error);
-    return { success: false, error: 'SMS送信に失敗しました。ネットワーク接続を確認してください。' };
+    return { success: false, error: `SMS送信に失敗しました（ネットワークエラー）: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
 
