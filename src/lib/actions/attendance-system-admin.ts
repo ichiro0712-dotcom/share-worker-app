@@ -8,7 +8,7 @@ import { prisma } from '@/lib/prisma';
 import { getCurrentTime } from './helpers';
 import { calculateSalary } from '@/src/lib/salary-calculator';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
-import { requireSystemAdminAuth, getSystemAdminSessionData } from '@/lib/system-admin-session-server';
+import { requireSystemAdminAuth } from '@/lib/system-admin-session-server';
 import type {
   AttendanceFilter,
   AttendanceSortOption,
@@ -681,9 +681,8 @@ export async function updateAttendanceBySystemAdmin(
   data: UpdateAttendanceData
 ): Promise<{ success: boolean; message: string }> {
   try {
-    await requireSystemAdminAuth();
-    const session = await getSystemAdminSessionData();
-    const adminEmail = session?.email ?? 'SYSTEM_ADMIN';
+    const auth = await requireSystemAdminAuth();
+    const adminEmail = auth.email || 'SYSTEM_ADMIN';
 
     if (!data.reason.trim()) {
       return { success: false, message: '変更理由は必須です' };
@@ -756,6 +755,29 @@ export async function updateAttendanceBySystemAdmin(
           actual_break_time: data.actualBreakTime,
           calculated_wage: data.calculatedWage,
           status: data.status,
+        },
+      });
+
+      // SystemLogにも記録（トランザクション内で確実に記録）
+      await tx.systemLog.create({
+        data: {
+          admin_id: auth.adminId,
+          action: 'UPDATE_ATTENDANCE',
+          target_type: 'Attendance',
+          target_id: attendanceId,
+          details: {
+            workerId: current.user_id,
+            facilityId: current.facility_id,
+            reason: data.reason.trim(),
+            wageManuallySet: data.wageManuallySet,
+            changes: {
+              actualStartTime: { from: current.actual_start_time?.toISOString(), to: data.actualStartTime },
+              actualEndTime: { from: current.actual_end_time?.toISOString(), to: data.actualEndTime },
+              actualBreakTime: { from: current.actual_break_time, to: data.actualBreakTime },
+              calculatedWage: { from: Number(current.calculated_wage), to: data.calculatedWage },
+              status: { from: current.status, to: data.status },
+            },
+          },
         },
       });
     });

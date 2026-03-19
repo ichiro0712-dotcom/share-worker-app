@@ -14,6 +14,9 @@ import {
     X,
     RefreshCw,
     UserCog,
+    HelpCircle,
+    CheckCircle,
+    AlertTriangle,
 } from 'lucide-react';
 
 interface SystemLog {
@@ -34,28 +37,94 @@ interface AdminOption {
     name: string;
 }
 
-// アクション名の日本語マッピング
+// アクション名の日本語マッピング（systemLogテーブルに実際に記録されるaction値）
 const ACTION_LABELS: Record<string, string> = {
-    LOGIN: 'ログイン',
-    LOGOUT: 'ログアウト',
     CREATE_SYSTEM_ADMIN: '管理者作成',
     DELETE_SYSTEM_ADMIN: '管理者削除',
     UPDATE_SYSTEM_ADMIN_NAME: '管理者名変更',
     UPDATE_SYSTEM_ADMIN_ROLE: '権限変更',
     UPDATE_SYSTEM_ADMIN_NOTIFICATION_EMAIL: '通知メール変更',
-    UPDATE_USER: 'ユーザー更新',
-    DELETE_USER: 'ユーザー削除',
-    UPDATE_FACILITY: '施設更新',
-    DELETE_FACILITY: '施設削除',
-    UPDATE_JOB: '求人更新',
-    DELETE_JOB: '求人削除',
-    FORCE_STOP_JOB: '求人強制停止',
-    UPDATE_APPLICATION: '応募更新',
+    SEND_PASSWORD_RESET: 'パスワードリセット送信',
+    MASQUERADE_INIT: 'なりすまし開始（施設）',
+    MASQUERADE_EDIT: 'なりすまし中の編集',
+    WORKER_MASQUERADE_INIT: 'なりすまし開始（ワーカー）',
+    WORKER_MASQUERADE_START: 'なりすまし実行（ワーカー）',
+    CREATE_FACILITY: '施設作成',
+    CREATE_PENDING_FACILITY: '仮施設作成',
+    DELETE_PENDING_FACILITY: '仮施設削除',
+    STOP_ALL_JOBS: '全求人停止',
     UPDATE_ATTENDANCE: '勤怠更新',
-    MASQUERADE_LOGIN: 'なりすましログイン',
-    UPDATE_SYSTEM_SETTING: 'システム設定変更',
-    PASSWORD_RESET: 'パスワードリセット',
 };
+
+// ヘルプ用：取得対象の操作一覧（systemLogテーブルに実際に記録されるもの）
+const LOG_CATEGORIES = [
+    {
+        category: '管理者アカウント',
+        tracked: true,
+        items: [
+            { action: 'CREATE_SYSTEM_ADMIN', label: '管理者作成', description: '新しいシステム管理者アカウントの作成' },
+            { action: 'DELETE_SYSTEM_ADMIN', label: '管理者削除', description: 'システム管理者アカウントの削除' },
+            { action: 'UPDATE_SYSTEM_ADMIN_NAME', label: '管理者名変更', description: '管理者の表示名を変更' },
+            { action: 'UPDATE_SYSTEM_ADMIN_ROLE', label: '権限変更', description: 'admin / super_admin 権限の変更' },
+            { action: 'UPDATE_SYSTEM_ADMIN_NOTIFICATION_EMAIL', label: '通知メール変更', description: '通知先メールアドレスの変更' },
+            { action: 'SEND_PASSWORD_RESET', label: 'パスワードリセット送信', description: '施設管理者へのパスワードリセットメール送信' },
+        ],
+    },
+    {
+        category: 'なりすまし',
+        tracked: true,
+        items: [
+            { action: 'MASQUERADE_INIT', label: 'なりすまし開始（施設）', description: '施設管理者としてのなりすましセッション開始' },
+            { action: 'MASQUERADE_EDIT', label: 'なりすまし中の編集', description: 'なりすまし中に行ったデータ変更' },
+            { action: 'WORKER_MASQUERADE_INIT', label: 'なりすまし開始（ワーカー）', description: 'ワーカーとしてのなりすましセッション開始' },
+            { action: 'WORKER_MASQUERADE_START', label: 'なりすまし実行（ワーカー）', description: 'ワーカーなりすましの実行' },
+        ],
+    },
+    {
+        category: '施設管理',
+        tracked: true,
+        items: [
+            { action: 'CREATE_FACILITY', label: '施設作成', description: '新規施設アカウントの作成' },
+            { action: 'CREATE_PENDING_FACILITY', label: '仮施設作成', description: '承認待ち施設の仮作成' },
+            { action: 'DELETE_PENDING_FACILITY', label: '仮施設削除', description: '承認待ち施設の削除' },
+        ],
+    },
+    {
+        category: '勤怠管理',
+        tracked: true,
+        items: [
+            { action: 'UPDATE_ATTENDANCE', label: '勤怠更新', description: '勤怠時間・給与・ステータスの編集（変更前後の値を記録）' },
+        ],
+    },
+    {
+        category: '求人管理',
+        tracked: true,
+        items: [
+            { action: 'STOP_ALL_JOBS', label: '全求人停止', description: '施設の全求人を一括停止' },
+        ],
+    },
+    {
+        category: '認証（ActivityLogで記録）',
+        tracked: false,
+        items: [
+            { action: '-', label: 'ログイン・ログアウト', description: 'user_activity_logsテーブルに記録（バグ調査ページで確認可能）' },
+        ],
+    },
+    {
+        category: '最低賃金管理',
+        tracked: false,
+        items: [
+            { action: '-', label: '最低賃金の更新・インポート・削除', description: '今後対応予定' },
+        ],
+    },
+    {
+        category: 'LP管理',
+        tracked: false,
+        items: [
+            { action: '-', label: 'LP作成・削除・更新', description: '今後対応予定' },
+        ],
+    },
+];
 
 // アクションのカテゴリ色
 function getActionColor(action: string): string {
@@ -88,6 +157,9 @@ export default function AdminLogsPage() {
 
     // 詳細モーダル
     const [selectedLog, setSelectedLog] = useState<SystemLog | null>(null);
+
+    // ヘルプモーダル
+    const [showHelp, setShowHelp] = useState(false);
 
     const fetchLogs = useCallback(async () => {
         setLoading(true);
@@ -149,13 +221,22 @@ export default function AdminLogsPage() {
                         <p className="text-sm text-gray-500">システム管理者の操作履歴（{total.toLocaleString()}件）</p>
                     </div>
                 </div>
-                <button
-                    onClick={fetchLogs}
-                    className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                    <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                    更新
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => setShowHelp(true)}
+                        className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                        <HelpCircle className="w-4 h-4" />
+                        取得対象
+                    </button>
+                    <button
+                        onClick={fetchLogs}
+                        className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                        <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                        更新
+                    </button>
+                </div>
             </div>
 
             {/* フィルタ */}
@@ -384,6 +465,61 @@ export default function AdminLogsPage() {
                                     </div>
                                 )}
                             </dl>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ヘルプモーダル */}
+            {showHelp && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowHelp(false)}>
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mx-4 max-h-[85vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+                            <div className="flex items-center gap-2">
+                                <HelpCircle className="w-5 h-5 text-indigo-500" />
+                                <h3 className="text-lg font-bold text-gray-900">取得対象の操作一覧</h3>
+                            </div>
+                            <button
+                                onClick={() => setShowHelp(false)}
+                                className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+                                aria-label="閉じる"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-6 overflow-y-auto max-h-[70vh]">
+                            <p className="text-sm text-gray-500 mb-5">
+                                システム管理者が行った操作のうち、以下のアクションがログとして記録されます。
+                            </p>
+                            <div className="space-y-6">
+                                {LOG_CATEGORIES.map(cat => (
+                                    <div key={cat.category}>
+                                        <div className="flex items-center gap-2 mb-2">
+                                            {cat.tracked ? (
+                                                <CheckCircle className="w-4 h-4 text-green-500" />
+                                            ) : (
+                                                <AlertTriangle className="w-4 h-4 text-amber-400" />
+                                            )}
+                                            <h4 className="text-sm font-semibold text-gray-800">{cat.category}</h4>
+                                            {!cat.tracked && (
+                                                <span className="text-xs bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full">未対応</span>
+                                            )}
+                                        </div>
+                                        <div className="ml-6 space-y-1.5">
+                                            {cat.items.map((item, i) => (
+                                                <div key={i} className="flex items-start gap-3 text-sm">
+                                                    <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 mt-0.5 ${
+                                                        cat.tracked ? getActionColor(item.action) : 'bg-gray-100 text-gray-400'
+                                                    }`}>
+                                                        {item.label}
+                                                    </span>
+                                                    <span className="text-gray-500">{item.description}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     </div>
                 </div>
