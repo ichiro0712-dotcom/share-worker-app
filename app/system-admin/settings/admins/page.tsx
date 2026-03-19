@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { getSystemAdmins, createSystemAdmin, deleteSystemAdmin, updateSystemAdminNotificationEmail, updateSystemAdmin } from '@/src/lib/system-actions';
 import { useSystemAuth } from '@/contexts/SystemAuthContext';
-import { Users, Plus, Trash2, Shield, ShieldAlert, User, Mail, Pencil, Check, X, Settings, HelpCircle } from 'lucide-react';
+import { Users, Plus, Trash2, Shield, ShieldAlert, User, Mail, Pencil, Check, X, Settings, HelpCircle, Send } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -302,6 +302,13 @@ export default function SystemAdminsPage() {
                 >
                     <Users className="w-4 h-4" />
                     管理者管理
+                </Link>
+                <Link
+                    href="/system-admin/settings/form-destinations"
+                    className="flex items-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+                >
+                    <Send className="w-4 h-4" />
+                    フォーム送信先管理
                 </Link>
             </div>
 
