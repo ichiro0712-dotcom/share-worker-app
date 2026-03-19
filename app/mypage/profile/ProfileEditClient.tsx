@@ -12,6 +12,7 @@ import toast from 'react-hot-toast';
 import AddressSelector from '@/components/ui/AddressSelector';
 import { KatakanaInput, KatakanaWithSpaceInput } from '@/components/ui/KatakanaInput';
 import { PhoneNumberInput } from '@/components/ui/PhoneNumberInput';
+import { SmsVerification } from '@/components/ui/SmsVerification';
 import { QUALIFICATION_GROUPS } from '@/constants/qualifications';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import BankSelector from '@/components/ui/BankSelector';
@@ -240,6 +241,10 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
   const [isSaving, setIsSaving] = useState(false);
   // バリデーションエラー表示用（送信時にtrueになる）
   const [showErrors, setShowErrors] = useState(false);
+  // 電話番号SMS認証トークン
+  const [phoneVerificationToken, setPhoneVerificationToken] = useState<string | null>(null);
+  // 電話番号が変更されたかどうか
+  const phoneChanged = formData.phone !== userProfile.phone_number;
 
   // バリデーション関数
   const validateKatakana = (value: string): boolean => {
@@ -523,6 +528,11 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
       errors.push('口座名義はカタカナで入力してください');
     }
 
+    // 電話番号変更時のSMS認証チェック
+    if (phoneChanged && !phoneVerificationToken) {
+      errors.push('電話番号を変更する場合はSMS認証を完了してください');
+    }
+
     if (errors.length > 0) {
       toast.error(errors.join('、'));
       return;
@@ -604,6 +614,9 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
       form.append('name', `${formData.lastName} ${formData.firstName}`);
       form.append('email', formData.email);
       form.append('phoneNumber', formData.phone);
+      if (phoneVerificationToken) {
+        form.append('phoneVerificationToken', phoneVerificationToken);
+      }
       form.append('birthDate', formData.birthDate);
       form.append('qualifications', formData.qualifications.join(','));
       form.append('lastNameKana', formData.lastNameKana);
@@ -1053,16 +1066,18 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <div>
               <label className="block text-sm font-medium mb-2">電話番号 <span className="text-red-500">*</span></label>
-              <PhoneNumberInput
-                value={formData.phone}
-                onChange={(value) => setFormData({ ...formData, phone: value })}
-                placeholder="09012345678"
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.phone ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+              <SmsVerification
+                phoneNumber={formData.phone}
+                onPhoneNumberChange={(value) => {
+                  setFormData({ ...formData, phone: value });
+                  setPhoneVerificationToken(null);
+                }}
+                onVerified={(token) => setPhoneVerificationToken(token)}
+                initialVerified={!phoneChanged}
+                showError={showErrors && !formData.phone}
+                errorMessage="電話番号を入力してください"
+                inputClassName={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.phone ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
               />
-              {showErrors && !formData.phone && (
-                <p className="text-red-500 text-xs mt-1">電話番号を入力してください</p>
-              )}
-              <p className="text-xs text-gray-500 mt-1">※数字のみ（10桁または11桁）</p>
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">メールアドレス <span className="text-red-500">*</span></label>
