@@ -7,8 +7,8 @@ const API_URL = process.env.CPAAS_NOW_API_URL || 'https://sandbox.cpaasnow.com';
 const API_TOKEN = process.env.CPAAS_NOW_API_TOKEN;
 
 // SMS本文テンプレート
-// {{verification_code}}: 認証コードに置換、{{valid_period_min}}: 有効期限(分)に置換
-const SMS_TEMPLATE = '【タスタス】認証コード: {{verification_code}}\r\n有効期限: {{valid_period_min}}分';
+// {{verification_code}}: 認証コードに置換、{{expiration_minutes}}: 有効期限(分)に置換
+const SMS_TEMPLATE = '【タスタス】認証コード: {{verification_code}}\r\n有効期限: {{expiration_minutes}}分';
 
 export interface SendCodeResult {
   success: boolean;
