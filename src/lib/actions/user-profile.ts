@@ -173,6 +173,8 @@ export async function getUserProfile() {
             bank_book_image: user.bank_book_image,
             // 資格証明書
             qualification_certificates: user.qualification_certificates as Record<string, string> | null,
+            // 電話番号認証
+            phone_verified: user.phone_verified,
         };
     } catch (error) {
         console.error('[getUserProfile] Error:', error);

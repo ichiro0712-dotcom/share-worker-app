@@ -121,6 +121,8 @@ interface UserProfile {
   bank_book_image: string | null;
   // 資格証明書
   qualification_certificates: Record<string, string> | null;
+  // 電話番号認証
+  phone_verified: boolean;
 }
 
 interface ProfileEditClientProps {
@@ -1073,7 +1075,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                   setPhoneVerificationToken(null);
                 }}
                 onVerified={(token) => setPhoneVerificationToken(token)}
-                initialVerified={!phoneChanged}
+                initialVerified={!phoneChanged && userProfile.phone_verified}
                 showError={showErrors && !formData.phone}
                 errorMessage="電話番号を入力してください"
                 inputClassName={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.phone ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
