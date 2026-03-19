@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Save, Settings, AlertCircle, CheckCircle, Users, ShieldAlert } from 'lucide-react';
+import { Save, Settings, AlertCircle, CheckCircle, Users, ShieldAlert, Send } from 'lucide-react';
 import Link from 'next/link';
 import { useSystemAuth } from '@/contexts/SystemAuthContext';
 
@@ -113,6 +113,13 @@ export default function SystemSettingsPage() {
         >
           <Users className="w-4 h-4" />
           管理者管理
+        </Link>
+        <Link
+          href="/system-admin/settings/form-destinations"
+          className="flex items-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+        >
+          <Send className="w-4 h-4" />
+          フォーム送信先管理
         </Link>
       </div>
 

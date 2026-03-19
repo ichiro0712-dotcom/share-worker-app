@@ -1860,3 +1860,15 @@ model ApplicationClickEvent {
   @@index([user_id, created_at])
   @@map("application_click_events")
 }
+
+model FormDestination {
+  id          Int      @id @default(autoincrement())
+  name        String   // 送信先名（例: 運営事務局、看護師採用担当）
+  email       String   // 送信先メールアドレス
+  description String?  // 説明・用途
+  is_active   Boolean  @default(true) @map("is_active")
+  created_at  DateTime @default(now()) @map("created_at")
+  updated_at  DateTime @updatedAt @map("updated_at")
+
+  @@map("form_destinations")
+}
