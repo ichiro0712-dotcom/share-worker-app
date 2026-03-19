@@ -37,40 +37,27 @@ interface AdminOption {
     name: string;
 }
 
-// アクション名の日本語マッピング
+// アクション名の日本語マッピング（systemLogテーブルに実際に記録されるaction値）
 const ACTION_LABELS: Record<string, string> = {
-    LOGIN: 'ログイン',
-    LOGOUT: 'ログアウト',
     CREATE_SYSTEM_ADMIN: '管理者作成',
     DELETE_SYSTEM_ADMIN: '管理者削除',
     UPDATE_SYSTEM_ADMIN_NAME: '管理者名変更',
     UPDATE_SYSTEM_ADMIN_ROLE: '権限変更',
     UPDATE_SYSTEM_ADMIN_NOTIFICATION_EMAIL: '通知メール変更',
-    UPDATE_USER: 'ユーザー更新',
-    DELETE_USER: 'ユーザー削除',
-    UPDATE_FACILITY: '施設更新',
-    DELETE_FACILITY: '施設削除',
-    UPDATE_JOB: '求人更新',
-    DELETE_JOB: '求人削除',
-    FORCE_STOP_JOB: '求人強制停止',
-    UPDATE_APPLICATION: '応募更新',
+    SEND_PASSWORD_RESET: 'パスワードリセット送信',
+    MASQUERADE_INIT: 'なりすまし開始（施設）',
+    MASQUERADE_EDIT: 'なりすまし中の編集',
+    WORKER_MASQUERADE_INIT: 'なりすまし開始（ワーカー）',
+    WORKER_MASQUERADE_START: 'なりすまし実行（ワーカー）',
+    CREATE_FACILITY: '施設作成',
+    CREATE_PENDING_FACILITY: '仮施設作成',
+    DELETE_PENDING_FACILITY: '仮施設削除',
+    STOP_ALL_JOBS: '全求人停止',
     UPDATE_ATTENDANCE: '勤怠更新',
-    MASQUERADE_LOGIN: 'なりすましログイン',
-    UPDATE_SYSTEM_SETTING: 'システム設定変更',
-    PASSWORD_RESET: 'パスワードリセット',
 };
 
-// ヘルプ用：取得対象の操作一覧
+// ヘルプ用：取得対象の操作一覧（systemLogテーブルに実際に記録されるもの）
 const LOG_CATEGORIES = [
-    {
-        category: '認証',
-        tracked: true,
-        items: [
-            { action: 'LOGIN', label: 'ログイン', description: 'システム管理画面へのログイン' },
-            { action: 'LOGOUT', label: 'ログアウト', description: 'システム管理画面からのログアウト' },
-            { action: 'MASQUERADE_LOGIN', label: 'なりすましログイン', description: '施設管理者としてのなりすましログイン' },
-        ],
-    },
     {
         category: '管理者アカウント',
         tracked: true,
@@ -80,7 +67,26 @@ const LOG_CATEGORIES = [
             { action: 'UPDATE_SYSTEM_ADMIN_NAME', label: '管理者名変更', description: '管理者の表示名を変更' },
             { action: 'UPDATE_SYSTEM_ADMIN_ROLE', label: '権限変更', description: 'admin / super_admin 権限の変更' },
             { action: 'UPDATE_SYSTEM_ADMIN_NOTIFICATION_EMAIL', label: '通知メール変更', description: '通知先メールアドレスの変更' },
-            { action: 'PASSWORD_RESET', label: 'パスワードリセット', description: '管理者パスワードのリセット' },
+            { action: 'SEND_PASSWORD_RESET', label: 'パスワードリセット送信', description: '施設管理者へのパスワードリセットメール送信' },
+        ],
+    },
+    {
+        category: 'なりすまし',
+        tracked: true,
+        items: [
+            { action: 'MASQUERADE_INIT', label: 'なりすまし開始（施設）', description: '施設管理者としてのなりすましセッション開始' },
+            { action: 'MASQUERADE_EDIT', label: 'なりすまし中の編集', description: 'なりすまし中に行ったデータ変更' },
+            { action: 'WORKER_MASQUERADE_INIT', label: 'なりすまし開始（ワーカー）', description: 'ワーカーとしてのなりすましセッション開始' },
+            { action: 'WORKER_MASQUERADE_START', label: 'なりすまし実行（ワーカー）', description: 'ワーカーなりすましの実行' },
+        ],
+    },
+    {
+        category: '施設管理',
+        tracked: true,
+        items: [
+            { action: 'CREATE_FACILITY', label: '施設作成', description: '新規施設アカウントの作成' },
+            { action: 'CREATE_PENDING_FACILITY', label: '仮施設作成', description: '承認待ち施設の仮作成' },
+            { action: 'DELETE_PENDING_FACILITY', label: '仮施設削除', description: '承認待ち施設の削除' },
         ],
     },
     {
@@ -94,14 +100,14 @@ const LOG_CATEGORIES = [
         category: '求人管理',
         tracked: true,
         items: [
-            { action: 'FORCE_STOP_JOB', label: '求人強制停止', description: '公開中の求人を強制的に停止' },
+            { action: 'STOP_ALL_JOBS', label: '全求人停止', description: '施設の全求人を一括停止' },
         ],
     },
     {
-        category: 'システム設定',
-        tracked: true,
+        category: '認証（ActivityLogで記録）',
+        tracked: false,
         items: [
-            { action: 'UPDATE_SYSTEM_SETTING', label: 'システム設定変更', description: 'システム全体の設定値の変更' },
+            { action: '-', label: 'ログイン・ログアウト', description: 'user_activity_logsテーブルに記録（バグ調査ページで確認可能）' },
         ],
     },
     {
