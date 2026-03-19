@@ -9,6 +9,34 @@ import { generateBankAccountName } from '@/lib/string-utils';
 import { validatePhoneVerificationToken } from '@/src/lib/auth/phone-verification';
 
 /**
+ * SMS認証成功時に電話番号を即座にDBに保存する
+ */
+export async function savePhoneVerification(phoneNumber: string, verificationToken: string) {
+    try {
+        const user = await getAuthenticatedUser();
+
+        const isValid = await validatePhoneVerificationToken(verificationToken, phoneNumber);
+        if (!isValid) {
+            return { success: false, error: '認証トークンが無効または期限切れです' };
+        }
+
+        await prisma.user.update({
+            where: { id: user.id },
+            data: {
+                phone_number: phoneNumber,
+                phone_verified: true,
+                phone_verified_at: new Date(),
+            },
+        });
+
+        return { success: true };
+    } catch (error) {
+        console.error('[savePhoneVerification] Error:', error);
+        return { success: false, error: '電話番号の保存に失敗しました' };
+    }
+}
+
+/**
  * プロフィールの完成状態をチェックする
  */
 export async function checkProfileComplete(userId: number) {

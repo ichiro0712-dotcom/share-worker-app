@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { updateUserProfile } from '@/src/lib/actions';
+import { savePhoneVerification } from '@/src/lib/actions/user-profile';
 import { validateFile, getSafeImageUrl, isValidImageUrl } from '@/utils/fileValidation';
 import { isKatakanaOnly, isKatakanaWithSpaceOnly } from '@/utils/inputValidation';
 import toast from 'react-hot-toast';
@@ -1074,7 +1075,13 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                   setFormData({ ...formData, phone: value });
                   setPhoneVerificationToken(null);
                 }}
-                onVerified={(token) => setPhoneVerificationToken(token)}
+                onVerified={async (token) => {
+                  setPhoneVerificationToken(token);
+                  const result = await savePhoneVerification(formData.phone, token);
+                  if (!result.success) {
+                    toast.error(result.error || '電話番号の保存に失敗しました');
+                  }
+                }}
                 initialVerified={!phoneChanged && userProfile.phone_verified}
                 showError={showErrors && !formData.phone}
                 errorMessage="電話番号を入力してください"
