@@ -6,8 +6,9 @@
 const API_URL = process.env.CPAAS_NOW_API_URL || 'https://sandbox.cpaasnow.com';
 const API_TOKEN = process.env.CPAAS_NOW_API_TOKEN;
 
-// SMS本文テンプレート（70文字制限: 置換後約50文字で安全）
-const SMS_TEMPLATE = '【タスタス】認証コード: {{verification_code}}\r\n有効期限: {{expiration_minutes}}分';
+// SMS本文テンプレート
+// {{verification_code}}: 認証コードに置換、{{valid_period_min}}: 有効期限(分)に置換
+const SMS_TEMPLATE = '【タスタス】認証コード: {{verification_code}}\r\n有効期限: {{valid_period_min}}分';
 
 export interface SendCodeResult {
   success: boolean;
@@ -32,7 +33,7 @@ export async function sendVerificationCode(phoneNumber: string): Promise<SendCod
   }
 
   try {
-    const response = await fetch(`${API_URL}/api/v1/verification_codes`, {
+    const response = await fetch(`${API_URL}/api/v1/verification_codes/deliveries`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${API_TOKEN}`,
@@ -40,8 +41,11 @@ export async function sendVerificationCode(phoneNumber: string): Promise<SendCod
       },
       body: JSON.stringify({
         to: phoneNumber,
-        text: SMS_TEMPLATE,
         channel: 'sms',
+        message: SMS_TEMPLATE,
+        code_type: 'numeric',
+        code_size: 6,
+        expiration_minutes: 10,
       }),
     });
 
