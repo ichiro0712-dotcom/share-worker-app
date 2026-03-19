@@ -7,7 +7,7 @@ import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { isValidEmail, isValidPhoneNumber } from '@/utils/inputValidation';
 import { isKatakanaOnly } from '@/utils/inputValidation';
-import { PhoneNumberInput } from '@/components/ui/PhoneNumberInput';
+import { SmsVerification } from '@/components/ui/SmsVerification';
 import { KatakanaInput } from '@/components/ui/KatakanaInput';
 import { NameWithKanaInput } from '@/components/ui/NameWithKanaInput';
 import AddressSelector from '@/components/ui/AddressSelector';
@@ -37,6 +37,7 @@ function WorkerRegisterPageInner() {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [agreedToPrivacy, setAgreedToPrivacy] = useState(false);
+  const [phoneVerificationToken, setPhoneVerificationToken] = useState<string | null>(null);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
 
   // 利用規約・PPのDB取得
@@ -214,6 +215,11 @@ function WorkerRegisterPageInner() {
       return false;
     }
 
+    if (!phoneVerificationToken) {
+      toast.error('電話番号のSMS認証を完了してください');
+      return false;
+    }
+
     if (formData.password.length < 8) {
       toast.error('パスワードは8文字以上で入力してください');
       return false;
@@ -299,6 +305,7 @@ function WorkerRegisterPageInner() {
           email: formData.email,
           password: formData.password,
           phoneNumber: formData.phoneNumber,
+          phoneVerificationToken,
           // 新規追加フィールド
           lastName: formData.lastName,
           firstName: formData.firstName,
@@ -453,21 +460,22 @@ function WorkerRegisterPageInner() {
                         <p className="text-green-600 text-xs mt-1">✓ 一致しています</p>
                       )}
                     </div>
-                    {/* 電話番号 */}
+                    {/* 電話番号（SMS認証） */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         電話番号 <span className="text-red-500">*</span>
                       </label>
-                      <PhoneNumberInput
-                        value={formData.phoneNumber}
-                        onChange={(value) => setFormData({ ...formData, phoneNumber: value })}
-                        placeholder="09012345678"
-                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.phoneNumber ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                      <SmsVerification
+                        phoneNumber={formData.phoneNumber}
+                        onPhoneNumberChange={(value) => {
+                          setFormData({ ...formData, phoneNumber: value });
+                          setPhoneVerificationToken(null);
+                        }}
+                        onVerified={(token) => setPhoneVerificationToken(token)}
+                        showError={showErrors && !formData.phoneNumber}
+                        errorMessage="電話番号を入力してください"
+                        inputClassName={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.phoneNumber ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                       />
-                      {showErrors && !formData.phoneNumber && (
-                        <p className="text-red-500 text-xs mt-1">電話番号を入力してください</p>
-                      )}
-                      <p className="text-xs text-gray-500 mt-1">※数字のみ（10桁または11桁）</p>
                     </div>
                     {/* パスワード */}
                     <div>

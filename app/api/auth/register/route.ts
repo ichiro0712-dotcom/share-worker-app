@@ -7,6 +7,7 @@ import { sendVerificationEmail } from '@/src/lib/auth/email-verification';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 import { findLpByIpAddress } from '@/src/lib/lp-attribution';
 import { getClientIpAddress } from '@/src/lib/device-info';
+import { validatePhoneVerificationToken } from '@/src/lib/auth/phone-verification';
 
 interface RegisterBody {
   email: string;
@@ -35,6 +36,8 @@ interface RegisterBody {
   registrationGenrePrefix?: string;
   // LP帰属ソース（クライアント側で判定: 'localStorage' | 'urlParams' | 'none'）
   lpAttributionSource?: string;
+  // 電話番号SMS認証トークン
+  phoneVerificationToken?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -66,6 +69,7 @@ export async function POST(request: NextRequest) {
       registrationCampaignCode,
       registrationGenrePrefix,
       lpAttributionSource: clientLpSource,
+      phoneVerificationToken,
     } = body;
 
     // LP帰属のフォールバックチェーン
@@ -105,6 +109,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 電話番号SMS認証トークンの検証
+    if (!phoneVerificationToken) {
+      return NextResponse.json(
+        { error: '電話番号のSMS認証が必要です' },
+        { status: 400 }
+      );
+    }
+
+    const isPhoneVerified = await validatePhoneVerificationToken(phoneVerificationToken, phoneNumber);
+    if (!isPhoneVerified) {
+      return NextResponse.json(
+        { error: '電話番号の認証トークンが無効または期限切れです。再度認証を行ってください。' },
+        { status: 400 }
+      );
+    }
+
     // メールアドレスの重複チェック
     const existingUser = await prisma.user.findUnique({
       where: { email },
@@ -132,6 +152,8 @@ export async function POST(request: NextRequest) {
         password_hash: hashedPassword,
         name: resolvedName,
         phone_number: phoneNumber,
+        phone_verified: true,
+        phone_verified_at: new Date(),
         birth_date: birthDate ? new Date(birthDate + 'T00:00:00+09:00') : null,
         qualifications: qualifications || [],
         last_name_kana: lastNameKana || null,

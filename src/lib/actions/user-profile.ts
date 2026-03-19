@@ -6,6 +6,7 @@ import { getAuthenticatedUser } from './helpers';
 import { geocodeAddress } from '@/src/lib/geocoding';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 import { generateBankAccountName } from '@/lib/string-utils';
+import { validatePhoneVerificationToken } from '@/src/lib/auth/phone-verification';
 
 /**
  * プロフィールの完成状態をチェックする
@@ -226,6 +227,7 @@ export async function updateUserProfile(formData: FormData) {
         const name = formData.get('name') as string;
         const email = formData.get('email') as string;
         const phoneNumber = formData.get('phoneNumber') as string;
+        const phoneVerificationToken = formData.get('phoneVerificationToken') as string | null;
         const birthDate = formData.get('birthDate') as string;
         const qualificationsStr = formData.get('qualifications') as string;
 
@@ -321,6 +323,24 @@ export async function updateUserProfile(formData: FormData) {
             };
         }
 
+        // 電話番号変更時のSMS認証チェック
+        const isPhoneChanged = phoneNumber !== user.phone_number;
+        if (isPhoneChanged) {
+            if (!phoneVerificationToken) {
+                return {
+                    success: false,
+                    error: '電話番号の変更にはSMS認証が必要です',
+                };
+            }
+            const isPhoneVerified = await validatePhoneVerificationToken(phoneVerificationToken, phoneNumber);
+            if (!isPhoneVerified) {
+                return {
+                    success: false,
+                    error: '電話番号の認証トークンが無効または期限切れです。再度認証を行ってください。',
+                };
+            }
+        }
+
         // URL検証関数（セキュリティ: Supabase Storage URLのみ許可）
         const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
         const isValidSupabaseUrl = (url: string | null): boolean => {
@@ -413,6 +433,10 @@ export async function updateUserProfile(formData: FormData) {
                 name,
                 email,
                 phone_number: phoneNumber,
+                ...(isPhoneChanged ? {
+                    phone_verified: true,
+                    phone_verified_at: new Date(),
+                } : {}),
                 birth_date: birthDate ? new Date(birthDate) : null,
                 qualifications,
                 profile_image: profileImagePath,

@@ -78,6 +78,10 @@ model User {
   email_verified             Boolean   @default(false) @map("email_verified")
   /// メール認証完了日時
   email_verified_at          DateTime? @map("email_verified_at")
+  /// 電話番号認証済みフラグ
+  phone_verified             Boolean   @default(false) @map("phone_verified")
+  /// 電話番号認証完了日時
+  phone_verified_at          DateTime? @map("phone_verified_at")
   /// メール認証トークン
   verification_token         String?   @map("verification_token")
   /// 認証トークンの有効期限
