@@ -760,6 +760,29 @@ export async function updateAttendanceBySystemAdmin(
       });
     });
 
+    // SystemLogにも記録
+    await prisma.systemLog.create({
+      data: {
+        admin_id: session?.adminId ?? 0,
+        action: 'UPDATE_ATTENDANCE',
+        target_type: 'Attendance',
+        target_id: attendanceId,
+        details: {
+          workerId: current.user_id,
+          facilityId: current.facility_id,
+          reason: data.reason.trim(),
+          wageManuallySet: data.wageManuallySet,
+          changes: {
+            actualStartTime: { from: current.actual_start_time?.toISOString(), to: data.actualStartTime },
+            actualEndTime: { from: current.actual_end_time?.toISOString(), to: data.actualEndTime },
+            actualBreakTime: { from: current.actual_break_time, to: data.actualBreakTime },
+            calculatedWage: { from: Number(current.calculated_wage), to: data.calculatedWage },
+            status: { from: current.status, to: data.status },
+          },
+        },
+      },
+    }).catch(() => {});
+
     logActivity({
       userType: 'SYSTEM_ADMIN',
       userEmail: adminEmail,
