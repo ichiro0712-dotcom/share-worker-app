@@ -32,7 +32,6 @@ export function PushSubscriptionSync({ userType }: Props) {
             if (result.success && result.needsRepair) {
                 if (result.repairReason === 'age') {
                     // T1: Age-based repair - use visibility guard
-                    console.log('[PushSync] Age-based repair needed, waiting for stable visibility...');
                     const startRepairIfVisible = () => {
                         if (document.visibilityState === 'visible') {
                             visibilityTimer = setTimeout(async () => {
@@ -60,12 +59,9 @@ export function PushSubscriptionSync({ userType }: Props) {
                     }
                 } else {
                     // T2/T3: Version or failure-based repair - run immediately
-                    console.log('[PushSync] Server requested repair (reason:', result.repairReason, '), starting...');
                     await safeRepairSubscription(userType);
                 }
-            } else if (result.success) {
-                console.log('[PushSync] Subscription synced successfully');
-            } else {
+            } else if (!result.success) {
                 console.warn('[PushSync] Subscription sync failed:', result.error, result.message);
             }
         };
