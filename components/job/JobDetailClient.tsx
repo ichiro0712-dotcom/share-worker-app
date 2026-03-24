@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/tag';
 import { formatDateTime, getDeadlineText, isDeadlineUrgent } from '@/utils/date';
 import { applyForJobMultipleDates, acceptOffer, addJobBookmark, removeJobBookmark, isJobBookmarked, toggleFacilityFavorite, isFacilityFavorited, getUserSelfPR, updateUserSelfPR, getFacilityInterviewPassRate } from '@/src/lib/actions';
+import { getMissingProfileFields } from '@/src/lib/actions/user-profile';
 import { useBadge } from '@/contexts/BadgeContext';
 import toast from 'react-hot-toast';
 import { useErrorToast } from '@/components/ui/PersistentErrorToast';
@@ -369,6 +370,18 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
     if (alreadyAppliedSelected.length > 0) {
       toast.error('選択された勤務日の中に、既に応募済みのものが含まれています');
       return;
+    }
+
+    // プロフィール完了チェック（応募前に必須）
+    try {
+      const profileResult = await getMissingProfileFields();
+      if (profileResult && !profileResult.isComplete) {
+        setProfileMissingFields(profileResult.missingFields);
+        setShowProfileModal(true);
+        return;
+      }
+    } catch (error) {
+      console.error('Failed to check profile:', error);
     }
 
     // 応募ボタンクリック記録（バックグラウンド、失敗無視）
