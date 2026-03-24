@@ -86,6 +86,11 @@ export async function checkProfileComplete(userId: number) {
         }
     }
 
+    // 電話番号SMS認証チェック（電話番号が入力済みの場合のみ）
+    if (user.phone_number && !user.phone_verified) {
+        missingFields.push('電話番号の認証');
+    }
+
     if (!user.experience_fields) {
         missingFields.push('経験・スキル');
     }
