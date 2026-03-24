@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/tag';
 import { formatDateTime, getDeadlineText, isDeadlineUrgent } from '@/utils/date';
 import { applyForJobMultipleDates, acceptOffer, addJobBookmark, removeJobBookmark, isJobBookmarked, toggleFacilityFavorite, isFacilityFavorited, getUserSelfPR, updateUserSelfPR, getFacilityInterviewPassRate } from '@/src/lib/actions';
+import { getMissingProfileFields } from '@/src/lib/actions/user-profile';
 import { useBadge } from '@/contexts/BadgeContext';
 import toast from 'react-hot-toast';
 import { useErrorToast } from '@/components/ui/PersistentErrorToast';
@@ -369,6 +370,18 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
     if (alreadyAppliedSelected.length > 0) {
       toast.error('選択された勤務日の中に、既に応募済みのものが含まれています');
       return;
+    }
+
+    // プロフィール完了チェック（応募前に必須）
+    try {
+      const profileResult = await getMissingProfileFields();
+      if (profileResult && !profileResult.isComplete) {
+        setProfileMissingFields(profileResult.missingFields);
+        setShowProfileModal(true);
+        return;
+      }
+    } catch (error) {
+      console.error('Failed to check profile:', error);
     }
 
     // 応募ボタンクリック記録（バックグラウンド、失敗無視）
@@ -1523,11 +1536,11 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
             <h2 className="text-lg font-bold mb-4">プロフィールを完成させてください</h2>
 
             <p className="text-sm text-gray-600 mb-4">
-              応募するには、以下のプロフィール項目を入力する必要があります。
+              応募するには、以下の項目を完了する必要があります。
             </p>
 
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-              <p className="text-sm font-bold text-red-800 mb-2">未入力の項目:</p>
+              <p className="text-sm font-bold text-red-800 mb-2">未完了の項目:</p>
               <ul className="text-sm text-red-700 space-y-1">
                 {profileMissingFields.map((field, index) => (
                   <li key={index}>・{field}</li>
