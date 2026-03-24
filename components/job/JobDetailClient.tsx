@@ -372,17 +372,23 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
       return;
     }
 
-    // プロフィール完了チェック（応募前に必須）
+    // プロフィール完了チェック（応募前に必須、失敗時も応募を阻止）
+    setIsApplying(true);
     try {
       const profileResult = await getMissingProfileFields();
       if (profileResult && !profileResult.isComplete) {
         setProfileMissingFields(profileResult.missingFields);
         setShowProfileModal(true);
+        setIsApplying(false);
         return;
       }
     } catch (error) {
       console.error('Failed to check profile:', error);
+      toast.error('プロフィールの確認に失敗しました。もう一度お試しください。');
+      setIsApplying(false);
+      return;
     }
+    setIsApplying(false);
 
     // 応募ボタンクリック記録（バックグラウンド、失敗無視）
     fetch('/api/application-click-tracking', {
