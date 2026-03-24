@@ -1523,11 +1523,11 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
             <h2 className="text-lg font-bold mb-4">プロフィールを完成させてください</h2>
 
             <p className="text-sm text-gray-600 mb-4">
-              応募するには、以下のプロフィール項目を入力する必要があります。
+              応募するには、以下の項目を完了する必要があります。
             </p>
 
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-              <p className="text-sm font-bold text-red-800 mb-2">未入力の項目:</p>
+              <p className="text-sm font-bold text-red-800 mb-2">未完了の項目:</p>
               <ul className="text-sm text-red-700 space-y-1">
                 {profileMissingFields.map((field, index) => (
                   <li key={index}>・{field}</li>
