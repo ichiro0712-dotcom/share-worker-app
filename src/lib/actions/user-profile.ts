@@ -140,9 +140,10 @@ export async function getMissingProfileFields(): Promise<{
             missingFields: result.missingFields,
             missingCount: result.missingFields.length,
         };
-    } catch {
-        // 未ログインやエラーの場合
-        return { isComplete: true, missingFields: [], missingCount: 0 };
+    } catch (error) {
+        // エラーの場合は安全側に倒す（未完了として扱う）
+        console.error('[getMissingProfileFields] Error:', error);
+        return { isComplete: false, missingFields: ['プロフィール確認に失敗しました'], missingCount: 1 };
     }
 }
 
