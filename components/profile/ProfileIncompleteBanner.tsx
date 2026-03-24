@@ -56,7 +56,7 @@ export function ProfileIncompleteBanner() {
         <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-amber-800">
-            応募に必要なプロフィールが未入力です
+            応募に必要な項目が未完了です
           </p>
           <p className="text-xs text-amber-600 truncate">
             {displayFields}{hasMore ? ` など${missingCount}項目` : ` (${missingCount}項目)`}
