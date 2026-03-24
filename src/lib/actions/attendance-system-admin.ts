@@ -720,6 +720,7 @@ export async function updateAttendanceBySystemAdmin(
       select: {
         actual_start_time: true, actual_end_time: true, actual_break_time: true,
         calculated_wage: true, status: true, user_id: true, facility_id: true,
+        application_id: true,
       },
     });
 
@@ -757,6 +758,21 @@ export async function updateAttendanceBySystemAdmin(
           status: data.status,
         },
       });
+
+      // 退勤済み(CHECKED_OUT)に更新した場合、紐づくApplicationをCOMPLETED_PENDINGに更新
+      // ただし、既にCOMPLETED_PENDING/COMPLETED_RATEDの場合はステータスを巻き戻さない
+      if (data.status === 'CHECKED_OUT' && current.application_id) {
+        const app = await tx.application.findUnique({
+          where: { id: current.application_id },
+          select: { status: true },
+        });
+        if (app && app.status === 'WORKING') {
+          await tx.application.update({
+            where: { id: current.application_id },
+            data: { status: 'COMPLETED_PENDING' },
+          });
+        }
+      }
 
       // SystemLogにも記録（トランザクション内で確実に記録）
       await tx.systemLog.create({
