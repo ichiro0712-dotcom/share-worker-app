@@ -8,6 +8,7 @@ import { useSession } from 'next-auth/react';
 import { updateUserProfile } from '@/src/lib/actions';
 import { savePhoneVerification } from '@/src/lib/actions/user-profile';
 import { validateFile, getSafeImageUrl, isValidImageUrl } from '@/utils/fileValidation';
+import { useBadge } from '@/contexts/BadgeContext';
 import { isKatakanaOnly, isKatakanaWithSpaceOnly } from '@/utils/inputValidation';
 import toast from 'react-hot-toast';
 import AddressSelector from '@/components/ui/AddressSelector';
@@ -134,6 +135,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
   const router = useRouter();
   const searchParams = useSearchParams();
   const { showDebugError } = useDebugError();
+  const { refreshBadges } = useBadge();
   const { update: updateSession } = useSession();
 
   // 戻り先URL（求人ページから来た場合）
@@ -1078,7 +1080,9 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 onVerified={async (token) => {
                   setPhoneVerificationToken(token);
                   const result = await savePhoneVerification(formData.phone, token);
-                  if (!result.success) {
+                  if (result.success) {
+                    refreshBadges();
+                  } else {
                     toast.error(result.error || '電話番号の保存に失敗しました');
                   }
                 }}
