@@ -70,6 +70,7 @@ const ignoredPaths = [
   '/api/push', // プッシュ通知API（API側でセッション認証を実施）
   '/api/cron', // Cron API（Vercel CronがCRON_SECRET認証を使用）
   '/api/upload', // アップロードAPI（API側で独自認証を実施）
+  '/api/sms', // SMS認証API（新規登録時に未ログインで使用）
   '/rogo', // ロゴ画像
   '/images', // 画像ファイル
   '/icons', // アイコン
