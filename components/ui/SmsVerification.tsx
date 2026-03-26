@@ -48,6 +48,8 @@ export function SmsVerification({
   const cooldownTimerRef = useRef<NodeJS.Timeout | null>(null);
   // 認証済みの電話番号を追跡
   const verifiedPhoneRef = useRef<string>(initialVerified ? phoneNumber : '');
+  // SMS送信先の電話番号を追跡（codeSent状態でのリセット用）
+  const sentPhoneRef = useRef<string>('');
 
   // initialVerified の変更を追跡
   useEffect(() => {
@@ -59,11 +61,20 @@ export function SmsVerification({
 
   // 電話番号が変更されたら認証状態をリセット
   useEffect(() => {
+    // 認証済み状態からのリセット
     if (verifiedPhoneRef.current && phoneNumber !== verifiedPhoneRef.current) {
       setState('input');
       setCode('');
       setVerifyError(null);
       verifiedPhoneRef.current = '';
+      sentPhoneRef.current = '';
+    }
+    // コード送信済み状態からのリセット（番号を変えたら入力状態に戻す）
+    if (sentPhoneRef.current && phoneNumber !== sentPhoneRef.current) {
+      setState('input');
+      setCode('');
+      setVerifyError(null);
+      sentPhoneRef.current = '';
     }
   }, [phoneNumber]);
 
@@ -108,6 +119,7 @@ export function SmsVerification({
       setState('codeSent');
       setCode('');
       setCooldownSeconds(RESEND_COOLDOWN_SECONDS);
+      sentPhoneRef.current = phoneNumber;
       toast.success('認証コードを送信しました');
     } catch {
       toast.error('SMS送信中にエラーが発生しました');
