@@ -217,7 +217,7 @@ export function SmsVerification({
             <p className="text-sm text-blue-800 mb-2">
               <span className="font-medium">{phoneNumber}</span> に認証コードを送信しました
             </p>
-            <div className="flex gap-2">
+            <div className="space-y-2">
               <input
                 type="text"
                 inputMode="numeric"
@@ -226,14 +226,14 @@ export function SmsVerification({
                 placeholder="認証コード（6桁）"
                 maxLength={6}
                 autoFocus
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-center text-lg tracking-widest"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-center text-lg tracking-widest"
                 disabled={isVerifying}
               />
               <button
                 type="button"
                 onClick={handleVerifyCode}
                 disabled={isVerifying || code.length < 4}
-                className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                className="w-full px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
               >
                 {isVerifying ? '確認中...' : '確認'}
               </button>
