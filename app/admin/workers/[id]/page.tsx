@@ -295,7 +295,7 @@ export default function WorkerDetailPage({
             募集中
           </span>
         </div>
-        {/* オファーボタン（レビュー完了済みワーカーのみ表示） */}
+        {/* オファーボタン（勤務完了済みワーカーに表示） */}
         {worker.hasCompletedRated && (
           <Link
             href={`/admin/jobs/new?mode=offer&workerId=${worker.id}`}

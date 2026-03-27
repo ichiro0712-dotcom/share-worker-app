@@ -24,6 +24,7 @@ export async function searchUsersForNotification(
 ): Promise<SearchableUser[]> {
   const session = await getSystemAdminSessionData();
   if (!session) throw new Error('Unauthorized');
+  if (session.role !== 'super_admin') throw new Error('この操作には特権管理者権限が必要です');
 
   const searchTerm = query.trim();
   if (!searchTerm) return [];
@@ -116,6 +117,7 @@ export async function sendTestAnnouncement(params: {
 }): Promise<{ success: boolean; error?: string; announcementId?: number }> {
   const session = await getSystemAdminSessionData();
   if (!session) throw new Error('Unauthorized');
+  if (session.role !== 'super_admin') throw new Error('この操作には特権管理者権限が必要です');
 
   const { targetType, recipientId, content } = params;
 

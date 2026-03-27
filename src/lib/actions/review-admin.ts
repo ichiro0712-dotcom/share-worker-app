@@ -40,10 +40,11 @@ export async function getWorkerDetail(workerId: number, facilityId: number) {
       isFavoriteBookmark,
       isBlockedBookmark,
     ] = await Promise.all([
+      // 勤務回数カウント: 勤務日が今日より前（過去）のもののみ対象
       prisma.application.findMany({
         where: {
           user_id: workerId,
-          workDate: { job: { facility_id: facilityId } },
+          workDate: { job: { facility_id: facilityId }, work_date: { lt: today } },
           status: { in: ['COMPLETED_PENDING', 'COMPLETED_RATED'] },
         },
         include: { workDate: { include: { job: true } } },
@@ -62,10 +63,11 @@ export async function getWorkerDetail(workerId: number, facilityId: number) {
         where: { user_id: workerId, reviewer_type: 'FACILITY' },
         include: { facility: { select: { facility_type: true } } },
       }),
+      // 他施設の勤務回数も同様に過去のもののみ
       prisma.application.count({
         where: {
           user_id: workerId,
-          workDate: { job: { facility_id: { not: facilityId } } },
+          workDate: { job: { facility_id: { not: facilityId } }, work_date: { lt: today } },
           status: { in: ['COMPLETED_PENDING', 'COMPLETED_RATED'] },
         },
       }),
@@ -103,8 +105,8 @@ export async function getWorkerDetail(workerId: number, facilityId: number) {
       }),
     ]);
 
-    // レビュー完了済み（COMPLETED_RATED）があるか確認（オファー対象判定用）
-    const hasCompletedRated = ourFacilityCompletedApps.some(app => app.status === 'COMPLETED_RATED');
+    // 勤務完了済み（COMPLETED_PENDING または COMPLETED_RATED）があるか確認（オファー対象判定用）
+    const hasCompletedRated = ourFacilityCompletedApps.length > 0;
 
     const ourAvgRating = ourFacilityReviews.length > 0
       ? ourFacilityReviews.reduce((sum, r) => sum + r.rating, 0) / ourFacilityReviews.length
@@ -1214,7 +1216,7 @@ export async function submitFacilityReviewForWorker(
   try {
     console.log('[submitFacilityReviewForWorker] Submitting review for application:', applicationId);
 
-    // 応募を取得して検証
+    // 応募を取得して検証（WORKINGは過去データの後方互換性のため含む）
     const application = await prisma.application.findFirst({
       where: {
         id: applicationId,
@@ -1223,7 +1225,7 @@ export async function submitFacilityReviewForWorker(
             facility_id: facilityId,
           },
         },
-        status: 'COMPLETED_PENDING',
+        status: { in: ['WORKING', 'COMPLETED_PENDING'] },
       },
       include: {
         workDate: {
@@ -1730,7 +1732,7 @@ export async function getWorkerListForFacility(
       // ステータスを判定
       const statuses: WorkerListStatus[] = [];
       const hasCompletedPending = statusSet.has('COMPLETED_PENDING'); // レビュー待ち
-      const hasCompletedRated = statusSet.has('COMPLETED_RATED'); // レビュー完了（オファー対象）
+      const hasCompletedRated = statusSet.has('COMPLETED_RATED'); // レビュー完了
       const hasCompleted = hasCompletedPending || hasCompletedRated;
       const hasCancelled = statusSet.has('CANCELLED');
       const hasScheduled = statusSet.has('SCHEDULED');

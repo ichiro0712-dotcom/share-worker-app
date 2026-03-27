@@ -156,8 +156,12 @@ export async function POST(request: NextRequest) {
             needs_repair: repairCheck.repair,
             repair_reason: repairCheck.reason,
         });
-    } catch (error) {
-        console.error('Push subscribe error:', error);
+    } catch (error: any) {
+        console.error('Push subscribe error:', {
+            message: error?.message,
+            code: error?.code,
+            meta: error?.meta,
+        });
         return NextResponse.json(
             { error: 'Failed to save subscription' },
             { status: 500 }

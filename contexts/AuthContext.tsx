@@ -47,11 +47,9 @@ function AuthContextProvider({ children }: { children: ReactNode }) {
   // セッション状態を復元
   useEffect(() => {
     const restoreSession = () => {
-      console.log('[AuthContext] restoreSession started');
       const sessionData = getAdminSession();
 
       if (sessionData) {
-        console.log('[AuthContext] Session found in localStorage (secure)');
         const adminData = {
           id: sessionData.adminId,
           email: sessionData.email,
@@ -64,7 +62,6 @@ function AuthContextProvider({ children }: { children: ReactNode }) {
         setAdmin(adminData);
         setSessionRemainingMinutes(getSessionRemainingMinutes());
       } else {
-        console.log('[AuthContext] No secure session found, checking legacy');
         // 互換性のためlocalStorageもチェック
         const storedAdmin = localStorage.getItem('currentAdmin');
         if (storedAdmin) {
@@ -84,7 +81,6 @@ function AuthContextProvider({ children }: { children: ReactNode }) {
           }
         }
       }
-      console.log('[AuthContext] restoreSession completed, setting adminLoaded to true');
       setAdminLoaded(true);
     };
 
@@ -132,21 +128,17 @@ function AuthContextProvider({ children }: { children: ReactNode }) {
   // ワーカーログイン
   const login = async (email: string, password: string) => {
     try {
-      console.log('[AuthContext] login started', { email });
       const result = await signIn('credentials', {
         email,
         password,
         redirect: false,
       });
-      console.log('[AuthContext] signIn result:', result);
 
       // result.ok が false の場合も失敗として扱う
       if (!result?.ok || result?.error) {
-        console.log('[AuthContext] login failed:', result?.error);
         return { success: false, error: result?.error || 'ログインに失敗しました' };
       }
 
-      console.log('[AuthContext] login success');
       return { success: true };
     } catch (error) {
       console.error('[AuthContext] login error:', error);
@@ -225,11 +217,11 @@ function AuthContextProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const handleAuthError = async (event: Event) => {
       const customEvent = event as CustomEvent<AdminAuthErrorDetail>;
-      console.log('[AuthContext] Auth error received:', customEvent.detail);
+      console.warn('[AuthContext] Auth error received:', customEvent.detail);
 
       if (customEvent.detail.code === 'UNAUTHORIZED') {
         // 未認証：セッション切れまたは無効なセッション
-        console.log('[AuthContext] Session expired or invalid, logging out...');
+        console.warn('[AuthContext] Session expired or invalid, logging out...');
         await adminLogout();
         // ログインページへリダイレクト
         if (typeof window !== 'undefined') {
@@ -237,7 +229,7 @@ function AuthContextProvider({ children }: { children: ReactNode }) {
         }
       } else if (customEvent.detail.code === 'FORBIDDEN') {
         // 権限なし：他施設のデータにアクセスしようとした
-        console.log('[AuthContext] Access forbidden');
+        console.warn('[AuthContext] Access forbidden');
         // アラートを表示してトップへリダイレクト
         if (typeof window !== 'undefined') {
           alert('アクセス権限がありません');

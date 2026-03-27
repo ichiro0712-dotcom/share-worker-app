@@ -8,6 +8,9 @@ export async function GET() {
     if (!session) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    if (session.role !== 'super_admin') {
+        return NextResponse.json({ error: 'この操作には特権管理者権限が必要です' }, { status: 403 });
+    }
 
     try {
         const recipients = await prisma.errorAlertRecipient.findMany({
@@ -34,6 +37,9 @@ export async function POST(request: NextRequest) {
     const session = await getSystemAdminSessionData();
     if (!session) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (session.role !== 'super_admin') {
+        return NextResponse.json({ error: 'この操作には特権管理者権限が必要です' }, { status: 403 });
     }
 
     try {
@@ -74,6 +80,9 @@ export async function PATCH(request: NextRequest) {
     if (!session) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    if (session.role !== 'super_admin') {
+        return NextResponse.json({ error: 'この操作には特権管理者権限が必要です' }, { status: 403 });
+    }
 
     try {
         const body = await request.json();
@@ -100,6 +109,9 @@ export async function DELETE(request: NextRequest) {
     const session = await getSystemAdminSessionData();
     if (!session) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (session.role !== 'super_admin') {
+        return NextResponse.json({ error: 'この操作には特権管理者権限が必要です' }, { status: 403 });
     }
 
     try {

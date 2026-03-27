@@ -39,7 +39,6 @@ const SW_READY_TIMEOUT_MS = 5000;
 // Service Workerの登録状態を取得（シンプル版）
 export async function getServiceWorkerRegistration(): Promise<ServiceWorkerRegistration | null> {
     if (!('serviceWorker' in navigator)) {
-        console.log('[SW] Service Worker not supported');
         return null;
     }
 
@@ -47,12 +46,10 @@ export async function getServiceWorkerRegistration(): Promise<ServiceWorkerRegis
         // まず既存の登録を即座にチェック（待機なし）
         const existing = await navigator.serviceWorker.getRegistration();
         if (existing?.active) {
-            console.log('[SW] Already active');
             return existing;
         }
 
         // なければnavigator.serviceWorker.readyを使う（ブラウザが自動で待ってくれる）
-        console.log('[SW] Waiting for ready...');
         const registration = await Promise.race([
             navigator.serviceWorker.ready,
             new Promise<null>(resolve =>
@@ -61,12 +58,11 @@ export async function getServiceWorkerRegistration(): Promise<ServiceWorkerRegis
         ]);
 
         if (registration) {
-            console.log('[SW] Ready');
             return registration;
         }
 
         // タイムアウト時: 手動登録を試みる
-        console.log('[SW] Timeout, manually registering...');
+        console.warn('[SW] Timeout, manually registering...');
         try {
             const manualReg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
             // 登録後にreadyを短時間待つ
@@ -187,7 +183,6 @@ export async function subscribeToPushNotifications(
         // 既存の購読があればそのまま再利用（破棄しない）
         const existingSubscription = await registration.pushManager.getSubscription();
         if (existingSubscription) {
-            console.log('[Push] Reusing existing subscription');
             const { synced, needsRepair, repairReason } = await syncSubscriptionToServer(existingSubscription, userType);
             if (synced) {
                 return { success: true, subscription: existingSubscription, needsRepair, repairReason };
@@ -204,7 +199,6 @@ export async function subscribeToPushNotifications(
                 userVisibleOnly: true,
                 applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY).buffer as ArrayBuffer,
             });
-            console.log('[Push] New subscription created');
         } catch (subscribeError: any) {
             console.error('pushManager.subscribe() failed:', subscribeError);
             if (subscribeError?.name === 'NotAllowedError') {
@@ -231,7 +225,6 @@ export async function subscribeToPushNotifications(
             };
         }
 
-        console.log('[Push] Subscription registered successfully');
         return { success: true, subscription };
     } catch (error: any) {
         console.error('Push subscription error:', error);
@@ -304,9 +297,7 @@ async function doRepair(
                 replaceEndpoint: oldEndpoint,
             }),
         });
-        if (resp.ok) {
-            console.log('[PushRepair] Repair completed successfully');
-        } else {
+        if (!resp.ok) {
             console.warn('[PushRepair] API returned error, will retry on next visit');
         }
     } catch (e) {
@@ -330,7 +321,6 @@ export async function safeRepairSubscription(
                 { ifAvailable: true },
                 async (lock: any) => {
                     if (!lock) {
-                        console.log('[PushRepair] Another tab is repairing (locks), skipping');
                         return;
                     }
                     await doRepair(registration, userType);
@@ -343,7 +333,6 @@ export async function safeRepairSubscription(
     }
 
     if (!acquireLocalLock()) {
-        console.log('[PushRepair] Another tab is repairing (localStorage), skipping');
         return;
     }
     try {

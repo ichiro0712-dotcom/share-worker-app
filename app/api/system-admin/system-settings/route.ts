@@ -7,10 +7,13 @@ import { getSystemAdminSessionData } from '@/lib/system-admin-session-server';
 
 // GET: 全システム設定を取得
 export async function GET() {
-  // システム管理者認証チェック
+  // super_admin権限チェック
   const session = await getSystemAdminSessionData();
   if (!session) {
     return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+  }
+  if (session.role !== 'super_admin') {
+    return NextResponse.json({ error: 'この操作には特権管理者権限が必要です' }, { status: 403 });
   }
 
   try {
@@ -27,10 +30,13 @@ export async function GET() {
 
 // POST: システム設定を更新
 export async function POST(request: NextRequest) {
-  // システム管理者認証チェック
+  // super_admin権限チェック
   const session = await getSystemAdminSessionData();
   if (!session) {
     return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+  }
+  if (session.role !== 'super_admin') {
+    return NextResponse.json({ error: 'この操作には特権管理者権限が必要です' }, { status: 403 });
   }
 
   try {

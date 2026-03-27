@@ -2,10 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useSystemAuth } from '@/contexts/SystemAuthContext';
 import {
     Layout,
     Smartphone,
     Shield,
+    ShieldAlert,
     ImageIcon,
     Bug,
     BellRing,
@@ -17,6 +19,7 @@ import {
     ArrowLeft,
     LucideIcon,
     SendHorizonal,
+    UserCog,
 } from 'lucide-react';
 
 interface MenuItem {
@@ -46,6 +49,7 @@ const menuItems: MenuSection[] = [
     {
         section: 'デバッグツール',
         items: [
+            { href: '/system-admin/dev-portal/admin-logs', icon: UserCog, label: '管理者操作ログ', description: '管理者の操作履歴', color: 'indigo' },
             { href: '/system-admin/dev-portal/logs', icon: Bug, label: 'バグ調査', description: 'エラーログ・操作追跡', color: 'red' },
             { href: '/system-admin/dev-portal/notification-logs', icon: BellRing, label: '通知ログ', description: '送信済み通知', color: 'orange' },
             { href: '/system-admin/dev-portal/test-notifications', icon: SendHorizonal, label: 'テスト通知', description: '通知送信テスト', color: 'green' },
@@ -76,6 +80,23 @@ const colorMap: Record<string, { bg: string; text: string; hover: string }> = {
 
 export default function DevPortalLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
+    const { admin, isAdminLoading } = useSystemAuth();
+
+    // super_admin以外はアクセス拒否
+    if (!isAdminLoading && admin?.role !== 'super_admin') {
+        return (
+            <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+                <div className="text-center">
+                    <ShieldAlert className="w-16 h-16 text-red-400 mx-auto mb-4" />
+                    <h1 className="text-xl font-bold text-slate-800 mb-2">アクセス権限がありません</h1>
+                    <p className="text-slate-500 mb-4">このページは特権管理者(super_admin)のみアクセスできます。</p>
+                    <Link href="/system-admin" className="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
+                        ← システム管理へ戻る
+                    </Link>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-gray-100 flex">

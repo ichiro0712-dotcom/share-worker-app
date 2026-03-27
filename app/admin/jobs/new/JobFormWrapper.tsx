@@ -69,9 +69,9 @@ export default function JobFormWrapper({
         // オファー対象ワーカー情報をセット
         if (isOfferMode && results[2]) {
           const workerData = results[2];
-          // hasCompletedRatedがtrueでない場合はオファー不可
+          // 勤務完了済みでない場合はオファー不可
           if (!workerData.hasCompletedRated) {
-            alert('このワーカーにはオファーを送れません（レビュー完了済みではありません）');
+            alert('このワーカーにはオファーを送れません（勤務完了済みではありません）');
             router.push('/admin/workers');
             return;
           }

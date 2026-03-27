@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Save, Settings, AlertCircle, CheckCircle } from 'lucide-react';
+import { Save, Settings, AlertCircle, CheckCircle, Users, ShieldAlert, Send } from 'lucide-react';
+import Link from 'next/link';
+import { useSystemAuth } from '@/contexts/SystemAuthContext';
 
 interface SystemSettings {
   distance_sort_filter_enabled: string;
@@ -9,6 +11,9 @@ interface SystemSettings {
 }
 
 export default function SystemSettingsPage() {
+  const { admin, isAdminLoading } = useSystemAuth();
+  const isSuperAdmin = admin?.role === 'super_admin';
+
   const [settings, setSettings] = useState<SystemSettings>({
     distance_sort_filter_enabled: 'false',
     distance_sort_default_km: '50',
@@ -17,8 +22,9 @@ export default function SystemSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // 設定を読み込む
+  // 設定を読み込む（super_adminのみ）
   useEffect(() => {
+    if (!isSuperAdmin) return;
     const fetchSettings = async () => {
       try {
         const res = await fetch('/api/system-admin/system-settings');
@@ -33,7 +39,7 @@ export default function SystemSettingsPage() {
       }
     };
     fetchSettings();
-  }, []);
+  }, [isSuperAdmin]);
 
   // 設定を保存する
   const handleSave = async () => {
@@ -60,6 +66,17 @@ export default function SystemSettingsPage() {
     }
   };
 
+  // super_admin以外はアクセス拒否
+  if (!isAdminLoading && !isSuperAdmin) {
+    return (
+      <div className="p-8 flex flex-col items-center justify-center min-h-[400px]">
+        <ShieldAlert className="w-16 h-16 text-red-400 mb-4" />
+        <h1 className="text-xl font-bold text-slate-800 mb-2">アクセス権限がありません</h1>
+        <p className="text-slate-500">このページは特権管理者(super_admin)のみアクセスできます。</p>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="p-6">
@@ -79,6 +96,31 @@ export default function SystemSettingsPage() {
       <div className="flex items-center gap-3 mb-6">
         <Settings className="w-8 h-8 text-gray-600" />
         <h1 className="text-2xl font-bold">システム設定</h1>
+      </div>
+
+      {/* サブメニュー */}
+      <div className="flex gap-2 mb-6">
+        <Link
+          href="/system-admin/settings/system"
+          className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium"
+        >
+          <Settings className="w-4 h-4" />
+          システム設定
+        </Link>
+        <Link
+          href="/system-admin/settings/admins"
+          className="flex items-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+        >
+          <Users className="w-4 h-4" />
+          管理者管理
+        </Link>
+        <Link
+          href="/system-admin/settings/form-destinations"
+          className="flex items-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+        >
+          <Send className="w-4 h-4" />
+          フォーム送信先管理
+        </Link>
       </div>
 
       {message && (

@@ -30,6 +30,11 @@ export async function updateApplicationStatuses(options?: {
         status: 'WORKING',
         worker_review_status: 'COMPLETED',
         facility_review_status: 'COMPLETED',
+        attendances: {
+            some: {
+                status: 'CHECKED_OUT',
+            },
+        },
         workDate: {
             work_date: { lte: now },
             job: {

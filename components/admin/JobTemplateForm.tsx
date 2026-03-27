@@ -339,7 +339,7 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
         if (formData.hourlyWage <= 0) errors.push('時給');
         if (formData.workContent.length === 0) errors.push('仕事内容');
         if (formData.qualifications.length === 0) errors.push('資格条件');
-        if (formData.icons.length === 0) errors.push('アイコン');
+        // アイコンは任意（その他セクションが該当しない事業所もあるため）
 
         // 勤務時間（拘束時間）に応じた休憩時間チェック（労働基準法準拠）
         if (formData.startTime && formData.endTime) {
@@ -1296,10 +1296,10 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    アイコン <span className="text-red-500">*</span>
+                                    アイコン
                                 </label>
                                 <p className="text-xs text-blue-600 mb-2">チェックが多いほどより多くのワーカーから応募がきます!</p>
-                                <div className={`grid grid-cols-3 gap-2 p-2 border rounded ${showErrors && formData.icons.length === 0 ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}>
+                                <div className="grid grid-cols-3 gap-2 p-2 border rounded border-gray-200">
                                     {ICON_OPTIONS.map(option => (
                                         <label key={option} className="flex items-center space-x-2">
                                             <input
@@ -1312,9 +1312,6 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                                         </label>
                                     ))}
                                 </div>
-                                {showErrors && formData.icons.length === 0 && (
-                                    <p className="text-red-500 text-xs mt-1">アイコンを選択してください</p>
-                                )}
                             </div>
 
                             <div>
