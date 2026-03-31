@@ -1088,6 +1088,130 @@ IPアドレス: {{ip_address}}
     push_title: null,
     push_body: null,
   },
+
+  // システム管理者向け - 業務イベント通知
+  {
+    notification_key: 'ADMIN_APPLICATION_SUBMITTED',
+    name: '新規応募',
+    description: 'ワーカーが求人に応募した時にシステム管理者に送信',
+    target_type: 'SYSTEM_ADMIN',
+    chat_enabled: false,
+    email_enabled: true,
+    push_enabled: false,
+    chat_message: null,
+    email_subject: '【+タスタス管理】新規応募がありました',
+    email_body: `新しい応募がありました。
+
+ワーカー名: {{worker_name}}
+求人タイトル: {{job_title}}
+施設名: {{facility_name}}
+勤務日: {{work_date}}
+応募日時: {{applied_at}}
+
+確認をお願いします。`,
+    push_title: null,
+    push_body: null,
+  },
+  {
+    notification_key: 'ADMIN_MATCHING_CONFIRMED',
+    name: 'マッチング確定',
+    description: '応募が承認されマッチングが確定した時にシステム管理者に送信',
+    target_type: 'SYSTEM_ADMIN',
+    chat_enabled: false,
+    email_enabled: true,
+    push_enabled: false,
+    chat_message: null,
+    email_subject: '【+タスタス管理】マッチングが確定しました',
+    email_body: `マッチングが確定しました。
+
+ワーカー名: {{worker_name}}
+求人タイトル: {{job_title}}
+施設名: {{facility_name}}
+勤務日: {{work_date}}
+確定日時: {{confirmed_at}}`,
+    push_title: null,
+    push_body: null,
+  },
+  {
+    notification_key: 'ADMIN_CLOCK_IN_RECORDED',
+    name: '勤務開始（出勤）',
+    description: 'ワーカーが出勤打刻した時にシステム管理者に送信',
+    target_type: 'SYSTEM_ADMIN',
+    chat_enabled: false,
+    email_enabled: true,
+    push_enabled: false,
+    chat_message: null,
+    email_subject: '【+タスタス管理】出勤が記録されました',
+    email_body: `出勤が記録されました。
+
+ワーカー名: {{worker_name}}
+施設名: {{facility_name}}
+求人タイトル: {{job_title}}
+出勤時刻: {{clock_in_time}}`,
+    push_title: null,
+    push_body: null,
+  },
+  {
+    notification_key: 'ADMIN_CLOCK_OUT_RECORDED',
+    name: '勤務終了（退勤）',
+    description: 'ワーカーが退勤打刻した時にシステム管理者に送信',
+    target_type: 'SYSTEM_ADMIN',
+    chat_enabled: false,
+    email_enabled: true,
+    push_enabled: false,
+    chat_message: null,
+    email_subject: '【+タスタス管理】退勤が記録されました',
+    email_body: `退勤が記録されました。
+
+ワーカー名: {{worker_name}}
+施設名: {{facility_name}}
+求人タイトル: {{job_title}}
+出勤時刻: {{clock_in_time}}
+退勤時刻: {{clock_out_time}}`,
+    push_title: null,
+    push_body: null,
+  },
+  {
+    notification_key: 'ADMIN_ATTENDANCE_MODIFICATION_REQUESTED',
+    name: '勤怠時間変更申請',
+    description: 'ワーカーが勤怠時間の変更を申請した時にシステム管理者に送信',
+    target_type: 'SYSTEM_ADMIN',
+    chat_enabled: false,
+    email_enabled: true,
+    push_enabled: false,
+    chat_message: null,
+    email_subject: '【+タスタス管理】勤怠時間変更申請がありました',
+    email_body: `勤怠時間の変更申請がありました。
+
+ワーカー名: {{worker_name}}
+施設名: {{facility_name}}
+求人タイトル: {{job_title}}
+勤務日: {{work_date}}
+変更理由: {{modification_reason}}
+申請日時: {{requested_at}}`,
+    push_title: null,
+    push_body: null,
+  },
+  {
+    notification_key: 'ADMIN_ATTENDANCE_MODIFICATION_APPROVED',
+    name: '勤怠時間変更承認',
+    description: '施設管理者が勤怠時間変更を承認した時にシステム管理者に送信',
+    target_type: 'SYSTEM_ADMIN',
+    chat_enabled: false,
+    email_enabled: true,
+    push_enabled: false,
+    chat_message: null,
+    email_subject: '【+タスタス管理】勤怠時間変更が承認されました',
+    email_body: `勤怠時間変更が承認されました。
+
+ワーカー名: {{worker_name}}
+施設名: {{facility_name}}
+求人タイトル: {{job_title}}
+勤務日: {{work_date}}
+承認日時: {{approved_at}}`,
+    push_title: null,
+    push_body: null,
+  },
 ];
 
 async function seedNotificationSettings() {
