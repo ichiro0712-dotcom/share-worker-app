@@ -14,6 +14,8 @@ import {
     sendWorkerCancelNotification,
     sendApplicationWithdrawalNotification,
     sendInitialGreetingNotification,
+    sendAdminApplicationNotification,
+    sendAdminMatchingNotification,
 } from './notification';
 import { sendNearbyJobNotifications, sendNotification } from '../notification-service';
 import { updateApplicationStatuses } from '../status-updater';
@@ -311,6 +313,14 @@ export async function applyForJob(jobId: string, workDateId?: number) {
             application.id
         ).catch(err => console.error('[applyForJob] Background notification error:', err));
 
+        // システム管理者への応募通知
+        sendAdminApplicationNotification(
+            user.name,
+            job.title,
+            job.facility.facility_name,
+            targetWorkDate.work_date.toLocaleDateString('ja-JP')
+        ).catch(err => console.error('[applyForJob] Admin notification error:', err));
+
         if (isImmediateMatch) {
             const workerLastName = user.name?.split(' ')[0] || user.name || '';
 
@@ -329,6 +339,14 @@ export async function applyForJob(jobId: string, workDateId?: number) {
                 job.requires_interview,
                 job.facility_id
             ).catch(err => console.error('[applyForJob] Matching notification error:', err));
+
+            // システム管理者へのマッチング通知
+            sendAdminMatchingNotification(
+                user.name,
+                job.title,
+                job.facility.facility_name,
+                targetWorkDate.work_date.toLocaleDateString('ja-JP')
+            ).catch(err => console.error('[applyForJob] Admin matching notification error:', err));
 
             // 初回挨拶通知を送信（通知設定に基づく）
             sendInitialGreetingNotification(
@@ -529,6 +547,14 @@ export async function applyForJobMultipleDates(jobId: string, workDateIds: numbe
             createdApplications[0].id,
             appliedWorkDates
         ).catch(err => console.error('[applyForJobMultipleDates] Background notification error:', err));
+
+        // システム管理者への応募通知
+        sendAdminApplicationNotification(
+            user.name,
+            job.title,
+            job.facility.facility_name,
+            appliedWorkDates.join('、')
+        ).catch(err => console.error('[applyForJobMultipleDates] Admin notification error:', err));
 
         const baseUrl = process.env.NEXTAUTH_URL || 'https://tastas.work';
         const jobDetailUrl = `${baseUrl}/jobs/${jobIdNum}`;
@@ -1034,6 +1060,20 @@ export async function acceptOffer(jobId: string, workDateId: number) {
             application.id,
             'FACILITY_OFFER_ACCEPTED'
         ).catch(err => console.error('[acceptOffer] Background notification error:', err));
+
+        // システム管理者への応募・マッチング通知（オファー承諾は即マッチング）
+        sendAdminApplicationNotification(
+            user.name,
+            job.title,
+            job.facility.facility_name,
+            targetWorkDate.work_date.toLocaleDateString('ja-JP')
+        ).catch(err => console.error('[acceptOffer] Admin application notification error:', err));
+        sendAdminMatchingNotification(
+            user.name,
+            job.title,
+            job.facility.facility_name,
+            targetWorkDate.work_date.toLocaleDateString('ja-JP')
+        ).catch(err => console.error('[acceptOffer] Admin matching notification error:', err));
 
         // マッチングメッセージの送信
         const baseUrl = process.env.NEXTAUTH_URL || 'https://tastas.work';

@@ -1102,6 +1102,236 @@ export async function sendAdminNewWorkerNotification(
 }
 
 /**
+ * 新規応募通知（システム管理者宛）
+ */
+export async function sendAdminApplicationNotification(
+    workerName: string,
+    jobTitle: string,
+    facilityName: string,
+    workDate: string
+) {
+    try {
+        const admins = await prisma.systemAdmin.findMany({
+            select: { id: true, name: true, email: true, notification_email: true },
+        });
+        if (admins.length === 0) return null;
+
+        for (const admin of admins) {
+            await sendNotification({
+                notificationKey: 'ADMIN_APPLICATION_SUBMITTED',
+                targetType: 'SYSTEM_ADMIN',
+                recipientId: admin.id,
+                recipientName: admin.name,
+                recipientEmail: admin.notification_email || admin.email,
+                variables: {
+                    worker_name: workerName,
+                    job_title: jobTitle,
+                    facility_name: facilityName,
+                    work_date: workDate,
+                    applied_at: new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }),
+                },
+            });
+        }
+        return { success: true };
+    } catch (error) {
+        console.error('[sendAdminApplicationNotification] Error:', error);
+        return null;
+    }
+}
+
+/**
+ * マッチング確定通知（システム管理者宛）
+ */
+export async function sendAdminMatchingNotification(
+    workerName: string,
+    jobTitle: string,
+    facilityName: string,
+    workDate: string
+) {
+    try {
+        const admins = await prisma.systemAdmin.findMany({
+            select: { id: true, name: true, email: true, notification_email: true },
+        });
+        if (admins.length === 0) return null;
+
+        for (const admin of admins) {
+            await sendNotification({
+                notificationKey: 'ADMIN_MATCHING_CONFIRMED',
+                targetType: 'SYSTEM_ADMIN',
+                recipientId: admin.id,
+                recipientName: admin.name,
+                recipientEmail: admin.notification_email || admin.email,
+                variables: {
+                    worker_name: workerName,
+                    job_title: jobTitle,
+                    facility_name: facilityName,
+                    work_date: workDate,
+                    confirmed_at: new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }),
+                },
+            });
+        }
+        return { success: true };
+    } catch (error) {
+        console.error('[sendAdminMatchingNotification] Error:', error);
+        return null;
+    }
+}
+
+/**
+ * 出勤記録通知（システム管理者宛）
+ */
+export async function sendAdminClockInNotification(
+    workerName: string,
+    facilityName: string,
+    jobTitle: string,
+    clockInTime: string
+) {
+    try {
+        const admins = await prisma.systemAdmin.findMany({
+            select: { id: true, name: true, email: true, notification_email: true },
+        });
+        if (admins.length === 0) return null;
+
+        for (const admin of admins) {
+            await sendNotification({
+                notificationKey: 'ADMIN_CLOCK_IN_RECORDED',
+                targetType: 'SYSTEM_ADMIN',
+                recipientId: admin.id,
+                recipientName: admin.name,
+                recipientEmail: admin.notification_email || admin.email,
+                variables: {
+                    worker_name: workerName,
+                    facility_name: facilityName,
+                    job_title: jobTitle,
+                    clock_in_time: clockInTime,
+                },
+            });
+        }
+        return { success: true };
+    } catch (error) {
+        console.error('[sendAdminClockInNotification] Error:', error);
+        return null;
+    }
+}
+
+/**
+ * 退勤記録通知（システム管理者宛）
+ */
+export async function sendAdminClockOutNotification(
+    workerName: string,
+    facilityName: string,
+    jobTitle: string,
+    clockInTime: string,
+    clockOutTime: string
+) {
+    try {
+        const admins = await prisma.systemAdmin.findMany({
+            select: { id: true, name: true, email: true, notification_email: true },
+        });
+        if (admins.length === 0) return null;
+
+        for (const admin of admins) {
+            await sendNotification({
+                notificationKey: 'ADMIN_CLOCK_OUT_RECORDED',
+                targetType: 'SYSTEM_ADMIN',
+                recipientId: admin.id,
+                recipientName: admin.name,
+                recipientEmail: admin.notification_email || admin.email,
+                variables: {
+                    worker_name: workerName,
+                    facility_name: facilityName,
+                    job_title: jobTitle,
+                    clock_in_time: clockInTime,
+                    clock_out_time: clockOutTime,
+                },
+            });
+        }
+        return { success: true };
+    } catch (error) {
+        console.error('[sendAdminClockOutNotification] Error:', error);
+        return null;
+    }
+}
+
+/**
+ * 勤怠時間変更申請通知（システム管理者宛）
+ */
+export async function sendAdminAttendanceModificationRequestNotification(
+    workerName: string,
+    facilityName: string,
+    jobTitle: string,
+    workDate: string,
+    modificationReason: string
+) {
+    try {
+        const admins = await prisma.systemAdmin.findMany({
+            select: { id: true, name: true, email: true, notification_email: true },
+        });
+        if (admins.length === 0) return null;
+
+        for (const admin of admins) {
+            await sendNotification({
+                notificationKey: 'ADMIN_ATTENDANCE_MODIFICATION_REQUESTED',
+                targetType: 'SYSTEM_ADMIN',
+                recipientId: admin.id,
+                recipientName: admin.name,
+                recipientEmail: admin.notification_email || admin.email,
+                variables: {
+                    worker_name: workerName,
+                    facility_name: facilityName,
+                    job_title: jobTitle,
+                    work_date: workDate,
+                    modification_reason: modificationReason,
+                    requested_at: new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }),
+                },
+            });
+        }
+        return { success: true };
+    } catch (error) {
+        console.error('[sendAdminAttendanceModificationRequestNotification] Error:', error);
+        return null;
+    }
+}
+
+/**
+ * 勤怠時間変更承認通知（システム管理者宛）
+ */
+export async function sendAdminAttendanceModificationApprovedNotification(
+    workerName: string,
+    facilityName: string,
+    jobTitle: string,
+    workDate: string
+) {
+    try {
+        const admins = await prisma.systemAdmin.findMany({
+            select: { id: true, name: true, email: true, notification_email: true },
+        });
+        if (admins.length === 0) return null;
+
+        for (const admin of admins) {
+            await sendNotification({
+                notificationKey: 'ADMIN_ATTENDANCE_MODIFICATION_APPROVED',
+                targetType: 'SYSTEM_ADMIN',
+                recipientId: admin.id,
+                recipientName: admin.name,
+                recipientEmail: admin.notification_email || admin.email,
+                variables: {
+                    worker_name: workerName,
+                    facility_name: facilityName,
+                    job_title: jobTitle,
+                    work_date: workDate,
+                    approved_at: new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }),
+                },
+            });
+        }
+        return { success: true };
+    } catch (error) {
+        console.error('[sendAdminAttendanceModificationApprovedNotification] Error:', error);
+        return null;
+    }
+}
+
+/**
  * 高キャンセル率警告（システム管理者宛）
  * @param targetType 'WORKER' | 'FACILITY'
  * @param targetId ワーカーIDまたは施設ID

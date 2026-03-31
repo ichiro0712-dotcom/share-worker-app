@@ -8,6 +8,11 @@ import { prisma } from '@/lib/prisma';
 import { getAuthenticatedUser, getCurrentTime, getTodayStart } from './helpers';
 import { calculateSalary } from '@/src/lib/salary-calculator';
 import { sendNotification } from '@/src/lib/notification-service';
+import {
+  sendAdminClockInNotification,
+  sendAdminClockOutNotification,
+  sendAdminAttendanceModificationRequestNotification,
+} from './notification';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 import {
   ATTENDANCE_ERROR_CODES,
@@ -150,6 +155,15 @@ async function processCheckIn(
     },
     result: 'SUCCESS',
   }).catch(() => {});
+
+  // システム管理者への出勤通知
+  const worker = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
+  sendAdminClockInNotification(
+    worker?.name || '',
+    facility.facility_name,
+    application?.workDate.job.title || '',
+    attendance.check_in_time.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
+  ).catch(err => console.error('[processCheckIn] Admin notification error:', err));
 
   return {
     success: true,
@@ -329,6 +343,17 @@ async function processCheckOut(
     result: 'SUCCESS',
   }).catch(() => {});
 
+  // システム管理者への退勤通知
+  const checkOutWorker = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
+  const checkOutFacility = await prisma.facility.findUnique({ where: { id: attendance.facility_id }, select: { facility_name: true } });
+  sendAdminClockOutNotification(
+    checkOutWorker?.name || '',
+    checkOutFacility?.facility_name || '',
+    attendance.application?.workDate.job.title || '',
+    attendance.check_in_time.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
+    getCurrentTime().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
+  ).catch(err => console.error('[processCheckOut] Admin notification error:', err));
+
   return {
     success: true,
     attendanceId: attendance.id,
@@ -479,6 +504,17 @@ export async function createModificationRequest(
         },
       }).catch((err) => console.error('[createModificationRequest] Notification error:', err));
     }
+
+    // システム管理者への勤怠変更申請通知
+    sendAdminAttendanceModificationRequestNotification(
+      user.name,
+      attendance.facility?.facility_name || '',
+      attendance.application?.workDate.job.title || '',
+      attendance.application?.workDate.work_date
+        ? new Date(attendance.application.workDate.work_date).toLocaleDateString('ja-JP')
+        : '',
+      request.workerComment
+    ).catch(err => console.error('[createModificationRequest] Admin notification error:', err));
 
     // 成功をログ記録
     logActivity({
@@ -1248,6 +1284,7 @@ async function findTodayApplication(
     job_id: number;
     job: {
       id: number;
+      title: string;
       start_time: string;
       end_time: string;
       break_time: string;
@@ -1282,6 +1319,7 @@ async function findTodayApplication(
           job: {
             select: {
               id: true,
+              title: true,
               start_time: true,
               end_time: true,
               break_time: true,
@@ -1305,6 +1343,7 @@ async function findTodayApplication(
       job_id: application.workDate.job_id,
       job: {
         id: application.workDate.job.id,
+        title: application.workDate.job.title,
         start_time: application.workDate.job.start_time,
         end_time: application.workDate.job.end_time,
         break_time: application.workDate.job.break_time,
