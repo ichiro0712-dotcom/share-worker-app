@@ -8,6 +8,7 @@ import { prisma } from '@/lib/prisma';
 import { getCurrentTime } from './helpers';
 import { calculateSalary } from '@/src/lib/salary-calculator';
 import { sendNotification } from '@/src/lib/notification-service';
+import { sendAdminAttendanceModificationApprovedNotification } from './notification';
 import { randomBytes } from 'crypto';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 import {
@@ -427,6 +428,16 @@ export async function approveModificationRequest(
         toUserId: modification.attendance.user.id,
       } : undefined,
     });
+
+    // システム管理者への承認通知
+    sendAdminAttendanceModificationApprovedNotification(
+      modification.attendance.user.name,
+      modification.attendance.facility.facility_name,
+      modification.attendance.application?.workDate.job.title || '',
+      modification.attendance.application?.workDate.work_date
+        ? new Date(modification.attendance.application.workDate.work_date).toLocaleDateString('ja-JP')
+        : ''
+    ).catch(err => console.error('[approveModificationRequest] Admin notification error:', err));
 
     return {
       success: true,

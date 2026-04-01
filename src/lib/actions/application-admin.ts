@@ -10,6 +10,7 @@ import {
     sendFacilityReviewRequestNotification,
     sendSlotsFilled,
     sendAdminHighCancelRateNotification,
+    sendAdminMatchingNotification,
 } from './notification';
 import { sendNotification } from '../notification-service';
 import { getAuthenticatedUser } from './helpers';
@@ -233,6 +234,14 @@ export async function updateApplicationStatus(
                 application.workDate.job.requires_interview, // 審査あり求人フラグ
                 facilityId // チャットメッセージ送信用
             );
+
+            // システム管理者へのマッチング通知
+            sendAdminMatchingNotification(
+                application.user.name,
+                application.workDate.job.title,
+                application.workDate.job.facility.facility_name,
+                application.workDate.work_date.toLocaleDateString('ja-JP')
+            ).catch(err => console.error('[updateApplicationStatus] Admin matching notification error:', err));
 
             // 枠が埋まったかチェック
             const workDateData = await prisma.jobWorkDate.findUnique({
