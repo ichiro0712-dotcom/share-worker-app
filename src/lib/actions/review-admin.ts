@@ -105,8 +105,9 @@ export async function getWorkerDetail(workerId: number, facilityId: number) {
       }),
     ]);
 
-    // 勤務完了済み（COMPLETED_PENDING または COMPLETED_RATED）があるか確認（オファー対象判定用）
-    const hasCompletedRated = ourFacilityCompletedApps.length > 0;
+    // 施設レビュー完了済み（COMPLETED_RATED かつ facility_review_status: COMPLETED）があるか確認（オファー対象判定用）
+    // 施設がレビューを完了していないワーカーにはオファーを出せない
+    const hasCompletedRated = ourFacilityReviews.length > 0;
 
     const ourAvgRating = ourFacilityReviews.length > 0
       ? ourFacilityReviews.reduce((sum, r) => sum + r.rating, 0) / ourFacilityReviews.length
@@ -1734,6 +1735,8 @@ export async function getWorkerListForFacility(
       const hasCompletedPending = statusSet.has('COMPLETED_PENDING'); // レビュー待ち
       const hasCompletedRated = statusSet.has('COMPLETED_RATED'); // レビュー完了
       const hasCompleted = hasCompletedPending || hasCompletedRated;
+      // オファー可否: 施設レビュー完了済み（reviewMapにデータあり）のワーカーのみ
+      const hasReviewCompleted = reviewMap.has(userId);
       const hasCancelled = statusSet.has('CANCELLED');
       const hasScheduled = statusSet.has('SCHEDULED');
       const hasWorking = statusSet.has('WORKING');
@@ -1826,8 +1829,8 @@ export async function getWorkerListForFacility(
         prefecture: data.user.prefecture,
         city: data.user.city,
         statuses,
-        hasCompleted,
-        hasCompletedRated,
+        hasCompleted: hasReviewCompleted, // オファー判定: 施設レビュー完了済みのみ
+        hasCompletedRated: hasReviewCompleted, // オファー判定: 施設レビュー完了済みのみ
         hasCancelled,
         ourWorkCount,
         lastOurWorkDate,

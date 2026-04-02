@@ -970,6 +970,7 @@ export interface AttendanceDetailForWorkerResponse {
     };
     application: {
       id: number;
+      workerReviewStatus: string;
       workDate: string;
       job: {
         id: number;
@@ -1076,6 +1077,7 @@ export async function getAttendanceDetailForWorker(
         application: attendance.application
           ? {
               id: attendance.application.id,
+              workerReviewStatus: attendance.application.worker_review_status,
               workDate: attendance.application.workDate.work_date.toISOString(),
               job: {
                 id: attendance.application.workDate.job.id,
