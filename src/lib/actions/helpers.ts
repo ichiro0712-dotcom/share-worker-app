@@ -78,7 +78,7 @@ export function formatMessageTime(date: Date): string {
 
   if (days === 0) {
     // 今日
-    return date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' });
   } else if (days === 1) {
     return '昨日';
   } else if (days < 7) {

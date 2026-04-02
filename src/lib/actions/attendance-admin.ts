@@ -412,10 +412,12 @@ export async function approveModificationRequest(
         approved_start_time: modification.requested_start_time.toLocaleTimeString('ja-JP', {
           hour: '2-digit',
           minute: '2-digit',
+          timeZone: 'Asia/Tokyo',
         }),
         approved_end_time: modification.requested_end_time.toLocaleTimeString('ja-JP', {
           hour: '2-digit',
           minute: '2-digit',
+          timeZone: 'Asia/Tokyo',
         }),
         approved_break_time: String(modification.requested_break_time),
         confirmed_wage: String(modification.requested_amount),

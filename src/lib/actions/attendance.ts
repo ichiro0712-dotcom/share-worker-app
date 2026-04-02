@@ -162,7 +162,7 @@ async function processCheckIn(
     worker?.name || '',
     facility.facility_name,
     application?.workDate.job.title || '',
-    attendance.check_in_time.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
+    attendance.check_in_time.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' })
   ).catch(err => console.error('[processCheckIn] Admin notification error:', err));
 
   return {
@@ -350,8 +350,8 @@ async function processCheckOut(
     checkOutWorker?.name || '',
     checkOutFacility?.facility_name || '',
     attendance.application?.workDate.job.title || '',
-    attendance.check_in_time.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
-    getCurrentTime().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
+    attendance.check_in_time.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' }),
+    getCurrentTime().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' })
   ).catch(err => console.error('[processCheckOut] Admin notification error:', err));
 
   return {
@@ -493,10 +493,12 @@ export async function createModificationRequest(
           requestedStartTime: requestedStart.toLocaleTimeString('ja-JP', {
             hour: '2-digit',
             minute: '2-digit',
+            timeZone: 'Asia/Tokyo',
           }),
           requestedEndTime: requestedEnd.toLocaleTimeString('ja-JP', {
             hour: '2-digit',
             minute: '2-digit',
+            timeZone: 'Asia/Tokyo',
           }),
           requestedBreakTime: String(request.requestedBreakTime),
           workerComment: request.workerComment,
@@ -660,10 +662,12 @@ export async function resubmitModificationRequest(
           requestedStartTime: requestedStart.toLocaleTimeString('ja-JP', {
             hour: '2-digit',
             minute: '2-digit',
+            timeZone: 'Asia/Tokyo',
           }),
           requestedEndTime: requestedEnd.toLocaleTimeString('ja-JP', {
             hour: '2-digit',
             minute: '2-digit',
+            timeZone: 'Asia/Tokyo',
           }),
           requestedBreakTime: String(request.requestedBreakTime),
           workerComment: request.workerComment,
