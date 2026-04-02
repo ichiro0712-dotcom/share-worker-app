@@ -448,8 +448,12 @@ async function sendFacilityDeadlineWarnings() {
             recipientName: primaryAdmin.name,
             facilityEmails,
             variables: {
+                facility_name: job.facility.facility_name,
                 job_title: job.title,
+                work_date: firstWorkDate.toISOString().split('T')[0],
                 deadline: deadlineStr,
+                applied_count: String(filledSlots),
+                recruitment_count: String(totalSlots),
                 remaining_slots: String(remainingSlots),
                 job_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://tastas.work'}/admin/jobs/${job.id}`,
             },
