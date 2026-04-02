@@ -38,18 +38,9 @@ export interface ModificationFormData {
   comment: string;
 }
 
-// 時間オプション生成（00:00〜23:30を30分刻み）
-const generateTimeOptions = () => {
-  const options: string[] = [];
-  for (let h = 0; h < 24; h++) {
-    for (let m = 0; m < 60; m += 30) {
-      options.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
-    }
-  }
-  return options;
-};
-
-const TIME_OPTIONS = generateTimeOptions();
+// 時・分の個別オプション生成（1分単位での時刻指定用）
+const HOUR_OPTIONS = Array.from({ length: 24 }, (_, h) => h.toString().padStart(2, '0'));
+const MINUTE_OPTIONS = Array.from({ length: 60 }, (_, m) => m.toString().padStart(2, '0'));
 
 // 休憩時間オプション
 const BREAK_OPTIONS = [0, 15, 30, 45, 60, 90, 120];
@@ -162,27 +153,47 @@ export function ModificationForm({
           勤務時間
         </label>
         <div className="flex items-center gap-2">
+          {/* 開始時刻: 時 */}
           <select
-            value={startTime}
-            onChange={(e) => setStartTime(e.target.value)}
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#66cc99]"
+            value={startTime.split(':')[0]}
+            onChange={(e) => setStartTime(`${e.target.value}:${startTime.split(':')[1]}`)}
+            className="w-16 px-2 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#66cc99] text-center"
           >
-            {TIME_OPTIONS.map((time) => (
-              <option key={`start-${time}`} value={time}>
-                {time}
-              </option>
+            {HOUR_OPTIONS.map((h) => (
+              <option key={`sh-${h}`} value={h}>{h}</option>
             ))}
           </select>
-          <span className="text-gray-500">〜</span>
+          <span className="text-gray-500">:</span>
+          {/* 開始時刻: 分 */}
           <select
-            value={endTime}
-            onChange={(e) => setEndTime(e.target.value)}
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#66cc99]"
+            value={startTime.split(':')[1]}
+            onChange={(e) => setStartTime(`${startTime.split(':')[0]}:${e.target.value}`)}
+            className="w-16 px-2 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#66cc99] text-center"
           >
-            {TIME_OPTIONS.map((time) => (
-              <option key={`end-${time}`} value={time}>
-                {time}
-              </option>
+            {MINUTE_OPTIONS.map((m) => (
+              <option key={`sm-${m}`} value={m}>{m}</option>
+            ))}
+          </select>
+          <span className="text-gray-500 mx-1">〜</span>
+          {/* 終了時刻: 時 */}
+          <select
+            value={endTime.split(':')[0]}
+            onChange={(e) => setEndTime(`${e.target.value}:${endTime.split(':')[1]}`)}
+            className="w-16 px-2 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#66cc99] text-center"
+          >
+            {HOUR_OPTIONS.map((h) => (
+              <option key={`eh-${h}`} value={h}>{h}</option>
+            ))}
+          </select>
+          <span className="text-gray-500">:</span>
+          {/* 終了時刻: 分 */}
+          <select
+            value={endTime.split(':')[1]}
+            onChange={(e) => setEndTime(`${endTime.split(':')[0]}:${e.target.value}`)}
+            className="w-16 px-2 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#66cc99] text-center"
+          >
+            {MINUTE_OPTIONS.map((m) => (
+              <option key={`em-${m}`} value={m}>{m}</option>
             ))}
           </select>
         </div>
