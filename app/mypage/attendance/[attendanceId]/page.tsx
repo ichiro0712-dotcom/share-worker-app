@@ -221,14 +221,22 @@ export default async function AttendanceDetailPage({ params }: Props) {
             </div>
           )}
 
-          {/* 計算済み報酬 */}
-          {attendance.calculatedWage !== null && (
+          {/* 計算済み報酬（ワーカーレビュー完了後に表示） */}
+          {attendance.calculatedWage !== null && attendance.application?.workerReviewStatus === 'COMPLETED' && (
             <div className="pt-3 border-t border-gray-100">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-500">確定報酬</span>
                 <span className="font-bold text-lg text-primary">
                   {attendance.calculatedWage.toLocaleString()}円
                 </span>
+              </div>
+            </div>
+          )}
+          {attendance.calculatedWage !== null && attendance.application?.workerReviewStatus !== 'COMPLETED' && (
+            <div className="pt-3 border-t border-gray-100">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-500">確定報酬</span>
+                <span className="text-sm text-gray-400">レビュー完了後に表示されます</span>
               </div>
             </div>
           )}
