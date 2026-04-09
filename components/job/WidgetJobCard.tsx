@@ -118,7 +118,7 @@ const WidgetJobCardComponent: React.FC<WidgetJobCardProps> = ({ job, facility, s
               <span className="bg-teal-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm">説明会</span>
             )}
             {job.requiresInterview && (
-              <span className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm">審査あり</span>
+              <span className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm">選考あり</span>
             )}
           </div>
           {shouldShowUnavailable && (

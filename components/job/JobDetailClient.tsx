@@ -709,7 +709,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
             )}
             {job.requiresInterview && (
               <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded shadow-md">
-                審査あり
+                選考あり
               </span>
             )}
           </div>
@@ -1379,7 +1379,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
               </p>
             )}
             <p className="mt-2 text-xs text-gray-500">
-              ※この施設の審査あり求人における面接通過率です（採用・不採用の結果が出た応募が対象）
+              ※この施設の選考あり求人における面接通過率です（採用・不採用の結果が出た応募が対象）
             </p>
           </div>
         </div>
@@ -1602,9 +1602,9 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
                   <div className="flex items-start gap-2">
                     <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
                     <div>
-                      <p className="text-sm font-bold text-yellow-800">審査あり求人です</p>
+                      <p className="text-sm font-bold text-yellow-800">選考あり求人です</p>
                       <p className="text-xs text-yellow-700 mt-1">
-                        応募後、施設による審査があります。審査通過後にマッチングが成立します。
+                        応募後、施設による選考があります。選考通過後にマッチングが成立します。
                       </p>
                     </div>
                   </div>
@@ -1731,7 +1731,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
                 disabled={isEditingSelfPR}
                 className="flex-1 px-4 py-2.5 bg-primary text-white font-medium rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {job.jobType === 'OFFER' ? 'オファーを受ける' : (job.requiresInterview ? '応募する（審査あり）' : '応募する')}
+                {job.jobType === 'OFFER' ? 'オファーを受ける' : (job.requiresInterview ? '応募する（選考あり）' : '応募する')}
               </button>
             </div>
           </div>
