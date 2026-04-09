@@ -178,8 +178,11 @@ export function ModificationRequestDetail({
               <td className="px-4 py-3 text-center text-sm text-blue-700">
                 {requestedEndTime}
               </td>
-              <td className="px-4 py-3 text-center text-sm text-blue-700">
+              <td className="px-4 py-3 text-center text-sm text-gray-400">
                 {request.requestedBreakTime}分
+                {request.requestedBreakTime === scheduledBreakTime && (
+                  <span className="block text-xs">（変更なし）</span>
+                )}
               </td>
             </tr>
           </tbody>

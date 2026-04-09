@@ -2,11 +2,14 @@
 
 /**
  * 勤怠変更申請フォームコンポーネント
+ * - 勤務時間の変更をスクロールホイール型ピッカーで入力
+ * - 休憩時間は元の求人設定値を引き継ぎ（ワーカーからの変更不可）
  */
 
 import { useState, useEffect } from 'react';
-import { AlertCircle, Clock, Coffee } from 'lucide-react';
+import { AlertCircle, Clock } from 'lucide-react';
 import { calculateSalary, formatCurrency, formatMinutesToHoursAndMinutes } from '@/src/lib/salary-calculator';
+import { TimeWheelPicker } from '@/components/ui/TimeWheelPicker';
 
 interface ModificationFormProps {
   attendance: {
@@ -38,13 +41,6 @@ export interface ModificationFormData {
   comment: string;
 }
 
-// 時・分の個別オプション生成（1分単位での時刻指定用）
-const HOUR_OPTIONS = Array.from({ length: 24 }, (_, h) => h.toString().padStart(2, '0'));
-const MINUTE_OPTIONS = Array.from({ length: 60 }, (_, m) => m.toString().padStart(2, '0'));
-
-// 休憩時間オプション
-const BREAK_OPTIONS = [0, 15, 30, 45, 60, 90, 120];
-
 export function ModificationForm({
   attendance,
   scheduledTime,
@@ -57,9 +53,10 @@ export function ModificationForm({
   // フォーム状態
   const [startTime, setStartTime] = useState(scheduledTime.startTime);
   const [endTime, setEndTime] = useState(scheduledTime.endTime);
-  const [hasBreak, setHasBreak] = useState(scheduledTime.breakTime > 0);
-  const [breakTime, setBreakTime] = useState(scheduledTime.breakTime);
   const [comment, setComment] = useState('');
+
+  // 休憩時間は元の求人設定値を固定で使用
+  const breakTime = scheduledTime.breakTime;
 
   // 計算結果
   const [calculatedAmount, setCalculatedAmount] = useState(0);
@@ -83,13 +80,13 @@ export function ModificationForm({
     const result = calculateSalary({
       startTime: start,
       endTime: end,
-      breakMinutes: hasBreak ? breakTime : 0,
+      breakMinutes: breakTime,
       hourlyRate: scheduledTime.hourlyWage,
     });
 
     setCalculatedAmount(result.totalPay + scheduledTime.transportationFee);
     setWorkedMinutes(result.workedMinutes);
-  }, [startTime, endTime, hasBreak, breakTime, scheduledTime, workDate]);
+  }, [startTime, endTime, breakTime, scheduledTime, workDate]);
 
   const handleSubmit = () => {
     if (!comment.trim()) {
@@ -100,8 +97,8 @@ export function ModificationForm({
     onSubmit({
       startTime,
       endTime,
-      breakTime: hasBreak ? breakTime : 0,
-      hasBreak,
+      breakTime,
+      hasBreak: breakTime > 0,
       comment,
     });
   };
@@ -147,105 +144,30 @@ export function ModificationForm({
         </div>
       </div>
 
-      {/* 勤務時間入力 */}
+      {/* 勤務時間入力（スクロールホイール型ピッカー） */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-gray-700 mb-3">
           勤務時間
         </label>
-        <div className="flex items-center gap-2">
-          {/* 開始時刻: 時 */}
-          <select
-            value={startTime.split(':')[0]}
-            onChange={(e) => setStartTime(`${e.target.value}:${startTime.split(':')[1]}`)}
-            className="w-16 px-2 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#66cc99] text-center"
-          >
-            {HOUR_OPTIONS.map((h) => (
-              <option key={`sh-${h}`} value={h}>{h}</option>
-            ))}
-          </select>
-          <span className="text-gray-500">:</span>
-          {/* 開始時刻: 分 */}
-          <select
-            value={startTime.split(':')[1]}
-            onChange={(e) => setStartTime(`${startTime.split(':')[0]}:${e.target.value}`)}
-            className="w-16 px-2 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#66cc99] text-center"
-          >
-            {MINUTE_OPTIONS.map((m) => (
-              <option key={`sm-${m}`} value={m}>{m}</option>
-            ))}
-          </select>
-          <span className="text-gray-500 mx-1">〜</span>
-          {/* 終了時刻: 時 */}
-          <select
-            value={endTime.split(':')[0]}
-            onChange={(e) => setEndTime(`${e.target.value}:${endTime.split(':')[1]}`)}
-            className="w-16 px-2 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#66cc99] text-center"
-          >
-            {HOUR_OPTIONS.map((h) => (
-              <option key={`eh-${h}`} value={h}>{h}</option>
-            ))}
-          </select>
-          <span className="text-gray-500">:</span>
-          {/* 終了時刻: 分 */}
-          <select
-            value={endTime.split(':')[1]}
-            onChange={(e) => setEndTime(`${endTime.split(':')[0]}:${e.target.value}`)}
-            className="w-16 px-2 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#66cc99] text-center"
-          >
-            {MINUTE_OPTIONS.map((m) => (
-              <option key={`em-${m}`} value={m}>{m}</option>
-            ))}
-          </select>
+        <div className="flex items-center justify-center gap-3">
+          <TimeWheelPicker
+            value={startTime}
+            onChange={setStartTime}
+            label="開始"
+            className="flex-1"
+          />
+          <span className="text-gray-400 text-lg font-medium">〜</span>
+          <TimeWheelPicker
+            value={endTime}
+            onChange={setEndTime}
+            label="終了"
+            className="flex-1"
+          />
         </div>
-        <p className="text-xs text-gray-500 mt-1">
+        <p className="text-xs text-gray-500 mt-2">
           実働時間: {formatMinutesToHoursAndMinutes(workedMinutes)}
+          {breakTime > 0 && `（休憩${breakTime}分を含む）`}
         </p>
-      </div>
-
-      {/* 休憩時間 */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          休憩時間
-        </label>
-        <div className="space-y-2">
-          <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                checked={!hasBreak}
-                onChange={() => setHasBreak(false)}
-                className="w-4 h-4 text-[#66cc99]"
-              />
-              <span>なし</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                checked={hasBreak}
-                onChange={() => setHasBreak(true)}
-                className="w-4 h-4 text-[#66cc99]"
-              />
-              <span>あり</span>
-            </label>
-          </div>
-
-          {hasBreak && (
-            <div className="flex items-center gap-2">
-              <Coffee className="w-4 h-4 text-gray-400" />
-              <select
-                value={breakTime}
-                onChange={(e) => setBreakTime(Number(e.target.value))}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#66cc99]"
-              >
-                {BREAK_OPTIONS.map((minutes) => (
-                  <option key={minutes} value={minutes}>
-                    {minutes}分
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-        </div>
       </div>
 
       {/* コメント */}
