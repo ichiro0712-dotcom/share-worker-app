@@ -8,6 +8,7 @@ import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 import { findLpByIpAddress } from '@/src/lib/lp-attribution';
 import { getClientIpAddress } from '@/src/lib/device-info';
 import { validatePhoneVerificationToken } from '@/src/lib/auth/phone-verification';
+import { syncWorkerToTasLink, mapUserToTasLinkPayload } from '@/src/lib/taslink';
 
 interface RegisterBody {
   email: string;
@@ -215,6 +216,16 @@ export async function POST(request: NextRequest) {
       );
     } catch (notifyErr) {
       console.error('Failed to notify admin:', getErrorMessage(notifyErr));
+    }
+
+    // TasLinkへワーカー情報を同期（同期完了を待つが、失敗しても登録は成功させる）
+    try {
+      const tasLinkPayload = mapUserToTasLinkPayload(user);
+      if (tasLinkPayload) {
+        await syncWorkerToTasLink(user.id, tasLinkPayload);
+      }
+    } catch (tasLinkErr) {
+      console.error('[TasLink] Registration sync failed:', getErrorMessage(tasLinkErr));
     }
 
     return NextResponse.json({

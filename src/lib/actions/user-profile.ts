@@ -7,6 +7,7 @@ import { geocodeAddress } from '@/src/lib/geocoding';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 import { generateBankAccountName } from '@/lib/string-utils';
 import { validatePhoneVerificationToken } from '@/src/lib/auth/phone-verification';
+import { syncWorkerToTasLink, mapUserToTasLinkPayload } from '@/src/lib/taslink';
 
 /**
  * SMS認証成功時に電話番号を即座にDBに保存する
@@ -241,6 +242,28 @@ export async function updateUserSelfPR(selfPR: string): Promise<{ success: boole
             where: { id: user.id },
             data: { self_pr: selfPR.trim() || null, updated_by_type: 'WORKER', updated_by_id: user.id },
         });
+
+        // TasLinkへ自己PR更新を同期（DBからフルプロフィールを取得して送信）
+        try {
+            const fullUser = await prisma.user.findUnique({
+                where: { id: user.id },
+                select: {
+                    id: true, name: true, last_name_kana: true, first_name_kana: true,
+                    gender: true, birth_date: true, phone_number: true, email: true,
+                    postal_code: true, prefecture: true, city: true, address_line: true,
+                    qualifications: true, desired_work_days: true, desired_work_style: true,
+                    work_histories: true, self_pr: true,
+                },
+            });
+            if (fullUser) {
+                const tasLinkPayload = mapUserToTasLinkPayload(fullUser);
+                if (tasLinkPayload) {
+                    await syncWorkerToTasLink(user.id, tasLinkPayload);
+                }
+            }
+        } catch (tasLinkErr) {
+            console.error('[TasLink] Self-PR sync failed:', getErrorMessage(tasLinkErr));
+        }
 
         return { success: true };
     } catch (error) {
@@ -544,6 +567,34 @@ export async function updateUserProfile(formData: FormData) {
             },
             result: 'SUCCESS',
         }).catch(() => {});
+
+        // TasLinkへプロフィール更新を同期（同期完了を待つが、失敗しても更新は成功させる）
+        try {
+            const tasLinkPayload = mapUserToTasLinkPayload({
+                id: user.id,
+                name,
+                last_name_kana: lastNameKana,
+                first_name_kana: firstNameKana,
+                gender,
+                birth_date: birthDate ? new Date(birthDate) : null,
+                phone_number: phoneNumber,
+                email,
+                postal_code: postalCode,
+                prefecture,
+                city,
+                address_line: addressLine,
+                qualifications,
+                desired_work_days: desiredWorkDays,
+                desired_work_style: desiredWorkStyle,
+                work_histories: workHistories,
+                self_pr: selfPR,
+            });
+            if (tasLinkPayload) {
+                await syncWorkerToTasLink(user.id, tasLinkPayload);
+            }
+        } catch (tasLinkErr) {
+            console.error('[TasLink] Profile sync failed:', getErrorMessage(tasLinkErr));
+        }
 
         return {
             success: true,
