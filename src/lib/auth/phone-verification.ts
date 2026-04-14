@@ -5,7 +5,7 @@
  */
 import { SignJWT, jwtVerify } from 'jose';
 
-const TOKEN_EXPIRY = '10m'; // 10分有効
+const TOKEN_EXPIRY = '7d'; // 7日間有効
 
 function getSecret(): Uint8Array {
   const secret = process.env.NEXTAUTH_SECRET;
