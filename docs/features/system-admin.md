@@ -622,27 +622,123 @@ enum FacilityStatus {
 
 ---
 
-## 15. 画面一覧
+## 15. 画面一覧（全46画面）
+
+### 認証
 
 | パス | 画面名 | 説明 |
 |------|--------|------|
 | `/system-admin/login` | ログイン | システム管理者ログイン |
+
+### ダッシュボード・アラート
+
+| パス | 画面名 | 説明 |
+|------|--------|------|
 | `/system-admin` | ダッシュボード | 統計サマリー・アラート |
-| `/system-admin/analytics` | アナリティクス | 詳細統計・分析・エクスポート |
+| `/system-admin/alerts` | アラート一覧 | アラート一覧・対応 |
+
+### アナリティクス
+
+| パス | 画面名 | 説明 |
+|------|--------|------|
+| `/system-admin/analytics` | アナリティクス | 詳細統計・分析 |
+| `/system-admin/analytics/ai` | マッチング最適化AI | AI分析・予測機能 |
+| `/system-admin/analytics/export` | スプレッドシートDL | データエクスポート |
+| `/system-admin/analytics/regions` | 地域登録 | 地域マスタ管理 |
+
+### ワーカー管理
+
+| パス | 画面名 | 説明 |
+|------|--------|------|
 | `/system-admin/workers` | ワーカー管理 | 一覧・検索・一括操作 |
 | `/system-admin/workers/[id]` | ワーカー詳細 | 詳細・編集・停止 |
+
+### 施設管理
+
+| パス | 画面名 | 説明 |
+|------|--------|------|
 | `/system-admin/facilities` | 施設管理 | 一覧・検索・一括操作 |
-| `/system-admin/facilities/[id]` | 施設詳細 | 詳細・編集・停止 |
-| `/system-admin/facilities/[id]/map` | マップピン調整 | 地図マーカー位置調整 |
-| `/system-admin/jobs` | 求人管理 | URL検索・監視結果 |
-| `/system-admin/templates` | テンプレート管理 | 一覧・承認・編集 |
-| `/system-admin/applications` | 応募管理 | 一覧・ステータス変更 |
-| `/system-admin/reviews` | レビュー管理 | 一覧・監視結果 |
-| `/system-admin/messages` | メッセージ管理 | NGワード・監視結果 |
-| `/system-admin/content` | コンテンツ管理 | お知らせ・FAQ |
-| `/system-admin/settings` | システム設定 | マスタ・ポリシー |
-| `/system-admin/alerts` | アラート管理 | アラート一覧・対応 |
-| `/system-admin/security` | セキュリティ | アカウント・ログ |
+| `/system-admin/facilities/new` | 施設新規登録 | 新規施設の登録 |
+
+### 求人管理
+
+| パス | 画面名 | 説明 |
+|------|--------|------|
+| `/system-admin/jobs` | 求人管理 | 求人一覧・検索・管理 |
+
+### 勤怠管理
+
+| パス | 画面名 | 説明 |
+|------|--------|------|
+| `/system-admin/attendance` | 勤怠管理 | 勤怠一覧・管理 |
+
+### CSV出力
+
+| パス | 画面名 | 説明 |
+|------|--------|------|
+| `/system-admin/csv-export` | CSV出力 | タブ切替で各種データ出力（worker-info, client-info, job-info, shift-info, staff-info, attendance-info） |
+
+### お知らせ管理
+
+| パス | 画面名 | 説明 |
+|------|--------|------|
+| `/system-admin/announcements` | お知らせ管理 | お知らせ一覧 |
+| `/system-admin/announcements/create` | お知らせ新規作成 | 新規お知らせの作成 |
+| `/system-admin/announcements/[id]` | お知らせ編集 | 既存お知らせの編集 |
+
+### コンテンツ管理
+
+| パス | 画面名 | 説明 |
+|------|--------|------|
+| `/system-admin/content` | コンテンツ管理ハブ | コンテンツ管理メニュー |
+| `/system-admin/content/faq` | FAQ編集 | FAQ管理・編集 |
+| `/system-admin/content/user-guide` | ご利用ガイド編集 | ご利用ガイド管理・編集 |
+| `/system-admin/content/legal` | 利用規約・PP編集 | 利用規約・プライバシーポリシー編集 |
+| `/system-admin/content/notifications` | 通知管理 | 通知テンプレート管理 |
+| `/system-admin/content/labor-template` | 労働条件通知書テンプレート | 労働条件通知書の管理 |
+| `/system-admin/content/templates` | テンプレート管理 | 各種テンプレートの管理 |
+
+### LP管理
+
+| パス | 画面名 | 説明 |
+|------|--------|------|
+| `/system-admin/lp` | LP管理 | ランディングページ管理 |
+| `/system-admin/lp/genres` | LPジャンル管理 | LPジャンルの管理 |
+| `/system-admin/lp/guide` | LP作成ガイド | LP作成のガイドライン |
+| `/system-admin/lp/recommended-jobs` | おすすめ求人管理 | おすすめ求人の設定 |
+| `/system-admin/lp/recommended-jobs/preview` | おすすめ求人プレビュー | おすすめ求人の表示確認 |
+| `/system-admin/lp/tracking` | LPトラッキング | LP効果測定 |
+| `/system-admin/lp/tracking/public-jobs` | 公開求人トラッキング | 公開求人の効果測定 |
+| `/system-admin/lp/tracking/spec` | トラッキングスペック | トラッキング仕様 |
+
+### システム設定（super_admin専用）
+
+| パス | 画面名 | 説明 |
+|------|--------|------|
+| `/system-admin/settings/admins` | 管理者アカウント管理 | 管理者の追加・編集・削除 |
+| `/system-admin/settings/form-destinations` | フォーム送信先設定 | フォーム通知先の設定 |
+| `/system-admin/settings/minimum-wage` | 最低賃金管理 | 最低賃金マスタの管理 |
+| `/system-admin/settings/system` | システム設定 | システム全般の設定 |
+
+### 開発ポータル（super_admin専用）
+
+| パス | 画面名 | 説明 |
+|------|--------|------|
+| `/system-admin/dev-portal` | 開発者ポータル | 開発者向け管理メニュー |
+| `/system-admin/dev-portal/admin-logs` | 管理者ログ | 管理者操作ログ |
+| `/system-admin/dev-portal/logs` | システムログ | システム動作ログ |
+| `/system-admin/dev-portal/notification-logs` | 通知ログ | 通知送信ログ |
+| `/system-admin/dev-portal/error-alert` | エラーアラート設定 | エラー通知先の設定 |
+| `/system-admin/dev-portal/test-notifications` | テスト通知 | 通知のテスト送信 |
+| `/system-admin/dev-portal/debug-checklist` | デバッグチェックリスト | デバッグ用チェック項目 |
+| `/system-admin/dev-portal/debug-time` | デバッグ時刻制御 | テスト用時刻の制御 |
+| `/system-admin/dev-portal/sample-images` | サンプル画像 | テスト用サンプル画像管理 |
+| `/system-admin/dev-portal/formulas` | 給与計算式 | 給与計算ロジックの確認・管理 |
+
+### サイドバーナビゲーション構成
+
+- **全管理者共通**: ダッシュボード, アナリティクス, ワーカー管理, 施設管理, 求人管理, 勤怠管理, CSV出力, コンテンツ管理, LP管理
+- **super_admin専用**: システム設定, 開発ポータル
 
 ---
 
@@ -694,3 +790,4 @@ enum FacilityStatus {
 | 2025-12-05 | マップピン位置調整機能を追加 |
 | 2025-12-09 | 詳細要件定義書として大幅拡充。アナリティクス、AI監視機能、DB設計案を追加 |
 | 2025-12-09 | 確定版。マッチング最適化AI（予測機能）、ダッシュボード、エクスポート機能、一括操作、アラート機能、退会機能、登録離脱率トラッキングを追加。パスワード表示機能は削除（リセット機能のみ） |
+| 2026-04-09 | 画面一覧を実際のpage.tsxファイルに基づき全面更新（18画面→46画面）。セクション別にグループ化。存在しない画面（templates, applications, reviews, messages, security, facilities/[id], facilities/[id]/map）を削除し、新規画面を追加 |

@@ -1,0 +1,1406 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>タスタス サービス概要・機能一覧</title>
+<style>
+  :root {
+    --primary: #2563eb;
+    --primary-light: #dbeafe;
+    --secondary: #059669;
+    --secondary-light: #d1fae5;
+    --accent: #7c3aed;
+    --accent-light: #ede9fe;
+    --warning: #d97706;
+    --warning-light: #fef3c7;
+    --danger: #dc2626;
+    --danger-light: #fee2e2;
+    --gray-50: #f9fafb;
+    --gray-100: #f3f4f6;
+    --gray-200: #e5e7eb;
+    --gray-300: #d1d5db;
+    --gray-500: #6b7280;
+    --gray-700: #374151;
+    --gray-900: #111827;
+    --radius: 12px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+    background: var(--gray-50);
+    color: var(--gray-900);
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  /* Header */
+  header {
+    background: linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #3b82f6 100%);
+    color: white;
+    padding: 48px 0 56px;
+    position: relative;
+    overflow: hidden;
+  }
+  header::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    right: 0;
+    height: 32px;
+    background: var(--gray-50);
+    border-radius: 24px 24px 0 0;
+  }
+  header h1 {
+    font-size: 2rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+  header p {
+    margin-top: 8px;
+    font-size: 1.05rem;
+    opacity: 0.9;
+  }
+  .header-meta {
+    margin-top: 20px;
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    font-size: 0.85rem;
+  }
+  .header-meta span {
+    background: rgba(255,255,255,0.15);
+    padding: 4px 14px;
+    border-radius: 20px;
+    backdrop-filter: blur(4px);
+  }
+
+  /* Navigation */
+  .toc {
+    background: white;
+    border-radius: var(--radius);
+    padding: 28px 32px;
+    margin: -16px 0 32px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    position: relative;
+    z-index: 1;
+  }
+  .toc h2 {
+    font-size: 1rem;
+    color: var(--gray-500);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 16px;
+  }
+  .toc-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 8px;
+  }
+  .toc a {
+    color: var(--primary);
+    text-decoration: none;
+    font-size: 0.92rem;
+    padding: 6px 0;
+    display: block;
+    transition: color 0.15s;
+  }
+  .toc a:hover { color: #1d4ed8; text-decoration: underline; }
+
+  /* Section */
+  section {
+    margin-bottom: 40px;
+  }
+  section > h2 {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--gray-900);
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--primary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  section > h2 .badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    background: var(--primary-light);
+    color: var(--primary);
+    padding: 2px 10px;
+    border-radius: 12px;
+    letter-spacing: 0.04em;
+  }
+
+  h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--gray-700);
+    margin: 24px 0 12px;
+  }
+
+  /* Cards */
+  .card {
+    background: white;
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    border: 1px solid var(--gray-200);
+  }
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .card-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+  }
+  .card-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+  }
+  .card-desc {
+    font-size: 0.92rem;
+    color: var(--gray-500);
+    line-height: 1.6;
+  }
+
+  /* Feature Grid */
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 16px;
+  }
+
+  /* Tables */
+  .table-wrap {
+    overflow-x: auto;
+    margin: 12px 0;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+    background: white;
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  thead {
+    background: var(--gray-100);
+  }
+  th {
+    text-align: left;
+    padding: 12px 16px;
+    font-weight: 600;
+    color: var(--gray-700);
+    white-space: nowrap;
+    border-bottom: 1px solid var(--gray-200);
+  }
+  td {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--gray-100);
+    color: var(--gray-700);
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--gray-50); }
+
+  /* Tags */
+  .tag {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 6px;
+    letter-spacing: 0.02em;
+  }
+  .tag-blue { background: var(--primary-light); color: var(--primary); }
+  .tag-green { background: var(--secondary-light); color: var(--secondary); }
+  .tag-purple { background: var(--accent-light); color: var(--accent); }
+  .tag-orange { background: var(--warning-light); color: var(--warning); }
+  .tag-red { background: var(--danger-light); color: var(--danger); }
+
+  /* Role bars */
+  .role-bar {
+    padding: 6px 16px;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .role-worker { background: #dbeafe; color: #1e40af; }
+  .role-facility { background: #d1fae5; color: #065f46; }
+  .role-system { background: #ede9fe; color: #5b21b6; }
+
+  /* Stats row */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 16px;
+    margin: 20px 0;
+  }
+  .stat-card {
+    background: white;
+    border-radius: var(--radius);
+    padding: 20px;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    border: 1px solid var(--gray-200);
+  }
+  .stat-number {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--primary);
+    line-height: 1;
+  }
+  .stat-label {
+    font-size: 0.82rem;
+    color: var(--gray-500);
+    margin-top: 6px;
+  }
+
+  /* List style */
+  ul.feature-list {
+    list-style: none;
+    padding: 0;
+  }
+  ul.feature-list li {
+    padding: 8px 0 8px 24px;
+    position: relative;
+    font-size: 0.92rem;
+    color: var(--gray-700);
+  }
+  ul.feature-list li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 16px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--primary);
+  }
+
+  /* Collapsible */
+  details {
+    background: white;
+    border-radius: var(--radius);
+    border: 1px solid var(--gray-200);
+    margin-bottom: 12px;
+  }
+  details summary {
+    padding: 14px 20px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--gray-700);
+    user-select: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  details summary::marker { content: ''; }
+  details summary::before {
+    content: '\25B6';
+    font-size: 0.7rem;
+    transition: transform 0.2s;
+    color: var(--gray-500);
+  }
+  details[open] summary::before { transform: rotate(90deg); }
+  details > div {
+    padding: 0 20px 16px;
+  }
+
+  /* Footer */
+  footer {
+    text-align: center;
+    padding: 40px 0;
+    color: var(--gray-500);
+    font-size: 0.82rem;
+    border-top: 1px solid var(--gray-200);
+    margin-top: 48px;
+  }
+
+  /* Print */
+  @media print {
+    header { background: #2563eb !important; -webkit-print-color-adjust: exact; }
+    details { break-inside: avoid; }
+    details[open] summary ~ * { display: block !important; }
+  }
+
+  @media (max-width: 640px) {
+    .feature-grid { grid-template-columns: 1fr; }
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    header h1 { font-size: 1.5rem; }
+    .toc-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="container">
+    <h1>タスタス</h1>
+    <p>看護師・介護士向け 単発/短期 求人マッチングWebサービス</p>
+    <div class="header-meta">
+      <span>本番: tastas.work</span>
+      <span>Next.js 14 + TypeScript</span>
+      <span>Supabase / PostgreSQL</span>
+      <span>Vercel デプロイ</span>
+      <span>PWA対応</span>
+    </div>
+  </div>
+</header>
+
+<main class="container">
+
+<!-- 目次 -->
+<nav class="toc">
+  <h2>目次</h2>
+  <div class="toc-grid">
+    <a href="#overview">1. サービス概要</a>
+    <a href="#tech">2. 技術スタック</a>
+    <a href="#roles">3. ユーザーロール</a>
+    <a href="#core">4. コア機能</a>
+    <a href="#worker-pages">5. 求職者向け画面</a>
+    <a href="#facility-pages">6. 施設管理者向け画面</a>
+    <a href="#system-pages">7. システム管理者向け画面</a>
+    <a href="#api">8. API一覧</a>
+    <a href="#cron">9. 自動処理（Cron）</a>
+    <a href="#data">10. データモデル</a>
+    <a href="#integrations">11. 外部連携</a>
+    <a href="#security">12. セキュリティ</a>
+  </div>
+</nav>
+
+<!-- サービス概要 -->
+<section id="overview">
+  <h2>1. サービス概要</h2>
+  <div class="card">
+    <p>
+      <strong>+タスタス</strong>は、看護師・介護士が単発や短期のシフト（1日単位）で働ける求人と、
+      医療・介護施設をマッチングするWebプラットフォームです。
+      求職者はスマートフォンから求人検索・応募・QR出退勤・レビューまで完結でき、
+      施設側はブラウザ上で求人掲載・応募管理・労働者評価を一括管理できます。
+    </p>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-number">70+</div>
+      <div class="stat-label">画面数（ページ）</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number">80+</div>
+      <div class="stat-label">APIエンドポイント</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number">30+</div>
+      <div class="stat-label">データモデル</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number">3</div>
+      <div class="stat-label">ユーザーロール</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number">6</div>
+      <div class="stat-label">Cronジョブ</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number">3</div>
+      <div class="stat-label">通知チャネル</div>
+    </div>
+  </div>
+</section>
+
+<!-- 技術スタック -->
+<section id="tech">
+  <h2>2. 技術スタック</h2>
+  <div class="feature-grid">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon" style="background:#dbeafe;color:#2563eb;">F</div>
+        <div class="card-title">フロントエンド</div>
+      </div>
+      <ul class="feature-list">
+        <li>Next.js 14（App Router）</li>
+        <li>TypeScript（Strict Mode）</li>
+        <li>Tailwind CSS</li>
+        <li>PWA（Web Push / Service Worker）</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon" style="background:#d1fae5;color:#059669;">B</div>
+        <div class="card-title">バックエンド</div>
+      </div>
+      <ul class="feature-list">
+        <li>Next.js Server Actions / API Routes</li>
+        <li>Prisma ORM</li>
+        <li>NextAuth.js（JWT認証）</li>
+        <li>Resend（トランザクションメール）</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon" style="background:#ede9fe;color:#7c3aed;">D</div>
+        <div class="card-title">データベース / インフラ</div>
+      </div>
+      <ul class="feature-list">
+        <li>PostgreSQL（Supabase）</li>
+        <li>Supabase Storage（画像・ファイル）</li>
+        <li>Vercel（ホスティング / Cron）</li>
+        <li>Docker（ローカル開発DB）</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ユーザーロール -->
+<section id="roles">
+  <h2>3. ユーザーロール</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>ロール</th><th>対象</th><th>認証方式</th><th>セッション</th><th>主な権限</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="role-bar role-worker">求職者（Worker）</span></td>
+          <td>看護師・介護士</td>
+          <td>NextAuth.js JWT + メール認証</td>
+          <td>30日間</td>
+          <td>求人検索・応募・出退勤・レビュー・メッセージ</td>
+        </tr>
+        <tr>
+          <td><span class="role-bar role-facility">施設管理者（Facility Admin）</span></td>
+          <td>医療・介護施設の管理者</td>
+          <td>カスタムCookie認証</td>
+          <td>8時間</td>
+          <td>求人管理・応募管理・ワーカー評価・メッセージ</td>
+        </tr>
+        <tr>
+          <td><span class="role-bar role-system">システム管理者（System Admin）</span></td>
+          <td>プラットフォーム運営者</td>
+          <td>カスタムCookie認証</td>
+          <td>8時間</td>
+          <td>全データ管理・分析・設定・マスカレード</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- コア機能 -->
+<section id="core">
+  <h2>4. コア機能 <span class="badge">12カテゴリ</span></h2>
+
+  <div class="feature-grid">
+
+    <!-- 求人マッチング -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon" style="background:#dbeafe;color:#2563eb;">1</div>
+        <div class="card-title">求人マッチングエンジン</div>
+      </div>
+      <div class="card-desc">
+        <ul class="feature-list">
+          <li>8次元以上のフィルタ検索（都道府県・市区町村・時給・サービス種別・交通手段・条件・求人タイプ・距離）</li>
+          <li>即時マッチ / 審査マッチの2モード</li>
+          <li>5種求人タイプ: 通常・オリエンテーション・勤務実績限定・お気に入り限定・オファー</li>
+          <li>日付別の募集枠管理と自動締切</li>
+          <li>キャンセル率の自動集計</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- QR出退勤 -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon" style="background:#d1fae5;color:#059669;">2</div>
+        <div class="card-title">QR出退勤システム</div>
+      </div>
+      <div class="card-desc">
+        <ul class="feature-list">
+          <li>施設ごとのQRコード発行・印刷</li>
+          <li>ワーカーがスマホでスキャンして出退勤打刻</li>
+          <li>緊急コードによるフォールバック</li>
+          <li>打刻時刻の修正リクエスト → 施設承認フロー</li>
+          <li>給与自動計算（残業1.25倍 / 深夜1.25倍）</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 相互レビュー -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon" style="background:#ede9fe;color:#7c3aed;">3</div>
+        <div class="card-title">相互レビューシステム</div>
+      </div>
+      <div class="card-desc">
+        <ul class="feature-list">
+          <li>勤務完了後に双方向レビュー解放</li>
+          <li>施設→ワーカー: 5項目評価（出勤・技術・遂行・コミュニケーション・態度）</li>
+          <li>ワーカー→施設: 総合星評価 + コメント</li>
+          <li>他施設からのワーカー閲覧時にレビュー表示</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- メッセージ -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon" style="background:#fef3c7;color:#d97706;">4</div>
+        <div class="card-title">メッセージ機能</div>
+      </div>
+      <div class="card-desc">
+        <ul class="feature-list">
+          <li>応募前でも常時チャット可能</li>
+          <li>施設単位 / ワーカー単位の会話スレッド</li>
+          <li>ファイル添付: 画像・PDF・Excel等（1メッセージ3ファイル、15MB上限）</li>
+          <li>システム自動メッセージ（マッチング・リマインド・完了等）</li>
+          <li>ポーリングによるリアルタイム更新</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 通知 -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon" style="background:#fee2e2;color:#dc2626;">5</div>
+        <div class="card-title">3チャネル通知システム</div>
+      </div>
+      <div class="card-desc">
+        <ul class="feature-list">
+          <li><strong>アプリ内通知</strong>: Notification画面で確認</li>
+          <li><strong>メール通知</strong>: Resend経由のトランザクションメール</li>
+          <li><strong>Web Push（PWA）</strong>: VAPID方式、iOS対応（ホーム追加必要）</li>
+          <li>イベント別の通知タイミング設定</li>
+          <li>前日リマインド・当日リマインド・勤務後レビュー催促</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 分析 -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon" style="background:#dbeafe;color:#2563eb;">6</div>
+        <div class="card-title">包括的アナリティクス</div>
+      </div>
+      <div class="card-desc">
+        <ul class="feature-list">
+          <li><strong>ワーカー分析</strong>: 登録・離脱・キャンセル率・レビュー・属性別</li>
+          <li><strong>施設分析</strong>: 登録・離脱・求人作成率・マッチング率</li>
+          <li><strong>マッチング分析</strong>: 応募数・マッチ数・マッチ所要時間</li>
+          <li><strong>LP分析</strong>: ランディングページ・キャンペーン・LINE追跡</li>
+          <li><strong>GA4連携</strong>: コンバージョンイベント取得</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- LP管理 -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon" style="background:#d1fae5;color:#059669;">7</div>
+        <div class="card-title">ランディングページ（LP）管理</div>
+      </div>
+      <div class="card-desc">
+        <ul class="feature-list">
+          <li>DB管理のLP作成・編集</li>
+          <li>キャンペーンコード・LINEタグ対応</li>
+          <li>ジャンル/カテゴリ分類</li>
+          <li>埋め込み可能な求人ウィジェット</li>
+          <li>ページビュー・クリック・登録のトラッキング</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- CSV連携 -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon" style="background:#ede9fe;color:#7c3aed;">8</div>
+        <div class="card-title">CSVエクスポート（CROSSNAVI連携）</div>
+      </div>
+      <div class="card-desc">
+        <ul class="feature-list">
+          <li>6種のCSVエクスポート: クライアント・求人・シフト・スタッフ・勤怠・ワーカー</li>
+          <li>UTF-8 BOM / CRLF / ダブルクォート形式</li>
+          <li>日付範囲・テキスト検索のフィルタUI</li>
+          <li>給与計算システム CROSSNAVI との連携</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 労働条件通知書 -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon" style="background:#fef3c7;color:#d97706;">9</div>
+        <div class="card-title">労働条件通知書</div>
+      </div>
+      <div class="card-desc">
+        <ul class="feature-list">
+          <li>テンプレートベースの労働契約書管理</li>
+          <li>応募ごとの通知書閲覧・ダウンロード</li>
+          <li>トークンベースのセキュアダウンロードリンク</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 最低賃金 -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon" style="background:#fee2e2;color:#dc2626;">10</div>
+        <div class="card-title">最低賃金管理</div>
+      </div>
+      <div class="card-desc">
+        <ul class="feature-list">
+          <li>都道府県別の最低賃金テーブル管理</li>
+          <li>施行日（effective_from）による自動切替</li>
+          <li>CSVインポート / エクスポート</li>
+          <li>変更履歴管理</li>
+          <li>求人作成時の時給バリデーション・警告</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- お気に入り/ブックマーク -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon" style="background:#dbeafe;color:#2563eb;">11</div>
+        <div class="card-title">お気に入り・ブックマーク</div>
+      </div>
+      <div class="card-desc">
+        <ul class="feature-list">
+          <li>施設のお気に入り登録</li>
+          <li>求人の「あとで見る」ブックマーク</li>
+          <li>施設ミュート機能（非表示）</li>
+          <li>施設側のお気に入りワーカー管理</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 開発者ポータル -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon" style="background:#d1fae5;color:#059669;">12</div>
+        <div class="card-title">開発者ポータル</div>
+      </div>
+      <div class="card-desc">
+        <ul class="feature-list">
+          <li>サイトマップ / ページ構成可視化</li>
+          <li>デバッグツール（DB疎通・環境変数・時刻確認）</li>
+          <li>通知ログビューア・テスト送信</li>
+          <li>給与計算式リファレンス</li>
+          <li>デバッグ用JST時刻オーバーライド</li>
+          <li>アクティビティログ</li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- 求職者向け画面 -->
+<section id="worker-pages">
+  <h2>5. 求職者向け画面一覧 <span class="badge">WORKER</span></h2>
+
+  <details open>
+    <summary>認証・登録（6画面）</summary>
+    <div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>パス</th><th>画面名</th><th>概要</th></tr></thead>
+          <tbody>
+            <tr><td><code>/login</code></td><td>ログイン</td><td>メール/パスワードでのログイン</td></tr>
+            <tr><td><code>/register</code></td><td>新規登録リダイレクト</td><td>/register/worker へ自動転送</td></tr>
+            <tr><td><code>/register/worker</code></td><td>ワーカー新規登録</td><td>2ステップ式（①基本情報 → ②住所・資格・同意）URL遷移なしstate切替。登録完了→/auth/verify-pendingへ遷移</td></tr>
+            <tr><td colspan="3" style="background:#f8fafc;padding:8px 16px;font-size:0.85em;">
+              <strong>SMS認証フロー</strong>（SmsVerificationコンポーネント内、URL遷移なし）<br>
+              [input] 電話番号入力 → POST /api/sms/send-code →
+              [codeSent] 6桁コード入力 → POST /api/sms/verify-code → JWT取得 →
+              [verified] 認証済み表示<br>
+              再送信クールダウン60秒 / 電話番号変更時は自動リセット / GA4タグ発火なし<br>
+              <strong>GA4イベント:</strong> registration_page_view（表示時）, sign_up（登録完了時）/ ステップ遷移・SMS認証時は発火なし
+            </td></tr>
+            <tr><td><code>/auth/verify</code></td><td>メール認証結果</td><td>認証完了/エラー/期限切れ表示</td></tr>
+            <tr><td><code>/auth/verify-pending</code></td><td>認証待ち</td><td>メール送信済み案内</td></tr>
+            <tr><td><code>/auth/resend-verification</code></td><td>認証メール再送信</td><td>再送トリガー画面</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+
+  <details>
+    <summary>求人検索・応募（7画面）</summary>
+    <div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>パス</th><th>画面名</th><th>概要</th></tr></thead>
+          <tbody>
+            <tr><td><code>/</code></td><td>求人一覧（トップ）</td><td>フィルタ検索・無限スクロール</td></tr>
+            <tr><td><code>/jobs/[id]</code></td><td>求人詳細</td><td>タブ形式（概要・詳細・条件・レビュー）</td></tr>
+            <tr><td><code>/jobs/[id]/labor-document</code></td><td>労働条件通知書</td><td>労働契約の閲覧（要認証）</td></tr>
+            <tr><td><code>/public/jobs</code></td><td>公開求人一覧</td><td>ログイン不要の求人一覧</td></tr>
+            <tr><td><code>/public/jobs/[id]</code></td><td>公開求人詳細</td><td>ログイン不要の求人詳細</td></tr>
+            <tr><td><code>/application-complete</code></td><td>応募完了</td><td>応募完了画面</td></tr>
+            <tr><td><code>/job-list</code></td><td>求人一覧（別レイアウト）</td><td>代替リスト表示</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+
+  <details>
+    <summary>マイジョブ・応募管理（4画面）</summary>
+    <div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>パス</th><th>画面名</th><th>概要</th></tr></thead>
+          <tbody>
+            <tr><td><code>/my-jobs</code></td><td>マイジョブ</td><td>タブ: 承認待ち・予定・勤務中・完了・キャンセル</td></tr>
+            <tr><td><code>/my-jobs/[id]</code></td><td>マイジョブ詳細</td><td>応募詳細情報</td></tr>
+            <tr><td><code>/my-jobs/[id]/labor-document</code></td><td>労働条件通知書（マッチ済み）</td><td>マッチ済み求人の契約書</td></tr>
+            <tr><td><code>/applications</code></td><td>応募管理</td><td>応募ステータス一覧</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+
+  <details>
+    <summary>マイページ（10画面）</summary>
+    <div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>パス</th><th>画面名</th><th>概要</th></tr></thead>
+          <tbody>
+            <tr><td><code>/mypage</code></td><td>マイページトップ</td><td>ナビゲーションハブ</td></tr>
+            <tr><td><code>/mypage/profile</code></td><td>プロフィール編集</td><td>全プロフィールセクション</td></tr>
+            <tr><td><code>/mypage/applications</code></td><td>応募履歴</td><td>過去の応募一覧</td></tr>
+            <tr><td><code>/mypage/reviews</code></td><td>投稿したレビュー</td><td>自分が書いたレビュー一覧</td></tr>
+            <tr><td><code>/mypage/reviews/received</code></td><td>受け取ったレビュー</td><td>施設からの評価一覧</td></tr>
+            <tr><td><code>/mypage/reviews/[applicationId]</code></td><td>レビュー投稿</td><td>勤務後のレビュー入力フォーム</td></tr>
+            <tr><td><code>/mypage/muted-facilities</code></td><td>ミュート施設</td><td>非表示施設の管理</td></tr>
+            <tr><td><code>/mypage/notifications</code></td><td>通知設定</td><td>プッシュ通知の設定</td></tr>
+            <tr><td><code>/mypage/attendance/[id]</code></td><td>出退勤詳細</td><td>QR打刻の記録詳細</td></tr>
+            <tr><td><code>/password-reset</code></td><td>パスワードリセット</td><td>パスワードリセット申請</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+
+  <details>
+    <summary>コミュニケーション・その他（8画面）</summary>
+    <div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>パス</th><th>画面名</th><th>概要</th></tr></thead>
+          <tbody>
+            <tr><td><code>/messages</code></td><td>メッセージ</td><td>施設とのチャット（メッセージ/お知らせタブ）</td></tr>
+            <tr><td><code>/notifications</code></td><td>通知一覧</td><td>システム・アクティビティ通知</td></tr>
+            <tr><td><code>/favorites</code></td><td>お気に入り施設</td><td>ブックマーク済み施設</td></tr>
+            <tr><td><code>/bookmarks</code></td><td>あとで見る</td><td>保存した求人一覧</td></tr>
+            <tr><td><code>/facilities/[id]</code></td><td>施設詳細</td><td>施設情報・レビュー・他の求人</td></tr>
+            <tr><td><code>/attendance</code></td><td>QR出退勤</td><td>QRスキャン / 緊急コード入力</td></tr>
+            <tr><td><code>/attendance/modify</code></td><td>出退勤修正</td><td>打刻時刻の修正リクエスト</td></tr>
+            <tr><td><code>/contact</code></td><td>お問い合わせ</td><td>問い合わせフォーム</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+</section>
+
+<!-- 施設管理者向け画面 -->
+<section id="facility-pages">
+  <h2>6. 施設管理者向け画面一覧 <span class="badge">FACILITY</span></h2>
+
+  <details open>
+    <summary>求人管理（7画面）</summary>
+    <div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>パス</th><th>画面名</th><th>概要</th></tr></thead>
+          <tbody>
+            <tr><td><code>/admin/jobs</code></td><td>求人一覧</td><td>全求人のフィルタ表示</td></tr>
+            <tr><td><code>/admin/jobs/new</code></td><td>求人作成</td><td>求人作成フォーム（時給・条件・日程等）</td></tr>
+            <tr><td><code>/admin/jobs/[id]</code></td><td>求人詳細</td><td>求人詳細 + 応募者概要</td></tr>
+            <tr><td><code>/admin/jobs/[id]/edit</code></td><td>求人編集</td><td>求人編集フォーム</td></tr>
+            <tr><td><code>/admin/jobs/templates</code></td><td>テンプレート一覧</td><td>再利用可能なテンプレート</td></tr>
+            <tr><td><code>/admin/jobs/templates/new</code></td><td>テンプレート作成</td><td>テンプレート作成フォーム</td></tr>
+            <tr><td><code>/admin/jobs/templates/[id]/edit</code></td><td>テンプレート編集</td><td>テンプレート編集フォーム</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+
+  <details>
+    <summary>応募・ワーカー管理（9画面）</summary>
+    <div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>パス</th><th>画面名</th><th>概要</th></tr></thead>
+          <tbody>
+            <tr><td><code>/admin/applications</code></td><td>応募者管理</td><td>求人別 / ワーカー別の2ビュー</td></tr>
+            <tr><td><code>/admin/workers</code></td><td>ワーカー一覧</td><td>フィルタ・検索付きリスト</td></tr>
+            <tr><td><code>/admin/workers/[id]</code></td><td>ワーカー詳細</td><td>プロフィール・勤務履歴・評価</td></tr>
+            <tr><td><code>/admin/workers/[id]/review</code></td><td>ワーカー評価</td><td>5項目評価フォーム</td></tr>
+            <tr><td><code>/admin/workers/[id]/certificates</code></td><td>資格証明書</td><td>ワーカーの資格情報</td></tr>
+            <tr><td><code>/admin/workers/[id]/emergency-contacts</code></td><td>緊急連絡先</td><td>緊急連絡先情報</td></tr>
+            <tr><td><code>/admin/workers/[id]/schedules</code></td><td>スケジュール</td><td>シフトスケジュール表示</td></tr>
+            <tr><td><code>/admin/workers/[id]/labor-documents</code></td><td>労働条件通知書一覧</td><td>ワーカーの全通知書</td></tr>
+            <tr><td><code>/admin/workers/[id]/labor-documents/[appId]</code></td><td>労働条件通知書詳細</td><td>応募別の通知書</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+
+  <details>
+    <summary>出退勤・シフト管理（4画面）</summary>
+    <div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>パス</th><th>画面名</th><th>概要</th></tr></thead>
+          <tbody>
+            <tr><td><code>/admin/attendance</code></td><td>QRコード印刷</td><td>施設のQRコード表示・印刷</td></tr>
+            <tr><td><code>/admin/tasks/attendance</code></td><td>出退勤修正リクエスト一覧</td><td>承認待ちの修正申請</td></tr>
+            <tr><td><code>/admin/tasks/attendance/[id]</code></td><td>出退勤修正リクエスト詳細</td><td>個別の修正申請の確認・承認</td></tr>
+            <tr><td><code>/admin/shifts</code></td><td>シフトカレンダー</td><td>週次/月次のシフト表示</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+
+  <details>
+    <summary>コミュニケーション・設定（8画面）</summary>
+    <div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>パス</th><th>画面名</th><th>概要</th></tr></thead>
+          <tbody>
+            <tr><td><code>/admin/messages</code></td><td>メッセージ</td><td>ワーカーとのチャット</td></tr>
+            <tr><td><code>/admin/reviews</code></td><td>施設レビュー</td><td>ワーカーからのレビュー一覧</td></tr>
+            <tr><td><code>/admin/worker-reviews</code></td><td>ワーカーレビュー</td><td>投稿したワーカー評価</td></tr>
+            <tr><td><code>/admin/facility</code></td><td>施設情報</td><td>施設プロフィール編集</td></tr>
+            <tr><td><code>/admin/notifications</code></td><td>通知一覧</td><td>施設向け通知</td></tr>
+            <tr><td><code>/admin/reports/usage</code></td><td>利用レポート</td><td>請求・勤務詳細レポート</td></tr>
+            <tr><td><code>/admin/settings/offer-templates</code></td><td>オファーテンプレート</td><td>オファーメッセージの定型文管理</td></tr>
+            <tr><td><code>/admin/faq</code></td><td>FAQ</td><td>施設向けFAQ</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+</section>
+
+<!-- システム管理者向け画面 -->
+<section id="system-pages">
+  <h2>7. システム管理者向け画面一覧 <span class="badge">SYSTEM ADMIN</span></h2>
+
+  <details open>
+    <summary>ダッシュボード・分析（6画面）</summary>
+    <div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>パス</th><th>画面名</th><th>概要</th></tr></thead>
+          <tbody>
+            <tr><td><code>/system-admin</code></td><td>ダッシュボード</td><td>KPIカード・チャート・アラート</td></tr>
+            <tr><td><code>/system-admin/analytics</code></td><td>分析メイン</td><td>ワーカー/施設/マッチングタブ</td></tr>
+            <tr><td><code>/system-admin/analytics/regions</code></td><td>地域登録</td><td>分析用地域設定</td></tr>
+            <tr><td><code>/system-admin/analytics/export</code></td><td>分析エクスポート</td><td>スプレッドシートデータ出力</td></tr>
+            <tr><td><code>/system-admin/analytics/ai</code></td><td>AI予測（デモ）</td><td>マッチング最適化AI</td></tr>
+            <tr><td><code>/system-admin/alerts</code></td><td>システムアラート</td><td>異常検知アラート</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+
+  <details>
+    <summary>ユーザー・施設・求人管理（5画面）</summary>
+    <div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>パス</th><th>画面名</th><th>概要</th></tr></thead>
+          <tbody>
+            <tr><td><code>/system-admin/workers</code></td><td>ワーカー管理</td><td>プラットフォーム全体のワーカー一覧</td></tr>
+            <tr><td><code>/system-admin/workers/[id]</code></td><td>ワーカー詳細</td><td>拡張プロフィール表示</td></tr>
+            <tr><td><code>/system-admin/facilities</code></td><td>施設管理</td><td>全施設・マスカレード・ジオコーディング</td></tr>
+            <tr><td><code>/system-admin/facilities/new</code></td><td>施設作成</td><td>システム側からの施設登録</td></tr>
+            <tr><td><code>/system-admin/jobs</code></td><td>全求人管理</td><td>プラットフォーム全体の求人一覧</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+
+  <details>
+    <summary>コンテンツ管理（10画面）</summary>
+    <div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>パス</th><th>画面名</th><th>概要</th></tr></thead>
+          <tbody>
+            <tr><td><code>/system-admin/content</code></td><td>コンテンツ管理ハブ</td><td>各サブセクションへのリンク</td></tr>
+            <tr><td><code>/system-admin/content/faq</code></td><td>FAQエディタ</td><td>ワーカー/施設FAQ CRUD</td></tr>
+            <tr><td><code>/system-admin/content/user-guide</code></td><td>ユーザーガイド</td><td>施設向けPDFガイド管理</td></tr>
+            <tr><td><code>/system-admin/content/legal</code></td><td>法的文書</td><td>利用規約・プライバシーポリシーエディタ</td></tr>
+            <tr><td><code>/system-admin/content/labor-template</code></td><td>労働条件テンプレート</td><td>通知書テンプレート管理</td></tr>
+            <tr><td><code>/system-admin/content/templates</code></td><td>メッセージテンプレート</td><td>求人・メール・メッセージテンプレート</td></tr>
+            <tr><td><code>/system-admin/content/notifications</code></td><td>通知設定</td><td>タイミング・対象設定</td></tr>
+            <tr><td><code>/system-admin/announcements</code></td><td>お知らせ管理</td><td>プラットフォーム全体のお知らせCRUD</td></tr>
+            <tr><td><code>/system-admin/announcements/create</code></td><td>お知らせ新規作成</td><td>新しいお知らせの作成</td></tr>
+            <tr><td><code>/system-admin/announcements/[id]</code></td><td>お知らせ編集</td><td>既存お知らせの編集</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+
+  <details>
+    <summary>LP・CSV・設定（15画面）</summary>
+    <div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>パス</th><th>画面名</th><th>概要</th></tr></thead>
+          <tbody>
+            <tr><td><code>/system-admin/login</code></td><td>ログイン</td><td>システム管理者ログイン画面</td></tr>
+            <tr><td><code>/system-admin/lp</code></td><td>LP管理</td><td>ランディングページ管理</td></tr>
+            <tr><td><code>/system-admin/lp/genres</code></td><td>LPジャンル</td><td>ジャンル/カテゴリ管理</td></tr>
+            <tr><td><code>/system-admin/lp/guide</code></td><td>LP作成ガイド</td><td>ランディングページ作成ガイド</td></tr>
+            <tr><td><code>/system-admin/lp/recommended-jobs</code></td><td>おすすめ求人</td><td>注目求人管理</td></tr>
+            <tr><td><code>/system-admin/lp/recommended-jobs/preview</code></td><td>おすすめ求人プレビュー</td><td>おすすめ求人の表示プレビュー</td></tr>
+            <tr><td><code>/system-admin/lp/tracking</code></td><td>LPトラッキング</td><td>LP閲覧・コンバージョン追跡</td></tr>
+            <tr><td><code>/system-admin/lp/tracking/public-jobs</code></td><td>公開求人トラッキング</td><td>公開求人ページの閲覧追跡</td></tr>
+            <tr><td><code>/system-admin/lp/tracking/spec</code></td><td>トラッキングスペック</td><td>トラッキング仕様・設定</td></tr>
+            <tr><td><code>/system-admin/csv-export</code></td><td>CSVエクスポート</td><td>CROSSNAVI連携エクスポート</td></tr>
+            <tr><td><code>/system-admin/attendance</code></td><td>出退勤管理</td><td>プラットフォーム全体の勤怠データ</td></tr>
+            <tr><td><code>/system-admin/settings/admins</code></td><td>管理者ユーザー管理</td><td>システム管理者アカウントCRUD</td></tr>
+            <tr><td><code>/system-admin/settings/form-destinations</code></td><td>フォーム送信先設定</td><td>フォーム送信先メールアドレス管理</td></tr>
+            <tr><td><code>/system-admin/settings/minimum-wage</code></td><td>最低賃金設定</td><td>都道府県別最低賃金管理</td></tr>
+            <tr><td><code>/system-admin/settings/system</code></td><td>システム設定</td><td>機能フラグ管理</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+
+  <details>
+    <summary>開発者ポータル（10画面）</summary>
+    <div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>パス</th><th>画面名</th><th>概要</th></tr></thead>
+          <tbody>
+            <tr><td><code>/system-admin/dev-portal</code></td><td>開発者ポータル</td><td>サイトマップ・デバッグツール・メモ帳</td></tr>
+            <tr><td><code>/system-admin/dev-portal/admin-logs</code></td><td>管理者ログ</td><td>管理者操作の監査ログ</td></tr>
+            <tr><td><code>/system-admin/dev-portal/debug-checklist</code></td><td>デバッグチェックリスト</td><td>デバッグ項目チェック</td></tr>
+            <tr><td><code>/system-admin/dev-portal/debug-time</code></td><td>デバッグ時刻制御</td><td>JSTタイムオーバーライド</td></tr>
+            <tr><td><code>/system-admin/dev-portal/error-alert</code></td><td>エラーアラート設定</td><td>アラート受信者管理</td></tr>
+            <tr><td><code>/system-admin/dev-portal/formulas</code></td><td>給与計算式</td><td>賃金計算ロジック表示</td></tr>
+            <tr><td><code>/system-admin/dev-portal/logs</code></td><td>アクティビティログ</td><td>システム全体のログ</td></tr>
+            <tr><td><code>/system-admin/dev-portal/notification-logs</code></td><td>通知ログ</td><td>Push/メール送信履歴</td></tr>
+            <tr><td><code>/system-admin/dev-portal/sample-images</code></td><td>サンプル画像</td><td>開発用サンプル画像管理</td></tr>
+            <tr><td><code>/system-admin/dev-portal/test-notifications</code></td><td>テスト通知</td><td>テストメール/Push送信</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+</section>
+
+<!-- API一覧 -->
+<section id="api">
+  <h2>8. API一覧 <span class="badge">80+ ENDPOINTS</span></h2>
+
+  <details>
+    <summary>認証API（6エンドポイント）</summary>
+    <div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>パス</th><th>メソッド</th><th>概要</th></tr></thead>
+          <tbody>
+            <tr><td><code>/api/auth/[...nextauth]</code></td><td>*</td><td>NextAuth.jsハンドラ</td></tr>
+            <tr><td><code>/api/auth/register</code></td><td>POST</td><td>ワーカー新規登録</td></tr>
+            <tr><td><code>/api/auth/verify</code></td><td>GET</td><td>メール認証（サーバーサイドリダイレクト）</td></tr>
+            <tr><td><code>/api/auth/auto-login</code></td><td>GET</td><td>認証後自動ログイン</td></tr>
+            <tr><td><code>/api/auth/resend-verification</code></td><td>POST</td><td>認証メール再送信</td></tr>
+            <tr><td><code>/api/auth/preview-verification-email</code></td><td>GET</td><td>メールテンプレートプレビュー（dev）</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+
+  <details>
+    <summary>求人・検索API（3エンドポイント）</summary>
+    <div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>パス</th><th>概要</th></tr></thead>
+          <tbody>
+            <tr><td><code>/api/jobs</code></td><td>求人一覧取得（フィルタ対応）</td></tr>
+            <tr><td><code>/api/jobs/counts</code></td><td>ステータス/フィルタ別求人件数</td></tr>
+            <tr><td><code>/api/minimum-wage</code></td><td>都道府県別最低賃金データ</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+
+  <details>
+    <summary>メッセージAPI（6エンドポイント）</summary>
+    <div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>パス</th><th>概要</th></tr></thead>
+          <tbody>
+            <tr><td><code>/api/messages/conversations</code></td><td>ワーカー: 会話一覧</td></tr>
+            <tr><td><code>/api/messages/detail</code></td><td>ワーカー: スレッドメッセージ</td></tr>
+            <tr><td><code>/api/messages/announcements</code></td><td>ワーカー: お知らせ一覧</td></tr>
+            <tr><td><code>/api/admin/messages/conversations</code></td><td>施設: 会話一覧</td></tr>
+            <tr><td><code>/api/admin/messages/detail</code></td><td>施設: スレッドメッセージ</td></tr>
+            <tr><td><code>/api/admin/messages/announcements</code></td><td>施設: お知らせ一覧</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+
+  <details>
+    <summary>施設管理API（15エンドポイント）</summary>
+    <div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>パス</th><th>概要</th></tr></thead>
+          <tbody>
+            <tr><td><code>/api/admin/session-check</code></td><td>管理者セッション検証</td></tr>
+            <tr><td><code>/api/admin/facility</code></td><td>施設情報取得・更新</td></tr>
+            <tr><td><code>/api/admin/jobs/list</code></td><td>施設求人一覧</td></tr>
+            <tr><td><code>/api/admin/applications</code></td><td>応募者一覧</td></tr>
+            <tr><td><code>/api/admin/applications/by-worker</code></td><td>ワーカー別応募一覧</td></tr>
+            <tr><td><code>/api/admin/workers/list</code></td><td>ワーカー一覧</td></tr>
+            <tr><td><code>/api/admin/workers/[id]</code></td><td>ワーカー詳細</td></tr>
+            <tr><td><code>/api/admin/workers/[id]/certificates</code></td><td>資格証明書</td></tr>
+            <tr><td><code>/api/admin/workers/[id]/emergency-contacts</code></td><td>緊急連絡先</td></tr>
+            <tr><td><code>/api/admin/workers/[id]/schedules</code></td><td>スケジュール</td></tr>
+            <tr><td><code>/api/admin/shifts</code></td><td>シフトデータ</td></tr>
+            <tr><td><code>/api/admin/reviews</code></td><td>レビュー</td></tr>
+            <tr><td><code>/api/admin/notifications</code></td><td>施設通知</td></tr>
+            <tr><td><code>/api/admin/labor-documents/request</code></td><td>労働条件通知書トークンリクエスト</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+
+  <details>
+    <summary>勤怠・ファイル・Push・銀行API（9エンドポイント）</summary>
+    <div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>パス</th><th>概要</th></tr></thead>
+          <tbody>
+            <tr><td><code>/api/attendance/record</code></td><td>出退勤打刻記録</td></tr>
+            <tr><td><code>/api/upload</code></td><td>ファイルアップロード</td></tr>
+            <tr><td><code>/api/upload/presigned</code></td><td>署名付きアップロードURL生成</td></tr>
+            <tr><td><code>/api/download/labor-docs/[token]</code></td><td>トークンベース労働条件通知書DL</td></tr>
+            <tr><td><code>/api/push/subscribe</code></td><td>Push通知サブスクリプション登録</td></tr>
+            <tr><td><code>/api/push/unsubscribe</code></td><td>Push通知サブスクリプション解除</td></tr>
+            <tr><td><code>/api/push/send</code></td><td>Push通知送信</td></tr>
+            <tr><td><code>/api/bank/search</code></td><td>銀行名検索</td></tr>
+            <tr><td><code>/api/bank/[bankCode]/branches</code></td><td>銀行支店一覧</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+
+  <details>
+    <summary>LP・トラッキングAPI（12エンドポイント）</summary>
+    <div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>パス</th><th>概要</th></tr></thead>
+          <tbody>
+            <tr><td><code>/api/lp/[id]</code></td><td>LP取得</td></tr>
+            <tr><td><code>/api/lp/[id]/html</code></td><td>LP HTML取得</td></tr>
+            <tr><td><code>/api/lp-config</code></td><td>LP設定</td></tr>
+            <tr><td><code>/api/lp-campaign-codes</code></td><td>キャンペーンコード管理</td></tr>
+            <tr><td><code>/api/lp-code-genres</code></td><td>LPジャンルコード</td></tr>
+            <tr><td><code>/api/lp-tracking</code></td><td>LPページビュートラッキング</td></tr>
+            <tr><td><code>/api/job-analytics</code></td><td>求人閲覧/クリック分析</td></tr>
+            <tr><td><code>/api/ga-analytics</code></td><td>Google Analyticsデータ取得</td></tr>
+            <tr><td><code>/api/funnel-analytics</code></td><td>登録ファネル分析</td></tr>
+            <tr><td><code>/api/job-search-tracking</code></td><td>検索クエリトラッキング</td></tr>
+            <tr><td><code>/api/job-detail-tracking</code></td><td>求人詳細閲覧トラッキング</td></tr>
+            <tr><td><code>/api/application-click-tracking</code></td><td>応募ボタンクリックトラッキング</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+
+  <details>
+    <summary>システム管理API（20+エンドポイント）</summary>
+    <div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>パス</th><th>概要</th></tr></thead>
+          <tbody>
+            <tr><td><code>/api/system-admin/auth</code></td><td>ログイン/ログアウト</td></tr>
+            <tr><td><code>/api/system-admin/admins</code></td><td>管理者ユーザー管理</td></tr>
+            <tr><td><code>/api/system-admin/alerts</code></td><td>システムアラート</td></tr>
+            <tr><td><code>/api/system-admin/attendance-csv</code></td><td>勤怠CSVエクスポート</td></tr>
+            <tr><td><code>/api/system-admin/client-csv</code></td><td>クライアントCSVエクスポート</td></tr>
+            <tr><td><code>/api/system-admin/job-csv</code></td><td>求人CSVエクスポート</td></tr>
+            <tr><td><code>/api/system-admin/shift-csv</code></td><td>シフトCSVエクスポート</td></tr>
+            <tr><td><code>/api/system-admin/staff-csv</code></td><td>スタッフCSVエクスポート</td></tr>
+            <tr><td><code>/api/system-admin/worker-csv</code></td><td>ワーカーCSVエクスポート</td></tr>
+            <tr><td><code>/api/system-admin/activity-logs</code></td><td>アクティビティログ</td></tr>
+            <tr><td><code>/api/system-admin/error-alert-recipients</code></td><td>アラート受信者設定</td></tr>
+            <tr><td><code>/api/system-admin/minimum-wage</code></td><td>最低賃金CRUD</td></tr>
+            <tr><td><code>/api/system-admin/minimum-wage/import</code></td><td>最低賃金CSVインポート</td></tr>
+            <tr><td><code>/api/system-admin/minimum-wage/export</code></td><td>最低賃金CSVエクスポート</td></tr>
+            <tr><td><code>/api/system-admin/minimum-wage/history</code></td><td>最低賃金変更履歴</td></tr>
+            <tr><td><code>/api/system-admin/notification-logs</code></td><td>通知送信履歴</td></tr>
+            <tr><td><code>/api/system-admin/notification-settings</code></td><td>通知タイミング設定</td></tr>
+            <tr><td><code>/api/system-admin/recommended-jobs</code></td><td>おすすめ求人管理</td></tr>
+            <tr><td><code>/api/system-admin/system-settings</code></td><td>機能フラグ</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+</section>
+
+<!-- Cronジョブ -->
+<section id="cron">
+  <h2>9. 自動処理（Cron Jobs） <span class="badge">6 JOBS</span></h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>パス</th><th>実行タイミング</th><th>処理内容</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>/api/cron/update-statuses</code></td>
+          <td>定期実行</td>
+          <td>シフト時刻に基づくステータス自動遷移<br><span class="tag tag-blue">SCHEDULED → WORKING → COMPLETED_PENDING</span></td>
+        </tr>
+        <tr>
+          <td><code>/api/cron/job-batch</code></td>
+          <td>毎日</td>
+          <td>求人ステータス更新（期限切れ・締切チェック）<br><span class="tag tag-green">PUBLISHED → EXPIRED</span></td>
+        </tr>
+        <tr>
+          <td><code>/api/cron/notifications</code></td>
+          <td>毎日</td>
+          <td>事前リマインド送信（前日・当日・勤務後レビュー催促）</td>
+        </tr>
+        <tr>
+          <td><code>/api/cron/email-quota</code></td>
+          <td>毎日</td>
+          <td>Resendメール送信クォータチェック</td>
+        </tr>
+        <tr>
+          <td><code>/api/cron/error-alert</code></td>
+          <td>定期実行</td>
+          <td>エラーアラートメール送信</td>
+        </tr>
+        <tr>
+          <td><code>/api/cron/update-bank-data</code></td>
+          <td>定期実行</td>
+          <td>銀行マスターデータ更新</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- データモデル -->
+<section id="data">
+  <h2>10. 主要データモデル <span class="badge">30+ MODELS</span></h2>
+
+  <details open>
+    <summary>ユーザー・認証関連</summary>
+    <div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>モデル</th><th>概要</th><th>主なフィールド</th></tr></thead>
+          <tbody>
+            <tr><td><strong>User</strong></td><td>ワーカー（求職者）プロフィール</td><td>名前・カナ・生年月日・電話・住所・資格・勤務希望・銀行口座・年金番号・緊急連絡先・位置情報</td></tr>
+            <tr><td><strong>Facility</strong></td><td>施設情報</td><td>名前・法人名・住所・位置情報・画像・連絡先・初回ウェルカムメッセージ・QRトークン・緊急コード</td></tr>
+            <tr><td><strong>FacilityAdmin</strong></td><td>施設管理者アカウント</td><td>メール・パスワード・施設紐付き</td></tr>
+            <tr><td><strong>SystemAdmin</strong></td><td>システム管理者アカウント</td><td>メール・パスワード・権限レベル</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+
+  <details>
+    <summary>求人・マッチング関連</summary>
+    <div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>モデル</th><th>概要</th><th>主なフィールド</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Job</strong></td><td>求人（親）</td><td>タイトル・時間・時給・交通費・条件・フラグ・求人タイプ（5種）</td></tr>
+            <tr><td><strong>JobWorkDate</strong></td><td>勤務日（子）</td><td>日付・募集枠数・応募数・マッチ数・締切日</td></tr>
+            <tr><td><strong>Application</strong></td><td>応募</td><td>ワーカー-勤務日紐付き・ステータス（6段階）・キャンセル元</td></tr>
+            <tr><td><strong>JobTemplate</strong></td><td>求人テンプレート</td><td>施設別の再利用テンプレート</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+
+  <details>
+    <summary>コミュニケーション・評価関連</summary>
+    <div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>モデル</th><th>概要</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Message</strong></td><td>チャットメッセージ（ファイル添付対応）</td></tr>
+            <tr><td><strong>Review</strong></td><td>双方向レビュー（5項目評価＋コメント）</td></tr>
+            <tr><td><strong>Notification</strong></td><td>アプリ内通知レコード</td></tr>
+            <tr><td><strong>PushSubscription</strong></td><td>デバイス別Push購読情報</td></tr>
+            <tr><td><strong>SystemAnnouncement</strong></td><td>プラットフォームお知らせ</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+
+  <details>
+    <summary>勤怠・給与関連</summary>
+    <div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>モデル</th><th>概要</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Attendance</strong></td><td>QR出退勤記録（チェックイン/アウト時刻・位置）</td></tr>
+            <tr><td><strong>AttendanceModificationRequest</strong></td><td>打刻修正リクエスト（ワーカー申請 → 施設承認）</td></tr>
+            <tr><td><strong>MinimumWage</strong></td><td>都道府県別最低賃金（施行日付き）</td></tr>
+            <tr><td><strong>MinimumWageHistory</strong></td><td>最低賃金変更履歴</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+
+  <details>
+    <summary>お気に入り・ブックマーク・その他</summary>
+    <div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>モデル</th><th>概要</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Bookmark</strong></td><td>求人ブックマーク（FAVORITE / WATCH_LATER）</td></tr>
+            <tr><td><strong>FacilityFavorite</strong></td><td>施設お気に入り</td></tr>
+            <tr><td><strong>MutedFacility</strong></td><td>施設ミュート</td></tr>
+            <tr><td><strong>FavoriteWorker</strong></td><td>施設のお気に入りワーカー</td></tr>
+            <tr><td><strong>LandingPage</strong></td><td>ランディングページ</td></tr>
+            <tr><td><strong>LPGenre</strong></td><td>LPジャンル分類</td></tr>
+            <tr><td><strong>ActivityLog</strong></td><td>管理操作の監査ログ</td></tr>
+            <tr><td><strong>SystemSettings</strong></td><td>プラットフォーム機能フラグ（KV）</td></tr>
+            <tr><td><strong>BankMaster</strong></td><td>銀行・支店マスターデータ</td></tr>
+            <tr><td><strong>OfferTemplate</strong></td><td>オファーメッセージ定型文</td></tr>
+            <tr><td><strong>NotificationSetting</strong></td><td>イベント別通知設定</td></tr>
+            <tr><td><strong>AnalyticsRegion</strong></td><td>分析用地域定義</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+</section>
+
+<!-- 外部連携 -->
+<section id="integrations">
+  <h2>11. 外部連携 <span class="badge">INTEGRATIONS</span></h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>サービス</th><th>用途</th><th>連携方式</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Supabase</strong></td><td>PostgreSQL DB + ファイルストレージ</td><td>Prisma ORM / Supabase JS SDK</td></tr>
+        <tr><td><strong>Vercel</strong></td><td>ホスティング・Cron・デプロイ</td><td>Git連携自動デプロイ</td></tr>
+        <tr><td><strong>Resend</strong></td><td>トランザクションメール送信</td><td>Resend API</td></tr>
+        <tr><td><strong>Google Analytics 4</strong></td><td>コンバージョントラッキング</td><td>GA4 Reporting API</td></tr>
+        <tr><td><strong>CROSSNAVI</strong></td><td>給与計算・人事管理システム</td><td>CSV一括エクスポート</td></tr>
+        <tr><td><strong>LINE</strong></td><td>LP経由のLINE友達追加追跡</td><td>LINEタグ・リダイレクトURL</td></tr>
+        <tr><td><strong>Web Push (VAPID)</strong></td><td>PWAプッシュ通知</td><td>Service Worker / VAPID認証</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- セキュリティ -->
+<section id="security">
+  <h2>12. セキュリティ</h2>
+  <div class="feature-grid">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon" style="background:#fee2e2;color:#dc2626;">A</div>
+        <div class="card-title">認証・認可</div>
+      </div>
+      <ul class="feature-list">
+        <li>JWT認証（ワーカー30日 / 管理者8時間）</li>
+        <li>メール認証必須（ワーカー登録時）</li>
+        <li>パスワードリセット（トークンベース、24時間有効）</li>
+        <li>ロール別アクセス制御（3段階）</li>
+        <li>マスカレード（システム管理者→施設管理者）</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon" style="background:#dbeafe;color:#2563eb;">P</div>
+        <div class="card-title">データ保護</div>
+      </div>
+      <ul class="feature-list">
+        <li>環境変数によるシークレット管理</li>
+        <li>Server Actions経由のDB操作（直接クエリ不可）</li>
+        <li>ファイルアップロードの署名付きURL</li>
+        <li>労働条件通知書のトークンゲートダウンロード</li>
+        <li>JST基準の日時処理（タイムゾーンバグ防止）</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="container">
+    <p>+タスタス サービス概要・機能一覧 | 最終更新: 2026年3月4日</p>
+    <p>本番環境: tastas.work | ステージング: stg-share-worker.vercel.app</p>
+  </div>
+</footer>
+
+</body>
+</html>
