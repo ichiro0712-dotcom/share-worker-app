@@ -13,6 +13,7 @@
 
 import prisma from '@/lib/prisma';
 
+// TasLink本番URL: https://taslink.vercel.app
 const API_URL = process.env.TASLINK_API_URL;
 const API_KEY = process.env.TASLINK_API_KEY;
 

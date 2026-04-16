@@ -326,10 +326,10 @@ TasLink APIの実際のレスポンス形式によっては調整が必要です
 
 ## 6. 環境変数の設定
 
-| 環境変数名 | 説明 | 例 |
+| 環境変数名 | 説明 | 値 |
 |-----------|------|---|
-| `TASLINK_API_URL` | TasLink APIのベースURL（末尾スラッシュなし） | `https://taslink.example.com` |
-| `TASLINK_API_KEY` | TasLinkから発行されたAPIキー | `tlk_xxxxxxxxxx` |
+| `TASLINK_API_URL` | TasLink APIのベースURL（末尾スラッシュなし） | `https://taslink.vercel.app` |
+| `TASLINK_API_KEY` | TasLinkから発行されたAPIキー | （TasLink開発者から受領したキーを設定） |
 
 ### 設定方法
 
