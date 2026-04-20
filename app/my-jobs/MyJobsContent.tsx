@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { getMyApplications, cancelApplicationByWorker, cancelAppliedApplication } from '@/src/lib/actions';
 import toast from 'react-hot-toast';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
+import { EmailVerificationRequiredModal } from '@/components/auth/EmailVerificationRequiredModal';
 
 type ApplicationStatus = 'APPLIED' | 'SCHEDULED' | 'WORKING' | 'COMPLETED_PENDING' | 'COMPLETED_RATED' | 'CANCELLED';
 type JobType = 'NORMAL' | 'LIMITED_WORKED' | 'LIMITED_FAVORITE' | 'ORIENTATION' | 'OFFER';
@@ -65,6 +66,7 @@ export function MyJobsContent({ initialTab }: MyJobsContentProps) {
   // SCHEDULED/WORKINGキャンセル用モーダル
   const [scheduledCancelModalApp, setScheduledCancelModalApp] = useState<Application | null>(null);
   const [scheduledCancelling, setScheduledCancelling] = useState(false);
+  const [emailNotVerifiedModal, setEmailNotVerifiedModal] = useState<{ open: boolean; email: string }>({ open: false, email: '' });
 
   // URLパラメータの変更を監視してタブを更新（Linkでの遷移時）
   useEffect(() => {
@@ -194,6 +196,9 @@ export function MyJobsContent({ initialTab }: MyJobsContentProps) {
         setApplications(prev =>
           prev.map(a => a.id === scheduledCancelModalApp.id ? { ...a, status: 'CANCELLED' as ApplicationStatus } : a)
         );
+      } else if ('errorCode' in result && result.errorCode === 'EMAIL_NOT_VERIFIED') {
+        const email = ('email' in result && typeof result.email === 'string') ? result.email : '';
+        setEmailNotVerifiedModal({ open: true, email });
       } else {
         showDebugError({
           type: 'delete',
@@ -234,6 +239,13 @@ export function MyJobsContent({ initialTab }: MyJobsContentProps) {
 
   return (
     <>
+      {/* メール未認証モーダル */}
+      <EmailVerificationRequiredModal
+        open={emailNotVerifiedModal.open}
+        email={emailNotVerifiedModal.email}
+        onClose={() => setEmailNotVerifiedModal({ open: false, email: '' })}
+      />
+
       {/* 求人カード一覧 */}
       <div className="p-3 space-y-2">
         {filteredApplications.length === 0 ? (

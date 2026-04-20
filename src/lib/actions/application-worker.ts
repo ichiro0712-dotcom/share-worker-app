@@ -229,6 +229,16 @@ export async function applyForJob(jobId: string, workDateId?: number) {
             return { success: false, error: 'アカウントが停止されているため、応募できません' };
         }
 
+        if (!user.email_verified) {
+            console.log('[applyForJob] Email not verified:', user.id);
+            return {
+                success: false,
+                errorCode: 'EMAIL_NOT_VERIFIED',
+                error: 'メールアドレスの認証が必要です',
+                email: user.email,
+            };
+        }
+
         const profileCheck = await checkProfileComplete(user.id);
         if (!profileCheck.isComplete) {
             console.log('[applyForJob] Profile incomplete:', profileCheck.missingFields);
@@ -445,6 +455,15 @@ export async function applyForJobMultipleDates(jobId: string, workDateIds: numbe
 
         const user = await getAuthenticatedUser();
         if (user.is_suspended) return { success: false, error: 'アカウントが停止されているため、応募できません' };
+
+        if (!user.email_verified) {
+            return {
+                success: false,
+                errorCode: 'EMAIL_NOT_VERIFIED',
+                error: 'メールアドレスの認証が必要です',
+                email: user.email,
+            };
+        }
 
         const profileCheck = await checkProfileComplete(user.id);
         if (!profileCheck.isComplete) {
@@ -806,6 +825,16 @@ export async function cancelApplicationByWorker(applicationId: number) {
         const user = await getAuthenticatedUser();
         console.log('[cancelApplicationByWorker] User:', user.id, 'Application:', applicationId);
 
+        if (!user.email_verified) {
+            console.log('[cancelApplicationByWorker] Email not verified:', user.id);
+            return {
+                success: false,
+                errorCode: 'EMAIL_NOT_VERIFIED',
+                error: 'メールアドレスの認証が必要です',
+                email: user.email,
+            };
+        }
+
         const application = await prisma.application.findFirst({
             where: { id: applicationId, user_id: user.id },
             include: {
@@ -988,6 +1017,16 @@ export async function acceptOffer(jobId: string, workDateId: number) {
         if (user.is_suspended) {
             console.log('[acceptOffer] User is suspended:', user.id);
             return { success: false, error: 'アカウントが停止されているため、オファーを受けられません' };
+        }
+
+        if (!user.email_verified) {
+            console.log('[acceptOffer] Email not verified:', user.id);
+            return {
+                success: false,
+                errorCode: 'EMAIL_NOT_VERIFIED',
+                error: 'メールアドレスの認証が必要です',
+                email: user.email,
+            };
         }
 
         const profileCheck = await checkProfileComplete(user.id);

@@ -195,7 +195,8 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
 
     // 2. 働き方と希望
     currentWorkStyle: userProfile.current_work_style || '',
-    desiredWorkStyle: userProfile.desired_work_style || '',
+    // desired_work_style は CSV 形式の可能性があるため、最初の値をドロップダウン初期値として取り出す
+    desiredWorkStyle: (userProfile.desired_work_style || '').split(',')[0] || '',
     jobChangeDesire: userProfile.job_change_desire || '',
     desiredWorkDaysPerWeek: userProfile.desired_work_days_week || '',
     desiredWorkPeriod: userProfile.desired_work_period || '',

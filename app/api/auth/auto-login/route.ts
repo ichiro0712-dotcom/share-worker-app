@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { encode } from 'next-auth/jwt';
 import prisma from '@/lib/prisma';
 import { logActivity } from '@/lib/logger';
+import { issueSessionCookie } from '@/src/lib/auth/session-cookie';
 
 /**
  * サーバーサイド自動ログインエンドポイント
@@ -67,18 +67,6 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // NextAuth JWT トークンを生成
-    const jwtToken = await encode({
-      token: {
-        id: String(user.id),
-        email: user.email,
-        name: user.name,
-        sub: String(user.id),
-      },
-      secret: process.env.NEXTAUTH_SECRET!,
-      maxAge: 30 * 24 * 60 * 60, // 30日（lib/auth.tsのsession.maxAgeと同じ）
-    });
-
     // リダイレクト先のバリデーション（オープンリダイレクト防止）
     const isRelativeUrl = redirect.startsWith('/') && !redirect.startsWith('//');
     const safeRedirect = isRelativeUrl ? redirect : '/';
@@ -87,23 +75,11 @@ export async function GET(request: NextRequest) {
       new URL(safeRedirect, request.nextUrl.origin)
     );
 
-    // NextAuth セッションCookieを設定
-    const isProduction = process.env.NODE_ENV === 'production';
-    const cookieName = isProduction
-      ? '__Secure-next-auth.session-token'
-      : 'next-auth.session-token';
-
-    response.cookies.set(cookieName, jwtToken, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 30 * 24 * 60 * 60, // 30日
+    await issueSessionCookie(response, {
+      id: user.id,
+      email: user.email,
+      name: user.name,
     });
-
-    // セキュリティヘッダー（トークン漏洩防止）
-    response.headers.set('Cache-Control', 'no-store');
-    response.headers.set('Referrer-Policy', 'no-referrer');
 
     console.log('[AutoLogin] Success for user:', user.id);
 
