@@ -16,6 +16,7 @@ import toast from 'react-hot-toast';
 import { useErrorToast } from '@/components/ui/PersistentErrorToast';
 import { trackGA4Event } from '@/src/lib/ga4-events';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
+import { EmailVerificationRequiredModal } from '@/components/auth/EmailVerificationRequiredModal';
 
 // デフォルトのプレースホルダー画像
 const DEFAULT_JOB_IMAGE = '/images/samples/job_default_noimage.png';
@@ -96,6 +97,8 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
   // プロフィール未完了モーダル
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileMissingFields, setProfileMissingFields] = useState<string[]>([]);
+  // メール未認証モーダル
+  const [emailNotVerifiedModal, setEmailNotVerifiedModal] = useState<{ open: boolean; email: string }>({ open: false, email: '' });
 
   // 応募確認モーダル
   const [showApplyConfirmModal, setShowApplyConfirmModal] = useState(false);
@@ -462,7 +465,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
     setSelectedWorkDateIds([]); // 選択をクリア
 
     const isOffer = job.jobType === 'OFFER';
-    toast.success(isOffer ? 'オファーを受け付けました' : '応募を受け付けました');
+    const optimisticToastId = toast.success(isOffer ? 'オファーを受け付けました' : '応募を受け付けました');
 
     // 4. バックグラウンドでAPI実行
     try {
@@ -495,9 +498,16 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
       } else {
         // 失敗時：ロールバック
         setAppliedWorkDateIds(previousAppliedIds);
+        // 楽観UI で出した成功トーストのみを打ち消す（他のトーストに影響しない）
+        toast.dismiss(optimisticToastId);
 
+        // メール未認証エラーの場合はモーダル表示
+        if ('errorCode' in result && result.errorCode === 'EMAIL_NOT_VERIFIED') {
+          const email = ('email' in result && typeof result.email === 'string') ? result.email : '';
+          setEmailNotVerifiedModal({ open: true, email });
+        }
         // プロフィール未完了エラーの場合はモーダル表示
-        if ('missingFields' in result && result.missingFields) {
+        else if ('missingFields' in result && result.missingFields) {
           const missingFields = result.missingFields as string[];
           setProfileMissingFields(missingFields);
           setShowProfileModal(true);
@@ -537,6 +547,8 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
       console.error('Application error:', error);
       // 失敗時：ロールバック
       setAppliedWorkDateIds(previousAppliedIds);
+      // 楽観UI で出した成功トーストのみを打ち消す
+      toast.dismiss(optimisticToastId);
       // デバッグ用エラー通知
       const debugInfo = extractDebugInfo(error);
       showDebugError({
@@ -1576,6 +1588,13 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
           </div>
         </div>
       )}
+
+      {/* メール未認証モーダル */}
+      <EmailVerificationRequiredModal
+        open={emailNotVerifiedModal.open}
+        email={emailNotVerifiedModal.email}
+        onClose={() => setEmailNotVerifiedModal({ open: false, email: '' })}
+      />
 
       {/* 応募確認モーダル */}
       {showApplyConfirmModal && (

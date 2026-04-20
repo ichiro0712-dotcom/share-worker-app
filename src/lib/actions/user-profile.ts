@@ -1,6 +1,7 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { getAuthenticatedUser } from './helpers';
 import { geocodeAddress } from '@/src/lib/geocoding';
@@ -8,6 +9,7 @@ import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 import { generateBankAccountName } from '@/lib/string-utils';
 import { validatePhoneVerificationToken } from '@/src/lib/auth/phone-verification';
 import { syncWorkerToTasLink, mapUserToTasLinkPayload } from '@/src/lib/taslink';
+import { normalizePhoneDigits, phoneLockKey as computePhoneLockKey } from '@/src/lib/auth/identifier';
 
 /**
  * SMS認証成功時に電話番号を即座にDBに保存する
@@ -16,19 +18,48 @@ export async function savePhoneVerification(phoneNumber: string, verificationTok
     try {
         const user = await getAuthenticatedUser();
 
-        const isValid = await validatePhoneVerificationToken(verificationToken, phoneNumber);
+        const normalizedPhone = normalizePhoneDigits(phoneNumber);
+        if (normalizedPhone.length < 10 || normalizedPhone.length > 11) {
+            return { success: false, error: '電話番号の形式が正しくありません' };
+        }
+
+        const isValid = await validatePhoneVerificationToken(verificationToken, normalizedPhone);
         if (!isValid) {
             return { success: false, error: '認証トークンが無効または期限切れです' };
         }
 
-        await prisma.user.update({
-            where: { id: user.id },
-            data: {
-                phone_number: phoneNumber,
-                phone_verified: true,
-                phone_verified_at: new Date(),
-            },
-        });
+        // 他ユーザーとの電話番号重複チェック（advisory lock で race 回避 + SQL 正規化比較）
+        const lockKey = computePhoneLockKey(normalizedPhone);
+        try {
+            await prisma.$transaction(async (tx) => {
+                await tx.$queryRaw(
+                    Prisma.sql`SELECT pg_advisory_xact_lock(${lockKey}::bigint)`
+                );
+                const dup = await tx.$queryRaw<{ id: number }[]>(
+                    Prisma.sql`SELECT id FROM users
+                        WHERE regexp_replace(translate(phone_number, '０１２３４５６７８９', '0123456789'), '[^0-9]', '', 'g') = ${normalizedPhone}
+                        AND phone_verified = true
+                        AND deleted_at IS NULL
+                        AND id <> ${user.id}
+                        LIMIT 1`
+                );
+                if (dup.length > 0) throw new Error('PHONE_DUPLICATE');
+
+                await tx.user.update({
+                    where: { id: user.id },
+                    data: {
+                        phone_number: normalizedPhone,
+                        phone_verified: true,
+                        phone_verified_at: new Date(),
+                    },
+                });
+            });
+        } catch (e) {
+            if (e instanceof Error && e.message === 'PHONE_DUPLICATE') {
+                return { success: false, error: 'この電話番号は既に他のアカウントで使われています' };
+            }
+            throw e;
+        }
 
         return { success: true };
     } catch (error) {
@@ -382,8 +413,39 @@ export async function updateUserProfile(formData: FormData) {
             };
         }
 
-        // 電話番号変更時のSMS認証チェック
-        const isPhoneChanged = phoneNumber !== user.phone_number;
+        // メール正規化（trim + lowercase）と他ユーザーとの重複チェック（case-insensitive）
+        const normalizedEmail = email.trim().toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+            return { success: false, error: 'メールアドレスの形式が正しくありません' };
+        }
+        const isEmailChanged = normalizedEmail !== user.email.toLowerCase();
+        if (isEmailChanged) {
+            const duplicatedEmail = await prisma.user.findFirst({
+                where: {
+                    email: { equals: normalizedEmail, mode: 'insensitive' },
+                    NOT: { id: user.id },
+                },
+                select: { id: true },
+            });
+            if (duplicatedEmail) {
+                return {
+                    success: false,
+                    error: 'このメールアドレスは既に他のアカウントで使われています',
+                };
+            }
+        }
+
+        // 電話番号を digits-only に正規化（register 側と一貫性維持）
+        const normalizedPhone = normalizePhoneDigits(phoneNumber);
+        if (normalizedPhone.length < 10 || normalizedPhone.length > 11) {
+            return {
+                success: false,
+                error: '電話番号の形式が正しくありません',
+            };
+        }
+
+        // 電話番号変更判定: DB 側の値も normalize してから比較（既存レガシーデータの表記ゆれ吸収）
+        const isPhoneChanged = normalizedPhone !== normalizePhoneDigits(user.phone_number);
         if (isPhoneChanged) {
             if (!phoneVerificationToken) {
                 return {
@@ -391,11 +453,27 @@ export async function updateUserProfile(formData: FormData) {
                     error: '電話番号の変更にはSMS認証が必要です',
                 };
             }
-            const isPhoneVerified = await validatePhoneVerificationToken(phoneVerificationToken, phoneNumber);
+            const isPhoneVerified = await validatePhoneVerificationToken(phoneVerificationToken, normalizedPhone);
             if (!isPhoneVerified) {
                 return {
                     success: false,
                     error: '電話番号の認証トークンが無効または期限切れです。再度認証を行ってください。',
+                };
+            }
+
+            // 他ユーザーとの電話番号重複チェック（SQL 側で正規化して比較）
+            const duplicatedPhone = await prisma.$queryRaw<{ id: number }[]>(
+                Prisma.sql`SELECT id FROM users
+                    WHERE regexp_replace(translate(phone_number, '０１２３４５６７８９', '0123456789'), '[^0-9]', '', 'g') = ${normalizedPhone}
+                    AND phone_verified = true
+                    AND deleted_at IS NULL
+                    AND id <> ${user.id}
+                    LIMIT 1`
+            );
+            if (duplicatedPhone.length > 0) {
+                return {
+                    success: false,
+                    error: 'この電話番号は既に他のアカウントで使われています',
                 };
             }
         }
@@ -485,13 +563,11 @@ export async function updateUserProfile(formData: FormData) {
             }
         }
 
-        // プロフィール更新
-        await prisma.user.update({
-            where: { id: user.id },
-            data: {
+        // プロフィール更新（phone 変更時は advisory lock で race 回避）
+        const updateData = {
                 name,
-                email,
-                phone_number: phoneNumber,
+                email: normalizedEmail,
+                phone_number: normalizedPhone,
                 ...(isPhoneChanged ? {
                     phone_verified: true,
                     phone_verified_at: new Date(),
@@ -539,8 +615,45 @@ export async function updateUserProfile(formData: FormData) {
                 // 更新者追跡
                 updated_by_type: 'WORKER',
                 updated_by_id: user.id,
-            },
-        });
+        };
+
+        if (isPhoneChanged) {
+            const lockKey = computePhoneLockKey(normalizedPhone);
+            try {
+                await prisma.$transaction(async (tx) => {
+                    await tx.$queryRaw(
+                        Prisma.sql`SELECT pg_advisory_xact_lock(${lockKey}::bigint)`
+                    );
+                    // ロック取得後、直前再チェック（正規化比較）
+                    const dup = await tx.$queryRaw<{ id: number }[]>(
+                        Prisma.sql`SELECT id FROM users
+                            WHERE regexp_replace(translate(phone_number, '０１２３４５６７８９', '0123456789'), '[^0-9]', '', 'g') = ${normalizedPhone}
+                            AND phone_verified = true
+                            AND deleted_at IS NULL
+                            AND id <> ${user.id}
+                            LIMIT 1`
+                    );
+                    if (dup.length > 0) throw new Error('PHONE_DUPLICATE_RACE');
+                    await tx.user.update({
+                        where: { id: user.id },
+                        data: updateData,
+                    });
+                });
+            } catch (e) {
+                if (e instanceof Error && e.message === 'PHONE_DUPLICATE_RACE') {
+                    return {
+                        success: false,
+                        error: 'この電話番号は既に他のアカウントで使われています',
+                    };
+                }
+                throw e;
+            }
+        } else {
+            await prisma.user.update({
+                where: { id: user.id },
+                data: updateData,
+            });
+        }
 
         // プロフィール関連ページのキャッシュを無効化
         revalidatePath('/mypage/profile');

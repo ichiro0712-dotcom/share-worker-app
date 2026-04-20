@@ -9,6 +9,8 @@ import { findLpByIpAddress } from '@/src/lib/lp-attribution';
 import { getClientIpAddress } from '@/src/lib/device-info';
 import { validatePhoneVerificationToken } from '@/src/lib/auth/phone-verification';
 import { syncWorkerToTasLink, mapUserToTasLinkPayload } from '@/src/lib/taslink';
+import { issueSessionCookie } from '@/src/lib/auth/session-cookie';
+import { normalizePhoneDigits, phoneLockKey } from '@/src/lib/auth/identifier';
 
 interface RegisterBody {
   email: string;
@@ -31,6 +33,11 @@ interface RegisterBody {
   experienceFields?: Record<string, unknown>;
   workHistories?: string[];
   qualificationCertificates?: Record<string, unknown>;
+  // 新登録フロー（モック8ステップ）項目
+  desiredWorkStyle?: string[];     // 希望の働き方（複数選択）
+  workFrequency?: string;           // 週の頻度（step 2b）
+  jobTiming?: string;               // いつ頃探しているか
+  employmentStatus?: string;        // 現在の就業状況
   // LP経由登録情報
   registrationLpId?: string;
   registrationCampaignCode?: string;
@@ -39,6 +46,10 @@ interface RegisterBody {
   lpAttributionSource?: string;
   // 電話番号SMS認証トークン
   phoneVerificationToken?: string;
+}
+
+function normalizeEmail(input: string): string {
+  return input.trim().toLowerCase();
 }
 
 export async function POST(request: NextRequest) {
@@ -66,6 +77,10 @@ export async function POST(request: NextRequest) {
       experienceFields,
       workHistories,
       qualificationCertificates,
+      desiredWorkStyle,
+      workFrequency,
+      jobTiming,
+      employmentStatus,
       registrationLpId,
       registrationCampaignCode,
       registrationGenrePrefix,
@@ -110,6 +125,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // パスワード: 最低 8 文字
+    if (typeof password !== 'string' || password.length < 8) {
+      return NextResponse.json(
+        { error: 'パスワードは8文字以上で入力してください' },
+        { status: 400 }
+      );
+    }
+
+    // メール形式チェック
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (typeof email !== 'string' || !EMAIL_RE.test(email.trim())) {
+      return NextResponse.json(
+        { error: 'メールアドレスの形式が正しくありません' },
+        { status: 400 }
+      );
+    }
+
+    const normalizedEmail = normalizeEmail(email);
+    const normalizedPhone = normalizePhoneDigits(phoneNumber);
+    if (normalizedPhone.length < 10 || normalizedPhone.length > 11) {
+      return NextResponse.json(
+        { error: '電話番号の形式が正しくありません' },
+        { status: 400 }
+      );
+    }
+
     // 電話番号SMS認証トークンの検証
     if (!phoneVerificationToken) {
       return NextResponse.json(
@@ -118,7 +159,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const isPhoneVerified = await validatePhoneVerificationToken(phoneVerificationToken, phoneNumber);
+    const isPhoneVerified = await validatePhoneVerificationToken(phoneVerificationToken, normalizedPhone);
     if (!isPhoneVerified) {
       return NextResponse.json(
         { error: '電話番号の認証トークンが無効または期限切れです。再度認証を行ってください。' },
@@ -126,15 +167,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // メールアドレスの重複チェック
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
+    // メールアドレスの重複チェック（case-insensitive、既存レガシーデータ対応）
+    const existingEmailUser = await prisma.user.findFirst({
+      where: { email: { equals: normalizedEmail, mode: 'insensitive' } },
     });
-
-    if (existingUser) {
+    if (existingEmailUser) {
       return NextResponse.json(
         { error: 'このメールアドレスは既に登録されています' },
-        { status: 400 }
+        { status: 409 }
       );
     }
 
@@ -146,35 +186,89 @@ export async function POST(request: NextRequest) {
       ? workHistories.filter((h: string) => h && h.trim() !== '')
       : [];
 
-    // ユーザー作成（name は空文字許容）
-    const user = await prisma.user.create({
-      data: {
-        email,
-        password_hash: hashedPassword,
-        name: resolvedName,
-        phone_number: phoneNumber,
-        phone_verified: true,
-        phone_verified_at: new Date(),
-        birth_date: birthDate ? new Date(birthDate + 'T00:00:00+09:00') : null,
-        qualifications: qualifications || [],
-        last_name_kana: lastNameKana || null,
-        first_name_kana: firstNameKana || null,
-        gender: gender || null,
-        nationality: nationality || null,
-        postal_code: postalCode || null,
-        prefecture: prefecture || null,
-        city: city || null,
-        address_line: addressLine || null,
-        building: building || null,
-        experience_fields: experienceFields && Object.keys(experienceFields).length > 0 ? experienceFields as Prisma.InputJsonValue : Prisma.DbNull,
-        work_histories: workHistoriesArray,
-        qualification_certificates: qualificationCertificates && Object.keys(qualificationCertificates).length > 0 ? qualificationCertificates as Prisma.InputJsonValue : Prisma.DbNull,
-        // LP経由登録情報（フォールバックチェーン適用済み）
-        registration_lp_id: resolvedLpId,
-        registration_campaign_code: resolvedCampaignCode,
-        registration_genre_prefix: resolvedGenrePrefix,
-      },
-    });
+    // 希望の働き方（複数選択）は CSV で保存（既存 String? カラム踏襲）
+    const desiredWorkStyleCsv = Array.isArray(desiredWorkStyle) && desiredWorkStyle.length > 0
+      ? desiredWorkStyle.filter(s => s && s.trim() !== '').join(',')
+      : null;
+
+    // 電話番号の race 軽減: Postgres advisory xact lock で同一電話番号の同時登録を直列化
+    const lockKey = phoneLockKey(normalizedPhone);
+
+    // ユーザー作成（name は空文字許容）。P2002 (email unique 衝突) で email race を検出
+    let user;
+    try {
+      user = await prisma.$transaction(async (tx) => {
+        // 電話番号に対する advisory lock（トランザクション終了まで保持、他セッションは待機）
+        await tx.$queryRaw(
+          Prisma.sql`SELECT pg_advisory_xact_lock(${lockKey}::bigint)`
+        );
+
+        // ロック取得後の再チェック（race safe）
+        // 既存データにハイフンや全角数字が残っている可能性に備え、SQL 側で正規化比較
+        // translate で全角数字 → 半角数字、regexp_replace で非数字除去
+        const phoneExists = await tx.$queryRaw<{ id: number }[]>(
+          Prisma.sql`SELECT id FROM users
+            WHERE regexp_replace(translate(phone_number, '０１２３４５６７８９', '0123456789'), '[^0-9]', '', 'g') = ${normalizedPhone}
+            AND phone_verified = true
+            AND deleted_at IS NULL
+            LIMIT 1`
+        );
+        if (phoneExists.length > 0) {
+          throw new Error('PHONE_ALREADY_REGISTERED');
+        }
+
+        return tx.user.create({
+          data: {
+            email: normalizedEmail,
+            password_hash: hashedPassword,
+            name: resolvedName,
+            phone_number: normalizedPhone,
+            phone_verified: true,
+            phone_verified_at: new Date(),
+            birth_date: birthDate ? new Date(birthDate + 'T00:00:00+09:00') : null,
+            qualifications: qualifications || [],
+            last_name_kana: lastNameKana || null,
+            first_name_kana: firstNameKana || null,
+            gender: gender || null,
+            nationality: nationality || null,
+            postal_code: postalCode || null,
+            prefecture: prefecture || null,
+            city: city || null,
+            address_line: addressLine || null,
+            building: building || null,
+            experience_fields: experienceFields && Object.keys(experienceFields).length > 0 ? experienceFields as Prisma.InputJsonValue : Prisma.DbNull,
+            work_histories: workHistoriesArray,
+            qualification_certificates: qualificationCertificates && Object.keys(qualificationCertificates).length > 0 ? qualificationCertificates as Prisma.InputJsonValue : Prisma.DbNull,
+            // 新登録フロー項目（既存カラムに対応）
+            desired_work_style: desiredWorkStyleCsv,
+            desired_work_days_week: workFrequency || null,
+            job_change_desire: jobTiming || null,
+            current_work_style: employmentStatus || null,
+            // LP経由登録情報（フォールバックチェーン適用済み）
+            registration_lp_id: resolvedLpId,
+            registration_campaign_code: resolvedCampaignCode,
+            registration_genre_prefix: resolvedGenrePrefix,
+          },
+        });
+      });
+    } catch (e) {
+      if (e instanceof Error && e.message === 'PHONE_ALREADY_REGISTERED') {
+        return NextResponse.json(
+          { error: 'この電話番号は既に登録されています' },
+          { status: 409 }
+        );
+      }
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        const target = (e.meta?.target as string[] | undefined)?.join(',') || '';
+        if (target.includes('email')) {
+          return NextResponse.json(
+            { error: 'このメールアドレスは既に登録されています' },
+            { status: 409 }
+          );
+        }
+      }
+      throw e;
+    }
 
     // 操作ログを記録（ユーザー登録成功）
     await logActivity({
@@ -228,16 +322,23 @@ export async function POST(request: NextRequest) {
       console.error('[TasLink] Registration sync failed:', getErrorMessage(tasLinkErr));
     }
 
-    return NextResponse.json({
-      message: '登録が完了しました。確認メールをお送りしましたので、メール内のリンクをクリックして認証を完了してください。',
+    // 登録完了と同時に NextAuth セッション Cookie を発行（サンクスページ到達時点でログイン済みに）
+    const response = NextResponse.json({
+      message: '登録が完了しました。',
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
       },
-      requiresVerification: true,
+      redirect: '/register/worker/thanks',
       emailSent: !emailError,
     });
+    await issueSessionCookie(response, {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+    });
+    return response;
   } catch (error) {
     console.error('Registration error:', error);
 

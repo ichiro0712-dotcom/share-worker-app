@@ -20,7 +20,7 @@ interface AuthContextType {
   user: Session['user'] | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  login: (identifier: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   // 施設管理者認証（改善版）
   admin: FacilityAdmin | null;
@@ -125,11 +125,11 @@ function AuthContextProvider({ children }: { children: ReactNode }) {
     };
   }, [admin]);
 
-  // ワーカーログイン
-  const login = async (email: string, password: string) => {
+  // ワーカーログイン（メール or 電話番号）
+  const login = async (identifier: string, password: string) => {
     try {
       const result = await signIn('credentials', {
-        email,
+        identifier,
         password,
         redirect: false,
       });
