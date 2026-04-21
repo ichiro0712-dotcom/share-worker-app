@@ -38,6 +38,7 @@ const publicPaths = [
   '/register',
   '/admin/login',
   '/api/auth',
+  '/api/registration-tracking', // 登録ページ訪問トラッキング（未ログイン、BasicAuth は保持）
   '/auth', // メール認証関連（/auth/verify, /auth/verify-pending, /auth/resend-verification）
   '/dev-portal', // 開発用ポータル
   '/password-reset', // パスワードリセット

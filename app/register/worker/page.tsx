@@ -79,6 +79,7 @@ function WorkerRegisterPageInner() {
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [phoneVerificationToken, setPhoneVerificationToken] = useState<string | null>(null);
   const [isLoadingAddress, setIsLoadingAddress] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   // 利用規約・PP
   const [termsContent, setTermsContent] = useState<string>('');
@@ -229,6 +230,7 @@ function WorkerRegisterPageInner() {
     const nextIdx = stepIndex + 1;
     if (nextIdx < stepSequence.length) {
       setCurrentStep(stepSequence[nextIdx]);
+      setSubmitError(null);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
@@ -237,6 +239,7 @@ function WorkerRegisterPageInner() {
     const prevIdx = stepIndex - 1;
     if (prevIdx >= 0) {
       setCurrentStep(stepSequence[prevIdx]);
+      setSubmitError(null);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
@@ -268,6 +271,7 @@ function WorkerRegisterPageInner() {
   const handleSubmit = async () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
+    setSubmitError(null);
 
     try {
       // 資格: mock ラベル → DB 値にマッピング、「その他」自由記述は追記
@@ -320,6 +324,8 @@ function WorkerRegisterPageInner() {
           details: data?.debug?.stack,
           context: { status: res.status, debug: data?.debug },
         });
+        // インライン永続表示（toast はすぐ消えるため）
+        setSubmitError(detailMessage);
         toast.error(detailMessage);
         setIsSubmitting(false);
         return;
@@ -343,6 +349,7 @@ function WorkerRegisterPageInner() {
         details: info.details,
         stack: info.stack,
       });
+      setSubmitError('登録中にエラーが発生しました。ネットワーク接続を確認して再度お試しください。');
       toast.error('登録中にエラーが発生しました');
       setIsSubmitting(false);
     }
@@ -350,7 +357,13 @@ function WorkerRegisterPageInner() {
 
   return (
     <div className="min-h-screen bg-[#F8FCFE]">
-      <div className="max-w-md mx-auto bg-white min-h-screen relative">
+      <form
+        className="max-w-md mx-auto bg-white min-h-screen relative"
+        onSubmit={(e) => {
+          e.preventDefault();
+          goNext();
+        }}
+      >
         {/* ヘッダー */}
         <div className="bg-gradient-to-br from-[#E8F7FB] via-[#D4F1F9] to-[#E8F0FE] px-5 pt-6 pb-8 text-center">
           <div className="text-[#2AADCF] font-bold text-lg">タスタス</div>
@@ -611,6 +624,15 @@ function WorkerRegisterPageInner() {
 
           {currentStep === '8' && (
             <StepContainer question="ご連絡先・パスワード">
+              {submitError && (
+                <div
+                  role="alert"
+                  aria-live="polite"
+                  className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm"
+                >
+                  {submitError}
+                </div>
+              )}
               <div className="mb-4">
                 <FieldLabel required>電話番号（SMS認証が必要です）</FieldLabel>
                 <SmsVerification
@@ -736,7 +758,7 @@ function WorkerRegisterPageInner() {
             onClose={() => setShowPrivacyModal(false)}
           />
         )}
-      </div>
+      </form>
     </div>
   );
 }
