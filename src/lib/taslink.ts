@@ -270,7 +270,24 @@ export async function syncWorkerToTasLink(
     }
 
     if (response.status === 401) {
-      console.error('[TasLink] Authentication failed: invalid API key');
+      // 診断情報: キー値の不可視文字/貼り間違いを特定するためのフィンガープリント
+      // 機密漏洩を避けるため先頭4/末尾4文字のみ出力。完全な値はログに残さない
+      const keyStr = API_KEY || '';
+      const hasWhitespace = /\s/.test(keyStr);
+      const hasQuotes = /["'`]/.test(keyStr);
+      const hasJsonChars = /[{}:]/.test(keyStr);
+      console.error('[TasLink] Authentication failed: invalid API key', {
+        userId,
+        apiUrl: API_URL,
+        keyPrefix: keyStr.slice(0, 4),
+        keySuffix: keyStr.slice(-4),
+        keyLength: keyStr.length,
+        suspicious: {
+          hasWhitespace,
+          hasQuotes,
+          hasJsonChars,
+        },
+      });
       return { success: false, error: 'Authentication failed (401)' };
     }
 
