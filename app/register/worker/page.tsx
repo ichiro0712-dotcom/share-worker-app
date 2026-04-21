@@ -309,13 +309,18 @@ function WorkerRegisterPageInner() {
       });
       const data = await res.json();
       if (!res.ok) {
+        // debug.message があれば詳細な原因も表示（ステージング診断用）
+        const detailMessage = data?.debug?.message
+          ? `${data.error || '登録に失敗しました'}（原因: ${data.debug.message}）`
+          : (data.error || '登録に失敗しました');
         showDebugError({
           type: 'other',
           operation: '会員登録',
-          message: data.error || '登録に失敗しました',
-          context: { status: res.status },
+          message: detailMessage,
+          details: data?.debug?.stack,
+          context: { status: res.status, debug: data?.debug },
         });
-        toast.error(data.error || '登録に失敗しました');
+        toast.error(detailMessage);
         setIsSubmitting(false);
         return;
       }
@@ -638,43 +643,45 @@ function WorkerRegisterPageInner() {
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-[10px] focus:border-[#2AADCF] focus:outline-none"
                 />
               </div>
-              <div className="space-y-2 mt-6">
-                <label className="flex items-start gap-2 text-sm cursor-pointer">
+              <div className="space-y-1 mt-6">
+                <div className="flex items-start gap-3 py-2 px-1 min-h-[44px] select-none">
                   <input
+                    id="agree-terms"
                     type="checkbox"
                     checked={agreedToTerms}
                     onChange={e => setAgreedToTerms(e.target.checked)}
-                    className="mt-0.5"
+                    className="mt-1 w-5 h-5 flex-shrink-0 accent-[#2AADCF] cursor-pointer"
                   />
-                  <span>
+                  <div className="leading-relaxed text-sm flex-1">
                     <button
                       type="button"
                       onClick={() => setShowTermsModal(true)}
-                      className="text-[#2AADCF] underline"
+                      className="text-[#2AADCF] underline font-medium"
                     >
                       利用規約
                     </button>
-                    に同意する
-                  </span>
-                </label>
-                <label className="flex items-start gap-2 text-sm cursor-pointer">
+                    <label htmlFor="agree-terms" className="cursor-pointer">に同意する</label>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 py-2 px-1 min-h-[44px] select-none">
                   <input
+                    id="agree-privacy"
                     type="checkbox"
                     checked={agreedToPrivacy}
                     onChange={e => setAgreedToPrivacy(e.target.checked)}
-                    className="mt-0.5"
+                    className="mt-1 w-5 h-5 flex-shrink-0 accent-[#2AADCF] cursor-pointer"
                   />
-                  <span>
+                  <div className="leading-relaxed text-sm flex-1">
                     <button
                       type="button"
                       onClick={() => setShowPrivacyModal(true)}
-                      className="text-[#2AADCF] underline"
+                      className="text-[#2AADCF] underline font-medium"
                     >
                       プライバシーポリシー
                     </button>
-                    に同意する
-                  </span>
-                </label>
+                    <label htmlFor="agree-privacy" className="cursor-pointer">に同意する</label>
+                  </div>
+                </div>
               </div>
               <div className="flex justify-center gap-4 mt-6 text-xs text-gray-500">
                 <span>🔒 SSL暗号化通信</span>

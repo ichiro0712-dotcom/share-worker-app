@@ -27,10 +27,12 @@ export function normalizePhoneDigits(input: string | undefined | null): string {
 }
 
 /**
- * 正規化済み電話番号を Postgres advisory lock キー用の bigint に変換する。
+ * 正規化済み電話番号を Postgres advisory lock キー用の数値文字列に変換する。
+ * BigInt を直接 $queryRaw に渡すと driver 側でシリアライズ問題が起きるため、
+ * 文字列として渡して SQL 側で `::bigint` キャストする。
  */
-export function phoneLockKey(normalized: string): bigint {
-  return BigInt(normalized.replace(/^0+/, '') || '0');
+export function phoneLockKey(normalized: string): string {
+  return normalized.replace(/^0+/, '') || '0';
 }
 
 export function parseLoginIdentifier(raw: string | undefined | null): LoginIdentifier {
