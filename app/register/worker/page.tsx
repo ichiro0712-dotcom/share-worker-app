@@ -716,7 +716,7 @@ function WorkerRegisterPageInner() {
             {isSubmitting
               ? '送信中...'
               : currentStep === '8'
-              ? '利用規約・プライバシーポリシーに同意して登録'
+              ? '同意して登録する'
               : '次へ'}
           </button>
         </div>
