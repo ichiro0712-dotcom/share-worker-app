@@ -3,14 +3,17 @@
 import { useState, useEffect, Suspense, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { SmsVerification } from '@/components/ui/SmsVerification';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { PhoneNumberInput } from '@/components/ui/PhoneNumberInput';
 import { getLegalDocument } from '@/src/lib/content-actions';
 import { trackGA4Event } from '@/src/lib/ga4-events';
 import RegistrationPageTracker from '@/components/tracking/RegistrationPageTracker';
+import { isValidPhoneNumber } from '@/utils/inputValidation';
 
-type StepId = '1' | '2' | '2b' | '3' | '4' | '5' | '6' | '7' | '8';
+// フォーム入力ステップ (1〜8) + SMS認証ステップ (sms)
+// PP 同意後に SMS を送信するため、認証は step 8 の後に別画面で行う
+type StepId = '1' | '2' | '2b' | '3' | '4' | '5' | '6' | '7' | '8' | 'sms';
 
 // 資格オプション：表示ラベルとDB保存値のマッピング
 const QUALIFICATION_OPTIONS: { label: string; value: string }[] = [
@@ -39,6 +42,14 @@ const EMPLOYMENT_STATUS_OPTIONS = [
   '離職中',
   '学生',
 ];
+
+// SMS ステップで電話番号を見やすく表示（090-1234-5678）
+function formatPhoneForDisplay(phoneNumber: string): string {
+  const digits = phoneNumber.replace(/[^0-9]/g, '');
+  if (digits.length === 11) return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+  if (digits.length === 10) return `${digits.slice(0, 2)}-${digits.slice(2, 6)}-${digits.slice(6)}`;
+  return phoneNumber;
+}
 
 // step2 で「どのくらい働きたいですか？」を見せる条件
 function shouldShowStep2b(desiredWorkStyle: string[]): boolean {
@@ -80,6 +91,13 @@ function WorkerRegisterPageInner() {
   const [phoneVerificationToken, setPhoneVerificationToken] = useState<string | null>(null);
   const [isLoadingAddress, setIsLoadingAddress] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // SMS認証ステップ用
+  const [smsCode, setSmsCode] = useState('');
+  const [smsError, setSmsError] = useState<string | null>(null);
+  const [smsCooldownSeconds, setSmsCooldownSeconds] = useState(0);
+  const [isSendingSms, setIsSendingSms] = useState(false);
+  const [isVerifyingSms, setIsVerifyingSms] = useState(false);
 
   // 利用規約・PP
   const [termsContent, setTermsContent] = useState<string>('');
@@ -161,10 +179,11 @@ function WorkerRegisterPageInner() {
   }, []);
 
   // ステップ順序（条件付きで 2b を挿入）
+  // sms ステップは step 8 の後に続く「認証コード入力」画面（利用規約同意後に SMS 送信）
   const stepSequence = useMemo<StepId[]>(() => {
     const base: StepId[] = ['1', '2'];
     if (shouldShowStep2b(form.desiredWorkStyle)) base.push('2b');
-    base.push('3', '4', '5', '6', '7', '8');
+    base.push('3', '4', '5', '6', '7', '8', 'sms');
     return base;
   }, [form.desiredWorkStyle]);
 
@@ -210,7 +229,7 @@ function WorkerRegisterPageInner() {
       case '8':
         return (
           !!form.phoneNumber &&
-          !!phoneVerificationToken &&
+          isValidPhoneNumber(form.phoneNumber) &&
           !!form.email &&
           /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email) &&
           !!form.password &&
@@ -218,13 +237,21 @@ function WorkerRegisterPageInner() {
           agreedToTerms &&
           agreedToPrivacy
         );
+      case 'sms':
+        return smsCode.length >= 4 && smsCode.length <= 6;
     }
   };
 
   const goNext = () => {
     if (!isStepValid()) return;
+    // step 8: 利用規約・PP 同意後に SMS 送信 → sms ステップへ
     if (currentStep === '8') {
-      handleSubmit();
+      handleSendSmsAndAdvance();
+      return;
+    }
+    // sms ステップ: コード検証 → 登録API 実行
+    if (currentStep === 'sms') {
+      handleVerifyAndSubmit();
       return;
     }
     const nextIdx = stepIndex + 1;
@@ -268,19 +295,121 @@ function WorkerRegisterPageInner() {
     }
   };
 
-  const handleSubmit = async () => {
-    if (isSubmitting) return;
-    setIsSubmitting(true);
+  // クールダウン秒カウントダウン
+  useEffect(() => {
+    if (smsCooldownSeconds <= 0) return;
+    const t = setTimeout(() => setSmsCooldownSeconds(s => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [smsCooldownSeconds]);
+
+  // step 8 (利用規約同意後) → SMS 送信 → sms ステップへ
+  const handleSendSmsAndAdvance = async () => {
+    if (isSendingSms) return;
+    setIsSendingSms(true);
+    setSmsError(null);
     setSubmitError(null);
+    try {
+      const res = await fetch('/api/sms/send-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phoneNumber: form.phoneNumber }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const msg = data.error || 'SMS送信に失敗しました';
+        setSubmitError(msg);
+        toast.error(msg);
+        return;
+      }
+      // SMS 送信成功 → sms ステップへ遷移
+      setCurrentStep('sms');
+      setSmsCooldownSeconds(60);
+      setSmsCode('');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      toast.success('認証コードを送信しました');
+    } catch (err) {
+      const info = extractDebugInfo(err);
+      showDebugError({
+        type: 'other',
+        operation: 'SMS送信',
+        message: info.message,
+        details: info.details,
+        stack: info.stack,
+      });
+      setSubmitError('SMS送信中にエラーが発生しました');
+      toast.error('SMS送信中にエラーが発生しました');
+    } finally {
+      setIsSendingSms(false);
+    }
+  };
+
+  // SMS コード再送信
+  const handleResendSms = async () => {
+    if (isSendingSms || smsCooldownSeconds > 0) return;
+    setIsSendingSms(true);
+    setSmsError(null);
+    try {
+      const res = await fetch('/api/sms/send-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phoneNumber: form.phoneNumber }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setSmsError(data.error || '再送信に失敗しました');
+        return;
+      }
+      setSmsCooldownSeconds(60);
+      setSmsCode('');
+      toast.success('認証コードを再送信しました');
+    } catch {
+      setSmsError('再送信中にエラーが発生しました');
+    } finally {
+      setIsSendingSms(false);
+    }
+  };
+
+  // step sms (コード入力) → 認証 → 登録API
+  const handleVerifyAndSubmit = async () => {
+    if (isVerifyingSms || isSubmitting) return;
+
+    // 既に検証成功した token を保持していれば再利用（登録API失敗→再試行 UX 対応）
+    // CPaaS のコードは一度使うと AlreadyVerified で弾かれるため
+    let token = phoneVerificationToken;
+
+    if (!token) {
+      setIsVerifyingSms(true);
+      setSmsError(null);
+      try {
+        const verifyRes = await fetch('/api/sms/verify-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phoneNumber: form.phoneNumber, code: smsCode }),
+        });
+        const verifyData = await verifyRes.json();
+        if (!verifyData.success) {
+          setSmsError(verifyData.error || '認証に失敗しました');
+          return;
+        }
+        token = verifyData.verificationToken as string;
+        setPhoneVerificationToken(token);
+      } catch (err) {
+        setSmsError('認証処理中にエラーが発生しました。ネットワーク接続を確認してください。');
+        return;
+      } finally {
+        setIsVerifyingSms(false);
+      }
+    }
 
     try {
-      // 資格: mock ラベル → DB 値にマッピング、「その他」自由記述は追記
+      // 2. 登録 API 実行
+      setIsSubmitting(true);
+      setSubmitError(null);
+
       const qualificationsToSave = [...form.qualifications];
       if (form.qualifications.includes('その他') && form.qualificationOther.trim()) {
         qualificationsToSave.push(form.qualificationOther.trim());
       }
-
-      // 生年月日 YYYY-MM-DD
       const birthDate = `${form.birthYear}-${String(form.birthMonth).padStart(2, '0')}-${String(form.birthDay).padStart(2, '0')}`;
 
       const res = await fetch('/api/auth/register', {
@@ -292,7 +421,7 @@ function WorkerRegisterPageInner() {
           lastName: form.lastName,
           firstName: form.firstName,
           phoneNumber: form.phoneNumber,
-          phoneVerificationToken,
+          phoneVerificationToken: token,
           birthDate,
           qualifications: qualificationsToSave,
           lastNameKana: form.lastNameKana,
@@ -313,7 +442,6 @@ function WorkerRegisterPageInner() {
       });
       const data = await res.json();
       if (!res.ok) {
-        // debug.message があれば詳細な原因も表示（ステージング診断用）
         const detailMessage = data?.debug?.message
           ? `${data.error || '登録に失敗しました'}（原因: ${data.debug.message}）`
           : (data.error || '登録に失敗しました');
@@ -324,14 +452,12 @@ function WorkerRegisterPageInner() {
           details: data?.debug?.stack,
           context: { status: res.status, debug: data?.debug },
         });
-        // インライン永続表示（toast はすぐ消えるため）
         setSubmitError(detailMessage);
         toast.error(detailMessage);
         setIsSubmitting(false);
         return;
       }
 
-      // GA4 登録完了イベント
       try {
         trackGA4Event('worker_register_complete', {
           lp_id: lpInfo.lpId || '',
@@ -352,6 +478,7 @@ function WorkerRegisterPageInner() {
       setSubmitError('登録中にエラーが発生しました。ネットワーク接続を確認して再度お試しください。');
       toast.error('登録中にエラーが発生しました');
       setIsSubmitting(false);
+      setIsVerifyingSms(false);
     }
   };
 
@@ -634,16 +761,19 @@ function WorkerRegisterPageInner() {
                 </div>
               )}
               <div className="mb-4">
-                <FieldLabel required>電話番号（SMS認証が必要です）</FieldLabel>
-                <SmsVerification
-                  phoneNumber={form.phoneNumber}
-                  onPhoneNumberChange={v => {
-                    // 電話番号を変更したら既存の認証トークンを破棄（未認証状態に戻す）
+                <FieldLabel required>電話番号</FieldLabel>
+                <PhoneNumberInput
+                  value={form.phoneNumber}
+                  onChange={v => {
                     setField('phoneNumber', v);
                     setPhoneVerificationToken(null);
                   }}
-                  onVerified={token => setPhoneVerificationToken(token)}
+                  placeholder="例：09012345678"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-[10px] focus:border-[#2AADCF] focus:outline-none"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  ※ 同意して登録を押すと、SMSで認証コードをお送りします
+                </p>
               </div>
               <div className="mb-4">
                 <FieldLabel required>メールアドレス</FieldLabel>
@@ -711,6 +841,78 @@ function WorkerRegisterPageInner() {
               </div>
             </StepContainer>
           )}
+
+          {currentStep === 'sms' && (
+            <StepContainer question="認証コードを入力してください">
+              <div className="text-center mb-6">
+                <div className="text-3xl mb-3">📱</div>
+                <p className="text-sm text-gray-700 mb-1">以下の番号宛にSMSを送信しました</p>
+                <p className="text-lg font-bold text-[#1A8FAD] tracking-wider">
+                  {formatPhoneForDisplay(form.phoneNumber)}
+                </p>
+              </div>
+
+              {submitError && (
+                <div
+                  role="alert"
+                  aria-live="polite"
+                  className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm"
+                >
+                  {submitError}
+                </div>
+              )}
+              {smsError && (
+                <div
+                  id="sms-code-error"
+                  role="alert"
+                  aria-live="polite"
+                  className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm"
+                >
+                  {smsError}
+                </div>
+              )}
+
+              <div className="mb-4">
+                <label htmlFor="sms-code-input" className="block text-sm font-semibold text-gray-800 mb-2">
+                  認証コード
+                  <span className="ml-2 text-[10px] bg-[#FF6B8A] text-white px-2 py-0.5 rounded font-semibold">
+                    必須
+                  </span>
+                </label>
+                <input
+                  id="sms-code-input"
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={6}
+                  autoComplete="one-time-code"
+                  autoFocus
+                  value={smsCode}
+                  onChange={e => {
+                    setSmsCode(e.target.value.replace(/[^0-9]/g, ''));
+                    setSmsError(null);
+                  }}
+                  placeholder="4桁または6桁のコード"
+                  className="w-full px-4 py-4 border-2 border-gray-200 rounded-[10px] focus:border-[#2AADCF] focus:outline-none text-center text-2xl tracking-[0.5em] font-bold"
+                  aria-describedby={smsError ? 'sms-code-error' : undefined}
+                />
+              </div>
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={handleResendSms}
+                  disabled={smsCooldownSeconds > 0 || isSendingSms}
+                  className="text-sm text-[#2AADCF] underline disabled:text-gray-400 disabled:no-underline"
+                >
+                  {isSendingSms
+                    ? '送信中...'
+                    : smsCooldownSeconds > 0
+                    ? `再送信まで ${smsCooldownSeconds} 秒`
+                    : '認証コードが届かない方はこちら（再送信）'}
+                </button>
+              </div>
+            </StepContainer>
+          )}
         </div>
 
         {/* フッターナビ */}
@@ -719,8 +921,8 @@ function WorkerRegisterPageInner() {
             <button
               type="button"
               onClick={goBack}
-              className="w-14 h-14 flex-shrink-0 rounded-full border-2 border-[#2AADCF] text-[#2AADCF] bg-white flex items-center justify-center text-xl"
-              disabled={isSubmitting}
+              className="w-14 h-14 flex-shrink-0 rounded-full border-2 border-[#2AADCF] text-[#2AADCF] bg-white flex items-center justify-center text-xl disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isSubmitting || isSendingSms || isVerifyingSms}
             >
               ←
             </button>
@@ -728,17 +930,23 @@ function WorkerRegisterPageInner() {
           <button
             type="button"
             onClick={goNext}
-            disabled={!isStepValid() || isSubmitting}
+            disabled={!isStepValid() || isSubmitting || isSendingSms || isVerifyingSms}
             className={`flex-1 py-4 rounded-full font-semibold text-white shadow-[0_4px_16px_rgba(42,173,207,0.3)] transition-all ${
-              isStepValid() && !isSubmitting
+              isStepValid() && !isSubmitting && !isSendingSms && !isVerifyingSms
                 ? 'bg-[#2AADCF] hover:bg-[#1A8FAD]'
                 : 'bg-[#C8E4ED] cursor-not-allowed'
             }`}
           >
             {isSubmitting
-              ? '送信中...'
+              ? '登録中...'
+              : isSendingSms
+              ? 'SMS送信中...'
+              : isVerifyingSms
+              ? '認証中...'
               : currentStep === '8'
               ? '同意して登録する'
+              : currentStep === 'sms'
+              ? '認証して登録完了'
               : '次へ'}
           </button>
         </div>
