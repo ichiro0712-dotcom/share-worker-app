@@ -27,9 +27,10 @@ import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
 
-// .env.local を自動読み込み（既存の環境変数も上書き）
+// .env.local を読み込む。ただし既存のシェル環境変数（例: 本番DBを指定した DATABASE_URL）を
+// 上書きしない。これにより `DATABASE_URL=... npx tsx ...` の形で出力先DBを明示的に切替可能。
 const envPath = path.resolve(process.cwd(), '.env.local');
-dotenv.config({ path: envPath, override: true });
+dotenv.config({ path: envPath, override: false });
 
 if (!process.env.DATABASE_URL) {
   throw new Error(`DATABASE_URL が設定されていません (読み込み元: ${envPath})`);
@@ -42,7 +43,19 @@ function parseArg(flag: string): string | undefined {
   return arg ? arg.split('=')[1] : undefined;
 }
 
-const limit = parseArg('--limit') ? parseInt(parseArg('--limit')!, 10) : undefined;
+// --limit のバリデーション: 未指定なら無制限、指定時は1以上の整数必須。
+// 不正値（0, 負数, 非数値）で「無制限扱い」になって全件PII出力を silently 実行することを防ぐ。
+const limitRaw = parseArg('--limit');
+let limit: number | undefined;
+if (limitRaw !== undefined) {
+  const parsed = Number(limitRaw);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    console.error(`--limit には1以上の整数を指定してください（受け取った値: "${limitRaw}"）`);
+    process.exit(1);
+  }
+  limit = parsed;
+}
+
 const outputArg = parseArg('--output');
 
 // ===== CSV ヘッダー（テンプレート準拠 + img_url） =====
@@ -191,7 +204,7 @@ async function main() {
       profile_image: true,
     },
     orderBy: { id: 'asc' },
-    ...(limit ? { take: limit } : {}),
+    ...(limit !== undefined ? { take: limit } : {}),
   });
 
   console.log('======================================');
@@ -217,8 +230,16 @@ async function main() {
   // UTF-8 BOM は Buffer として別途書き込み
   lines.push(CSV_HEADERS.map(csvEscape).join(','));
 
+  let skippedCount = 0;
   for (const user of users) {
     const { lastName, firstName } = splitName(user.name);
+    // whitespace だけの name (' '、'　' 等) は name !== '' のSQL条件を通過するが
+    // splitName 後に lastName が空になるケース。import先でNG行になるため事前にスキップ。
+    if (!lastName) {
+      console.warn(`[export] user ${user.id} の name が空（分割後）のためスキップします`);
+      skippedCount++;
+      continue;
+    }
     const qualifications = (user.qualifications ?? []).join(',');
     const desiredWorkDays = (user.desired_work_days ?? []).join(',');
     const workHistoryFields = expandWorkHistories(user.work_histories);
@@ -266,11 +287,21 @@ async function main() {
   // UTF-8 BOM + 本体
   const BOM = '﻿';
   const content = BOM + lines.join('\n') + '\n';
-  fs.writeFileSync(outputPath, content, 'utf-8');
+  // PII を含むファイルのため owner-only 権限 (0o600) で書き出す
+  fs.writeFileSync(outputPath, content, { encoding: 'utf-8', mode: 0o600 });
+  // writeFileSync の mode は新規作成時のみ有効なため、既存ファイルに対しては明示的にchmod
+  try {
+    fs.chmodSync(outputPath, 0o600);
+  } catch {
+    // chmod に失敗しても書き出し自体は成功しているため続行
+  }
 
+  const exportedRows = users.length - skippedCount;
   console.log(`\n✓ CSV 出力完了: ${outputPath}`);
-  console.log(`  行数: ${users.length + 1} (ヘッダー含む)`);
+  console.log(`  行数: ${exportedRows + 1} (ヘッダー含む、スキップ ${skippedCount} 件)`);
   console.log(`  列数: ${CSV_HEADERS.length}`);
+  console.log(`  ⚠ このCSVはワーカーのPII（氏名・電話・メール等）を含みます。`);
+  console.log(`    セキュアな経路で受け渡し、不要になったら確実に削除してください。`);
 
   await prisma.$disconnect();
 }
