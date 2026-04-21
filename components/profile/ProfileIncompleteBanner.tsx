@@ -28,8 +28,14 @@ export function ProfileIncompleteBanner() {
     const fetchProfile = async () => {
       try {
         const result = await getMissingProfileFields();
-        setMissingFields(result.missingFields);
-        setMissingCount(result.missingCount);
+        // hasError 時は未完了扱いしない（バナー非表示）
+        if (result.hasError) {
+          setMissingFields([]);
+          setMissingCount(0);
+        } else {
+          setMissingFields(result.missingFields);
+          setMissingCount(result.missingCount);
+        }
       } catch (error) {
         console.error('[ProfileIncompleteBanner] Error:', error);
       } finally {
