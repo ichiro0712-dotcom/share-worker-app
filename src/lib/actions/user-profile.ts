@@ -10,6 +10,7 @@ import { generateBankAccountName } from '@/lib/string-utils';
 import { validatePhoneVerificationToken } from '@/src/lib/auth/phone-verification';
 import { syncWorkerToTasLink, mapUserToTasLinkPayload } from '@/src/lib/taslink';
 import { normalizePhoneDigits, phoneLockKey as computePhoneLockKey } from '@/src/lib/auth/identifier';
+import { normalizeDesiredWorkDays } from '@/src/lib/normalize-desired-work-days';
 
 /**
  * SMS認証成功時に電話番号を即座にDBに保存する
@@ -368,6 +369,8 @@ export async function updateUserProfile(formData: FormData) {
         // 働き方・希望
         const currentWorkStyle = formData.get('currentWorkStyle') as string | null;
         const desiredWorkStyle = formData.get('desiredWorkStyle') as string | null;
+        // ユーザーが明示的に希望の働き方を変更したか（'true' 文字列を期待）
+        const desiredWorkStyleChanged = (formData.get('desiredWorkStyleChanged') as string | null) === 'true';
         const jobChangeDesire = formData.get('jobChangeDesire') as string | null;
         const desiredWorkDaysPerWeek = formData.get('desiredWorkDaysPerWeek') as string | null;
         const desiredWorkPeriod = formData.get('desiredWorkPeriod') as string | null;
@@ -408,8 +411,19 @@ export async function updateUserProfile(formData: FormData) {
             }
         }
 
-        // 希望曜日は配列に変換
-        const desiredWorkDays = desiredWorkDaysStr ? desiredWorkDaysStr.split(',').filter(d => d.trim()) : [];
+        // 希望曜日は配列に変換 + 「特になし」排他制御で正規化
+        const desiredWorkDaysRaw = desiredWorkDaysStr ? desiredWorkDaysStr.split(',').filter(d => d.trim()) : [];
+        const desiredWorkDays = normalizeDesiredWorkDays(desiredWorkDaysRaw);
+
+        // desired_work_style の CSV 保持ロジック:
+        // 編集画面は単一選択（初期値は DB CSV の先頭値）。
+        //   - ユーザーが明示的に変更していない（desiredWorkStyleChanged=false）場合は CSV 全体を保持
+        //   - ユーザーが明示的に触った場合は、送信された値（単一）で上書き（複数値→単一に潰す意思を尊重）
+        // これにより「別項目だけ更新」では CSV を保持しつつ、「希望の働き方を変えたい」は正しく反映される。
+        const existingDesiredCsv = user.desired_work_style || '';
+        const desiredWorkStyleToSave = desiredWorkStyleChanged
+          ? (desiredWorkStyle || null)
+          : (existingDesiredCsv || desiredWorkStyle || null);
 
         // 職歴は配列に変換（|||で区切り）
         const workHistories = workHistoriesStr ? workHistoriesStr.split('|||').filter(h => h.trim()) : [];
@@ -610,7 +624,7 @@ export async function updateUserProfile(formData: FormData) {
                 emergency_phone: emergencyPhone || null,
                 emergency_address: emergencyAddress || null,
                 current_work_style: currentWorkStyle || null,
-                desired_work_style: desiredWorkStyle || null,
+                desired_work_style: desiredWorkStyleToSave,
                 job_change_desire: jobChangeDesire || null,
                 desired_work_days_week: desiredWorkDaysPerWeek,
                 desired_work_period: desiredWorkPeriod || null,

@@ -10,10 +10,12 @@ import { getLegalDocument } from '@/src/lib/content-actions';
 import { trackGA4Event } from '@/src/lib/ga4-events';
 import RegistrationPageTracker from '@/components/tracking/RegistrationPageTracker';
 import { isValidPhoneNumber } from '@/utils/inputValidation';
+import { HOUR_TIME_OPTIONS } from '@/constants/time-options';
+import { normalizeDesiredWorkDays } from '@/src/lib/normalize-desired-work-days';
 
 // フォーム入力ステップ (1〜8) + SMS認証ステップ (sms)
 // PP 同意後に SMS を送信するため、認証は step 8 の後に別画面で行う
-type StepId = '1' | '2' | '2b' | '3' | '4' | '5' | '6' | '7' | '8' | 'sms';
+type StepId = '1' | '2' | '2b' | '2c' | '3' | '4' | '5' | '6' | '7' | '8' | 'sms';
 
 // 資格オプション：表示ラベルとDB保存値のマッピング
 const QUALIFICATION_OPTIONS: { label: string; value: string }[] = [
@@ -35,6 +37,19 @@ const DESIRED_WORK_STYLE_OPTIONS = [
 ];
 
 const WORK_FREQUENCY_OPTIONS = ['週1回', '週2〜3回', '週4〜5回', '週5回'];
+
+// step 2c: 希望勤務期間
+const DESIRED_WORK_PERIOD_OPTIONS = [
+  '1週間以内',
+  '3週間以内',
+  '1〜2ヶ月',
+  '3〜6ヶ月',
+  '6ヶ月以上',
+  '未定',
+];
+
+// step 2c: 希望勤務曜日（月〜日 + 特になし）
+const DESIRED_WORK_DAY_OPTIONS = ['月', '火', '水', '木', '金', '土', '日', '特になし'];
 const JOB_TIMING_OPTIONS = ['いますぐ', '1ヶ月以内', '3ヶ月以内', 'いまは情報収集のみ'];
 const EMPLOYMENT_STATUS_OPTIONS = [
   '就業中（常勤・正社員）',
@@ -109,6 +124,11 @@ function WorkerRegisterPageInner() {
     qualificationOther: '',                // その他自由記述
     desiredWorkStyle: [] as string[],     // 複数選択
     workFrequency: '',                     // step 2b（条件付き）
+    // step 2c（任意入力）
+    desiredWorkPeriod: '',                 // 希望勤務期間
+    desiredWorkDays: [] as string[],       // 希望勤務曜日（「特になし」排他）
+    desiredStartTime: '',                  // 希望開始時刻
+    desiredEndTime: '',                    // 希望終了時刻
     jobTiming: '',
     employmentStatus: '',
     postalCode: '',
@@ -180,10 +200,11 @@ function WorkerRegisterPageInner() {
 
   // ステップ順序（条件付きで 2b を挿入）
   // sms ステップは step 8 の後に続く「認証コード入力」画面（利用規約同意後に SMS 送信）
+  // 2c は任意入力の追加項目（希望勤務期間・曜日・開始/終了時刻）
   const stepSequence = useMemo<StepId[]>(() => {
     const base: StepId[] = ['1', '2'];
     if (shouldShowStep2b(form.desiredWorkStyle)) base.push('2b');
-    base.push('3', '4', '5', '6', '7', '8', 'sms');
+    base.push('2c', '3', '4', '5', '6', '7', '8', 'sms');
     return base;
   }, [form.desiredWorkStyle]);
 
@@ -204,6 +225,27 @@ function WorkerRegisterPageInner() {
     });
   };
 
+  // 希望勤務曜日の排他選択（「特になし」と月〜日の排他）
+  const toggleDesiredWorkDay = (value: string) => {
+    setForm(prev => {
+      const curr = prev.desiredWorkDays;
+      const isSelected = curr.includes(value);
+      // 既選択を外す
+      if (isSelected) {
+        return { ...prev, desiredWorkDays: curr.filter(v => v !== value) };
+      }
+      // 「特になし」を選択 → 他を全部外す
+      if (value === '特になし') {
+        return { ...prev, desiredWorkDays: ['特になし'] };
+      }
+      // 月〜日のいずれかを選択 → 「特になし」を外す
+      return {
+        ...prev,
+        desiredWorkDays: [...curr.filter(v => v !== '特になし'), value],
+      };
+    });
+  };
+
   // 各ステップのバリデーション
   const isStepValid = (): boolean => {
     switch (currentStep) {
@@ -216,6 +258,9 @@ function WorkerRegisterPageInner() {
         return form.desiredWorkStyle.length > 0;
       case '2b':
         return !!form.workFrequency;
+      case '2c':
+        // すべて任意入力（スキップ可）
+        return true;
       case '3':
         return !!form.jobTiming;
       case '4':
@@ -432,6 +477,11 @@ function WorkerRegisterPageInner() {
           city: form.city,
           desiredWorkStyle: form.desiredWorkStyle,
           workFrequency: form.workFrequency || undefined,
+          // step 2c (任意入力、空文字はサーバー側で null 扱い)
+          desiredWorkPeriod: form.desiredWorkPeriod || undefined,
+          desiredWorkDays: normalizeDesiredWorkDays(form.desiredWorkDays),
+          desiredStartTime: form.desiredStartTime || undefined,
+          desiredEndTime: form.desiredEndTime || undefined,
           jobTiming: form.jobTiming,
           employmentStatus: form.employmentStatus,
           registrationLpId: lpInfo.lpId,
@@ -575,6 +625,78 @@ function WorkerRegisterPageInner() {
                     onClick={() => setField('workFrequency', '不定期/決まっていない')}
                   />
                 )}
+              </div>
+            </StepContainer>
+          )}
+
+          {currentStep === '2c' && (
+            <StepContainer question="詳細な希望勤務条件" hint="任意入力。「次へ」で空欄のままスキップできます">
+              <div className="mb-5">
+                <FieldLabel>希望勤務期間</FieldLabel>
+                <select
+                  value={form.desiredWorkPeriod}
+                  onChange={e => setField('desiredWorkPeriod', e.target.value)}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-[10px] focus:border-[#2AADCF] focus:outline-none"
+                >
+                  <option value="">特になし</option>
+                  {DESIRED_WORK_PERIOD_OPTIONS.map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="mb-5">
+                <FieldLabel>希望勤務曜日</FieldLabel>
+                <div className="flex flex-wrap gap-2">
+                  {DESIRED_WORK_DAY_OPTIONS.map(opt => {
+                    const selected = form.desiredWorkDays.includes(opt);
+                    return (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => toggleDesiredWorkDay(opt)}
+                        aria-pressed={selected}
+                        className={`px-4 py-2 rounded-full border-2 text-sm font-semibold select-none transition-all ${
+                          selected
+                            ? 'bg-[#2AADCF] text-white border-[#2AADCF]'
+                            : 'bg-white text-gray-700 border-gray-200'
+                        }`}
+                      >
+                        {opt}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  「特になし」を選ぶと、他の曜日は自動的に外れます
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <FieldLabel>希望開始時刻</FieldLabel>
+                  <select
+                    value={form.desiredStartTime}
+                    onChange={e => setField('desiredStartTime', e.target.value)}
+                    className="w-full px-3 py-3 border-2 border-gray-200 rounded-[10px] focus:border-[#2AADCF] focus:outline-none"
+                  >
+                    <option value="">特になし</option>
+                    {HOUR_TIME_OPTIONS.map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <FieldLabel>希望終了時刻</FieldLabel>
+                  <select
+                    value={form.desiredEndTime}
+                    onChange={e => setField('desiredEndTime', e.target.value)}
+                    className="w-full px-3 py-3 border-2 border-gray-200 rounded-[10px] focus:border-[#2AADCF] focus:outline-none"
+                  >
+                    <option value="">特になし</option>
+                    {HOUR_TIME_OPTIONS.map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </StepContainer>
           )}

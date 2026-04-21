@@ -8,6 +8,12 @@ export type TestAccount = {
 
 export type TestAccounts = {
   worker: TestAccount;
+  /**
+   * CSV 保持テスト用: desired_work_style に CSV 値（複数選択）を持つワーカー。
+   * global-setup で `desired_work_style='単発・スポット,派遣'` を seed する。
+   * プロフィール編集で別項目だけ更新したとき CSV が潰れないことを検証する E2E で使用。
+   */
+  workerWithCsv: TestAccount;
   facilityAdmin: TestAccount;
   systemAdmin: TestAccount;
 };
@@ -16,6 +22,10 @@ export const DEFAULT_TEST_ACCOUNTS: TestAccounts = {
   worker: {
     email: process.env.TEST_WORKER_EMAIL || 'tanaka@example.com',
     password: process.env.TEST_WORKER_PASSWORD || 'password123',
+  },
+  workerWithCsv: {
+    email: process.env.TEST_WORKER_WITH_CSV_EMAIL || 'tanaka.csv@example.com',
+    password: process.env.TEST_WORKER_WITH_CSV_PASSWORD || 'password123',
   },
   facilityAdmin: {
     email: process.env.TEST_FACILITY_ADMIN_EMAIL || 'admin1@facility.com',
@@ -47,6 +57,10 @@ export function loadTestAccounts(): TestAccounts {
         parsed.worker?.email && parsed.worker?.password
           ? parsed.worker
           : DEFAULT_TEST_ACCOUNTS.worker,
+      workerWithCsv:
+        parsed.workerWithCsv?.email && parsed.workerWithCsv?.password
+          ? parsed.workerWithCsv
+          : DEFAULT_TEST_ACCOUNTS.workerWithCsv,
       facilityAdmin:
         parsed.facilityAdmin?.email && parsed.facilityAdmin?.password
           ? parsed.facilityAdmin
@@ -66,6 +80,10 @@ export function saveTestAccounts(next: Partial<TestAccounts>): TestAccounts {
   const merged: TestAccounts = {
     worker:
       next.worker?.email && next.worker?.password ? next.worker : current.worker,
+    workerWithCsv:
+      next.workerWithCsv?.email && next.workerWithCsv?.password
+        ? next.workerWithCsv
+        : current.workerWithCsv,
     facilityAdmin:
       next.facilityAdmin?.email && next.facilityAdmin?.password
         ? next.facilityAdmin

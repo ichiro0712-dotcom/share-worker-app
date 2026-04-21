@@ -122,18 +122,36 @@ function mapGender(gender: string | null | undefined): TasLinkWorkerPayload['gen
   return mapping[gender] || 'UNSPECIFIED';
 }
 
-/** 就業形態希望をTasLink形式に変換 */
+/** 就業形態希望をTasLink形式に変換（旧値・新値・CSV すべて対応） */
 function mapWorkPreference(style: string | null | undefined): TasLinkWorkerPayload['workPreference'] | undefined {
   if (!style) return undefined;
+  // CSV 形式（複数選択）の場合は先頭値を採用
+  const first = style.split(',')[0]?.trim() ?? '';
+  if (!first) return undefined;
+
   const mapping: Record<string, TasLinkWorkerPayload['workPreference']> = {
+    // 旧値
     '単発': 'ONE_TIME',
     '単発希望': 'ONE_TIME',
     '継続': 'ONGOING',
     '継続希望': 'ONGOING',
+    '非常勤': 'ONGOING',
     'どちらも': 'BOTH',
     'どちらも可': 'BOTH',
+    // プロフィール編集の既存 option
+    '正社員': 'ONGOING',
+    'パート・アルバイト': 'ONGOING',
+    '派遣': 'ONGOING',
+    '契約社員': 'ONGOING',
+    'その他': undefined as unknown as TasLinkWorkerPayload['workPreference'],
+    // 新登録フォームの値
+    '単発・スポット': 'ONE_TIME',
+    '常勤・正社員': 'ONGOING',
+    '非常勤・パート（扶養内）': 'ONGOING',
+    '非常勤・パート（扶養外）': 'ONGOING',
+    'こだわらない': 'BOTH',
   };
-  return mapping[style] || undefined;
+  return mapping[first] || undefined;
 }
 
 /** タスタス資格配列 → TasLink jobTypes 配列に変換（重複排除） */
