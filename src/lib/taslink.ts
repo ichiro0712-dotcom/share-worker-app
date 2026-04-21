@@ -180,6 +180,10 @@ export function mapUserToTasLinkPayload(user: UserDataForSync): TasLinkWorkerPay
     externalId: String(user.id),
     lastName: nameResult.lastName,
     firstName: nameResult.firstName,
+    // tastas 経由で登録/同期されたワーカーを示す固定値。
+    // TasLink 側の登録経路マスタに合わせる値。
+    // 変更が必要な場合は TASLINK_REGISTRATION_SOURCE 環境変数で上書き可能。
+    registrationSource: process.env.TASLINK_REGISTRATION_SOURCE || 'ジョブマッチング',
   };
 
   if (user.last_name_kana) payload.lastNameKana = user.last_name_kana;
