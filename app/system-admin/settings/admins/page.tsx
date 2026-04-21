@@ -86,17 +86,19 @@ export default function SystemAdminsPage() {
             toast.error('名前を入力してください');
             return;
         }
-        if (!newAdmin.email?.trim()) {
+        const trimmedEmail = newAdmin.email?.trim() ?? '';
+        if (!trimmedEmail) {
             toast.error('メールアドレスを入力してください');
             return;
         }
-        if (!isValidEmail(newAdmin.email)) {
+        if (!isValidEmail(trimmedEmail)) {
             toast.error('メールアドレスの形式が正しくありません');
             return;
         }
 
         try {
-            const result = await createSystemAdmin(newAdmin);
+            // trim 済みのアドレスを渡して、空白入りデータがDBに保存されるのを防ぐ
+            const result = await createSystemAdmin({ ...newAdmin, email: trimmedEmail });
             if (result.success && result.initialPassword) {
                 toast.success('管理者を作成しました');
                 setCreatedCredentials({ password: result.initialPassword });
