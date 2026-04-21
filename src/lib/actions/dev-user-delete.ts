@@ -113,9 +113,11 @@ export async function deleteWorkerCompletely(
         //      FOR KEY SHARE を取得する。FOR UPDATE はこれと競合するため、
         //      トランザクション commit まで新規 FK 子行の作成をブロックできる
         const userLockKey = BigInt(user.id);
-        await tx.$queryRaw(
+        // pg_advisory_xact_lock は void を返すため $executeRaw を使用
+        await tx.$executeRaw(
           Prisma.sql`SELECT pg_advisory_xact_lock(${userLockKey}::bigint)`
         );
+        // SELECT FOR UPDATE は行を返すため $queryRaw でよい
         await tx.$queryRaw(
           Prisma.sql`SELECT id FROM users WHERE id = ${user.id} FOR UPDATE`
         );

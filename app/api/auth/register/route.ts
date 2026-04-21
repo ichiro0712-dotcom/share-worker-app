@@ -199,7 +199,9 @@ export async function POST(request: NextRequest) {
     try {
       user = await prisma.$transaction(async (tx) => {
         // 電話番号に対する advisory lock（トランザクション終了まで保持、他セッションは待機）
-        await tx.$queryRaw(
+        // pg_advisory_xact_lock は void を返すため $executeRaw を使用（$queryRaw だと
+        // 「Failed to deserialize column of type 'void'」エラーになる）
+        await tx.$executeRaw(
           Prisma.sql`SELECT pg_advisory_xact_lock(${lockKey}::bigint)`
         );
 
