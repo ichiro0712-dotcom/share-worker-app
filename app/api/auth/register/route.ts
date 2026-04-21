@@ -11,6 +11,7 @@ import { validatePhoneVerificationToken } from '@/src/lib/auth/phone-verificatio
 import { syncWorkerToTasLink, mapUserToTasLinkPayload } from '@/src/lib/taslink';
 import { issueSessionCookie } from '@/src/lib/auth/session-cookie';
 import { normalizePhoneDigits, phoneLockKey } from '@/src/lib/auth/identifier';
+import { normalizeDesiredWorkDays } from '@/src/lib/normalize-desired-work-days';
 
 interface RegisterBody {
   email: string;
@@ -36,6 +37,11 @@ interface RegisterBody {
   // 新登録フロー（モック8ステップ）項目
   desiredWorkStyle?: string[];     // 希望の働き方（複数選択）
   workFrequency?: string;           // 週の頻度（step 2b）
+  // step 2c（任意入力）
+  desiredWorkPeriod?: string;       // 希望勤務期間
+  desiredWorkDays?: string[];       // 希望勤務曜日（「特になし」排他）
+  desiredStartTime?: string;        // 希望開始時刻
+  desiredEndTime?: string;          // 希望終了時刻
   jobTiming?: string;               // いつ頃探しているか
   employmentStatus?: string;        // 現在の就業状況
   // LP経由登録情報
@@ -79,6 +85,10 @@ export async function POST(request: NextRequest) {
       qualificationCertificates,
       desiredWorkStyle,
       workFrequency,
+      desiredWorkPeriod,
+      desiredWorkDays,
+      desiredStartTime,
+      desiredEndTime,
       jobTiming,
       employmentStatus,
       registrationLpId,
@@ -246,6 +256,11 @@ export async function POST(request: NextRequest) {
             desired_work_days_week: workFrequency || null,
             job_change_desire: jobTiming || null,
             current_work_style: employmentStatus || null,
+            // step 2c（任意入力）
+            desired_work_period: desiredWorkPeriod || null,
+            desired_work_days: normalizeDesiredWorkDays(desiredWorkDays),
+            desired_start_time: desiredStartTime || null,
+            desired_end_time: desiredEndTime || null,
             // LP経由登録情報（フォールバックチェーン適用済み）
             registration_lp_id: resolvedLpId,
             registration_campaign_code: resolvedCampaignCode,

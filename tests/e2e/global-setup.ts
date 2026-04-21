@@ -49,6 +49,49 @@ async function ensureWorker(
   return account;
 }
 
+/**
+ * CSV 保持テスト用の worker を作成/更新。
+ * `desired_work_style` に CSV 値（複数選択相当）を設定する。
+ */
+async function ensureWorkerWithCsv(
+  prisma: PrismaClient,
+  account: ExistingAccount
+): Promise<ExistingAccount> {
+  const existing = await prisma.user.findUnique({
+    where: { email: account.email },
+    select: { id: true, password_hash: true },
+  });
+
+  const passwordHash = await bcrypt.hash(account.password, 10);
+  const CSV_VALUE = '単発・スポット,派遣';
+
+  if (!existing) {
+    await prisma.user.create({
+      data: {
+        email: account.email,
+        password_hash: passwordHash,
+        name: 'E2E CSV Worker',
+        phone_number: '09099999999',
+        qualifications: ['介護福祉士'],
+        desired_work_style: CSV_VALUE,
+      },
+    });
+    return account;
+  }
+
+  const isValid = await bcrypt.compare(account.password, existing.password_hash);
+  await prisma.user.update({
+    where: { id: existing.id },
+    data: {
+      ...(isValid ? {} : { password_hash: passwordHash }),
+      // 毎回 seed の CSV 値にリセット（テストの前提条件を確定させる）
+      desired_work_style: CSV_VALUE,
+    },
+  });
+
+  return account;
+}
+
 async function ensureFacilityAdmin(
   prisma: PrismaClient,
   account: ExistingAccount
@@ -154,6 +197,10 @@ export default async function globalSetup() {
       email: `e2e-worker-${timestamp}@example.com`,
       password: DEFAULT_TEST_ACCOUNTS.worker.password,
     },
+    workerWithCsv: {
+      email: `e2e-worker-csv-${timestamp}@example.com`,
+      password: DEFAULT_TEST_ACCOUNTS.workerWithCsv.password,
+    },
     facilityAdmin: {
       email: `e2e-admin-${timestamp}@example.com`,
       password: DEFAULT_TEST_ACCOUNTS.facilityAdmin.password,
@@ -165,20 +212,23 @@ export default async function globalSetup() {
   };
 
   const hasWorkerAccount = !!(accounts?.worker?.email && accounts?.worker?.password);
+  const hasWorkerWithCsvAccount = !!(accounts?.workerWithCsv?.email && accounts?.workerWithCsv?.password);
   const hasFacilityAccount = !!(accounts?.facilityAdmin?.email && accounts?.facilityAdmin?.password);
   const hasSystemAdminAccount = !!(accounts?.systemAdmin?.email && accounts?.systemAdmin?.password);
 
   const resolvedAccounts: TestAccounts = {
     worker: hasWorkerAccount ? accounts!.worker! : fallbackAccounts.worker,
+    workerWithCsv: hasWorkerWithCsvAccount ? accounts!.workerWithCsv! : fallbackAccounts.workerWithCsv,
     facilityAdmin: hasFacilityAccount ? accounts!.facilityAdmin! : fallbackAccounts.facilityAdmin,
     systemAdmin: hasSystemAdminAccount ? accounts!.systemAdmin! : fallbackAccounts.systemAdmin,
   };
 
   try {
     const worker = await ensureWorker(prisma, resolvedAccounts.worker);
+    const workerWithCsv = await ensureWorkerWithCsv(prisma, resolvedAccounts.workerWithCsv);
     const facilityAdmin = await ensureFacilityAdmin(prisma, resolvedAccounts.facilityAdmin);
     const systemAdmin = await ensureSystemAdmin(prisma, resolvedAccounts.systemAdmin);
-    const finalAccounts: TestAccounts = { worker, facilityAdmin, systemAdmin };
+    const finalAccounts: TestAccounts = { worker, workerWithCsv, facilityAdmin, systemAdmin };
 
     fs.mkdirSync(path.dirname(ACCOUNTS_PATH), { recursive: true });
     fs.writeFileSync(ACCOUNTS_PATH, JSON.stringify(finalAccounts, null, 2));
