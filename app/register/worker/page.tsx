@@ -644,42 +644,44 @@ function WorkerRegisterPageInner() {
                 />
               </div>
               <div className="space-y-1 mt-6">
-                <label className="flex items-start gap-3 text-sm cursor-pointer py-2 px-1 min-h-[44px] active:bg-gray-50 rounded-lg select-none">
+                <div className="flex items-start gap-3 py-2 px-1 min-h-[44px] select-none">
                   <input
+                    id="agree-terms"
                     type="checkbox"
                     checked={agreedToTerms}
                     onChange={e => setAgreedToTerms(e.target.checked)}
                     className="mt-1 w-5 h-5 flex-shrink-0 accent-[#2AADCF] cursor-pointer"
                   />
-                  <span className="leading-relaxed">
+                  <div className="leading-relaxed text-sm flex-1">
                     <button
                       type="button"
-                      onClick={e => { e.preventDefault(); setShowTermsModal(true); }}
+                      onClick={() => setShowTermsModal(true)}
                       className="text-[#2AADCF] underline font-medium"
                     >
                       利用規約
                     </button>
-                    に同意する
-                  </span>
-                </label>
-                <label className="flex items-start gap-3 text-sm cursor-pointer py-2 px-1 min-h-[44px] active:bg-gray-50 rounded-lg select-none">
+                    <label htmlFor="agree-terms" className="cursor-pointer">に同意する</label>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 py-2 px-1 min-h-[44px] select-none">
                   <input
+                    id="agree-privacy"
                     type="checkbox"
                     checked={agreedToPrivacy}
                     onChange={e => setAgreedToPrivacy(e.target.checked)}
                     className="mt-1 w-5 h-5 flex-shrink-0 accent-[#2AADCF] cursor-pointer"
                   />
-                  <span className="leading-relaxed">
+                  <div className="leading-relaxed text-sm flex-1">
                     <button
                       type="button"
-                      onClick={e => { e.preventDefault(); setShowPrivacyModal(true); }}
+                      onClick={() => setShowPrivacyModal(true)}
                       className="text-[#2AADCF] underline font-medium"
                     >
                       プライバシーポリシー
                     </button>
-                    に同意する
-                  </span>
-                </label>
+                    <label htmlFor="agree-privacy" className="cursor-pointer">に同意する</label>
+                  </div>
+                </div>
               </div>
               <div className="flex justify-center gap-4 mt-6 text-xs text-gray-500">
                 <span>🔒 SSL暗号化通信</span>

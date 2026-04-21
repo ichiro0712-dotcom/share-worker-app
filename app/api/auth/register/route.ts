@@ -355,16 +355,21 @@ export async function POST(request: NextRequest) {
       url: '/api/auth/register',
     }).catch(logErr => console.error('Failed to log activity:', logErr));
 
-    // デバッグ用：エラー詳細を返す（本番運用開始後は削除）
+    // 本番環境では詳細情報を秘匿（開発・EXPOSE_DEBUG_ERRORS=true の場合のみ公開）
+    const exposeDebug =
+      process.env.NODE_ENV !== 'production' ||
+      process.env.EXPOSE_DEBUG_ERRORS === 'true';
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorStack = error instanceof Error ? error.stack : undefined;
     return NextResponse.json(
       {
         error: '登録中にエラーが発生しました',
-        debug: {
-          message: errorMessage,
-          stack: errorStack?.split('\n').slice(0, 5).join('\n'),
-        }
+        ...(exposeDebug ? {
+          debug: {
+            message: errorMessage,
+            stack: errorStack?.split('\n').slice(0, 5).join('\n'),
+          },
+        } : {}),
       },
       { status: 500 }
     );
