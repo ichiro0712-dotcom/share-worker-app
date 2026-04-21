@@ -32,7 +32,8 @@ export async function savePhoneVerification(phoneNumber: string, verificationTok
         const lockKey = computePhoneLockKey(normalizedPhone);
         try {
             await prisma.$transaction(async (tx) => {
-                await tx.$queryRaw(
+                // pg_advisory_xact_lock は void を返すため $executeRaw を使用
+                await tx.$executeRaw(
                     Prisma.sql`SELECT pg_advisory_xact_lock(${lockKey}::bigint)`
                 );
                 const dup = await tx.$queryRaw<{ id: number }[]>(
@@ -621,7 +622,8 @@ export async function updateUserProfile(formData: FormData) {
             const lockKey = computePhoneLockKey(normalizedPhone);
             try {
                 await prisma.$transaction(async (tx) => {
-                    await tx.$queryRaw(
+                    // pg_advisory_xact_lock は void を返すため $executeRaw を使用
+                    await tx.$executeRaw(
                         Prisma.sql`SELECT pg_advisory_xact_lock(${lockKey}::bigint)`
                     );
                     // ロック取得後、直前再チェック（正規化比較）
