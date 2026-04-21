@@ -351,6 +351,14 @@ export async function updateSingleFaqOrder(id: number, sortOrder: number) {
 
 // ========== 利用規約・プライバシーポリシー ==========
 
+// 公開ページ（ISR/動的レンダリング）のキャッシュ無効化対象
+function getPublicLegalPaths(docType: 'TERMS' | 'PRIVACY', targetType: 'WORKER' | 'FACILITY'): string[] {
+    if (docType === 'PRIVACY' && targetType === 'WORKER') return ['/privacy'];
+    if (docType === 'TERMS' && targetType === 'WORKER') return ['/terms'];
+    if (docType === 'TERMS' && targetType === 'FACILITY') return ['/terms/facility'];
+    return [];
+}
+
 export async function getLegalDocument(docType: 'TERMS' | 'PRIVACY', targetType: 'WORKER' | 'FACILITY') {
     const doc = await prisma.legalDocument.findFirst({
         where: {
@@ -413,6 +421,9 @@ export async function createLegalDocument(data: {
     });
 
     revalidatePath('/system-admin/content/legal');
+    for (const path of getPublicLegalPaths(data.docType, data.targetType)) {
+        revalidatePath(path);
+    }
     return doc;
 }
 
@@ -443,6 +454,9 @@ export async function revertToLegalDocumentVersion(id: number) {
     });
 
     revalidatePath('/system-admin/content/legal');
+    for (const path of getPublicLegalPaths(targetDoc.doc_type as 'TERMS' | 'PRIVACY', targetDoc.target_type as 'WORKER' | 'FACILITY')) {
+        revalidatePath(path);
+    }
 }
 
 // ========== ご利用ガイド ==========
