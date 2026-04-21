@@ -405,7 +405,7 @@ export async function getJobs(
     }
 
     // Date型を文字列に変換してシリアライズ可能にする
-    return jobs.map((job) => {
+    const result = jobs.map((job) => {
         // 一番近い勤務日を取得（互換性のため）
         const nearestWorkDate = job.workDates.length > 0 ? job.workDates[0] : null;
         // 総応募数を計算
@@ -502,6 +502,16 @@ export async function getJobs(
             isRecruitmentClosed: workDatesWithAvailability.length > 0 && workDatesWithAvailability.every(wd => wd.isRecruitmentClosed),
         };
     });
+
+    // 募集終了求人を下にまとめる（応募可能な求人が上、募集終了が下）
+    result.sort((a, b) => {
+        const aActive = a.hasAvailableWorkDate && !a.isRecruitmentClosed;
+        const bActive = b.hasAvailableWorkDate && !b.isRecruitmentClosed;
+        if (aActive === bActive) return 0;
+        return aActive ? -1 : 1;
+    });
+
+    return result;
 }
 
 /**
@@ -1330,6 +1340,14 @@ export async function getJobsListWithPagination(
     }
 
     const cleanedJobs = filteredJobsWithDistance.map(({ _distance, ...job }) => job);
+
+    // 募集終了求人を下にまとめる（応募可能な求人が上、募集終了が下）
+    cleanedJobs.sort((a, b) => {
+        const aActive = a.hasAvailableWorkDate && !a.isExpired && !a.isRecruitmentClosed;
+        const bActive = b.hasAvailableWorkDate && !b.isExpired && !b.isRecruitmentClosed;
+        if (aActive === bActive) return 0;
+        return aActive ? -1 : 1;
+    });
 
     return {
         jobs: cleanedJobs,

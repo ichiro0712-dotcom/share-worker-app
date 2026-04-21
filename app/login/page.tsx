@@ -3,12 +3,13 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { User, Lock, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getCsrfToken } from 'next-auth/react';
 import toast from 'react-hot-toast';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { parseLoginIdentifier } from '@/src/lib/auth/identifier';
 
 export default function WorkerLogin() {
   return (
@@ -23,11 +24,10 @@ function WorkerLoginInner() {
   const searchParams = useSearchParams();
   const { login, isLoading: authLoading } = useAuth();
   const { showDebugError } = useDebugError();
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
-  const [isEmailNotVerified, setIsEmailNotVerified] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [csrfReady, setCsrfReady] = useState(false);
 
@@ -42,36 +42,35 @@ function WorkerLoginInner() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setIsEmailNotVerified(false);
 
-    if (!email || !password) {
-      setError('メールアドレスとパスワードを入力してください');
+    if (!identifier || !password) {
+      setError('メールアドレスまたは電話番号とパスワードを入力してください');
+      return;
+    }
+
+    const parsed = parseLoginIdentifier(identifier);
+    if (parsed.type === 'invalid') {
+      setError('メールアドレスまたは電話番号の形式が正しくありません');
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      const result = await login(email, password);
+      const result = await login(identifier, password);
 
       if (result.success) {
         toast.success('ログインしました');
         // セッションCookieが確実に反映されるようフルページナビゲーション
         window.location.href = '/';
       } else {
-        // メール未認証エラーの場合
-        if (result.error?.includes('EMAIL_NOT_VERIFIED')) {
-          setIsEmailNotVerified(true);
-          setError('メールアドレスが認証されていません。登録時に送信された確認メールのリンクをクリックしてください。');
-        } else {
-          showDebugError({
-            type: 'other',
-            operation: 'ログイン',
-            message: result.error || 'ログインに失敗しました',
-            context: { email }
-          });
-          setError(result.error || 'ログインに失敗しました');
-        }
+        showDebugError({
+          type: 'other',
+          operation: 'ログイン',
+          message: result.error || 'ログインに失敗しました',
+          context: { identifier }
+        });
+        setError(result.error || 'ログインに失敗しました');
       }
     } catch (err) {
       const debugInfo = extractDebugInfo(err);
@@ -81,7 +80,7 @@ function WorkerLoginInner() {
         message: debugInfo.message,
         details: debugInfo.details,
         stack: debugInfo.stack,
-        context: { email }
+        context: { identifier }
       });
       setError('ログイン中にエラーが発生しました');
     } finally {
@@ -113,34 +112,26 @@ function WorkerLoginInner() {
           {error && (
             <div className="mb-4 p-3 bg-white/90 border border-red-200 rounded-lg text-red-700 text-sm">
               <p>{error}</p>
-              {isEmailNotVerified && (
-                <Link
-                  href={`/auth/resend-verification?email=${encodeURIComponent(email)}`}
-                  className="mt-2 block text-primary font-medium hover:underline"
-                >
-                  確認メールを再送信する
-                </Link>
-              )}
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* メールアドレス */}
+            {/* メールアドレス or 電話番号 */}
             <div>
               <label className="block text-sm font-medium mb-2 text-white">
-                メールアドレス
+                メールアドレス または 電話番号
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
-                  type="email"
-                  id="login-email"
-                  name="email"
+                  type="text"
+                  id="login-identifier"
+                  name="identifier"
                   autoComplete="username"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 border-0 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50 bg-white"
-                  placeholder="yamada.taro@example.com"
+                  placeholder="メールアドレス または 電話番号"
                 />
               </div>
             </div>

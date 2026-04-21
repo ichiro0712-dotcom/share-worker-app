@@ -1,6 +1,6 @@
 # +タスタス - 画面仕様書（実装ベース）
 
-> **最終更新**: 2025-12-15
+> **最終更新**: 2026-04-09
 > **ステータス**: 実稼働システムからの逆引き定義
 
 ---
@@ -12,7 +12,8 @@
 /                           → 求人一覧（トップ）
 /jobs/[id]                  → 求人詳細
 /login                      → ログイン
-/register                   → 会員登録（工事中）
+/register                   → /register/worker へリダイレクト
+/register/worker             → ワーカー新規登録（詳細は下記「登録フロー補足」参照）
 /application-confirm        → 応募確認
 /application-complete       → 応募完了
 /my-jobs                    → 仕事管理（応募・勤務状況）
@@ -28,6 +29,53 @@
 /favorites                  → お気に入り
 /facilities/[id]            → 施設詳細
 ```
+
+#### 登録フロー補足: `/register/worker`
+
+**ステップ遷移（URL変化なし・useState切替）:**
+```
+ステップ1: アカウント・基本情報
+  - メールアドレス（確認入力あり）
+  - 電話番号 + SMS認証（※下記参照）
+  - パスワード（確認入力あり）
+  - 氏名・フリガナ
+    ↓ 「次へ」ボタン（バリデーション通過後）
+ステップ2: 住所・資格・同意
+  - 住所（都道府県・市区町村）
+  - 保有資格（複数選択可）
+  - 利用規約・プライバシーポリシー同意
+    ↓ 「登録する」ボタン
+登録完了 → /auth/verify-pending へリダイレクト
+```
+
+**SMS認証フロー（SmsVerificationコンポーネント内 state遷移）:**
+```
+[input] 電話番号入力
+  ↓ 「認証コードを送信」ボタン
+  ↓ API: POST /api/sms/send-code
+[codeSent] 6桁認証コード入力
+  ↓ 「確認」ボタン
+  ↓ API: POST /api/sms/verify-code → JWTトークン取得
+[verified] 認証済み表示（✓ 電話番号認証済み）
+```
+- 再送信クールダウン: 60秒
+- 電話番号変更時: 自動で[input]状態にリセット
+- 認証成功時: verificationToken（JWT）を親フォームに返却
+- URL遷移・ページ遷移: 一切なし
+- GA4タグ発火: なし
+
+**GA4イベント発火ポイント:**
+| タイミング | イベント名 | 備考 |
+|---|---|---|
+| ページ表示時 | `registration_page_view` | RegistrationPageTracker.tsx、API記録あり |
+| 登録完了時 | `sign_up` | method=email、LP情報付与 |
+| ステップ遷移時 | なし | - |
+| SMS認証時 | なし | - |
+
+**関連ファイル:**
+- コンポーネント: `components/ui/SmsVerification.tsx`
+- トラッカー: `components/tracking/RegistrationPageTracker.tsx`
+- API: `app/api/sms/send-code/route.ts`, `app/api/sms/verify-code/route.ts`
 
 ### 1.2 施設管理者向け画面（17画面）
 ```
@@ -49,6 +97,56 @@
 /admin/worker-reviews           → ワーカーレビュー
 /admin/facility                 → 施設情報
 /admin/notifications            → 通知
+```
+
+### 1.3 システム管理者向け画面（46画面）
+```
+/system-admin/login                          → ログイン
+/system-admin                                → ダッシュボード
+/system-admin/analytics                      → アナリティクス
+/system-admin/analytics/ai                   → マッチング最適化AI
+/system-admin/analytics/export               → スプレッドシートDL
+/system-admin/analytics/regions              → 地域登録
+/system-admin/alerts                         → アラート一覧
+/system-admin/workers                        → ワーカー管理
+/system-admin/workers/[id]                   → ワーカー詳細
+/system-admin/facilities                     → 施設管理
+/system-admin/facilities/new                 → 施設新規登録
+/system-admin/jobs                           → 求人管理
+/system-admin/attendance                     → 勤怠管理
+/system-admin/csv-export                     → CSV出力
+/system-admin/announcements                  → お知らせ管理
+/system-admin/announcements/create           → お知らせ新規作成
+/system-admin/announcements/[id]             → お知らせ編集
+/system-admin/content                        → コンテンツ管理ハブ
+/system-admin/content/faq                    → FAQ編集
+/system-admin/content/user-guide             → ご利用ガイド編集
+/system-admin/content/legal                  → 利用規約・PP編集
+/system-admin/content/notifications          → 通知管理
+/system-admin/content/labor-template         → 労働条件通知書テンプレート
+/system-admin/content/templates              → テンプレート管理
+/system-admin/lp                             → LP管理
+/system-admin/lp/genres                      → LPジャンル管理
+/system-admin/lp/guide                       → LP作成ガイド
+/system-admin/lp/recommended-jobs            → おすすめ求人管理
+/system-admin/lp/recommended-jobs/preview    → おすすめ求人プレビュー
+/system-admin/lp/tracking                    → LPトラッキング
+/system-admin/lp/tracking/public-jobs        → 公開求人トラッキング
+/system-admin/lp/tracking/spec               → トラッキングスペック
+/system-admin/settings/admins                → 管理者アカウント管理
+/system-admin/settings/form-destinations     → フォーム送信先設定
+/system-admin/settings/minimum-wage          → 最低賃金管理
+/system-admin/settings/system                → システム設定
+/system-admin/dev-portal                     → 開発者ポータル
+/system-admin/dev-portal/admin-logs          → 管理者ログ
+/system-admin/dev-portal/logs                → システムログ
+/system-admin/dev-portal/notification-logs   → 通知ログ
+/system-admin/dev-portal/error-alert         → エラーアラート設定
+/system-admin/dev-portal/test-notifications  → テスト通知
+/system-admin/dev-portal/debug-checklist     → デバッグチェックリスト
+/system-admin/dev-portal/debug-time          → デバッグ時刻制御
+/system-admin/dev-portal/sample-images       → サンプル画像
+/system-admin/dev-portal/formulas            → 給与計算式
 ```
 
 ---
@@ -589,6 +687,7 @@
 
 | 日付 | 内容 |
 |------|------|
+| 2026-04-09 | システム管理者向け画面一覧（46画面）をセクション1.3に追加 |
 | 2025-12-15 | 求人詳細画面に応募確認モーダル追加（審査あり/なし対応、自己PR編集機能） |
 | 2025-12-15 | 仕事管理画面のキャンセル確認モーダル仕様拡充（SCHEDULED/WORKINGタブ） |
 | 2025-12-15 | 施設側応募管理画面でcancelled_by区別表示追加、審査中→応募取消への用語変更 |

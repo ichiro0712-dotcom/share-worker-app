@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
+import { getServerSession } from 'next-auth';
+import prisma from '@/lib/prisma';
+import { authOptions } from '@/lib/auth';
 import { sendVerificationCode } from '@/src/lib/cpaasnow';
 import { isValidPhoneNumber } from '@/utils/inputValidation';
+import { normalizePhoneDigits } from '@/src/lib/auth/identifier';
 
 // インメモリレート制限: 電話番号あたり10分間で最大3回
 const rateLimitMap = new Map<string, { count: number; windowStart: number }>();
@@ -40,6 +45,39 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: '有効な日本の電話番号を入力してください' },
         { status: 400 }
+      );
+    }
+
+    // 既に登録済みの電話番号には SMS を送信しない
+    // （SMS 配信コストの無駄、UX 悪化防止）
+    // DB 側も正規化比較（ハイフン・全角数字混在のレガシーデータ対応）
+    // ログイン済みの場合は自分自身の既存レコードを除外（プロフィール編集での再認証に対応）
+    const session = await getServerSession(authOptions);
+    const selfUserId = session?.user?.id ? parseInt(session.user.id, 10) : null;
+    const normalizedPhone = normalizePhoneDigits(phoneNumber);
+    const existingUser = selfUserId
+      ? await prisma.$queryRaw<{ id: number }[]>(
+          Prisma.sql`SELECT id FROM users
+            WHERE regexp_replace(translate(phone_number, '０１２３４５６７８９', '0123456789'), '[^0-9]', '', 'g') = ${normalizedPhone}
+            AND phone_verified = true
+            AND deleted_at IS NULL
+            AND id <> ${selfUserId}
+            LIMIT 1`
+        )
+      : await prisma.$queryRaw<{ id: number }[]>(
+          Prisma.sql`SELECT id FROM users
+            WHERE regexp_replace(translate(phone_number, '０１２３４５６７８９', '0123456789'), '[^0-9]', '', 'g') = ${normalizedPhone}
+            AND phone_verified = true
+            AND deleted_at IS NULL
+            LIMIT 1`
+        );
+    if (existingUser.length > 0) {
+      return NextResponse.json(
+        {
+          error: 'この電話番号は既に登録されています。ログインページからログインしてください。',
+          errorCode: 'PHONE_ALREADY_REGISTERED',
+        },
+        { status: 409 }
       );
     }
 

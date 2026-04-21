@@ -8,7 +8,13 @@ const API_TOKEN = process.env.CPAAS_NOW_API_TOKEN;
 
 // SMS本文テンプレート
 // {{verification_code}}: 認証コードに置換、{{expiration_minutes}}: 有効期限(分)に置換
+// CPaaS NOW 要件: {{expiration_minutes}} プレースホルダを本文に含めること
 const SMS_TEMPLATE = '【タスタス】認証コード: {{verification_code}}\r\n有効期限: {{expiration_minutes}}分';
+
+// CPaaS NOW の API 制約により 5-60 分のみ有効。
+// SMS コード自体の有効期限（コード検証はこの時間内に実施する必要がある）。
+// 検証成功後に発行する JWT（src/lib/auth/phone-verification.ts）は 7 日間有効。
+const SMS_EXPIRATION_MINUTES = 60;
 
 export interface SendCodeResult {
   success: boolean;
@@ -45,7 +51,7 @@ export async function sendVerificationCode(phoneNumber: string): Promise<SendCod
         message: SMS_TEMPLATE,
         code_type: 'numeric',
         code_size: 6,
-        expiration_minutes: 10,
+        expiration_minutes: SMS_EXPIRATION_MINUTES,
       }),
     });
 

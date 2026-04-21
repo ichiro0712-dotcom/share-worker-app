@@ -14,6 +14,7 @@ import toast from 'react-hot-toast';
 import AddressSelector from '@/components/ui/AddressSelector';
 import { KatakanaInput, KatakanaWithSpaceInput } from '@/components/ui/KatakanaInput';
 import { PhoneNumberInput } from '@/components/ui/PhoneNumberInput';
+import { HOUR_TIME_OPTIONS } from '@/constants/time-options';
 import { SmsVerification } from '@/components/ui/SmsVerification';
 import { QUALIFICATION_GROUPS } from '@/constants/qualifications';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
@@ -195,7 +196,8 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
 
     // 2. 働き方と希望
     currentWorkStyle: userProfile.current_work_style || '',
-    desiredWorkStyle: userProfile.desired_work_style || '',
+    // desired_work_style は CSV 形式の可能性があるため、最初の値をドロップダウン初期値として取り出す
+    desiredWorkStyle: (userProfile.desired_work_style || '').split(',')[0] || '',
     jobChangeDesire: userProfile.job_change_desire || '',
     desiredWorkDaysPerWeek: userProfile.desired_work_days_week || '',
     desiredWorkPeriod: userProfile.desired_work_period || '',
@@ -246,6 +248,9 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
   const [isSaving, setIsSaving] = useState(false);
   // バリデーションエラー表示用（送信時にtrueになる）
   const [showErrors, setShowErrors] = useState(false);
+  // 希望の働き方をユーザーが明示的に変更したか（CSV 保持判定用）
+  // 初期マウント時は false、ドロップダウン onChange で true
+  const [desiredWorkStyleDirty, setDesiredWorkStyleDirty] = useState(false);
   // 電話番号SMS認証トークン
   const [phoneVerificationToken, setPhoneVerificationToken] = useState<string | null>(null);
   // 電話番号が変更されたかどうか
@@ -340,10 +345,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
 
   const weekDays = ['月', '火', '水', '木', '金', '土', '日', '特になし'];
 
-  const timeOptions = Array.from({ length: 24 }, (_, i) => {
-    const hour = i.toString().padStart(2, '0');
-    return `${hour}:00`;
-  });
+  const timeOptions = HOUR_TIME_OPTIONS;
 
   const handleCheckboxChange = (field: 'qualifications' | 'experienceFields' | 'desiredWorkDays', value: string) => {
     setFormData(prev => {
@@ -645,6 +647,9 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
       // 働き方・希望
       form.append('currentWorkStyle', formData.currentWorkStyle);
       form.append('desiredWorkStyle', formData.desiredWorkStyle);
+      // ユーザーが desiredWorkStyle を明示的に触った場合のフラグ
+      // （CSV 複数値を単一値に潰す意思の有無を区別するため）
+      form.append('desiredWorkStyleChanged', desiredWorkStyleDirty ? 'true' : 'false');
       form.append('jobChangeDesire', formData.jobChangeDesire);
       form.append('desiredWorkDaysPerWeek', formData.desiredWorkDaysPerWeek);
       form.append('desiredWorkPeriod', formData.desiredWorkPeriod);
@@ -937,6 +942,13 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                   className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.currentWorkStyle ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                 >
                   <option value="">選択してください</option>
+                  {/* 新登録フォームの値（優先表示） */}
+                  <option value="就業中（常勤・正社員）">就業中（常勤・正社員）</option>
+                  <option value="就業中（非常勤・パート）">就業中（非常勤・パート）</option>
+                  <option value="離職中">離職中</option>
+                  <option value="学生">学生</option>
+                  {/* 既存ユーザーの値（seed / 旧フォーム） */}
+                  <option value="単発">単発</option>
                   <option value="正社員">正社員</option>
                   <option value="パート・アルバイト">パート・アルバイト</option>
                   <option value="派遣">派遣</option>
@@ -951,13 +963,24 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 <label className="block text-sm font-medium mb-2">希望の働き方 <span className="text-red-500">*</span></label>
                 <select
                   value={formData.desiredWorkStyle}
-                  onChange={(e) => setFormData({ ...formData, desiredWorkStyle: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, desiredWorkStyle: e.target.value });
+                    setDesiredWorkStyleDirty(true);
+                  }}
                   className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.desiredWorkStyle ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                 >
                   <option value="">選択してください</option>
+                  {/* 新登録フォームの値（優先表示） */}
+                  <option value="単発・スポット">単発・スポット</option>
+                  <option value="常勤・正社員">常勤・正社員</option>
+                  <option value="非常勤・パート（扶養内）">非常勤・パート（扶養内）</option>
+                  <option value="非常勤・パート（扶養外）">非常勤・パート（扶養外）</option>
+                  <option value="派遣">派遣</option>
+                  <option value="こだわらない">こだわらない</option>
+                  {/* 既存ユーザーの値（重複する「派遣」を除外） */}
+                  <option value="単発">単発</option>
                   <option value="正社員">正社員</option>
                   <option value="パート・アルバイト">パート・アルバイト</option>
-                  <option value="派遣">派遣</option>
                   <option value="契約社員">契約社員</option>
                   <option value="その他">その他</option>
                 </select>
@@ -975,6 +998,12 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                 className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.jobChangeDesire ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
               >
                 <option value="">選択してください</option>
+                {/* 新登録フォームの値（優先表示） */}
+                <option value="いますぐ">いますぐ</option>
+                <option value="1ヶ月以内">1ヶ月以内</option>
+                <option value="3ヶ月以内">3ヶ月以内</option>
+                <option value="いまは情報収集のみ">いまは情報収集のみ</option>
+                {/* 既存ユーザーの値 */}
                 <option value="今はない">今はない</option>
                 <option value="いい仕事があれば">いい仕事があれば</option>
                 <option value="転職したい">転職したい</option>
@@ -993,6 +1022,13 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 >
                   <option value="">特になし</option>
+                  {/* 新登録フォームの値（優先表示） */}
+                  <option value="週1回">週1回</option>
+                  <option value="週2〜3回">週2〜3回</option>
+                  <option value="週4〜5回">週4〜5回</option>
+                  <option value="週5回">週5回</option>
+                  <option value="不定期/決まっていない">不定期/決まっていない</option>
+                  {/* 既存ユーザーの値 */}
                   <option value="週1〜2日">週1〜2日</option>
                   <option value="週3〜4日">週3〜4日</option>
                   <option value="週5日以上">週5日以上</option>

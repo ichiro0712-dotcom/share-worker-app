@@ -23,13 +23,11 @@ export const END_HOUR_OPTIONS = [
   })),
 ];
 
-// 分選択用（00, 15, 30, 45）
-export const MINUTE_OPTIONS = [
-  { value: '00', label: '00分' },
-  { value: '15', label: '15分' },
-  { value: '30', label: '30分' },
-  { value: '45', label: '45分' },
-] as const;
+// 分選択用（00〜59、1分単位）
+export const MINUTE_OPTIONS = Array.from({ length: 60 }, (_, i) => ({
+  value: i.toString().padStart(2, '0'),
+  label: `${i.toString().padStart(2, '0')}分`,
+})) as readonly { value: string; label: string }[];
 
 export const BREAK_TIME_OPTIONS = [
   { value: 0, label: 'なし' },

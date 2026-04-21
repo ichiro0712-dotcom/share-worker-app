@@ -112,9 +112,48 @@ export async function sendNotification(params: SendNotificationParams): Promise<
 
     // メール通知
     if (setting.email_enabled && setting.email_subject && setting.email_body) {
-        const toAddresses = facilityEmails && facilityEmails.length > 0
-            ? facilityEmails
-            : recipientEmail ? [recipientEmail] : [];
+        // email 形式の簡易バリデーション（壊れた1件のアドレスで通知全体が落ちるのを防ぐ）
+        // ドメイン先頭を英数字必須にして `user@+domain.com` のような不正ドメインも弾く
+        const EMAIL_RE = /^[^\s@]+@[a-zA-Z0-9][^\s@]*\.[^\s@]+$/;
+        /**
+         * trim した文字列を返す。不正（非文字列、空、形式違反）なら null。
+         * 返った値は Resend に渡す直前の最終形としてそのまま使える。
+         */
+        const normalizeEmail = (addr: unknown): string | null => {
+            if (typeof addr !== 'string') return null;
+            const trimmed = addr.trim();
+            if (!trimmed || !EMAIL_RE.test(trimmed)) return null;
+            return trimmed;
+        };
+
+        const rawFacility = facilityEmails ?? [];
+        const validFacilityEmails: string[] = [];
+        for (const addr of rawFacility) {
+            const normalized = normalizeEmail(addr);
+            if (normalized) validFacilityEmails.push(normalized);
+        }
+        const validRecipientEmail = normalizeEmail(recipientEmail);
+
+        // 除外件数: facility 配列で落ちた数 + recipientEmail が「定義されているが無効」のケース
+        // typeof チェックにより空文字もちゃんとカウントする
+        const recipientProvidedButInvalid =
+            typeof recipientEmail === 'string' && validRecipientEmail === null;
+        const skippedCount =
+            rawFacility.length - validFacilityEmails.length +
+            (recipientProvidedButInvalid ? 1 : 0);
+        if (skippedCount > 0) {
+            // 機密保護のため具体的なアドレス値はログに残さない
+            console.warn('[sendNotification] Skipped invalid email address(es):', {
+                notificationKey,
+                targetType,
+                recipientId,
+                skippedCount,
+            });
+        }
+
+        const toAddresses = validFacilityEmails.length > 0
+            ? validFacilityEmails
+            : validRecipientEmail ? [validRecipientEmail] : [];
 
         if (toAddresses.length > 0) {
             await sendEmailNotification({
@@ -122,7 +161,7 @@ export async function sendNotification(params: SendNotificationParams): Promise<
                 targetType,
                 recipientId,
                 recipientName,
-                recipientEmail: recipientEmail || toAddresses[0],
+                recipientEmail: validRecipientEmail || toAddresses[0],
                 toAddresses,
                 subject: replaceVariables(setting.email_subject, variables),
                 body: replaceVariables(setting.email_body, variables),

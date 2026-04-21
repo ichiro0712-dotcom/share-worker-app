@@ -1,12 +1,16 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { getAuthenticatedUser } from './helpers';
 import { geocodeAddress } from '@/src/lib/geocoding';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 import { generateBankAccountName } from '@/lib/string-utils';
 import { validatePhoneVerificationToken } from '@/src/lib/auth/phone-verification';
+import { syncWorkerToTasLink, mapUserToTasLinkPayload } from '@/src/lib/taslink';
+import { normalizePhoneDigits, phoneLockKey as computePhoneLockKey } from '@/src/lib/auth/identifier';
+import { normalizeDesiredWorkDays } from '@/src/lib/normalize-desired-work-days';
 
 /**
  * SMS認証成功時に電話番号を即座にDBに保存する
@@ -15,19 +19,49 @@ export async function savePhoneVerification(phoneNumber: string, verificationTok
     try {
         const user = await getAuthenticatedUser();
 
-        const isValid = await validatePhoneVerificationToken(verificationToken, phoneNumber);
+        const normalizedPhone = normalizePhoneDigits(phoneNumber);
+        if (normalizedPhone.length < 10 || normalizedPhone.length > 11) {
+            return { success: false, error: '電話番号の形式が正しくありません' };
+        }
+
+        const isValid = await validatePhoneVerificationToken(verificationToken, normalizedPhone);
         if (!isValid) {
             return { success: false, error: '認証トークンが無効または期限切れです' };
         }
 
-        await prisma.user.update({
-            where: { id: user.id },
-            data: {
-                phone_number: phoneNumber,
-                phone_verified: true,
-                phone_verified_at: new Date(),
-            },
-        });
+        // 他ユーザーとの電話番号重複チェック（advisory lock で race 回避 + SQL 正規化比較）
+        const lockKey = computePhoneLockKey(normalizedPhone);
+        try {
+            await prisma.$transaction(async (tx) => {
+                // pg_advisory_xact_lock は void を返すため $executeRaw を使用
+                await tx.$executeRaw(
+                    Prisma.sql`SELECT pg_advisory_xact_lock(${lockKey}::bigint)`
+                );
+                const dup = await tx.$queryRaw<{ id: number }[]>(
+                    Prisma.sql`SELECT id FROM users
+                        WHERE regexp_replace(translate(phone_number, '０１２３４５６７８９', '0123456789'), '[^0-9]', '', 'g') = ${normalizedPhone}
+                        AND phone_verified = true
+                        AND deleted_at IS NULL
+                        AND id <> ${user.id}
+                        LIMIT 1`
+                );
+                if (dup.length > 0) throw new Error('PHONE_DUPLICATE');
+
+                await tx.user.update({
+                    where: { id: user.id },
+                    data: {
+                        phone_number: normalizedPhone,
+                        phone_verified: true,
+                        phone_verified_at: new Date(),
+                    },
+                });
+            });
+        } catch (e) {
+            if (e instanceof Error && e.message === 'PHONE_DUPLICATE') {
+                return { success: false, error: 'この電話番号は既に他のアカウントで使われています' };
+            }
+            throw e;
+        }
 
         return { success: true };
     } catch (error) {
@@ -126,11 +160,18 @@ export async function checkProfileComplete(userId: number) {
 /**
  * 現在ログインしているワーカーの未入力プロフィール項目を取得する
  * BadgeContextやバナー表示用
+ * メール認証状態も併せて返す（応募前チェックで使用）
+ *
+ * エラー時は hasError=true を返す。呼び出し側は hasError を先に確認すべき
+ * （hasError 時の emailVerified/email/isComplete/missingFields はダミー値）
  */
 export async function getMissingProfileFields(): Promise<{
     isComplete: boolean;
     missingFields: string[];
     missingCount: number;
+    emailVerified: boolean;
+    email: string;
+    hasError: boolean;
 }> {
     try {
         const user = await getAuthenticatedUser();
@@ -139,11 +180,22 @@ export async function getMissingProfileFields(): Promise<{
             isComplete: result.isComplete,
             missingFields: result.missingFields,
             missingCount: result.missingFields.length,
+            emailVerified: user.email_verified,
+            email: user.email,
+            hasError: false,
         };
     } catch (error) {
-        // エラーの場合は安全側に倒す（未完了として扱う）
+        // エラーの場合は hasError=true を返し、呼び出し側でエラー処理させる
         console.error('[getMissingProfileFields] Error:', error);
-        return { isComplete: false, missingFields: ['プロフィール確認に失敗しました'], missingCount: 1 };
+        return {
+            isComplete: false,
+            missingFields: ['プロフィール確認に失敗しました'],
+            missingCount: 1,
+            // エラー時のダミー値（呼び出し側は hasError を先に見るべき）
+            emailVerified: true,
+            email: '',
+            hasError: true,
+        };
     }
 }
 
@@ -242,6 +294,28 @@ export async function updateUserSelfPR(selfPR: string): Promise<{ success: boole
             data: { self_pr: selfPR.trim() || null, updated_by_type: 'WORKER', updated_by_id: user.id },
         });
 
+        // TasLinkへ自己PR更新を同期（DBからフルプロフィールを取得して送信）
+        try {
+            const fullUser = await prisma.user.findUnique({
+                where: { id: user.id },
+                select: {
+                    id: true, name: true, last_name_kana: true, first_name_kana: true,
+                    gender: true, birth_date: true, phone_number: true, email: true,
+                    postal_code: true, prefecture: true, city: true, address_line: true,
+                    qualifications: true, desired_work_days: true, desired_work_style: true,
+                    work_histories: true, self_pr: true,
+                },
+            });
+            if (fullUser) {
+                const tasLinkPayload = mapUserToTasLinkPayload(fullUser);
+                if (tasLinkPayload) {
+                    await syncWorkerToTasLink(user.id, tasLinkPayload);
+                }
+            }
+        } catch (tasLinkErr) {
+            console.error('[TasLink] Self-PR sync failed:', getErrorMessage(tasLinkErr));
+        }
+
         return { success: true };
     } catch (error) {
         console.error('[updateUserSelfPR] Error:', error);
@@ -295,6 +369,8 @@ export async function updateUserProfile(formData: FormData) {
         // 働き方・希望
         const currentWorkStyle = formData.get('currentWorkStyle') as string | null;
         const desiredWorkStyle = formData.get('desiredWorkStyle') as string | null;
+        // ユーザーが明示的に希望の働き方を変更したか（'true' 文字列を期待）
+        const desiredWorkStyleChanged = (formData.get('desiredWorkStyleChanged') as string | null) === 'true';
         const jobChangeDesire = formData.get('jobChangeDesire') as string | null;
         const desiredWorkDaysPerWeek = formData.get('desiredWorkDaysPerWeek') as string | null;
         const desiredWorkPeriod = formData.get('desiredWorkPeriod') as string | null;
@@ -335,8 +411,19 @@ export async function updateUserProfile(formData: FormData) {
             }
         }
 
-        // 希望曜日は配列に変換
-        const desiredWorkDays = desiredWorkDaysStr ? desiredWorkDaysStr.split(',').filter(d => d.trim()) : [];
+        // 希望曜日は配列に変換 + 「特になし」排他制御で正規化
+        const desiredWorkDaysRaw = desiredWorkDaysStr ? desiredWorkDaysStr.split(',').filter(d => d.trim()) : [];
+        const desiredWorkDays = normalizeDesiredWorkDays(desiredWorkDaysRaw);
+
+        // desired_work_style の CSV 保持ロジック:
+        // 編集画面は単一選択（初期値は DB CSV の先頭値）。
+        //   - ユーザーが明示的に変更していない（desiredWorkStyleChanged=false）場合は CSV 全体を保持
+        //   - ユーザーが明示的に触った場合は、送信された値（単一）で上書き（複数値→単一に潰す意思を尊重）
+        // これにより「別項目だけ更新」では CSV を保持しつつ、「希望の働き方を変えたい」は正しく反映される。
+        const existingDesiredCsv = user.desired_work_style || '';
+        const desiredWorkStyleToSave = desiredWorkStyleChanged
+          ? (desiredWorkStyle || null)
+          : (existingDesiredCsv || desiredWorkStyle || null);
 
         // 職歴は配列に変換（|||で区切り）
         const workHistories = workHistoriesStr ? workHistoriesStr.split('|||').filter(h => h.trim()) : [];
@@ -359,8 +446,39 @@ export async function updateUserProfile(formData: FormData) {
             };
         }
 
-        // 電話番号変更時のSMS認証チェック
-        const isPhoneChanged = phoneNumber !== user.phone_number;
+        // メール正規化（trim + lowercase）と他ユーザーとの重複チェック（case-insensitive）
+        const normalizedEmail = email.trim().toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+            return { success: false, error: 'メールアドレスの形式が正しくありません' };
+        }
+        const isEmailChanged = normalizedEmail !== user.email.toLowerCase();
+        if (isEmailChanged) {
+            const duplicatedEmail = await prisma.user.findFirst({
+                where: {
+                    email: { equals: normalizedEmail, mode: 'insensitive' },
+                    NOT: { id: user.id },
+                },
+                select: { id: true },
+            });
+            if (duplicatedEmail) {
+                return {
+                    success: false,
+                    error: 'このメールアドレスは既に他のアカウントで使われています',
+                };
+            }
+        }
+
+        // 電話番号を digits-only に正規化（register 側と一貫性維持）
+        const normalizedPhone = normalizePhoneDigits(phoneNumber);
+        if (normalizedPhone.length < 10 || normalizedPhone.length > 11) {
+            return {
+                success: false,
+                error: '電話番号の形式が正しくありません',
+            };
+        }
+
+        // 電話番号変更判定: DB 側の値も normalize してから比較（既存レガシーデータの表記ゆれ吸収）
+        const isPhoneChanged = normalizedPhone !== normalizePhoneDigits(user.phone_number);
         if (isPhoneChanged) {
             if (!phoneVerificationToken) {
                 return {
@@ -368,11 +486,27 @@ export async function updateUserProfile(formData: FormData) {
                     error: '電話番号の変更にはSMS認証が必要です',
                 };
             }
-            const isPhoneVerified = await validatePhoneVerificationToken(phoneVerificationToken, phoneNumber);
+            const isPhoneVerified = await validatePhoneVerificationToken(phoneVerificationToken, normalizedPhone);
             if (!isPhoneVerified) {
                 return {
                     success: false,
                     error: '電話番号の認証トークンが無効または期限切れです。再度認証を行ってください。',
+                };
+            }
+
+            // 他ユーザーとの電話番号重複チェック（SQL 側で正規化して比較）
+            const duplicatedPhone = await prisma.$queryRaw<{ id: number }[]>(
+                Prisma.sql`SELECT id FROM users
+                    WHERE regexp_replace(translate(phone_number, '０１２３４５６７８９', '0123456789'), '[^0-9]', '', 'g') = ${normalizedPhone}
+                    AND phone_verified = true
+                    AND deleted_at IS NULL
+                    AND id <> ${user.id}
+                    LIMIT 1`
+            );
+            if (duplicatedPhone.length > 0) {
+                return {
+                    success: false,
+                    error: 'この電話番号は既に他のアカウントで使われています',
                 };
             }
         }
@@ -462,13 +596,11 @@ export async function updateUserProfile(formData: FormData) {
             }
         }
 
-        // プロフィール更新
-        await prisma.user.update({
-            where: { id: user.id },
-            data: {
+        // プロフィール更新（phone 変更時は advisory lock で race 回避）
+        const updateData = {
                 name,
-                email,
-                phone_number: phoneNumber,
+                email: normalizedEmail,
+                phone_number: normalizedPhone,
                 ...(isPhoneChanged ? {
                     phone_verified: true,
                     phone_verified_at: new Date(),
@@ -492,7 +624,7 @@ export async function updateUserProfile(formData: FormData) {
                 emergency_phone: emergencyPhone || null,
                 emergency_address: emergencyAddress || null,
                 current_work_style: currentWorkStyle || null,
-                desired_work_style: desiredWorkStyle || null,
+                desired_work_style: desiredWorkStyleToSave,
                 job_change_desire: jobChangeDesire || null,
                 desired_work_days_week: desiredWorkDaysPerWeek,
                 desired_work_period: desiredWorkPeriod || null,
@@ -516,8 +648,46 @@ export async function updateUserProfile(formData: FormData) {
                 // 更新者追跡
                 updated_by_type: 'WORKER',
                 updated_by_id: user.id,
-            },
-        });
+        };
+
+        if (isPhoneChanged) {
+            const lockKey = computePhoneLockKey(normalizedPhone);
+            try {
+                await prisma.$transaction(async (tx) => {
+                    // pg_advisory_xact_lock は void を返すため $executeRaw を使用
+                    await tx.$executeRaw(
+                        Prisma.sql`SELECT pg_advisory_xact_lock(${lockKey}::bigint)`
+                    );
+                    // ロック取得後、直前再チェック（正規化比較）
+                    const dup = await tx.$queryRaw<{ id: number }[]>(
+                        Prisma.sql`SELECT id FROM users
+                            WHERE regexp_replace(translate(phone_number, '０１２３４５６７８９', '0123456789'), '[^0-9]', '', 'g') = ${normalizedPhone}
+                            AND phone_verified = true
+                            AND deleted_at IS NULL
+                            AND id <> ${user.id}
+                            LIMIT 1`
+                    );
+                    if (dup.length > 0) throw new Error('PHONE_DUPLICATE_RACE');
+                    await tx.user.update({
+                        where: { id: user.id },
+                        data: updateData,
+                    });
+                });
+            } catch (e) {
+                if (e instanceof Error && e.message === 'PHONE_DUPLICATE_RACE') {
+                    return {
+                        success: false,
+                        error: 'この電話番号は既に他のアカウントで使われています',
+                    };
+                }
+                throw e;
+            }
+        } else {
+            await prisma.user.update({
+                where: { id: user.id },
+                data: updateData,
+            });
+        }
 
         // プロフィール関連ページのキャッシュを無効化
         revalidatePath('/mypage/profile');
@@ -544,6 +714,34 @@ export async function updateUserProfile(formData: FormData) {
             },
             result: 'SUCCESS',
         }).catch(() => {});
+
+        // TasLinkへプロフィール更新を同期（同期完了を待つが、失敗しても更新は成功させる）
+        try {
+            const tasLinkPayload = mapUserToTasLinkPayload({
+                id: user.id,
+                name,
+                last_name_kana: lastNameKana,
+                first_name_kana: firstNameKana,
+                gender,
+                birth_date: birthDate ? new Date(birthDate) : null,
+                phone_number: phoneNumber,
+                email,
+                postal_code: postalCode,
+                prefecture,
+                city,
+                address_line: addressLine,
+                qualifications,
+                desired_work_days: desiredWorkDays,
+                desired_work_style: desiredWorkStyle,
+                work_histories: workHistories,
+                self_pr: selfPR,
+            });
+            if (tasLinkPayload) {
+                await syncWorkerToTasLink(user.id, tasLinkPayload);
+            }
+        } catch (tasLinkErr) {
+            console.error('[TasLink] Profile sync failed:', getErrorMessage(tasLinkErr));
+        }
 
         return {
             success: true,

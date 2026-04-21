@@ -116,6 +116,11 @@ model User {
   /// 登録時のキャンペーンコードのジャンルプレフィックス（例: "AAA"）
   registration_genre_prefix  String? @map("registration_genre_prefix") @db.VarChar(3)
 
+  /// TasLink外部連携ID
+  taslink_id        String?   @map("taslink_id")
+  /// TasLink最終同期日時
+  taslink_synced_at DateTime? @map("taslink_synced_at")
+
   @@index([registration_lp_id])
   @@index([registration_genre_prefix])
   @@map("users")

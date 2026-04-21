@@ -243,6 +243,7 @@ const SYSTEM_ADMIN_TREE: SiteMapNode[] = [
             { name: 'debug-time', title: 'デバッグ時刻設定', href: '/system-admin/dev-portal/debug-time' },
             { name: 'error-alert', title: 'エラー通知設定', href: '/system-admin/dev-portal/error-alert' },
             { name: 'test-notifications', title: 'テスト通知送信', href: '/system-admin/dev-portal/test-notifications' },
+            { name: 'delete-worker', title: 'ワーカー完全削除（テスト用）', href: '/system-admin/dev-portal/delete-worker' },
         ]
     },
 ];
@@ -447,6 +448,15 @@ export default function DevPortalPage() {
                                 <p className="text-lg font-bold text-purple-600 group-hover:text-purple-700">指標・計算式</p>
                             </div>
                             <Calculator className="w-8 h-8 text-purple-200 group-hover:text-purple-300" />
+                        </div>
+                    </Link>
+                    <Link href="/system-admin/dev-portal/delete-worker" className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 hover:border-red-300 hover:shadow-md transition-all group">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-xs font-medium text-gray-500">テスト用</p>
+                                <p className="text-lg font-bold text-red-600 group-hover:text-red-700">ワーカー完全削除</p>
+                            </div>
+                            <AlertTriangle className="w-8 h-8 text-red-200 group-hover:text-red-300" />
                         </div>
                     </Link>
                 </div>

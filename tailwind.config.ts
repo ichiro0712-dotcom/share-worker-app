@@ -50,6 +50,15 @@ export default {
         'primary': '0 2px 8px rgba(255, 51, 51, 0.3)',
         'secondary': '0 2px 8px rgba(56, 149, 255, 0.3)',
       },
+      keyframes: {
+        'slide-up': {
+          '0%': { transform: 'translateY(100%)' },
+          '100%': { transform: 'translateY(0)' },
+        },
+      },
+      animation: {
+        'slide-up': 'slide-up 0.3s ease-out',
+      },
     },
   },
   plugins: [],

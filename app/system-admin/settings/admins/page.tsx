@@ -71,9 +71,11 @@ export default function SystemAdminsPage() {
     }, []);
 
     // メールアドレス形式チェック
+    // ドメイン先頭は英数字必須: `user@+domain.com` のような Resend が400を返す形式を事前に弾く
+    // （sendNotification の低レベルガードと同一パターン）
     const isValidEmail = (email: string): boolean => {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return emailRegex.test(email);
+        const emailRegex = /^[^\s@]+@[a-zA-Z0-9][^\s@]*\.[^\s@]+$/;
+        return emailRegex.test(email.trim());
     };
 
     const handleCreate = async (e: React.FormEvent) => {
@@ -84,17 +86,19 @@ export default function SystemAdminsPage() {
             toast.error('名前を入力してください');
             return;
         }
-        if (!newAdmin.email?.trim()) {
+        const trimmedEmail = newAdmin.email?.trim() ?? '';
+        if (!trimmedEmail) {
             toast.error('メールアドレスを入力してください');
             return;
         }
-        if (!isValidEmail(newAdmin.email)) {
+        if (!isValidEmail(trimmedEmail)) {
             toast.error('メールアドレスの形式が正しくありません');
             return;
         }
 
         try {
-            const result = await createSystemAdmin(newAdmin);
+            // trim 済みのアドレスを渡して、空白入りデータがDBに保存されるのを防ぐ
+            const result = await createSystemAdmin({ ...newAdmin, email: trimmedEmail });
             if (result.success && result.initialPassword) {
                 toast.success('管理者を作成しました');
                 setCreatedCredentials({ password: result.initialPassword });

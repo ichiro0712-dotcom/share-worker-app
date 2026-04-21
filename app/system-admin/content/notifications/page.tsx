@@ -198,9 +198,11 @@ export default function NotificationManagementPage() {
         }
     };
 
+    // ドメイン先頭は英数字必須: `user@+domain.com` のような Resend が400を返す形式を事前に弾く
+    // （sendNotification の低レベルガードと同一パターン）
     const isValidEmail = (email: string): boolean => {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return emailRegex.test(email);
+        const emailRegex = /^[^\s@]+@[a-zA-Z0-9][^\s@]*\.[^\s@]+$/;
+        return emailRegex.test(email.trim());
     };
 
     const startEditAdmin = (item: SystemAdminItem) => {

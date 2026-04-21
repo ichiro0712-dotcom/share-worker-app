@@ -1,26 +1,91 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Check } from 'lucide-react';
-import Link from 'next/link';
 import toast from 'react-hot-toast';
-import { isValidEmail, isValidPhoneNumber } from '@/utils/inputValidation';
-import { isKatakanaOnly } from '@/utils/inputValidation';
-import { SmsVerification } from '@/components/ui/SmsVerification';
-import { KatakanaInput } from '@/components/ui/KatakanaInput';
-import { NameWithKanaInput } from '@/components/ui/NameWithKanaInput';
-import AddressSelector from '@/components/ui/AddressSelector';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { trackGA4Event } from '@/src/lib/ga4-events';
+import { PhoneNumberInput } from '@/components/ui/PhoneNumberInput';
 import { getLegalDocument } from '@/src/lib/content-actions';
-import { QUALIFICATION_GROUPS } from '@/constants/qualifications';
+import { trackGA4Event } from '@/src/lib/ga4-events';
 import RegistrationPageTracker from '@/components/tracking/RegistrationPageTracker';
+import { isValidPhoneNumber } from '@/utils/inputValidation';
+import { HOUR_TIME_OPTIONS } from '@/constants/time-options';
+import { normalizeDesiredWorkDays } from '@/src/lib/normalize-desired-work-days';
+
+// フォーム入力ステップ (1〜8) + SMS認証ステップ (sms)
+// PP 同意後に SMS を送信するため、認証は step 8 の後に別画面で行う
+type StepId = '1' | '2' | '2b' | '2c' | '3' | '4' | '5' | '6' | '7' | '8' | 'sms';
+
+// 資格オプション：表示ラベルとDB保存値のマッピング
+const QUALIFICATION_OPTIONS: { label: string; value: string }[] = [
+  { label: '正看護師', value: '看護師' },
+  { label: '准看護師', value: '准看護師' },
+  { label: '介護福祉士', value: '介護福祉士' },
+  { label: '実務者研修（ヘルパー1級）', value: '実務者研修' },
+  { label: '初任者研修（ヘルパー2級）', value: '初任者研修' },
+  { label: 'その他', value: 'その他' },
+];
+
+const DESIRED_WORK_STYLE_OPTIONS = [
+  '単発・スポット',
+  '常勤・正社員',
+  '非常勤・パート（扶養内）',
+  '非常勤・パート（扶養外）',
+  '派遣',
+  'こだわらない',
+];
+
+const WORK_FREQUENCY_OPTIONS = ['週1回', '週2〜3回', '週4〜5回', '週5回'];
+
+// step 2c: 希望勤務期間
+const DESIRED_WORK_PERIOD_OPTIONS = [
+  '1週間以内',
+  '3週間以内',
+  '1〜2ヶ月',
+  '3〜6ヶ月',
+  '6ヶ月以上',
+  '未定',
+];
+
+// step 2c: 希望勤務曜日（月〜日 + 特になし）
+const DESIRED_WORK_DAY_OPTIONS = ['月', '火', '水', '木', '金', '土', '日', '特になし'];
+const JOB_TIMING_OPTIONS = ['いますぐ', '1ヶ月以内', '3ヶ月以内', 'いまは情報収集のみ'];
+const EMPLOYMENT_STATUS_OPTIONS = [
+  '就業中（常勤・正社員）',
+  '就業中（非常勤・パート）',
+  '離職中',
+  '学生',
+];
+
+// SMS ステップで電話番号を見やすく表示（090-1234-5678）
+function formatPhoneForDisplay(phoneNumber: string): string {
+  const digits = phoneNumber.replace(/[^0-9]/g, '');
+  if (digits.length === 11) return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+  if (digits.length === 10) return `${digits.slice(0, 2)}-${digits.slice(2, 6)}-${digits.slice(6)}`;
+  return phoneNumber;
+}
+
+// step2 で「どのくらい働きたいですか？」を見せる条件
+function shouldShowStep2b(desiredWorkStyle: string[]): boolean {
+  return desiredWorkStyle.some(v =>
+    v === '単発・スポット' ||
+    v === '非常勤・パート（扶養内）' ||
+    v === '非常勤・パート（扶養外）' ||
+    v === '派遣' ||
+    v === 'こだわらない'
+  );
+}
 
 export default function WorkerRegisterPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-gray-50 py-8"><div className="max-w-xl mx-auto px-4 text-center text-gray-500">読み込み中...</div></div>}>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-white flex items-center justify-center">
+          <LoadingSpinner size="lg" />
+        </div>
+      }
+    >
       <RegistrationPageTracker />
       <WorkerRegisterPageInner />
     </Suspense>
@@ -31,870 +96,1113 @@ function WorkerRegisterPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { showDebugError } = useDebugError();
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showErrors, setShowErrors] = useState(false);
-  const [currentStep, setCurrentStep] = useState(1);
-  const [agreedToTerms, setAgreedToTerms] = useState(false);
-  const [showTermsModal, setShowTermsModal] = useState(false);
-  const [agreedToPrivacy, setAgreedToPrivacy] = useState(false);
-  const [phoneVerificationToken, setPhoneVerificationToken] = useState<string | null>(null);
-  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
 
-  // 利用規約・PPのDB取得
+  const [currentStep, setCurrentStep] = useState<StepId>('1');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [agreedToPrivacy, setAgreedToPrivacy] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [phoneVerificationToken, setPhoneVerificationToken] = useState<string | null>(null);
+  const [isLoadingAddress, setIsLoadingAddress] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // SMS認証ステップ用
+  const [smsCode, setSmsCode] = useState('');
+  const [smsError, setSmsError] = useState<string | null>(null);
+  const [smsCooldownSeconds, setSmsCooldownSeconds] = useState(0);
+  const [isSendingSms, setIsSendingSms] = useState(false);
+  const [isVerifyingSms, setIsVerifyingSms] = useState(false);
+
+  // 利用規約・PP
   const [termsContent, setTermsContent] = useState<string>('');
   const [privacyContent, setPrivacyContent] = useState<string>('');
-  const [termsLastUpdated, setTermsLastUpdated] = useState<string>('');
-  const [privacyLastUpdated, setPrivacyLastUpdated] = useState<string>('');
-  const [isLoadingLegal, setIsLoadingLegal] = useState(true);
 
-  const [formData, setFormData] = useState({
-    // ステップ1: アカウント情報・基本情報
-    email: '',
-    emailConfirm: '',
-    phoneNumber: '',
-    password: '',
-    passwordConfirm: '',
+  // フォームデータ
+  const [form, setForm] = useState({
+    qualifications: [] as string[],       // DB 保存値の配列
+    qualificationOther: '',                // その他自由記述
+    desiredWorkStyle: [] as string[],     // 複数選択
+    workFrequency: '',                     // step 2b（条件付き）
+    // step 2c（任意入力）
+    desiredWorkPeriod: '',                 // 希望勤務期間
+    desiredWorkDays: [] as string[],       // 希望勤務曜日（「特になし」排他）
+    desiredStartTime: '',                  // 希望開始時刻
+    desiredEndTime: '',                    // 希望終了時刻
+    jobTiming: '',
+    employmentStatus: '',
+    postalCode: '',
+    prefecture: '',
+    city: '',
+    gender: '',
+    birthYear: '',
+    birthMonth: '',
+    birthDay: '',
     lastName: '',
     firstName: '',
     lastNameKana: '',
     firstNameKana: '',
-    birthDate: '',
-    // ステップ2: 住所・資格
-    postalCode: '',
-    prefecture: '',
-    city: '',
-    addressLine: '',
-    building: '',
-    qualifications: [] as string[],
+    phoneNumber: '',
+    email: '',
+    password: '',
   });
 
-  // LP経由登録情報（localStorage → URLパラメータ のフォールバックチェーン）
-  const [lpInfo, setLpInfo] = useState<{ lpId: string | null; campaignCode: string | null; genrePrefix: string | null }>({
-    lpId: null,
-    campaignCode: null,
-    genrePrefix: null,
-  });
-  const [lpSource, setLpSource] = useState<'localStorage' | 'urlParams' | 'none'>('none');
+  // LP 情報（localStorage / URL params）
+  const [lpInfo, setLpInfo] = useState<{
+    lpId: string | null;
+    campaignCode: string | null;
+    genrePrefix: string | null;
+    source: 'localStorage' | 'urlParams' | 'none';
+  }>({ lpId: null, campaignCode: null, genrePrefix: null, source: 'none' });
 
-  // ページロード時にLP情報を取得（localStorage優先、URLパラメータフォールバック）
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      let fromLocalStorage = false;
-
-      try {
-        // 第1優先: localStorage（lp_tracking_data）
-        const trackingDataStr = localStorage.getItem('lp_tracking_data');
-        if (trackingDataStr) {
-          const trackingData = JSON.parse(trackingDataStr);
-          if (trackingData.expiry && Date.now() <= trackingData.expiry) {
-            setLpInfo({
-              lpId: trackingData.lpId || null,
-              campaignCode: trackingData.campaignCode || null,
-              genrePrefix: trackingData.genrePrefix || null,
-            });
-            fromLocalStorage = true;
-          }
+    // localStorage 優先、次に URL パラメータ
+    try {
+      const stored = typeof window !== 'undefined' ? localStorage.getItem('lpInfo') : null;
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed?.lpId) {
+          setLpInfo({
+            lpId: parsed.lpId,
+            campaignCode: parsed.campaignCode ?? null,
+            genrePrefix: parsed.genrePrefix ?? null,
+            source: 'localStorage',
+          });
+          return;
         }
-        // 第1優先: localStorage（個別キー）
-        if (!fromLocalStorage) {
-          const storedLpId = localStorage.getItem('lp_id');
-          const storedCampaignCode = localStorage.getItem('lp_campaign_code');
-          if (storedLpId) {
-            let genrePrefix = null;
-            if (storedCampaignCode) {
-              const match = storedCampaignCode.match(/^([A-Z]{3})-/);
-              if (match) {
-                genrePrefix = match[1];
-              }
-            }
-            setLpInfo({
-              lpId: storedLpId,
-              campaignCode: storedCampaignCode,
-              genrePrefix,
-            });
-            fromLocalStorage = true;
-          }
-        }
-      } catch (e) {
-        console.error('Failed to get LP info from localStorage:', e);
       }
-
-      if (fromLocalStorage) {
-        setLpSource('localStorage');
-        return;
-      }
-
-      // 第2優先: URLクエリパラメータ（CTAリンク経由で引き継がれた情報）
-      const urlLp = searchParams?.get('lp');
-      if (urlLp) {
-        setLpInfo({
-          lpId: urlLp,
-          campaignCode: searchParams?.get('c') || null,
-          genrePrefix: searchParams?.get('g') || null,
-        });
-        setLpSource('urlParams');
-      }
+    } catch {
+      // noop
+    }
+    const lp = searchParams?.get('lp') ?? null;
+    const c = searchParams?.get('c') ?? null;
+    const g = searchParams?.get('g') ?? null;
+    if (lp) {
+      setLpInfo({ lpId: lp, campaignCode: c, genrePrefix: g, source: 'urlParams' });
     }
   }, [searchParams]);
 
-  // 利用規約・PPをDBから取得
+  // 利用規約・PP取得（表示時）
   useEffect(() => {
-    const fetchLegalDocs = async () => {
+    (async () => {
       try {
-        const [termsDoc, privacyDoc] = await Promise.all([
+        const [terms, privacy] = await Promise.all([
           getLegalDocument('TERMS', 'WORKER'),
           getLegalDocument('PRIVACY', 'WORKER'),
         ]);
-        if (termsDoc) {
-          setTermsContent(termsDoc.content);
-          setTermsLastUpdated(
-            termsDoc.published_at
-              ? new Date(termsDoc.published_at).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })
-              : ''
-          );
-        }
-        if (privacyDoc) {
-          setPrivacyContent(privacyDoc.content);
-          setPrivacyLastUpdated(
-            privacyDoc.published_at
-              ? new Date(privacyDoc.published_at).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })
-              : ''
-          );
-        }
-      } catch (error) {
-        console.error('Failed to fetch legal documents:', error);
-      } finally {
-        setIsLoadingLegal(false);
+        if (terms?.content) setTermsContent(terms.content);
+        if (privacy?.content) setPrivacyContent(privacy.content);
+      } catch {
+        // 取得失敗しても登録は継続可能
       }
-    };
-    fetchLegalDocs();
+    })();
   }, []);
 
-  // 資格チェックボックスのトグル
-  const handleQualificationToggle = (qualification: string) => {
-    setFormData(prev => ({
-      ...prev,
-      qualifications: prev.qualifications.includes(qualification)
-        ? prev.qualifications.filter(q => q !== qualification)
-        : [...prev.qualifications, qualification],
-    }));
+  // ステップ順序（条件付きで 2b を挿入）
+  // sms ステップは step 8 の後に続く「認証コード入力」画面（利用規約同意後に SMS 送信）
+  // 2c は任意入力の追加項目（希望勤務期間・曜日・開始/終了時刻）
+  const stepSequence = useMemo<StepId[]>(() => {
+    const base: StepId[] = ['1', '2'];
+    if (shouldShowStep2b(form.desiredWorkStyle)) base.push('2b');
+    base.push('2c', '3', '4', '5', '6', '7', '8', 'sms');
+    return base;
+  }, [form.desiredWorkStyle]);
+
+  const stepIndex = stepSequence.indexOf(currentStep);
+  const totalSteps = stepSequence.length;
+
+  const setField = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => {
+    setForm(prev => ({ ...prev, [k]: v }));
   };
 
-  // ステップ1のバリデーション
-  const validateStep1 = (): boolean => {
-    const errors: string[] = [];
-
-    if (!formData.email) errors.push('メールアドレス');
-    if (!formData.emailConfirm) errors.push('メールアドレス（確認）');
-    if (!formData.phoneNumber) errors.push('電話番号');
-    if (!formData.password) errors.push('パスワード');
-    if (!formData.passwordConfirm) errors.push('パスワード（確認）');
-    if (!formData.lastName) errors.push('姓');
-    if (!formData.firstName) errors.push('名');
-    if (!formData.lastNameKana) errors.push('姓（カナ）');
-    if (!formData.firstNameKana) errors.push('名（カナ）');
-    if (!formData.birthDate) errors.push('生年月日');
-
-    if (errors.length > 0) {
-      toast.error(`以下の項目を入力してください: ${errors.join('、')}`);
-      return false;
-    }
-
-    if (!isValidEmail(formData.email)) {
-      toast.error('メールアドレスの形式が正しくありません');
-      return false;
-    }
-
-    if (formData.email !== formData.emailConfirm) {
-      toast.error('メールアドレスが一致しません');
-      return false;
-    }
-
-    if (!isValidPhoneNumber(formData.phoneNumber)) {
-      toast.error('有効な日本の電話番号を入力してください（例: 09012345678）');
-      return false;
-    }
-
-    if (!phoneVerificationToken) {
-      toast.error('電話番号のSMS認証を完了してください');
-      return false;
-    }
-
-    if (formData.password.length < 8) {
-      toast.error('パスワードは8文字以上で入力してください');
-      return false;
-    }
-
-    if (formData.password !== formData.passwordConfirm) {
-      toast.error('パスワードが一致しません');
-      return false;
-    }
-
-    if (formData.lastNameKana && !isKatakanaOnly(formData.lastNameKana)) {
-      toast.error('姓（カナ）はカタカナで入力してください');
-      return false;
-    }
-
-    if (formData.firstNameKana && !isKatakanaOnly(formData.firstNameKana)) {
-      toast.error('名（カナ）はカタカナで入力してください');
-      return false;
-    }
-
-    return true;
+  const toggleArrayValue = (field: 'qualifications' | 'desiredWorkStyle', value: string) => {
+    setForm(prev => {
+      const curr = prev[field];
+      return {
+        ...prev,
+        [field]: curr.includes(value) ? curr.filter(v => v !== value) : [...curr, value],
+      };
+    });
   };
 
-  // ステップ1→2への遷移
-  const handleNextStep = () => {
-    setShowErrors(true);
-    if (validateStep1()) {
-      setShowErrors(false);
-      setCurrentStep(2);
-      window.scrollTo(0, 0);
-    }
-  };
-
-  // ステップ2→1への戻り
-  const handlePrevStep = () => {
-    setShowErrors(false);
-    setCurrentStep(1);
-    window.scrollTo(0, 0);
-  };
-
-  // 登録送信
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setShowErrors(true);
-
-    // ステップ2のバリデーション
-    const errors: string[] = [];
-    if (!formData.prefecture) errors.push('都道府県');
-    if (!formData.city) errors.push('市区町村');
-    if (!formData.addressLine) errors.push('番地');
-    if (formData.qualifications.length === 0) errors.push('保有資格');
-
-    if (errors.length > 0) {
-      toast.error(`以下の項目を入力してください: ${errors.join('、')}`);
-      return;
-    }
-
-    if (!agreedToTerms) {
-      toast.error('利用規約に同意してください');
-      const termsSection = document.getElementById('terms-section');
-      if (termsSection) {
-        termsSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  // 希望勤務曜日の排他選択（「特になし」と月〜日の排他）
+  const toggleDesiredWorkDay = (value: string) => {
+    setForm(prev => {
+      const curr = prev.desiredWorkDays;
+      const isSelected = curr.includes(value);
+      // 既選択を外す
+      if (isSelected) {
+        return { ...prev, desiredWorkDays: curr.filter(v => v !== value) };
       }
-      return;
-    }
-
-    if (!agreedToPrivacy) {
-      toast.error('プライバシーポリシーに同意してください');
-      const termsSection = document.getElementById('terms-section');
-      if (termsSection) {
-        termsSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // 「特になし」を選択 → 他を全部外す
+      if (value === '特になし') {
+        return { ...prev, desiredWorkDays: ['特になし'] };
       }
+      // 月〜日のいずれかを選択 → 「特になし」を外す
+      return {
+        ...prev,
+        desiredWorkDays: [...curr.filter(v => v !== '特になし'), value],
+      };
+    });
+  };
+
+  // 各ステップのバリデーション
+  const isStepValid = (): boolean => {
+    switch (currentStep) {
+      case '1': {
+        if (form.qualifications.length === 0) return false;
+        if (form.qualifications.includes('その他') && !form.qualificationOther.trim()) return false;
+        return true;
+      }
+      case '2':
+        return form.desiredWorkStyle.length > 0;
+      case '2b':
+        return !!form.workFrequency;
+      case '2c':
+        // すべて任意入力（スキップ可）
+        return true;
+      case '3':
+        return !!form.jobTiming;
+      case '4':
+        return !!form.employmentStatus;
+      case '5':
+        return !!form.postalCode && form.postalCode.replace(/[^0-9]/g, '').length === 7;
+      case '6':
+        return !!form.gender && !!form.birthYear && !!form.birthMonth && !!form.birthDay;
+      case '7':
+        return !!form.lastName.trim() && !!form.firstName.trim() && !!form.lastNameKana.trim() && !!form.firstNameKana.trim();
+      case '8':
+        return (
+          !!form.phoneNumber &&
+          isValidPhoneNumber(form.phoneNumber) &&
+          !!form.email &&
+          /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email) &&
+          !!form.password &&
+          form.password.length >= 8 &&
+          agreedToTerms &&
+          agreedToPrivacy
+        );
+      case 'sms':
+        return smsCode.length >= 4 && smsCode.length <= 6;
+    }
+  };
+
+  const goNext = () => {
+    if (!isStepValid()) return;
+    // step 8: 利用規約・PP 同意後に SMS 送信 → sms ステップへ
+    if (currentStep === '8') {
+      handleSendSmsAndAdvance();
       return;
     }
+    // sms ステップ: コード検証 → 登録API 実行
+    if (currentStep === 'sms') {
+      handleVerifyAndSubmit();
+      return;
+    }
+    const nextIdx = stepIndex + 1;
+    if (nextIdx < stepSequence.length) {
+      setCurrentStep(stepSequence[nextIdx]);
+      setSubmitError(null);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
 
-    setIsSubmitting(true);
+  const goBack = () => {
+    const prevIdx = stepIndex - 1;
+    if (prevIdx >= 0) {
+      setCurrentStep(stepSequence[prevIdx]);
+      setSubmitError(null);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  // 郵便番号 → 住所自動入力（zipcloud）
+  const handlePostalLookup = async (code: string) => {
+    const digits = code.replace(/[^0-9]/g, '');
+    if (digits.length !== 7) return;
+    setIsLoadingAddress(true);
+    try {
+      const res = await fetch(`https://zipcloud.ibsnet.co.jp/api/search?zipcode=${digits}`);
+      const data = await res.json();
+      if (data.results?.length > 0) {
+        const r = data.results[0];
+        setForm(prev => ({
+          ...prev,
+          postalCode: digits,
+          prefecture: r.address1 || '',
+          city: `${r.address2 || ''}${r.address3 || ''}`,
+        }));
+      }
+    } catch {
+      // ignore
+    } finally {
+      setIsLoadingAddress(false);
+    }
+  };
+
+  // クールダウン秒カウントダウン
+  useEffect(() => {
+    if (smsCooldownSeconds <= 0) return;
+    const t = setTimeout(() => setSmsCooldownSeconds(s => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [smsCooldownSeconds]);
+
+  // step 8 (利用規約同意後) → SMS 送信 → sms ステップへ
+  const handleSendSmsAndAdvance = async () => {
+    if (isSendingSms) return;
+    setIsSendingSms(true);
+    setSmsError(null);
+    setSubmitError(null);
+    try {
+      const res = await fetch('/api/sms/send-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phoneNumber: form.phoneNumber }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const msg = data.error || 'SMS送信に失敗しました';
+        setSubmitError(msg);
+        toast.error(msg);
+        return;
+      }
+      // SMS 送信成功 → sms ステップへ遷移
+      setCurrentStep('sms');
+      setSmsCooldownSeconds(60);
+      setSmsCode('');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      toast.success('認証コードを送信しました');
+    } catch (err) {
+      const info = extractDebugInfo(err);
+      showDebugError({
+        type: 'other',
+        operation: 'SMS送信',
+        message: info.message,
+        details: info.details,
+        stack: info.stack,
+      });
+      setSubmitError('SMS送信中にエラーが発生しました');
+      toast.error('SMS送信中にエラーが発生しました');
+    } finally {
+      setIsSendingSms(false);
+    }
+  };
+
+  // SMS コード再送信
+  const handleResendSms = async () => {
+    if (isSendingSms || smsCooldownSeconds > 0) return;
+    setIsSendingSms(true);
+    setSmsError(null);
+    try {
+      const res = await fetch('/api/sms/send-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phoneNumber: form.phoneNumber }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setSmsError(data.error || '再送信に失敗しました');
+        return;
+      }
+      setSmsCooldownSeconds(60);
+      setSmsCode('');
+      toast.success('認証コードを再送信しました');
+    } catch {
+      setSmsError('再送信中にエラーが発生しました');
+    } finally {
+      setIsSendingSms(false);
+    }
+  };
+
+  // step sms (コード入力) → 認証 → 登録API
+  const handleVerifyAndSubmit = async () => {
+    if (isVerifyingSms || isSubmitting) return;
+
+    // 既に検証成功した token を保持していれば再利用（登録API失敗→再試行 UX 対応）
+    // CPaaS のコードは一度使うと AlreadyVerified で弾かれるため
+    let token = phoneVerificationToken;
+
+    if (!token) {
+      setIsVerifyingSms(true);
+      setSmsError(null);
+      try {
+        const verifyRes = await fetch('/api/sms/verify-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phoneNumber: form.phoneNumber, code: smsCode }),
+        });
+        const verifyData = await verifyRes.json();
+        if (!verifyData.success) {
+          setSmsError(verifyData.error || '認証に失敗しました');
+          return;
+        }
+        token = verifyData.verificationToken as string;
+        setPhoneVerificationToken(token);
+      } catch (err) {
+        setSmsError('認証処理中にエラーが発生しました。ネットワーク接続を確認してください。');
+        return;
+      } finally {
+        setIsVerifyingSms(false);
+      }
+    }
 
     try {
-      const response = await fetch('/api/auth/register', {
+      // 2. 登録 API 実行
+      setIsSubmitting(true);
+      setSubmitError(null);
+
+      const qualificationsToSave = [...form.qualifications];
+      if (form.qualifications.includes('その他') && form.qualificationOther.trim()) {
+        qualificationsToSave.push(form.qualificationOther.trim());
+      }
+      const birthDate = `${form.birthYear}-${String(form.birthMonth).padStart(2, '0')}-${String(form.birthDay).padStart(2, '0')}`;
+
+      const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-          phoneNumber: formData.phoneNumber,
-          phoneVerificationToken,
-          // 新規追加フィールド
-          lastName: formData.lastName,
-          firstName: formData.firstName,
-          lastNameKana: formData.lastNameKana,
-          firstNameKana: formData.firstNameKana,
-          birthDate: formData.birthDate,
-          postalCode: formData.postalCode,
-          prefecture: formData.prefecture,
-          city: formData.city,
-          addressLine: formData.addressLine,
-          building: formData.building,
-          qualifications: formData.qualifications,
-          // LP経由登録情報（フォールバックチェーン: localStorage → URLパラメータ → サーバーサイドIP照合）
+          email: form.email,
+          password: form.password,
+          lastName: form.lastName,
+          firstName: form.firstName,
+          phoneNumber: form.phoneNumber,
+          phoneVerificationToken: token,
+          birthDate,
+          qualifications: qualificationsToSave,
+          lastNameKana: form.lastNameKana,
+          firstNameKana: form.firstNameKana,
+          gender: form.gender,
+          postalCode: form.postalCode,
+          prefecture: form.prefecture,
+          city: form.city,
+          desiredWorkStyle: form.desiredWorkStyle,
+          workFrequency: form.workFrequency || undefined,
+          // step 2c (任意入力、空文字はサーバー側で null 扱い)
+          desiredWorkPeriod: form.desiredWorkPeriod || undefined,
+          desiredWorkDays: normalizeDesiredWorkDays(form.desiredWorkDays),
+          desiredStartTime: form.desiredStartTime || undefined,
+          desiredEndTime: form.desiredEndTime || undefined,
+          jobTiming: form.jobTiming,
+          employmentStatus: form.employmentStatus,
           registrationLpId: lpInfo.lpId,
           registrationCampaignCode: lpInfo.campaignCode,
           registrationGenrePrefix: lpInfo.genrePrefix,
-          lpAttributionSource: lpSource,
+          lpAttributionSource: lpInfo.source,
         }),
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || '登録に失敗しました');
+      const data = await res.json();
+      if (!res.ok) {
+        const detailMessage = data?.debug?.message
+          ? `${data.error || '登録に失敗しました'}（原因: ${data.debug.message}）`
+          : (data.error || '登録に失敗しました');
+        showDebugError({
+          type: 'other',
+          operation: '会員登録',
+          message: detailMessage,
+          details: data?.debug?.stack,
+          context: { status: res.status, debug: data?.debug },
+        });
+        setSubmitError(detailMessage);
+        toast.error(detailMessage);
+        setIsSubmitting(false);
+        return;
       }
 
-      toast.success('登録が完了しました。メールをご確認ください。');
-      trackGA4Event('sign_up', {
-        method: 'email',
-        lp_id: lpInfo.lpId || undefined,
-        campaign_code: lpInfo.campaignCode || undefined,
-      });
+      try {
+        trackGA4Event('worker_register_complete', {
+          lp_id: lpInfo.lpId || '',
+          genre: lpInfo.genrePrefix || '',
+        });
+      } catch {}
 
-      // メール認証待ちページへリダイレクト
-      router.push(`/auth/verify-pending?email=${encodeURIComponent(formData.email)}`);
-      return;
-    } catch (error) {
-      const debugInfo = extractDebugInfo(error);
+      router.replace(data.redirect || '/register/worker/thanks');
+    } catch (err) {
+      const info = extractDebugInfo(err);
       showDebugError({
-        type: 'save',
-        operation: 'ワーカー新規登録',
-        message: debugInfo.message,
-        details: debugInfo.details,
-        stack: debugInfo.stack,
-        context: {
-          email: formData.email,
-        }
+        type: 'other',
+        operation: '会員登録（例外）',
+        message: info.message,
+        details: info.details,
+        stack: info.stack,
       });
-      toast.error(error instanceof Error ? error.message : '登録中にエラーが発生しました');
-    } finally {
+      setSubmitError('登録中にエラーが発生しました。ネットワーク接続を確認して再度お試しください。');
+      toast.error('登録中にエラーが発生しました');
       setIsSubmitting(false);
-    }
-  };
-
-  const handleCancel = () => {
-    if (confirm('入力内容が失われますが、よろしいですか？')) {
-      window.history.back();
+      setIsVerifyingSms(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-xl mx-auto px-4">
-        <div className="mb-6">
-          <Link href="/job-list" className="inline-flex items-center gap-2 text-primary hover:underline">
-            <ArrowLeft className="w-4 h-4" />
-            戻る
-          </Link>
+    <div className="min-h-screen bg-[#F8FCFE]">
+      <form
+        className="max-w-md mx-auto bg-white min-h-screen relative"
+        onSubmit={(e) => {
+          e.preventDefault();
+          goNext();
+        }}
+      >
+        {/* ヘッダー */}
+        <div className="bg-gradient-to-br from-[#E8F7FB] via-[#D4F1F9] to-[#E8F0FE] px-5 pt-6 pb-8 text-center">
+          <div className="text-[#2AADCF] font-bold text-lg">タスタス</div>
+          <h1 className="text-xl font-bold text-gray-800 mt-1">あなたの現状を教えてください</h1>
         </div>
 
-        {/* ステップインジケーター */}
-        <div className="flex items-center justify-center mb-8">
-          <div className="flex items-center gap-0">
-            {/* ステップ1 */}
-            <div className="flex items-center">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${
-                currentStep === 1 ? 'bg-primary text-white' : currentStep > 1 ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-500'
-              }`}>
-                {currentStep > 1 ? <Check className="w-5 h-5" /> : '1'}
-              </div>
-              <span className={`ml-2 text-sm font-medium ${currentStep === 1 ? 'text-primary' : 'text-gray-500'}`}>
-                アカウント・基本情報
-              </span>
-            </div>
-            {/* 接続線 */}
-            <div className={`w-12 h-0.5 mx-2 ${currentStep > 1 ? 'bg-green-500' : 'bg-gray-200'}`} />
-            {/* ステップ2 */}
-            <div className="flex items-center">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${
-                currentStep === 2 ? 'bg-primary text-white' : 'bg-gray-200 text-gray-500'
-              }`}>
-                2
-              </div>
-              <span className={`ml-2 text-sm font-medium ${currentStep === 2 ? 'text-primary' : 'text-gray-500'}`}>
-                住所・資格
-              </span>
-            </div>
-          </div>
+        {/* プログレスバー */}
+        <div className="flex items-center justify-center gap-2 py-5">
+          {stepSequence.map((_, i) => (
+            <div
+              key={i}
+              className={`w-3 h-3 rounded-full transition-all ${
+                i === stepIndex
+                  ? 'bg-[#2AADCF] scale-125 shadow-[0_2px_8px_rgba(42,173,207,0.3)]'
+                  : i < stepIndex
+                  ? 'bg-[#2AADCF]'
+                  : 'bg-gray-300'
+              }`}
+            />
+          ))}
         </div>
 
-        <div className="bg-white rounded-lg shadow-lg p-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">新規ワーカー登録</h1>
-          <p className="text-gray-600 mb-6">
-            {currentStep === 1
-              ? 'アカウント情報と基本情報を入力してください。'
-              : '住所と保有資格を入力してください。'}
-          </p>
-
-          <form onSubmit={handleSubmit} noValidate>
-            {/* ============ ステップ1: アカウント・基本情報 ============ */}
-            {currentStep === 1 && (
-              <div className="space-y-6">
-                {/* アカウント情報セクション */}
-                <div>
-                  <h2 className="text-lg font-bold text-gray-800 mb-4 pb-2 border-b">アカウント情報</h2>
-                  <div className="space-y-4">
-                    {/* メールアドレス */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        メールアドレス <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="email"
-                        value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.email ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
-                        placeholder="example@email.com"
-                      />
-                      {showErrors && !formData.email && (
-                        <p className="text-red-500 text-xs mt-1">メールアドレスを入力してください</p>
-                      )}
-                    </div>
-                    {/* メールアドレス（確認） */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        メールアドレス（確認） <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="email"
-                        value={formData.emailConfirm}
-                        onChange={(e) => setFormData({ ...formData, emailConfirm: e.target.value })}
-                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.emailConfirm ? 'border-red-500 bg-red-50' : formData.emailConfirm && formData.email !== formData.emailConfirm ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
-                        placeholder="確認のため再入力"
-                      />
-                      {showErrors && !formData.emailConfirm && (
-                        <p className="text-red-500 text-xs mt-1">メールアドレス（確認）を入力してください</p>
-                      )}
-                      {formData.emailConfirm && formData.email !== formData.emailConfirm && (
-                        <p className="text-red-500 text-xs mt-1">メールアドレスが一致しません</p>
-                      )}
-                      {formData.emailConfirm && formData.email === formData.emailConfirm && (
-                        <p className="text-green-600 text-xs mt-1">✓ 一致しています</p>
-                      )}
-                    </div>
-                    {/* 電話番号（SMS認証） */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        電話番号 <span className="text-red-500">*</span>
-                      </label>
-                      <SmsVerification
-                        phoneNumber={formData.phoneNumber}
-                        onPhoneNumberChange={(value) => {
-                          setFormData({ ...formData, phoneNumber: value });
-                          setPhoneVerificationToken(null);
-                        }}
-                        onVerified={(token) => setPhoneVerificationToken(token)}
-                        showError={showErrors && !formData.phoneNumber}
-                        errorMessage="電話番号を入力してください"
-                        inputClassName={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.phoneNumber ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
-                      />
-                    </div>
-                    {/* パスワード */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        パスワード <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="password"
-                        value={formData.password}
-                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.password ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
-                        placeholder="8文字以上"
-                        minLength={8}
-                      />
-                      <p className="text-xs text-gray-500 mt-1">8文字以上で入力してください</p>
-                      {showErrors && !formData.password && (
-                        <p className="text-red-500 text-xs mt-1">パスワードを入力してください</p>
-                      )}
-                    </div>
-                    {/* パスワード（確認） */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        パスワード（確認） <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="password"
-                        value={formData.passwordConfirm}
-                        onChange={(e) => setFormData({ ...formData, passwordConfirm: e.target.value })}
-                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.passwordConfirm ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
-                        placeholder="パスワードを再入力"
-                        minLength={8}
-                      />
-                      {showErrors && !formData.passwordConfirm && (
-                        <p className="text-red-500 text-xs mt-1">パスワード（確認）を入力してください</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* 基本情報セクション */}
-                <div>
-                  <h2 className="text-lg font-bold text-gray-800 mb-4 pb-2 border-b">基本情報</h2>
-                  <div className="space-y-4">
-                    {/* 氏名 */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          姓 <span className="text-red-500">*</span>
-                        </label>
-                        <NameWithKanaInput
-                          value={formData.lastName}
-                          onChange={(value) => setFormData(prev => ({ ...prev, lastName: value }))}
-                          onKanaChange={(kana) => setFormData(prev => ({ ...prev, lastNameKana: kana }))}
-                          kanaValue={formData.lastNameKana}
-                          className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.lastName ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
-                          placeholder="山田"
-                        />
-                        {showErrors && !formData.lastName && (
-                          <p className="text-red-500 text-xs mt-1">姓を入力してください</p>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          名 <span className="text-red-500">*</span>
-                        </label>
-                        <NameWithKanaInput
-                          value={formData.firstName}
-                          onChange={(value) => setFormData(prev => ({ ...prev, firstName: value }))}
-                          onKanaChange={(kana) => setFormData(prev => ({ ...prev, firstNameKana: kana }))}
-                          kanaValue={formData.firstNameKana}
-                          className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.firstName ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
-                          placeholder="太郎"
-                        />
-                        {showErrors && !formData.firstName && (
-                          <p className="text-red-500 text-xs mt-1">名を入力してください</p>
-                        )}
-                      </div>
-                    </div>
-                    {/* 氏名カナ */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          姓（カナ） <span className="text-red-500">*</span>
-                        </label>
-                        <KatakanaInput
-                          value={formData.lastNameKana}
-                          onChange={(value) => setFormData({ ...formData, lastNameKana: value })}
-                          className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.lastNameKana ? 'border-red-500 bg-red-50' : formData.lastNameKana && !isKatakanaOnly(formData.lastNameKana) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
-                          placeholder="ヤマダ"
-                        />
-                        {showErrors && !formData.lastNameKana && (
-                          <p className="text-red-500 text-xs mt-1">姓（カナ）を入力してください</p>
-                        )}
-                        {formData.lastNameKana && !isKatakanaOnly(formData.lastNameKana) && (
-                          <p className="text-red-500 text-xs mt-1">カタカナで入力してください</p>
-                        )}
-                        <p className="text-xs text-gray-500 mt-1">※漢字入力で自動変換・ひらがなも変換可</p>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          名（カナ） <span className="text-red-500">*</span>
-                        </label>
-                        <KatakanaInput
-                          value={formData.firstNameKana}
-                          onChange={(value) => setFormData({ ...formData, firstNameKana: value })}
-                          className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.firstNameKana ? 'border-red-500 bg-red-50' : formData.firstNameKana && !isKatakanaOnly(formData.firstNameKana) ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
-                          placeholder="タロウ"
-                        />
-                        {showErrors && !formData.firstNameKana && (
-                          <p className="text-red-500 text-xs mt-1">名（カナ）を入力してください</p>
-                        )}
-                        {formData.firstNameKana && !isKatakanaOnly(formData.firstNameKana) && (
-                          <p className="text-red-500 text-xs mt-1">カタカナで入力してください</p>
-                        )}
-                        <p className="text-xs text-gray-500 mt-1">※漢字入力で自動変換・ひらがなも変換可</p>
-                      </div>
-                    </div>
-                    {/* 生年月日 */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        生年月日 <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="date"
-                        value={formData.birthDate}
-                        onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })}
-                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${showErrors && !formData.birthDate ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
-                      />
-                      {showErrors && !formData.birthDate && (
-                        <p className="text-red-500 text-xs mt-1">生年月日を入力してください</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* ステップ1ボタン */}
-                <div className="flex justify-end gap-3 pt-4 border-t">
-                  <button
-                    type="button"
-                    onClick={handleCancel}
-                    className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
-                  >
-                    キャンセル
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleNextStep}
-                    className="px-6 py-2 bg-primary hover:bg-primary-dark text-white rounded-md transition-colors font-bold"
-                  >
-                    次へ
-                  </button>
-                </div>
+        {/* ステップコンテンツ */}
+        <div className="px-5 pb-32">
+          {currentStep === '1' && (
+            <StepContainer question="どんな資格をお持ちですか？" hint="複数選択できます">
+              <div className="grid grid-cols-2 gap-2.5">
+                {QUALIFICATION_OPTIONS.map(opt => (
+                  <CardOption
+                    key={opt.value}
+                    label={opt.label}
+                    selected={form.qualifications.includes(opt.value)}
+                    onClick={() => toggleArrayValue('qualifications', opt.value)}
+                  />
+                ))}
               </div>
-            )}
-
-            {/* ============ ステップ2: 住所・資格・同意 ============ */}
-            {currentStep === 2 && (
-              <div className="space-y-6">
-                {/* 住所セクション */}
-                <div>
-                  <h2 className="text-lg font-bold text-gray-800 mb-4 pb-2 border-b">住所</h2>
-                  <AddressSelector
-                    prefecture={formData.prefecture}
-                    city={formData.city}
-                    addressLine={formData.addressLine}
-                    building={formData.building}
-                    postalCode={formData.postalCode}
-                    onChange={(data) => {
-                      setFormData(prev => ({
-                        ...prev,
-                        prefecture: data.prefecture,
-                        city: data.city,
-                        addressLine: data.addressLine || '',
-                        building: data.building || '',
-                        postalCode: data.postalCode || '',
-                      }));
-                    }}
-                    required={true}
-                    showErrors={showErrors}
+              {form.qualifications.includes('その他') && (
+                <div className="mt-3">
+                  <input
+                    type="text"
+                    value={form.qualificationOther}
+                    onChange={e => setField('qualificationOther', e.target.value)}
+                    placeholder="資格名を入力してください"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-[10px] focus:border-[#2AADCF] focus:outline-none"
                   />
                 </div>
+              )}
+            </StepContainer>
+          )}
 
-                {/* 保有資格セクション */}
+          {currentStep === '2' && (
+            <StepContainer question="希望の働き方" hint="複数選択できます">
+              <div className="grid grid-cols-2 gap-2.5">
+                {DESIRED_WORK_STYLE_OPTIONS.map(opt => (
+                  <CardOption
+                    key={opt}
+                    label={opt}
+                    selected={form.desiredWorkStyle.includes(opt)}
+                    onClick={() => toggleArrayValue('desiredWorkStyle', opt)}
+                  />
+                ))}
+              </div>
+            </StepContainer>
+          )}
+
+          {currentStep === '2b' && (
+            <StepContainer question="どのくらい働きたいですか？">
+              <div className="grid grid-cols-2 gap-2.5">
+                {WORK_FREQUENCY_OPTIONS.map(opt => (
+                  <CardOption
+                    key={opt}
+                    label={opt}
+                    selected={form.workFrequency === opt}
+                    onClick={() => setField('workFrequency', opt)}
+                  />
+                ))}
+                {form.desiredWorkStyle.includes('単発・スポット') && (
+                  <CardOption
+                    label="不定期/決まっていない"
+                    fullWidth
+                    selected={form.workFrequency === '不定期/決まっていない'}
+                    onClick={() => setField('workFrequency', '不定期/決まっていない')}
+                  />
+                )}
+              </div>
+            </StepContainer>
+          )}
+
+          {currentStep === '2c' && (
+            <StepContainer question="詳細な希望勤務条件" hint="任意入力。「次へ」で空欄のままスキップできます">
+              <div className="mb-5">
+                <FieldLabel>希望勤務期間</FieldLabel>
+                <select
+                  value={form.desiredWorkPeriod}
+                  onChange={e => setField('desiredWorkPeriod', e.target.value)}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-[10px] focus:border-[#2AADCF] focus:outline-none"
+                >
+                  <option value="">特になし</option>
+                  {DESIRED_WORK_PERIOD_OPTIONS.map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="mb-5">
+                <FieldLabel>希望勤務曜日</FieldLabel>
+                <div className="flex flex-wrap gap-2">
+                  {DESIRED_WORK_DAY_OPTIONS.map(opt => {
+                    const selected = form.desiredWorkDays.includes(opt);
+                    return (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => toggleDesiredWorkDay(opt)}
+                        aria-pressed={selected}
+                        className={`px-4 py-2 rounded-full border-2 text-sm font-semibold select-none transition-all ${
+                          selected
+                            ? 'bg-[#2AADCF] text-white border-[#2AADCF]'
+                            : 'bg-white text-gray-700 border-gray-200'
+                        }`}
+                      >
+                        {opt}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  「特になし」を選ぶと、他の曜日は自動的に外れます
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <h2 className="text-lg font-bold text-gray-800 mb-4 pb-2 border-b">保有資格</h2>
-                  <p className="text-sm text-gray-600 mb-2">
-                    保有している資格にチェックを入れてください。
-                  </p>
-                  <p className="text-sm text-red-600 font-medium mb-4">
-                    ※応募するには会員登録後、資格証明書の写真の提出が必要です
-                  </p>
-                  {showErrors && formData.qualifications.length === 0 && (
-                    <p className="text-red-500 text-xs mb-3">少なくとも1つの資格を選択してください</p>
-                  )}
-                  <div className={`space-y-4 ${showErrors && formData.qualifications.length === 0 ? 'ring-2 ring-red-500 rounded-lg p-3' : ''}`}>
-                    {QUALIFICATION_GROUPS.map((group) => (
-                      <div key={group.name}>
-                        <h4 className="text-sm font-semibold text-gray-700 mb-2">{group.name}</h4>
-                        <div className="grid grid-cols-2 gap-2">
-                          {group.qualifications.map((qual) => (
-                            <label key={qual} className="flex items-center gap-2 cursor-pointer text-sm">
-                              <input
-                                type="checkbox"
-                                checked={formData.qualifications.includes(qual)}
-                                onChange={() => handleQualificationToggle(qual)}
-                                className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
-                              />
-                              <span>{qual}</span>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
+                  <FieldLabel>希望開始時刻</FieldLabel>
+                  <select
+                    value={form.desiredStartTime}
+                    onChange={e => setField('desiredStartTime', e.target.value)}
+                    className="w-full px-3 py-3 border-2 border-gray-200 rounded-[10px] focus:border-[#2AADCF] focus:outline-none"
+                  >
+                    <option value="">特になし</option>
+                    {HOUR_TIME_OPTIONS.map(t => (
+                      <option key={t} value={t}>{t}</option>
                     ))}
-                  </div>
+                  </select>
                 </div>
-
-                {/* 利用規約・プライバシーポリシー同意 */}
-                <div id="terms-section" className={`p-4 bg-gray-50 rounded-lg border ${showErrors && (!agreedToTerms || !agreedToPrivacy) ? 'border-red-500' : 'border-gray-200'}`}>
-                  <div className="space-y-4">
-                    {/* 利用規約 */}
-                    <div className="space-y-2">
-                      <button
-                        type="button"
-                        onClick={() => setShowTermsModal(true)}
-                        className="text-primary hover:underline text-sm font-medium"
-                      >
-                        利用規約を確認する
-                      </button>
-                      <label className="flex items-start gap-3 cursor-pointer p-3 bg-white rounded-lg border border-gray-200">
-                        <input
-                          type="checkbox"
-                          checked={agreedToTerms}
-                          onChange={(e) => setAgreedToTerms(e.target.checked)}
-                          className="w-5 h-5 text-primary border-gray-300 rounded focus:ring-primary mt-0.5"
-                        />
-                        <span className="text-sm">
-                          <span className="font-medium">利用規約に同意します</span>
-                          <span className="text-red-500 ml-1">*</span>
-                          {termsLastUpdated && (
-                          <span className="text-gray-500 block text-xs mt-1">
-                            （最終更新日: {termsLastUpdated}）
-                          </span>
-                        )}
-                        </span>
-                      </label>
-                      {showErrors && !agreedToTerms && (
-                        <p className="text-red-500 text-xs">利用規約に同意してください</p>
-                      )}
-                    </div>
-
-                    {/* プライバシーポリシー */}
-                    <div className="space-y-2">
-                      <button
-                        type="button"
-                        onClick={() => setShowPrivacyModal(true)}
-                        className="text-primary hover:underline text-sm font-medium"
-                      >
-                        プライバシーポリシーを確認する
-                      </button>
-                      <label className="flex items-start gap-3 cursor-pointer p-3 bg-white rounded-lg border border-gray-200">
-                        <input
-                          type="checkbox"
-                          checked={agreedToPrivacy}
-                          onChange={(e) => setAgreedToPrivacy(e.target.checked)}
-                          className="w-5 h-5 text-primary border-gray-300 rounded focus:ring-primary mt-0.5"
-                        />
-                        <span className="text-sm">
-                          <span className="font-medium">プライバシーポリシーに同意します</span>
-                          <span className="text-red-500 ml-1">*</span>
-                          {privacyLastUpdated && (
-                          <span className="text-gray-500 block text-xs mt-1">
-                            （最終更新日: {privacyLastUpdated}）
-                          </span>
-                        )}
-                        </span>
-                      </label>
-                      {showErrors && !agreedToPrivacy && (
-                        <p className="text-red-500 text-xs">プライバシーポリシーに同意してください</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* 案内文 */}
-                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <p className="text-sm text-blue-800">
-                    登録後、求人に応募する際には追加の情報（緊急連絡先、銀行口座、身分証明書、資格証明書など）が必要です。マイページからいつでも入力できます。
-                  </p>
-                </div>
-
-                {/* ステップ2ボタン */}
-                <div className="flex justify-end gap-3 pt-4 border-t">
-                  <button
-                    type="button"
-                    onClick={handlePrevStep}
-                    className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
+                <div>
+                  <FieldLabel>希望終了時刻</FieldLabel>
+                  <select
+                    value={form.desiredEndTime}
+                    onChange={e => setField('desiredEndTime', e.target.value)}
+                    className="w-full px-3 py-3 border-2 border-gray-200 rounded-[10px] focus:border-[#2AADCF] focus:outline-none"
                   >
-                    戻る
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="px-6 py-2 bg-primary hover:bg-primary-dark text-white rounded-md transition-colors font-bold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-w-[100px]"
-                  >
-                    {isSubmitting && <LoadingSpinner size="sm" color="white" />}
-                    {isSubmitting ? '登録中...' : '登録する'}
-                  </button>
+                    <option value="">特になし</option>
+                    {HOUR_TIME_OPTIONS.map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
-            )}
-          </form>
+            </StepContainer>
+          )}
+
+          {currentStep === '3' && (
+            <StepContainer question="いつ頃の求人をお探しですか？">
+              <div className="grid grid-cols-2 gap-2.5">
+                {JOB_TIMING_OPTIONS.map(opt => (
+                  <CardOption
+                    key={opt}
+                    label={opt}
+                    selected={form.jobTiming === opt}
+                    onClick={() => setField('jobTiming', opt)}
+                  />
+                ))}
+              </div>
+            </StepContainer>
+          )}
+
+          {currentStep === '4' && (
+            <StepContainer question="お仕事のご状況">
+              <div className="grid grid-cols-2 gap-2.5">
+                {EMPLOYMENT_STATUS_OPTIONS.map(opt => (
+                  <CardOption
+                    key={opt}
+                    label={opt}
+                    selected={form.employmentStatus === opt}
+                    onClick={() => setField('employmentStatus', opt)}
+                  />
+                ))}
+              </div>
+            </StepContainer>
+          )}
+
+          {currentStep === '5' && (
+            <StepContainer question="お住まいの地域">
+              <FieldLabel required>郵便番号</FieldLabel>
+              <input
+                type="tel"
+                inputMode="numeric"
+                maxLength={8}
+                value={form.postalCode}
+                onChange={e => {
+                  const v = e.target.value;
+                  setField('postalCode', v);
+                  if (v.replace(/[^0-9]/g, '').length === 7) {
+                    handlePostalLookup(v);
+                  }
+                }}
+                placeholder="例：1500022"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-[10px] focus:border-[#2AADCF] focus:outline-none"
+              />
+              {isLoadingAddress && <p className="text-xs text-gray-500 mt-1">住所を取得中...</p>}
+              {form.prefecture && (
+                <div className="mt-4 space-y-3">
+                  <div>
+                    <FieldLabel>都道府県</FieldLabel>
+                    <input
+                      type="text"
+                      readOnly
+                      value={form.prefecture}
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-[10px] bg-gray-50"
+                    />
+                  </div>
+                  <div>
+                    <FieldLabel>市区町村</FieldLabel>
+                    <input
+                      type="text"
+                      readOnly
+                      value={form.city}
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-[10px] bg-gray-50"
+                    />
+                  </div>
+                </div>
+              )}
+            </StepContainer>
+          )}
+
+          {currentStep === '6' && (
+            <StepContainer question="性別・生年月日">
+              <div className="mb-5">
+                <FieldLabel required>性別</FieldLabel>
+                <div className="grid grid-cols-2 gap-2.5">
+                  {['男性', '女性'].map(g => (
+                    <CardOption
+                      key={g}
+                      label={g}
+                      selected={form.gender === g}
+                      onClick={() => setField('gender', g)}
+                    />
+                  ))}
+                </div>
+              </div>
+              <FieldLabel required>生年月日</FieldLabel>
+              <div className="flex gap-2">
+                <select
+                  value={form.birthYear}
+                  onChange={e => setField('birthYear', e.target.value)}
+                  className="flex-1 px-3 py-3 border-2 border-gray-200 rounded-[10px] focus:border-[#2AADCF] focus:outline-none"
+                >
+                  <option value="">年</option>
+                  {Array.from({ length: 2008 - 1950 + 1 }, (_, i) => 2008 - i).map(y => (
+                    <option key={y} value={y}>{y}年</option>
+                  ))}
+                </select>
+                <select
+                  value={form.birthMonth}
+                  onChange={e => setField('birthMonth', e.target.value)}
+                  className="flex-1 px-3 py-3 border-2 border-gray-200 rounded-[10px] focus:border-[#2AADCF] focus:outline-none"
+                >
+                  <option value="">月</option>
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                    <option key={m} value={m}>{m}月</option>
+                  ))}
+                </select>
+                <select
+                  value={form.birthDay}
+                  onChange={e => setField('birthDay', e.target.value)}
+                  className="flex-1 px-3 py-3 border-2 border-gray-200 rounded-[10px] focus:border-[#2AADCF] focus:outline-none"
+                >
+                  <option value="">日</option>
+                  {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
+                    <option key={d} value={d}>{d}日</option>
+                  ))}
+                </select>
+              </div>
+            </StepContainer>
+          )}
+
+          {currentStep === '7' && (
+            <StepContainer question="おなまえ">
+              <div className="mb-4">
+                <FieldLabel required>姓</FieldLabel>
+                <input
+                  type="text"
+                  value={form.lastName}
+                  onChange={e => setField('lastName', e.target.value)}
+                  placeholder="例：山田"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-[10px] focus:border-[#2AADCF] focus:outline-none"
+                />
+              </div>
+              <div className="mb-4">
+                <FieldLabel required>名</FieldLabel>
+                <input
+                  type="text"
+                  value={form.firstName}
+                  onChange={e => setField('firstName', e.target.value)}
+                  placeholder="例：花子"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-[10px] focus:border-[#2AADCF] focus:outline-none"
+                />
+              </div>
+              <div className="mb-4">
+                <FieldLabel required>せい（カナ）</FieldLabel>
+                <input
+                  type="text"
+                  value={form.lastNameKana}
+                  onChange={e => setField('lastNameKana', e.target.value)}
+                  placeholder="例：ヤマダ"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-[10px] focus:border-[#2AADCF] focus:outline-none"
+                />
+              </div>
+              <div>
+                <FieldLabel required>めい（カナ）</FieldLabel>
+                <input
+                  type="text"
+                  value={form.firstNameKana}
+                  onChange={e => setField('firstNameKana', e.target.value)}
+                  placeholder="例：ハナコ"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-[10px] focus:border-[#2AADCF] focus:outline-none"
+                />
+              </div>
+            </StepContainer>
+          )}
+
+          {currentStep === '8' && (
+            <StepContainer question="ご連絡先・パスワード">
+              {submitError && (
+                <div
+                  role="alert"
+                  aria-live="polite"
+                  className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm"
+                >
+                  {submitError}
+                </div>
+              )}
+              <div className="mb-4">
+                <FieldLabel required>電話番号</FieldLabel>
+                <PhoneNumberInput
+                  value={form.phoneNumber}
+                  onChange={v => {
+                    setField('phoneNumber', v);
+                    setPhoneVerificationToken(null);
+                  }}
+                  placeholder="例：09012345678"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-[10px] focus:border-[#2AADCF] focus:outline-none"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  ※ 同意して登録を押すと、SMSで認証コードをお送りします
+                </p>
+              </div>
+              <div className="mb-4">
+                <FieldLabel required>メールアドレス</FieldLabel>
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={e => setField('email', e.target.value)}
+                  placeholder="例：example@mail.com"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-[10px] focus:border-[#2AADCF] focus:outline-none"
+                />
+              </div>
+              <div className="mb-4">
+                <FieldLabel required>パスワード（8文字以上）</FieldLabel>
+                <input
+                  type="password"
+                  value={form.password}
+                  onChange={e => setField('password', e.target.value)}
+                  placeholder="8文字以上"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-[10px] focus:border-[#2AADCF] focus:outline-none"
+                />
+              </div>
+              <div className="space-y-1 mt-6">
+                <div className="flex items-start gap-3 py-2 px-1 min-h-[44px] select-none">
+                  <input
+                    id="agree-terms"
+                    type="checkbox"
+                    checked={agreedToTerms}
+                    onChange={e => setAgreedToTerms(e.target.checked)}
+                    className="mt-1 w-5 h-5 flex-shrink-0 accent-[#2AADCF] cursor-pointer"
+                  />
+                  <div className="leading-relaxed text-sm flex-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowTermsModal(true)}
+                      className="text-[#2AADCF] underline font-medium"
+                    >
+                      利用規約
+                    </button>
+                    <label htmlFor="agree-terms" className="cursor-pointer">に同意する</label>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 py-2 px-1 min-h-[44px] select-none">
+                  <input
+                    id="agree-privacy"
+                    type="checkbox"
+                    checked={agreedToPrivacy}
+                    onChange={e => setAgreedToPrivacy(e.target.checked)}
+                    className="mt-1 w-5 h-5 flex-shrink-0 accent-[#2AADCF] cursor-pointer"
+                  />
+                  <div className="leading-relaxed text-sm flex-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowPrivacyModal(true)}
+                      className="text-[#2AADCF] underline font-medium"
+                    >
+                      プライバシーポリシー
+                    </button>
+                    <label htmlFor="agree-privacy" className="cursor-pointer">に同意する</label>
+                  </div>
+                </div>
+              </div>
+              <div className="flex justify-center gap-4 mt-6 text-xs text-gray-500">
+                <span>🔒 SSL暗号化通信</span>
+                <span>🛡️ 個人情報保護</span>
+              </div>
+            </StepContainer>
+          )}
+
+          {currentStep === 'sms' && (
+            <StepContainer question="認証コードを入力してください">
+              <div className="text-center mb-6">
+                <div className="text-3xl mb-3">📱</div>
+                <p className="text-sm text-gray-700 mb-1">以下の番号宛にSMSを送信しました</p>
+                <p className="text-lg font-bold text-[#1A8FAD] tracking-wider">
+                  {formatPhoneForDisplay(form.phoneNumber)}
+                </p>
+              </div>
+
+              {submitError && (
+                <div
+                  role="alert"
+                  aria-live="polite"
+                  className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm"
+                >
+                  {submitError}
+                </div>
+              )}
+              {smsError && (
+                <div
+                  id="sms-code-error"
+                  role="alert"
+                  aria-live="polite"
+                  className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm"
+                >
+                  {smsError}
+                </div>
+              )}
+
+              <div className="mb-4">
+                <label htmlFor="sms-code-input" className="block text-sm font-semibold text-gray-800 mb-2">
+                  認証コード
+                  <span className="ml-2 text-[10px] bg-[#FF6B8A] text-white px-2 py-0.5 rounded font-semibold">
+                    必須
+                  </span>
+                </label>
+                <input
+                  id="sms-code-input"
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={6}
+                  autoComplete="one-time-code"
+                  autoFocus
+                  value={smsCode}
+                  onChange={e => {
+                    setSmsCode(e.target.value.replace(/[^0-9]/g, ''));
+                    setSmsError(null);
+                  }}
+                  placeholder="4桁または6桁のコード"
+                  className="w-full px-4 py-4 border-2 border-gray-200 rounded-[10px] focus:border-[#2AADCF] focus:outline-none text-center text-2xl tracking-[0.5em] font-bold"
+                  aria-describedby={smsError ? 'sms-code-error' : undefined}
+                />
+              </div>
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={handleResendSms}
+                  disabled={smsCooldownSeconds > 0 || isSendingSms}
+                  className="text-sm text-[#2AADCF] underline disabled:text-gray-400 disabled:no-underline"
+                >
+                  {isSendingSms
+                    ? '送信中...'
+                    : smsCooldownSeconds > 0
+                    ? `再送信まで ${smsCooldownSeconds} 秒`
+                    : '認証コードが届かない方はこちら（再送信）'}
+                </button>
+              </div>
+            </StepContainer>
+          )}
         </div>
+
+        {/* フッターナビ */}
+        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-[#F0F3F5] p-4 flex gap-3 items-center z-50" style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
+          {currentStep !== '1' && (
+            <button
+              type="button"
+              onClick={goBack}
+              className="w-14 h-14 flex-shrink-0 rounded-full border-2 border-[#2AADCF] text-[#2AADCF] bg-white flex items-center justify-center text-xl disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isSubmitting || isSendingSms || isVerifyingSms}
+            >
+              ←
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={goNext}
+            disabled={!isStepValid() || isSubmitting || isSendingSms || isVerifyingSms}
+            className={`flex-1 py-4 rounded-full font-semibold text-white shadow-[0_4px_16px_rgba(42,173,207,0.3)] transition-all ${
+              isStepValid() && !isSubmitting && !isSendingSms && !isVerifyingSms
+                ? 'bg-[#2AADCF] hover:bg-[#1A8FAD]'
+                : 'bg-[#C8E4ED] cursor-not-allowed'
+            }`}
+          >
+            {isSubmitting
+              ? '登録中...'
+              : isSendingSms
+              ? 'SMS送信中...'
+              : isVerifyingSms
+              ? '認証中...'
+              : currentStep === '8'
+              ? '同意して登録する'
+              : currentStep === 'sms'
+              ? '認証して登録完了'
+              : '次へ'}
+          </button>
+        </div>
+
+        {/* 利用規約モーダル */}
+        {showTermsModal && (
+          <LegalModal
+            title="利用規約"
+            content={termsContent}
+            onClose={() => setShowTermsModal(false)}
+          />
+        )}
+        {showPrivacyModal && (
+          <LegalModal
+            title="プライバシーポリシー"
+            content={privacyContent}
+            onClose={() => setShowPrivacyModal(false)}
+          />
+        )}
+      </form>
+    </div>
+  );
+}
+
+// --- 共通コンポーネント ---
+
+function StepContainer({
+  question,
+  hint,
+  children,
+}: {
+  question: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <h2 className="text-lg font-bold text-gray-800 mb-5 text-center leading-relaxed">{question}</h2>
+      {hint && <p className="text-xs text-gray-500 text-center mb-4">{hint}</p>}
+      {children}
+    </div>
+  );
+}
+
+function CardOption({
+  label,
+  selected,
+  onClick,
+  fullWidth = false,
+}: {
+  label: string;
+  selected: boolean;
+  onClick: () => void;
+  fullWidth?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex items-center justify-center text-center p-4 min-h-[72px] rounded-2xl transition-all select-none ${
+        fullWidth ? 'col-span-2' : ''
+      } ${
+        selected
+          ? 'bg-[#2AADCF] text-white shadow-[0_4px_16px_rgba(42,173,207,0.35)]'
+          : 'bg-gray-100 text-gray-800'
+      } active:scale-95`}
+    >
+      <span className="text-sm font-semibold leading-snug whitespace-pre-line">{label}</span>
+    </button>
+  );
+}
+
+function FieldLabel({
+  children,
+  required = false,
+}: {
+  children: React.ReactNode;
+  required?: boolean;
+}) {
+  return (
+    <div className="text-sm font-semibold text-gray-800 mb-2 flex items-center gap-2">
+      {children}
+      {required && (
+        <span className="text-[10px] bg-[#FF6B8A] text-white px-2 py-0.5 rounded font-semibold">必須</span>
+      )}
+    </div>
+  );
+}
+
+function LegalModal({
+  title,
+  content,
+  onClose,
+}: {
+  title: string;
+  content: string;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 z-[100] flex items-end justify-center"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="legal-modal-title"
+    >
+      <div
+        className="bg-white w-full max-w-md rounded-t-3xl p-6 max-h-[80vh] overflow-y-auto"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h3 id="legal-modal-title" className="text-lg font-bold">{title}</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-gray-400 text-2xl leading-none px-2"
+            aria-label="閉じる"
+          >
+            ×
+          </button>
+        </div>
+        <div
+          className="prose prose-sm max-w-none"
+          dangerouslySetInnerHTML={{ __html: content || '<p>読み込み中...</p>' }}
+        />
       </div>
-
-      {/* 利用規約モーダル */}
-      {showTermsModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h2 className="text-lg font-bold">利用規約</h2>
-              <button
-                type="button"
-                onClick={() => setShowTermsModal(false)}
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                aria-label="閉じる"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4">
-              {termsLastUpdated && <p className="text-xs text-gray-500 mb-4">最終更新日: {termsLastUpdated}</p>}
-              {isLoadingLegal ? (
-                <p className="text-sm text-gray-500">読み込み中...</p>
-              ) : termsContent ? (
-                <div
-                  className="prose prose-sm max-w-none prose-h2:text-base prose-h2:font-bold prose-h2:text-gray-900 prose-h2:mt-6 prose-h2:mb-3 prose-p:text-gray-700 prose-p:leading-relaxed prose-p:my-2 prose-ul:my-2 prose-li:text-gray-700"
-                  dangerouslySetInnerHTML={{ __html: termsContent }}
-                />
-              ) : (
-                <p className="text-sm text-gray-500">利用規約を読み込めませんでした。</p>
-              )}
-            </div>
-            <div className="p-4 border-t flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setShowTermsModal(false)}
-                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                閉じる
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setAgreedToTerms(true);
-                  setShowTermsModal(false);
-                }}
-                className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark transition-colors"
-              >
-                同意して閉じる
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* プライバシーポリシーモーダル */}
-      {showPrivacyModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h2 className="text-lg font-bold">プライバシーポリシー</h2>
-              <button
-                type="button"
-                onClick={() => setShowPrivacyModal(false)}
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                aria-label="閉じる"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4">
-              {privacyLastUpdated && <p className="text-xs text-gray-500 mb-4">最終更新日: {privacyLastUpdated}</p>}
-              {isLoadingLegal ? (
-                <p className="text-sm text-gray-500">読み込み中...</p>
-              ) : privacyContent ? (
-                <div
-                  className="prose prose-sm max-w-none prose-h2:text-base prose-h2:font-bold prose-h2:text-gray-900 prose-h2:mt-6 prose-h2:mb-3 prose-p:text-gray-700 prose-p:leading-relaxed prose-p:my-2 prose-ul:my-2 prose-li:text-gray-700"
-                  dangerouslySetInnerHTML={{ __html: privacyContent }}
-                />
-              ) : (
-                <p className="text-sm text-gray-500">プライバシーポリシーを読み込めませんでした。</p>
-              )}
-            </div>
-            <div className="p-4 border-t flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setShowPrivacyModal(false)}
-                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                閉じる
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setAgreedToPrivacy(true);
-                  setShowPrivacyModal(false);
-                }}
-                className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark transition-colors"
-              >
-                同意して閉じる
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

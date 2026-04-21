@@ -35,7 +35,10 @@ export function BadgeProvider({ children }: { children: ReactNode }) {
           setUnreadMessages(data.unreadMessages ?? 0);
           setUnreadAnnouncements(data.unreadAnnouncements ?? 0);
         }
-        setProfileMissingCount(profileData.missingCount);
+        // hasError 時は未完了扱いしない（前回値維持）
+        if (!profileData.hasError) {
+          setProfileMissingCount(profileData.missingCount);
+        }
       } catch (error) {
         console.error('[BadgeContext] Failed to refresh badges:', error);
       }

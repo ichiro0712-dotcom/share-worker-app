@@ -2,11 +2,14 @@
 
 /**
  * 勤怠変更申請フォームコンポーネント
+ * - 勤務時間の変更をスクロールホイール型ピッカーで入力
+ * - 休憩時間は元の求人設定値を引き継ぎ（ワーカーからの変更不可）
  */
 
 import { useState, useEffect } from 'react';
-import { AlertCircle, Clock, Coffee } from 'lucide-react';
+import { AlertCircle, Clock } from 'lucide-react';
 import { calculateSalary, formatCurrency, formatMinutesToHoursAndMinutes } from '@/src/lib/salary-calculator';
+import { TimeWheelPicker } from '@/components/ui/TimeWheelPicker';
 
 interface ModificationFormProps {
   attendance: {
@@ -38,22 +41,6 @@ export interface ModificationFormData {
   comment: string;
 }
 
-// 時間オプション生成（00:00〜23:30を30分刻み）
-const generateTimeOptions = () => {
-  const options: string[] = [];
-  for (let h = 0; h < 24; h++) {
-    for (let m = 0; m < 60; m += 30) {
-      options.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
-    }
-  }
-  return options;
-};
-
-const TIME_OPTIONS = generateTimeOptions();
-
-// 休憩時間オプション
-const BREAK_OPTIONS = [0, 15, 30, 45, 60, 90, 120];
-
 export function ModificationForm({
   attendance,
   scheduledTime,
@@ -66,9 +53,10 @@ export function ModificationForm({
   // フォーム状態
   const [startTime, setStartTime] = useState(scheduledTime.startTime);
   const [endTime, setEndTime] = useState(scheduledTime.endTime);
-  const [hasBreak, setHasBreak] = useState(scheduledTime.breakTime > 0);
-  const [breakTime, setBreakTime] = useState(scheduledTime.breakTime);
   const [comment, setComment] = useState('');
+
+  // 休憩時間は元の求人設定値を固定で使用
+  const breakTime = scheduledTime.breakTime;
 
   // 計算結果
   const [calculatedAmount, setCalculatedAmount] = useState(0);
@@ -92,13 +80,13 @@ export function ModificationForm({
     const result = calculateSalary({
       startTime: start,
       endTime: end,
-      breakMinutes: hasBreak ? breakTime : 0,
+      breakMinutes: breakTime,
       hourlyRate: scheduledTime.hourlyWage,
     });
 
     setCalculatedAmount(result.totalPay + scheduledTime.transportationFee);
     setWorkedMinutes(result.workedMinutes);
-  }, [startTime, endTime, hasBreak, breakTime, scheduledTime, workDate]);
+  }, [startTime, endTime, breakTime, scheduledTime, workDate]);
 
   const handleSubmit = () => {
     if (!comment.trim()) {
@@ -109,8 +97,8 @@ export function ModificationForm({
     onSubmit({
       startTime,
       endTime,
-      breakTime: hasBreak ? breakTime : 0,
-      hasBreak,
+      breakTime,
+      hasBreak: breakTime > 0,
       comment,
     });
   };
@@ -156,85 +144,30 @@ export function ModificationForm({
         </div>
       </div>
 
-      {/* 勤務時間入力 */}
+      {/* 勤務時間入力（スクロールホイール型ピッカー） */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-gray-700 mb-3">
           勤務時間
         </label>
-        <div className="flex items-center gap-2">
-          <select
+        <div className="flex items-center justify-center gap-3">
+          <TimeWheelPicker
             value={startTime}
-            onChange={(e) => setStartTime(e.target.value)}
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#66cc99]"
-          >
-            {TIME_OPTIONS.map((time) => (
-              <option key={`start-${time}`} value={time}>
-                {time}
-              </option>
-            ))}
-          </select>
-          <span className="text-gray-500">〜</span>
-          <select
+            onChange={setStartTime}
+            label="開始"
+            className="flex-1"
+          />
+          <span className="text-gray-400 text-lg font-medium">〜</span>
+          <TimeWheelPicker
             value={endTime}
-            onChange={(e) => setEndTime(e.target.value)}
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#66cc99]"
-          >
-            {TIME_OPTIONS.map((time) => (
-              <option key={`end-${time}`} value={time}>
-                {time}
-              </option>
-            ))}
-          </select>
+            onChange={setEndTime}
+            label="終了"
+            className="flex-1"
+          />
         </div>
-        <p className="text-xs text-gray-500 mt-1">
+        <p className="text-xs text-gray-500 mt-2">
           実働時間: {formatMinutesToHoursAndMinutes(workedMinutes)}
+          {breakTime > 0 && `（休憩${breakTime}分を含む）`}
         </p>
-      </div>
-
-      {/* 休憩時間 */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          休憩時間
-        </label>
-        <div className="space-y-2">
-          <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                checked={!hasBreak}
-                onChange={() => setHasBreak(false)}
-                className="w-4 h-4 text-[#66cc99]"
-              />
-              <span>なし</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                checked={hasBreak}
-                onChange={() => setHasBreak(true)}
-                className="w-4 h-4 text-[#66cc99]"
-              />
-              <span>あり</span>
-            </label>
-          </div>
-
-          {hasBreak && (
-            <div className="flex items-center gap-2">
-              <Coffee className="w-4 h-4 text-gray-400" />
-              <select
-                value={breakTime}
-                onChange={(e) => setBreakTime(Number(e.target.value))}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#66cc99]"
-              >
-                {BREAK_OPTIONS.map((minutes) => (
-                  <option key={minutes} value={minutes}>
-                    {minutes}分
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-        </div>
       </div>
 
       {/* コメント */}

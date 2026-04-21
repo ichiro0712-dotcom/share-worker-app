@@ -16,6 +16,7 @@ import toast from 'react-hot-toast';
 import { useErrorToast } from '@/components/ui/PersistentErrorToast';
 import { trackGA4Event } from '@/src/lib/ga4-events';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
+import { EmailVerificationRequiredModal } from '@/components/auth/EmailVerificationRequiredModal';
 
 // デフォルトのプレースホルダー画像
 const DEFAULT_JOB_IMAGE = '/images/samples/job_default_noimage.png';
@@ -96,6 +97,8 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
   // プロフィール未完了モーダル
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileMissingFields, setProfileMissingFields] = useState<string[]>([]);
+  // メール未認証モーダル
+  const [emailNotVerifiedModal, setEmailNotVerifiedModal] = useState<{ open: boolean; email: string }>({ open: false, email: '' });
 
   // 応募確認モーダル
   const [showApplyConfirmModal, setShowApplyConfirmModal] = useState(false);
@@ -372,10 +375,23 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
       return;
     }
 
-    // プロフィール完了チェック（応募前に必須、失敗時も応募を阻止）
+    // メール認証・プロフィール完了チェック（応募前に必須）
+    // 優先順位: error → email_verified → profile complete
     setIsApplying(true);
     try {
       const profileResult = await getMissingProfileFields();
+      // API エラー時は汎用エラー表示（誤モーダル回避）
+      if (profileResult?.hasError) {
+        toast.error('プロフィールの確認に失敗しました。もう一度お試しください。');
+        setIsApplying(false);
+        return;
+      }
+      // メール未認証ならメール認証モーダルを表示して停止
+      if (profileResult && !profileResult.emailVerified) {
+        setEmailNotVerifiedModal({ open: true, email: profileResult.email });
+        setIsApplying(false);
+        return;
+      }
       if (profileResult && !profileResult.isComplete) {
         setProfileMissingFields(profileResult.missingFields);
         setShowProfileModal(true);
@@ -462,7 +478,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
     setSelectedWorkDateIds([]); // 選択をクリア
 
     const isOffer = job.jobType === 'OFFER';
-    toast.success(isOffer ? 'オファーを受け付けました' : '応募を受け付けました');
+    const optimisticToastId = toast.success(isOffer ? 'オファーを受け付けました' : '応募を受け付けました');
 
     // 4. バックグラウンドでAPI実行
     try {
@@ -495,9 +511,16 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
       } else {
         // 失敗時：ロールバック
         setAppliedWorkDateIds(previousAppliedIds);
+        // 楽観UI で出した成功トーストのみを打ち消す（他のトーストに影響しない）
+        toast.dismiss(optimisticToastId);
 
+        // メール未認証エラーの場合はモーダル表示
+        if ('errorCode' in result && result.errorCode === 'EMAIL_NOT_VERIFIED') {
+          const email = ('email' in result && typeof result.email === 'string') ? result.email : '';
+          setEmailNotVerifiedModal({ open: true, email });
+        }
         // プロフィール未完了エラーの場合はモーダル表示
-        if ('missingFields' in result && result.missingFields) {
+        else if ('missingFields' in result && result.missingFields) {
           const missingFields = result.missingFields as string[];
           setProfileMissingFields(missingFields);
           setShowProfileModal(true);
@@ -537,6 +560,8 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
       console.error('Application error:', error);
       // 失敗時：ロールバック
       setAppliedWorkDateIds(previousAppliedIds);
+      // 楽観UI で出した成功トーストのみを打ち消す
+      toast.dismiss(optimisticToastId);
       // デバッグ用エラー通知
       const debugInfo = extractDebugInfo(error);
       showDebugError({
@@ -709,7 +734,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
             )}
             {job.requiresInterview && (
               <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded shadow-md">
-                審査あり
+                選考あり
               </span>
             )}
           </div>
@@ -1379,7 +1404,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
               </p>
             )}
             <p className="mt-2 text-xs text-gray-500">
-              ※この施設の審査あり求人における面接通過率です（採用・不採用の結果が出た応募が対象）
+              ※この施設の選考あり求人における面接通過率です（採用・不採用の結果が出た応募が対象）
             </p>
           </div>
         </div>
@@ -1577,6 +1602,13 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
         </div>
       )}
 
+      {/* メール未認証モーダル */}
+      <EmailVerificationRequiredModal
+        open={emailNotVerifiedModal.open}
+        email={emailNotVerifiedModal.email}
+        onClose={() => setEmailNotVerifiedModal({ open: false, email: '' })}
+      />
+
       {/* 応募確認モーダル */}
       {showApplyConfirmModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -1602,9 +1634,9 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
                   <div className="flex items-start gap-2">
                     <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
                     <div>
-                      <p className="text-sm font-bold text-yellow-800">審査あり求人です</p>
+                      <p className="text-sm font-bold text-yellow-800">選考あり求人です</p>
                       <p className="text-xs text-yellow-700 mt-1">
-                        応募後、施設による審査があります。審査通過後にマッチングが成立します。
+                        応募後、施設による選考があります。選考通過後にマッチングが成立します。
                       </p>
                     </div>
                   </div>
@@ -1731,7 +1763,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
                 disabled={isEditingSelfPR}
                 className="flex-1 px-4 py-2.5 bg-primary text-white font-medium rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {job.jobType === 'OFFER' ? 'オファーを受ける' : (job.requiresInterview ? '応募する（審査あり）' : '応募する')}
+                {job.jobType === 'OFFER' ? 'オファーを受ける' : (job.requiresInterview ? '応募する（選考あり）' : '応募する')}
               </button>
             </div>
           </div>

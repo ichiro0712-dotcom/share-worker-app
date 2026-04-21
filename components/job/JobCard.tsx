@@ -161,7 +161,7 @@ const JobCardComponent: React.FC<JobCardProps> = ({ job, facility, selectedDate,
               )}
               {job.requiresInterview && (
                 <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded shadow-sm">
-                  審査あり
+                  選考あり
                 </span>
               )}
             </div>
@@ -283,7 +283,7 @@ const JobCardComponent: React.FC<JobCardProps> = ({ job, facility, selectedDate,
               )}
               {job.requiresInterview && (
                 <span className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm">
-                  審査あり
+                  選考あり
                 </span>
               )}
             </div>
