@@ -20,6 +20,7 @@ import {
     LucideIcon,
     SendHorizonal,
     UserCog,
+    Trash2,
 } from 'lucide-react';
 
 interface MenuItem {
@@ -56,6 +57,7 @@ const menuItems: MenuSection[] = [
             { href: '/system-admin/dev-portal/debug-checklist', icon: ListChecks, label: 'デバッグ項目', description: '機能検証チェック', color: 'blue' },
             { href: '/system-admin/dev-portal/debug-time', icon: Clock, label: 'デバッグ時刻', description: 'システム時刻変更', color: 'indigo' },
             { href: '/system-admin/dev-portal/sample-images', icon: ImageIcon, label: 'サンプル画像', description: 'モック用素材', color: 'pink' },
+            { href: '/system-admin/dev-portal/delete-worker', icon: Trash2, label: 'ワーカー削除', description: 'テスト用完全削除', color: 'red' },
         ],
     },
     {
