@@ -159,11 +159,18 @@ export async function checkProfileComplete(userId: number) {
 /**
  * 現在ログインしているワーカーの未入力プロフィール項目を取得する
  * BadgeContextやバナー表示用
+ * メール認証状態も併せて返す（応募前チェックで使用）
+ *
+ * エラー時は hasError=true を返す。呼び出し側は hasError を先に確認すべき
+ * （hasError 時の emailVerified/email/isComplete/missingFields はダミー値）
  */
 export async function getMissingProfileFields(): Promise<{
     isComplete: boolean;
     missingFields: string[];
     missingCount: number;
+    emailVerified: boolean;
+    email: string;
+    hasError: boolean;
 }> {
     try {
         const user = await getAuthenticatedUser();
@@ -172,11 +179,22 @@ export async function getMissingProfileFields(): Promise<{
             isComplete: result.isComplete,
             missingFields: result.missingFields,
             missingCount: result.missingFields.length,
+            emailVerified: user.email_verified,
+            email: user.email,
+            hasError: false,
         };
     } catch (error) {
-        // エラーの場合は安全側に倒す（未完了として扱う）
+        // エラーの場合は hasError=true を返し、呼び出し側でエラー処理させる
         console.error('[getMissingProfileFields] Error:', error);
-        return { isComplete: false, missingFields: ['プロフィール確認に失敗しました'], missingCount: 1 };
+        return {
+            isComplete: false,
+            missingFields: ['プロフィール確認に失敗しました'],
+            missingCount: 1,
+            // エラー時のダミー値（呼び出し側は hasError を先に見るべき）
+            emailVerified: true,
+            email: '',
+            hasError: true,
+        };
     }
 }
 

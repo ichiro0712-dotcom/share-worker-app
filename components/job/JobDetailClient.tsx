@@ -375,10 +375,23 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
       return;
     }
 
-    // プロフィール完了チェック（応募前に必須、失敗時も応募を阻止）
+    // メール認証・プロフィール完了チェック（応募前に必須）
+    // 優先順位: error → email_verified → profile complete
     setIsApplying(true);
     try {
       const profileResult = await getMissingProfileFields();
+      // API エラー時は汎用エラー表示（誤モーダル回避）
+      if (profileResult?.hasError) {
+        toast.error('プロフィールの確認に失敗しました。もう一度お試しください。');
+        setIsApplying(false);
+        return;
+      }
+      // メール未認証ならメール認証モーダルを表示して停止
+      if (profileResult && !profileResult.emailVerified) {
+        setEmailNotVerifiedModal({ open: true, email: profileResult.email });
+        setIsApplying(false);
+        return;
+      }
       if (profileResult && !profileResult.isComplete) {
         setProfileMissingFields(profileResult.missingFields);
         setShowProfileModal(true);
