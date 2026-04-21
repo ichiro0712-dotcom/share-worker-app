@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { Resend } from 'resend';
 import crypto from 'crypto';
 import { cacheResendQuotaHeader } from '@/src/lib/resend-quota';
+import { sanitizeReturnUrl } from '@/src/lib/auth/return-url';
 
 // Resend設定（遅延初期化 - APIキーがない場合はnull）
 let resend: Resend | null = null;
@@ -29,11 +30,14 @@ export function generateVerificationToken(): string {
 
 /**
  * ユーザーに認証トークンを設定し、認証メールを送信
+ * returnUrl: 認証完了後に戻す URL（相対パスのみ受理、応募中のページなど）
+ * サニタイズは `@/src/lib/auth/return-url` の sanitizeReturnUrl に委譲
  */
 export async function sendVerificationEmail(
   userId: number,
   email: string,
-  name: string
+  name: string,
+  options?: { returnUrl?: string | null }
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // トークン生成
@@ -49,8 +53,11 @@ export async function sendVerificationEmail(
       },
     });
 
-    // 認証URL
-    const verificationUrl = `${APP_URL}/api/auth/verify?token=${token}`;
+    // 認証URL（returnUrl は相対パスのみ許可、query として付与）
+    const safeReturnUrl = sanitizeReturnUrl(options?.returnUrl);
+    const verificationUrl = safeReturnUrl
+      ? `${APP_URL}/api/auth/verify?token=${token}&returnUrl=${encodeURIComponent(safeReturnUrl)}`
+      : `${APP_URL}/api/auth/verify?token=${token}`;
 
     // メール送信が無効化されている場合はログのみ
     if (process.env.DISABLE_EMAIL_SENDING === 'true') {
@@ -153,7 +160,8 @@ export async function verifyEmailToken(
  * 認証メールを再送信
  */
 export async function resendVerificationEmail(
-  email: string
+  email: string,
+  options?: { returnUrl?: string | null }
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // メールアドレスでユーザーを検索
@@ -192,7 +200,9 @@ export async function resendVerificationEmail(
     }
 
     // 再送信
-    return await sendVerificationEmail(user.id, user.email, user.name);
+    return await sendVerificationEmail(user.id, user.email, user.name, {
+      returnUrl: options?.returnUrl,
+    });
   } catch (error: any) {
     console.error('[Email Verification] Resend error:', error);
     return { success: false, error: error.message };

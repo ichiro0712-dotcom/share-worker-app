@@ -8,6 +8,15 @@ import { Mail, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react';
 function ResendVerificationForm() {
   const searchParams = useSearchParams();
   const initialEmail = searchParams?.get('email') || '';
+  const returnUrlRaw = searchParams?.get('returnUrl') ?? null;
+  // クライアント側サニタイズ: 相対パス + 長さ制限
+  const returnUrl =
+    returnUrlRaw &&
+    returnUrlRaw.length <= 512 &&
+    returnUrlRaw.startsWith('/') &&
+    !returnUrlRaw.startsWith('//')
+      ? returnUrlRaw
+      : null;
 
   const [email, setEmail] = useState(initialEmail);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -30,7 +39,7 @@ function ResendVerificationForm() {
       const response = await fetch('/api/auth/resend-verification', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, returnUrl }),
       });
 
       const data = await response.json();
