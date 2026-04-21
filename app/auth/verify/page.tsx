@@ -19,6 +19,18 @@ export default function VerifyEmailPage() {
   const searchParams = useSearchParams();
   const status = searchParams?.get('status'); // 'verified' | 'error' | 'expired' | null
   const errorMessage = searchParams?.get('message');
+  const returnUrlRaw = searchParams?.get('returnUrl') ?? null;
+  // 相対パス + 長さ制限（クライアント側でも防御）
+  const returnUrl =
+    returnUrlRaw &&
+    returnUrlRaw.length <= 512 &&
+    returnUrlRaw.startsWith('/') &&
+    !returnUrlRaw.startsWith('//')
+      ? returnUrlRaw
+      : null;
+  const resendHref = returnUrl
+    ? `/auth/resend-verification?returnUrl=${encodeURIComponent(returnUrl)}`
+    : '/auth/resend-verification';
 
   // 認証成功だが自動ログイン失敗（手動ログインを促す）
   if (status === 'verified') {
@@ -59,7 +71,7 @@ export default function VerifyEmailPage() {
           </p>
           <div className="space-y-3">
             <Link
-              href="/auth/resend-verification"
+              href={resendHref}
               className="block w-full bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition"
             >
               認証メールを再送信
@@ -90,7 +102,7 @@ export default function VerifyEmailPage() {
           </p>
           <div className="space-y-3">
             <Link
-              href="/auth/resend-verification"
+              href={resendHref}
               className="block w-full bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition"
             >
               認証メールを再送信

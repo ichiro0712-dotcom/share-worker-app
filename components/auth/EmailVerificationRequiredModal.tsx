@@ -54,10 +54,16 @@ export function EmailVerificationRequiredModal({ open, email, onClose }: Props) 
     setIsSending(true);
     setErrorMessage(null);
     try {
+      // 現在のページを認証完了後の戻り先として送信
+      // （メールリンククリック後、このページに戻って応募を続けられる）
+      const returnUrl =
+        typeof window !== 'undefined'
+          ? window.location.pathname + window.location.search
+          : null;
       const res = await fetch('/api/auth/resend-verification', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, returnUrl }),
       });
       const data = await res.json();
       if (res.ok) {

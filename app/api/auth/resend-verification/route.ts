@@ -4,7 +4,7 @@ import { resendVerificationEmail } from '@/src/lib/auth/email-verification';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email } = body;
+    const { email, returnUrl } = body;
 
     if (!email) {
       return NextResponse.json(
@@ -13,7 +13,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await resendVerificationEmail(email);
+    // returnUrl: 認証完了後に戻す URL（相対パスのみ、サニタイズは sendVerificationEmail 内）
+    const safeReturnUrl = typeof returnUrl === 'string' ? returnUrl : null;
+    const result = await resendVerificationEmail(email, { returnUrl: safeReturnUrl });
 
     if (!result.success) {
       return NextResponse.json(
