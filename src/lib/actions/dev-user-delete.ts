@@ -18,6 +18,7 @@ export interface DeleteWorkerResult {
     offeredJobsCleared: number;
     workDateCountersAdjusted: number;
     facilityRatingsRecalculated: number;
+    laborDocTokensDeleted: number;
   };
 }
 
@@ -34,8 +35,11 @@ export interface DeleteWorkerResult {
  * - UserActivityLog は FK 無しのため残存（履歴保持）
  */
 export async function deleteWorkerCompletely(
-  identifier: string
+  identifier: string,
+  options?: { force?: boolean }
 ): Promise<DeleteWorkerResult> {
+  const force = options?.force === true;
+
   let admin;
   try {
     admin = await requireSystemAdminAuth();
@@ -75,21 +79,52 @@ export async function deleteWorkerCompletely(
   }
 
   // --- 事前セーフガード: 施設業務に影響する状態があれば削除拒否 ---
+  // force=true が指定された場合、データ整合性に関わる critical check のみ残し他はバイパス
   const blockers: string[] = [];
 
-  // APPLIED も施設側で審査中なのでブロック対象に含める
-  const activeApps = await prisma.application.count({
-    where: {
-      user_id: user.id,
-      status: { in: ['APPLIED', 'SCHEDULED', 'WORKING', 'COMPLETED_PENDING'] },
-    },
-  });
-  if (activeApps > 0) {
-    blockers.push(
-      `審査中/進行中/完了待ちの応募が ${activeApps} 件あります（APPLIED / SCHEDULED / WORKING / COMPLETED_PENDING）。施設側の業務に影響するため削除できません。`
-    );
+  if (!force) {
+    // APPLIED も施設側で審査中なのでブロック対象に含める
+    const activeApps = await prisma.application.count({
+      where: {
+        user_id: user.id,
+        status: { in: ['APPLIED', 'SCHEDULED', 'WORKING', 'COMPLETED_PENDING'] },
+      },
+    });
+    if (activeApps > 0) {
+      blockers.push(
+        `審査中/進行中/完了待ちの応募が ${activeApps} 件あります（APPLIED / SCHEDULED / WORKING / COMPLETED_PENDING）。施設側の業務に影響するため削除できません。`
+      );
+    }
+
+    // オファー対象になっている未応答求人があれば拒否（施設が候補として保持している）
+    const offeredActive = await prisma.job.count({
+      where: {
+        target_worker_id: user.id,
+        status: { in: ['PUBLISHED', 'WORKING'] },
+      },
+    });
+    if (offeredActive > 0) {
+      blockers.push(
+        `施設から届いている未応答オファー求人が ${offeredActive} 件あります。施設側の候補者管理に影響するため削除できません。`
+      );
+    }
+
+    // 労働条件通知書のダウンロードトークン（施設が発行中）があれば拒否
+    // worker_id は FK 無しなので cascade 削除されず、削除後に dangling 化する
+    const pendingLaborDocTokens = await prisma.laborDocumentDownloadToken.count({
+      where: {
+        worker_id: user.id,
+        expires_at: { gt: new Date() },
+      },
+    });
+    if (pendingLaborDocTokens > 0) {
+      blockers.push(
+        `施設が発行中の労働条件通知書ダウンロードトークンが ${pendingLaborDocTokens} 件あります。期限切れまで待つかトークンを失効させてください。`
+      );
+    }
   }
 
+  // 未退勤 attendance は force でもブロック（データ整合性に関わる critical check）
   const activeAttendance = await prisma.attendance.count({
     where: {
       user_id: user.id,
@@ -98,34 +133,7 @@ export async function deleteWorkerCompletely(
   });
   if (activeAttendance > 0) {
     blockers.push(
-      `未退勤の勤怠レコードが ${activeAttendance} 件あります。退勤処理を完了してから削除してください。`
-    );
-  }
-
-  // オファー対象になっている未応答求人があれば拒否（施設が候補として保持している）
-  const offeredActive = await prisma.job.count({
-    where: {
-      target_worker_id: user.id,
-      status: { in: ['PUBLISHED', 'WORKING'] },
-    },
-  });
-  if (offeredActive > 0) {
-    blockers.push(
-      `施設から届いている未応答オファー求人が ${offeredActive} 件あります。施設側の候補者管理に影響するため削除できません。`
-    );
-  }
-
-  // 労働条件通知書のダウンロードトークン（施設が発行中）があれば拒否
-  // worker_id は FK 無しなので cascade 削除されず、削除後に dangling 化する
-  const pendingLaborDocTokens = await prisma.laborDocumentDownloadToken.count({
-    where: {
-      worker_id: user.id,
-      expires_at: { gt: new Date() },
-    },
-  });
-  if (pendingLaborDocTokens > 0) {
-    blockers.push(
-      `施設が発行中の労働条件通知書ダウンロードトークンが ${pendingLaborDocTokens} 件あります。期限切れまで待つかトークンを失効させてください。`
+      `未退勤の勤怠レコードが ${activeAttendance} 件あります。退勤処理を完了してから削除してください（強制削除でもバイパス不可）。`
     );
   }
 
@@ -148,6 +156,12 @@ export async function deleteWorkerCompletely(
       const offeredJobsCleared = await tx.job.updateMany({
         where: { target_worker_id: user.id },
         data: { target_worker_id: null },
+      });
+
+      // 1b. 労働条件通知書ダウンロードトークンも FK 無しのため手動削除
+      // （force モードでブロック外してきた場合は既に期限内のものが残っている可能性があるため必須）
+      const laborDocTokensDeleted = await tx.laborDocumentDownloadToken.deleteMany({
+        where: { worker_id: user.id },
       });
 
       // 2. 削除対象 Application（キャンセル済み・過去完了済み）を列挙し、
@@ -176,7 +190,9 @@ export async function deleteWorkerCompletely(
           current.applied += 1;
         }
         // マッチング成立済みの状態だけ matched を減らす
-        if (['WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'].includes(app.status)) {
+        // 既存 apply/admin フローでは APPLIED→SCHEDULED 時点で matched_count +1 されるため
+        // SCHEDULED も対象に含める
+        if (['SCHEDULED', 'WORKING', 'COMPLETED_PENDING', 'COMPLETED_RATED'].includes(app.status)) {
           current.matched += 1;
         }
         wdCountMap.set(app.work_date_id, current);
@@ -254,6 +270,7 @@ export async function deleteWorkerCompletely(
         offeredJobsCleared: offeredJobsCleared.count,
         workDateCountersAdjusted,
         facilityRatingsRecalculated,
+        laborDocTokensDeleted: laborDocTokensDeleted.count,
       };
     });
 
@@ -261,10 +278,11 @@ export async function deleteWorkerCompletely(
       userType: 'SYSTEM_ADMIN',
       userId: admin.adminId,
       userEmail: admin.email,
-      action: 'DELETE_USER_TEST',
+      action: force ? 'DELETE_USER_TEST_FORCE' : 'DELETE_USER_TEST',
       targetType: 'User',
       targetId: user.id,
       requestData: {
+        force,
         deletedUserId: user.id,
         deletedUserEmail: user.email,
         deletedUserName: user.name,
@@ -290,9 +308,10 @@ export async function deleteWorkerCompletely(
       userType: 'SYSTEM_ADMIN',
       userId: admin.adminId,
       userEmail: admin.email,
-      action: 'DELETE_USER_TEST_FAILED',
+      action: force ? 'DELETE_USER_TEST_FORCE_FAILED' : 'DELETE_USER_TEST_FAILED',
       targetType: 'User',
       targetId: user.id,
+      requestData: { force },
       result: 'ERROR',
       errorMessage: message,
     }).catch(() => {});

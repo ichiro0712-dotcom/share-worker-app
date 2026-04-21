@@ -8,20 +8,26 @@ import { deleteWorkerCompletely, DeleteWorkerResult } from '@/src/lib/actions/de
 export default function DeleteWorkerPage() {
   const [identifier, setIdentifier] = useState('');
   const [confirmText, setConfirmText] = useState('');
+  const [forceMode, setForceMode] = useState(false);
+  const [forceConfirmText, setForceConfirmText] = useState('');
   const [result, setResult] = useState<DeleteWorkerResult | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const canSubmit = identifier.trim() !== '' && confirmText === '削除する' && !isPending;
+  const baseValid = identifier.trim() !== '' && confirmText === '削除する';
+  const forceValid = !forceMode || forceConfirmText === '強制削除';
+  const canSubmit = baseValid && forceValid && !isPending;
 
   const handleSubmit = () => {
     if (!canSubmit) return;
     setResult(null);
     startTransition(async () => {
-      const res = await deleteWorkerCompletely(identifier.trim());
+      const res = await deleteWorkerCompletely(identifier.trim(), { force: forceMode });
       setResult(res);
       if (res.success) {
         setIdentifier('');
         setConfirmText('');
+        setForceMode(false);
+        setForceConfirmText('');
       }
     });
   };
@@ -91,6 +97,45 @@ export default function DeleteWorkerPage() {
             />
           </div>
 
+          {/* 強制削除オプション */}
+          <div className="border border-orange-300 rounded-md bg-orange-50 p-4">
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                id="force-delete"
+                type="checkbox"
+                checked={forceMode}
+                onChange={(e) => setForceMode(e.target.checked)}
+                disabled={isPending}
+                className="mt-1 w-4 h-4 accent-orange-600"
+              />
+              <div className="flex-1">
+                <span className="font-semibold text-orange-900 text-sm">
+                  強制削除モード（進行中業務のブロックをバイパス）
+                </span>
+                <p className="text-xs text-orange-800 mt-1 leading-relaxed">
+                  APPLIED/SCHEDULED/WORKING/COMPLETED_PENDING の応募や未応答オファーがある場合でも削除を強行します。
+                  施設側の業務履歴からテストデータが消える可能性あり。
+                  <strong>未退勤の勤怠は強制モードでもブロックされます。</strong>
+                </p>
+              </div>
+            </label>
+            {forceMode && (
+              <div className="mt-3 pl-6">
+                <label className="block text-xs font-medium text-orange-900 mb-1">
+                  追加確認: 「<strong>強制削除</strong>」と入力
+                </label>
+                <input
+                  type="text"
+                  value={forceConfirmText}
+                  onChange={(e) => setForceConfirmText(e.target.value)}
+                  disabled={isPending}
+                  placeholder="強制削除"
+                  className="w-full px-3 py-2 border border-orange-400 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+                />
+              </div>
+            )}
+          </div>
+
           <button
             type="button"
             onClick={handleSubmit}
@@ -105,7 +150,7 @@ export default function DeleteWorkerPage() {
             ) : (
               <>
                 <Trash2 className="w-5 h-5" />
-                完全削除を実行
+                {forceMode ? '強制削除を実行' : '完全削除を実行'}
               </>
             )}
           </button>
@@ -148,6 +193,9 @@ export default function DeleteWorkerPage() {
                         </li>
                         <li>
                           Facility 評価再計算: {result.counts.facilityRatingsRecalculated} 件
+                        </li>
+                        <li>
+                          労働条件通知書トークン削除: {result.counts.laborDocTokensDeleted} 件
                         </li>
                       </ul>
                     )}
