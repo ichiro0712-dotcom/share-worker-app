@@ -55,27 +55,20 @@ export default function ThanksClient({ userName, lineUrl }: Props) {
                   } catch {}
                 }}
               >
-                📲 LINEで相談する
+                📲 公式LINEに登録
               </a>
             ) : null}
 
             <Link
-              href="/job-list"
-              className="py-3 px-6 rounded-full text-sm font-medium text-gray-500 border border-gray-200 bg-white"
+              href="/"
+              className="py-3 px-6 rounded-full text-sm font-medium text-gray-700 border border-gray-200 bg-white"
               onClick={() => {
                 try {
                   trackGA4Event('worker_register_thanks_jobs_click', {});
                 } catch {}
               }}
             >
-              求人ページはこちら
-            </Link>
-
-            <Link
-              href="/mypage"
-              className="py-3 px-6 rounded-full text-sm font-medium text-[#2AADCF] underline"
-            >
-              マイページへ移動
+              お仕事一覧
             </Link>
           </div>
         </div>
