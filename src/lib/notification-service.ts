@@ -112,9 +112,31 @@ export async function sendNotification(params: SendNotificationParams): Promise<
 
     // メール通知
     if (setting.email_enabled && setting.email_subject && setting.email_body) {
-        const toAddresses = facilityEmails && facilityEmails.length > 0
-            ? facilityEmails
-            : recipientEmail ? [recipientEmail] : [];
+        // email 形式の簡易バリデーション (register route と同一パターン)
+        // 壊れた1件のアドレスで通知全体が落ちるのを防ぐ防御ガード
+        const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        const isValidEmail = (addr: unknown): addr is string =>
+            typeof addr === 'string' && EMAIL_RE.test(addr.trim());
+
+        const validFacilityEmails = (facilityEmails ?? []).filter(isValidEmail);
+        const validRecipientEmail = isValidEmail(recipientEmail) ? recipientEmail : undefined;
+
+        const skippedCount =
+            (facilityEmails?.length ?? 0) - validFacilityEmails.length +
+            (recipientEmail && !validRecipientEmail ? 1 : 0);
+        if (skippedCount > 0) {
+            // 機密保護のため具体的なアドレス値はログに残さない
+            console.warn('[sendNotification] Skipped invalid email address(es):', {
+                notificationKey,
+                targetType,
+                recipientId,
+                skippedCount,
+            });
+        }
+
+        const toAddresses = validFacilityEmails.length > 0
+            ? validFacilityEmails
+            : validRecipientEmail ? [validRecipientEmail] : [];
 
         if (toAddresses.length > 0) {
             await sendEmailNotification({
@@ -122,7 +144,7 @@ export async function sendNotification(params: SendNotificationParams): Promise<
                 targetType,
                 recipientId,
                 recipientName,
-                recipientEmail: recipientEmail || toAddresses[0],
+                recipientEmail: validRecipientEmail || toAddresses[0],
                 toAddresses,
                 subject: replaceVariables(setting.email_subject, variables),
                 body: replaceVariables(setting.email_body, variables),
