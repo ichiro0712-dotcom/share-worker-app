@@ -9,7 +9,7 @@
 import { SignJWT, jwtVerify } from 'jose';
 import { normalizePhoneDigits } from '@/src/lib/auth/identifier';
 
-const TOKEN_EXPIRY = '7d'; // 7日間有効
+const TOKEN_EXPIRY = '60m'; // 60分有効（CPaaS NOW認証コードと同じ有効期限）
 
 function getSecret(): Uint8Array {
   const secret = process.env.NEXTAUTH_SECRET;
