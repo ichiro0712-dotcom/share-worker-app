@@ -13,7 +13,7 @@ const SMS_TEMPLATE = '【タスタス】認証コード: {{verification_code}}\r
 
 // CPaaS NOW の API 制約により 5-60 分のみ有効。
 // SMS コード自体の有効期限（コード検証はこの時間内に実施する必要がある）。
-// 検証成功後に発行する JWT（src/lib/auth/phone-verification.ts）は 7 日間有効。
+// 検証成功後に発行する JWT（src/lib/auth/phone-verification.ts）も同じ 60 分有効。
 const SMS_EXPIRATION_MINUTES = 60;
 
 export interface SendCodeResult {
