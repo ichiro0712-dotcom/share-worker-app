@@ -246,6 +246,23 @@ function WorkerRegisterPageInner() {
     });
   };
 
+  // desiredWorkStyle 変更時に workFrequency を同期クリア（ゴーストデータ防止）
+  useEffect(() => {
+    if (!shouldShowStep2b(form.desiredWorkStyle)) {
+      if (form.workFrequency) setField('workFrequency', '');
+      // STEP 2b 表示中に条件から外れた場合、stepIndex=-1 回避のため 2c に退避
+      if (currentStep === '2b') setCurrentStep('2c');
+      return;
+    }
+    if (
+      !form.desiredWorkStyle.includes('単発・スポット') &&
+      form.workFrequency === '不定期/決まっていない'
+    ) {
+      setField('workFrequency', '');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.desiredWorkStyle]);
+
   // 各ステップのバリデーション
   const isStepValid = (): boolean => {
     switch (currentStep) {
