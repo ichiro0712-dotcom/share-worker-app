@@ -539,6 +539,30 @@ export async function getSystemWorkerDetail(id: number) {
 
     if (!worker) return null;
 
+    // 登録元LP情報（LandingPage マスタから name を取得）
+    // registration_lp_id は String、LandingPage.lp_number は Int のため parseInt で突合
+    let registrationLp: {
+        lpId: string;
+        lpName: string | null;
+        campaignCode: string | null;
+        genrePrefix: string | null;
+    } | null = null;
+    if (worker.registration_lp_id) {
+        const lpNumber = Number.parseInt(worker.registration_lp_id, 10);
+        const lpMaster = Number.isFinite(lpNumber)
+            ? await prisma.landingPage.findUnique({
+                  where: { lp_number: lpNumber },
+                  select: { name: true },
+              })
+            : null;
+        registrationLp = {
+            lpId: worker.registration_lp_id,
+            lpName: lpMaster?.name ?? null,
+            campaignCode: worker.registration_campaign_code,
+            genrePrefix: worker.registration_genre_prefix,
+        };
+    }
+
     // 勤務実績を集計（COMPLETED_PENDING または COMPLETED_RATED を完了とみなす）
     const completedApplications = worker.applications.filter(app =>
         app.status === 'COMPLETED_PENDING' || app.status === 'COMPLETED_RATED'
@@ -661,6 +685,7 @@ export async function getSystemWorkerDetail(id: number) {
             reviewerName: r.facility?.facility_name || '匿名',
         })),
         qualificationCertificates: worker.qualification_certificates,
+        registrationLp,
     };
 }
 
