@@ -20,7 +20,7 @@ interface Worker {
     gender: string | null;
     birth_date: Date | null;
     isSuspended: boolean;
-    emailVerified: boolean;
+    phoneVerified: boolean;
     age: number | null;
     avgRating: number | null;
     reviewCount: number;
@@ -45,7 +45,7 @@ export default function SystemAdminWorkersPage() {
     const [prefectureFilter, setPrefectureFilter] = useState('');
     const [cityFilter, setCityFilter] = useState('');
     const [qualificationFilter, setQualificationFilter] = useState('');
-    const [emailVerifiedFilter, setEmailVerifiedFilter] = useState<'all' | 'verified' | 'unverified'>('all');
+    const [phoneVerifiedFilter, setPhoneVerifiedFilter] = useState<'all' | 'verified' | 'unverified'>('all');
 
     // 距離検索
     const [distanceSearchEnabled, setDistanceSearchEnabled] = useState(false);
@@ -81,7 +81,7 @@ export default function SystemAdminWorkersPage() {
                 prefecture: prefectureFilter || undefined,
                 city: cityFilter || undefined,
                 qualification: qualificationFilter || undefined,
-                emailVerified: emailVerifiedFilter,
+                phoneVerified: phoneVerifiedFilter,
             };
 
             // 距離検索が有効で座標がある場合
@@ -146,7 +146,7 @@ export default function SystemAdminWorkersPage() {
 
     const handleResetFilters = () => {
         setStatusFilter('all');
-        setEmailVerifiedFilter('all');
+        setPhoneVerifiedFilter('all');
         setPrefectureFilter('');
         setCityFilter('');
         setQualificationFilter('');
@@ -178,7 +178,7 @@ export default function SystemAdminWorkersPage() {
 
     const activeFilterCount = [
         statusFilter !== 'all',
-        emailVerifiedFilter !== 'all',
+        phoneVerifiedFilter !== 'all',
         prefectureFilter !== '',
         cityFilter !== '',
         qualificationFilter !== '',
@@ -273,10 +273,10 @@ export default function SystemAdminWorkersPage() {
 
                             {/* 本登録 */}
                             <div>
-                                <label className="block text-xs font-medium text-slate-600 mb-1">本登録（メール認証）</label>
+                                <label className="block text-xs font-medium text-slate-600 mb-1">本登録（SMS認証）</label>
                                 <select
-                                    value={emailVerifiedFilter}
-                                    onChange={(e) => setEmailVerifiedFilter(e.target.value as any)}
+                                    value={phoneVerifiedFilter}
+                                    onChange={(e) => setPhoneVerifiedFilter(e.target.value as any)}
                                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                 >
                                     <option value="all">すべて</option>
@@ -428,10 +428,10 @@ export default function SystemAdminWorkersPage() {
                             </button>
                         </span>
                     )}
-                    {emailVerifiedFilter !== 'all' && (
+                    {phoneVerifiedFilter !== 'all' && (
                         <span className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-100 text-indigo-700 text-xs rounded-full">
-                            {emailVerifiedFilter === 'verified' ? '本登録済み' : '未登録'}
-                            <button onClick={() => { setEmailVerifiedFilter('all'); fetchWorkers(); }}>
+                            {phoneVerifiedFilter === 'verified' ? '本登録済み' : '未登録'}
+                            <button onClick={() => { setPhoneVerifiedFilter('all'); fetchWorkers(); }}>
                                 <X className="w-3 h-3" />
                             </button>
                         </span>
@@ -520,11 +520,11 @@ export default function SystemAdminWorkersPage() {
                                 <tr key={worker.id} className="hover:bg-slate-50 transition-colors">
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
-                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center overflow-hidden ${worker.emailVerified ? 'bg-emerald-100' : 'bg-slate-200'}`}>
+                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center overflow-hidden ${worker.phoneVerified ? 'bg-emerald-100' : 'bg-slate-200'}`}>
                                                 {worker.profile_image ? (
                                                     <img src={worker.profile_image} alt={worker.name} className="w-full h-full object-cover" />
                                                 ) : (
-                                                    <span className={`font-bold ${worker.emailVerified ? 'text-emerald-600' : 'text-slate-500'}`}>{(worker.name || '?').charAt(0)}</span>
+                                                    <span className={`font-bold ${worker.phoneVerified ? 'text-emerald-600' : 'text-slate-500'}`}>{(worker.name || '?').charAt(0)}</span>
                                                 )}
                                             </div>
                                             <div>
