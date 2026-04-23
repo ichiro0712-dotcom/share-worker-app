@@ -20,13 +20,10 @@ export async function GET(request: NextRequest) {
     const selectedJST = new Date(selectedDate.getTime() + JST_OFFSET);
     const selectedDateStr = selectedJST.toISOString().split('T')[0]; // YYYY-MM-DD
 
-    // おすすめ求人取得（公開中の求人のみ）
+    // おすすめ求人は求人の状態に関わらず登録されたものを表示する
+    // - 応募可能な募集枠（今日以降かつ is_recruitment_closed=false）がある日 → その日のタブに表示
+    // - 応募可能な募集枠がない求人 → 全日付で常時表示（LINE登録URLへ誘導）
     const recommendedJobs = await prisma.recommendedJob.findMany({
-      where: {
-        job: {
-          status: 'PUBLISHED',
-        },
-      },
       orderBy: { sort_order: 'asc' },
       include: {
         job: {
@@ -48,25 +45,35 @@ export async function GET(request: NextRequest) {
     const jobs = recommendedJobs.map((rec) => {
       const job = rec.job;
 
-      // 選択日のworkDateを見つける
-      const matchingWorkDate = job.workDates.find(wd => {
+      // 求人ステータスが公開中かどうか（ワーカーページに出ているか）
+      const isPublished = job.status === 'PUBLISHED';
+
+      // 「応募可能な募集枠」= 今日以降 かつ is_recruitment_closed=false の work_date
+      // ただし求人が公開中(PUBLISHED)でなければワーカーページには出ていないので
+      // 応募可能枠なしと同じ扱い（全日付で常時表示）にする
+      const activeWorkDates = isPublished
+        ? job.workDates.filter(wd => {
+            const wdJST = new Date(wd.work_date.getTime() + JST_OFFSET);
+            const wdStr = wdJST.toISOString().split('T')[0];
+            return wdStr >= todayStr && !wd.is_recruitment_closed;
+          })
+        : [];
+
+      // 選択日にマッチする応募可能な枠
+      const matchingWorkDate = activeWorkDates.find(wd => {
         const wdJST = new Date(wd.work_date.getTime() + JST_OFFSET);
         return wdJST.toISOString().split('T')[0] === selectedDateStr;
       });
 
-      // 今日以降の勤務日が1つもない求人 = 「勤務日なし」求人
-      const hasFutureWorkDates = job.workDates.some(wd => {
-        const wdJST = new Date(wd.work_date.getTime() + JST_OFFSET);
-        return wdJST.toISOString().split('T')[0] >= todayStr;
-      });
-      const noFutureWorkDates = !hasFutureWorkDates;
+      // 応募可能枠が1つもない → 常時表示対象（ケース②③）
+      const noFutureWorkDates = activeWorkDates.length === 0;
 
       // フィルタロジック:
-      // - 勤務日なし求人 → 全日付で常に表示（グレーアウトしない）
-      // - 選択日に勤務日がない求人 → 非表示（returnでnull）
-      // - 選択日に勤務日がある求人 → 表示（満員でもグレーアウトしない）
+      // - 応募可能枠なし → 全日付で常に表示（LINE登録URL誘導）
+      // - 応募可能枠ありで選択日にマッチしない → 非表示
+      // - 応募可能枠ありで選択日にマッチ → 表示
       if (!noFutureWorkDates && !matchingWorkDate) {
-        return null; // 選択日にマッチしない → 非表示
+        return null;
       }
 
       const hasMatchingDate = noFutureWorkDates || !!matchingWorkDate;

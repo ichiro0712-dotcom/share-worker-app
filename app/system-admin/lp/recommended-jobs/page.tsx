@@ -359,8 +359,10 @@ export default function RecommendedJobsPage() {
               <h3 className="font-medium text-slate-800 mb-1">基本動作</h3>
               <ul className="list-disc list-inside space-y-1 ml-1">
                 <li>登録した求人はLP内の <code className="bg-slate-100 px-1 rounded text-xs">&lt;div data-tastas-jobs&gt;&lt;/div&gt;</code> の位置にiframeで表示されます</li>
-                <li>日付選択UI付き（デフォルトは3日後）で、選択日に勤務可能な求人のみ表示されます</li>
-                <li>公開中（PUBLISHED）の求人のみ表示されます。下書きや非公開の求人は表示されません</li>
+                <li>日付選択UI付き（デフォルトは3日後）で、応募可能な募集枠がある日付に求人が表示されます</li>
+                <li>登録したおすすめ求人は求人の状態に関わらず表示されます（公開停止・下書きを含む）</li>
+                <li>公開中かつ選択日に応募可能枠がある求人 → その日の日付タブに表示（求人詳細ページへ遷移）</li>
+                <li>それ以外（公開停止・全日程で応募枠なし等） → 全日付で常時表示（LINE登録URL等のCTAへ遷移）</li>
               </ul>
             </div>
 
@@ -381,7 +383,7 @@ export default function RecommendedJobsPage() {
             </div>
 
             <div>
-              <h3 className="font-medium text-slate-800 mb-1">今日以降の勤務日がない求人</h3>
+              <h3 className="font-medium text-slate-800 mb-1">応募可能枠がない求人（公開停止・掲載終了・全日募集終了など）</h3>
               <ul className="list-disc list-inside space-y-1 ml-1">
                 <li>全日程で常に表示されます（日付選択でフィルタされません）</li>
                 <li>クリックすると、そのLPに設定されたCTA URL（LINE登録URL等）に直接遷移します</li>
@@ -393,8 +395,8 @@ export default function RecommendedJobsPage() {
             <div>
               <h3 className="font-medium text-slate-800 mb-1">残り日数の警告</h3>
               <ul className="list-disc list-inside space-y-1 ml-1">
-                <li><span className="text-red-600 font-medium">赤</span>: 今日以降の勤務日がない（掲載終了の可能性）</li>
-                <li><span className="text-amber-600 font-medium">黄</span>: 最短の勤務日まで残り3日未満</li>
+                <li><span className="text-red-600 font-medium">赤</span>: 応募可能な募集枠がない（公開停止 or 全日程で満員/期限切れ）</li>
+                <li><span className="text-amber-600 font-medium">黄</span>: 最短の応募可能日まで残り3日未満</li>
                 <li>警告なし: 余裕あり</li>
               </ul>
             </div>
