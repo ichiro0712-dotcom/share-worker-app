@@ -7,7 +7,7 @@ import { getSystemWorkerDetail, toggleWorkerSuspension, generateWorkerMasquerade
 import {
     ChevronLeft, Ban, CheckCircle, Mail, Phone, MapPin, Calendar, Briefcase,
     FileText, Star, User, Clock, AlertTriangle, LogIn, Shield, CreditCard,
-    Building, Users, History
+    Building, Users, History, Link2
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -353,6 +353,38 @@ export default function SystemAdminWorkerDetailPage({ params }: { params: { id: 
                                 </div>
                             ) : (
                                 <p className="text-sm text-gray-400 italic">緊急連絡先は未登録です</p>
+                            )}
+                        </div>
+
+                        {/* Registration Source (LP) — system-admin only */}
+                        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+                            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                <Link2 className="w-4 h-4" /> 登録元LP
+                            </h3>
+                            {worker.registrationLp ? (
+                                <div className="space-y-2 text-sm text-gray-600">
+                                    <div>
+                                        <span className="text-gray-400">LP:</span>{' '}
+                                        <span className="font-medium text-gray-800">
+                                            {worker.registrationLp.lpName ?? `LP ${worker.registrationLp.lpId}`}
+                                        </span>
+                                        <span className="text-xs text-gray-400 ml-1.5">（番号: {worker.registrationLp.lpId}）</span>
+                                    </div>
+                                    {worker.registrationLp.campaignCode && (
+                                        <div>
+                                            <span className="text-gray-400">キャンペーンコード:</span>{' '}
+                                            <span className="font-mono text-xs">{worker.registrationLp.campaignCode}</span>
+                                        </div>
+                                    )}
+                                    {worker.registrationLp.genrePrefix && (
+                                        <div>
+                                            <span className="text-gray-400">ジャンル:</span>{' '}
+                                            <span className="font-mono text-xs">{worker.registrationLp.genrePrefix}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <p className="text-sm text-gray-400 italic">登録元LP情報はありません（直接登録など）</p>
                             )}
                         </div>
                     </div>
