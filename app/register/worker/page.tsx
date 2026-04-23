@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
+import { Eye, EyeOff } from 'lucide-react';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { PhoneNumberInput } from '@/components/ui/PhoneNumberInput';
@@ -99,6 +100,7 @@ function WorkerRegisterPageInner() {
 
   const [currentStep, setCurrentStep] = useState<StepId>('1');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [agreedToPrivacy, setAgreedToPrivacy] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
@@ -144,6 +146,7 @@ function WorkerRegisterPageInner() {
     firstNameKana: '',
     phoneNumber: '',
     email: '',
+    emailConfirm: '',
     password: '',
   });
 
@@ -295,6 +298,7 @@ function WorkerRegisterPageInner() {
           isValidPhoneNumber(form.phoneNumber) &&
           !!form.email &&
           /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email) &&
+          form.email === form.emailConfirm &&
           !!form.password &&
           form.password.length >= 8 &&
           agreedToTerms &&
@@ -922,18 +926,51 @@ function WorkerRegisterPageInner() {
                   value={form.email}
                   onChange={e => setField('email', e.target.value)}
                   placeholder="例：example@mail.com"
+                  autoComplete="email"
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-[10px] focus:border-[#2AADCF] focus:outline-none"
                 />
               </div>
               <div className="mb-4">
-                <FieldLabel required>パスワード（8文字以上）</FieldLabel>
+                <FieldLabel required>メールアドレス（確認）</FieldLabel>
                 <input
-                  type="password"
-                  value={form.password}
-                  onChange={e => setField('password', e.target.value)}
-                  placeholder="8文字以上"
+                  type="email"
+                  value={form.emailConfirm}
+                  onChange={e => setField('emailConfirm', e.target.value)}
+                  placeholder="もう一度入力してください"
+                  autoComplete="off"
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-[10px] focus:border-[#2AADCF] focus:outline-none"
                 />
+                {form.emailConfirm && form.email !== form.emailConfirm && (
+                  <p className="text-xs text-red-600 mt-1">メールアドレスが一致しません</p>
+                )}
+              </div>
+              <div className="mb-4">
+                <FieldLabel required>パスワード（8文字以上）</FieldLabel>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={form.password}
+                    onChange={e => setField('password', e.target.value)}
+                    placeholder="8文字以上"
+                    autoComplete="new-password"
+                    className="w-full pl-4 pr-12 py-3 border-2 border-gray-200 rounded-[10px] focus:border-[#2AADCF] focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? 'パスワードを非表示' : 'パスワードを表示'}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="w-5 h-5 text-gray-400" />
+                    ) : (
+                      <Eye className="w-5 h-5 text-gray-400" />
+                    )}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  目のアイコンで入力内容を確認できます
+                </p>
               </div>
               <div className="space-y-1 mt-6">
                 <div className="flex items-start gap-3 py-2 px-1 min-h-[44px] select-none">
