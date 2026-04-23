@@ -131,9 +131,12 @@ function WorkerLoginInner() {
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 border-0 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50 bg-white"
-                  placeholder="メールアドレス または 電話番号"
+                  placeholder="例: you@example.com / 090-1234-5678"
                 />
               </div>
+              <p className="text-xs text-white/80 mt-1.5">
+                SMS認証が完了している場合、電話番号でもログインできます
+              </p>
             </div>
 
             {/* パスワード */}
