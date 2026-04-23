@@ -200,11 +200,11 @@ function WorkerRegisterPageInner() {
 
   // ステップ順序（条件付きで 2b を挿入）
   // sms ステップは step 8 の後に続く「認証コード入力」画面（利用規約同意後に SMS 送信）
-  // 2c は任意入力の追加項目（希望勤務期間・曜日・開始/終了時刻）
+  // 2c は任意入力の追加項目（希望勤務期間・曜日・開始/終了時刻）→ 一時的に非表示（復活時は '3' の前に '2c' を戻す）
   const stepSequence = useMemo<StepId[]>(() => {
     const base: StepId[] = ['1', '2'];
     if (shouldShowStep2b(form.desiredWorkStyle)) base.push('2b');
-    base.push('2c', '3', '4', '5', '6', '7', '8', 'sms');
+    base.push('3', '4', '5', '6', '7', '8', 'sms');
     return base;
   }, [form.desiredWorkStyle]);
 
@@ -250,8 +250,9 @@ function WorkerRegisterPageInner() {
   useEffect(() => {
     if (!shouldShowStep2b(form.desiredWorkStyle)) {
       if (form.workFrequency) setField('workFrequency', '');
-      // STEP 2b 表示中に条件から外れた場合、stepIndex=-1 回避のため 2c に退避
-      if (currentStep === '2b') setCurrentStep('2c');
+      // STEP 2b 表示中に条件から外れた場合、stepIndex=-1 回避のため次ステップへ退避
+      // （2c 非表示中は '3' に退避。2c 復活時は '2c' に戻す）
+      if (currentStep === '2b') setCurrentStep('3');
       return;
     }
     if (
