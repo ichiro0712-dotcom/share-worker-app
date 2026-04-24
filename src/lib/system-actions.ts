@@ -197,7 +197,7 @@ export async function getSystemWorkers(
         prefecture?: string;
         city?: string;
         qualification?: string;
-        emailVerified?: 'all' | 'verified' | 'unverified';
+        phoneVerified?: 'all' | 'verified' | 'unverified';
         // 距離検索用
         distanceFrom?: {
             lat: number;
@@ -259,11 +259,11 @@ export async function getSystemWorkers(
             };
         }
 
-        // 本登録（メール認証）フィルター
-        if (filters.emailVerified === 'verified') {
-            where.email_verified = true;
-        } else if (filters.emailVerified === 'unverified') {
-            where.email_verified = false;
+        // 本登録（SMS認証）フィルター
+        if (filters.phoneVerified === 'verified') {
+            where.phone_verified = true;
+        } else if (filters.phoneVerified === 'unverified') {
+            where.phone_verified = false;
         }
     }
 
@@ -294,7 +294,7 @@ export async function getSystemWorkers(
                 gender: true,
                 birth_date: true,
                 is_suspended: true,
-                email_verified: true,
+                phone_verified: true,
                 lat: true,
                 lng: true,
                 notifications: false, // 負荷軽減のため除外
@@ -359,7 +359,7 @@ export async function getSystemWorkers(
                 totalWorkCount,
                 distance,
                 isSuspended: w.is_suspended || false,
-                emailVerified: w.email_verified || false,
+                phoneVerified: w.phone_verified || false,
                 age: null, // 後で計算
             };
         });
@@ -426,7 +426,7 @@ export async function getSystemWorkers(
                     gender: true,
                     birth_date: true,
                     is_suspended: true,
-                    email_verified: true,
+                    phone_verified: true,
                     lat: true,
                     lng: true,
                 },
@@ -487,7 +487,7 @@ export async function getSystemWorkers(
                 return {
                     ...w,
                     isSuspended: w.is_suspended || false,
-                    emailVerified: w.email_verified || false,
+                    phoneVerified: w.phone_verified || false,
                     age: calculateAge(w.birth_date),
                     avgRating: stat ? stat.sum / stat.count : null,
                     reviewCount: stat?.count || 0,
@@ -538,6 +538,30 @@ export async function getSystemWorkerDetail(id: number) {
     });
 
     if (!worker) return null;
+
+    // 登録元LP情報（LandingPage マスタから name を取得）
+    // registration_lp_id は String、LandingPage.lp_number は Int のため parseInt で突合
+    let registrationLp: {
+        lpId: string;
+        lpName: string | null;
+        campaignCode: string | null;
+        genrePrefix: string | null;
+    } | null = null;
+    if (worker.registration_lp_id) {
+        const lpNumber = Number.parseInt(worker.registration_lp_id, 10);
+        const lpMaster = Number.isFinite(lpNumber)
+            ? await prisma.landingPage.findUnique({
+                  where: { lp_number: lpNumber },
+                  select: { name: true },
+              })
+            : null;
+        registrationLp = {
+            lpId: worker.registration_lp_id,
+            lpName: lpMaster?.name ?? null,
+            campaignCode: worker.registration_campaign_code,
+            genrePrefix: worker.registration_genre_prefix,
+        };
+    }
 
     // 勤務実績を集計（COMPLETED_PENDING または COMPLETED_RATED を完了とみなす）
     const completedApplications = worker.applications.filter(app =>
@@ -661,6 +685,7 @@ export async function getSystemWorkerDetail(id: number) {
             reviewerName: r.facility?.facility_name || '匿名',
         })),
         qualificationCertificates: worker.qualification_certificates,
+        registrationLp,
     };
 }
 

@@ -25,7 +25,7 @@ import {
     SWITCH_TO_NORMAL_OPTIONS,
     WORK_CONTENT_OPTIONS,
     ICON_OPTIONS,
-    BREAK_TIME_OPTIONS,
+    BREAK_HOUR_OPTIONS,
     TRANSPORTATION_FEE_OPTIONS,
     TRANSPORTATION_FEE_MAX,
     RECRUITMENT_START_DAY_OPTIONS,
@@ -1935,15 +1935,64 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
                                         休憩時間 <span className="text-red-500">*</span>
                                     </label>
-                                    <select
-                                        value={formData.breakTime}
-                                        onChange={(e) => handleInputChange('breakTime', Number(e.target.value))}
-                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                                    >
-                                        {BREAK_TIME_OPTIONS.map(option => (
-                                            <option key={option.value} value={option.value}>{option.label}</option>
-                                        ))}
-                                    </select>
+                                    <div className="flex gap-1">
+                                        <select
+                                            value={Math.floor(formData.breakTime / 60).toString().padStart(2, '0')}
+                                            onChange={(e) => {
+                                                const minutes = formData.breakTime % 60;
+                                                handleInputChange('breakTime', Number(e.target.value) * 60 + minutes);
+                                            }}
+                                            className="flex-1 px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                        >
+                                            {BREAK_HOUR_OPTIONS.map(option => (
+                                                <option key={option.value} value={option.value}>{option.label}</option>
+                                            ))}
+                                        </select>
+                                        <select
+                                            value={(formData.breakTime % 60).toString().padStart(2, '0')}
+                                            onChange={(e) => {
+                                                const hours = Math.floor(formData.breakTime / 60);
+                                                handleInputChange('breakTime', hours * 60 + Number(e.target.value));
+                                            }}
+                                            className="flex-1 px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                        >
+                                            {MINUTE_OPTIONS.map(option => (
+                                                <option key={option.value} value={option.value}>{option.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    {(() => {
+                                        if (!formData.startTime || !formData.endTime) return null;
+                                        const parseTime = (time: string) => {
+                                            const isNextDay = time.startsWith('翌');
+                                            const timePart = isNextDay ? time.slice(1) : time;
+                                            const [h, m] = timePart.split(':').map(Number);
+                                            return { hour: h, min: m, isNextDay };
+                                        };
+                                        const s = parseTime(formData.startTime);
+                                        const e = parseTime(formData.endTime);
+                                        let gross = (e.hour * 60 + e.min) - (s.hour * 60 + s.min);
+                                        if (e.isNextDay) gross += 24 * 60;
+                                        if (gross < 0) gross += 24 * 60;
+                                        const work = gross - formData.breakTime;
+                                        if (work > 480 && formData.breakTime < 60) {
+                                            return (
+                                                <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                                                    <AlertTriangle className="w-3 h-3" />
+                                                    実働8時間を超える場合、休憩時間は60分以上必要です
+                                                </p>
+                                            );
+                                        }
+                                        if (work > 360 && formData.breakTime < 45) {
+                                            return (
+                                                <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                                                    <AlertTriangle className="w-3 h-3" />
+                                                    実働6時間を超える場合、休憩時間は45分以上必要です
+                                                </p>
+                                            );
+                                        }
+                                        return null;
+                                    })()}
                                 </div>
                             </div>
 
