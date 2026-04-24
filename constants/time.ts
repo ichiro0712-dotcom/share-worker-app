@@ -41,6 +41,12 @@ export const BREAK_TIME_OPTIONS = [
   { value: 120, label: '120分' },
 ] as const;
 
+// 休憩時間（時間）選択用（0〜12時間）
+export const BREAK_HOUR_OPTIONS = Array.from({ length: 13 }, (_, i) => ({
+  value: i.toString().padStart(2, '0'),
+  label: `${i}時間`,
+}));
+
 export const RECRUITMENT_START_DAY_OPTIONS = [
   { value: 0, label: '公開時' },
   { value: -1, label: '勤務当日' },
