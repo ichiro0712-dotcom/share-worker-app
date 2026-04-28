@@ -665,6 +665,7 @@ export async function getSystemWorkerDetail(id: number) {
         branch_name: worker.branch_name,
         account_name: worker.account_name,
         account_number: worker.account_number,
+        bank_book_image: worker.bank_book_image,
         pension_number: worker.pension_number,
         created_at: worker.created_at,
         isSuspended: worker.is_suspended || false,

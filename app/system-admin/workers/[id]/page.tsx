@@ -621,6 +621,36 @@ export default function SystemAdminWorkerDetailPage({ params }: { params: { id: 
                             ) : (
                                 <p className="text-sm text-gray-400 italic">銀行口座情報は未登録です</p>
                             )}
+                            {worker.bank_book_image && (
+                                <div className="mt-4 pt-4 border-t border-gray-100">
+                                    <p className="text-xs text-gray-500 mb-2">登録された通帳・キャッシュカード画像</p>
+                                    {/\.pdf(\?|$)/i.test(worker.bank_book_image) ? (
+                                        <a
+                                            href={worker.bank_book_image}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm text-gray-700 transition-colors"
+                                        >
+                                            <FileText className="w-4 h-4" />
+                                            PDFファイルを開く
+                                        </a>
+                                    ) : (
+                                        <a
+                                            href={worker.bank_book_image}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="block bg-gray-100 rounded-lg overflow-hidden hover:opacity-90 transition-opacity"
+                                            title="クリックで拡大表示"
+                                        >
+                                            <img
+                                                src={worker.bank_book_image}
+                                                alt="通帳・キャッシュカード画像"
+                                                className="w-full h-auto max-h-64 object-contain"
+                                            />
+                                        </a>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         {/* Qualification Certificates */}
