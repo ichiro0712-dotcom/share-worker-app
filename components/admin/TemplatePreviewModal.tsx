@@ -2,7 +2,7 @@
 
 import { X } from 'lucide-react';
 import { JobDetailClient } from '@/components/job/JobDetailClient';
-import { calculateDailyWage } from '@/utils/salary';
+import { calculateDailyWage, calculateWorkingHours, calculateTransportationFee } from '@/utils/salary';
 
 interface TemplatePreviewModalProps {
   isOpen: boolean;
@@ -44,13 +44,18 @@ interface TemplatePreviewModalProps {
 export function TemplatePreviewModal({ isOpen, onClose, templateData, facilityData }: TemplatePreviewModalProps) {
   if (!isOpen) return null;
 
+  // テンプレートでは交通費は確定しないため、プレビュー用に勤務時間から自動計算した値を表示
+  const previewWorkingMinutes =
+    calculateWorkingHours(templateData.startTime, templateData.endTime, templateData.breakTime) * 60;
+  const previewTransportationFee = calculateTransportationFee(previewWorkingMinutes);
+
   // 日給計算
   const dailyWage = calculateDailyWage(
     templateData.startTime,
     templateData.endTime,
     templateData.breakTime,
     templateData.hourlyWage,
-    templateData.transportationFee
+    previewTransportationFee
   );
 
   // プレビュー用のダミーデータを構築（JobPreviewModalと同じ形式）
@@ -62,7 +67,7 @@ export function TemplatePreviewModal({ isOpen, onClose, templateData, facilityDa
     end_time: templateData.endTime,
     break_time: templateData.breakTime,
     hourly_wage: templateData.hourlyWage,
-    transportation_fee: templateData.transportationFee,
+    transportation_fee: previewTransportationFee,
     recruitment_count: templateData.recruitmentCount,
     work_content: templateData.workContent,
     dresscode_images: templateData.dresscodeImages || [],
@@ -71,7 +76,7 @@ export function TemplatePreviewModal({ isOpen, onClose, templateData, facilityDa
     endTime: templateData.endTime,
     breakTime: templateData.breakTime,
     hourlyWage: templateData.hourlyWage,
-    transportationFee: templateData.transportationFee,
+    transportationFee: previewTransportationFee,
     recruitmentCount: templateData.recruitmentCount,
     workContent: templateData.workContent,
     dresscodeImages: templateData.dresscodeImages || [],

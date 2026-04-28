@@ -121,7 +121,8 @@ export async function createJobTemplate(
                 end_time: data.endTime,
                 break_time: data.breakTime,
                 hourly_wage: data.hourlyWage,
-                transportation_fee: data.transportationFee,
+                // テンプレートでは交通費は固定値0で保存（実求人作成時に勤務時間から自動計算する）
+                transportation_fee: 0,
                 recruitment_count: data.recruitmentCount,
                 qualifications: data.qualifications,
                 work_content: data.workContent || [],
@@ -338,7 +339,8 @@ export async function updateJobTemplate(
                 end_time: data.endTime,
                 break_time: data.breakTime,
                 hourly_wage: data.hourlyWage,
-                transportation_fee: data.transportationFee,
+                // テンプレートでは交通費は固定値0で保存（実求人作成時に勤務時間から自動計算する）
+                transportation_fee: 0,
                 recruitment_count: data.recruitmentCount,
                 qualifications: data.qualifications,
                 work_content: data.workContent || [],
