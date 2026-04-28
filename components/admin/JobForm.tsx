@@ -50,6 +50,10 @@ interface TemplateData {
     hourlyWage: number;
     transportationFee: number;
     recruitmentCount: number;
+    recruitmentStartDay?: number | null;
+    recruitmentStartTime?: string | null;
+    recruitmentEndDay?: number | null;
+    recruitmentEndTime?: string | null;
     qualifications: string[];
     workContent: string[];
     description: string | null;
@@ -963,6 +967,10 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
             breakTime: template.breakTime,
             hourlyWage: template.hourlyWage,
             transportationFee: template.transportationFee,
+            recruitmentStartDay: template.recruitmentStartDay ?? 0,
+            recruitmentStartTime: template.recruitmentStartTime ?? '',
+            recruitmentEndDay: template.recruitmentEndDay ?? -2,
+            recruitmentEndTime: template.recruitmentEndTime ?? '',
             workContent: template.workContent || [],
             jobDescription: template.description || '',
             qualifications: template.qualifications || [],

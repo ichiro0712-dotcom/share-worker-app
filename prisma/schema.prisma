@@ -266,31 +266,39 @@ model Facility {
 }
 
 model JobTemplate {
-  id                 Int      @id @default(autoincrement())
-  facility_id        Int      @map("facility_id")
-  name               String
-  title              String
-  start_time         String   @map("start_time")
-  end_time           String   @map("end_time")
-  break_time         Int      @map("break_time")
-  hourly_wage        Int      @map("hourly_wage")
-  transportation_fee Int      @map("transportation_fee")
-  recruitment_count  Int      @map("recruitment_count")
-  qualifications     String[]
-  work_content       String[] @map("work_content")
-  description        String
-  skills             String[]
-  dresscode          String[]
-  belongings         String[]
-  images             String[]
-  dresscode_images   String[] @map("dresscode_images")
-  attachments        String[]
-  notes              String?
-  tags               String[]
+  id                     Int      @id @default(autoincrement())
+  facility_id            Int      @map("facility_id")
+  name                   String
+  title                  String
+  start_time             String   @map("start_time")
+  end_time               String   @map("end_time")
+  break_time             Int      @map("break_time")
+  hourly_wage            Int      @map("hourly_wage")
+  transportation_fee     Int      @map("transportation_fee")
+  recruitment_count      Int      @map("recruitment_count")
+  /// 募集終了日（0=勤務開始時、-1=勤務当日、-2=勤務1日前、-3=勤務2日前...）
+  deadline_days_before   Int      @default(-2) @map("deadline_days_before")
+  /// 募集開始日（0=公開時、-1=勤務当日、-2=勤務1日前...）
+  recruitment_start_day  Int      @default(0) @map("recruitment_start_day")
+  /// 募集開始時刻（HH:MM形式、nullの場合は時刻指定なし）
+  recruitment_start_time String?  @map("recruitment_start_time")
+  /// 募集終了時刻（HH:MM形式、nullの場合は時刻指定なし）
+  recruitment_end_time   String?  @map("recruitment_end_time")
+  qualifications         String[]
+  work_content           String[] @map("work_content")
+  description            String
+  skills                 String[]
+  dresscode              String[]
+  belongings             String[]
+  images                 String[]
+  dresscode_images       String[] @map("dresscode_images")
+  attachments            String[]
+  notes                  String?
+  tags                   String[]
   /// 解雇の事由（労働条件通知書用、nullの場合はデフォルト文言を使用）
-  dismissal_reasons  String?  @map("dismissal_reasons")
-  created_at         DateTime @default(now()) @map("created_at")
-  updated_at         DateTime @updatedAt @map("updated_at")
+  dismissal_reasons      String?  @map("dismissal_reasons")
+  created_at             DateTime @default(now()) @map("created_at")
+  updated_at             DateTime @updatedAt @map("updated_at")
   facility           Facility @relation(fields: [facility_id], references: [id], onDelete: Cascade)
   jobs               Job[]
 
