@@ -463,6 +463,10 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                 // テンプレートでは交通費は固定値0で保存（実求人作成時に勤務時間から自動計算する）
                 transportationFee: 0,
                 recruitmentCount: formData.recruitmentCount,
+                recruitmentStartDay: formData.recruitmentStartDay,
+                recruitmentStartTime: formData.recruitmentStartTime || null,
+                recruitmentEndDay: formData.recruitmentEndDay,
+                recruitmentEndTime: formData.recruitmentEndTime || null,
                 qualifications: formData.qualifications,
                 workContent: formData.workContent,
                 description: formData.jobDescription,
@@ -887,7 +891,7 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                                 </p>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-4 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
                                         募集開始日 <span className="text-red-500">*</span>
@@ -903,22 +907,27 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                                     </select>
                                 </div>
 
-                                {formData.recruitmentStartDay !== 0 && formData.recruitmentStartDay !== -1 && (
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            募集開始時間 <span className="text-red-500">*</span>
-                                        </label>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        募集開始時間 <span className="text-red-500">*</span>
+                                    </label>
+                                    {formData.recruitmentStartDay === 0 || formData.recruitmentStartDay === -1 ? (
+                                        <input
+                                            type="text"
+                                            value="--:--"
+                                            readOnly
+                                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-gray-100 text-gray-500"
+                                        />
+                                    ) : (
                                         <input
                                             type="time"
                                             value={formData.recruitmentStartTime}
                                             onChange={(e) => handleInputChange('recruitmentStartTime', e.target.value)}
                                             className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
                                         />
-                                    </div>
-                                )}
-                            </div>
+                                    )}
+                                </div>
 
-                            <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
                                         募集終了日 <span className="text-red-500">*</span>
@@ -934,19 +943,26 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                                     </select>
                                 </div>
 
-                                {formData.recruitmentEndDay !== 0 && formData.recruitmentEndDay !== -1 && (
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            募集終了時間 <span className="text-red-500">*</span>
-                                        </label>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        募集終了時間 <span className="text-red-500">*</span>
+                                    </label>
+                                    {formData.recruitmentEndDay === 0 || formData.recruitmentEndDay === -1 ? (
+                                        <input
+                                            type="text"
+                                            value="--:--"
+                                            readOnly
+                                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-gray-100 text-gray-500"
+                                        />
+                                    ) : (
                                         <input
                                             type="time"
                                             value={formData.recruitmentEndTime}
                                             onChange={(e) => handleInputChange('recruitmentEndTime', e.target.value)}
                                             className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
                                         />
-                                    </div>
-                                )}
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
