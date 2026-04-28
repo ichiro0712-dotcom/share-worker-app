@@ -42,6 +42,10 @@ export default function EditJobTemplatePage() {
           hourlyWage: template.hourlyWage,
           transportationFee: template.transportationFee,
           recruitmentCount: template.recruitmentCount,
+          recruitmentStartDay: template.recruitmentStartDay ?? 0,
+          recruitmentStartTime: template.recruitmentStartTime ?? '',
+          recruitmentEndDay: template.recruitmentEndDay ?? -2,
+          recruitmentEndTime: template.recruitmentEndTime ?? '',
           qualifications: template.qualifications,
           jobDescription: template.description || '',
           skills: template.skills,
@@ -53,11 +57,6 @@ export default function EditJobTemplatePage() {
           notes: template.notes || '',
           icons: template.icons || [],
           workContent: template.workContent || [],
-          // Fields not present in JobTemplate schema but required by TemplateInitialData
-          recruitmentStartDay: 0,
-          recruitmentStartTime: '',
-          recruitmentEndDay: 0,
-          recruitmentEndTime: '',
           genderRequirement: '',
           dismissalReasons: '',
         });
