@@ -910,7 +910,7 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                                 </p>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-4 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
                                         募集開始日 <span className="text-red-500">*</span>
@@ -946,9 +946,7 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                                         />
                                     )}
                                 </div>
-                            </div>
 
-                            <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
                                         募集終了日 <span className="text-red-500">*</span>
