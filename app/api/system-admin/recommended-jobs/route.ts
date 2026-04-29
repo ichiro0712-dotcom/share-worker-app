@@ -72,11 +72,15 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     jobs: recommendedJobs.map(r => {
-      // 今日以降の勤務日数を計算
-      const futureWorkDates = r.job.workDates.filter(wd => {
-        const wdJST = new Date(wd.work_date.getTime() + JST_OFFSET);
-        return wdJST.toISOString().split('T')[0] >= todayStr;
-      });
+      // 「応募可能な募集枠」= 求人が公開中 かつ 今日以降 かつ is_recruitment_closed=false
+      // これがLP側で「日付タブに表示される」条件と一致する
+      const isPublished = r.job.status === 'PUBLISHED';
+      const futureWorkDates = isPublished
+        ? r.job.workDates.filter(wd => {
+            const wdJST = new Date(wd.work_date.getTime() + JST_OFFSET);
+            return wdJST.toISOString().split('T')[0] >= todayStr && !wd.is_recruitment_closed;
+          })
+        : [];
 
       // 最も近い勤務日までの残り日数
       let remainingDays: number | null = null;
