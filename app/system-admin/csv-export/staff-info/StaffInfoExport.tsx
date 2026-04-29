@@ -215,11 +215,12 @@ export default function StaffInfoExport() {
       <div className="bg-slate-50 rounded-xl p-4 text-sm text-slate-600">
         <p className="font-medium text-slate-700 mb-2">CSV出力仕様</p>
         <ul className="list-disc list-inside space-y-1">
-          <li>CROSSNAVI連携用フォーマット（48項目）</li>
+          <li>CROSSNAVI連携用フォーマット（50項目）</li>
           <li>文字コード: UTF-8（BOM付き）</li>
           <li>メール認証済みワーカーのみ対象</li>
           <li>連絡先住所・住民票住所は現住所を引用</li>
           <li>固定値: 事業所=渋谷事業所、配偶者有無=不明、扶養対象者=0</li>
+          <li>末尾2列に登録元LP情報（LP番号・LP名）を含む</li>
         </ul>
       </div>
     </div>
