@@ -11,6 +11,27 @@ import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 import { getFacilityAdminSessionData } from '@/lib/admin-session-server';
 import { getMinimumWageForPrefecture } from '@/src/lib/actions/minimumWage';
 import { notifyJobUpdated, notifyJobsUpdated, notifyJobsDeleted } from '@/src/lib/google-indexing';
+import { calculateTransportationFee } from '@/utils/salary';
+
+/**
+ * 開始時刻・終了時刻・休憩時間から実働時間（分）を計算
+ */
+function computeWorkingMinutes(startTime: string, endTime: string, breakMinutes: number): number {
+    if (!startTime || !endTime) return 0;
+    const [startHour, startMin] = startTime.split(':').map(Number);
+    const isNextDay = endTime.startsWith('翌');
+    const endTimePart = isNextDay ? endTime.slice(1) : endTime;
+    const [endHour, endMin] = endTimePart.split(':').map(Number);
+
+    const startMinutes = startHour * 60 + startMin;
+    let endMinutes = endHour * 60 + endMin;
+    if (isNextDay) endMinutes += 24 * 60;
+
+    let totalMinutes = endMinutes - startMinutes;
+    if (totalMinutes < 0) totalMinutes += 24 * 60;
+
+    return totalMinutes - breakMinutes;
+}
 
 /**
  * ローカル用の日付フォーマット関数 (M/D形式)
@@ -331,6 +352,13 @@ export async function createJobs(input: CreateJobInput) {
         }
     }
 
+    // 実働時間バリデーション・交通費の自動再計算（クライアント送信値は信用しない）
+    const workingMinutes = computeWorkingMinutes(input.startTime, input.endTime, input.breakTime);
+    if (workingMinutes <= 0) {
+        return { success: false, error: '実働時間が0分以下です。勤務時間または休憩時間を見直してください' };
+    }
+    const transportationFee = calculateTransportationFee(workingMinutes);
+
     const calculateWage = (startTime: string, endTime: string, breakMinutes: number, hourlyWage: number, transportFee: number) => {
         const [startHour, startMin] = startTime.split(':').map(Number);
         const isNextDay = endTime.startsWith('翌');
@@ -358,7 +386,7 @@ export async function createJobs(input: CreateJobInput) {
         input.endTime,
         input.breakTime,
         input.hourlyWage,
-        input.transportationFee
+        transportationFee
     );
 
     const breakTimeStr = `${input.breakTime}分`;
@@ -447,7 +475,7 @@ export async function createJobs(input: CreateJobInput) {
             break_time: breakTimeStr,
             wage: wage,
             hourly_wage: input.hourlyWage,
-            transportation_fee: input.transportationFee,
+            transportation_fee: transportationFee,
             deadline_days_before: input.recruitmentEndDay ?? -2,
             recruitment_start_day: input.recruitmentStartDay,
             recruitment_start_time: input.recruitmentStartTime || null,
@@ -948,6 +976,13 @@ export async function updateJob(
 
         const breakTimeMinutes = data.breakTime;
 
+        // 実働時間バリデーション・交通費の自動再計算（クライアント送信値は信用しない）
+        const workingMinutes = computeWorkingMinutes(data.startTime, data.endTime, breakTimeMinutes);
+        if (workingMinutes <= 0) {
+            return { success: false, error: '実働時間が0分以下です。勤務時間または休憩時間を見直してください' };
+        }
+        const transportationFee = calculateTransportationFee(workingMinutes);
+
         const calculateWage = (startTime: string, endTime: string, breakMinutes: number, hourlyWage: number, transportFee: number) => {
             const [startHour, startMin] = startTime.split(':').map(Number);
             const isNextDay = endTime.startsWith('翌');
@@ -968,7 +1003,7 @@ export async function updateJob(
             data.endTime,
             breakTimeMinutes,
             data.hourlyWage,
-            data.transportationFee
+            transportationFee
         );
 
         await prisma.job.update({
@@ -979,7 +1014,7 @@ export async function updateJob(
                 end_time: data.endTime,
                 break_time: `${breakTimeMinutes}分`,
                 hourly_wage: data.hourlyWage,
-                transportation_fee: data.transportationFee,
+                transportation_fee: transportationFee,
                 wage: wage,
                 recruitment_count: data.recruitmentCount,
                 work_content: data.workContent,

@@ -12,7 +12,7 @@ import AddressSelector from '@/components/ui/AddressSelector';
 import { JobConfirmModal } from '@/components/admin/JobConfirmModal';
 import { JobPreviewModal } from '@/components/admin/JobPreviewModal';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { calculateDailyWage, calculateWorkingHours, getFilteredTransportationFeeOptions, calculateMinTransportationFee } from '@/utils/salary';
+import { calculateDailyWage, calculateWorkingHours, calculateTransportationFee } from '@/utils/salary';
 import { getCurrentTime } from '@/utils/debugTime';
 import { validateImageFiles, validateAttachmentFiles } from '@/utils/fileValidation';
 import { directUploadMultiple } from '@/utils/directUpload';
@@ -26,7 +26,6 @@ import {
     WORK_CONTENT_OPTIONS,
     ICON_OPTIONS,
     BREAK_HOUR_OPTIONS,
-    TRANSPORTATION_FEE_OPTIONS,
     TRANSPORTATION_FEE_MAX,
     RECRUITMENT_START_DAY_OPTIONS,
     RECRUITMENT_END_DAY_OPTIONS,
@@ -50,6 +49,10 @@ interface TemplateData {
     hourlyWage: number;
     transportationFee: number;
     recruitmentCount: number;
+    recruitmentStartDay?: number | null;
+    recruitmentStartTime?: string | null;
+    recruitmentEndDay?: number | null;
+    recruitmentEndTime?: string | null;
     qualifications: string[];
     workContent: string[];
     description: string | null;
@@ -190,7 +193,7 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
         endTime: '15:00',
         breakTime: 60,
         hourlyWage: 1200,
-        transportationFee: 500,
+        transportationFee: 0,
         workContent: [] as string[],
         jobDescription: '',
         qualifications: [] as string[],
@@ -244,32 +247,22 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
         formData.breakTime
     );
 
-    // 実働時間（分）を計算して、交通費選択肢をフィルタリング
+    // 実働時間（分）を計算して交通費を自動算出
     const workingMinutes = workingHours * 60;
-    const filteredTransportationFeeOptions = getFilteredTransportationFeeOptions(
-        workingMinutes,
-        TRANSPORTATION_FEE_OPTIONS
-    );
-    const minTransportationFee = calculateMinTransportationFee(workingMinutes);
+    const autoTransportationFee = calculateTransportationFee(workingMinutes);
+    const isTransportationFeeMaxed = autoTransportationFee >= TRANSPORTATION_FEE_MAX;
 
     // 最低賃金チェック
     const isBelowMinimumWage = minimumWage !== null
         && formData.hourlyWage > 0
         && formData.hourlyWage < minimumWage;
 
-    // 勤務時間変更時に、交通費が選択肢外になった場合は自動調整
+    // 勤務時間変更時に交通費を自動再計算（既存求人の編集時も新ルールで上書き）
     useEffect(() => {
-        if (workingMinutes <= 0) return;
-
-        const currentFee = formData.transportationFee;
-        // 0円（なし）は常にOK
-        if (currentFee === 0) return;
-
-        // 現在の値が最低額を下回っている場合は自動調整
-        if (currentFee < minTransportationFee) {
-            handleInputChange('transportationFee', minTransportationFee);
+        if (formData.transportationFee !== autoTransportationFee) {
+            handleInputChange('transportationFee', autoTransportationFee);
         }
-    }, [workingMinutes, minTransportationFee]);
+    }, [autoTransportationFee]);
 
     // 実働時間を「X時間Y分」形式でフォーマット
     const formatWorkingHours = (hours: number): string => {
@@ -962,7 +955,12 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
             endTime: template.endTime,
             breakTime: template.breakTime,
             hourlyWage: template.hourlyWage,
-            transportationFee: template.transportationFee,
+            // 交通費はテンプレートの保存値を使わず、勤務時間から自動再計算（useEffectで反映）
+            transportationFee: 0,
+            recruitmentStartDay: template.recruitmentStartDay ?? 0,
+            recruitmentStartTime: template.recruitmentStartTime ?? '',
+            recruitmentEndDay: template.recruitmentEndDay ?? -2,
+            recruitmentEndTime: template.recruitmentEndTime ?? '',
             workContent: template.workContent || [],
             jobDescription: template.description || '',
             qualifications: template.qualifications || [],
@@ -1067,6 +1065,11 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
 
             // 実働時間 = 拘束時間 - 休憩時間
             const workMinutes = grossMinutes - formData.breakTime;
+
+            // 実働時間が0以下の場合は公開不可
+            if (workMinutes <= 0) {
+                errors.push('実働時間が0分以下です。勤務時間または休憩時間を見直してください');
+            }
 
             // 実働8時間（480分）を超える場合 → 60分以上の休憩が必要
             if (workMinutes > 480 && formData.breakTime < 60) {
@@ -2135,25 +2138,22 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    交通費（円） <span className="text-red-500">*</span>
+                                    交通費（円）
                                 </label>
-                                <select
-                                    value={formData.transportationFee}
-                                    onChange={(e) => handleInputChange('transportationFee', Number(e.target.value))}
-                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
-                                >
-                                    {filteredTransportationFeeOptions.map(option => (
-                                        <option key={option.value} value={option.value}>{option.label}</option>
-                                    ))}
-                                </select>
-                                {workingMinutes > 0 && minTransportationFee > 0 && (
-                                    <p className="text-xs text-gray-500 mt-1">
-                                        {minTransportationFee >= TRANSPORTATION_FEE_MAX
-                                            ? `※ 実働${formatWorkingHours(workingHours)}の場合、交通費は上限の${TRANSPORTATION_FEE_MAX.toLocaleString()}円となります`
-                                            : `※ 実働${formatWorkingHours(workingHours)}の場合、最低${minTransportationFee}円以上`
-                                        }
-                                    </p>
-                                )}
+                                <input
+                                    type="text"
+                                    value={`${autoTransportationFee.toLocaleString()}円`}
+                                    readOnly
+                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-gray-100"
+                                />
+                                <p className="text-xs text-gray-500 mt-1">
+                                    {workingMinutes <= 0
+                                        ? '※ 勤務時間を入力すると自動計算されます（1時間あたり100円、上限800円）'
+                                        : isTransportationFeeMaxed
+                                            ? `※ 実働${formatWorkingHours(workingHours)}のため、交通費は上限の${TRANSPORTATION_FEE_MAX.toLocaleString()}円となります`
+                                            : `※ 実働${formatWorkingHours(workingHours)}に応じて自動計算（1時間あたり100円、上限${TRANSPORTATION_FEE_MAX.toLocaleString()}円）`
+                                    }
+                                </p>
                             </div>
 
                             <div>

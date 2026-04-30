@@ -162,8 +162,11 @@ export default function WorkerInfoExport() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">ワーカーID</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">登録日</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">氏名</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">状態</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">電話番号</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">電話認証</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">メールアドレス</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">メール認証</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">住所</th>
                 </tr>
               </thead>
@@ -173,8 +176,23 @@ export default function WorkerInfoExport() {
                     <td className="px-4 py-3 text-sm text-slate-600 font-mono">{item.id}</td>
                     <td className="px-4 py-3 text-sm text-slate-900 whitespace-nowrap">{formatDate(item.createdAt)}</td>
                     <td className="px-4 py-3 text-sm text-slate-900">{item.name}</td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">
+                      <span className={`px-2 py-1 text-xs rounded-full font-medium ${item.isSuspended ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                        {item.isSuspended ? '停止中' : '有効'}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">{item.phoneNumber || '-'}</td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">
+                      <span className={`px-2 py-1 text-xs rounded-full font-medium ${item.phoneVerified ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        {item.phoneVerified ? '認証済' : '未認証'}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-sm text-slate-600">{item.email || '-'}</td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">
+                      <span className={`px-2 py-1 text-xs rounded-full font-medium ${item.emailVerified ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        {item.emailVerified ? '認証済' : '未認証'}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-sm text-slate-600 max-w-xs truncate" title={item.address || '-'}>{item.address || '-'}</td>
                   </tr>
                 ))}
@@ -207,9 +225,9 @@ export default function WorkerInfoExport() {
       <div className="bg-slate-50 rounded-xl p-4 text-sm text-slate-600">
         <p className="font-medium text-slate-700 mb-2">CSV出力仕様</p>
         <ul className="list-disc list-inside space-y-1">
-          <li>タスタス登録ワーカーの情報出力（20項目）</li>
+          <li>タスタス登録ワーカーの情報出力（25項目）</li>
           <li>文字コード: UTF-8（BOM付き）</li>
-          <li>出力項目: ワーカーID、登録日、姓名、カナ、生年月日、年齢、性別、連絡先、住所、資格、働き方、希望条件、勤務実績等</li>
+          <li>出力項目: ワーカーID、登録日、姓名、カナ、生年月日、年齢、性別、連絡先、住所、資格、働き方、希望条件、勤務実績、有効状態、認証状態、LP情報等</li>
           <li>総合評価はレビューの平均値を自動計算</li>
           <li>キャンセル率は応募件数に対するキャンセル数の割合</li>
         </ul>

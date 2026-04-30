@@ -5,7 +5,7 @@ import { getSystemAdminSessionData } from '@/lib/system-admin-session-server';
 
 export const dynamic = 'force-dynamic';
 
-// CROSSNAVI仕様の48項目ヘッダー
+// CROSSNAVI仕様の48項目 + 登録元LP情報2項目 = 50項目ヘッダー
 const HEADERS = [
   '自社スタッフ番号',
   '事業所',
@@ -55,6 +55,8 @@ const HEADERS = [
   '住民票住所－アパート・マンション',
   '住民票住所カナ',
   '住民票住所カナ２',
+  '登録元LP番号',
+  '登録元LP名',
 ];
 
 const BATCH_SIZE = 100;
@@ -92,8 +94,23 @@ function convertAccountType(accountType: string | null): string {
   return '0';
 }
 
-function staffToRow(staff: any, bankAccount: any): (string | number)[] {
+// 厳密な整数文字列のみを LP 番号として受理する（"5abc" → null）
+function parseLpNumberStrict(value: string | null | undefined): number | null {
+  if (!value || !/^\d+$/.test(value)) return null;
+  const n = Number.parseInt(value, 10);
+  return Number.isNaN(n) ? null : n;
+}
+
+function staffToRow(
+  staff: any,
+  bankAccount: any,
+  lpNameMap: Map<number, string>,
+): (string | number)[] {
   const [lastName, firstName] = splitName(staff.name);
+
+  const lpNumber = parseLpNumberStrict(staff.registration_lp_id);
+  const lpId = lpNumber !== null ? String(lpNumber) : '';
+  const lpName = lpNumber !== null ? (lpNameMap.get(lpNumber) ?? '') : '';
 
   return [
     staff.id,
@@ -144,6 +161,8 @@ function staffToRow(staff: any, bankAccount: any): (string | number)[] {
     staff.building || '',
     '',
     '',
+    lpId,
+    lpName,
   ];
 }
 
@@ -208,9 +227,28 @@ export async function GET(request: NextRequest) {
           });
           const bankAccountMap = new Map(bankAccounts.map((ba) => [ba.userId, ba]));
 
+          // バッチ内のregistration_lp_idでLPマスタを一括取得
+          const lpNumbers = Array.from(
+            new Set(
+              batch
+                .map((u) => parseLpNumberStrict(u.registration_lp_id))
+                .filter((n): n is number => n !== null),
+            ),
+          );
+          const lpNameMap = new Map<number, string>();
+          if (lpNumbers.length > 0) {
+            const lps = await prisma.landingPage.findMany({
+              where: { lp_number: { in: lpNumbers } },
+              select: { lp_number: true, name: true },
+            });
+            for (const lp of lps) {
+              lpNameMap.set(lp.lp_number, lp.name);
+            }
+          }
+
           for (const staff of batch) {
             const bankAccount = bankAccountMap.get(staff.id);
-            controller.enqueue(encoder.encode(formatRow(staffToRow(staff, bankAccount))));
+            controller.enqueue(encoder.encode(formatRow(staffToRow(staff, bankAccount, lpNameMap))));
           }
 
           processed += batch.length;

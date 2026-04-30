@@ -9,7 +9,7 @@
  */
 
 import { calculateSalary } from '@/src/lib/salary-calculator';
-import { TRANSPORTATION_FEE_MAX } from '@/constants/salary';
+import { TRANSPORTATION_FEE_MAX, TRANSPORTATION_FEE_RATE_PER_HOUR } from '@/constants/salary';
 
 /**
  * 時刻をパースする（翌日プレフィックス対応）
@@ -185,37 +185,22 @@ export const calculateWorkingHours = (
 };
 
 /**
- * 実働時間から最低交通費を計算
- * 1時間あたり100円（15分あたり25円）
- * 上限は1,000円
+ * 実働時間から交通費を自動計算
+ * - 1時間あたり100円（TRANSPORTATION_FEE_RATE_PER_HOUR）
+ * - 1円未満の端数は切り上げ
+ * - 上限は800円（TRANSPORTATION_FEE_MAX）
  * @param workingMinutes - 実働時間（分）
- * @returns 最低交通費（円）、25円刻みに切り上げ、上限1,000円
+ * @returns 交通費（円）
  */
-export const calculateMinTransportationFee = (workingMinutes: number): number => {
+export const calculateTransportationFee = (workingMinutes: number): number => {
   if (workingMinutes <= 0) return 0;
 
   // 1時間100円 = 1分あたり100/60円
-  const minFee = (workingMinutes * 100) / 60;
+  const fee = (workingMinutes * TRANSPORTATION_FEE_RATE_PER_HOUR) / 60;
 
-  // 25円刻みに切り上げ
-  const roundedFee = Math.ceil(minFee / 25) * 25;
+  // 1円未満を切り上げて整数円に
+  const roundedFee = Math.ceil(fee);
 
   // 上限を適用
   return Math.min(roundedFee, TRANSPORTATION_FEE_MAX);
-};
-
-/**
- * 勤務時間に応じてフィルタリングされた交通費選択肢を取得
- * @param workingMinutes - 実働時間（分）
- * @param options - 元の交通費選択肢
- * @returns フィルタリングされた選択肢
- */
-export const getFilteredTransportationFeeOptions = <T extends { value: number; label: string }>(
-  workingMinutes: number,
-  options: readonly T[]
-): T[] => {
-  const minFee = calculateMinTransportationFee(workingMinutes);
-
-  // 0円（なし）は常に表示、それ以外は最低額以上のものを表示
-  return options.filter(option => option.value === 0 || option.value >= minFee);
 };

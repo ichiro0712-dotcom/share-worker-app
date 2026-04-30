@@ -24,6 +24,10 @@ export async function getAdminJobTemplates(facilityId: number) {
         hourlyWage: template.hourly_wage,
         transportationFee: template.transportation_fee,
         recruitmentCount: template.recruitment_count,
+        recruitmentStartDay: template.recruitment_start_day,
+        recruitmentStartTime: template.recruitment_start_time,
+        recruitmentEndDay: template.deadline_days_before,
+        recruitmentEndTime: template.recruitment_end_time,
         qualifications: template.qualifications,
         workContent: template.work_content || [],
         description: template.description,
@@ -67,6 +71,10 @@ export async function getJobTemplate(templateId: number, facilityId: number) {
         hourlyWage: template.hourly_wage,
         transportationFee: template.transportation_fee,
         recruitmentCount: template.recruitment_count,
+        recruitmentStartDay: template.recruitment_start_day,
+        recruitmentStartTime: template.recruitment_start_time,
+        recruitmentEndDay: template.deadline_days_before,
+        recruitmentEndTime: template.recruitment_end_time,
         qualifications: template.qualifications,
         description: template.description,
         skills: template.skills,
@@ -96,6 +104,10 @@ export async function createJobTemplate(
         hourlyWage: number;
         transportationFee: number;
         recruitmentCount: number;
+        recruitmentStartDay?: number;
+        recruitmentStartTime?: string | null;
+        recruitmentEndDay?: number;
+        recruitmentEndTime?: string | null;
         qualifications: string[];
         description: string;
         workContent?: string[];
@@ -121,8 +133,13 @@ export async function createJobTemplate(
                 end_time: data.endTime,
                 break_time: data.breakTime,
                 hourly_wage: data.hourlyWage,
-                transportation_fee: data.transportationFee,
+                // テンプレートでは交通費は固定値0で保存（実求人作成時に勤務時間から自動計算する）
+                transportation_fee: 0,
                 recruitment_count: data.recruitmentCount,
+                recruitment_start_day: data.recruitmentStartDay ?? 0,
+                recruitment_start_time: data.recruitmentStartTime || null,
+                deadline_days_before: data.recruitmentEndDay ?? -2,
+                recruitment_end_time: data.recruitmentEndTime || null,
                 qualifications: data.qualifications,
                 work_content: data.workContent || [],
                 description: data.description,
@@ -220,6 +237,10 @@ export async function duplicateJobTemplate(templateId: number, facilityId: numbe
                 hourly_wage: original.hourly_wage,
                 transportation_fee: original.transportation_fee,
                 recruitment_count: original.recruitment_count,
+                recruitment_start_day: original.recruitment_start_day,
+                recruitment_start_time: original.recruitment_start_time,
+                deadline_days_before: original.deadline_days_before,
+                recruitment_end_time: original.recruitment_end_time,
                 qualifications: original.qualifications,
                 work_content: original.work_content || [],
                 description: original.description,
@@ -298,6 +319,10 @@ export async function updateJobTemplate(
         hourlyWage: number;
         transportationFee: number;
         recruitmentCount: number;
+        recruitmentStartDay?: number;
+        recruitmentStartTime?: string | null;
+        recruitmentEndDay?: number;
+        recruitmentEndTime?: string | null;
         qualifications: string[];
         description: string;
         workContent?: string[];
@@ -338,8 +363,13 @@ export async function updateJobTemplate(
                 end_time: data.endTime,
                 break_time: data.breakTime,
                 hourly_wage: data.hourlyWage,
-                transportation_fee: data.transportationFee,
+                // テンプレートでは交通費は固定値0で保存（実求人作成時に勤務時間から自動計算する）
+                transportation_fee: 0,
                 recruitment_count: data.recruitmentCount,
+                recruitment_start_day: data.recruitmentStartDay ?? 0,
+                recruitment_start_time: data.recruitmentStartTime || null,
+                deadline_days_before: data.recruitmentEndDay ?? -2,
+                recruitment_end_time: data.recruitmentEndTime || null,
                 qualifications: data.qualifications,
                 work_content: data.workContent || [],
                 description: data.description,
