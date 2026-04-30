@@ -134,6 +134,7 @@ export default function FunnelAnalytics() {
   const [selectedSources, setSelectedSources] = useState<string[]>([]); // 空=全選択
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [lpOptions, setLpOptions] = useState<Array<{ value: string; label: string }>>([]);
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [showDataNotes, setShowDataNotes] = useState(false);
@@ -158,6 +159,7 @@ export default function FunnelAnalytics() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
+    setFetchError(null);
     try {
       const { startDate, endDate, breakdown } = getDateRange();
       if (!startDate || !endDate) {
@@ -168,6 +170,14 @@ export default function FunnelAnalytics() {
       const params = new URLSearchParams({ startDate, endDate, breakdown, source: sourceParam });
       const res = await fetch(`/api/funnel-analytics?${params}`);
       const json = await res.json();
+      if (!res.ok || json?.error) {
+        // API の error フィールドは英語のことがあるため、ユーザー向けには日本語のみ表示し、
+        // 詳細は console に残す
+        if (json?.error) {
+          console.error('[funnel-analytics] API error detail:', json.error);
+        }
+        throw new Error(`登録動線データの取得に失敗しました (HTTP ${res.status})`);
+      }
       setData(json);
       // LP一覧をレスポンスから取得
       if (json.lpSources && json.lpSources.length > 0) {
@@ -175,6 +185,8 @@ export default function FunnelAnalytics() {
       }
     } catch (error) {
       console.error('Failed to fetch funnel data:', error);
+      setFetchError(error instanceof Error ? error.message : 'データの取得中に予期しないエラーが発生しました');
+      setData(null);
     } finally {
       setLoading(false);
     }
@@ -678,10 +690,24 @@ export default function FunnelAnalytics() {
         </>
       )}
 
-      {/* データなし */}
-      {!loading && !data && (
+      {/* エラー表示 */}
+      {!loading && fetchError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 my-4">
+          <p className="text-sm font-medium text-red-800 mb-1">データを取得できませんでした</p>
+          <p className="text-sm text-red-700">{fetchError}</p>
+          <button
+            onClick={fetchData}
+            className="mt-3 px-3 py-1.5 text-sm font-medium text-red-700 bg-white border border-red-300 rounded-md hover:bg-red-50"
+          >
+            再読み込み
+          </button>
+        </div>
+      )}
+
+      {/* データなし（エラーではないが data が無い場合） */}
+      {!loading && !fetchError && !data && (
         <div className="text-center py-12 text-slate-400">
-          データの取得に失敗しました
+          表示するデータがありません
         </div>
       )}
     </div>
