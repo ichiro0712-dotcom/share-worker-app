@@ -9,8 +9,11 @@ export interface WorkerInfoItem {
   id: number;
   createdAt: Date;
   name: string;
+  isSuspended: boolean;
   phoneNumber: string;
+  phoneVerified: boolean;
   email: string;
+  emailVerified: boolean;
   address: string;
 }
 

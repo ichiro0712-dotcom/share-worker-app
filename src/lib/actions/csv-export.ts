@@ -1087,6 +1087,9 @@ export async function getWorkerInfoList(
         city: true,
         address_line: true,
         building: true,
+        is_suspended: true,
+        phone_verified: true,
+        email_verified: true,
       },
       orderBy: { created_at: 'desc' },
       skip,
@@ -1099,8 +1102,11 @@ export async function getWorkerInfoList(
     id: u.id,
     createdAt: u.created_at,
     name: u.name,
+    isSuspended: u.is_suspended,
     phoneNumber: u.phone_number,
+    phoneVerified: u.phone_verified,
     email: u.email,
+    emailVerified: u.email_verified,
     address: [u.prefecture, u.city, u.address_line, u.building].filter(Boolean).join(''),
   }));
 
