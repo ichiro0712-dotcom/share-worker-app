@@ -182,7 +182,9 @@ export async function GET(request: NextRequest) {
   const dateFrom = url.searchParams.get('dateFrom');
   const dateTo = url.searchParams.get('dateTo');
 
-  const where: any = { role: 'worker' };
+  // UI側 (buildStaffInfoWhere) と一致させる: 削除されていない & メール認証済みのワーカー
+  // ※User モデルに role フィールドは存在しないため、role での絞り込みは不可
+  const where: any = { deleted_at: null, email_verified: true };
   if (search) {
     where.OR = [
       { name: { contains: search, mode: 'insensitive' } },
