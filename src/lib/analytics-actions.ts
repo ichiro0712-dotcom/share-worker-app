@@ -400,7 +400,7 @@ export async function getWorkerAnalyticsData(filter: AnalyticsFilter): Promise<W
             reviewAvg: Math.round(reviewAvg * 100) / 100,
             cancelRate: Math.round(cancelRate * 100) / 100,
             lastMinuteCancelRate: Math.round(lastMinuteCancelRate * 100) / 100,
-            dropoutRate: 0, // 将来実装
+            dropoutRate: -1, // 未実装。-1 を「データ未取得（UI 上は - 表示）」のセンチネル値として使用
             withdrawalRate: Math.round(withdrawalRate * 100) / 100
         };
     });
@@ -534,7 +534,7 @@ export async function getFacilityAnalyticsData(filter: AnalyticsFilter): Promise
             withdrawnCount,
             reviewCount,
             reviewAvg: Math.round(reviewAvg * 100) / 100,
-            dropoutRate: 0,
+            dropoutRate: -1, // 未実装。-1 を「データ未取得（UI 上は - 表示）」のセンチネル値として使用
             withdrawalRate: Math.round(withdrawalRate * 100) / 100,
             parentJobCount,
             parentJobInterviewCount,

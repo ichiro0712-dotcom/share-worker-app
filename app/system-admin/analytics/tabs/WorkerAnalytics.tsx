@@ -13,7 +13,7 @@ const METRIC_LABELS: Record<keyof Omit<WorkerMetrics, 'date'>, string> = {
     reviewAvg: 'レビュー平均点',
     cancelRate: 'キャンセル率(%)',
     lastMinuteCancelRate: '直前キャンセル率(%)',
-    dropoutRate: '登録離脱率(%)',
+    dropoutRate: '登録離脱率(%) (未実装)',
     withdrawalRate: '退会率(%)'
 };
 
@@ -137,7 +137,7 @@ export default function WorkerAnalytics() {
                                             </td>
                                             {Object.keys(METRIC_LABELS).map(key => (
                                                 <td key={key} className="px-4 py-3 text-sm text-slate-700 text-right">
-                                                    {row[key as keyof WorkerMetrics]}
+                                                    {key === 'dropoutRate' ? '-' : row[key as keyof WorkerMetrics]}
                                                 </td>
                                             ))}
                                         </tr>
