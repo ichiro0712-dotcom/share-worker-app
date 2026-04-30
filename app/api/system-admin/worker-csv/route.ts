@@ -25,6 +25,11 @@ const HEADERS = [
   '総勤務回数',
   '総合評価',
   'キャンセル率',
+  '状態',
+  '電話番号認証',
+  'メール認証',
+  'LP番号',
+  '登録元LP',
 ];
 
 const BATCH_SIZE = 100;
@@ -98,8 +103,10 @@ function calculateCancelRate(applications: { status: string }[]): string {
   return `${rate.toFixed(1)}%`;
 }
 
-function workerToRow(user: any): (string | number | null)[] {
+function workerToRow(user: any, lpMap: Map<string, string>): (string | number | null)[] {
   const { lastName, firstName } = splitName(user.name || '');
+  const lpId = user.registration_lp_id;
+  const lpName = lpId != null ? (lpMap.get(String(lpId)) ?? '不明') : '不明';
 
   return [
     user.id,
@@ -122,6 +129,11 @@ function workerToRow(user: any): (string | number | null)[] {
     user._count?.attendances ?? 0,
     calculateAverageRating(user.reviews || []),
     calculateCancelRate(user.applications || []),
+    user.is_suspended ? '停止中' : '有効',
+    user.phone_verified ? '認証済' : '未認証',
+    user.email_verified ? '認証済' : '未認証',
+    lpId != null ? String(lpId) : '',
+    lpName,
   ];
 }
 
@@ -174,6 +186,14 @@ export async function GET(request: NextRequest) {
       try {
         controller.enqueue(encoder.encode('\uFEFF' + formatRow(HEADERS)));
 
+        // LP名称マップを事前取得
+        const landingPages = await prisma.landingPage.findMany({
+          select: { lp_number: true, name: true },
+        });
+        const lpMap = new Map<string, string>(
+          landingPages.map(lp => [String(lp.lp_number), lp.name])
+        );
+
         const totalCount = await prisma.user.count({ where });
         let processed = 0;
 
@@ -199,6 +219,10 @@ export async function GET(request: NextRequest) {
               job_change_desire: true,
               desired_work_days_week: true,
               desired_work_days: true,
+              is_suspended: true,
+              phone_verified: true,
+              email_verified: true,
+              registration_lp_id: true,
               reviews: {
                 select: { rating: true },
               },
@@ -217,7 +241,7 @@ export async function GET(request: NextRequest) {
           if (batch.length === 0) break;
 
           for (const user of batch) {
-            const row = workerToRow(user);
+            const row = workerToRow(user, lpMap);
             controller.enqueue(encoder.encode(formatRow(row)));
           }
 
