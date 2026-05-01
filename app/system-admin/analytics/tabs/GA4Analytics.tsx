@@ -49,11 +49,16 @@ export default function GA4Analytics() {
     const res = await fetch(
       `/api/ga-analytics?reportType=${reportType}&startDate=${startDate}&endDate=${endDate}`
     );
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || `GA4 API error: ${res.status}`);
+    let json: any = null; // eslint-disable-line @typescript-eslint/no-explicit-any
+    try {
+      json = await res.json();
+    } catch {
+      // 非JSONレスポンス（ログインHTML等）
     }
-    return res.json();
+    if (!res.ok || json?.error || !json) {
+      throw new Error(json?.error || `GA4 API error: ${res.status}`);
+    }
+    return json;
   }, [getDateRange]);
 
   const loadData = useCallback(async () => {
@@ -163,7 +168,15 @@ export default function GA4Analytics() {
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-2">
           <AlertTriangle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
-          <p className="text-sm text-red-700">{error}</p>
+          <div className="flex-1">
+            <p className="text-sm text-red-700">{error}</p>
+            <button
+              onClick={loadData}
+              className="mt-2 px-3 py-1 text-xs font-medium text-red-700 bg-white border border-red-300 rounded-md hover:bg-red-50"
+            >
+              再読み込み
+            </button>
+          </div>
         </div>
       )}
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getSystemAdminSessionData } from '@/lib/system-admin-session-server';
 
 // デフォルトジャンル（初回シード用）
 const DEFAULT_GENRES = [
@@ -39,6 +40,12 @@ function getNextPrefix(lastPrefix: string | null): string {
 
 // GET: ジャンル一覧を取得
 export async function GET() {
+  // システム管理者認証チェック
+  const session = await getSystemAdminSessionData();
+  if (!session) {
+    return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+  }
+
   try {
     let genres = await prisma.lpCodeGenre.findMany({
       orderBy: { sort_order: 'asc' },
@@ -66,6 +73,12 @@ export async function GET() {
 
 // POST: ジャンルの作成・更新・削除
 export async function POST(request: NextRequest) {
+  // システム管理者認証チェック
+  const session = await getSystemAdminSessionData();
+  if (!session) {
+    return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const { action, id, name, prefix } = body;

@@ -146,6 +146,7 @@ export default function PublicJobsTracking() {
   const [accessCustomBreakdown, setAccessCustomBreakdown] = useState<'daily' | 'monthly'>('daily');
   const [accessData, setAccessData] = useState<TrackingData | null>(null);
   const [accessLoading, setAccessLoading] = useState(true);
+  const [accessError, setAccessError] = useState<string | null>(null);
   const [expandedCodes, setExpandedCodes] = useState(false);
 
   // === 求人ランキングの状態 ===
@@ -154,6 +155,7 @@ export default function PublicJobsTracking() {
   const [rankingCustomEnd, setRankingCustomEnd] = useState('');
   const [rankingData, setRankingData] = useState<TrackingData | null>(null);
   const [rankingLoading, setRankingLoading] = useState(true);
+  const [rankingError, setRankingError] = useState<string | null>(null);
 
   // ジャンルフィルター
   const [genres, setGenres] = useState<Genre[]>([]);
@@ -165,12 +167,24 @@ export default function PublicJobsTracking() {
 
   // ジャンル一覧を取得
   useEffect(() => {
-    fetch('/api/lp-code-genres')
-      .then(res => res.json())
-      .then(data => {
+    (async () => {
+      try {
+        const res = await fetch('/api/lp-code-genres');
+        let data: any = null; // eslint-disable-line @typescript-eslint/no-explicit-any
+        try {
+          data = await res.json();
+        } catch {
+          // 非JSONレスポンス（ログインHTML等）
+        }
+        if (!res.ok || data?.error || !data) {
+          console.error('[lp-code-genres] failed to fetch:', data?.error || res.status);
+          return;
+        }
         if (data.genres) setGenres(data.genres);
-      })
-      .catch(() => {});
+      } catch (error) {
+        console.error('Failed to fetch genres:', error);
+      }
+    })();
   }, []);
 
   // === アクセス状況の日付範囲計算 ===
@@ -223,6 +237,7 @@ export default function PublicJobsTracking() {
   // === アクセス状況のデータ取得 ===
   const fetchAccessData = useCallback(async () => {
     setAccessLoading(true);
+    setAccessError(null);
     try {
       const { startDate, endDate, breakdown } = getAccessDateRange();
       if (!startDate || !endDate) {
@@ -232,10 +247,23 @@ export default function PublicJobsTracking() {
       const params = new URLSearchParams({ startDate, endDate, breakdown });
       if (selectedGenre) params.set('genrePrefix', selectedGenre);
       const res = await fetch(`/api/lp-tracking/public-jobs?${params}`);
-      const json = await res.json();
+      let json: any = null; // eslint-disable-line @typescript-eslint/no-explicit-any
+      try {
+        json = await res.json();
+      } catch {
+        // 非JSONレスポンス（ログインHTML等）
+      }
+      if (!res.ok || json?.error || !json) {
+        if (json?.error) {
+          console.error('[public-jobs] API error detail:', json.error);
+        }
+        throw new Error(`公開求人アクセスデータの取得に失敗しました (HTTP ${res.status})`);
+      }
       setAccessData(json);
     } catch (error) {
       console.error('Failed to fetch access data:', error);
+      setAccessError(error instanceof Error ? error.message : 'データの取得中に予期しないエラーが発生しました');
+      setAccessData(null);
     } finally {
       setAccessLoading(false);
     }
@@ -244,6 +272,7 @@ export default function PublicJobsTracking() {
   // === 求人ランキングのデータ取得 ===
   const fetchRankingData = useCallback(async () => {
     setRankingLoading(true);
+    setRankingError(null);
     try {
       const { startDate, endDate } = getRankingDateRange();
       if (!startDate || !endDate) {
@@ -253,10 +282,23 @@ export default function PublicJobsTracking() {
       const params = new URLSearchParams({ startDate, endDate });
       if (selectedGenre) params.set('genrePrefix', selectedGenre);
       const res = await fetch(`/api/lp-tracking/public-jobs?${params}`);
-      const json = await res.json();
+      let json: any = null; // eslint-disable-line @typescript-eslint/no-explicit-any
+      try {
+        json = await res.json();
+      } catch {
+        // 非JSONレスポンス（ログインHTML等）
+      }
+      if (!res.ok || json?.error || !json) {
+        if (json?.error) {
+          console.error('[public-jobs] API error detail:', json.error);
+        }
+        throw new Error(`公開求人ランキングデータの取得に失敗しました (HTTP ${res.status})`);
+      }
       setRankingData(json);
     } catch (error) {
       console.error('Failed to fetch ranking data:', error);
+      setRankingError(error instanceof Error ? error.message : 'データの取得中に予期しないエラーが発生しました');
+      setRankingData(null);
     } finally {
       setRankingLoading(false);
     }
@@ -464,8 +506,22 @@ export default function PublicJobsTracking() {
           </div>
         )}
 
+        {/* エラー表示 */}
+        {!accessLoading && accessError && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 m-4">
+            <p className="text-sm font-medium text-red-800 mb-1">データを取得できませんでした</p>
+            <p className="text-sm text-red-700">{accessError}</p>
+            <button
+              onClick={fetchAccessData}
+              className="mt-3 px-3 py-1.5 text-sm font-medium text-red-700 bg-white border border-red-300 rounded-md hover:bg-red-50"
+            >
+              再読み込み
+            </button>
+          </div>
+        )}
+
         {/* アクセス状況テーブル */}
-        {!accessLoading && accessData && (
+        {!accessLoading && !accessError && accessData && (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -626,7 +682,21 @@ export default function PublicJobsTracking() {
           </div>
         )}
 
-        {!rankingLoading && rankingData && (
+        {/* エラー表示 */}
+        {!rankingLoading && rankingError && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 m-4">
+            <p className="text-sm font-medium text-red-800 mb-1">データを取得できませんでした</p>
+            <p className="text-sm text-red-700">{rankingError}</p>
+            <button
+              onClick={fetchRankingData}
+              className="mt-3 px-3 py-1.5 text-sm font-medium text-red-700 bg-white border border-red-300 rounded-md hover:bg-red-50"
+            >
+              再読み込み
+            </button>
+          </div>
+        )}
+
+        {!rankingLoading && !rankingError && rankingData && (
           <>
             {sortedJobRanking.length === 0 ? (
               <div className="p-8 text-center text-slate-400 text-sm">
@@ -698,12 +768,6 @@ export default function PublicJobsTracking() {
         )}
       </div>
 
-      {/* データなし */}
-      {!accessLoading && !accessData && !rankingLoading && !rankingData && (
-        <div className="text-center py-12 text-slate-400">
-          データの取得に失敗しました
-        </div>
-      )}
     </div>
   );
 }

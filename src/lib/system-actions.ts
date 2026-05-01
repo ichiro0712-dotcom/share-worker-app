@@ -1459,6 +1459,7 @@ export async function sendPasswordResetEmail(facilityAdminId: number) {
  * マッチング期間統計を取得（アナリティクス用）
  */
 export async function getMatchingPeriodStats(facilityId?: number) {
+    await requireSystemAdminAuth();
     const whereClause = facilityId ? { facility_id: facilityId } : {};
 
     // Applicationベース（応募マッチング期間）
