@@ -38,12 +38,14 @@ export default function MatchingAnalytics() {
         avgJobMatchingPeriod: number;
     } | null>(null);
     const [loading, setLoading] = useState(true);
+    const [fetchError, setFetchError] = useState<string | null>(null);
     const [viewMode, setViewMode] = useState<'daily' | 'monthly'>('daily');
     const [visibleMetrics, setVisibleMetrics] = useState({ worker: true, facility: true });
     const [currentFilters, setCurrentFilters] = useState<any>({});
 
     const fetchData = async (filterValues?: any) => {
         setLoading(true);
+        setFetchError(null);
         const filtersToUse = filterValues || currentFilters;
         if (filterValues) {
             setCurrentFilters(filterValues);
@@ -89,6 +91,9 @@ export default function MatchingAnalytics() {
                 context: { viewMode, filtersToUse }
             });
             console.error('Failed to fetch matching analytics:', error);
+            setFetchError(error instanceof Error ? error.message : 'マッチング分析データの取得に失敗しました');
+            setData([]);
+            setPeriodStats(null);
         } finally {
             setLoading(false);
         }
@@ -183,6 +188,17 @@ export default function MatchingAnalytics() {
                 {loading ? (
                     <div className="flex justify-center py-20">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                    </div>
+                ) : fetchError ? (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 m-4">
+                        <p className="text-sm font-medium text-red-800 mb-1">データを取得できませんでした</p>
+                        <p className="text-sm text-red-700">{fetchError}</p>
+                        <button
+                            onClick={() => fetchData()}
+                            className="mt-3 px-3 py-1.5 text-sm font-medium text-red-700 bg-white border border-red-300 rounded-md hover:bg-red-50"
+                        >
+                            再読み込み
+                        </button>
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
