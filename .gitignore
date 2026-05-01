@@ -29,6 +29,7 @@ yarn-error.log*
 .env.production.bak
 .env.production.bak2
 .env.production.vercel
+.env.production.local.disabled
 
 # Vercel
 .vercel
@@ -57,3 +58,9 @@ public/sw.js.map
 public/workbox-*.js
 public/workbox-*.js.map
 public/worker-*.js
+
+# Legacy reference repo (will be removed once Advisor goes live)
+_legacy_agent-hub/
+
+# Standalone tastas-lp project (separate codebase)
+tastas-lp/

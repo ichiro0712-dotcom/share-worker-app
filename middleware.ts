@@ -91,9 +91,15 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 管理者ページは別の認証システム（localStorage）を使用しているためスキップ
+  // 管理者ページは別の認証システム（localStorage / iron-session）を使用しているためスキップ
   // Basic認証も適用しない（/admin, /system-admin は独自のログイン画面を持つ）
-  if (pathname.startsWith('/admin') || pathname.startsWith('/system-admin') || pathname.startsWith('/api/system-admin')) {
+  // /api/advisor は System Admin 専用なので NextAuth スキップ + iron-session 認証で別途守る
+  if (
+    pathname.startsWith('/admin') ||
+    pathname.startsWith('/system-admin') ||
+    pathname.startsWith('/api/system-admin') ||
+    pathname.startsWith('/api/advisor')
+  ) {
     return NextResponse.next();
   }
 

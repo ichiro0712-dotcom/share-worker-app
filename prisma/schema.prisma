@@ -75,23 +75,23 @@ model User {
   attendances                Attendance[]
 
   /// メール認証済みフラグ
-  email_verified             Boolean   @default(false) @map("email_verified")
+  email_verified               Boolean   @default(false) @map("email_verified")
   /// メール認証完了日時
-  email_verified_at          DateTime? @map("email_verified_at")
+  email_verified_at            DateTime? @map("email_verified_at")
   /// 電話番号認証済みフラグ
-  phone_verified             Boolean   @default(false) @map("phone_verified")
+  phone_verified               Boolean   @default(false) @map("phone_verified")
   /// 電話番号認証完了日時
-  phone_verified_at          DateTime? @map("phone_verified_at")
+  phone_verified_at            DateTime? @map("phone_verified_at")
   /// メール認証トークン
-  verification_token         String?   @map("verification_token")
+  verification_token           String?   @map("verification_token")
   /// 認証トークンの有効期限
-  verification_token_expires DateTime? @map("verification_token_expires")
+  verification_token_expires   DateTime? @map("verification_token_expires")
   /// 自動ログイン用一時トークン（メール認証後5分間有効）
-  auto_login_token           String?   @map("auto_login_token")
+  auto_login_token             String?   @map("auto_login_token")
   /// 自動ログイントークンの有効期限
-  auto_login_token_expires   DateTime? @map("auto_login_token_expires")
-  password_reset_token           String?   @unique @map("password_reset_token")
-  password_reset_token_expires   DateTime? @map("password_reset_token_expires")
+  auto_login_token_expires     DateTime? @map("auto_login_token_expires")
+  password_reset_token         String?   @unique @map("password_reset_token")
+  password_reset_token_expires DateTime? @map("password_reset_token_expires")
 
   is_suspended  Boolean   @default(false) @map("is_suspended")
   suspended_at  DateTime? @map("suspended_at")
@@ -146,9 +146,9 @@ model FacilityAdmin {
   updated_by_id   Int?    @map("updated_by_id")
 
   /// 利用規約同意日時
-  terms_agreed_at DateTime? @map("terms_agreed_at")
-  password_reset_token           String?   @unique @map("password_reset_token")
-  password_reset_token_expires   DateTime? @map("password_reset_token_expires")
+  terms_agreed_at              DateTime? @map("terms_agreed_at")
+  password_reset_token         String?   @unique @map("password_reset_token")
+  password_reset_token_expires DateTime? @map("password_reset_token_expires")
 
   @@map("facility_admins")
 }
@@ -782,14 +782,14 @@ enum CancelledBy {
 }
 
 model SystemAdmin {
-  id            Int      @id @default(autoincrement())
-  email         String   @unique
-  password_hash String
-  name                String
-  notification_email  String?  @map("notification_email")
-  role                String   @default("admin") // "super_admin", "editor", etc.
-  created_at    DateTime @default(now()) @map("created_at")
-  updated_at    DateTime @updatedAt @map("updated_at")
+  id                 Int      @id @default(autoincrement())
+  email              String   @unique
+  password_hash      String
+  name               String
+  notification_email String?  @map("notification_email")
+  role               String   @default("admin") // "super_admin", "editor", etc.
+  created_at         DateTime @default(now()) @map("created_at")
+  updated_at         DateTime @updatedAt @map("updated_at")
 
   @@map("system_admins")
 }
@@ -1057,11 +1057,11 @@ model PushSubscription {
   updated_by_id   Int?    @map("updated_by_id")
 
   /// サブスクリプション基盤バージョン（修復トリガーT2用）
-  subscription_version String @default("1") @map("subscription_version")
+  subscription_version String    @default("1") @map("subscription_version")
   /// 連続送信失敗回数（修復トリガーT3用）
-  consecutive_failures Int    @default(0)   @map("consecutive_failures")
+  consecutive_failures Int       @default(0) @map("consecutive_failures")
   /// 最後に送信失敗した日時（72時間窓付き判定用）
-  last_failure_at      DateTime?            @map("last_failure_at")
+  last_failure_at      DateTime? @map("last_failure_at")
 
   user  User?          @relation(fields: [user_id], references: [id], onDelete: Cascade)
   admin FacilityAdmin? @relation(fields: [admin_id], references: [id], onDelete: Cascade)
@@ -1271,8 +1271,8 @@ model AttendanceEditHistory {
   attendance_id Int @map("attendance_id")
 
   // 変更者情報
-  edited_by               String    @map("edited_by") // admin email（セッションから自動取得）
-  editor_name             String    @default("") @map("editor_name") // 管理者名（セッションから自動取得）
+  edited_by   String @map("edited_by") // admin email（セッションから自動取得）
+  editor_name String @default("") @map("editor_name") // 管理者名（セッションから自動取得）
 
   // 変更前の値
   prev_actual_start_time DateTime? @map("prev_actual_start_time")
@@ -1771,33 +1771,33 @@ model LpCampaignCode {
 
 /// ランディングページ管理
 model LandingPage {
-  id                 Int      @id @default(autoincrement())
+  id                  Int      @id @default(autoincrement())
   /// LP番号（0, 1, 2...）。削除されても再利用しない
-  lp_number          Int      @unique @map("lp_number")
+  lp_number           Int      @unique @map("lp_number")
   /// LP名（管理用）
-  name               String
+  name                String
   /// GTMタグが存在するか
-  has_gtm            Boolean  @default(false) @map("has_gtm")
+  has_gtm             Boolean  @default(false) @map("has_gtm")
   /// LINE Tagが存在するか
-  has_line_tag       Boolean  @default(false) @map("has_line_tag")
+  has_line_tag        Boolean  @default(false) @map("has_line_tag")
   /// tracking.jsが存在するか
-  has_tracking       Boolean  @default(false) @map("has_tracking")
+  has_tracking        Boolean  @default(false) @map("has_tracking")
   /// Supabase Storage内のパス（例: "lp/0/"）
-  storage_path       String   @map("storage_path")
+  storage_path        String   @map("storage_path")
   /// 公開中かどうか
-  is_published       Boolean  @default(true) @map("is_published")
+  is_published        Boolean  @default(true) @map("is_published")
   /// 配信用LP番号（広告URLのLP番号。例: LP2のdelivery_lp_number=1ならURLは/api/lp/1）
-  delivery_lp_number Int?     @map("delivery_lp_number")
+  delivery_lp_number  Int?     @map("delivery_lp_number")
   /// 配信用utm_source（例: "google", "meta"）
-  delivery_utm_source String? @map("delivery_utm_source") @db.VarChar(50)
+  delivery_utm_source String?  @map("delivery_utm_source") @db.VarChar(50)
   /// CTAリンク先URL（LP内のdata-cats="lineFriendsFollowLink"タグおよびおすすめ求人ウィジェットで使用）
-  cta_url            String?  @map("cta_url") @db.Text
+  cta_url             String?  @map("cta_url") @db.Text
   /// 非表示フラグ（管理画面のリストから隠す）
-  is_hidden          Boolean  @default(false) @map("is_hidden")
+  is_hidden           Boolean  @default(false) @map("is_hidden")
   /// 表示順序（D&D並び替え用、小さい順に表示）
-  sort_order         Int      @default(0) @map("sort_order")
-  created_at         DateTime @default(now()) @map("created_at")
-  updated_at         DateTime @updatedAt @map("updated_at")
+  sort_order          Int      @default(0) @map("sort_order")
+  created_at          DateTime @default(now()) @map("created_at")
+  updated_at          DateTime @updatedAt @map("updated_at")
 
   @@index([lp_number])
   @@index([is_published])
@@ -1872,12 +1872,286 @@ model ApplicationClickEvent {
 
 model FormDestination {
   id          Int      @id @default(autoincrement())
-  name        String   // 送信先名（例: 運営事務局、看護師採用担当）
-  email       String   // 送信先メールアドレス
-  description String?  // 説明・用途
+  name        String // 送信先名（例: 運営事務局、看護師採用担当）
+  email       String // 送信先メールアドレス
+  description String? // 説明・用途
   is_active   Boolean  @default(true) @map("is_active")
   created_at  DateTime @default(now()) @map("created_at")
   updated_at  DateTime @updatedAt @map("updated_at")
 
   @@map("form_destinations")
+}
+
+// =================================================================
+// System Advisor (システムアドバイザー) — LLMチャットボット機能
+// 詳細は docs/system-advisor/data-model.md を参照
+// すべて読み取り専用ツール経由でアクセスし、書き込みは Advisor 自身のテーブルのみ
+// =================================================================
+
+/// チャットセッション (1スレッド = 1レコード)
+model AdvisorChatSession {
+  id                  String   @id @default(cuid())
+  /// SystemAdmin.id を参照 (外部キーは貼らない: 既存テーブルへの影響を避ける)
+  admin_id            Int
+  title               String   @db.VarChar(200)
+  /// コンテキスト圧縮後の要約 (圧縮が走った場合のみ)
+  context_summary     String?  @db.Text
+  /// 最後のメッセージ送信時刻 (一覧ソート用)
+  last_message_at     DateTime @default(now())
+  /// 累計トークン使用量 (このセッション全体)
+  total_input_tokens  Int      @default(0)
+  total_output_tokens Int      @default(0)
+  /// クライアント表示用フラグ
+  is_pinned           Boolean  @default(false)
+  is_archived         Boolean  @default(false)
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  messages AdvisorChatMessage[]
+
+  @@index([admin_id, last_message_at(sort: Desc)])
+  @@index([admin_id, is_archived])
+  @@map("advisor_chat_sessions")
+}
+
+/// メッセージ (1レコード = user/assistant/tool の1ターン分)
+model AdvisorChatMessage {
+  id                 String   @id @default(cuid())
+  session_id         String
+  /// "user" | "assistant" | "tool"
+  role               String   @db.VarChar(20)
+  /// テキスト本文 (assistant の最終回答 or user の入力)
+  content            String   @db.Text
+  /// アシスタントが呼んだツール呼び出し列 (JSON 配列)
+  /// [{ id, name, input }]
+  tool_calls         Json?
+  /// tool ロールの場合の結果 (1つのレコードに1ツール結果)
+  /// { tool_use_id, ok, data, error }
+  tool_result        Json?
+  /// このメッセージで使ったトークン
+  input_tokens       Int?
+  output_tokens      Int?
+  cache_read_tokens  Int?
+  cache_write_tokens Int?
+  /// 使用したモデル名
+  model              String?  @db.VarChar(100)
+  /// 圧縮済みフラグ (true なら context_summary に取り込み済み)
+  is_compacted       Boolean  @default(false)
+  created_at         DateTime @default(now())
+
+  session AdvisorChatSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
+
+  @@index([session_id, created_at])
+  @@index([role, created_at])
+  @@map("advisor_chat_messages")
+}
+
+/// 監査ログ (誰が何を聞いたか・どのツールを呼んだかを完全記録)
+model AdvisorAuditLog {
+  id         String   @id @default(cuid())
+  admin_id   Int
+  session_id String?
+  message_id String?
+  /// "chat_request" | "chat_response" | "tool_call" | "rate_limit_hit" | "cost_cap_hit" | "error" | "knowledge_sync"
+  event_type String   @db.VarChar(50)
+  /// 質問文・ツール名・エラー内容など、種別ごとに意味が変わる
+  payload    Json
+  /// IP / UserAgent
+  client_ip  String?  @db.VarChar(64)
+  client_ua  String?  @db.Text
+  created_at DateTime @default(now())
+
+  @@index([admin_id, created_at(sort: Desc)])
+  @@index([event_type, created_at(sort: Desc)])
+  @@index([session_id])
+  @@map("advisor_audit_logs")
+}
+
+/// プロジェクト知識のキャッシュ (CLAUDE.md / docs / schema 等)
+model AdvisorKnowledgeCache {
+  id             String   @id @default(cuid())
+  /// "claude_md" | "doc:requirements" | "doc:system_design" | "schema_prisma" | "metric_definitions" | ...
+  source_key     String   @unique @db.VarChar(100)
+  /// 表示用ラベル
+  label          String   @db.VarChar(200)
+  /// GitHub 上のパス
+  source_path    String   @db.VarChar(500)
+  /// content の SHA-256 (16進)
+  content_hash   String   @db.VarChar(64)
+  /// 本文 (大きいファイル想定で text)
+  content        String   @db.Text
+  /// バイト数 (簡易メトリクス)
+  byte_size      Int
+  /// 最後に GitHub から取得した時刻
+  last_synced_at DateTime @default(now())
+  /// GitHub 取得時の commit SHA (オプション、Contents API なら blob sha)
+  source_sha     String?  @db.VarChar(64)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  @@map("advisor_knowledge_cache")
+}
+
+/// 知識同期の実行ログ (cron 実行ごとに1レコード)
+model AdvisorKnowledgeSyncLog {
+  id            String    @id @default(cuid())
+  /// "scheduled" | "manual" | "startup"
+  trigger       String    @db.VarChar(20)
+  /// 同期対象数
+  files_total   Int
+  /// 変更があったファイル数
+  files_changed Int
+  /// "success" | "partial" | "failed"
+  status        String    @db.VarChar(20)
+  /// エラー時のメッセージ (JSON で複数記録可)
+  errors        Json?
+  /// 実行所要時間 (ms)
+  duration_ms   Int
+  started_at    DateTime  @default(now())
+  finished_at   DateTime?
+
+  @@index([started_at(sort: Desc)])
+  @@index([status, started_at(sort: Desc)])
+  @@map("advisor_knowledge_sync_logs")
+}
+
+/// 保存プロンプト (admin が再利用したい質問テンプレートを保存)
+model AdvisorSavedPrompt {
+  id         String   @id @default(cuid())
+  admin_id   Int
+  title      String   @db.VarChar(200)
+  content    String   @db.Text
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@index([admin_id, updated_at(sort: Desc)])
+  @@map("advisor_saved_prompts")
+}
+
+/// 日次の使用量サマリ (admin × 日付 でユニーク、コスト管理用)
+model AdvisorUsageDaily {
+  id                 String   @id @default(cuid())
+  admin_id           Int
+  /// JST の日付 (YYYY-MM-DD 00:00:00+09:00)
+  date_jst           DateTime @db.Date
+  message_count      Int      @default(0)
+  tool_call_count    Int      @default(0)
+  input_tokens       Int      @default(0)
+  output_tokens      Int      @default(0)
+  cache_read_tokens  Int      @default(0)
+  cache_write_tokens Int      @default(0)
+  /// 概算コスト (USD) — モデル別のレートで計算
+  estimated_cost_usd Decimal  @default(0) @db.Decimal(10, 4)
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+
+  @@unique([admin_id, date_jst])
+  @@index([date_jst(sort: Desc)])
+  @@map("advisor_usage_daily")
+}
+
+/// レポートドラフト (チャットしながら要件を固める Canvas の保存先)
+/// 1 セッション = 0 or 1 ドラフト。LLM が update_report_draft ツールで更新する。
+/// 「レポート作成」ボタン押下で result_markdown が生成される。
+model AdvisorReportDraft {
+  id           String  @id @default(cuid())
+  /// AdvisorChatSession.id を参照 (1セッションに1ドラフト)
+  session_id   String  @unique
+  admin_id     Int
+  /// レポートのタイトル (LLM が決めるが admin が後から書き換え可)
+  title        String? @db.VarChar(300)
+  /// レポートの目的・問い (チャットで固めた要件のサマリ)
+  goal         String? @db.Text
+  /// 集めるデータソースのキー配列 (例: ["query_metric", "query_ga4", "get_recent_errors"])
+  /// tool-source-labels.ts のキーと対応
+  data_sources Json?
+  /// data_sources に "query_metric" が含まれている場合の取得対象 metric キー配列
+  /// (例: ["LP_PV", "LP_TO_LINE_CONV"])。MetricDefinitions.tsx のキーと対応。
+  /// dataSources に query_metric が無ければ無視される。
+  metric_keys  Json?
+  /// 対象期間 (YYYY-MM-DD, JST 基準)
+  range_start  String? @db.VarChar(10)
+  range_end    String? @db.VarChar(10)
+  /// アウトライン (Markdown 箇条書き、章立て)
+  outline      String? @db.Text
+  /// 追加メモ (LLM が考慮事項・除外条件を書き込む)
+  notes        String? @db.Text
+  /// "drafting" | "generating" | "completed" | "failed"
+  status       String  @default("drafting") @db.VarChar(20)
+  /// 生成完了後の Markdown 本文
+  result_markdown String? @db.Text
+  /// 生成に使ったモデル (例: "gemini-2.5-flash")
+  result_model String?  @db.VarChar(100)
+  /// エラー時のメッセージ
+  error_message String? @db.Text
+  /// レポート生成回数 (再生成カウンタ)
+  generation_count Int @default(0)
+  generated_at  DateTime?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  @@index([admin_id, updated_at(sort: Desc)])
+  @@index([status])
+  @@map("advisor_report_drafts")
+}
+
+/// 生成完了したレポートのバージョン履歴 (P1-3 + P1-9)
+///
+/// AdvisorReportDraft.result_markdown は「最新版のキャッシュ」として残しつつ、
+/// 各バージョンの本文・スナップショット・編集ロックをここに記録する。
+///
+/// バージョンが作られる契機:
+/// - source="generated": Gemini で新規生成 (再生成含む)
+/// - source="manual_edit": admin が Canvas 上で手動編集して保存
+/// - source="llm_edit": チャット経由で LLM 部分修正 (edit_report_section)
+model AdvisorReportVersion {
+  id              String  @id @default(cuid())
+  /// AdvisorReportDraft.id 参照 (FK 貼らず論理参照、ドラフトを消したらクリーンアップは別途)
+  draft_id        String
+  /// 1, 2, 3... draft_id 内でユニーク
+  version_number  Int
+  /// レポート本文 (Markdown)
+  result_markdown String  @db.Text
+  /// 生成 / 編集に使ったモデル ("gemini-2.5-flash", "manual" 等)
+  result_model    String  @db.VarChar(100)
+  /// このバージョンが作られた時のドラフトのスナップショット
+  /// (title, goal, dataSources, metricKeys, range_start, range_end, outline, notes)
+  /// 後からドラフトを編集しても、このバージョンの "元" が分かるように残す
+  draft_snapshot  Json
+  /// "generated" | "manual_edit" | "llm_edit"
+  source          String  @db.VarChar(20)
+  /// 直前のバージョン (どこから派生したか) — 初回生成時のみ null
+  parent_version_id String?
+  /// 生成にかかった ms
+  generated_ms    Int?
+  /// LLM 入力 / 出力トークン (manual_edit のときは null)
+  input_tokens    Int?
+  output_tokens   Int?
+  /// admin が編集モード中 (textarea を開いている) のときのロック
+  /// 5 分でタイムアウトする (cron 不要、読み取り側でチェック)
+  editing_lock_admin_id Int?
+  editing_lock_at       DateTime?
+  created_at      DateTime @default(now())
+
+  @@unique([draft_id, version_number])
+  @@index([draft_id, version_number(sort: Desc)])
+  @@index([created_at(sort: Desc)])
+  @@map("advisor_report_versions")
+}
+
+/// Advisor のシステム設定 (シングルトン: 常に id="default" の 1 行のみ存在する想定)
+/// 設定ページ /system-admin/advisor/settings から System Admin が編集する。
+model AdvisorSettings {
+  /// 常に "default" 固定 (シングルトン保証)
+  id                     String   @id @default("default")
+  /// tool use ループの上限 (orchestrator の MAX_TOOL_LOOPS を上書き)
+  max_tool_loops         Int      @default(20)
+  /// システムプロンプトの上書き (null/空なら code 内デフォルトを使う)
+  system_prompt_override String?  @db.Text
+  /// 最後に編集した System Admin の id (監査用)
+  updated_by_admin_id    Int?
+  created_at             DateTime @default(now())
+  updated_at             DateTime @updatedAt
+
+  @@map("advisor_settings")
 }
