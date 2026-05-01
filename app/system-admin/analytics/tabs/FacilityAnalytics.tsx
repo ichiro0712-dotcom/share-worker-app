@@ -11,7 +11,7 @@ const METRIC_LABELS: Record<keyof Omit<FacilityMetrics, 'date'>, string> = {
     withdrawnCount: '退会施設数',
     reviewCount: 'レビュー数',
     reviewAvg: 'レビュー平均点',
-    dropoutRate: '登録離脱率(%)',
+    dropoutRate: '登録離脱率(%) (未実装)',
     withdrawalRate: '退会率(%)',
     parentJobCount: '親求人数',
     parentJobInterviewCount: '親求人数(審査あり)',
@@ -137,7 +137,7 @@ export default function FacilityAnalytics() {
                                             </td>
                                             {Object.keys(METRIC_LABELS).map(key => (
                                                 <td key={key} className="px-4 py-3 text-sm text-slate-700 text-right">
-                                                    {row[key as keyof FacilityMetrics]}
+                                                    {key === 'dropoutRate' ? '-' : row[key as keyof FacilityMetrics]}
                                                 </td>
                                             ))}
                                         </tr>

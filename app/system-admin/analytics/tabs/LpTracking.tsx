@@ -178,6 +178,7 @@ export default function LpTracking() {
   const [trackingData, setTrackingData] = useState<TrackingData | null>(null);
   const [lpConfig, setLpConfig] = useState<LPConfig | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState({
     startDate: '',
     endDate: '',
@@ -309,15 +310,31 @@ export default function LpTracking() {
 
   const fetchData = async () => {
     setLoading(true);
+    setFetchError(null);
     try {
       // Fetch LP config (no-store to always get fresh data)
       const configRes = await fetch('/api/lp-config', { cache: 'no-store' });
+      if (!configRes.ok) {
+        throw new Error(`LP設定の取得に失敗しました (HTTP ${configRes.status})`);
+      }
       const configData = await configRes.json();
+      // /api/lp-config の正常レスポンスは LP 番号キー（"0", "1", ...）と "genres" を持つオブジェクト。
+      // 500 等の致命エラーは `res.ok` で既に弾く。ここではアプリ層の失敗（`{ error: '...' }`
+      // を 200 で返すケース）を検出する用途で `error` キーの有無を見る。
+      if (!configData || typeof configData !== 'object' || configData.error) {
+        throw new Error(configData?.error || 'LP設定のレスポンスが不正です');
+      }
       setLpConfig(configData);
 
       // Fetch genres (no-store to always get fresh data)
       const genresRes = await fetch('/api/lp-code-genres', { cache: 'no-store' });
+      if (!genresRes.ok) {
+        throw new Error(`ジャンル一覧の取得に失敗しました (HTTP ${genresRes.status})`);
+      }
       const genresData = await genresRes.json();
+      if (genresData?.error) {
+        throw new Error(genresData.error);
+      }
       if (genresData.genres) {
         setGenres(genresData.genres);
       }
@@ -328,6 +345,9 @@ export default function LpTracking() {
       if (dateRange.endDate) params.set('endDate', dateRange.endDate);
 
       const trackingRes = await fetch(`/api/lp-tracking?${params.toString()}`, { cache: 'no-store' });
+      if (!trackingRes.ok) {
+        throw new Error(`トラッキングデータの取得に失敗しました (HTTP ${trackingRes.status})`);
+      }
       const trackingJson = await trackingRes.json();
       setTrackingData(trackingJson);
 
@@ -337,10 +357,17 @@ export default function LpTracking() {
       if (dateRange.endDate) publicJobsParams.set('endDate', dateRange.endDate);
 
       const publicJobsRes = await fetch(`/api/lp-tracking/public-jobs?${publicJobsParams.toString()}`, { cache: 'no-store' });
+      if (!publicJobsRes.ok) {
+        throw new Error(`公開求人サマリーの取得に失敗しました (HTTP ${publicJobsRes.status})`);
+      }
       const publicJobsJson = await publicJobsRes.json();
+      if (publicJobsJson?.error) {
+        throw new Error(publicJobsJson.error);
+      }
       setPublicJobsSummary(publicJobsJson);
     } catch (error) {
       console.error('Failed to fetch tracking data:', error);
+      setFetchError(error instanceof Error ? error.message : 'データの取得中に予期しないエラーが発生しました');
     } finally {
       setLoading(false);
     }
@@ -1186,6 +1213,17 @@ export default function LpTracking() {
           <div className="text-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900 mx-auto"></div>
             <p className="mt-2 text-slate-600">読み込み中...</p>
+          </div>
+        ) : fetchError ? (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 my-4">
+            <p className="text-sm font-medium text-red-800 mb-1">データを取得できませんでした</p>
+            <p className="text-sm text-red-700">{fetchError}</p>
+            <button
+              onClick={fetchData}
+              className="mt-3 px-3 py-1.5 text-sm font-medium text-red-700 bg-white border border-red-300 rounded-md hover:bg-red-50"
+            >
+              再読み込み
+            </button>
           </div>
         ) : (
           <>

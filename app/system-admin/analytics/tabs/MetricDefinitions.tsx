@@ -75,10 +75,10 @@ export const METRIC_DEFINITIONS = {
             },
             {
                 key: 'dropoutRate',
-                label: '離脱率',
-                definition: '登録後に実質的な活動がないまま離脱したワーカーの割合（将来実装予定）',
-                calculation: '現在は0を返す（将来実装予定）',
-                usedIn: ['ワーカー分析', '施設分析']
+                label: '登録離脱率（未実装）',
+                definition: '登録後に実質的な活動がないまま離脱したワーカーの割合。現在は未実装のため、UI上は「-」で表示される',
+                calculation: '未実装。サーバー側は -1 をセンチネル値として返し、UI 側は「-」を表示する',
+                usedIn: ['ワーカー分析（未実装表示）', '施設分析（未実装表示）']
             }
         ]
     },
@@ -582,21 +582,21 @@ export const METRIC_DEFINITIONS = {
                 label: '平均評価閾値',
                 definition: 'この値以下の平均評価でアラートが発動する',
                 calculation: '通知設定で設定可能（デフォルト: 2.5）',
-                usedIn: ['ダッシュボード アラート']
+                usedIn: ['Dev Portal: 計算式管理（閾値設定）']
             },
             {
                 key: 'cancelRateThreshold',
                 label: 'キャンセル率閾値',
                 definition: 'この値を超えるキャンセル率でアラートが発動する',
                 calculation: '通知設定で設定可能（デフォルト: 30%）',
-                usedIn: ['ダッシュボード アラート']
+                usedIn: ['Dev Portal: 計算式管理（閾値設定）']
             },
             {
                 key: 'consecutiveLowRatingCount',
                 label: '連続低評価回数',
                 definition: 'この回数連続で低評価を受けるとアラートが発動する',
                 calculation: '通知設定で設定可能（デフォルト: 3回）',
-                usedIn: ['ダッシュボード アラート']
+                usedIn: ['Dev Portal: 計算式管理（閾値設定）']
             }
         ]
     }
