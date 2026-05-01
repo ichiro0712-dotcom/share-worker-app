@@ -72,6 +72,9 @@ const ignoredPaths = [
   '/api/cron', // Cron API（Vercel CronがCRON_SECRET認証を使用）
   '/api/upload', // アップロードAPI（API側で独自認証を実施）
   '/api/sms', // SMS認証API（新規登録時に未ログインで使用）
+  '/api/job-analytics', // 求人アナリティクスAPI（API側で system-admin 認証を実施）
+  '/api/funnel-analytics', // 登録動線アナリティクスAPI（API側で system-admin 認証を実施）
+  '/api/ga-analytics', // GA4 アナリティクスAPI（API側で system-admin 認証を実施）
   '/rogo', // ロゴ画像
   '/images', // 画像ファイル
   '/icons', // アイコン
