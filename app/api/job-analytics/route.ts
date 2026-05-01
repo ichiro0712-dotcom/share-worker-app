@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { getSystemAdminSessionData } from '@/lib/system-admin-session-server';
 
 // JST日付文字列 (YYYY-MM-DD) を返す
 function toJSTDateStr(date: Date): string {
@@ -14,6 +15,12 @@ function toJSTMonthStr(date: Date): string {
 }
 
 export async function GET(request: NextRequest) {
+  // システム管理者認証チェック
+  const session = await getSystemAdminSessionData();
+  if (!session) {
+    return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get('startDate');
