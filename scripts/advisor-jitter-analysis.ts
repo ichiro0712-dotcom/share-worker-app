@@ -198,6 +198,72 @@ async function main(): Promise<void> {
   console.log(`# Advisor TTFB ジッター分析`)
   console.log(`分析対象: ${allRows.length} loop entries / ${events.length} chat_response events`)
 
+  // Gemini API 直叩きバイパス (gemini_direct_edit) の集計を先に出す
+  // (Anthropic ループに入らないため loopTraces が無く、別カテゴリで扱う必要がある)
+  const geminiBypass = events.filter((e) => {
+    const p = e.payload as Record<string, unknown> | null
+    return p?.gemini_direct_edit === true
+  })
+  if (geminiBypass.length > 0) {
+    const successes = geminiBypass.filter((e) => {
+      const p = e.payload as Record<string, unknown>
+      return p?.gemini_failed !== true
+    })
+    const failures = geminiBypass.filter((e) => {
+      const p = e.payload as Record<string, unknown>
+      return p?.gemini_failed === true
+    })
+    console.log(`\n# Gemini API 直叩きバイパス ([TOOL:draft_revise])`)
+    console.log(`  総実行回数: ${geminiBypass.length}`)
+    console.log(`  成功: ${successes.length} / 失敗 (Anthropic fallback): ${failures.length}`)
+
+    if (successes.length > 0) {
+      const elapsedMsList = successes
+        .map((e) => Number((e.payload as Record<string, unknown>).elapsed_ms ?? 0))
+        .filter((n) => n > 0)
+      const inputTokensList = successes
+        .map((e) => Number((e.payload as Record<string, unknown>).input_tokens ?? 0))
+      const outputTokensList = successes
+        .map((e) => Number((e.payload as Record<string, unknown>).output_tokens ?? 0))
+      console.log(
+        `  成功時 elapsed_ms: 中央値=${median(elapsedMsList)}ms ` +
+          `最小=${Math.min(...elapsedMsList)} 最大=${Math.max(...elapsedMsList)}`
+      )
+      console.log(`  入力トークン中央値: ${median(inputTokensList)}t`)
+      console.log(`  出力トークン中央値: ${median(outputTokensList)}t`)
+    }
+
+    if (failures.length > 0) {
+      console.log(`  失敗事例 (Anthropic fallback 発動):`)
+      for (const e of failures.slice(-5)) {
+        const p = e.payload as Record<string, unknown>
+        console.log(
+          `    ${e.created_at.toISOString().slice(11, 19)} elapsed=${p.elapsed_ms}ms error="${(p.error as string)?.slice(0, 80) ?? '?'}"`
+        )
+      }
+    }
+
+    // 各成功事例の詳細 (時系列)
+    if (successes.length > 0) {
+      console.log(`\n  ## Gemini 直叩き成功事例 詳細`)
+      console.log(`  time     | elapsed | gemini_ms | in   | out  | model            | summary_chars | skeleton_chars`)
+      console.log(`  ---------|---------|-----------|------|------|------------------|---------------|---------------`)
+      for (const e of successes) {
+        const p = e.payload as Record<string, unknown>
+        console.log(
+          `  ${e.created_at.toISOString().slice(11, 19)} | ` +
+            `${fmt(Number(p.elapsed_ms ?? 0), 7)} | ` +
+            `${fmt(Number(p.gemini_elapsed_ms ?? 0), 9)} | ` +
+            `${fmt(Number(p.input_tokens ?? 0), 4)} | ` +
+            `${fmt(Number(p.output_tokens ?? 0), 4)} | ` +
+            `${(p.gemini_model as string ?? '?').padEnd(16)} | ` +
+            `${fmt(Number(p.summary_chars ?? 0), 13)} | ` +
+            `${fmt(Number(p.skeleton_chars ?? 0), 14)}`
+        )
+      }
+    }
+  }
+
   // 全件詳細表
   detailTable(allRows, '全 loop 一覧')
 

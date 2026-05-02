@@ -372,6 +372,79 @@ DevTools Console を開いて以下を試す:
 
 ---
 
+### 2026-05-03 (2): Gemini API 直叩きで [TOOL:draft_revise] をバイパス (Phase A 完了)
+
+#### やったこと
+
+ジッター分析で Anthropic ノードアフィニティ問題が真因と確定し、Gemini Canvas UI 連携を
+実装した直後の追加施策。「Anthropic の問題なら Gemini API で構造的に解決」という
+ユーザー判断で、ドラフト修正指示を Anthropic ループに入れず Gemini API で直接処理する
+バイパス経路を追加。
+
+**1. `src/lib/advisor/llm/gemini-edit.ts` 新設**
+- `editDraftWithGemini()` で skeleton_markdown を Gemini Flash で書き換え
+- JSON 出力強制 (`responseMimeType: 'application/json'`) + 3 段フォールバックパーサー
+  (素のパース → ` ```json fence` → 最初の `{` から最後の `}` までスライス)
+- 出力 shape の最低限のバリデーション (updated_skeleton 長さ等)
+- `generateWithGemini()` に `jsonMode` オプションを追加
+
+**2. `orchestrator.ts` にバイパス分岐**
+- `runOrchestrator` の冒頭、ユーザーメッセージ永続化直後に
+  `[TOOL:draft_revise]` を検査
+- 該当時は `tryGeminiDraftReviseBypass()` を呼んで Gemini で直接編集
+- 成功時: SSE で text/usage/done を送出して `return` (Anthropic に進まない)
+- 失敗時: 既存の Anthropic ルートに fall through (堅牢性優先)
+- audit に `gemini_direct_edit: true` + `elapsed_ms` を記録
+
+**3. `scripts/advisor-jitter-analysis.ts` を拡張**
+- `gemini_direct_edit` フラグの audit を別カテゴリで集計
+- 成功時の elapsed_ms 中央値・最小・最大、失敗事例の詳細を表示
+- Phase B/C のベンチマーク評価で使う
+
+#### Gemini Canvas UI 連携 (288ce48) との関係
+
+ハイブリッド運用で残す:
+- Gemini API 直叩き (本 commit) = 自動経路、ユーザーは何もしない
+- Gemini Canvas UI (288ce48) = 手動経路、ユーザーがブラウザで編集
+- Phase C で Gemini API 直叩きが安定して動くと評価されたら、UI 側の撤去を判断
+
+#### 既存の Anthropic 利用箇所 (バイパス対象外)
+
+- 普通のチャット質疑応答
+- 新規ドラフト作成 (構造化ツール選択 / metric_keys 判定が必要)
+- データ調査系 (`query_metric` 等のツール呼び出し)
+
+#### 次セッションで真っ先にやること (Phase B/C)
+
+1. ローカル `/system-admin/advisor` で:
+   - 「ツール ▼ → レポート作成」で初回ドラフト作成 (既存 Anthropic ルートで動くはず)
+   - チャット欄で「LP5 まで足して」等のドラフト修正指示を 5〜10 回送信
+   - audit に `gemini_direct_edit: true` が記録されているか確認
+2. `npx tsx scripts/advisor-jitter-analysis.ts` で集計
+3. TTFB が安定して数秒以内に収まれば成功
+4. 失敗が多ければ Anthropic に戻して別対策を検討
+
+#### 変更ファイル
+
+新規:
+- `src/lib/advisor/llm/gemini-edit.ts`
+
+編集:
+- `src/lib/advisor/llm/gemini.ts` (jsonMode オプション追加)
+- `src/lib/advisor/orchestrator.ts` (バイパス分岐 + tryGeminiDraftReviseBypass)
+- `scripts/advisor-jitter-analysis.ts` (gemini_direct_edit 集計)
+
+#### 学び・注意点
+
+- **ベンダーロックインの緩和は速度問題と直交する設計判断**。今回 Anthropic 1 ベンダー
+  依存を Gemini で部分的に分散させたことで、Anthropic 側障害時の冗長性も同時に得られた
+- **Gemini の構造化出力は `responseMimeType: 'application/json'` を SDK に渡すだけで効く**
+  が、稀に ```json fence ``` でラップして返すケースがあるので fallback パーサー必須
+- **fall through 設計が肝**。バイパスが新機能なので、失敗しても既存経路が動く形で
+  堅牢性を確保 (Phase B のリスクを最小化)
+
+---
+
 ### 2026-05-03: TTFB 真因確定 (Anthropic ノードアフィニティ) + Gemini Canvas 連携導入
 
 #### やったこと
