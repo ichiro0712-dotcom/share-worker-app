@@ -158,11 +158,22 @@ export async function POST(req: Request) {
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
+      // controller.close() 後の enqueue は ERR_INVALID_STATE で throw する。
+      // クライアント Abort や Anthropic 100 秒タイムアウト後に
+      // orchestrator の遅延処理 (heartbeat / audit / done) が走るとこの状況になりがち。
+      // 致命ではないので closed フラグを立てて黙って捨てる (ログを汚さない)。
+      let streamClosed = false;
       const send = (event: AdvisorStreamEvent) => {
+        if (streamClosed) return;
         try {
           controller.enqueue(encoder.encode(formatLine(event)));
         } catch (e) {
-          console.error('[advisor] SSE enqueue failed:', e);
+          // 一度失敗したら以降はもう呼ばない
+          streamClosed = true;
+          // 起動初期 (まだ確実に open のはず) の失敗だけログに残す
+          if (!(e instanceof TypeError && /already closed/i.test(String(e)))) {
+            console.error('[advisor] SSE enqueue failed:', e);
+          }
         }
       };
 
