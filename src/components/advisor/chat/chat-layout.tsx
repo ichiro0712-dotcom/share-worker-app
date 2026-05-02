@@ -1040,11 +1040,14 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
           placeholder="質問を入力 (Enter で送信、Shift+Enter で改行)"
           showModelSelector
           forcedTool={conversationId && canvasOpen && hasDraft ? 'draft_revise' : null}
-          /* Canvas が開いている時はドラフト修正経路 = Gemini Flash 直叩きに固定。
+          /* Canvas が開いている時はドラフト修正/作成経路 = Gemini Flash 直叩きに固定。
              モデルセレクタを操作不能にして「Gemini 2.5 Flash (固定)」と表示する。
-             Canvas を閉じれば通常のモデル選択に戻る。 */
+             Canvas を閉じれば通常のモデル選択に戻る。
+             注: conversationId はチェックしない (新規チャット送信瞬間にはまだ null だが、
+             handleChatSubmit が setHasDraft(true)+setCanvasOpen(true) するので
+             ここで発火してほしい) */
           forcedModelLabel={
-            conversationId && canvasOpen && hasDraft ? 'Gemini 2.5 Flash (固定)' : null
+            canvasOpen && hasDraft ? 'Gemini 2.5 Flash (固定)' : null
           }
         />
       </div>
