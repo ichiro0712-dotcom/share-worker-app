@@ -6,6 +6,7 @@ import {
   Search, SlidersHorizontal,
   Upload, BookmarkPlus, Pencil, Trash2,
   FileSearch, Lightbulb, BarChart3, Database, Bot, FileText,
+  PencilLine,
 } from 'lucide-react'
 import { Button } from '@/src/components/ui/shadcn/button'
 import { AVAILABLE_MODELS, DEFAULT_MODEL_ID } from '@/src/lib/advisor/models'
@@ -23,6 +24,12 @@ export interface ChatTool {
   icon: typeof Bot
   /** 選択時に入力欄に自動挿入するテンプレ (P1-8 レポート作成のような起点系のみ) */
   template?: string
+  /**
+   * true の時、ツール選択メニューには表示されない。
+   * 親コンポーネントが特定の文脈 (例: レポート Canvas 表示中) で forcedTool として
+   * 強制的にオンにする時のみ使われる。誤選択を防ぐためメニューから隠す。
+   */
+  hiddenFromMenu?: boolean
 }
 
 export const AVAILABLE_TOOLS: ChatTool[] = [
@@ -61,6 +68,15 @@ export const AVAILABLE_TOOLS: ChatTool[] = [
       '- レポートの目的: (例: 週次 KPI レビュー / 不具合の振り返り)\n' +
       '- 含めたいデータ: (例: GA4 流入、求人推移、エラーログ)',
   },
+  {
+    // ドラフト作成中の Canvas 表示時にだけ親が forcedTool で自動オンにする。
+    // メニューには出さず、ユーザーが何もない状態で誤選択しないようにする。
+    id: 'draft_revise',
+    name: 'ドラフト修正指示',
+    description: '右 Canvas のレポートドラフトを修正する指示を Claude に送る',
+    icon: PencilLine,
+    hiddenFromMenu: true,
+  },
 ]
 
 interface ChatInputProps {
@@ -70,6 +86,13 @@ interface ChatInputProps {
   placeholder?: string
   disabled?: boolean
   showModelSelector?: boolean
+  /**
+   * 親コンポーネントが文脈に応じて自動でツールをオンにしたい時に渡す。
+   * 例: レポート Canvas が開いている時は draft_revise を強制オン。
+   * ユーザーが ✕ で外したら null になり、その場で解除される。
+   * 親側 forcedTool が変わると、ユーザー操作の選択は上書きされる (forcedTool 優先)。
+   */
+  forcedTool?: string | null
 }
 
 export function ChatInput({
@@ -79,6 +102,7 @@ export function ChatInput({
   placeholder = 'メッセージを入力...（Shift+Enterで改行）',
   disabled = false,
   showModelSelector = true,
+  forcedTool = null,
 }: ChatInputProps) {
   const [input, setInput] = useState('')
   const [modelId, setModelId] = useState(DEFAULT_MODEL_ID)
@@ -94,8 +118,30 @@ export function ChatInput({
 
   useEffect(() => {
     const saved = localStorage.getItem('agent-hub-base-model')
+    // Sonnet 4 (claude-sonnet) は 2026-06-15 retire 予定 + Anthropic キュー混雑で
+    // TTFB 100 秒級になる事象があるため、旧 localStorage 値は Sonnet 4.6 に強制マイグレート。
+    // legacy として選択肢には残すが、過去に Sonnet 4 を選んでいたユーザーが意図せず
+    // 遅いモデルを使い続けないようにする。
+    if (saved === 'claude-sonnet') {
+      localStorage.setItem('agent-hub-base-model', 'claude-sonnet-4-6')
+      setModelId('claude-sonnet-4-6')
+      return
+    }
     if (saved && AVAILABLE_MODELS.some(m => m.id === saved)) setModelId(saved)
   }, [])
+
+  // 親が forcedTool を変えたら追従。
+  // - forcedTool='draft_revise' で来たらツールをオンにする
+  // - null で来たら何もしない (ユーザー選択を尊重)
+  // 親が forcedTool を解除しても、ユーザーの能動選択を勝手に消さないようにするため、
+  // 効果は "forcedTool が新しく値を持った瞬間" のみ。
+  const lastForcedToolRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (forcedTool && forcedTool !== lastForcedToolRef.current) {
+      setSelectedTool(forcedTool)
+    }
+    lastForcedToolRef.current = forcedTool
+  }, [forcedTool])
 
   const [files, setFiles] = useState<AttachedFile[]>([])
   const [isDragging, setIsDragging] = useState(false)
@@ -344,7 +390,7 @@ export function ChatInput({
                       <div className="px-4 pb-1.5 pt-0.5 text-[11px] text-slate-400">
                         意図を明示すると Advisor が動きやすくなります
                       </div>
-                      {AVAILABLE_TOOLS.map(tool => {
+                      {AVAILABLE_TOOLS.filter((t) => !t.hiddenFromMenu).map(tool => {
                         const Icon = tool.icon
                         const isSelected = selectedTool === tool.id
                         return (
