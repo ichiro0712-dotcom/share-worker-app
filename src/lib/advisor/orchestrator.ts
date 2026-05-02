@@ -66,6 +66,41 @@ export type AdvisorStreamEvent =
     }
   | { type: 'error'; text: string };
 
+/**
+ * 1 ループ (= Anthropic 1 リクエスト) ごとの計測値。
+ * cache の効き方と TTFB を loop 単位で可視化するため audit_log の chat_response payload に
+ * loopTraces[] として蓄積する。
+ *
+ * 判定基準 (HANDOFF.md「Step 1 の判定基準」と一致):
+ * - loop>0 で cacheReadInputTokens が 27,000+ → cache は効いている (Anthropic API 側問題)
+ * - loop>0 で cacheReadInputTokens が 0〜数百 → cache 破壊 (skeleton 移動で改善見込み)
+ * - loop=0 の ttfbMs が長い (>10s) → tools 配列の cache 漏れ等が疑い
+ */
+export interface LoopTrace {
+  /** 0-indexed のループ番号 (loop=0 = 初回 LLM 呼び出し、loop=1 = ツール実行後の最終応答) */
+  loop: number;
+  /** リクエスト送信から最初の content delta (text or tool_use) が来るまで (ms)。stream 未到達時は null */
+  ttfbMs: number | null;
+  /** 最初の delta から finalMessage 完了まで (ms) */
+  streamMs: number | null;
+  /** ループ全体の所要時間 (ms) */
+  totalMs: number;
+  /** finalMessage.usage.input_tokens (cache 読み書き分は含まれない実 input) */
+  inputTokens: number;
+  /** finalMessage.usage.output_tokens */
+  outputTokens: number;
+  /** finalMessage.usage.cache_read_input_tokens (cache hit 時のみ非ゼロ) */
+  cacheReadInputTokens: number;
+  /** finalMessage.usage.cache_creation_input_tokens (cache write 時のみ非ゼロ) */
+  cacheCreationInputTokens: number;
+  /** Anthropic 終了理由 ("end_turn" | "tool_use" | "max_tokens" 等) */
+  stopReason: string | null;
+  /** このループで生成された tool_use ブロックの数 */
+  toolUseCount: number;
+  /** 投入時の max_tokens (loop=0 は 4096、loop>0 は 512 のはず) */
+  maxTokens: number;
+}
+
 export interface AttachedFileInput {
   name: string;
   mimeType: string;
@@ -113,7 +148,6 @@ const TOOL_STATUS_LABEL: Record<string, string> = {
   // tastas-data (DB / 指標)
   describe_db_table: 'DB スキーマを確認中...',
   query_metric: '指標を集計中...',
-  list_available_metrics: '指標一覧を取得中...',
   get_jobs_summary: '求人データを集計中...',
   get_users_summary: 'ユーザーデータを集計中...',
   get_recent_errors: '直近のエラーログを確認中...',
@@ -126,12 +160,20 @@ const TOOL_STATUS_LABEL: Record<string, string> = {
   query_lstep_events: 'Lstep イベントを確認中...',
   // reports
   update_report_draft: 'レポートドラフトを更新中...',
-  get_report_draft: 'レポートドラフトを確認中...',
   edit_report_section: 'レポートを部分修正中... (Gemini に書き換えを依頼)',
 };
 
 function statusForTool(name: string): string {
   return TOOL_STATUS_LABEL[name] ?? `${name} を実行中...`;
+}
+
+/**
+ * 先頭の `[TOOL:xxx] ` ヒント (ChatInput がツール選択時に付与する hidden hint) を除去する。
+ * 永続化・履歴表示・監査ログ向けにユーザーが書いた本文だけにする。
+ * Claude に渡すメッセージは hint 込みのままにして文脈判断に使わせる。
+ */
+function stripToolHintPrefix(message: string): string {
+  return message.replace(/^\s*\[TOOL:[a-zA-Z0-9_]+\]\s*/, '');
 }
 
 export async function runOrchestrator(input: OrchestratorRunInput): Promise<void> {
@@ -212,17 +254,20 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
   }
 
   // 3. ユーザーメッセージを永続化
+  // 表示用には先頭の [TOOL:xxx] hidden hint を取り除いてユーザーが書いた本文だけを保存する。
+  // Claude に渡す messages 側は input.userMessage のまま (=hint 込み) で、Claude が文脈判断に使う。
+  const displayUserMessage = stripToolHintPrefix(input.userMessage);
   await appendMessage({
     sessionId: input.sessionId,
     role: 'user',
-    content: input.userMessage,
+    content: displayUserMessage,
   });
 
   await recordAudit({
     adminId: input.admin.id,
     sessionId: input.sessionId,
     eventType: 'chat_request',
-    payload: { message: input.userMessage.slice(0, 500) },
+    payload: { message: displayUserMessage.slice(0, 500) },
     clientIp: input.clientIp,
     clientUa: input.clientUa,
   });
@@ -235,6 +280,8 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
   let toolCallCount = 0;
   let assembledAssistantText = '';
   const toolCallsForPersistence: Array<{ id: string; name: string; input: unknown }> = [];
+  // ループ単位の計測値 (cache hit/miss と TTFB を後で audit payload に書き出す)
+  const loopTraces: LoopTrace[] = [];
 
   // 経過時間トラッキング (Claude Code 風 "経過 12s · 250 tokens" 表示用)
   const startedAtMs = Date.now();
@@ -294,11 +341,22 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
     }
     input.onEvent({ type: 'status', status: currentPhaseLabel });
 
+    // ループ単位の遅延計測ログ (調査用) — どのループが時間を食ってるか可視化する
+    const loopStartMs = Date.now();
+    let firstTokenAtMs: number | null = null;
+    let streamDoneAtMs: number | null = null;
+    console.log(`[advisor:trace] session=${input.sessionId} loop=${loop} start (msgs=${messages.length})`);
+
+    // ツール実行後の最終応答 (loop > 0) は短い差分説明だけで十分なので、
+    // max_tokens を絞って Anthropic 側の計算量と TTFB を抑える。
+    // 通常の質問応答 (loop=0) は引き続き 4096 トークン許可。
+    const loopMaxTokens = loop === 0 ? MAX_OUTPUT_TOKENS : 512;
+
     let stream;
     try {
       stream = client.messages.stream({
         model: activeModel,
-        max_tokens: MAX_OUTPUT_TOKENS,
+        max_tokens: loopMaxTokens,
         system: systemMessage,
         tools: tools as never,
         messages,
@@ -317,6 +375,9 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
     let finalMessage;
     try {
       for await (const event of stream) {
+        if (firstTokenAtMs === null && event.type === 'content_block_start') {
+          firstTokenAtMs = Date.now();
+        }
         if (event.type === 'content_block_start') {
           const block = event.content_block;
           if (block.type === 'tool_use') {
@@ -337,6 +398,7 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
         }
       }
       finalMessage = await stream.finalMessage();
+      streamDoneAtMs = Date.now();
     } catch (e) {
       const errMsg = e instanceof Error ? e.message : String(e);
       console.error('[advisor] stream loop failed:', errMsg, e);
@@ -361,6 +423,36 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
       (b): b is Extract<typeof b, { type: 'text' }> => b.type === 'text'
     );
     const finalText = textBlocks.map((t) => t.text).join('');
+
+    // ループ単位の遅延ブレイクダウン (調査用ログ)
+    const ttfbMs = firstTokenAtMs !== null ? firstTokenAtMs - loopStartMs : null;
+    const streamMs = firstTokenAtMs !== null && streamDoneAtMs !== null ? streamDoneAtMs - firstTokenAtMs : null;
+    const totalLoopMs = (streamDoneAtMs ?? Date.now()) - loopStartMs;
+    const stopReason = (finalMessage as { stop_reason?: string }).stop_reason ?? null;
+    console.log(
+      `[advisor:trace] session=${input.sessionId} loop=${loop} done ` +
+        `total=${totalLoopMs}ms ttfb=${ttfbMs ?? 'n/a'}ms stream=${streamMs ?? 'n/a'}ms ` +
+        `in=${usage.input_tokens} out=${usage.output_tokens} ` +
+        `cacheRead=${cs.cacheReadTokens} cacheWrite=${cs.cacheWriteTokens} ` +
+        `stop=${stopReason ?? '?'} ` +
+        `tools=${toolUseBlocks.length}`
+    );
+
+    // 後続の判定 (cache 破壊 vs API 側遅延 vs tools cache 漏れ) のため loop 単位で永続化する。
+    // chat_response audit の payload.loopTraces[] にまとめて入れる (後で latency-trace 拡張で展開)。
+    loopTraces.push({
+      loop,
+      ttfbMs,
+      streamMs,
+      totalMs: totalLoopMs,
+      inputTokens: Number(usage.input_tokens ?? 0),
+      outputTokens: Number(usage.output_tokens ?? 0),
+      cacheReadInputTokens: cs.cacheReadTokens,
+      cacheCreationInputTokens: cs.cacheWriteTokens,
+      stopReason,
+      toolUseCount: toolUseBlocks.length,
+      maxTokens: loopMaxTokens,
+    });
 
     // assistant メッセージを履歴に追加 (次の loop で必要)
     messages.push({ role: 'assistant', content: finalMessage.content });
@@ -426,6 +518,8 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
             cacheWriteTokens: totalCacheWriteTokens,
             toolCallCount,
             charCount: assembledAssistantText.length,
+            // ループ単位の計測値 (cache 破壊 / API 側遅延 / tools cache 漏れ の切り分け用)
+            loopTraces: loopTraces as unknown as Prisma.InputJsonValue,
           },
           clientIp: input.clientIp,
           clientUa: input.clientUa,
@@ -453,6 +547,7 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
         adminId: input.admin.id,
         sessionId: input.sessionId,
         abortSignal: input.abortSignal,
+        userMessage: displayUserMessage,
       });
 
       const summary = result.ok
@@ -502,6 +597,10 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
     }
 
     // tool_result を user メッセージとして追加し、次のループへ
+    // (以前 update_report_draft の後にサーバー側固定文で短絡していたが、
+    //  ユーザーから「何を変えたか分からない」「機械的」と指摘されたため廃止。
+    //  代わりに system prompt 経由で Claude に "1〜2 行で何を変えたか短く返す" よう指示している。
+    //  loop=1 の TTFB は dynamic prompt にドラフト状態を埋めることで get_report_draft 不要になり改善見込み)
     messages.push({ role: 'user', content: toolResults });
   }
 
@@ -573,6 +672,8 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
         outputTokens: totalOutputTokens,
         // tool_loop_exceeded は致命的ではない (途中まで保存して done) ことを示す
         recovered: true,
+        // ループ単位の計測値 (上限到達時も計測値は捨てない)
+        loopTraces: loopTraces as unknown as Prisma.InputJsonValue,
       },
       clientIp: input.clientIp,
       clientUa: input.clientUa,

@@ -1,7 +1,7 @@
 # System Advisor 引き継ぎ資料 (継続更新)
 
 **ブランチ**: `feature/system-advisor-chatbot`
-**最終更新**: 2026-05-01 (v2 設定ページ + チャット内テーブル追加)
+**最終更新**: 2026-05-02 (Canvas ドラフト本体機能 + 速度問題の継続調査要)
 **ステータス**: ローカルで動作確認済み。本番Supabase接続済み (IPv4 アドオン)。ステージング展開待ち。
 
 > このファイルは **毎回作り直さず、ここを更新** する。
@@ -24,21 +24,111 @@
 
 ---
 
+## 🚨 次セッションへの最優先タスク (2026-05-02 から持ち越し)
+
+**症状**: Canvas でレポートドラフトを作る機能の **応答速度が圧倒的に遅い**
+- 表の行を 2 つ増やすだけで 2 分以上かかる
+- 直近のセッションで Anthropic API 残高切れ (`credit balance is too low`) も発生
+  → ユーザーが残高補充するまで動作確認も止まる
+- これまでに以下の対策を入れたが、根本解決していない:
+  - `get_report_draft` ツール削除 (dynamic system prompt にドラフト全体を埋める)
+  - `update_report_draft` 後の loop で `max_tokens=512` に制限
+  - prompt cache 活用 (cachedPart に metric カタログ + project knowledge)
+  - LP 別 / 日別データを `collect.ts` で並列取得
+  - Anthropic API loop=1 の TTFB が 100 秒級になる現象を確認 (`scripts/advisor-latency-trace.ts`)
+
+**ユーザーから次セッションへの依頼**:
+
+> 「**google gemini の canvas 機能**を想定していたのだが、google gemini の canvas 機能の仕様、
+> LLM の役割分担やフローなどを調査、さらに**最新の LLM の canvas の仕様や LLM のレスポンスを早める方法**
+> なども調査してから、検証してほしい」
+
+### 🔴 タスク (順番に)
+
+1. **調査フェーズ** (コード変更前)
+   - **Google Gemini の Canvas 機能** の仕様を調査:
+     - チャットと Canvas の役割分担はどうなっているか
+     - 編集中のドラフトを Gemini が読み書きする仕組み (差分送信?全送信?)
+     - レスポンス速度の体感 (Gemini Canvas は早いと言われている)
+   - **OpenAI の Canvas (ChatGPT Canvas)** も比較対象として調査
+   - **Claude Artifacts** との違い
+   - **「LLM のレスポンスを早めるテクニック」** の最新ベストプラクティス:
+     - prompt cache / context caching
+     - tool 呼び出しを減らす設計 (1 ターンで完結させる)
+     - streaming で先に体感速度を出す方法
+     - モデル選択 (Haiku 4.5 / Gemini Flash / GPT-4o mini など)
+     - 並列ツール呼び出し vs 直列
+     - 出力 schema の制約で Claude の思考時間を削る方法
+     - 部分更新 (差分 JSON) で出力トークンを削る方法
+
+2. **比較フェーズ** (現状の TASTAS Advisor の実装と並べて)
+   - 現状: [REPORT_FEATURE.md](./REPORT_FEATURE.md) §1 アーキテクチャ参照
+   - Anthropic で対話 + 要件固め + skeleton 生成 → Gemini で本文生成 という構成
+   - どこで何秒かかっているかを調査 (`scripts/advisor-latency-trace.ts`)
+   - Gemini Canvas のような「Gemini 1 つで完結させる」設計に切り替えるべきか比較検討
+
+3. **検証フェーズ** (調査結果を踏まえてユーザーと議論)
+   - 改善案を 2〜3 個 + トレードオフを提示
+   - ユーザーと議論して方向性決定
+   - その後実装に入る
+
+### 📊 直近のパフォーマンスログ (参考)
+
+```
+loop=1 ttfb=122444ms (約 2 分) — get_report_draft 実行後
+loop=1 ttfb=117175ms (約 2 分) — update_report_draft 実行後
+```
+
+ツール後の最終 text 生成 (loop=1) で Anthropic API が **100 秒級の TTFB** を返してくるのが
+最大のボトルネック。Anthropic 側の問題か、こちらのプロンプト構造の問題かは未特定。
+
+### 🧭 計測ベースで動く方針 (2026-05-03 セッション開始時に合意)
+
+「速くなったはず」の推測ではなく、**Step 1: 計測整備 → Step 2: 仮説検証 → Step 3: 対策投入**
+の順で進める。Step 1 でも仮説 (cache 破壊 / API 側遅延 / tools cache 漏れ) のうち
+どれが正解かを切り分けてから対策を選ぶ。
+
+#### Step 1 の判定基準 (計測結果が出たら次の Step を決める)
+
+| 計測結果 | 解釈 | 次の Step |
+|---|---|---|
+| loop=1 で `cacheReadInputTokens >= 27,000` | system prompt の cache 自体は効いている | Step 4 (固定文短絡) を検討 — Anthropic API 側の TTFB 問題 |
+| loop=1 で `cacheReadInputTokens` が 0 か数百 | system prompt cache が破壊されている | **Step 2 (skeleton を messages 末尾に移動)** に進む |
+| loop=0 の `ttfbMs` が既に長い (10s+) | 初回から遅い = tools 配列の cache 漏れ等 | tools 配列に `cache_control: ephemeral` 追加を先に試す |
+
+#### Step 1 の検証実験プロトコル
+
+- Anthropic API 残高補充後、**同じ操作 (例: 「LP5 まで足して」) を 3 回連続実行**
+- 中央値で評価 (最大値・最小値は外れ値の可能性)
+- 1 回の TTFB だけで「改善した」と判断しない (Anthropic API 側のたまたまの揺れ対策)
+- 各 Step 投入後も同様に 3 回計測 → 中央値比較
+
+### 📝 直近の関連変更 (2026-05-02 セッションでの実装)
+
+すべて [REPORT_FEATURE.md](./REPORT_FEATURE.md) に最新仕様を反映済み。
+セッションログの「2026-05-02」エントリも参照。
+
+---
+
+---
+
 ## 1. 現在のステータス Snapshot
 
 | 項目 | 状態 |
 |------|------|
-| Anthropic API キー | ✅ 動作中 (実キーは `.env.local` を参照 — git に書かない) |
-| ローカル DB スキーマ反映 | ✅ Docker Postgres に反映済み |
-| ローカル動作確認 | ✅ 文字応答・ツール実行・履歴一覧・進捗表示 動作 |
+| Anthropic API キー | ⚠️ 残高切れ発生 (2026-05-02 ユーザー側でクレジット補充必要) |
+| ローカル DB スキーマ反映 | ✅ Docker Postgres に反映済み (`original_request` / `skeleton_markdown` 含む) |
+| ローカル動作確認 | ✅ 一通り動作 (ただし Canvas レポート機能の応答速度に問題あり) |
 | 進捗インジケータ (heartbeat) | ✅ Claude Code 風 (経過秒数 + tokens) |
-| チャット履歴一覧 | ✅ `/system-admin/advisor/history` で閲覧可 |
-| 設定ページ (v2) | ✅ `/system-admin/advisor/settings` 歯車アイコンから (ラリー回数 / プロンプト編集 / データソース一覧 / 月次使用統計) |
-| チャット内テーブル表示 + コピー (v2) | ✅ Markdown table を整形表示し、右下のボタンで TSV をクリップボードへ |
-| GA4 接続 | ✅ `query_ga4` ツールで Data API 経由取得済み |
-| Supabase Management API | ✅ 設定済み (本番プロジェクト ref: `ryvyuxomiqcgkspmpltk`) |
-| 本番 Supabase 読み取り専用接続 | ✅ `advisor_readonly` ロール作成 + IPv4 アドオン購入で Direct 接続成功 (User: 400 / Job: 200 取得確認) |
-| ステージング DB スキーマ反映 | ⏸️ 未反映 |
+| チャット履歴一覧 | ✅ `/system-admin/advisor/history` |
+| 設定ページ (v2) | ✅ `/system-admin/advisor/settings` |
+| チャット内テーブル表示 + コピー (v2) | ✅ |
+| GA4 接続 | ✅ `query_ga4` |
+| Supabase Management API | ✅ |
+| 本番 Supabase 読み取り専用接続 | ✅ |
+| **Canvas ドラフト本体機能** (2026-05-02) | ✅ ローカル動作確認済み |
+| **Canvas レポート機能の応答速度** | ❌ 表 2 行追加で 2 分かかる現象あり (次セッションで調査) |
+| ステージング DB スキーマ反映 | ⏸️ 未反映 (`original_request` / `skeleton_markdown` 含めて要 push) |
 | ステージング Vercel 環境変数追加 | ⏸️ 未設定 |
 | 本番 DB スキーマ反映 | ⏸️ 未反映 |
 | 本番 Vercel 環境変数追加 | ⏸️ 未設定 |
@@ -224,6 +314,134 @@ DevTools Console を開いて以下を試す:
 - 新セッションで作業したら、**この節の一番上** に新節を追加 (古いものは下に流す)
 - 形式: `### YYYY-MM-DD: タイトル` + 「やったこと」「変更ファイル」「学び・注意点」
 - ログがあまりに長くなったら、3 ヶ月以上古いものは `HANDOFF_archive.md` に切り出す
+
+---
+
+### 2026-05-02: Canvas ドラフト本体機能 + 速度最適化試行 (未解決)
+
+#### やったこと
+
+**1. Canvas のドラフト UX 全面リデザイン**
+
+ユーザー要望から決まった設計:
+- レポート要件部分は **全フィールド常時編集可能** (チェックボックス + 日付ピッカー + textarea)
+- 鉛筆アイコン廃止、フィールド毎の保存ボタンも廃止
+- フッターに **「ドラフト更新」(上) → 「レポート作成 (本文生成)」(下)** の縦並び
+- レポート要件は折りたたみ (デフォルト閉じ)、開けば編集可
+- Canvas のレポート本体を「**ドラフト本体 (skeleton_markdown)**」と「**最終レポート (Gemini 生成)**」の 2 層に分離
+- 「再生成」表現を「レポート作成 (再作成)」に統一 (ユーザーから「再生成は違う」指摘)
+- 赤い「ドラフト」バッジを Canvas タイトル横に常時表示
+- アニメーション帯 (drafting / updating / generating で文言切替、青 shimmer)
+
+**2. 新フィールド `original_request` / `skeleton_markdown` の追加**
+- `prisma/schema.prisma` の `AdvisorReportDraft` に 2 列追加
+- `original_request`: ユーザーの初回要望 (生のメッセージ)
+  - 修正指示時に Claude が「元々何を求められたか」を見失わないよう保存
+  - 初回の `update_report_draft` 呼び出し時にサーバーが自動で書き込む
+- `skeleton_markdown`: ドラフト本体の Markdown (0 埋めの表骨格 + 章立て)
+  - Claude or 手動編集が書き換える
+  - Canvas のプレビューはこれを描画 (固定の `PreviewSkeleton` は廃止)
+- ローカル DB は `npx prisma db push` 適用済み
+- ステージング/本番 DB は **未反映** ([DEPLOY_CHECKLIST.md](./DEPLOY_CHECKLIST.md) と
+  [STAGING_DEPLOY_REQUEST.md](./STAGING_DEPLOY_REQUEST.md) に追記済み)
+
+**3. システムプロンプトを大改装**
+- `dynamic part` に **現在のドラフト全体** を毎回埋め込むように
+  - title / goal / range / data_sources / metric_keys / outline / notes / original_request / skeleton_markdown
+  - これにより Claude は `get_report_draft` ツールを呼ばずに済む (ループ往復削減)
+- 「グラフは未対応、表で代替」のルールを追加 (Markdown 出力のみ)
+- `[TOOL:draft_revise]` プレフィックスの対応パターンを明記
+
+**4. ツールの削除と整理**
+- `list_available_metrics` ツールを廃止 (METRIC_CATALOG をシステムプロンプトに静的埋め込みで代替)
+- `get_report_draft` ツールを廃止 (dynamic system prompt にドラフト全体が入るため不要)
+- `update_report_draft` を拡張: `skeleton_markdown` を書き換え可能に + `original_request` を初回保存
+
+**5. ChatInput の forcedTool 機構**
+- Canvas が開いている時、`draft_revise` ツールを **自動的にオン状態で表示**
+- 通常時はメニューに出さない (誤選択防止)
+- ユーザーが ✕ で外すことも可能
+
+**6. UX バグ修正**
+- `[TOOL:xxx]` プレフィックスがチャット履歴・タイトルに表示される問題を修正
+  - 共通ユーティリティ `src/lib/advisor/message-display.ts` の `stripToolHintPrefix()`
+  - サーバー側 (DB 保存・session title) + クライアント側 (履歴ロード・サイドバー・breadcrumb・履歴一覧) の両方で剥がす
+- 新規/別チャット切替時にツール選択がリセットされない問題を修正
+  - `<ChatInput key={conversationId ?? 'new'}>` で強制再マウント
+- ローカル編集状態がポーリングをロックする問題を修正
+  - チャット送信時に `discardCanvasEditTrigger` を +1 して `draftEdit` をリセット
+  - 「書き換えが始まったらユーザーの未保存編集は無視」というユーザー合意
+
+**7. 速度最適化の試行 (効果出ず)**
+- prompt cache 化 (cachedPart に METRIC_CATALOG + project knowledge を埋め込み)
+- `update_report_draft` 後のサーバー側固定文短絡 → ユーザーから「機械的」と指摘されて削除
+- loop > 0 で `max_tokens=512` に制限
+- Claude に「1〜2 行で何を変えたか短く返す」と system prompt で指示
+
+**8. データ収集の拡張**
+- `collect.ts` で `query_metric` を `supportedGroupBy` 全部で並列取得
+- 例: `LP_PV` → `none / day / lp_id / campaign_code` の 4 通り
+- これで Gemini は LP 別 / 日別の表を作る素材を持つ
+
+**9. CI 整合性チェック追加**
+- `scripts/check-metrics-consistency.ts` を新設、`npm run build` 前に実行
+- METRIC_CATALOG ↔ query-metric.ts switch case のズレを検出
+
+**10. 計測ログ整備**
+- `scripts/advisor-latency-trace.ts`: セッション時系列内訳
+- `scripts/advisor-detailed-audit.ts`: audit_log 全件ダンプ
+- orchestrator にループ単位の `[advisor:trace]` console.log を埋めた
+  (ttfb / stream / in / out / cacheRead / cacheWrite を観測可能)
+
+**11. ドキュメント更新**
+- `docs/system-advisor/REPORT_FEATURE.md` を全面リライト (2026-05-02 仕様)
+- `docs/system-advisor/STAGING_DEPLOY_REQUEST.md` に新カラムと動作確認項目追加
+- `docs/system-advisor/DEPLOY_CHECKLIST.md` に新カラム反映
+
+#### 残った未解決問題
+
+**Anthropic API loop=1 の TTFB 100 秒級**
+- ツール実行後の最終 text 生成で TTFB が 100〜120 秒になる現象が再現性高い
+- prompt cache hit / dynamic system prompt 化 / max_tokens 制限を入れても改善せず
+- Anthropic API 側のサーバー問題か、こちらのプロンプト構造の問題かは未特定
+- 残高切れエラー (`credit balance is too low`) も発生
+  → ユーザーがクレジット補充するまで動作確認が止まる
+
+#### 変更ファイル (主要)
+
+- 新規:
+  - `src/lib/advisor/message-display.ts`
+  - `scripts/advisor-latency-trace.ts`
+  - `scripts/advisor-detailed-audit.ts`
+  - `scripts/check-metrics-consistency.ts`
+- 編集:
+  - `prisma/schema.prisma` (AdvisorReportDraft に 2 列追加)
+  - `src/lib/advisor/system-prompt.ts` (dynamic part にドラフト全展開、グラフ未対応ルール、metric カタログ埋め込み)
+  - `src/lib/advisor/orchestrator.ts` (max_tokens loop 別、stripToolHintPrefix、計測ログ)
+  - `src/lib/advisor/persistence/report-drafts.ts` (新フィールド対応)
+  - `src/lib/advisor/actions/report-drafts.ts` (`updateDraftBulk` 一括更新 Server Action)
+  - `src/lib/advisor/tools/reports/update-report-draft.ts` (skeleton_markdown 対応、original_request 自動保存)
+  - `src/lib/advisor/tools/reports/index.ts` (get_report_draft 削除)
+  - `src/lib/advisor/tools/tastas-data/index.ts` (list_available_metrics 削除)
+  - `src/lib/advisor/reports/collect.ts` (supportedGroupBy 全展開)
+  - `src/lib/advisor/reports/generate.ts` (skeleton_markdown と original_request を Gemini プロンプトに、グラフ未対応ルール)
+  - `src/components/advisor/report/report-canvas.tsx` (大改装: 全フィールド常時編集、Canvas ステータス帯、DraftBodyView、red badge、リサイズ、上下逆転)
+  - `src/components/advisor/chat/chat-layout.tsx` (Canvas 連携、reportChatPhase、discardCanvasEditTrigger、stripToolHintPrefix)
+  - `src/components/advisor/chat/chat-input.tsx` (forcedTool プロパティ、hiddenFromMenu フラグ、draft_revise ツール追加)
+  - `app/api/advisor/chat/route.ts` (タイトル保存時に prefix 剥がし)
+  - `package.json` (`check:metrics` スクリプト追加、build に組込)
+- 削除:
+  - `src/lib/advisor/tools/reports/get-report-draft.ts`
+  - `src/lib/advisor/tools/tastas-data/list-available-metrics.ts`
+
+#### 学び・注意点
+
+- **CLAUDE.md ルールの誤解**: 「ローカル Docker への `prisma db push` は OK」を私が勘違いして
+  ユーザーに依頼してしまったが、ローカル限定なら Claude 側で実行可能だった (やり直して通った)
+- **Anthropic loop=1 TTFB 問題は実装側だけでは解決困難**。サーバー側の挙動かもしれない。
+  → 次セッションで Gemini Canvas や他の LLM のレスポンス速度を比較研究するという方針
+- **「再生成」「ドラフト更新」など UX ワーディングはユーザーの認識モデルに合わせて調整が必須**。
+  我々 (実装者) が思う言葉とユーザーの言葉は一致しないことが多い
 
 ---
 
