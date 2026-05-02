@@ -10,7 +10,7 @@
  */
 
 import type Anthropic from '@anthropic-ai/sdk';
-import { ADVISOR_MODELS, getClaudeClient, isValidModelId, type AdvisorModelId } from './claude';
+import { ADVISOR_MODELS, getClaudeClient, type AdvisorModelId } from './claude';
 import { buildSystemPrompt } from './system-prompt';
 import { buildCachedSystem, extractCacheStats } from './prompt-cache';
 import { describeAllToolsForLLM, executeToolByName } from './tools/registry';
@@ -133,8 +133,13 @@ export interface OrchestratorRunInput {
   userMessage: string;
   /** ファイル添付 (画像・PDF 等) */
   attachments?: AttachedFileInput[];
-  /** 使用モデル (省略時は Sonnet) */
-  modelId?: AdvisorModelId;
+  /**
+   * 使用モデルの実 ID (Anthropic に直接渡す文字列)。
+   * 例: "claude-sonnet-4-6" / "claude-haiku-4-5-20251001" / 古い snapshot ID。
+   * orchestrator 内で migrateModelIfRetiring により retire 予定モデルは自動置換される。
+   * 省略時は AdvisorSettings.primary_model_id か code 内 default が使われる。
+   */
+  modelId?: string;
   /** UI に進捗を流す callback */
   onEvent: (event: AdvisorStreamEvent) => void;
   abortSignal?: AbortSignal;

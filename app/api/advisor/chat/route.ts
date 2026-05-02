@@ -28,12 +28,10 @@ import { checkRateLimit } from '@/src/lib/advisor/rate-limit';
 import { checkCostCap } from '@/src/lib/advisor/cost-guard';
 import { runOrchestrator, type AdvisorStreamEvent } from '@/src/lib/advisor/orchestrator';
 import { recordAudit } from '@/src/lib/advisor/persistence/audit';
+import { stripToolHintPrefix } from '@/src/lib/advisor/message-display';
 import { prisma } from '@/lib/prisma';
-import {
-  ADVISOR_MODELS,
-  isValidModelId,
-  type AdvisorModelId,
-} from '@/src/lib/advisor/claude';
+import { ADVISOR_MODELS } from '@/src/lib/advisor/claude';
+import { AVAILABLE_MODELS } from '@/src/lib/advisor/models';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -94,11 +92,13 @@ export async function POST(req: Request) {
   // 3. セッション解決 (新規 or 既存)
   let sessionId = body.conversationId ?? '';
   let isNewSession = false;
+  // タイトル / 履歴に表示する用に [TOOL:xxx] hidden hint は剥がす
+  const messageForDisplay = stripToolHintPrefix(message);
   if (!sessionId) {
     const newSession = await prisma.advisorChatSession.create({
       data: {
         admin_id: auth.adminId,
-        title: message.slice(0, 60) || '新しい会話',
+        title: messageForDisplay.slice(0, 60) || '新しい会話',
       },
     });
     sessionId = newSession.id;
@@ -113,10 +113,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'セッションが見つかりません' }, { status: 404 });
     }
     // タイトルが「新しい会話」のまま、最初のメッセージで自動命名
-    if (owned.title === '新しい会話' && message) {
+    if (owned.title === '新しい会話' && messageForDisplay) {
       await prisma.advisorChatSession.update({
         where: { id: sessionId },
-        data: { title: message.slice(0, 60) },
+        data: { title: messageForDisplay.slice(0, 60) },
       });
     }
   }
@@ -171,22 +171,22 @@ export async function POST(req: Request) {
         send({ type: 'status', status: 'セッション作成中...' });
       }
 
-      // クライアント送信の modelId を Anthropic 実モデル ID に解決
-      let activeModel: AdvisorModelId = ADVISOR_MODELS.sonnet;
+      // クライアント送信の modelId を Anthropic 実モデル ID に解決。
+      //
+      // クライアント (ChatInput) は AVAILABLE_MODELS の id (= 多くの場合 alias と同じ
+      // "claude-sonnet-4-6" / "claude-haiku-4-5" 等) を送ってくる。
+      // 旧クライアントは "claude-sonnet" / "claude-opus" / "claude-haiku" のような
+      // 短縮 id を送ってくる可能性があるので、それも AVAILABLE_MODELS で正引きする。
+      // どちらでもなければ「Anthropic 実 ID を直接渡してきた」とみなして素通し
+      // (orchestrator の migrateModelIfRetiring が retire 予定モデルなら後継に置換する)。
+      let activeModel: string = ADVISOR_MODELS.sonnet;
       if (body.modelId) {
-        // Advisor UI 側の id ("claude-sonnet" 等) と Anthropic 実 ID の両方を許容
-        const map: Record<string, AdvisorModelId> = {
-          'claude-opus': ADVISOR_MODELS.opus,
-          'claude-sonnet': ADVISOR_MODELS.sonnet,
-          'claude-haiku': ADVISOR_MODELS.haiku,
-          [ADVISOR_MODELS.opus]: ADVISOR_MODELS.opus,
-          [ADVISOR_MODELS.sonnet]: ADVISOR_MODELS.sonnet,
-          [ADVISOR_MODELS.haiku]: ADVISOR_MODELS.haiku,
-        };
-        const resolved = map[body.modelId];
-        if (resolved) {
-          activeModel = resolved;
-        } else if (isValidModelId(body.modelId)) {
+        const matched = AVAILABLE_MODELS.find((m) => m.id === body.modelId);
+        if (matched) {
+          activeModel = matched.modelId;
+        } else {
+          // 未知の id = Anthropic 実 ID 直指定として扱う (例: "claude-sonnet-4-6")。
+          // 万一存在しない ID を送られても Anthropic 側で 404 が返るので最終防衛は API 側に任せる。
           activeModel = body.modelId;
         }
       }
