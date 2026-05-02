@@ -372,6 +372,91 @@ DevTools Console を開いて以下を試す:
 
 ---
 
+### 2026-05-03 (3): 初回ドラフト作成も Gemini 直叩きに拡張 + UX 微調整 (Phase B 完了)
+
+#### やったこと
+
+**1. 初回 `[TOOL:report_create]` も Gemini バイパスに拡張**
+- `src/lib/advisor/llm/gemini-draft-create.ts` 新設、`createDraftWithGemini()` で
+  ユーザー自由文要望 → 要件 (title/goal/range/data_sources/metric_keys/outline/notes) +
+  0 埋め skeleton_markdown を 1 回の JSON 出力で全部生成
+- METRIC_CATALOG (available のみ) と DATA_SOURCE_OPTIONS をプロンプトに展開して
+  Gemini に metric_keys / data_sources を選ばせる
+- 「今日 = YYYY-MM-DD」を JST で渡して「先週」「今月」を解釈させる
+- orchestrator に `tryGeminiDraftCreateBypass` を追加、`[TOOL:report_create]` 検知時に
+  Anthropic ループに入らず Gemini で全工程処理 → 9.3 秒で完了 (実測値)
+
+**2. Gemini SDK の abortSignal 伝播をやめる致命バグ修正**
+- `req.signal` が Next.js streaming 応答開始タイミングで誤検知 abort を返し、
+  Gemini SDK が 1.4 秒で `This operation was aborted` を投げる事象を修正
+- `gemini.ts` の `ai.models.generateContent` config から `abortSignal` 削除
+
+**3. forcedModelLabel が新規チャット送信時に発火しない問題修正**
+- 条件から `conversationId` チェックを削除 (新規チャットでは送信瞬間 null)
+- `canvasOpen && hasDraft` だけで判定
+
+**4. UI/UX 微調整 3 件**
+- モデルバッジを通常セレクタ風 (青枠なし、文字だけ青) に統一
+- Gemini バイパス中の進捗表示が 1 回 status だけで「考え中」固まる事象を修正
+  - `setInterval(5000)` で heartbeat を継続送出、try/finally で確実にクリーンアップ
+- ドラフト作成プロンプトに「数字へのコメント/考察を一切書かない」を絶対遵守ルール追加
+  (Gemini が「LP1 の PV は 0 で大幅減」のような 0 値解釈を勝手に書く事象を防止)
+
+**5. SSE controller close 後の enqueue エラー静音化**
+- クライアント Abort や Anthropic タイムアウト後に走る遅延処理 (heartbeat / audit / done)
+  が close 済 controller に enqueue する事象 → `streamClosed` フラグで黙って捨てる
+- dev log のスタックトレース連発が解消、Phase B のベンチマーク確認が読みやすく
+
+#### Phase A → B の効果実測 (audit log より)
+
+| 操作 | Anthropic 経由 (改善前) | Gemini 直叩き (改善後) |
+|---|---|---|
+| 初回 `[TOOL:report_create]` | 90〜130 秒 (loop=1 詰まり) | **9.3 秒** |
+| `[TOOL:draft_revise]` | 同上 | 数秒 (Phase B 計測予定) |
+| 普通の質疑応答 | Anthropic 通常 (空いてれば数秒) | (バイパス対象外) |
+| データ調査 | Anthropic 通常 | (バイパス対象外) |
+
+#### 残課題 (次セッション)
+
+1. **Phase B 動作確認の継続** — 「LP5 まで足して」型のドラフト修正を 5〜10 回繰り返し、
+   `gemini_direct_edit` の elapsed_ms 中央値を確認
+2. **Phase C 評価レポート** — `npx tsx scripts/advisor-jitter-analysis.ts` で
+   Anthropic vs Gemini の比較データを集計し、改善幅を数値化
+3. **Phase D 検討 (要 Phase C 結果)** — Gemini Canvas UI 連携 (commit 288ce48) は
+   重複機能になる可能性があるため、Gemini 直叩きが安定動作を続けるなら撤去判断
+4. **forcedModelLabel の発火タイミング微調整** (低優先度) —
+   ツール ▼ →「レポート作成」を選んだ瞬間 (送信前) はまだ通常モデル表示。
+   送信トリガで切り替わるので実害は無いが、UX 的にはツール選択時から青文字にした方が
+   親切な可能性。ChatInput → chat-layout への onToolChange callback を追加する形で実装可能。
+
+#### 変更ファイル
+
+新規:
+- `src/lib/advisor/llm/gemini-draft-create.ts`
+
+編集:
+- `src/lib/advisor/orchestrator.ts` (tryGeminiDraftCreateBypass 追加 + heartbeat タイマー)
+- `src/lib/advisor/llm/gemini.ts` (abortSignal 削除)
+- `src/components/advisor/chat/chat-input.tsx` (forcedModelLabel スタイル微調整)
+- `src/components/advisor/chat/chat-layout.tsx` (forcedModelLabel から conversationId チェック削除)
+- `app/api/advisor/chat/route.ts` (SSE controller close エラー静音化)
+
+#### 学び・注意点
+
+- **`req.signal` を SDK にそのまま渡すと事故る**。Next.js のストリーミング応答開始
+  タイミングで誤検知 abort が起きうる。SDK 側の AbortController 連携は要件次第で
+  「あえて渡さない」方が安定するケースがある (Gemini Flash のように数秒で終わる
+  リクエストではメリット < リスク)。
+- **新規チャットで `conversationId` は送信時点で null**。永続化レイヤを通った後
+  setConversationId されるので、UI 上の forcedTool/forcedModelLabel など同期発火が
+  必要な条件には conversationId を含めない (永続化に依存しない hasDraft / canvasOpen
+  だけで判定する)。
+- **進捗表示は heartbeat 必須**。Gemini Flash の 5〜10 秒は Claude より速いとはいえ、
+  ユーザー体感では「無音」だと固まったと感じる。Anthropic ルートと同じ heartbeat
+  イベントを 5 秒間隔で送れば、Canvas 側の経過秒数表示がそのまま使える。
+
+---
+
 ### 2026-05-03 (2): Gemini API 直叩きで [TOOL:draft_revise] をバイパス (Phase A 完了)
 
 #### やったこと
