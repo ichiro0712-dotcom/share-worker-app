@@ -79,6 +79,25 @@ export type AdvisorStreamEvent =
 export interface LoopTrace {
   /** 0-indexed のループ番号 (loop=0 = 初回 LLM 呼び出し、loop=1 = ツール実行後の最終応答) */
   loop: number;
+  /**
+   * リクエスト時に指定したモデル ID (alias 含む)。
+   * Anthropic は alias でも snapshot ID でも受けるため、設定で指定した文字列をそのまま記録する。
+   */
+  requestedModelId: string;
+  /**
+   * Anthropic レスポンスの Message.model に入っていた実モデル ID。
+   * alias を指定した場合、Anthropic は実際に使われた snapshot ID を返してくる仕様。
+   * これを記録することで「alias がサイレントに別 snapshot に切り替わった」事故を後追いできる。
+   */
+  responseModelId: string | null;
+  /**
+   * このループでの thinking 設定。
+   * - "disabled": 明示的に { type: 'disabled' } を送った
+   * - "adaptive:<effort>": 明示的に { type: 'adaptive' } を送った (effort は 'low'|'medium'|'high'|'max'|null)
+   * - "enabled:<budget_tokens>": 明示的に { type: 'enabled', budget_tokens: N } を送った (legacy)
+   * - "unset": thinking パラメータを送らなかった (旧モデルなら無効、Sonnet 4.6 等は将来挙動変化リスクあり)
+   */
+  thinkingMode: string;
   /** リクエスト送信から最初の content delta (text or tool_use) が来るまで (ms)。stream 未到達時は null */
   ttfbMs: number | null;
   /** 最初の delta から finalMessage 完了まで (ms) */
@@ -352,6 +371,11 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
     // 通常の質問応答 (loop=0) は引き続き 4096 トークン許可。
     const loopMaxTokens = loop === 0 ? MAX_OUTPUT_TOKENS : 512;
 
+    // thinking パラメータの決定 (Phase 1 は計測のみ、現状は unset 固定)。
+    // Phase 4 のモデル切替時に Sonnet 4.6 用に { type: 'disabled' } を入れる予定。
+    // 現状 Sonnet 4 (claude-sonnet-4-20250514) は thinking パラメータを送っていないので "unset"。
+    const currentThinkingMode: string = 'unset';
+
     let stream;
     try {
       stream = client.messages.stream({
@@ -429,19 +453,32 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
     const streamMs = firstTokenAtMs !== null && streamDoneAtMs !== null ? streamDoneAtMs - firstTokenAtMs : null;
     const totalLoopMs = (streamDoneAtMs ?? Date.now()) - loopStartMs;
     const stopReason = (finalMessage as { stop_reason?: string }).stop_reason ?? null;
+    const responseModelForLog =
+      (finalMessage as unknown as { model?: string }).model ?? null;
     console.log(
       `[advisor:trace] session=${input.sessionId} loop=${loop} done ` +
         `total=${totalLoopMs}ms ttfb=${ttfbMs ?? 'n/a'}ms stream=${streamMs ?? 'n/a'}ms ` +
         `in=${usage.input_tokens} out=${usage.output_tokens} ` +
         `cacheRead=${cs.cacheReadTokens} cacheWrite=${cs.cacheWriteTokens} ` +
         `stop=${stopReason ?? '?'} ` +
-        `tools=${toolUseBlocks.length}`
+        `tools=${toolUseBlocks.length} ` +
+        `req=${activeModel} resp=${responseModelForLog ?? '?'} ` +
+        `think=${currentThinkingMode}`
     );
 
     // 後続の判定 (cache 破壊 vs API 側遅延 vs tools cache 漏れ) のため loop 単位で永続化する。
     // chat_response audit の payload.loopTraces[] にまとめて入れる (後で latency-trace 拡張で展開)。
+    //
+    // requestedModelId は SDK に渡した値、responseModelId は Anthropic が返した実 snapshot ID。
+    // alias を指定した場合、Anthropic は実 snapshot ID を返してくれるので両方記録する
+    // (alias がサイレントに別 snapshot に切り替わった事故を後追いできるようにするため)。
+    const responseModelId =
+      (finalMessage as unknown as { model?: string }).model ?? null;
     loopTraces.push({
       loop,
+      requestedModelId: activeModel,
+      responseModelId,
+      thinkingMode: currentThinkingMode,
       ttfbMs,
       streamMs,
       totalMs: totalLoopMs,

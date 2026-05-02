@@ -14,6 +14,12 @@ import { prisma } from '../lib/prisma'
 /** orchestrator.ts の LoopTrace と同じ shape (依存避けるため再定義) */
 interface LoopTraceLike {
   loop: number
+  /** リクエスト時に指定したモデル ID。古いトレースには無いため optional */
+  requestedModelId?: string
+  /** Anthropic レスポンスの実モデル ID (alias 解決後)。古いトレースには無いため optional */
+  responseModelId?: string | null
+  /** thinking パラメータ指定状態。古いトレースには無いため optional */
+  thinkingMode?: string
   ttfbMs: number | null
   streamMs: number | null
   totalMs: number
@@ -194,6 +200,14 @@ async function main() {
           `${String(t.toolUseCount).padStart(5)} | ` +
           `${judge}`
       )
+      // モデル ID と thinking モードを別行で表示 (列幅節約のため)
+      if (t.requestedModelId || t.responseModelId || t.thinkingMode) {
+        const reqM = t.requestedModelId ?? '?'
+        const resM = t.responseModelId ?? '?'
+        const think = t.thinkingMode ?? '?'
+        const aliasNote = reqM !== resM && resM !== '?' ? ` ← snapshot 解決` : ''
+        console.log(`     └─ req=${reqM} resp=${resM}${aliasNote} thinking=${think}`)
+      }
     }
   }
 
