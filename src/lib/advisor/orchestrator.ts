@@ -215,10 +215,34 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
   // モデル決定: ユーザーが UI で明示指定 > 設定 DB の primary_model_id > code 内デフォルト
   // input.modelId は UI のモデルセレクタの値。設定 DB はサービスレベルの規定値。
   // 設定 DB に文字列だけ入れる運用なので AdvisorModelId 型ではなく素の string で扱う。
-  const primaryModel: string = input.modelId ?? settings.primaryModelId ?? DEFAULT_MODEL;
+  const requestedPrimaryModel: string = input.modelId ?? settings.primaryModelId ?? DEFAULT_MODEL;
+  const requestedLoop1Model: string = settings.loop1ModelId ?? requestedPrimaryModel;
+
+  // 退役予定モデル (Sonnet 4 / Opus 4) はサーバー側で後継モデルに自動置換する。
+  // クライアントが古い localStorage 値 (claude-sonnet 等) で送信してきた場合の最終防衛。
+  // Sonnet 4 は 2026-04-14 deprecated、2026-06-15 retirement。Anthropic 側のキュー混雑で
+  // TTFB 100 秒級になる事象が報告されている。
+  // 公式推奨後継: Sonnet 4 -> Sonnet 4.6, Opus 4 -> Opus 4.7
+  const RETIRING_MODELS: Record<string, string> = {
+    'claude-sonnet-4-20250514': 'claude-sonnet-4-6',
+    'claude-opus-4-20250514': 'claude-opus-4-7',
+  };
+  function migrateModelIfRetiring(modelId: string, label: string): string {
+    const replacement = RETIRING_MODELS[modelId];
+    if (replacement) {
+      console.warn(
+        `[advisor] ${label} model "${modelId}" is retiring 2026-06-15 ` +
+          `→ auto-replaced with "${replacement}". ` +
+          `Update client localStorage / AdvisorSettings to suppress this warning.`
+      );
+      return replacement;
+    }
+    return modelId;
+  }
+  const primaryModel: string = migrateModelIfRetiring(requestedPrimaryModel, 'primary');
   // loop > 0 用 (= ツール実行後の最終応答)。設定 DB に loop1_model_id があればそれを使う、
   // 無ければ primaryModel と同じ。Haiku 4.5 を loop=1 用に降格する運用がここで効く。
-  const loop1Model: string = settings.loop1ModelId ?? primaryModel;
+  const loop1Model: string = migrateModelIfRetiring(requestedLoop1Model, 'loop1');
 
   // 1. システムプロンプト構築 (override があれば差し替え)
   const { cachedPart, dynamicPart } = await buildSystemPrompt({
