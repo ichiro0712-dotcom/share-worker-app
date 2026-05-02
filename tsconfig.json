@@ -41,6 +41,7 @@
     "prisma/*.ts",
     "scripts",
     "tests",
-    "★buckup_2025_1209"
+    "★buckup_2025_1209",
+    "_legacy_agent-hub"
   ]
 }
