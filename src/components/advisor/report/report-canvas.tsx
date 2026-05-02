@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Loader2, FileText, RefreshCw, Trash2, Sparkles, Copy, Check, AlertCircle, X, Send, Pencil, ChevronDown, History } from 'lucide-react'
+import { Loader2, FileText, RefreshCw, Trash2, Sparkles, Copy, Check, AlertCircle, X, Send, Pencil, ChevronDown, History, ExternalLink } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Button } from '@/src/components/ui/shadcn/button'
@@ -10,6 +10,7 @@ import {
   getDraftForSession,
   clearDraftForSession,
   updateDraftBulk,
+  getDraftWithCollectedData,
   type ClientDraftSummary,
 } from '@/src/lib/advisor/actions/report-drafts'
 import { METRIC_CATALOG } from '@/src/lib/advisor/tools/tastas-data/metrics-catalog'
@@ -19,9 +20,14 @@ import {
   lockEditing,
   releaseEditing,
   saveManualEdit,
+  saveGeminiCanvasVersion,
   type ClientVersionSummary,
   type ClientVersionDetail,
 } from '@/src/lib/advisor/actions/report-versions'
+import {
+  openGeminiCanvas,
+  looksLikeReportMarkdown,
+} from '@/src/lib/advisor/gemini-canvas-bridge'
 
 /**
  * レポート用データソースの選択肢 (チェックボックス UI に使う)。
@@ -110,6 +116,12 @@ export function ReportCanvas({
   const [draftSaveError, setDraftSaveError] = useState<string | null>(null)
   const pollRef = useRef<number | null>(null)
   const generateAbortRef = useRef<AbortController | null>(null)
+  // Gemini Canvas 連携: フッターのボタンで開始 → クリップボード自動検知 → 確定で保存
+  const [geminiEditingActive, setGeminiEditingActive] = useState(false)
+  const [geminiPasteValue, setGeminiPasteValue] = useState('')
+  const [geminiOpening, setGeminiOpening] = useState(false)
+  const [geminiSaving, setGeminiSaving] = useState(false)
+  const [geminiError, setGeminiError] = useState<string | null>(null)
 
   const reload = useCallback(async () => {
     if (!sessionId) {
@@ -384,6 +396,104 @@ export function ReportCanvas({
     await reload()
   }
 
+  /**
+   * Gemini Canvas 連携: 「Gemini Canvas で編集」ボタン。
+   * ドラフトと収集データをクリップボードにコピーして Gemini を別タブで開き、
+   * 貼り付け枠を表示してユーザーの戻りを待つ。
+   */
+  async function handleOpenGeminiCanvas() {
+    if (!sessionId) return
+    setGeminiOpening(true)
+    setGeminiError(null)
+    try {
+      const payload = await getDraftWithCollectedData(sessionId)
+      if (!payload) {
+        setGeminiError('ドラフトが取得できませんでした')
+        return
+      }
+      await openGeminiCanvas(payload)
+      // ボタン押下と同時に貼り付け枠を表示してユーザー導線を確立する。
+      // 即時 reset (前回の値を引きずらないように)
+      setGeminiPasteValue('')
+      setGeminiEditingActive(true)
+    } catch (e) {
+      setGeminiError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setGeminiOpening(false)
+    }
+  }
+
+  /**
+   * Gemini Canvas 連携: 「確定して保存」ボタン。
+   * textarea に貼り付けられた markdown を新バージョンとして保存する。
+   * 50 文字以上、200,000 文字以下のチェックはサーバー側でも行う。
+   */
+  async function handleConfirmGeminiPaste() {
+    if (!sessionId) return
+    const text = geminiPasteValue.trim()
+    if (text.length < 50) {
+      setGeminiError('本文が短すぎます (50 文字以上必要)')
+      return
+    }
+    setGeminiSaving(true)
+    setGeminiError(null)
+    try {
+      // 元バージョンがあればそれを parent として保存する (履歴の繋がりを残すため)
+      const result = await saveGeminiCanvasVersion({
+        sessionId,
+        markdown: text,
+        parentVersionId: activeVersionId,
+      })
+      if (!result.ok) {
+        setGeminiError(result.reason)
+        return
+      }
+      setGeminiEditingActive(false)
+      setGeminiPasteValue('')
+      // 新バージョンに切り替えて表示
+      setActiveVersionId(result.version.id)
+      await reload()
+    } catch (e) {
+      setGeminiError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setGeminiSaving(false)
+    }
+  }
+
+  /**
+   * Gemini Canvas 連携: ユーザーが Gemini タブから戻ってきた瞬間にクリップボードを覗く。
+   * markdown らしい内容なら確認ダイアログを出して取り込む。
+   * クリップボード読み取りは HTTPS or localhost でしか動かないが、本プロジェクトはどちらもカバー。
+   * 権限ダイアログが拒否された場合は黙って諦める (ユーザーは手動で textarea にペースト可能)。
+   */
+  useEffect(() => {
+    if (!geminiEditingActive) return
+    let cancelled = false
+    async function handleFocus() {
+      // 既に貼り付け済みなら何もしない (上書き事故を避ける)
+      if (geminiPasteValue.length > 0) return
+      try {
+        const clipText = await navigator.clipboard.readText()
+        if (cancelled) return
+        if (looksLikeReportMarkdown(clipText)) {
+          const ok = window.confirm(
+            'Gemini Canvas から戻ってきたようです。クリップボードの内容を取り込みますか?',
+          )
+          if (ok && !cancelled) {
+            setGeminiPasteValue(clipText)
+          }
+        }
+      } catch {
+        // 権限拒否やブラウザ非対応: 黙って諦める (textarea で手動ペーストできる)
+      }
+    }
+    window.addEventListener('focus', handleFocus)
+    return () => {
+      cancelled = true
+      window.removeEventListener('focus', handleFocus)
+    }
+  }, [geminiEditingActive, geminiPasteValue])
+
   async function handleNotifyGoogleChat() {
     if (!sessionId) return
     setNotifying(true)
@@ -483,10 +593,13 @@ export function ReportCanvas({
 
   // ドラフト編集中 / 生成中 / アイドルを動的に判定して Canvas 上部のアニメーション帯に渡す。
   // - 生成中 (draft.status === 'generating' or generating state) は最優先
+  // - Gemini Canvas で編集中 (geminiEditingActive) はそれを次に優先 (ユーザー導線として明確化)
   // - チャット側の chatPhase で「ドラフト作成中」「ドラフト更新中」をハイライト
-  const liveStatus: 'generating' | 'drafting' | 'updating' | 'idle' =
+  const liveStatus: 'generating' | 'drafting' | 'updating' | 'gemini_editing' | 'idle' =
     draft.status === 'generating' || generating
       ? 'generating'
+      : geminiEditingActive
+      ? 'gemini_editing'
       : chatPhase === 'drafting'
       ? 'drafting'
       : chatPhase === 'updating'
@@ -541,6 +654,8 @@ export function ReportCanvas({
               ? 'generating'
               : liveStatus === 'updating'
               ? 'updating'
+              : liveStatus === 'gemini_editing'
+              ? 'gemini_editing'
               : 'drafting'
           }
         />
@@ -626,6 +741,66 @@ export function ReportCanvas({
       <ScrollArea className="flex-1">
         {view === 'draft' || !hasResult ? (
           <div className="p-4 space-y-4 text-sm">
+            {/* Gemini Canvas からの貼り付け枠 (geminiEditingActive のみ表示)。
+                Anthropic ノードアフィニティ問題を構造的に回避するための代替経路で、
+                ユーザーが Gemini Canvas で編集 → コピー → ここに戻ってきて貼り付け → 確定で
+                AdvisorReportVersion (source='gemini_canvas') として保存される。
+                クリップボード自動検知 useEffect が focus 復帰時に確認ダイアログを出す。 */}
+            {geminiEditingActive && (
+              <div className="border border-blue-200 bg-blue-50/60 rounded-md p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1.5 text-sm font-medium text-blue-900">
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Gemini Canvas からの貼り付け
+                  </div>
+                  <button
+                    onClick={() => {
+                      setGeminiEditingActive(false)
+                      setGeminiPasteValue('')
+                      setGeminiError(null)
+                    }}
+                    className="text-slate-500 hover:text-slate-800 p-0.5"
+                    title="キャンセル"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <p className="text-xs text-slate-600 mb-2">
+                  Gemini Canvas で編集が終わったら、内容をコピーしてここに貼り付けてください。
+                  (タブ切替で戻ってきた時に自動で取り込みダイアログが出ます)
+                </p>
+                <textarea
+                  value={geminiPasteValue}
+                  onChange={(e) => setGeminiPasteValue(e.target.value)}
+                  placeholder="Gemini Canvas からコピーした markdown をここに貼り付け..."
+                  className="w-full min-h-[200px] p-2 text-xs font-mono border border-slate-300 rounded bg-white"
+                />
+                <div className="flex items-center justify-between mt-2">
+                  <div className="text-[11px] text-slate-500">
+                    {geminiPasteValue.length.toLocaleString()} 文字
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={handleConfirmGeminiPaste}
+                    disabled={geminiSaving || geminiPasteValue.trim().length < 50}
+                    className="h-7 text-xs gap-1.5 bg-blue-600 hover:bg-blue-700 text-white disabled:bg-slate-300"
+                  >
+                    {geminiSaving ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Check className="h-3.5 w-3.5" />
+                    )}
+                    {geminiSaving ? '保存中...' : '確定して保存'}
+                  </Button>
+                </div>
+                {geminiError && (
+                  <div className="mt-2 text-xs text-red-700 flex items-start gap-1">
+                    <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                    {geminiError}
+                  </div>
+                )}
+              </div>
+            )}
             {/* レポート本体ドラフト (Claude が書き換える skeleton_markdown を表示)。
                 値が無ければ固定の 0 埋め雛形を表示する。 */}
             {!hasResult && (
@@ -1020,6 +1195,22 @@ export function ReportCanvas({
               <Sparkles className="h-3.5 w-3.5" />
               レポート作成 (本文生成)
             </Button>
+            {/* Gemini Canvas 連携: Anthropic ノードアフィニティ問題を回避するための代替経路 */}
+            <Button
+              size="sm"
+              onClick={handleOpenGeminiCanvas}
+              disabled={!canGenerate || geminiOpening || geminiEditingActive}
+              variant="outline"
+              className="h-8 w-full text-xs gap-1.5 border-blue-200 text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+              title="ドラフトと収集データをクリップボードにコピーして Gemini Canvas を別タブで開きます"
+            >
+              {geminiOpening ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <ExternalLink className="h-3.5 w-3.5" />
+              )}
+              {geminiOpening ? '準備中...' : 'Gemini Canvas で編集'}
+            </Button>
           </div>
         )}
       </div>
@@ -1062,7 +1253,7 @@ function CanvasStatusBar({
   phase,
   fallback,
 }: {
-  phase: 'idle' | 'drafting' | 'updating' | 'generating'
+  phase: 'idle' | 'drafting' | 'updating' | 'generating' | 'gemini_editing'
   /** phase=idle / 親が phase を渡してこなかった時の表示テキスト */
   fallback?: string
 }) {
@@ -1073,6 +1264,8 @@ function CanvasStatusBar({
       ? 'ドラフトを更新しています'
       : phase === 'drafting'
       ? 'ドラフトを作成しています'
+      : phase === 'gemini_editing'
+      ? 'Gemini Canvas で編集中... 完了したらコピーして戻ってきてください'
       : fallback ?? 'ドラフトを作成しています'
   return (
     <div className="relative px-4 py-2.5 border-b shrink-0 overflow-hidden bg-blue-50/60">

@@ -222,6 +222,61 @@ loop=1 ttfb=117175ms (約 2 分) — update_report_draft 実行後
 
 7. **ステージング動作確認** → 本番展開判断
 
+### 🟢 将来課題: Advisor TTFB 問題 — サーバー組立短絡 (案 A) の検討
+
+**現状**: 保留中。Gemini Canvas 連携で重い処理を外出しする方針に転換 (2026-05-03)。
+
+**背景**: System Advisor の Canvas でレポートドラフトを作成・修正する際、
+loop=1 (ツール実行後の最終応答) で TTFB 90〜130 秒が頻発する問題があった。
+
+**確定した真因 (2026-05-03 のジッター分析より、`scripts/advisor-jitter-analysis.ts`)**:
+- 遅い 7 件すべてが loop=1
+- cacheRead 中央値 60,898 tokens (キャッシュは効いている)
+- cacheCreate 中央値 493 tokens (完全な再書き込みではない)
+- 速かった 2 件 (TTFB 1〜2 秒) は同一セッション内の連続リクエストのみ
+- → Anthropic 側のロードバランサーがキャッシュ KV を持つノードと
+   別ノードにルーティングし、リハイドレーション (中央ストアから VRAM への
+   物理転送) で 90〜130 秒待たされている
+- → こちら側では制御不能
+
+**検証で否定された仮説**:
+- 仮説 B (TTL 5 分切れ): cacheCreate 中央値 493 tokens、完全再計算なら 50K+
+- 仮説 C (ランダム揺らぎ): 7 件全て loop=1 に集中、ランダムなら散らばる
+- Sonnet 4 → Sonnet 4.6 切替: 効果なし
+- thinking: { type: 'disabled' } 明示: 効果なし
+- prompt cache 化、dynamic prompt 化、max_tokens 制限: 効果なし
+
+**短絡対策案 (案 A) の概要**:
+update_report_draft ツールの実行後、loop=1 を呼ばずにサーバー側で
+fields_updated 配列から動的メッセージを組み立てて短絡する。
+以前ユーザーが「機械的」と却下した固定文短絡を、fields ベースの
+動的メッセージで再設計したもの。
+
+**短絡対策案 (案 A) のメリット**:
+- ドラフト作成・修正の TTFB が 100 秒 → 2 秒に劇的改善
+- 1〜2 日で実装可能
+- 「機械的」問題を fields ベース動的メッセージで回避
+
+**短絡対策案 (案 A) のデメリット (保留理由)**:
+- 短絡対象が update_report_draft のみで、データ調査系チャット
+  (query_metric 等) の loop=1 では依然として 100 秒の地雷が残る
+- 部分対策に終わる
+- 全ツールの loop=1 を短絡すると LLM の自然な応答が失われる
+
+**再検討トリガー**:
+- データ調査系チャットで loop=1 100 秒問題が深刻化した時
+- Gemini Canvas 連携で吸収しきれない頻繁な遅延が発生した時
+- Service Tier Priority 契約を検討する前段の選択肢として
+
+**関連設計メモ**:
+案 A 実装時のメッセージ生成方式 (fields ベース動的):
+- 初回ドラフト → 「Canvas にレポートドラフトを作成しました...」
+- skeleton_markdown 更新 → 「ドラフト本体を更新しました」
+- 複数フィールド更新 → 「タイトル、アウトラインを更新しました」
+- FIELD_LABELS マッピング: title→タイトル, goal→目的, range_start→期間 (開始), etc.
+
+実装着手時は、過去の検討内容を踏まえて再設計する。
+
 ### 🟢 Phase 2 候補 (今後のアイデア)
 
 - 監査ログ閲覧 UI (`/system-admin/advisor/audit`)
@@ -314,6 +369,109 @@ DevTools Console を開いて以下を試す:
 - 新セッションで作業したら、**この節の一番上** に新節を追加 (古いものは下に流す)
 - 形式: `### YYYY-MM-DD: タイトル` + 「やったこと」「変更ファイル」「学び・注意点」
 - ログがあまりに長くなったら、3 ヶ月以上古いものは `HANDOFF_archive.md` に切り出す
+
+---
+
+### 2026-05-03: TTFB 真因確定 (Anthropic ノードアフィニティ) + Gemini Canvas 連携導入
+
+#### やったこと
+
+**1. Phase 1 計測整備 (loopTraces[] 永続化) を投入**
+- `orchestrator.ts` に `LoopTrace` interface 追加。loop ごとに ttfb / stream / input/output tokens /
+  cache_read / cache_creation / stop_reason / requestedModelId / responseModelId / thinkingMode を記録
+- chat_response audit の payload.loopTraces[] にまとめて永続化
+- `scripts/advisor-latency-trace.ts` を拡張、loop 単位で展開表示 + 自動分類
+
+**2. AdvisorSettings に primary_model_id / loop1_model_id カラム追加**
+- 設定ページ (`/system-admin/advisor/settings`) からモデルを動的切替可能に
+- ChatInput のモデルセレクタに Sonnet 4.6 / Sonnet 4.5 を追加、Sonnet 4 は legacy 表示
+- DEFAULT_MODEL_ID を `claude-sonnet-4-6` に変更
+
+**3. 致命的バグ 4 件を修正**
+- `app/api/advisor/chat/route.ts` の modelId 解決マップが `claude-sonnet-4-6` を握りつぶして
+  Sonnet 4 に強制フォールバックしていた事象を修正 → AVAILABLE_MODELS から正引き
+- `orchestrator.ts` の `max_tokens=512` (loop>0) が update_report_draft の JSON を切断して
+  リトライ無限ループを発生させていた事象を 4096 に引き上げ
+- `update-report-draft.ts` 空入力エラー時のリトライループを no-op (ok:true) で切断
+- ChatInput の localStorage migration ('claude-sonnet' → 'claude-sonnet-4-6')
+
+**4. Sonnet 4.6 用に thinking: { type: 'disabled' } を明示**
+- Adaptive Thinking 対応モデル (Sonnet 4.6 / Opus 4.6 / 4.7) で
+  default 挙動が公式 docs で断定されていないため、disabled 明示で TTFB を最小化
+
+**5. システムプロンプトを強化** (Sonnet 4.6 のツール暴走対策)
+- レポート作成モードで「絶対禁止事項」セクション新設
+- query_metric / query_ga4 等のデータ収集ツールを呼ぶこと、レポート本文をチャット欄に書くこと、
+  ループを 2 周以上回すことを明示的に禁止
+
+**6. ジッター分析で TTFB 真因を確定**
+- `scripts/advisor-jitter-analysis.ts` 新設、35 loop entries / 9 chat_response を横断分析
+- **遅い 7 件すべてが loop=1**、cacheRead 中央値 60,898 (ヒット済)、cacheCreate 中央値 493
+  (完全再書き込みではない)、output 中央値 106 tokens (短文)
+- 速かった 2 件 (TTFB 1〜2 秒) は同一セッション内の連続リクエストのみ
+- → **真因: Anthropic ロードバランサーが loop=1 で別ノードにルーティング → KV キャッシュの
+  リハイドレーション (中央ストアから VRAM への物理転送) で 90〜130 秒待機**
+- こちら側で制御不能と確定
+
+**7. Gemini Canvas 連携を実装** (構造的回避策)
+- 重いレポート編集処理を、ブラウザの Gemini Canvas (gemini.google.com) に外出し
+- `src/lib/advisor/gemini-canvas-bridge.ts` 新設 (buildPrompt / openGeminiCanvas /
+  looksLikeReportMarkdown)
+- Server Actions: `getDraftWithCollectedData` (`actions/report-drafts.ts`) と
+  `saveGeminiCanvasVersion` (`actions/report-versions.ts`) を追加
+- `AdvisorReportVersion.source` に新値 `gemini_canvas` を追加 (DB スキーマ変更不要、
+  VarChar(20) なので文字列追加のみ)
+- Canvas UI フッターに「Gemini Canvas で編集」ボタン追加
+- 貼り付け枠 (textarea + 確定ボタン)、focus 時のクリップボード自動検知ダイアログ
+- CanvasStatusBar に `gemini_editing` フェーズ追加
+- 既存の Anthropic 経由 update_report_draft はハイブリッド運用で残す
+
+**8. 短絡対策 (案 A) を将来課題として TODO 化**
+- HANDOFF.md「Open Tasks」セクションに「将来課題: Advisor TTFB 問題 — サーバー組立短絡 (案 A)」
+  として記録。検証で否定された仮説、案 A のメリット/デメリット、再検討トリガーを完全文書化
+
+#### 変更ファイル (主要)
+
+新規:
+- `scripts/advisor-jitter-analysis.ts`
+- `src/lib/advisor/gemini-canvas-bridge.ts`
+
+編集:
+- `prisma/schema.prisma` (AdvisorSettings に primary_model_id / loop1_model_id 追加)
+- `app/api/advisor/chat/route.ts` (modelId 解決を AVAILABLE_MODELS ベースに刷新)
+- `src/lib/advisor/orchestrator.ts` (LoopTrace 計測 + モデル動的切替 + max_tokens 修正 +
+  thinking: disabled)
+- `src/lib/advisor/persistence/settings.ts` + `actions/settings.ts` (model ID 永続化)
+- `src/lib/advisor/persistence/report-versions.ts` (gemini_canvas を ReportVersionSource に追加)
+- `src/lib/advisor/actions/report-drafts.ts` (getDraftWithCollectedData 追加)
+- `src/lib/advisor/actions/report-versions.ts` (saveGeminiCanvasVersion 追加 +
+  inline source union を ReportVersionSource に揃える)
+- `src/lib/advisor/system-prompt.ts` (絶対禁止事項セクション)
+- `src/lib/advisor/tools/reports/update-report-draft.ts` (空 input 時 no-op)
+- `src/lib/advisor/models.ts` (Sonnet 4.6 追加、DEFAULT_MODEL_ID 変更)
+- `src/components/advisor/chat/chat-input.tsx` (localStorage migration)
+- `src/components/advisor/report/report-canvas.tsx` (Gemini Canvas UI 一式)
+- `src/components/advisor/settings/settings-client.tsx` (モデル選択 UI)
+- `scripts/advisor-latency-trace.ts` (loopTraces 展開表示)
+- `docs/system-advisor/HANDOFF.md` (このファイル)
+
+#### 学び・注意点
+
+- **「同じコード・同じプロンプト・同じモデルで TTFB が 100 倍違う」が起きたら、
+  まず計測データを蓄積してから対策を打つ**。今回 Phase 1 計測整備を入れずに
+  Sonnet 4.6 切替・thinking disabled・max_tokens 512 などの対策を試したが、
+  すべて空振り (= 真因はそもそもこちら側の問題ではなかった)
+- **Anthropic loop=1 TTFB はノードアフィニティ問題**。リサーチで「キャッシュヒットしてるのに
+  別ノードに割り当てられて KV キャッシュをリハイドレーションしている」という Anthropic 内部の
+  挙動が明らかになった (TPU/GPU クラスタの物理 I/O 待ち)
+- **クライアント migration はハードリロードしないと適用されない**。サーバー側にも
+  最終防衛を置きたいときは、UI で意図したモデルが本当に届くかを loopTraces で必ず確認する
+- **API route のハードコードマップ**は新モデル追加時の事故源。今回 `claude-sonnet-4-6` を
+  追加した時に握りつぶされていた。AVAILABLE_MODELS から正引きする方式に統一
+- **max_tokens=512 は速度最適化のつもりが update_report_draft を物理的に破壊**していた。
+  ツール JSON が大きくなる場面では絶対に出力上限を絞らない
+- **構造的回避策 (Gemini Canvas 外出し) はベンダーロックインを緩和**する副次効果あり。
+  ハイブリッド運用 (Anthropic + Gemini) で片方の障害が全停止につながらない設計に
 
 ---
 
