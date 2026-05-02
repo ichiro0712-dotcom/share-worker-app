@@ -406,10 +406,21 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
     let streamDoneAtMs: number | null = null;
     console.log(`[advisor:trace] session=${input.sessionId} loop=${loop} start (msgs=${messages.length})`);
 
-    // ツール実行後の最終応答 (loop > 0) は短い差分説明だけで十分なので、
-    // max_tokens を絞って Anthropic 側の計算量と TTFB を抑える。
-    // 通常の質問応答 (loop=0) は引き続き 4096 トークン許可。
-    const loopMaxTokens = loop === 0 ? MAX_OUTPUT_TOKENS : 512;
+    // max_tokens の決定。
+    //
+    // 過去に「loop>0 は短い差分説明だけだから 512 で足りる」と判断していたが、
+    // これは致命的なバグだった (2026-05-02 観測):
+    // - update_report_draft の skeleton_markdown を含む JSON は 512 tokens に収まらない
+    // - max_tokens で切られると Anthropic はツール JSON を途中で打ち切る
+    // - サーバー側で「input が壊れている → 更新フィールドが 1 つも指定されていません」エラー
+    // - Claude がリトライ → また 512 で切れる → 14 連続失敗、ループ上限到達
+    // - 結果: 3 分かかってチャット欄に「すみません、ツール呼び出しに問題が発生しています」
+    //
+    // 対策: loop>0 でも 4096 まで許可する (= MAX_OUTPUT_TOKENS と同じ)。
+    // 「短い差分説明」を期待する制約はシステムプロンプトの指示で達成する
+    // (system-prompt.ts に「1〜2 行 (50〜120 字) の超短文」と既に明記済み)。
+    // モデル側が自主的に短く返してくれることを期待し、上限はあくまで上限とする。
+    const loopMaxTokens = MAX_OUTPUT_TOKENS;
 
     // このループで使うモデル。loop=0 は primary、loop>0 は loop1 (= primary か Haiku 等)。
     // 設定 DB の loop1_model_id が null なら primary と同じになる (= 全ループ同一モデル)。

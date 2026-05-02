@@ -10,13 +10,18 @@ export interface ToolContext {
   adminId: number;
   sessionId: string;
   abortSignal?: AbortSignal;
+  /**
+   * 今回のチャットでユーザーが送信した本文 (TOOL: hint プレフィックスは除去済み)。
+   * update_report_draft が新規ドラフト作成時に "元の要望" として保存するために参照する。
+   */
+  userMessage?: string;
 }
 
 export type ToolResult<T = unknown> =
   | {
       ok: true;
       data: T;
-      metadata?: { tookMs: number; truncated?: boolean; rowCount?: number };
+      metadata?: { tookMs: number; truncated?: boolean; rowCount?: number; warning?: string };
     }
   | {
       ok: false;
