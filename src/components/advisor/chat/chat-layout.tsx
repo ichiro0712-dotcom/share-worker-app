@@ -16,6 +16,7 @@ import { approveAction } from '@/src/lib/advisor/actions/pending-actions'
 import { DEFAULT_MODEL_ID } from '@/src/lib/advisor/models'
 import { ReportCanvas } from '@/src/components/advisor/report/report-canvas'
 import { getDraftForSession } from '@/src/lib/advisor/actions/report-drafts'
+import { stripToolHintPrefix } from '@/src/lib/advisor/message-display'
 
 // Advisor は単一エージェントなので、すべて "システムアドバイザー" 表示にする
 const AGENT_LABEL = 'システムアドバイザー'
@@ -55,7 +56,13 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
   useEffect(() => {
     const saved = localStorage.getItem('agent-hub-selected-projects')
     if (saved) try { setSelectedProjectIds(JSON.parse(saved)) } catch { /* ignore */ }
+    const savedWidth = localStorage.getItem('advisor-canvas-width')
+    if (savedWidth) {
+      const n = Number(savedWidth)
+      if (Number.isFinite(n) && n >= 360 && n <= 1600) setCanvasWidth(n)
+    }
   }, [])
+
   const [mode, setMode] = useState<'chat' | 'briefing'>('chat')
   // Advisor では TASTAS の System Admin を直接 props 経由で受け取る
   const sessionUser = adminName
@@ -85,6 +92,54 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
   const [canvasOpen, setCanvasOpen] = useState(false)
   /** ドラフトが存在するか (トグルボタンの可視判定 + 自動オープン用) */
   const [hasDraft, setHasDraft] = useState(false)
+  /**
+   * Canvas 幅 (px)。チャット欄より大きい初期値 + 境界ドラッグでリサイズ可能。
+   * localStorage に保存して再訪時に復元する。
+   */
+  const [canvasWidth, setCanvasWidth] = useState(720)
+  const [resizingCanvas, setResizingCanvas] = useState(false)
+  /**
+   * Canvas に「いま何が動いているか」を伝えるためのフェーズ。
+   * - 'drafting': レポート作成ツールで送信した直後 (Claude が初回ドラフトを書いている)
+   * - 'updating': 既存ドラフトに対する追加修正
+   * - 'idle': 何も走っていない
+   */
+  const [reportChatPhase, setReportChatPhase] = useState<'idle' | 'drafting' | 'updating'>('idle')
+  /**
+   * チャット送信のたびに +1 されるカウンター。
+   * ReportCanvas 側でこれが変化したら、Canvas のローカル未保存編集 (draftEdit) を破棄して
+   * Claude による DB 更新がそのまま画面に反映されるようにする。
+   * 「書き換えが始まったらユーザーの未保存編集は無視」という決まり。
+   */
+  const [discardCanvasEditTrigger, setDiscardCanvasEditTrigger] = useState(0)
+
+  /**
+   * Canvas 境界ドラッグでリサイズ。
+   * mousedown で resizingCanvas=true → mousemove で幅を更新 → mouseup で確定 + localStorage 保存。
+   */
+  useEffect(() => {
+    if (!resizingCanvas) return
+    function onMove(e: MouseEvent) {
+      // 右ペインの幅 = ウィンドウ幅 - マウス X 座標
+      const next = Math.min(Math.max(window.innerWidth - e.clientX, 360), Math.max(window.innerWidth - 320, 480))
+      setCanvasWidth(next)
+    }
+    function onUp() {
+      setResizingCanvas(false)
+      try { localStorage.setItem('advisor-canvas-width', String(Math.round(canvasWidth))) } catch { /* ignore */ }
+    }
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => {
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [resizingCanvas, canvasWidth])
+
   const abortRef = useRef<AbortController | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -181,7 +236,8 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
       id: m.id,
       role: m.role as Message['role'],
       agent_id: m.agent_id ?? undefined,
-      content: m.content,
+      // 過去データに [TOOL:xxx] が残っているケースの救済 (現在は orchestrator で剥がしてから保存)
+      content: m.role === 'user' ? stripToolHintPrefix(m.content) : m.content,
       created_at: m.created_at,
     })))
     setLoading(false)
@@ -305,6 +361,23 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
 
   async function handleChatSubmit(text: string, submitModelId: string, attachedFiles: AttachedFile[], toolId?: string) {
     if ((!text && attachedFiles.length === 0) || loading) return
+
+    // レポート作成ツールが指定されたら、送信タイミングで Canvas を開く
+    // (ドラフトはまだ無い → プレビュー (0 埋め表) が表示される)
+    if (toolId === 'report_create') {
+      setHasDraft(true)
+      setCanvasOpen(true)
+      setReportChatPhase('drafting')
+    } else if (canvasOpen && hasDraft) {
+      // すでに Canvas が開いている = ドラフトに対する追加修正 (Claude が update_report_draft を呼ぶ可能性)
+      setReportChatPhase('updating')
+    }
+
+    // Canvas のローカル未保存編集をこの瞬間に破棄するシグナル。
+    // チャット指示で DB が書き換わるのが優先される。
+    if (canvasOpen && hasDraft) {
+      setDiscardCanvasEditTrigger((n) => n + 1)
+    }
 
     // 添付ファイルをbase64に変換
     const fileDataList: { name: string; mimeType: string; base64: string }[] = []
@@ -493,6 +566,7 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
       setLoading(false)
       setProgress(null)
       setCurrentStatus(null)
+      setReportChatPhase('idle')
     }
   }
 
@@ -697,7 +771,7 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
                   onClick={() => handleSelectConversation(conv.id)}
                 >
                   <MessageSquare className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate flex-1 text-xs">{conv.title ?? '新しい会話'}</span>
+                  <span className="truncate flex-1 text-xs">{stripToolHintPrefix(conv.title) || '新しい会話'}</span>
                   <span className="text-[9px] text-slate-400 shrink-0 group-hover:hidden">
                     {formatTime(conv.updated_at)}
                   </span>
@@ -749,7 +823,7 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
             <span className="text-xs text-slate-400 shrink-0">/</span>
             <span className="text-xs text-slate-600 truncate">
               {conversationId
-                ? conversations.find(c => c.id === conversationId)?.title ?? '会話'
+                ? stripToolHintPrefix(conversations.find(c => c.id === conversationId)?.title) || '会話'
                 : '新しい会話'}
             </span>
           </div>
@@ -950,27 +1024,54 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
           )}
         </div>
 
-        {/* 入力エリア */}
+        {/* 入力エリア
+            key に conversationId を含めることで、新規チャット (null) や別の会話に切り替えた時に
+            ChatInput を強制再マウントし、ツール選択 / 添付ファイル / 入力中テキストをデフォルトにリセットする。
+            forcedTool: レポート Canvas が開いている時は draft_revise を自動オンにし、
+            ユーザーの送信メッセージを「ドラフトへの修正指示」として扱わせる。
+            ただし conversationId が null (= 新規チャット) の間は、前のセッションの hasDraft が
+            非同期 useEffect でクリアされる前に ChatInput が再マウントしてしまうレースを避けるため、
+            forcedTool を必ず null に固定する。新規セッションで draft_revise が誤選択される事故防止。 */}
         <ChatInput
+          key={conversationId ?? 'new'}
           onSubmit={handleChatSubmit}
           loading={loading}
           onAbort={handleAbort}
           placeholder="質問を入力 (Enter で送信、Shift+Enter で改行)"
           showModelSelector
+          forcedTool={conversationId && canvasOpen && hasDraft ? 'draft_revise' : null}
         />
       </div>
 
-      {/* レポート Canvas (右ペイン) */}
+      {/* レポート Canvas (右ペイン) — 境界ドラッグでリサイズ可能 */}
       {canvasOpen && hasDraft && (
-        <div className="hidden lg:flex w-[420px] border-l border-slate-200 shrink-0 flex-col">
-          <ReportCanvas
-            sessionId={conversationId}
-            onClose={() => {
-              setCanvasOpen(false)
-              setHasDraft(false)
-            }}
+        <>
+          {/* リサイザ (チャット領域と Canvas の境界) */}
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            onMouseDown={(e) => { e.preventDefault(); setResizingCanvas(true) }}
+            className={cn(
+              'hidden lg:block w-1 shrink-0 cursor-col-resize bg-slate-200 hover:bg-slate-400 transition-colors',
+              resizingCanvas && 'bg-slate-500'
+            )}
+            title="ドラッグして幅を調整"
           />
-        </div>
+          <div
+            className="hidden lg:flex border-l border-slate-200 shrink-0 flex-col"
+            style={{ width: `${canvasWidth}px` }}
+          >
+            <ReportCanvas
+              sessionId={conversationId}
+              chatPhase={reportChatPhase}
+              discardEditTrigger={discardCanvasEditTrigger}
+              onClose={() => {
+                setCanvasOpen(false)
+                setHasDraft(false)
+              }}
+            />
+          </div>
+        </>
       )}
     </div>
   )
