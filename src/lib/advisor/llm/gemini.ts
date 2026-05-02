@@ -48,11 +48,16 @@ export async function generateWithGemini(
   const { GoogleGenAI } = await import('@google/genai')
   const ai = new GoogleGenAI({ apiKey })
 
+  // 注: input.abortSignal は意図的に渡さない。
+  // route.ts は req.signal を orchestrator に伝播するが、Next.js のストリーミング応答開始前後で
+  // req.signal が誤検知的に aborted=true を返すケースがあり、Gemini Flash の数秒の通信を
+  // 開始 1〜2 秒で "This operation was aborted" として落としてしまう事象が観測された。
+  // Gemini Flash は通常 3〜10 秒で完了するため、ここでの abort 連携は実用上不要。
+  // ユーザーが本当に中断したい場合は Anthropic 側 (長時間ループ) のみ反応すれば足りる。
   const response = await ai.models.generateContent({
     model,
     config: {
       systemInstruction: input.systemPrompt,
-      abortSignal: input.abortSignal,
       // JSON モード: Gemini にレスポンスを application/json として返させる。
       // ドラフト編集など構造化出力が必要なケースで使う。
       ...(input.jsonMode ? { responseMimeType: 'application/json' } : {}),
