@@ -17,6 +17,7 @@ import { describeAllToolsForLLM, executeToolByName } from './tools/registry';
 import { getRecentMessagesForOrchestrator, appendMessage } from './persistence/messages';
 import { getDraftBySession, upsertDraft } from './persistence/report-drafts';
 import { editDraftWithGemini } from './llm/gemini-edit';
+import { createDraftWithGemini } from './llm/gemini-draft-create';
 import { incrementSessionUsage } from './persistence/sessions';
 import { incrementUsage } from './cost-guard';
 import { recordAudit } from './persistence/audit';
@@ -329,24 +330,28 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
     clientUa: input.clientUa,
   });
 
-  // 3.5. [TOOL:draft_revise] バイパス
+  // 3.5. レポート系メッセージの Gemini バイパス
   //
   // Anthropic ノードアフィニティ問題で loop=1 が 100 秒級になる事象を構造的に回避する。
-  // `[TOOL:draft_revise]` プレフィックスが付いたメッセージはドラフト修正指示なので、
-  // Anthropic ループに入らずに Gemini Flash で skeleton_markdown を直接書き換える。
+  // - `[TOOL:report_create]` (初回ドラフト作成): Gemini で要件確定 + skeleton 生成
+  // - `[TOOL:draft_revise]` (ドラフト修正指示): Gemini で skeleton_markdown 書き換え
   //
-  // 失敗時 (Gemini API エラー / JSON パース失敗 / ドラフト不在) は、
-  // 下の Anthropic ループに fall through する (堅牢性優先)。
-  if (input.userMessage.trimStart().startsWith('[TOOL:draft_revise]')) {
+  // 失敗時は下の Anthropic ループに fall through する (堅牢性優先)。
+  const trimmed = input.userMessage.trimStart();
+  if (trimmed.startsWith('[TOOL:report_create]')) {
+    const bypassResult = await tryGeminiDraftCreateBypass({
+      input,
+      userRequest: displayUserMessage,
+    });
+    if (bypassResult.handled) return;
+    // 失敗 = Anthropic ルートにフォールバック
+  } else if (trimmed.startsWith('[TOOL:draft_revise]')) {
     const bypassResult = await tryGeminiDraftReviseBypass({
       input,
       instruction: displayUserMessage,
     });
-    if (bypassResult.handled) {
-      // 成功 = レスポンスは bypassResult 内で送出済み、ここで終了
-      return;
-    }
-    // 失敗 = Anthropic ループに fall through (bypassResult 内でログ出力済み)
+    if (bypassResult.handled) return;
+    // 失敗 = Anthropic ルートにフォールバック
   }
 
   // 4. Tool Use ループ
@@ -824,6 +829,138 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
  *   - JSON パース失敗 / 構造化出力崩れ
  *   - DB upsert 失敗
  */
+/**
+ * [TOOL:report_create] を Gemini API 直叩きでバイパス処理する。
+ *
+ * 初回ドラフト作成: ユーザーの自由文要望を Gemini Flash に渡して、
+ * 要件 (title / goal / range / data_sources / metric_keys / outline / notes) と
+ * 0 埋め skeleton_markdown を 1 回の JSON 出力で全部生成する。
+ *
+ * 成功時: SSE で text/usage/done を送出して { handled: true } を返す。
+ * 失敗時: ログ出力 + audit に gemini_failed を記録して { handled: false } を返す
+ *         (呼び出し側で Anthropic ルートに fall through)。
+ */
+async function tryGeminiDraftCreateBypass(args: {
+  input: OrchestratorRunInput
+  /** [TOOL:report_create] プレフィックスを剥がしたユーザー要望 */
+  userRequest: string
+}): Promise<{ handled: boolean }> {
+  const { input, userRequest } = args
+  const startMs = Date.now()
+  let elapsedMs = 0
+  let inputTokens = 0
+  let outputTokens = 0
+  let geminiModel = 'unknown'
+
+  try {
+    input.onEvent({ type: 'status', status: 'ドラフトを作成中... (Gemini)' })
+
+    const result = await createDraftWithGemini({
+      userRequest,
+      nowJst: new Date(),
+      abortSignal: input.abortSignal,
+    })
+    elapsedMs = result.metrics.elapsedMs
+    inputTokens = result.metrics.inputTokens
+    outputTokens = result.metrics.outputTokens
+    geminiModel = result.metrics.model
+
+    // Draft を upsert。original_request は初回作成なので必ず保存する。
+    // upsertDraft は initial 時の original_request 引数を持っていないので、
+    // 直接 prisma を叩くか、persistence 側に専用関数を追加する。
+    // 今回はトランザクション不要なので upsertDraft の拡張ではなく
+    // generic upsert で対応 (originalRequest 引数を受け付ける)
+    await upsertDraft({
+      sessionId: input.sessionId,
+      adminId: input.admin.id,
+      title: result.title,
+      goal: result.goal,
+      dataSources: result.dataSources,
+      metricKeys: result.metricKeys,
+      rangeStart: result.rangeStart,
+      rangeEnd: result.rangeEnd,
+      outline: result.outline,
+      notes: result.notes,
+      skeletonMarkdown: result.skeletonMarkdown,
+      originalRequest: userRequest,
+    })
+
+    // SSE 送出
+    input.onEvent({ type: 'text', text: result.summary })
+    const persisted = await appendMessage({
+      sessionId: input.sessionId,
+      role: 'assistant',
+      content: result.summary,
+      inputTokens,
+      outputTokens,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      model: geminiModel,
+    })
+    input.onEvent({
+      type: 'usage',
+      inputTokens,
+      outputTokens,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+    })
+    input.onEvent({
+      type: 'done',
+      messageId: persisted.id,
+      conversationId: input.sessionId,
+    })
+
+    await recordAudit({
+      adminId: input.admin.id,
+      sessionId: input.sessionId,
+      messageId: persisted.id,
+      eventType: 'chat_response',
+      payload: {
+        gemini_direct_create: true,
+        elapsed_ms: Date.now() - startMs,
+        gemini_elapsed_ms: elapsedMs,
+        gemini_model: geminiModel,
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
+        title: result.title,
+        data_sources: result.dataSources,
+        metric_keys_count: result.metricKeys.length,
+        skeleton_chars: result.skeletonMarkdown.length,
+      },
+      clientIp: input.clientIp,
+      clientUa: input.clientUa,
+    })
+
+    console.log(
+      `[advisor:gemini-bypass] create-success session=${input.sessionId} ` +
+        `total=${Date.now() - startMs}ms gemini=${elapsedMs}ms ` +
+        `in=${inputTokens} out=${outputTokens} dataSources=${result.dataSources.join(',')}`
+    )
+    return { handled: true }
+  } catch (e) {
+    const errMsg = e instanceof Error ? e.message : String(e)
+    console.error(
+      `[advisor:gemini-bypass] create-failed → fallback to Anthropic: ${errMsg}`,
+      e
+    )
+    await recordAudit({
+      adminId: input.admin.id,
+      sessionId: input.sessionId,
+      eventType: 'error',
+      payload: {
+        gemini_direct_create: true,
+        gemini_failed: true,
+        elapsed_ms: Date.now() - startMs,
+        error: errMsg,
+        recovered: true,
+      },
+      clientIp: input.clientIp,
+      clientUa: input.clientUa,
+    }).catch(() => {})
+    return { handled: false }
+  }
+}
+
 async function tryGeminiDraftReviseBypass(args: {
   input: OrchestratorRunInput
   /** [TOOL:draft_revise] プレフィックスを剥がしたユーザー指示 */
