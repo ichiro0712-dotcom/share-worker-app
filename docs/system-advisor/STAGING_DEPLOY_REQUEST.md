@@ -186,6 +186,9 @@ Vercel ダッシュボード → tastas プロジェクト → Settings → Envi
 | 9 | `SUPABASE_PROJECT_REF` | `ryvyuxomiqcgkspmpltk` | (本番 Supabase プロジェクト ID 固定値) |
 | 10 | `SEARCH_CONSOLE_SITE_URL` | `sc-domain:tastas.work` | Search Console の対象サイト |
 | 11 | `ADVISOR_GOOGLE_CHAT_WEBHOOK_URL` | `https://chat.googleapis.com/v1/spaces/.../messages?key=...&token=...` | レポートの Google Chat 配信先 |
+| 12 | `VERCEL_API_TOKEN` | `vcp_...` ([Account Tokens](https://vercel.com/account/tokens) で発行) | Advisor の `get_vercel_logs` / `get_vercel_deployments` ツール用 |
+| 13 | `VERCEL_PROJECT_ID` | `prj_...` (Vercel ダッシュボード → tastas プロジェクト → Settings → General) | 対象プロジェクトを share-worker-app に固定 (アカウント全体検索を防ぐ) |
+| 14 | `VERCEL_TEAM_ID` | `team_...` (Team プランの場合のみ。Hobby なら不要) | Team Scope の API 呼び出し |
 
 > **既存変数の流用**: `GA_CREDENTIALS_JSON` は既存のものを Search Console でも流用するため新規追加不要。
 > ただし、その Service Account のメールアドレスを Search Console プロパティに **「制限付きユーザー」以上** で追加する必要あり (STEP 4)。
@@ -315,7 +318,7 @@ Settings → Cron Jobs で確認)。週 1 回程度で十分。
 【ステージング展開完了】
 - STEP 1 (DB): 10 テーブル全て作成確認 ☑
 - STEP 2 (本番ロール): advisor_readonly 作成、SELECT のみ確認 ☑
-- STEP 3 (Vercel 環境変数): 11 個全て追加 ☑
+- STEP 3 (Vercel 環境変数): 14 個全て追加 ☑ (Hobby プランなら VERCEL_TEAM_ID 除く 13 個)
 - STEP 4 (Search Console): Service Account を property に追加 ☑
 - STEP 5 (GitHub PR + マージ): #XXX マージ済 ☑
 - STEP 6 (動作確認): 14 項目全てパス (確認担当: 川島) ☑
@@ -329,7 +332,7 @@ Settings → Cron Jobs で確認)。週 1 回程度で十分。
 ## 5. 環境変数一覧 (再掲・コピペ用)
 
 ```bash
-# === 必須 11 個 ===
+# === 必須 14 個 ===
 ANTHROPIC_API_KEY=sk-ant-api03-XXXXX
 GEMINI_API_KEY=AIzaXXXXX
 GITHUB_TOKEN_FOR_ADVISOR=ghp_XXXXX
@@ -341,6 +344,9 @@ SUPABASE_MANAGEMENT_TOKEN=sbp_XXXXX
 SUPABASE_PROJECT_REF=ryvyuxomiqcgkspmpltk
 SEARCH_CONSOLE_SITE_URL=sc-domain:tastas.work
 ADVISOR_GOOGLE_CHAT_WEBHOOK_URL=https://chat.googleapis.com/v1/spaces/XXXXX
+VERCEL_API_TOKEN=vcp_XXXXX
+VERCEL_PROJECT_ID=prj_XXXXX
+VERCEL_TEAM_ID=team_XXXXX  # Hobby プランなら省略可
 
 # === 既存流用 (新規追加不要) ===
 # GA_CREDENTIALS_JSON  ← GA4 で既に使用中、Search Console でも流用
@@ -381,6 +387,8 @@ ADVISOR_GOOGLE_CHAT_WEBHOOK_URL=https://chat.googleapis.com/v1/spaces/XXXXX
 | `query_metric` で permission denied | `advisor_readonly` ロールの GRANT 漏れ | STEP 2 の SQL を再実行 |
 | `query_search_console` で 403 | Service Account を property に未追加 | STEP 4 を実施 |
 | `get_supabase_logs` で 401 | `SUPABASE_MANAGEMENT_TOKEN` 未設定 / 期限切れ | 再発行 |
+| `get_supabase_logs` で 404 | Supabase Management API のエンドポイント仕様変更 (`/v1/projects/.../analytics/endpoints/logs.all` が現在 404) | **既知の課題**。当面は Supabase ダッシュボードから直接確認してください。Advisor 側の対応は後日検討 (TODO) |
+| `get_vercel_logs` が別プロジェクトのデプロイを返す | `VERCEL_PROJECT_ID` 未設定でアカウント全体から検索される | tastas プロジェクトの ID を `VERCEL_PROJECT_ID` に設定 |
 | Google Chat 配信で 400 | Webhook URL の typo / Webhook が削除されている | URL を再取得 |
 | ストリーミング応答が止まる | SSE バッファリング (修正済) | Vercel ログで `[advisor]` を grep |
 | デプロイ自体が失敗 | ビルドエラー | Vercel デプロイログを確認、開発者に共有 |
