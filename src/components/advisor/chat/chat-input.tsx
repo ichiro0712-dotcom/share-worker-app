@@ -93,6 +93,13 @@ interface ChatInputProps {
    * 親側 forcedTool が変わると、ユーザー操作の選択は上書きされる (forcedTool 優先)。
    */
   forcedTool?: string | null
+  /**
+   * 親が「このターンは特定のモデルで処理される」と確定している時、
+   * モデルセレクタを操作不能にして指定ラベルを表示する。
+   * 例: Canvas が開いている時 = Gemini API 直叩き経路に固定 → 'Gemini 2.5 Flash (固定)'。
+   * null なら通常のモデル選択 UI が動く。
+   */
+  forcedModelLabel?: string | null
 }
 
 export function ChatInput({
@@ -103,6 +110,7 @@ export function ChatInput({
   disabled = false,
   showModelSelector = true,
   forcedTool = null,
+  forcedModelLabel = null,
 }: ChatInputProps) {
   const [input, setInput] = useState('')
   const [modelId, setModelId] = useState(DEFAULT_MODEL_ID)
@@ -466,7 +474,16 @@ export function ChatInput({
               <div className="flex-1" />
 
               {/* モデル選択 */}
-              {showModelSelector && (
+              {showModelSelector && forcedModelLabel ? (
+                /* 親が forcedModelLabel を渡してきた = このターンのモデルが固定 (例: Gemini 直叩き)。
+                   セレクタを操作不能にして指定ラベルだけ表示する。Canvas を閉じれば通常 UI に戻る。 */
+                <div
+                  className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-xs text-blue-700 bg-blue-50 border border-blue-200 cursor-not-allowed"
+                  title="このターンは Gemini API 直叩きで処理されます (Canvas を閉じれば通常モデル選択に戻ります)"
+                >
+                  <span className="font-medium">{forcedModelLabel}</span>
+                </div>
+              ) : showModelSelector && (
                 <div className="relative">
                   <button
                     type="button"

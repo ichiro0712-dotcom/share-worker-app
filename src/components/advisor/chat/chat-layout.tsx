@@ -1040,6 +1040,12 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
           placeholder="質問を入力 (Enter で送信、Shift+Enter で改行)"
           showModelSelector
           forcedTool={conversationId && canvasOpen && hasDraft ? 'draft_revise' : null}
+          /* Canvas が開いている時はドラフト修正経路 = Gemini Flash 直叩きに固定。
+             モデルセレクタを操作不能にして「Gemini 2.5 Flash (固定)」と表示する。
+             Canvas を閉じれば通常のモデル選択に戻る。 */
+          forcedModelLabel={
+            conversationId && canvasOpen && hasDraft ? 'Gemini 2.5 Flash (固定)' : null
+          }
         />
       </div>
 
