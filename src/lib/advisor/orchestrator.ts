@@ -198,16 +198,27 @@ function stripToolHintPrefix(message: string): string {
 export async function runOrchestrator(input: OrchestratorRunInput): Promise<void> {
   const client = getClaudeClient();
   const tools = await describeAllToolsForLLM();
-  // 使用モデル決定 (validate)
-  const activeModel: AdvisorModelId = input.modelId ?? DEFAULT_MODEL;
 
-  // 0. Advisor 設定 (max_tool_loops, system_prompt_override) を取得
+  // 0. Advisor 設定 (max_tool_loops, system_prompt_override, model IDs) を取得
   // 設定ページから System Admin が編集可能なので、毎リクエスト DB に問い合わせる。
   const settings = await getAdvisorSettings().catch((e) => {
     console.warn('[advisor] failed to load settings, using defaults:', e);
-    return { maxToolLoops: FALLBACK_MAX_TOOL_LOOPS, systemPromptOverride: null };
+    return {
+      maxToolLoops: FALLBACK_MAX_TOOL_LOOPS,
+      systemPromptOverride: null,
+      primaryModelId: null,
+      loop1ModelId: null,
+    };
   });
   const maxToolLoops = settings.maxToolLoops ?? FALLBACK_MAX_TOOL_LOOPS;
+
+  // モデル決定: ユーザーが UI で明示指定 > 設定 DB の primary_model_id > code 内デフォルト
+  // input.modelId は UI のモデルセレクタの値。設定 DB はサービスレベルの規定値。
+  // 設定 DB に文字列だけ入れる運用なので AdvisorModelId 型ではなく素の string で扱う。
+  const primaryModel: string = input.modelId ?? settings.primaryModelId ?? DEFAULT_MODEL;
+  // loop > 0 用 (= ツール実行後の最終応答)。設定 DB に loop1_model_id があればそれを使う、
+  // 無ければ primaryModel と同じ。Haiku 4.5 を loop=1 用に降格する運用がここで効く。
+  const loop1Model: string = settings.loop1ModelId ?? primaryModel;
 
   // 1. システムプロンプト構築 (override があれば差し替え)
   const { cachedPart, dynamicPart } = await buildSystemPrompt({
@@ -371,6 +382,10 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
     // 通常の質問応答 (loop=0) は引き続き 4096 トークン許可。
     const loopMaxTokens = loop === 0 ? MAX_OUTPUT_TOKENS : 512;
 
+    // このループで使うモデル。loop=0 は primary、loop>0 は loop1 (= primary か Haiku 等)。
+    // 設定 DB の loop1_model_id が null なら primary と同じになる (= 全ループ同一モデル)。
+    const currentLoopModel: string = loop === 0 ? primaryModel : loop1Model;
+
     // thinking パラメータの決定 (Phase 1 は計測のみ、現状は unset 固定)。
     // Phase 4 のモデル切替時に Sonnet 4.6 用に { type: 'disabled' } を入れる予定。
     // 現状 Sonnet 4 (claude-sonnet-4-20250514) は thinking パラメータを送っていないので "unset"。
@@ -379,7 +394,7 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
     let stream;
     try {
       stream = client.messages.stream({
-        model: activeModel,
+        model: currentLoopModel,
         max_tokens: loopMaxTokens,
         system: systemMessage,
         tools: tools as never,
@@ -462,7 +477,7 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
         `cacheRead=${cs.cacheReadTokens} cacheWrite=${cs.cacheWriteTokens} ` +
         `stop=${stopReason ?? '?'} ` +
         `tools=${toolUseBlocks.length} ` +
-        `req=${activeModel} resp=${responseModelForLog ?? '?'} ` +
+        `req=${currentLoopModel} resp=${responseModelForLog ?? '?'} ` +
         `think=${currentThinkingMode}`
     );
 
@@ -476,7 +491,7 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
       (finalMessage as unknown as { model?: string }).model ?? null;
     loopTraces.push({
       loop,
-      requestedModelId: activeModel,
+      requestedModelId: currentLoopModel,
       responseModelId,
       thinkingMode: currentThinkingMode,
       ttfbMs,
@@ -511,7 +526,7 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
         outputTokens: totalOutputTokens,
         cacheReadTokens: totalCacheReadTokens,
         cacheWriteTokens: totalCacheWriteTokens,
-        model: activeModel,
+        model: primaryModel,
       });
 
       input.onEvent({
@@ -536,7 +551,7 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
         }),
         incrementUsage({
           adminId: input.admin.id,
-          modelId: activeModel,
+          modelId: primaryModel,
           inputTokens: totalInputTokens,
           outputTokens: totalOutputTokens,
           cacheReadTokens: totalCacheReadTokens,
@@ -622,7 +637,7 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
         role: 'tool',
         content: result.ok ? '' : result.error,
         toolResult: { tool_use_id: tu.id, ...result } as unknown as Prisma.InputJsonValue,
-        model: activeModel,
+        model: primaryModel,
       });
 
       toolResults.push({
@@ -661,7 +676,7 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
     outputTokens: totalOutputTokens,
     cacheReadTokens: totalCacheReadTokens,
     cacheWriteTokens: totalCacheWriteTokens,
-    model: activeModel,
+    model: primaryModel,
   });
 
   // 末尾の "途中で区切った" 注記をクライアントに流す (これより前の本文は既に流れている)
@@ -687,7 +702,7 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
     }),
     incrementUsage({
       adminId: input.admin.id,
-      modelId: activeModel,
+      modelId: primaryModel,
       inputTokens: totalInputTokens,
       outputTokens: totalOutputTokens,
       cacheReadTokens: totalCacheReadTokens,

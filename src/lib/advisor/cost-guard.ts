@@ -8,7 +8,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { getTodayJSTStart } from './jst';
-import { ADVISOR_MODELS, estimateCostUsd, type AdvisorModelId } from './claude';
+import { ADVISOR_MODELS, estimateCostUsd } from './claude';
 
 const DAILY_TOKEN_CAP_DEFAULT = 2_000_000;
 
@@ -45,10 +45,15 @@ export async function checkCostCap(opts: {
   return { allowed: true, usedToday: currentUsed, cap };
 }
 
-/** 使用量を加算 (orchestrator 完了時に呼ぶ) */
+/**
+ * 使用量を加算 (orchestrator 完了時に呼ぶ)。
+ *
+ * modelId は alias / snapshot ID どちらでも受ける (設定 DB から渡される alias もある)。
+ * AdvisorUsageDaily スキーマには model_id カラムがないので、ここではコスト計算のみに使う。
+ */
 export async function incrementUsage(input: {
   adminId: number;
-  modelId: AdvisorModelId;
+  modelId: string;
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens?: number;

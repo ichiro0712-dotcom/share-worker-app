@@ -2076,6 +2076,13 @@ model AdvisorReportDraft {
   outline      String? @db.Text
   /// 追加メモ (LLM が考慮事項・除外条件を書き込む)
   notes        String? @db.Text
+  /// このドラフトを作るきっかけになったユーザーの初回要望 (生のメッセージ本文)。
+  /// 修正指示が来た時に Claude が「元々何を求められていたか」を見失わないよう保存する。
+  original_request String? @db.Text
+  /// レポート本体のドラフト (0 埋めの表骨格 + 章立てが入った Markdown)。
+  /// ユーザーが「LP5 まで」のような構造変更を指示した時、Claude がここを書き換える。
+  /// 数字は実データではなく 0 / プレースホルダ。最終レポートは別 (result_markdown)。
+  skeleton_markdown String? @db.Text
   /// "drafting" | "generating" | "completed" | "failed"
   status       String  @default("drafting") @db.VarChar(20)
   /// 生成完了後の Markdown 本文
@@ -2148,6 +2155,13 @@ model AdvisorSettings {
   max_tool_loops         Int      @default(20)
   /// システムプロンプトの上書き (null/空なら code 内デフォルトを使う)
   system_prompt_override String?  @db.Text
+  /// メインモデル ID (alias 推奨: claude-sonnet-4-6 等)。null なら code 内デフォルト
+  /// (= ADVISOR_MODELS.sonnet) を使う。
+  /// Sonnet 4 から Sonnet 4.6 への切替時、コード変更せず DB 1 行更新で切替できるよう外出し。
+  primary_model_id       String?
+  /// ツール実行後の loop > 0 で使うモデル ID。null なら primary_model_id と同じ。
+  /// Haiku 4.5 を loop=1 に使う運用 (高速短文応答) を試す時に primary とは別に設定する。
+  loop1_model_id         String?
   /// 最後に編集した System Admin の id (監査用)
   updated_by_admin_id    Int?
   created_at             DateTime @default(now())
