@@ -852,9 +852,20 @@ async function tryGeminiDraftCreateBypass(args: {
   let outputTokens = 0
   let geminiModel = 'unknown'
 
-  try {
-    input.onEvent({ type: 'status', status: 'ドラフトを作成中... (Gemini)' })
+  // Gemini が完了するまで 5〜10 秒かかるので、UI が「考え中...」のまま固まらないよう
+  // 5 秒ごとに heartbeat を送って Claude Code 風の経過秒数表示を維持する。
+  input.onEvent({ type: 'status', status: 'ドラフトを作成中... (Gemini)' })
+  const heartbeatTimer = setInterval(() => {
+    input.onEvent({
+      type: 'heartbeat',
+      phase: 'streaming',
+      label: 'Gemini で生成中...',
+      elapsedMs: Date.now() - startMs,
+      outputTokens: 0,
+    })
+  }, 5000)
 
+  try {
     const result = await createDraftWithGemini({
       userRequest,
       nowJst: new Date(),
@@ -958,6 +969,8 @@ async function tryGeminiDraftCreateBypass(args: {
       clientUa: input.clientUa,
     }).catch(() => {})
     return { handled: false }
+  } finally {
+    clearInterval(heartbeatTimer)
   }
 }
 
@@ -972,6 +985,8 @@ async function tryGeminiDraftReviseBypass(args: {
   let inputTokens = 0
   let outputTokens = 0
   let geminiModel = 'unknown'
+  // try ブロック外でも clearInterval できるように外側で宣言
+  let heartbeatTimer: ReturnType<typeof setInterval> | null = null
 
   try {
     // 1. ドラフト取得 (存在しなければ Anthropic にフォールバック)
@@ -990,8 +1005,18 @@ async function tryGeminiDraftReviseBypass(args: {
       return { handled: false }
     }
 
-    // 2. UI に「ドラフト更新中」状態を伝える
+    // 2. UI に「ドラフト更新中」状態を伝える + heartbeat タイマー開始
+    //    (Gemini 5〜10 秒の間 UI が固まらないよう経過秒数表示を継続更新)
     input.onEvent({ type: 'status', status: 'ドラフトを更新中... (Gemini)' })
+    heartbeatTimer = setInterval(() => {
+      input.onEvent({
+        type: 'heartbeat',
+        phase: 'streaming',
+        label: 'Gemini で更新中...',
+        elapsedMs: Date.now() - startMs,
+        outputTokens: 0,
+      })
+    }, 5000)
 
     // 3. Gemini で編集
     const result = await editDraftWithGemini({
@@ -1100,5 +1125,7 @@ async function tryGeminiDraftReviseBypass(args: {
       /* audit 失敗は黙る (主目的は Anthropic fallback なので) */
     })
     return { handled: false }
+  } finally {
+    if (heartbeatTimer) clearInterval(heartbeatTimer)
   }
 }

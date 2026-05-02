@@ -476,12 +476,12 @@ export function ChatInput({
               {/* モデル選択 */}
               {showModelSelector && forcedModelLabel ? (
                 /* 親が forcedModelLabel を渡してきた = このターンのモデルが固定 (例: Gemini 直叩き)。
-                   セレクタを操作不能にして指定ラベルだけ表示する。Canvas を閉じれば通常 UI に戻る。 */
+                   通常のセレクタと同じ枠を残し、文字だけ青くして「これは固定です」感を出す。 */
                 <div
-                  className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-xs text-blue-700 bg-blue-50 border border-blue-200 cursor-not-allowed"
+                  className="flex items-center gap-1 h-8 px-2.5 rounded-lg text-xs text-blue-600 cursor-not-allowed"
                   title="このターンは Gemini API 直叩きで処理されます (Canvas を閉じれば通常モデル選択に戻ります)"
                 >
-                  <span className="font-medium">{forcedModelLabel}</span>
+                  {forcedModelLabel}
                 </div>
               ) : showModelSelector && (
                 <div className="relative">
