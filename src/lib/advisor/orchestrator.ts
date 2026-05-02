@@ -386,20 +386,37 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
     // 設定 DB の loop1_model_id が null なら primary と同じになる (= 全ループ同一モデル)。
     const currentLoopModel: string = loop === 0 ? primaryModel : loop1Model;
 
-    // thinking パラメータの決定 (Phase 1 は計測のみ、現状は unset 固定)。
-    // Phase 4 のモデル切替時に Sonnet 4.6 用に { type: 'disabled' } を入れる予定。
-    // 現状 Sonnet 4 (claude-sonnet-4-20250514) は thinking パラメータを送っていないので "unset"。
-    const currentThinkingMode: string = 'unset';
+    // thinking パラメータの決定。
+    // - Sonnet 4.6 / Opus 4.7 / Opus 4.6 は Adaptive Thinking 対応モデルで、
+    //   デフォルト挙動が公式 docs で断定されていない (将来 thinking が自動 on になる可能性あり)。
+    //   Anthropic 推奨は { type: 'adaptive' } だが、TASTAS Advisor のレポート用途では
+    //   思考トークンの追加生成は不要 (本文生成は Gemini に任せている) なので
+    //   { type: 'disabled' } を明示して TTFB を最小化する。
+    // - Sonnet 4 / Sonnet 4.5 までは thinking を送らないとそもそも off なので unset のまま。
+    // - Haiku は extended thinking 対応だが軽量モデルなので unset で十分。
+    const SONNET46_OR_ADAPTIVE_MODELS = new Set([
+      'claude-sonnet-4-6',
+      'claude-opus-4-7',
+      'claude-opus-4-6',
+    ]);
+    const useDisabledThinking = SONNET46_OR_ADAPTIVE_MODELS.has(currentLoopModel);
+    const currentThinkingMode: string = useDisabledThinking ? 'disabled' : 'unset';
 
     let stream;
     try {
-      stream = client.messages.stream({
+      // thinking パラメータは型上 ThinkingConfigParam 互換が必要。disabled 指定は
+      // SDK の ThinkingConfigDisabled ({ type: 'disabled' }) と一致する。
+      const streamParams: Anthropic.Messages.MessageStreamParams = {
         model: currentLoopModel,
         max_tokens: loopMaxTokens,
         system: systemMessage,
         tools: tools as never,
         messages,
-      });
+      };
+      if (useDisabledThinking) {
+        streamParams.thinking = { type: 'disabled' };
+      }
+      stream = client.messages.stream(streamParams);
     } catch (e) {
       const errMsg = e instanceof Error ? e.message : String(e);
       console.error('[advisor] messages.stream threw:', errMsg, e);

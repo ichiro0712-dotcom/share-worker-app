@@ -25,15 +25,27 @@ export interface ModelDef {
 
 export const AVAILABLE_MODELS: ModelDef[] = [
   {
-    id: 'claude-sonnet',
-    name: 'Sonnet 4',
+    id: 'claude-sonnet-4-6',
+    name: 'Sonnet 4.6',
     provider: 'anthropic',
-    modelId: 'claude-sonnet-4-20250514',
-    description: 'バランス・推奨',
-    detail: 'コストと精度のバランスが最良。日常の質問・調査・指標集計の大半はこれで十分です。',
+    modelId: 'claude-sonnet-4-6',
+    description: 'バランス・推奨 (Sonnet 4 後継)',
+    detail:
+      'Sonnet 4 の公式後継。同価格でレイテンシ改善が期待できる。Sonnet 4 は 2026-06-15 retire 予定のためこちらに切替推奨。',
     speed: 'medium',
     cost: 'medium',
     recommended: true,
+  },
+  {
+    id: 'claude-sonnet',
+    name: 'Sonnet 4 (legacy)',
+    provider: 'anthropic',
+    modelId: 'claude-sonnet-4-20250514',
+    description: '⚠️ 2026-06-15 retire',
+    detail:
+      '⚠️ 2026-04-14 から deprecated、2026-06-15 で API 提供終了予定。コンピュート枯渇でレイテンシ悪化の可能性あり。Sonnet 4.6 への移行を推奨。',
+    speed: 'medium',
+    cost: 'medium',
   },
   {
     id: 'claude-opus',
@@ -59,7 +71,7 @@ export const AVAILABLE_MODELS: ModelDef[] = [
   },
 ];
 
-export const DEFAULT_MODEL_ID = 'claude-sonnet';
+export const DEFAULT_MODEL_ID = 'claude-sonnet-4-6';
 
 export function getModel(modelId: string): ModelDef {
   return AVAILABLE_MODELS.find((m) => m.id === modelId) ?? AVAILABLE_MODELS[0];
