@@ -1,0 +1,287 @@
+// ============================================================
+// TASTAS Advisor 関連 Prisma model 抜粋
+// ============================================================
+// 元ファイル: prisma/schema.prisma
+// 生成日: 2026-05-04
+//
+// hub-platform 側で advisor-core を抽出する際の参照用。
+// 本ファイルそのままでは動かない (datasource / generator が無いため)。
+// hub-platform の prisma/schema.prisma に組み込む際は、prefix や
+// schema (multi-schema) 等を統合方針に合わせて調整すること。
+// ============================================================
+
+model AdvisorChatSession {
+  id                  String   @id @default(cuid())
+  /// SystemAdmin.id を参照 (外部キーは貼らない: 既存テーブルへの影響を避ける)
+  admin_id            Int
+  title               String   @db.VarChar(200)
+  /// コンテキスト圧縮後の要約 (圧縮が走った場合のみ)
+  context_summary     String?  @db.Text
+  /// 最後のメッセージ送信時刻 (一覧ソート用)
+  last_message_at     DateTime @default(now())
+  /// 累計トークン使用量 (このセッション全体)
+  total_input_tokens  Int      @default(0)
+  total_output_tokens Int      @default(0)
+  /// クライアント表示用フラグ
+  is_pinned           Boolean  @default(false)
+  is_archived         Boolean  @default(false)
+  /// しおり (永続保存フラグ)。true のセッション配下の Draft / Versions は保持期間 cron の削除対象外。
+  /// false (= デフォルト) のセッションは、そのドラフト/バージョンが 30 日触られなければ削除される。
+  bookmarked          Boolean  @default(false)
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  messages AdvisorChatMessage[]
+
+  @@index([admin_id, last_message_at(sort: Desc)])
+  @@index([admin_id, is_archived])
+  @@index([bookmarked, updated_at])
+  @@map("advisor_chat_sessions")
+}
+
+model AdvisorChatMessage {
+  id                 String   @id @default(cuid())
+  session_id         String
+  /// "user" | "assistant" | "tool"
+  role               String   @db.VarChar(20)
+  /// テキスト本文 (assistant の最終回答 or user の入力)
+  content            String   @db.Text
+  /// アシスタントが呼んだツール呼び出し列 (JSON 配列)
+  /// [{ id, name, input }]
+  tool_calls         Json?
+  /// tool ロールの場合の結果 (1つのレコードに1ツール結果)
+  /// { tool_use_id, ok, data, error }
+  tool_result        Json?
+  /// このメッセージで使ったトークン
+  input_tokens       Int?
+  output_tokens      Int?
+  cache_read_tokens  Int?
+  cache_write_tokens Int?
+  /// 使用したモデル名
+  model              String?  @db.VarChar(100)
+  /// 圧縮済みフラグ (true なら context_summary に取り込み済み)
+  is_compacted       Boolean  @default(false)
+  created_at         DateTime @default(now())
+
+  session AdvisorChatSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
+
+  @@index([session_id, created_at])
+  @@index([role, created_at])
+  @@map("advisor_chat_messages")
+}
+
+model AdvisorAuditLog {
+  id         String   @id @default(cuid())
+  admin_id   Int
+  session_id String?
+  message_id String?
+  /// "chat_request" | "chat_response" | "tool_call" | "rate_limit_hit" | "cost_cap_hit" | "error" | "knowledge_sync"
+  event_type String   @db.VarChar(50)
+  /// 質問文・ツール名・エラー内容など、種別ごとに意味が変わる
+  payload    Json
+  /// IP / UserAgent
+  client_ip  String?  @db.VarChar(64)
+  client_ua  String?  @db.Text
+  created_at DateTime @default(now())
+
+  @@index([admin_id, created_at(sort: Desc)])
+  @@index([event_type, created_at(sort: Desc)])
+  @@index([session_id])
+  @@map("advisor_audit_logs")
+}
+
+model AdvisorKnowledgeCache {
+  id             String   @id @default(cuid())
+  /// "claude_md" | "doc:requirements" | "doc:system_design" | "schema_prisma" | "metric_definitions" | ...
+  source_key     String   @unique @db.VarChar(100)
+  /// 表示用ラベル
+  label          String   @db.VarChar(200)
+  /// GitHub 上のパス
+  source_path    String   @db.VarChar(500)
+  /// content の SHA-256 (16進)
+  content_hash   String   @db.VarChar(64)
+  /// 本文 (大きいファイル想定で text)
+  content        String   @db.Text
+  /// バイト数 (簡易メトリクス)
+  byte_size      Int
+  /// 最後に GitHub から取得した時刻
+  last_synced_at DateTime @default(now())
+  /// GitHub 取得時の commit SHA (オプション、Contents API なら blob sha)
+  source_sha     String?  @db.VarChar(64)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  @@map("advisor_knowledge_cache")
+}
+
+model AdvisorKnowledgeSyncLog {
+  id            String    @id @default(cuid())
+  /// "scheduled" | "manual" | "startup"
+  trigger       String    @db.VarChar(20)
+  /// 同期対象数
+  files_total   Int
+  /// 変更があったファイル数
+  files_changed Int
+  /// "success" | "partial" | "failed"
+  status        String    @db.VarChar(20)
+  /// エラー時のメッセージ (JSON で複数記録可)
+  errors        Json?
+  /// 実行所要時間 (ms)
+  duration_ms   Int
+  started_at    DateTime  @default(now())
+  finished_at   DateTime?
+
+  @@index([started_at(sort: Desc)])
+  @@index([status, started_at(sort: Desc)])
+  @@map("advisor_knowledge_sync_logs")
+}
+
+model AdvisorSavedPrompt {
+  id         String   @id @default(cuid())
+  admin_id   Int
+  title      String   @db.VarChar(200)
+  content    String   @db.Text
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@index([admin_id, updated_at(sort: Desc)])
+  @@map("advisor_saved_prompts")
+}
+
+model AdvisorUsageDaily {
+  id                 String   @id @default(cuid())
+  admin_id           Int
+  /// JST の日付 (YYYY-MM-DD 00:00:00+09:00)
+  date_jst           DateTime @db.Date
+  message_count      Int      @default(0)
+  tool_call_count    Int      @default(0)
+  input_tokens       Int      @default(0)
+  output_tokens      Int      @default(0)
+  cache_read_tokens  Int      @default(0)
+  cache_write_tokens Int      @default(0)
+  /// 概算コスト (USD) — モデル別のレートで計算
+  estimated_cost_usd Decimal  @default(0) @db.Decimal(10, 4)
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+
+  @@unique([admin_id, date_jst])
+  @@index([date_jst(sort: Desc)])
+  @@map("advisor_usage_daily")
+}
+
+model AdvisorReportDraft {
+  id           String  @id @default(cuid())
+  /// AdvisorChatSession.id を参照 (1セッションに1ドラフト)
+  session_id   String  @unique
+  admin_id     Int
+  /// レポートのタイトル (LLM が決めるが admin が後から書き換え可)
+  title        String? @db.VarChar(300)
+  /// レポートの目的・問い (チャットで固めた要件のサマリ)
+  goal         String? @db.Text
+  /// 集めるデータソースのキー配列 (例: ["query_metric", "query_ga4", "get_recent_errors"])
+  /// tool-source-labels.ts のキーと対応
+  data_sources Json?
+  /// data_sources に "query_metric" が含まれている場合の取得対象 metric キー配列
+  /// (例: ["LP_PV", "LP_TO_LINE_CONV"])。MetricDefinitions.tsx のキーと対応。
+  /// dataSources に query_metric が無ければ無視される。
+  metric_keys  Json?
+  /// 対象期間 (YYYY-MM-DD, JST 基準)
+  range_start  String? @db.VarChar(10)
+  range_end    String? @db.VarChar(10)
+  /// アウトライン (Markdown 箇条書き、章立て)
+  outline      String? @db.Text
+  /// 追加メモ (LLM が考慮事項・除外条件を書き込む)
+  notes        String? @db.Text
+  /// このドラフトを作るきっかけになったユーザーの初回要望 (生のメッセージ本文)。
+  /// 修正指示が来た時に Claude が「元々何を求められていたか」を見失わないよう保存する。
+  original_request String? @db.Text
+  /// レポート本体のドラフト (0 埋めの表骨格 + 章立てが入った Markdown)。
+  /// ユーザーが「LP5 まで」のような構造変更を指示した時、Claude がここを書き換える。
+  /// 数字は実データではなく 0 / プレースホルダ。最終レポートは別 (result_markdown)。
+  skeleton_markdown String? @db.Text
+  /// "drafting" | "generating" | "completed" | "failed"
+  status       String  @default("drafting") @db.VarChar(20)
+  /// 生成完了後の Markdown 本文
+  result_markdown String? @db.Text
+  /// 生成に使ったモデル (例: "gemini-2.5-flash")
+  result_model String?  @db.VarChar(100)
+  /// エラー時のメッセージ
+  error_message String? @db.Text
+  /// レポート生成回数 (再生成カウンタ)
+  generation_count Int @default(0)
+  generated_at  DateTime?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  @@index([admin_id, updated_at(sort: Desc)])
+  @@index([status])
+  @@map("advisor_report_drafts")
+}
+
+model AdvisorReportVersion {
+  id              String  @id @default(cuid())
+  /// AdvisorReportDraft.id 参照 (FK 貼らず論理参照、ドラフトを消したらクリーンアップは別途)
+  draft_id        String
+  /// 1, 2, 3... draft_id 内でユニーク
+  version_number  Int
+  /// レポート本文 (Markdown)
+  result_markdown String  @db.Text
+  /// 生成 / 編集に使ったモデル ("gemini-2.5-flash", "manual" 等)
+  result_model    String  @db.VarChar(100)
+  /// このバージョンが作られた時のドラフトのスナップショット
+  /// (title, goal, dataSources, metricKeys, range_start, range_end, outline, notes)
+  /// 後からドラフトを編集しても、このバージョンの "元" が分かるように残す
+  draft_snapshot  Json
+  /// "generated" | "manual_edit" | "llm_edit"
+  source          String  @db.VarChar(20)
+  /// 直前のバージョン (どこから派生したか) — 初回生成時のみ null
+  parent_version_id String?
+  /// 生成にかかった ms
+  generated_ms    Int?
+  /// LLM 入力 / 出力トークン (manual_edit のときは null)
+  input_tokens    Int?
+  output_tokens   Int?
+  /// admin が編集モード中 (textarea を開いている) のときのロック
+  /// 5 分でタイムアウトする (cron 不要、読み取り側でチェック)
+  editing_lock_admin_id Int?
+  editing_lock_at       DateTime?
+  /// 公開シェア用トークン (URL を知っている人なら誰でも閲覧可)。
+  /// 一度発行したら停止/再発行されるまで同じ値を使う (停止 = shared_at = null)。
+  /// シェア有効/無効は shared_at + shared_until 両方で判定する (token は記録のため残す)。
+  share_token     String?   @unique @db.VarChar(64)
+  /// シェア有効化された時刻。null = シェア停止中。
+  shared_at       DateTime?
+  /// シェア URL の有効期限 (デフォルト: shared_at + 30 日)。
+  /// shared_until < now() の場合は token 一致しても 404 を返す。
+  /// 「URL を再発行 (+30日延長)」操作で更新される。
+  shared_until    DateTime?
+  created_at      DateTime @default(now())
+
+  @@unique([draft_id, version_number])
+  @@index([draft_id, version_number(sort: Desc)])
+  @@index([created_at(sort: Desc)])
+  @@map("advisor_report_versions")
+}
+
+model AdvisorSettings {
+  /// 常に "default" 固定 (シングルトン保証)
+  id                     String   @id @default("default")
+  /// tool use ループの上限 (orchestrator の MAX_TOOL_LOOPS を上書き)
+  max_tool_loops         Int      @default(20)
+  /// システムプロンプトの上書き (null/空なら code 内デフォルトを使う)
+  system_prompt_override String?  @db.Text
+  /// メインモデル ID (alias 推奨: claude-sonnet-4-6 等)。null なら code 内デフォルト
+  /// (= ADVISOR_MODELS.sonnet) を使う。
+  /// Sonnet 4 から Sonnet 4.6 への切替時、コード変更せず DB 1 行更新で切替できるよう外出し。
+  primary_model_id       String?
+  /// ツール実行後の loop > 0 で使うモデル ID。null なら primary_model_id と同じ。
+  /// Haiku 4.5 を loop=1 に使う運用 (高速短文応答) を試す時に primary とは別に設定する。
+  loop1_model_id         String?
+  /// 最後に編集した System Admin の id (監査用)
+  updated_by_admin_id    Int?
+  created_at             DateTime @default(now())
+  updated_at             DateTime @updatedAt
+
+  @@map("advisor_settings")
+}
+
