@@ -1904,6 +1904,9 @@ model AdvisorChatSession {
   /// クライアント表示用フラグ
   is_pinned           Boolean  @default(false)
   is_archived         Boolean  @default(false)
+  /// しおり (永続保存フラグ)。true のセッション配下の Draft / Versions は保持期間 cron の削除対象外。
+  /// false (= デフォルト) のセッションは、そのドラフト/バージョンが 30 日触られなければ削除される。
+  bookmarked          Boolean  @default(false)
   created_at          DateTime @default(now())
   updated_at          DateTime @updatedAt
 
@@ -1911,6 +1914,7 @@ model AdvisorChatSession {
 
   @@index([admin_id, last_message_at(sort: Desc)])
   @@index([admin_id, is_archived])
+  @@index([bookmarked, updated_at])
   @@map("advisor_chat_sessions")
 }
 
@@ -2138,12 +2142,58 @@ model AdvisorReportVersion {
   /// 5 分でタイムアウトする (cron 不要、読み取り側でチェック)
   editing_lock_admin_id Int?
   editing_lock_at       DateTime?
+  /// 公開シェア用トークン (URL を知っている人なら誰でも閲覧可)。
+  /// 一度発行したら停止/再発行されるまで同じ値を使う (停止 = shared_at = null)。
+  /// シェア有効/無効は shared_at + shared_until 両方で判定する (token は記録のため残す)。
+  share_token     String?   @unique @db.VarChar(64)
+  /// シェア有効化された時刻。null = シェア停止中。
+  shared_at       DateTime?
+  /// シェア URL の有効期限 (デフォルト: shared_at + 30 日)。
+  /// shared_until < now() の場合は token 一致しても 404 を返す。
+  /// 「URL を再発行 (+30日延長)」操作で更新される。
+  shared_until    DateTime?
   created_at      DateTime @default(now())
 
   @@unique([draft_id, version_number])
   @@index([draft_id, version_number(sort: Desc)])
   @@index([created_at(sort: Desc)])
   @@map("advisor_report_versions")
+}
+
+/// 過去のレポート / セッションの「意味的記憶」を保持する。
+///
+/// Advisor が新しいチャットで「先月のレポートで言ってた○○」のような文脈依存質問に
+/// 答えられるよう、しおり (bookmarked=true) されたセッションの最新レポートを cron が
+/// 取り込んで蓄積する。
+///
+/// dynamic system prompt にここから「最新 5 件の要約」を埋め込むことで、Claude / Gemini が
+/// 過去レポートを文脈として使える。
+///
+/// 「semantic」を冠しているのは将来的に embedding ベクトル検索で類似レポートを引く拡張を
+/// 見越した命名 (Phase 1 では category / source_id の単純検索のみ)。
+model AdvisorSemanticMemory {
+  id          String   @id @default(cuid())
+  /// SystemAdmin.id を参照 (FK は貼らない、 削除済み admin の記憶も残しうる)
+  admin_id    Int
+  /// "advisor_report" 等。 将来カテゴリを増やす想定 (例: "user_preference" / "decision_log")
+  category    String   @db.VarChar(50)
+  /// "report_version" 等の発生源種別
+  source_type String   @db.VarChar(50)
+  /// 該当 source の id (例: AdvisorReportVersion.id)
+  source_id   String   @db.VarChar(100)
+  /// 表示用タイトル (レポートタイトル等)
+  title       String   @db.VarChar(300)
+  /// 本文 (レポートなら 8,000 字まで truncate して保存)
+  content     String   @db.Text
+  /// 構造化メタ ({ session_id, draft_id, version_id } 等)
+  metadata    Json?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  /// 同じ source は 1 行に集約 (cron は upsert、 source 更新で content も更新)
+  @@unique([admin_id, category, source_type, source_id])
+  @@index([admin_id, category, updated_at(sort: Desc)])
+  @@map("advisor_semantic_memory")
 }
 
 /// Advisor のシステム設定 (シングルトン: 常に id="default" の 1 行のみ存在する想定)

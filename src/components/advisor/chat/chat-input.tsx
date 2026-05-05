@@ -73,7 +73,16 @@ export const AVAILABLE_TOOLS: ChatTool[] = [
     // メニューには出さず、ユーザーが何もない状態で誤選択しないようにする。
     id: 'draft_revise',
     name: 'ドラフト修正指示',
-    description: '右 Canvas のレポートドラフトを修正する指示を Claude に送る',
+    description: '右 Canvas のドラフト本体 (skeleton) を Gemini で書き換える',
+    icon: PencilLine,
+    hiddenFromMenu: true,
+  },
+  {
+    // レポート生成済みの Canvas (view='result') 表示時に親が forcedTool で自動オンにする。
+    // ドラフト構造ではなく生成済みレポート本文を直接編集する用。
+    id: 'result_edit',
+    name: 'レポート修正指示',
+    description: '生成済みレポートの本文を Gemini で書き換える (新バージョン作成)',
     icon: PencilLine,
     hiddenFromMenu: true,
   },
@@ -100,6 +109,13 @@ interface ChatInputProps {
    * null なら通常のモデル選択 UI が動く。
    */
   forcedModelLabel?: string | null
+  /**
+   * 親 (例: 初回チャット画面の suggestion チップ) から「ツール選択 + 入力テキストを
+   * プリフィルする」ためのトリガー。同じ内容で何度押しても発火するよう nonce を持つ。
+   * 例: report_create ツールを選択し、テンプレ文章を入力欄にだけ入れる
+   *      (送信はしない、ユーザーが内容を確認してから自分で Enter する)。
+   */
+  prefill?: { toolId: string | null; text: string; nonce: number } | null
 }
 
 export function ChatInput({
@@ -111,6 +127,7 @@ export function ChatInput({
   showModelSelector = true,
   forcedTool = null,
   forcedModelLabel = null,
+  prefill = null,
 }: ChatInputProps) {
   const [input, setInput] = useState('')
   const [modelId, setModelId] = useState(DEFAULT_MODEL_ID)
@@ -150,6 +167,33 @@ export function ChatInput({
     }
     lastForcedToolRef.current = forcedTool
   }, [forcedTool])
+
+  // 親 (suggestion チップ等) から「ツール選択 + テキスト挿入」を発火された時。
+  // nonce 変化を監視して、同じ内容のリクエストでも何度でも発火させる。
+  // 送信はしない (ユーザーが内容を見て Enter する想定)。
+  const lastPrefillNonceRef = useRef<number | null>(null)
+  const pendingPrefillResizeRef = useRef(false)
+  useEffect(() => {
+    if (!prefill) return
+    if (prefill.nonce === lastPrefillNonceRef.current) return
+    lastPrefillNonceRef.current = prefill.nonce
+    setSelectedTool(prefill.toolId)
+    setInput(prefill.text)
+    // React commit 後 (input state が DOM に反映された後) に textarea のサイズ計算をする
+    pendingPrefillResizeRef.current = true
+  }, [prefill])
+
+  // input が更新された後に「テキスト → 自動リサイズ」を実行 (prefill 経由でセットした時用)。
+  // textarea の onChange ハンドラと同じ計算を、commit 後の DOM に対して再実行する。
+  useEffect(() => {
+    if (!pendingPrefillResizeRef.current) return
+    pendingPrefillResizeRef.current = false
+    const ta = inputRef.current
+    if (!ta) return
+    ta.focus()
+    ta.style.height = 'auto'
+    ta.style.height = Math.min(ta.scrollHeight, 160) + 'px'
+  }, [input])
 
   const [files, setFiles] = useState<AttachedFile[]>([])
   const [isDragging, setIsDragging] = useState(false)

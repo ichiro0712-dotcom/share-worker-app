@@ -12,6 +12,7 @@ import { readKnowledge } from './knowledge/store';
 import { formatJST } from './jst';
 import { METRIC_CATALOG } from './tools/tastas-data/metrics-catalog';
 import { getDraftBySession, type ReportDraftSnapshot } from './persistence/report-drafts';
+import { getRecentSemanticMemory, type SemanticMemoryRecord } from './persistence/semantic-memory';
 
 export interface SystemPromptResult {
   /** 静的部分 (cache_control 対象) */
@@ -97,150 +98,19 @@ const TOOLS_HINT = `# ツール利用の方針
 - ツールの description に "現在利用不可" と書かれている場合、その理由をユーザーに正直に伝える
 - 代替案を提示する (近似データ・別の取得方法)
 
-## レポート作成モード (右側 Canvas)
+## レポート作成モード (補足)
 
-ユーザーから "レポート作って" "まとめて" "週報" のような依頼が来たら、
-**いきなり長文を書き始めず、右側 Canvas にドラフトを構築する** のが正解。
+レポート関連のメッセージ (\`[TOOL:report_create]\` / \`[TOOL:draft_revise]\` / \`[TOOL:result_edit]\`)
+は基本的に **Gemini バイパス経路で自動処理される** ため、Claude (あなた) がここを処理することは
+ほぼ無い。例外的に Claude に流れてくるのは「ドラフト未存在で TOOL:draft_revise が来た」など
+**前提条件 NG ケース** のみ。その場合は短く「ドラフトをまず作りましょう」のような
+ガイダンスを返すだけで OK。
 
-### ⚠️ レポート出力の制約 (必ず守る)
+### レポート出力の制約 (補足、ユーザーから質問されたら答える用)
 
-レポート本体 (Markdown) には以下の制約がある。**ユーザーが要求しても出来ないものは "代わりに○○で表現する" と明示する**:
-
-- **❌ グラフ / チャート / 画像生成は未対応** (Markdown 出力のみ)
-  - 「グラフを足して」と言われたら → **代わりに Markdown の表で代用**して、ユーザーには「現状グラフ生成は未対応のため、表で代替表示しています」と伝える
-  - 章タイトルだけ「○○グラフ」とつけて中身が空 / 画像 URL だけ書く、のは絶対禁止 (誤解を招く)
-- **✅ 表 (Markdown table) は OK**
-- **✅ 箇条書き / 見出し / 太字 / コードブロックは OK**
-- **❌ 添付ファイル / Excel / PDF 出力は未対応**
-
-### 🚨 レポート作成モードでの絶対禁止事項 (例外なし)
-
-レポート作成依頼 (\`[TOOL:report_create]\` プレフィックス付き、または「レポート作って」
-「○○のレポート」「KPI まとめて」「週報」「日報」「月報」のような依頼) を受けた瞬間、
-以下を厳守:
-
-❌ **データ収集ツールを呼ぶことは絶対禁止**
-   - \`query_metric\` / \`query_ga4\` / \`query_search_console\` / \`get_jobs_summary\` /
-     \`get_users_summary\` / \`get_recent_errors\` / \`get_supabase_logs\` / \`get_vercel_logs\` /
-     \`get_recent_commits\` を 1 つも呼ばない
-   - 「現在の値を確認してから skeleton を作る」のような誘惑も禁止
-   - 数字を取ってきて表に埋める作業は **絶対にしない**
-
-❌ **レポート本文をチャット欄に書き出すことは絶対禁止**
-   - 「## サマリ\\n先週の UU は 1,234...」のような完成本文を text ブロックで返さない
-   - これをやると Canvas にドラフトが入らず、ユーザーには「チャット欄にレポートが
-     出てしまった」と認識される (UX 破綻)
-
-❌ **ループを 2 周以上回さない**
-   - update_report_draft を 1 回呼んで、1〜2 行の差分説明 text を返したら **完全終了**
-   - 続けて他のツールを呼んだり、追加の text を書いたりしない
-
-✅ **やるべきことはこれだけ**
-   - update_report_draft ツールを **1 回だけ** 呼ぶ (要件 + 0 埋め skeleton)
-   - その後 1〜2 行 (50〜120 字) の差分説明 text を 1 つだけ生成して終了
-
-### なぜこの厳格ルールがあるか (背景理解)
-
-レポート機能の役割分担はこう設計されている:
-- **あなた (Claude)**: チャットで対話しながら **要件と骨格 (skeleton_markdown)** を Canvas に作る
-- **サーバー側の \`reports/generate.ts\`**: ユーザーが「レポート作成」ボタンを押した時に、
-  並列でデータ収集 → **Gemini 2.5 Flash で本文生成** → AdvisorReportVersion として保存
-
-つまり「数字を集めて本文を書く」のは Claude の仕事ではなく、Gemini に任せている。
-Claude が query_metric を呼んで数字を取りに行くと:
-1. 二重課金になる (Gemini も同じデータを取る)
-2. ループが伸びて応答が遅くなる (loop=4 で 85 秒の事象が発生済み)
-3. 完成本文をチャット欄に書いてしまうと Canvas が空のままになる
-
-### フロー (重要: 速度のため必ず守る)
-
-1. **初回の依頼を受けたら**、update_report_draft ツールを **1 回だけ** 呼ぶ。
-   全フィールドを 1 回でセットする (会話の中で別途確認しない):
-   - title: 暫定タイトル (1 行)
-   - goal: 目的 1 文
-   - data_sources: 集めるツールキー (query_metric, query_ga4, get_recent_errors 等)
-   - metric_keys: data_sources に query_metric があるなら必須 (上の指標一覧から選ぶ)
-   - range_start / range_end: 対象期間 (YYYY-MM-DD)
-   - outline: **章立ての見出しだけ 3〜6 行**。詳細は本文生成時に Gemini が補完する
-   - notes: 除外条件・考慮事項 (1〜3 行で十分)
-   - **skeleton_markdown: ドラフト本体 Markdown を必ず作る**。
-     - 章立て (outline と一致) + 各章に 0 埋めの表 / 箇条書きのプレースホルダ
-     - 数字は実値ではなく \`0\` / \`-\` / \`(コメント)\` を入れる
-     - 例: 「LP 別実績 LP1〜LP3」と話があれば LP1/LP2/LP3 の 3 行表を入れる
-     - これが Canvas で「レポートの完成イメージ」として表示される
-
-2. **update_report_draft を呼んだら、続けて text ブロックを 1 つだけ生成する**:
-   - 1〜2 行 (50〜120 字) の超短文
-   - 「何をどう変更したか」を具体的に書く (例: 「LP 別実績表を LP1〜LP5 に拡張、会員登録数の表を追加」)
-   - 単なる定型挨拶 ("Canvas に反映しました" だけ等) は禁止。差分内容を必ず含める
-   - 長文解説や Canvas の中身を全部書き出すのは禁止 (ユーザーは Canvas を直接見れる)
-   - 例:
-     - 「LP 別実績表を LP1〜LP5 に拡張、会員登録数の表を追加しました。問題なければ『レポート作成』ボタンへ。」
-     - 「期間を先週に変更し、metric_keys に NEW_WORKERS を追加しました。」
-     - 「outline に『考察』章を追加しました。」
-
-3. ユーザーから追加要求があれば再度 update_report_draft で部分更新する (差分だけ送る)
-
-4. 要件確定後、ユーザーが「レポート作成」ボタンを押すと別系統で集計+本文生成 (Gemini) が走る
-
-### \`[TOOL:draft_revise]\` プレフィックスが付いた送信メッセージ (ドラフト修正指示)
-
-ユーザーが Canvas を開いた状態で送信すると、メッセージ先頭に \`[TOOL:draft_revise]\` が付く。
-これは「現在 Canvas に表示されているドラフトを修正してほしい」という意図の明示。
-
-現在のドラフト状態は **このプロンプトの dynamic 部分「現在のレポートドラフト状態」セクションに既に展開されている**。
-そこに含まれる:
-- \`original_request\` (初回要望)
-- \`skeleton_markdown\` (ドラフト本体)
-- title / outline / metric_keys / notes / range など
-を参照する。**ドラフト確認のための追加ツールは存在しない (廃止済み)。直接プロンプト内のドラフト状態を読むこと。**
-
-これらの情報 + **会話履歴** + **新しい指示文** の 3 つを総合的に踏まえて差分更新する。
-
-対応のパターン:
-- 「LP5 まで増やして」「会員登録数の表を足して」「考察を 3 つに」のような **構造変更**
-  → **skeleton_markdown を書き換える**。表の行数を増やす / 章を足す等を直接 Markdown に反映
-  → 必要なら metric_keys や outline も同時に更新 (整合性を保つため)
-- 「期間を変えて」「別のデータソース追加」のような **要件変更**
-  → 該当フィールド (range_start/end / data_sources / metric_keys) を更新
-  → 構造に影響するなら skeleton_markdown も更新
-- 「メモを追加して」「○○も考慮して」のような **補足指示**
-  → notes に追記
-- update_report_draft 呼び出し後は、上記フロー §2 と同じ「1〜2 行で何を変えたか」を text ブロックで返す
-
-### data_sources のキーは以下から選ぶ
-
-- query_metric (本番DB の指標 — 後述の metric_keys 必須)
-- get_jobs_summary (求人サマリ)
-- get_users_summary (ユーザーサマリ)
-- get_recent_errors (エラーログ)
-- query_ga4 (Google Analytics)
-- query_search_console (Google Search Console — 検索キーワード/順位/CTR)
-- get_vercel_logs (Vercel ログ)
-- get_supabase_logs (Supabase ログ)
-- get_recent_commits (GitHub コミット)
-
-### data_sources に query_metric を入れる場合 (重要)
-
-\`query_metric\` は「どの指標を取るか」を確定しないと取得できない。
-data_sources に \`query_metric\` を含めるなら **必ず metric_keys (string[]) も同時に渡す** こと:
-
-1. 下記「利用可能なメトリクス一覧」から、ユーザーの依頼内容に合うものを 1〜10 件選ぶ
-   (例: ["LP_PV", "LP_TO_LINE_CONV"])
-2. update_report_draft で metric_keys にその配列を渡す
-3. metric_keys が空のまま「レポート作成」されると、query_metric は実行できずに skip される
-
-**metric_keys を埋めずに data_sources=["query_metric"] とだけ書くのは禁止。**
-
-### 既に生成済みのレポートを修正したい場合 (edit_report_section)
-
-ユーザーがレポート結果を見ながら「ここを直して」「○章を簡潔に」のような部分修正を依頼してきた場合は、
-\`edit_report_section\` ツールを使う:
-
-- 用途: 結果ビュー表示中の修正依頼のみ
-- 動作: 元レポート全文を Gemini に投げて修正版全文を新バージョンとして保存
-- レポートが未生成 (まだ初版がない) なら使わない (update_report_draft で要件固めから)
-- ユーザーが「手動で直接編集する」と言ったら、本ツールは使わず Canvas の「編集」ボタンを案内する`;
+- グラフ / チャート / 画像生成: 未対応 (Markdown のみ)
+- 添付ファイル / Excel / PDF 出力: 未対応
+- 表 (Markdown table) / 箇条書き / 見出し / 太字 / コードブロックは OK`;
 
 /**
  * `query_metric` で利用可能なメトリクス一覧を Markdown 表で生成する。
@@ -400,6 +270,17 @@ export async function buildSystemPrompt(opts: {
   const draft = await getDraftBySession(opts.sessionId).catch(() => null);
   const draftBlock = draft ? renderDraftStateBlock(draft) : '';
 
+  // しおり付きセッションの過去レポートを「意味的記憶」として埋め込む。
+  // ユーザーが「先月のレポートで言ってた○○」のような文脈依存質問をした時、
+  // Claude / Gemini がここを参照して回答できるようにする。
+  // (取り込み元: app/api/cron/advisor-semantic-ingest 毎日 04:30 JST)
+  const memories = await getRecentSemanticMemory({
+    adminId: opts.admin.id,
+    category: 'advisor_report',
+    limit: 5,
+  }).catch(() => []);
+  const memoryBlock = memories.length > 0 ? renderSemanticMemoryBlock(memories) : '';
+
   const dynamicPart = [
     '# このセッションの情報',
     '',
@@ -407,6 +288,7 @@ export async function buildSystemPrompt(opts: {
     `- 現在時刻 (JST): ${formatJST(new Date())}`,
     `- セッションID: ${opts.sessionId}`,
     `- 知識キャッシュハッシュ: ${cachedHash}`,
+    memoryBlock,
     draftBlock,
   ]
     .filter((s) => s.length > 0)
@@ -454,6 +336,43 @@ function renderDraftStateBlock(draft: ReportDraftSnapshot): string {
     lines.push('```markdown');
     lines.push(draft.skeletonMarkdown);
     lines.push('```');
+  }
+  return lines.join('\n');
+}
+
+/**
+ * しおり付きセッションの過去レポートを「意味的記憶」として埋め込む。
+ *
+ * ユーザーが「先月のレポートで言ってた○○」のような文脈依存質問をした時、
+ * Claude / Gemini がここを参照して具体内容に沿った回答ができる。
+ *
+ * 取り込み元: app/api/cron/advisor-semantic-ingest (毎日 04:30 JST)
+ * 取り込み対象: AdvisorChatSession.bookmarked = true なセッションの最新レポート
+ * 表示件数: 最新 5 件 (token 量制御のため)
+ * 各レポート本文: cron 側で 8,000 字に truncate 済み
+ */
+function renderSemanticMemoryBlock(memories: SemanticMemoryRecord[]): string {
+  const lines: string[] = [];
+  lines.push('');
+  lines.push('# 過去の重要レポート (しおり付きセッションの最新版、意味的記憶)');
+  lines.push('');
+  lines.push('以下は質問者が「しおり (永続保存)」を付けたセッションの最新レポート。');
+  lines.push('「先月のレポートで言ってた○○」「あのレポートでは○○と書いた」のような');
+  lines.push('文脈依存質問が来たら、ここから該当内容を引いて回答する。');
+  lines.push('該当内容が無ければ「過去レポートには見当たりません」と正直に答える。');
+  lines.push('');
+  for (const m of memories) {
+    const meta = (m.metadata && typeof m.metadata === 'object' && !Array.isArray(m.metadata)
+      ? m.metadata
+      : {}) as Record<string, unknown>;
+    const versionNumber = meta.versionNumber ?? '?';
+    const generatedAt = meta.generatedAt ?? '?';
+    lines.push(`## ${m.title} (v${versionNumber}, ${generatedAt})`);
+    lines.push('');
+    lines.push('```markdown');
+    lines.push(m.content);
+    lines.push('```');
+    lines.push('');
   }
   return lines.join('\n');
 }

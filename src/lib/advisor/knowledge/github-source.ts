@@ -24,22 +24,42 @@ export interface GithubFileResult {
 }
 
 export interface GithubAuthConfig {
-  token: string;
+  /** PAT が無ければ null (= anonymous アクセス、public repo は読める / rate 60/h) */
+  token: string | null;
   owner: string;
   repo: string;
   ref?: string; // ブランチ名 (default: main)
 }
 
+/**
+ * GitHub アクセス設定を取得。
+ *
+ * - owner / repo / ref は **default 値** (TASTAS リポジトリ) を持つ
+ * - token は GITHUB_TOKEN_FOR_ADVISOR > GITHUB_TOKEN > null の優先順位
+ * - token が無い場合は anonymous アクセス (public repo なら読める / rate 60/h)
+ *
+ * 旧仕様 (env 全部必須で hard fail) は「PAT を一時的に外したい」「default repo で
+ * 動かしたい」 場合に Advisor が完全停止する不具合があったため変更。
+ */
 function getAuthConfig(): GithubAuthConfig {
-  const token = process.env.GITHUB_TOKEN_FOR_ADVISOR;
-  const owner = process.env.ADVISOR_GITHUB_OWNER;
-  const repo = process.env.ADVISOR_GITHUB_REPO;
-  if (!token || !owner || !repo) {
-    throw new Error(
-      '[advisor] GITHUB_TOKEN_FOR_ADVISOR / ADVISOR_GITHUB_OWNER / ADVISOR_GITHUB_REPO are required'
-    );
-  }
+  const token =
+    process.env.GITHUB_TOKEN_FOR_ADVISOR ?? process.env.GITHUB_TOKEN ?? null;
+  const owner = process.env.ADVISOR_GITHUB_OWNER ?? 'ichiro0712-dotcom';
+  const repo = process.env.ADVISOR_GITHUB_REPO ?? 'share-worker-app';
   return { token, owner, repo, ref: process.env.ADVISOR_GITHUB_REF ?? 'main' };
+}
+
+/**
+ * fetch ヘッダー組み立て。 token がある時のみ Authorization を付ける。
+ */
+function buildGithubHeaders(cfg: GithubAuthConfig): Record<string, string> {
+  const headers: Record<string, string> = {
+    Accept: 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+    'User-Agent': 'tastas-system-advisor/1.0',
+  };
+  if (cfg.token) headers.Authorization = `Bearer ${cfg.token}`;
+  return headers;
 }
 
 /** GitHub からファイルを取得 (Contents API) */
@@ -51,12 +71,7 @@ export async function fetchGithubFile(opts: {
   const url = `${GITHUB_API_BASE}/repos/${cfg.owner}/${cfg.repo}/contents/${encodeURIComponent(opts.path).replace(/%2F/g, '/')}?ref=${cfg.ref}`;
 
   const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${cfg.token}`,
-      Accept: 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-      'User-Agent': 'tastas-system-advisor/1.0',
-    },
+    headers: buildGithubHeaders(cfg),
     signal: opts.signal,
   });
 
@@ -100,12 +115,7 @@ export async function fetchGithubDirectory(opts: {
   const url = `${GITHUB_API_BASE}/repos/${cfg.owner}/${cfg.repo}/contents/${encodeURIComponent(opts.path).replace(/%2F/g, '/')}?ref=${cfg.ref}`;
 
   const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${cfg.token}`,
-      Accept: 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-      'User-Agent': 'tastas-system-advisor/1.0',
-    },
+    headers: buildGithubHeaders(cfg),
     signal: opts.signal,
   });
 
@@ -155,12 +165,7 @@ export async function fetchRecentCommits(opts: {
   const url = `${GITHUB_API_BASE}/repos/${cfg.owner}/${cfg.repo}/commits?sha=${branch}&per_page=${limit}`;
 
   const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${cfg.token}`,
-      Accept: 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-      'User-Agent': 'tastas-system-advisor/1.0',
-    },
+    headers: buildGithubHeaders(cfg),
     signal: opts.signal,
   });
 
@@ -184,11 +189,40 @@ export async function fetchRecentCommits(opts: {
   }));
 }
 
-/** GitHub API がアクセス可能か (環境変数チェック) */
+/**
+ * GitHub API がアクセス可能か。
+ * default 値経由で常にアクセス可能 (token なしでも anonymous 60/h で動く)。
+ *
+ * 各ツールの `available()` 判定で「token 必須」(例: search_codebase は GitHub Search API
+ * が anonymous で 422 を返すため PAT 必須) なものは、 `getGithubAccessLevel()` で
+ * `authenticated` を見て判定すること。
+ */
 export function isGithubAvailable(): boolean {
-  return !!(
-    process.env.GITHUB_TOKEN_FOR_ADVISOR &&
-    process.env.ADVISOR_GITHUB_OWNER &&
-    process.env.ADVISOR_GITHUB_REPO
+  return true;
+}
+
+/**
+ * GitHub アクセスレベル詳細。
+ * - PAT 設定済 → authenticated=true (5000/h)
+ * - PAT 未設定 → authenticated=false (anonymous 60/h、 public repo のみ)
+ */
+export function getGithubAccessLevel(): {
+  available: boolean;
+  authenticated: boolean;
+  reason: string;
+} {
+  const hasToken = !!(
+    process.env.GITHUB_TOKEN_FOR_ADVISOR ?? process.env.GITHUB_TOKEN
   );
+  return hasToken
+    ? {
+        available: true,
+        authenticated: true,
+        reason: 'PAT 認証済 (GitHub API rate limit: 5000/h)',
+      }
+    : {
+        available: true,
+        authenticated: false,
+        reason: 'anonymous アクセス (PAT 未設定、 rate limit: 60/h、 public repo のみ)',
+      };
 }

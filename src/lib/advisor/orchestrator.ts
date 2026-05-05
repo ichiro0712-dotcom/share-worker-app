@@ -18,6 +18,14 @@ import { getRecentMessagesForOrchestrator, appendMessage } from './persistence/m
 import { getDraftBySession, upsertDraft } from './persistence/report-drafts';
 import { editDraftWithGemini } from './llm/gemini-edit';
 import { createDraftWithGemini } from './llm/gemini-draft-create';
+import { editResultWithGemini } from './llm/gemini-result-edit';
+import { buildChatHistoryContext } from './llm/chat-history-context';
+import { generateReport } from './reports/generate';
+import {
+  createReportVersion,
+  buildDraftSnapshot,
+  getLatestVersion,
+} from './persistence/report-versions';
 import { incrementSessionUsage } from './persistence/sessions';
 import { incrementUsage } from './cost-guard';
 import { recordAudit } from './persistence/audit';
@@ -336,7 +344,14 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
   // - `[TOOL:report_create]` (初回ドラフト作成): Gemini で要件確定 + skeleton 生成
   // - `[TOOL:draft_revise]` (ドラフト修正指示): Gemini で skeleton_markdown 書き換え
   //
-  // 失敗時は下の Anthropic ループに fall through する (堅牢性優先)。
+  // 失敗時の方針:
+  // - Gemini 呼び出し中の例外 (parse 失敗 / API エラー) は **handled=true で返り**、
+  //   Gemini 関数内でエラーメッセージを SSE に流して done する。Anthropic に fall
+  //   through しない (loop=1 TTFB 100 秒級が再現するため、ユーザーに 2 分待たせる
+  //   くらいなら 5 秒で「失敗、再試行を」と返す方が遥かにマシ)。
+  // - 前提条件 NG (no draft / admin mismatch / empty skeleton on revise) は
+  //   handled=false で Anthropic にフォールバック。これらは「Gemini を呼ぶ意味が
+  //   無い」ケースなので Anthropic で通常チャットとして扱うのが正しい。
   const trimmed = input.userMessage.trimStart();
   if (trimmed.startsWith('[TOOL:report_create]')) {
     const bypassResult = await tryGeminiDraftCreateBypass({
@@ -344,14 +359,18 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
       userRequest: displayUserMessage,
     });
     if (bypassResult.handled) return;
-    // 失敗 = Anthropic ルートにフォールバック
   } else if (trimmed.startsWith('[TOOL:draft_revise]')) {
     const bypassResult = await tryGeminiDraftReviseBypass({
       input,
       instruction: displayUserMessage,
     });
     if (bypassResult.handled) return;
-    // 失敗 = Anthropic ルートにフォールバック
+  } else if (trimmed.startsWith('[TOOL:result_edit]')) {
+    const bypassResult = await tryGeminiResultEditBypass({
+      input,
+      instruction: displayUserMessage,
+    });
+    if (bypassResult.handled) return;
   }
 
   // 4. Tool Use ループ
@@ -876,32 +895,36 @@ async function tryGeminiDraftCreateBypass(args: {
     outputTokens = result.metrics.outputTokens
     geminiModel = result.metrics.model
 
-    // Draft を upsert。original_request は初回作成なので必ず保存する。
-    // upsertDraft は initial 時の original_request 引数を持っていないので、
-    // 直接 prisma を叩くか、persistence 側に専用関数を追加する。
-    // 今回はトランザクション不要なので upsertDraft の拡張ではなく
-    // generic upsert で対応 (originalRequest 引数を受け付ける)
-    await upsertDraft({
-      sessionId: input.sessionId,
-      adminId: input.admin.id,
-      title: result.title,
-      goal: result.goal,
-      dataSources: result.dataSources,
-      metricKeys: result.metricKeys,
-      rangeStart: result.rangeStart,
-      rangeEnd: result.rangeEnd,
-      outline: result.outline,
-      notes: result.notes,
-      skeletonMarkdown: result.skeletonMarkdown,
-      originalRequest: userRequest,
-    })
+    // unavailable_request=true の場合 = 要望が現状取得不可な指標のみ
+    // → Canvas にドラフトを作らず、summary だけチャットに返す。
+    if (!result.unavailableRequest) {
+      await upsertDraft({
+        sessionId: input.sessionId,
+        adminId: input.admin.id,
+        title: result.title,
+        goal: result.goal,
+        dataSources: result.dataSources,
+        metricKeys: result.metricKeys,
+        rangeStart: result.rangeStart,
+        rangeEnd: result.rangeEnd,
+        outline: result.outline,
+        notes: result.notes,
+        skeletonMarkdown: result.skeletonMarkdown,
+        originalRequest: userRequest,
+      })
+    }
 
     // SSE 送出
-    input.onEvent({ type: 'text', text: result.summary })
+    //    「📋 ドラフトを作成しました」イベントラベル付きで履歴 / Gemini が把握できるように。
+    //    unavailable_request の場合 (ドラフト未作成・拒否) はラベルを付けない。
+    const eventText = result.unavailableRequest
+      ? result.summary
+      : `📋 **ドラフトを作成しました**\n${result.summary}`
+    input.onEvent({ type: 'text', text: eventText })
     const persisted = await appendMessage({
       sessionId: input.sessionId,
       role: 'assistant',
-      content: result.summary,
+      content: eventText,
       inputTokens,
       outputTokens,
       cacheReadTokens: 0,
@@ -937,6 +960,7 @@ async function tryGeminiDraftCreateBypass(args: {
         data_sources: result.dataSources,
         metric_keys_count: result.metricKeys.length,
         skeleton_chars: result.skeletonMarkdown.length,
+        unavailable_request: result.unavailableRequest,
       },
       clientIp: input.clientIp,
       clientUa: input.clientUa,
@@ -951,9 +975,23 @@ async function tryGeminiDraftCreateBypass(args: {
   } catch (e) {
     const errMsg = e instanceof Error ? e.message : String(e)
     console.error(
-      `[advisor:gemini-bypass] create-failed → fallback to Anthropic: ${errMsg}`,
+      `[advisor:gemini-bypass] create-failed: ${errMsg}`,
       e
     )
+
+    // ユーザーに失敗を伝えて終了する (Anthropic に fall through しない)。
+    // Anthropic は loop=1 で 100 秒級の TTFB を出すため、失敗時に渋々 Anthropic を
+    // 呼び直すと 2 分待たされて結局答えが返らない最悪 UX になる。
+    // 5〜10 秒で「ドラフト作成に失敗しました、もう一度お試しください」を返す方が
+    // ユーザーにとって遥かに良い (再試行で済む)。
+    // UI 側 (chat-layout.tsx) は 'error' イベントを受けた瞬間に throw → catch で
+    // assistant メッセージとしてエラー文を表示するため、ここでサーバー側の
+    // appendMessage / done 送出は不要 (むしろ重複表示の原因になる)。
+    const userVisibleError =
+      'ドラフト作成に失敗しました。もう一度お試しください。\n' +
+      `(エラー: ${errMsg.slice(0, 200)})`
+    input.onEvent({ type: 'error', text: userVisibleError })
+
     await recordAudit({
       adminId: input.admin.id,
       sessionId: input.sessionId,
@@ -963,12 +1001,12 @@ async function tryGeminiDraftCreateBypass(args: {
         gemini_failed: true,
         elapsed_ms: Date.now() - startMs,
         error: errMsg,
-        recovered: true,
+        recovered: false,
       },
       clientIp: input.clientIp,
       clientUa: input.clientUa,
     }).catch(() => {})
-    return { handled: false }
+    return { handled: true }
   } finally {
     clearInterval(heartbeatTimer)
   }
@@ -1018,7 +1056,13 @@ async function tryGeminiDraftReviseBypass(args: {
       })
     }, 5000)
 
-    // 3. Gemini で編集
+    // 3. 直近チャット履歴を取得 (Gemini に文脈を渡す)
+    const chatHistoryContext = await buildChatHistoryContext({
+      sessionId: input.sessionId,
+      contextCount: 8,
+    }).catch(() => '')
+
+    // 4. Gemini で編集
     const result = await editDraftWithGemini({
       currentSkeleton: draft.skeletonMarkdown,
       userInstruction: instruction,
@@ -1031,6 +1075,7 @@ async function tryGeminiDraftReviseBypass(args: {
         outline: draft.outline,
         notes: draft.notes,
       },
+      chatHistoryContext,
       abortSignal: input.abortSignal,
     })
     elapsedMs = result.metrics.elapsedMs
@@ -1038,22 +1083,38 @@ async function tryGeminiDraftReviseBypass(args: {
     outputTokens = result.metrics.outputTokens
     geminiModel = result.metrics.model
 
-    // 4. DB 更新 (skeleton_markdown のみ書き換え)
-    await upsertDraft({
-      sessionId: input.sessionId,
-      adminId: input.admin.id,
-      skeletonMarkdown: result.updatedSkeleton,
-    })
+    // 4. DB 更新 (skeleton_markdown + skeleton 変更に伴う要件メタの同期更新)
+    //    refused=true なら現状維持 (取得不可指標を追加する指示を Gemini が拒否したケース)
+    if (!result.refused) {
+      await upsertDraft({
+        sessionId: input.sessionId,
+        adminId: input.admin.id,
+        skeletonMarkdown: result.updatedSkeleton,
+        // Gemini が「変更あり」と判断したフィールドだけ反映 (null は upsert 側で「変更なし」として扱う)
+        ...(result.updatedDataSources !== null
+          ? { dataSources: result.updatedDataSources }
+          : {}),
+        ...(result.updatedMetricKeys !== null
+          ? { metricKeys: result.updatedMetricKeys }
+          : {}),
+        ...(result.updatedOutline !== null ? { outline: result.updatedOutline } : {}),
+        ...(result.updatedGoal !== null ? { goal: result.updatedGoal } : {}),
+        ...(result.updatedTitle !== null ? { title: result.updatedTitle } : {}),
+      })
+    }
 
     // 5. SSE で UI にレスポンスを流す
-    //    text → done の順で legacy chat-layout.tsx と互換
-    input.onEvent({ type: 'text', text: result.summary })
+    //    「📝 ドラフトを更新しました」イベントラベル付きで履歴と Gemini が把握できるように。
+    const eventText = result.refused
+      ? result.summary
+      : `📝 **ドラフトを更新しました**\n${result.summary}`
+    input.onEvent({ type: 'text', text: eventText })
 
     // assistant メッセージを永続化
     const persisted = await appendMessage({
       sessionId: input.sessionId,
       role: 'assistant',
-      content: result.summary,
+      content: eventText,
       inputTokens,
       outputTokens,
       cacheReadTokens: 0,
@@ -1090,6 +1151,12 @@ async function tryGeminiDraftReviseBypass(args: {
         fields_updated: result.fieldsUpdated,
         summary_chars: result.summary.length,
         skeleton_chars: result.updatedSkeleton.length,
+        refused: result.refused,
+        synced_data_sources: result.updatedDataSources,
+        synced_metric_keys: result.updatedMetricKeys,
+        synced_outline_changed: result.updatedOutline !== null,
+        synced_goal_changed: result.updatedGoal !== null,
+        synced_title_changed: result.updatedTitle !== null,
       },
       clientIp: input.clientIp,
       clientUa: input.clientUa,
@@ -1104,10 +1171,19 @@ async function tryGeminiDraftReviseBypass(args: {
   } catch (e) {
     const errMsg = e instanceof Error ? e.message : String(e)
     console.error(
-      `[advisor:gemini-bypass] failed → fallback to Anthropic: ${errMsg}`,
+      `[advisor:gemini-bypass] revise-failed: ${errMsg}`,
       e
     )
-    // audit にも失敗を記録 (回避策の検証で必要)
+
+    // ユーザーに失敗を伝えて終了する (Anthropic に fall through しない)。
+    // 理由は create 側と同じ — Anthropic loop=1 TTFB が 100 秒級になるため、
+    // 失敗のたびに Anthropic に流すと 2 分待たされる最悪 UX になる。
+    // UI 側で error イベントを受けて表示するので、appendMessage / done は不要。
+    const userVisibleError =
+      'ドラフト修正に失敗しました。もう一度お試しください。\n' +
+      `(エラー: ${errMsg.slice(0, 200)})`
+    input.onEvent({ type: 'error', text: userVisibleError })
+
     await recordAudit({
       adminId: input.admin.id,
       sessionId: input.sessionId,
@@ -1117,15 +1193,415 @@ async function tryGeminiDraftReviseBypass(args: {
         gemini_failed: true,
         elapsed_ms: Date.now() - startMs,
         error: errMsg,
-        recovered: true, // Anthropic に fallback するため致命ではない
+        recovered: false,
       },
       clientIp: input.clientIp,
       clientUa: input.clientUa,
-    }).catch(() => {
-      /* audit 失敗は黙る (主目的は Anthropic fallback なので) */
-    })
-    return { handled: false }
+    }).catch(() => {})
+    return { handled: true }
   } finally {
     if (heartbeatTimer) clearInterval(heartbeatTimer)
+  }
+}
+
+/**
+ * `[TOOL:result_edit]` を Gemini で直接処理する。
+ *
+ * 生成済みレポート (result_markdown) を Gemini Flash で部分書き換えして、
+ * 新しい `AdvisorReportVersion` (source='llm_edit') として保存する。
+ * skeleton (ドラフト本体) は触らない。
+ *
+ * 失敗時の方針: draft 系と同様、Anthropic に fall through せず error イベントで
+ * ユーザーに「失敗、再試行を」と返す (loop=1 TTFB 問題回避)。
+ */
+async function tryGeminiResultEditBypass(args: {
+  input: OrchestratorRunInput
+  /** [TOOL:result_edit] プレフィックスを剥がしたユーザー指示 */
+  instruction: string
+}): Promise<{ handled: boolean }> {
+  const { input, instruction } = args
+  const startMs = Date.now()
+  let elapsedMs = 0
+  let inputTokens = 0
+  let outputTokens = 0
+  let geminiModel = 'unknown'
+  let heartbeatTimer: ReturnType<typeof setInterval> | null = null
+
+  try {
+    // 1. ドラフト + 最新バージョン取得
+    const draft = await getDraftBySession(input.sessionId)
+    if (!draft) {
+      console.log('[advisor:gemini-bypass] result_edit: no draft → fallback to Anthropic')
+      return { handled: false }
+    }
+    if (draft.adminId !== input.admin.id) {
+      console.warn('[advisor:gemini-bypass] result_edit: admin mismatch → fallback')
+      return { handled: false }
+    }
+    const latest = await getLatestVersion(draft.id)
+    if (!latest || !latest.resultMarkdown || latest.resultMarkdown.trim().length === 0) {
+      // まだレポート未生成 → Anthropic に流して通常会話 or ガイダンスさせる
+      console.log('[advisor:gemini-bypass] result_edit: no result yet → fallback to Anthropic')
+      return { handled: false }
+    }
+
+    // 2. UI に「レポート更新中」状態を伝える
+    input.onEvent({ type: 'status', status: 'レポートを更新中... (Gemini)' })
+    heartbeatTimer = setInterval(() => {
+      input.onEvent({
+        type: 'heartbeat',
+        phase: 'streaming',
+        label: 'Gemini で更新中...',
+        elapsedMs: Date.now() - startMs,
+        outputTokens: 0,
+      })
+    }, 5000)
+
+    // 3. 直近チャット履歴を取得 (Gemini に文脈を渡す)
+    const chatHistoryContext = await buildChatHistoryContext({
+      sessionId: input.sessionId,
+      contextCount: 8,
+    }).catch(() => '')
+
+    // 4. Gemini で編集
+    const result = await editResultWithGemini({
+      currentResult: latest.resultMarkdown,
+      userInstruction: instruction,
+      context: {
+        title: draft.title,
+        goal: draft.goal,
+        rangeStart: draft.rangeStart,
+        rangeEnd: draft.rangeEnd,
+      },
+      chatHistoryContext,
+      abortSignal: input.abortSignal,
+    })
+    elapsedMs = result.metrics.elapsedMs
+    inputTokens = result.metrics.inputTokens
+    outputTokens = result.metrics.outputTokens
+    geminiModel = result.metrics.model
+
+    // 4.5 Gemini が「これは新データ取得が必要 (result_edit では実現不可)」と判定した場合、
+    //     裏で draft_revise → upsertDraft → generateReport を続けて実行する。
+    //     ユーザーは Canvas で新バージョンが生成されるのを見るだけで、ドラフトタブに
+    //     切り替えて再生成ボタンを押す手間が無くなる。
+    if (result.redirectToDraft && result.draftInstruction) {
+      input.onEvent({
+        type: 'status',
+        status: 'データ取得が必要なため、ドラフトを更新して再生成中...',
+      })
+      const auto = await runAutoRedraftAndRegenerate({
+        input,
+        draft,
+        draftInstruction: result.draftInstruction,
+        chatHistoryContext,
+        startMs,
+        priorElapsedMs: elapsedMs,
+        priorInputTokens: inputTokens,
+        priorOutputTokens: outputTokens,
+        editSummary: result.summary,
+      })
+      if (heartbeatTimer) clearInterval(heartbeatTimer)
+      return { handled: auto.handled }
+    }
+
+    // 5. 新バージョンとして保存 (source='llm_edit')
+    //    createReportVersion が draft.result_markdown / generated_at / generation_count も自動更新する
+    const version = await createReportVersion({
+      draftId: draft.id,
+      resultMarkdown: result.updatedResult,
+      resultModel: geminiModel,
+      draftSnapshot: buildDraftSnapshot({
+        title: draft.title,
+        goal: draft.goal,
+        dataSources: draft.dataSources,
+        metricKeys: draft.metricKeys,
+        rangeStart: draft.rangeStart,
+        rangeEnd: draft.rangeEnd,
+        outline: draft.outline,
+        notes: draft.notes,
+      }),
+      source: 'llm_edit',
+      parentVersionId: latest.id,
+      generatedMs: elapsedMs,
+      inputTokens,
+      outputTokens,
+    })
+
+    // 5. SSE で UI にレスポンスを流す
+    //    「✏️ レポート vN に編集しました」イベントラベルを付けて、後で履歴 / Gemini が
+    //    どのバージョンに対する編集かを把握できるようにする。
+    const eventText = `✏️ **レポート v${version.versionNumber} を編集しました**\n${result.summary}`
+    input.onEvent({ type: 'text', text: eventText })
+    const persisted = await appendMessage({
+      sessionId: input.sessionId,
+      role: 'assistant',
+      content: eventText,
+      inputTokens,
+      outputTokens,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      model: geminiModel,
+    })
+    input.onEvent({
+      type: 'usage',
+      inputTokens,
+      outputTokens,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+    })
+    input.onEvent({
+      type: 'done',
+      messageId: persisted.id,
+      conversationId: input.sessionId,
+    })
+
+    // 6. audit
+    await recordAudit({
+      adminId: input.admin.id,
+      sessionId: input.sessionId,
+      messageId: persisted.id,
+      eventType: 'chat_response',
+      payload: {
+        gemini_direct_result_edit: true,
+        elapsed_ms: Date.now() - startMs,
+        gemini_elapsed_ms: elapsedMs,
+        gemini_model: geminiModel,
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
+        result_chars: result.updatedResult.length,
+        new_version_id: version.id,
+        new_version_number: version.versionNumber,
+      },
+      clientIp: input.clientIp,
+      clientUa: input.clientUa,
+    })
+
+    console.log(
+      `[advisor:gemini-bypass] result-edit-success session=${input.sessionId} ` +
+        `total=${Date.now() - startMs}ms gemini=${elapsedMs}ms ` +
+        `in=${inputTokens} out=${outputTokens} new_v=${version.versionNumber}`
+    )
+    return { handled: true }
+  } catch (e) {
+    const errMsg = e instanceof Error ? e.message : String(e)
+    console.error(`[advisor:gemini-bypass] result-edit-failed: ${errMsg}`, e)
+
+    // ユーザーに失敗を伝えて終了 (Anthropic に fall through しない)
+    const userVisibleError =
+      'レポート修正に失敗しました。もう一度お試しください。\n' +
+      `(エラー: ${errMsg.slice(0, 200)})`
+    input.onEvent({ type: 'error', text: userVisibleError })
+
+    await recordAudit({
+      adminId: input.admin.id,
+      sessionId: input.sessionId,
+      eventType: 'error',
+      payload: {
+        gemini_direct_result_edit: true,
+        gemini_failed: true,
+        elapsed_ms: Date.now() - startMs,
+        error: errMsg,
+        recovered: false,
+      },
+      clientIp: input.clientIp,
+      clientUa: input.clientUa,
+    }).catch(() => {})
+    return { handled: true }
+  } finally {
+    if (heartbeatTimer) clearInterval(heartbeatTimer)
+  }
+}
+
+/**
+ * result_edit の Gemini が「これは新データ取得が必要」と判定した場合の自動フロー。
+ *
+ * 1. editDraftWithGemini で draft (skeleton + 要件メタ) を更新
+ * 2. upsertDraft で DB 反映
+ * 3. generateReport でレポート再生成 (新バージョン)
+ *
+ * 各ステップで heartbeat を送ってユーザーに進捗を見せる。
+ * 失敗時は error イベントで終了。
+ */
+async function runAutoRedraftAndRegenerate(args: {
+  input: OrchestratorRunInput
+  draft: import('./persistence/report-drafts').ReportDraftSnapshot
+  draftInstruction: string
+  chatHistoryContext: string
+  startMs: number
+  priorElapsedMs: number
+  priorInputTokens: number
+  priorOutputTokens: number
+  editSummary: string
+}): Promise<{ handled: boolean }> {
+  const {
+    input,
+    draft,
+    draftInstruction,
+    chatHistoryContext,
+    startMs,
+    priorElapsedMs,
+    priorInputTokens,
+    priorOutputTokens,
+    editSummary,
+  } = args
+  let totalInputTokens = priorInputTokens
+  let totalOutputTokens = priorOutputTokens
+  let totalGeminiMs = priorElapsedMs
+
+  // 自動フロー全体で heartbeat を流し続ける (経過 30 秒級になるため)
+  const heartbeat = setInterval(() => {
+    input.onEvent({
+      type: 'heartbeat',
+      phase: 'streaming',
+      label: 'ドラフト更新 + 再生成中... (Gemini)',
+      elapsedMs: Date.now() - startMs,
+      outputTokens: totalOutputTokens,
+    })
+  }, 5000)
+
+  try {
+    // === Step 1: draft_revise (skeleton + 要件メタ更新) ===
+    if (!draft.skeletonMarkdown) {
+      throw new Error('draft.skeletonMarkdown が空のため自動再生成できません')
+    }
+    input.onEvent({ type: 'status', status: 'ドラフトを更新中...' })
+    const reviseResult = await editDraftWithGemini({
+      currentSkeleton: draft.skeletonMarkdown,
+      userInstruction: draftInstruction,
+      requirements: {
+        title: draft.title,
+        goal: draft.goal,
+        rangeStart: draft.rangeStart,
+        rangeEnd: draft.rangeEnd,
+        metricKeys: draft.metricKeys,
+        outline: draft.outline,
+        notes: draft.notes,
+      },
+      chatHistoryContext,
+      abortSignal: input.abortSignal,
+    })
+    totalGeminiMs += reviseResult.metrics.elapsedMs
+    totalInputTokens += reviseResult.metrics.inputTokens
+    totalOutputTokens += reviseResult.metrics.outputTokens
+
+    if (reviseResult.refused) {
+      // draft 側が refused (取得不可指標を要求された) → 再生成は無理
+      const msg =
+        '指示に沿ったドラフト更新ができませんでした (取得不可指標が含まれている可能性):\n' +
+        reviseResult.summary
+      input.onEvent({ type: 'error', text: msg })
+      return { handled: true }
+    }
+
+    // === Step 2: DB 反映 ===
+    await upsertDraft({
+      sessionId: input.sessionId,
+      adminId: input.admin.id,
+      skeletonMarkdown: reviseResult.updatedSkeleton,
+      ...(reviseResult.updatedDataSources !== null
+        ? { dataSources: reviseResult.updatedDataSources }
+        : {}),
+      ...(reviseResult.updatedMetricKeys !== null
+        ? { metricKeys: reviseResult.updatedMetricKeys }
+        : {}),
+      ...(reviseResult.updatedOutline !== null ? { outline: reviseResult.updatedOutline } : {}),
+      ...(reviseResult.updatedGoal !== null ? { goal: reviseResult.updatedGoal } : {}),
+      ...(reviseResult.updatedTitle !== null ? { title: reviseResult.updatedTitle } : {}),
+    })
+
+    // === Step 3: レポート再生成 ===
+    input.onEvent({ type: 'status', status: 'レポートを再生成中... (収集 + Gemini)' })
+    const genResult = await generateReport({
+      sessionId: input.sessionId,
+      adminId: input.admin.id,
+      abortSignal: input.abortSignal,
+    })
+    totalGeminiMs += genResult.totalMs
+    totalInputTokens += genResult.inputTokens
+    totalOutputTokens += genResult.outputTokens
+
+    // === Step 4: チャットに自動再生成イベントを残す ===
+    const eventText =
+      '🔄 **新データ取得が必要だったため、ドラフトを更新して自動再生成しました**\n' +
+      `- 元の修正指示: ${editSummary}\n` +
+      `- ドラフト更新: ${reviseResult.summary}\n` +
+      `- 再生成: 収集 ${genResult.collectedCount - genResult.collectedFailedCount}/${genResult.collectedCount} 件成功`
+    input.onEvent({ type: 'text', text: eventText })
+
+    const persisted = await appendMessage({
+      sessionId: input.sessionId,
+      role: 'assistant',
+      content: eventText,
+      inputTokens: totalInputTokens,
+      outputTokens: totalOutputTokens,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      model: reviseResult.metrics.model,
+    })
+
+    input.onEvent({
+      type: 'usage',
+      inputTokens: totalInputTokens,
+      outputTokens: totalOutputTokens,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+    })
+    input.onEvent({
+      type: 'done',
+      messageId: persisted.id,
+      conversationId: input.sessionId,
+    })
+
+    await recordAudit({
+      adminId: input.admin.id,
+      sessionId: input.sessionId,
+      messageId: persisted.id,
+      eventType: 'chat_response',
+      payload: {
+        gemini_auto_redraft_regenerate: true,
+        elapsed_ms: Date.now() - startMs,
+        gemini_total_ms: totalGeminiMs,
+        input_tokens: totalInputTokens,
+        output_tokens: totalOutputTokens,
+        revise_summary: reviseResult.summary,
+        regenerated_chars: genResult.resultMarkdown.length,
+        synced_data_sources: reviseResult.updatedDataSources,
+        synced_metric_keys: reviseResult.updatedMetricKeys,
+      },
+      clientIp: input.clientIp,
+      clientUa: input.clientUa,
+    })
+
+    console.log(
+      `[advisor:gemini-bypass] auto-redraft+regen success session=${input.sessionId} ` +
+        `total=${Date.now() - startMs}ms gemini=${totalGeminiMs}ms`
+    )
+    return { handled: true }
+  } catch (e) {
+    const errMsg = e instanceof Error ? e.message : String(e)
+    console.error(`[advisor:gemini-bypass] auto-redraft+regen failed: ${errMsg}`, e)
+
+    const userVisibleError =
+      'ドラフト更新 + 再生成に失敗しました。もう一度お試しください。\n' +
+      `(エラー: ${errMsg.slice(0, 200)})`
+    input.onEvent({ type: 'error', text: userVisibleError })
+
+    await recordAudit({
+      adminId: input.admin.id,
+      sessionId: input.sessionId,
+      eventType: 'error',
+      payload: {
+        gemini_auto_redraft_regenerate: true,
+        gemini_failed: true,
+        elapsed_ms: Date.now() - startMs,
+        error: errMsg,
+      },
+      clientIp: input.clientIp,
+      clientUa: input.clientUa,
+    }).catch(() => {})
+    return { handled: true }
+  } finally {
+    clearInterval(heartbeat)
   }
 }

@@ -9,7 +9,7 @@
  * 3. (新カテゴリの場合) 本ファイルに category を1行追加
  */
 
-import type { AdvisorTool } from './types';
+import type { AdvisorTool, ToolContext } from './types';
 import { coreTools } from './core';
 import { tastasDataTools } from './tastas-data';
 import { externalTools } from './external';
@@ -77,7 +77,7 @@ export async function describeAllToolsForLLM(): Promise<AnthropicToolDescription
 export async function executeToolByName(
   name: string,
   input: unknown,
-  ctx: { adminId: number; sessionId: string; abortSignal?: AbortSignal }
+  ctx: ToolContext
 ) {
   const tool = findTool(name);
   if (!tool) {

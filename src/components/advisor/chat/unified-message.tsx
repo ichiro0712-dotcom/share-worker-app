@@ -5,6 +5,7 @@ import { Copy, Check, Loader2, FolderOpen, Download, X, ChevronLeft, ChevronRigh
 import { Button } from '@/src/components/ui/shadcn/button'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { normalizeMarkdown } from '@/src/lib/advisor/markdown-normalize'
 import {
   MarkdownTable,
   MarkdownTh,
@@ -198,7 +199,9 @@ export function UnifiedMessage({
                 return (
                   <ReactMarkdown key={idx} remarkPlugins={[remarkGfm]} components={{
                     p: ({ children }) => <p><LinkifyContent>{children}</LinkifyContent></p>,
-                    li: ({ children }) => <li><LinkifyContent>{children}</LinkifyContent></li>,
+                    ul: ({ children }) => <ul className="list-disc list-outside pl-5 my-2 space-y-1 marker:text-slate-400">{children}</ul>,
+                    ol: ({ children }) => <ol className="list-decimal list-outside pl-5 my-2 space-y-1 marker:text-slate-400">{children}</ol>,
+                    li: ({ children }) => <li className="leading-relaxed"><LinkifyContent>{children}</LinkifyContent></li>,
                     a: ({ href, children }) => (
                       <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
                         {children}
@@ -228,7 +231,7 @@ export function UnifiedMessage({
                         </div>
                       )
                     },
-                  }}>{part.replace(/(?<!\n)\n(?!\n)/g, '  \n')}</ReactMarkdown>
+                  }}>{normalizeMarkdown(part).replace(/(?<!\n)\n(?!\n)/g, '  \n')}</ReactMarkdown>
                 )
               })
             })()}

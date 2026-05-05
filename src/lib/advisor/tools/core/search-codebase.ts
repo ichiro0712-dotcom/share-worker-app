@@ -50,20 +50,27 @@ export const searchCodebaseTool: AdvisorTool<Input, Output> = {
   outputDescription:
     '{ matches: [{ path, url, snippet? }], total_found, truncated }',
   async available() {
-    const token = process.env.GITHUB_TOKEN_FOR_ADVISOR;
-    const owner = process.env.ADVISOR_GITHUB_OWNER;
-    const repo = process.env.ADVISOR_GITHUB_REPO;
-    if (!token || !owner || !repo) {
-      return { ready: false, reason: 'GitHub 関連の環境変数が未設定' };
+    // search_codebase だけは anonymous で 422 を返す GitHub Search API を使うため
+    // PAT が必須。 owner / repo は default 値があるので token のみチェック。
+    const token = process.env.GITHUB_TOKEN_FOR_ADVISOR ?? process.env.GITHUB_TOKEN;
+    if (!token) {
+      return {
+        ready: false,
+        reason:
+          'GITHUB_TOKEN_FOR_ADVISOR (または GITHUB_TOKEN) が未設定。 GitHub Search API は anonymous 不可',
+      };
     }
     return { ready: true };
   },
   async execute(input, ctx) {
     const start = Date.now();
     try {
-      const token = process.env.GITHUB_TOKEN_FOR_ADVISOR!;
-      const owner = process.env.ADVISOR_GITHUB_OWNER!;
-      const repo = process.env.ADVISOR_GITHUB_REPO!;
+      const token = process.env.GITHUB_TOKEN_FOR_ADVISOR ?? process.env.GITHUB_TOKEN;
+      if (!token) {
+        return { ok: false, error: 'GitHub PAT 未設定' };
+      }
+      const owner = process.env.ADVISOR_GITHUB_OWNER ?? 'ichiro0712-dotcom';
+      const repo = process.env.ADVISOR_GITHUB_REPO ?? 'share-worker-app';
       const query = input.query.trim();
       if (!query) return { ok: false, error: 'query が空です' };
 

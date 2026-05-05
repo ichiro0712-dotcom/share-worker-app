@@ -5,6 +5,7 @@ import { cn } from '@/src/lib/cn'
 import { Bot, User, Copy, Check, Loader2, Database } from 'lucide-react'
 import { Button } from '@/src/components/ui/shadcn/button'
 import ReactMarkdown from 'react-markdown'
+import { normalizeMarkdown } from '@/src/lib/advisor/markdown-normalize'
 
 interface Message {
   id: string
@@ -97,7 +98,7 @@ export function ChatMessage({
           </span>
         )}
         <div className="text-sm leading-relaxed prose prose-sm prose-neutral dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_p]:my-1.5 [&_ul]:my-1.5 [&_ol]:my-1.5 [&_li]:my-0.5 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_h2]:font-semibold [&_h3]:font-medium [&_code]:text-xs [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded">
-          <ReactMarkdown>{message.content}</ReactMarkdown>
+          <ReactMarkdown>{normalizeMarkdown(message.content)}</ReactMarkdown>
         </div>
 
         {/* アクション承認ボタン */}

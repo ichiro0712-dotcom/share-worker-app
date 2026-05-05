@@ -1,8 +1,10 @@
 # System Advisor 引き継ぎ資料 (継続更新)
 
 **ブランチ**: `feature/system-advisor-chatbot`
-**最終更新**: 2026-05-02 (Canvas ドラフト本体機能 + 速度問題の継続調査要)
+**最終更新**: 2026-05-06 — hub-platform 連携 (handoff-bundle 作成 / 追加バグ報告対応 / 機能 3, 8 採用 / Anthropic キー同期問題)
 **ステータス**: ローカルで動作確認済み。本番Supabase接続済み (IPv4 アドオン)。ステージング展開待ち。
+**大方針** (2026-05-03 確定): TASTAS Advisor 安定運用後に hub-platform へ統合。詳細は [HUB_PLATFORM_MIGRATION_TODO.md](./HUB_PLATFORM_MIGRATION_TODO.md)
+**次セッションへ**: [NEXT_SESSION.md](./NEXT_SESSION.md) を最初に読むこと。
 
 > このファイルは **毎回作り直さず、ここを更新** する。
 > 新しいセッションで何かやったら、末尾の「セッションログ」に新しい節を追記する。
@@ -369,6 +371,720 @@ DevTools Console を開いて以下を試す:
 - 新セッションで作業したら、**この節の一番上** に新節を追加 (古いものは下に流す)
 - 形式: `### YYYY-MM-DD: タイトル` + 「やったこと」「変更ファイル」「学び・注意点」
 - ログがあまりに長くなったら、3 ヶ月以上古いものは `HANDOFF_archive.md` に切り出す
+
+---
+
+### 2026-05-06: hub-platform 連携 (handoff-bundle 作成 + 追加バグ報告対応 + 機能 3/8 採用 + Anthropic キー同期問題)
+
+#### 経緯
+ユーザー指示で SaaS 切り出し再開 → hub-platform への移送パッケージ作成 →
+hub-platform 側 LLM が機械変換した過程で発見した **追加バグ報告 (旧 8 件 + 新 11 件)** に
+対して TASTAS 側が確認 / 修正実施 → 機能追加提案 8 件のうち採用 3 件を実装。
+最後に Anthropic API キーの hub-platform 側不一致問題が発覚。
+
+#### 主な作業
+
+##### 1. hub-platform 移送パッケージ作成 (`docs/system-advisor/handoff-bundle/`)
+- 122 ファイル / 1.3MB の完全移送パッケージ
+- 入口 4 ファイル + 仕様書 9 + ナレッジ 8 + コード ~70 + スキーマ 2 + 環境構築 9 + 統合相談 1
+- 粒度最大の **`06_UI_BEHAVIOR_SPEC.md`** (691 行): Canvas / チャット / 履歴 / 公開ページの全ボタン / 色 / 文字 / 状態遷移
+- ナレッジ系 (`DESIGN_DECISIONS` / `ANTI_PATTERNS` (16 件) / `BUG_FIX_PLAYBOOK` (18 エピソード))
+- 主要コード冒頭に `@spec` アノテーション付与 (14 ファイル)
+- 再生成スクリプト `scripts/build-advisor-handoff.sh` (機械生成部分は冪等に再生成可能)
+- ユーザーが手動で `hub-platform/scratch/advisor-import-2026-05-04/` にコピー済
+
+##### 2. 旧版バグ報告 8 件への対応 (1 次)
+hub-platform 側 LLM の Antigravity 監査結果と機械変換時に発見されたバグの集約。
+
+| # | バグ | 結果 | 対応 |
+|---|---|---|---|
+| 1 | status='generating' 張り付き | 該当 | `generate.ts` を全体 try/catch でラップ + catch-all で saveDraftError |
+| 2 | upsertDraft 部分更新破壊 | 非該当 | Prisma の upsert API は構造的に安全 (Supabase `.upsert()` 機械変換時のみ発生) |
+| 3 | `[object Object]` エラー | 該当 | `throw e` → `throw new Error(...)` で必ず Error クラスでラップ |
+| 4 | Markdown table 表崩れ | 該当 | `normalizeMarkdown` 共通ヘルパー新設 + 4 ファイルで使用 |
+| 5 | 型不整合 | 非該当 | TASTAS は Prisma 継続なので無関係 |
+| 6 | 公開シェア URL 認証 | 非該当 | middleware に `/advisor/r` 既登録済 |
+| 7 | プロジェクト固定概念 | 非該当 | TASTAS は単一サービス前提 |
+| 8 | ダークモード未対応 | 非該当 | 他画面が未対応のため統一性で見送り |
+
+##### 3. 新版バグ報告 (2 次、機能追加報告に同梱) への対応
+| # | バグ | 結果 | 対応 |
+|---|---|---|---|
+| 9 | GitHub repo env 全部必須 silent fail | 該当 | [github-source.ts](src/lib/advisor/knowledge/github-source.ts) — env 全部必須を解除、default 値 (`ichiro0712-dotcom` / `share-worker-app`) + anonymous fallback、`getGithubAccessLevel()` 公開関数追加、`buildGithubHeaders()` で token 有無別ヘッダー |
+| 10 | `process.env.X!` non-null 強制 | 該当 (1 ファイル 3 箇所) | [search-codebase.ts](src/lib/advisor/tools/core/search-codebase.ts) — non-null 削除、`?? GITHUB_TOKEN` fallback、execute() 内 null チェック |
+| 11 | Gemini SDK Content[] 型不整合 | 非該当 | TASTAS は Gemini Function Calling 未実装 (機能 1 採用時に対応) |
+
+##### 4. 機能追加 8 件の評価と採用
+ユーザー判断:
+- **機能 1 (Gemini Tool Use)**: 保留 → NEXT_SESSION.md §7.1 に「将来 TODO」として記録 (着手 trigger: Anthropic 月使用額 $200+ 到達)
+- **機能 2 (プロジェクト複数選択)**: 不要 (TASTAS は単一サービス)
+- **機能 3 (semantic_memory cron)**: ✅ 採用 → 実装完了 (詳細下記)
+- **機能 4 (Integration カタログ SoT 化)**: 不要 (連携が固定)
+- **機能 5 (業務領域データツール群)**: 不要 (既に 19 ツール完備)
+- **機能 6 (ダークモード)**: 不要 (他画面未対応)
+- **機能 7 (サイドバー動線)**: 不要 (ユーザー判断)
+- **機能 8 (チェックリスト文書)**: ✅ 採用 → [docs/system-advisor/FEATURE_ADDITION_CHECKLIST.md](./FEATURE_ADDITION_CHECKLIST.md) (13 章) 作成
+
+##### 5. 機能 3 (semantic_memory cron) Phase 1 実装
+
+**目的**: しおり (`bookmarked=true`) 付きセッションの最新レポートを自動取り込みし、
+新しいチャットで「先月のレポートで言ってた○○」のような文脈依存質問に
+LLM が答えられるようにする。
+
+**実装内容**:
+- 新規スキーマ `AdvisorSemanticMemory` ([prisma/schema.prisma](../../prisma/schema.prisma))
+  - `(admin_id, category, source_type, source_id)` UNIQUE
+  - ローカル Docker DB に push 済み
+- 新規 persistence `src/lib/advisor/persistence/semantic-memory.ts`
+  - `upsertSemanticMemory` / `getRecentSemanticMemory` / `deleteSemanticMemoryBySource`
+  - 8,000 字 truncate
+- 新規 cron `app/api/cron/advisor-semantic-ingest/route.ts`
+  - vercel.json に登録 (`30 19 * * *` UTC = 毎日 04:30 JST、advisor-cleanup の 30 分後)
+- system prompt 埋め込み `src/lib/advisor/system-prompt.ts` `renderSemanticMemoryBlock`
+  - dynamicPart に最新 5 件のレポート要約を埋め込み
+
+**STAGING_DEPLOY_REQUEST.md 更新済**:
+- 新規 DB テーブル数: 10 → 11
+- STEP 1 dry-run 期待出力に `advisor_semantic_memory` 追加
+- STEP 7 cron 2 種類 → **3 種類** に拡張 (advisor-knowledge-sync / advisor-cleanup / advisor-semantic-ingest)
+- 完了報告フォーマット / ロールバック SQL / トラブルシューティングも更新
+
+##### 6. Anthropic API キー同期問題 (発覚、未解決)
+
+hub-platform 側 dev で `401 invalid x-api-key` エラー発生。
+指紋テスト (length + 先頭 14 字 + 末尾 6 字) で照合した結果:
+
+| 項目 | TASTAS (動作中) | hub-platform (401) |
+|---|---|---|
+| length | 108 | 108 |
+| head | `sk-ant-api03-y` | `sk-ant-api03-v` |
+| tail | `dobwAA` | `_29AAA` |
+
+→ **完全に別キー**。TASTAS 側でキーローテーション後、hub-platform 側に追従しなかった。
+
+**対応** (ユーザー手動):
+- TASTAS の `.env.local` の現役キーを hub-platform `.env.local` および本番 Vercel env に手動同期
+- 詳細手順は hub-platform 側 LLM が提示済 (`read -s` で安全投入)
+
+**根本原因の運用課題**:
+TASTAS と hub-platform の Anthropic キー共有 (§15「A. 共有継続」決定) には
+**自動同期メカニズムが無い**。今後 TASTAS 側でローテートした時、hub-platform 側も
+手動で更新する運用が必須。
+将来対応案: 共有 vault (1Password チーム / Vercel チーム共有 env) 導入
+
+#### 変更ファイル
+
+**bug fix (5 ファイル)**:
+- ✏️ `src/lib/advisor/reports/generate.ts` (バグ 1, 3 修正)
+- ✏️ `src/lib/advisor/markdown-normalize.ts` (バグ 4 — 新規)
+- ✏️ `src/components/advisor/chat/{unified-message,chat-message}.tsx` (バグ 4)
+- ✏️ `src/components/advisor/report/report-canvas.tsx` (バグ 4)
+- ✏️ `src/components/advisor/reports/report-detail.tsx` (バグ 4)
+- ✏️ `app/advisor/r/[token]/page.tsx` (バグ 4)
+- ✏️ `src/lib/advisor/knowledge/github-source.ts` (バグ 9)
+- ✏️ `src/lib/advisor/tools/core/search-codebase.ts` (バグ 10)
+
+**新機能 (5 ファイル)**:
+- ✏️ `prisma/schema.prisma` (`AdvisorSemanticMemory` 追加)
+- 🆕 `src/lib/advisor/persistence/semantic-memory.ts`
+- 🆕 `app/api/cron/advisor-semantic-ingest/route.ts`
+- ✏️ `vercel.json` (cron 登録)
+- ✏️ `src/lib/advisor/system-prompt.ts` (`renderSemanticMemoryBlock` 追加)
+
+**ドキュメント (5 ファイル)**:
+- 🆕 `docs/system-advisor/handoff-bundle/` 配下 122 ファイル
+- 🆕 `scripts/build-advisor-handoff.sh`
+- 🆕 `docs/system-advisor/FEATURE_ADDITION_CHECKLIST.md`
+- ✏️ `docs/system-advisor/STAGING_DEPLOY_REQUEST.md`
+- ✏️ `docs/system-advisor/NEXT_SESSION.md` (§7 将来 TODO)
+
+#### 検証
+- TypeScript: `npx tsc --noEmit` exit=0
+- ローカル DB: `advisor_semantic_memory` テーブル作成確認済
+- TASTAS Anthropic API: `curl` テストで HTTP 200 (キー生存確認)
+
+#### 学び・注意点
+
+- **指紋テスト (length + head + tail)** は実値露出ゼロで秘密値の同一性を判定できる手法。秘密管理に有効
+- **Antigravity の指摘は本物 / 誤指摘の検証が必須**: 1 次 6 件中本物 1 件、2 次 + 機能報告 11 件中本物 5 件 (実コード確認しないと誤情報が紛れる)
+- **Prisma upsert は安全、Supabase upsert は危険**: `update: {}` に空オブジェクト + 条件 spread すれば正しい部分更新だが、Supabase の `.upsert()` API は payload 全体を update するので別物
+- **キー共有運用には同期メカニズムが必須**: 「共有する」と決めただけでは事故になる
+- **handoff-bundle のような物理パッケージ**は LLM 越境連携で「コードと仕様とナレッジを一緒に渡す」構造として有効。ScripT で再生成可能にすると陳腐化を防げる
+- **JST 境界処理は SQL 化しない方針が改めて妥当**: query-metric の SQL 化を検討した時、JST 変換ミスで数値ズレ事故になりうるため take=100k OOM ガードのみ採用
+
+---
+
+### 2026-05-04 (4): Antigravity 監査レポート検証 + バグ修正 3 件採用
+
+#### 背景
+
+Antigravity (1 次 + 2 次ディープダイブ) から監査レポート [AUDIT_REPORT_2026-05-04.md](./AUDIT_REPORT_2026-05-04.md) を受領。
+Claude Code が各指摘を実コードと突き合わせて検証 → 採用判断 → 修正を実施。
+
+#### 検証結果 (指摘 6 件)
+
+- **本物のバグ 1 件 (P0)**: #9 Context Freeze (`asc + take:100` で最古 100 件しか取れない)
+- **本物だが将来課題 1 件 (P1)**: #11 query-metric の in-memory 集計 (現状 OOM 未発生だが規模拡大時にリスク)
+- **本物だが既存対策で実害なし 1 件 (P1)**: #1 ポーリング (`editing` / `draftEdit` で停止対策済み、SSE 化が本来解だが大規模)
+- **誤指摘 / 既存判断 3 件**: #2 (撤去済み判断) / #3 (audit は metadata のみで二重保存ではない) / #10 (cost guard は呼ばれている)
+
+→ Antigravity の監査精度: **本物のバグは 6 件中 1 件**。誤指摘や既存判断見落としが多い。「指摘の有無」ではなく「指摘が本物か」を実コードで突き合わせる工程が必須。
+
+#### 採用した修正 3 件
+
+##### Fix #9: Context Freeze バグ
+- ファイル: `src/lib/advisor/persistence/messages.ts`
+- `getRecentMessagesForOrchestrator` の `orderBy: 'asc'` → `'desc'` + 取得後 `rows.reverse()`
+- 100 メッセージ超のセッションで最新指示が LLM に渡るようになる
+- リスクほぼゼロ (本来あるべき状態への修正)
+
+##### Fix #1: ポーリング軽量化 (段階的ポーリング)
+- ファイル: `src/components/advisor/report/report-canvas.tsx`
+- アクティブ時 (chatPhase / chatLoading / generating / draft.status='generating') 2 秒
+- idle 時 8 秒
+- **「ポーリング停止」は絶対にしない**設計。最悪 8 秒以内に必ず最新化される
+- 「Claude が更新したのに反映されない」UX バグの混入を回避
+
+##### Fix #11: 日別集計の OOM ガード
+- ファイル: `src/lib/advisor/tools/tastas-data/query-metric.ts`
+- `aggregateByDay` の `findMany` に `take: 100_000` 追加
+- 超過時は `truncated: true` を data + metadata に流して LLM に明示
+- **JST 変換ロジックは完全保持**。Postgres 側集計への書き換えは JST 境界で数値ズレ事故になりうるため、保守的に件数上限のみ追加
+- 数値の正確性: `total` は `count()` で常に正確。日別 rows のみ truncated 時に不完全
+
+#### ユーザー確認
+
+ユーザーから明示的に「リスクとわかっているところは丁寧に進めて」と指示があり、以下を遵守:
+- Fix #1 はポーリング停止条件を全マップ ([report-canvas.tsx:215-218, 268, 275-284](../../src/components/advisor/report/report-canvas.tsx)) してから安全な段階的ポーリングに変更
+- Fix #11 は SQL 書き換え案を一度検討した後、「JST 境界処理の事故リスクが高い」と判断して `take` 上限のみの保守案に切り替え
+
+#### TypeScript / 動作確認
+
+- `npx tsc --noEmit` → エラーなし
+- 動作確認は dev サーバ起動なしで静的解析のみ (Auto モード方針)
+
+#### 変更ファイル
+
+- ✏️ `src/lib/advisor/persistence/messages.ts` (5 行追加 / Context Freeze 修正)
+- ✏️ `src/components/advisor/report/report-canvas.tsx` (10 行追加 / 段階的ポーリング)
+- ✏️ `src/lib/advisor/tools/tastas-data/query-metric.ts` (8 行追加 / OOM ガード + truncated 流し)
+- ✏️ `docs/system-advisor/AUDIT_REPORT_2026-05-04.md` (検証マトリクス + 採用 3 件の追記)
+- ✏️ `docs/system-advisor/HANDOFF.md` (本セッションログ追記)
+
+#### 学び・注意点
+
+- **監査レポートは検証なしで信じない**: Antigravity の「クリティカル 3 件発見」のうち 2 件は誤指摘 (実コードを読まずに憶測で書いていた)。レポートを取り込むなら必ず Claude Code 側で実コード確認するワークフローを必須化すべき
+- **「やった方がいいものは全部」の判断軸**: ユーザーから「リスクや作業量以外のコストは？」と問われ、各修正の副作用 (トークン増 / 数値ズレ事故 / UX バグ混入) を整理して提示 → 結果として採用すべきものを明確化できた
+- **JST 境界処理は触らない方針が正解**: query-metric の SQL 化を一度検討したが、「数値ズレ事故 > パフォーマンス改善効果」と判断し take 上限のみの保守案に変更。本番分析の数字が変わるリスクを避けた
+- **ポーリング停止は絶対やらない**: 「停止する条件」を作ると必ずどこかでバグるので、「常に回す + 間隔だけ伸ばす」が安全
+
+---
+
+### 2026-05-04 (3): ドキュメント最新化 (前セッション持ち越し分の解消)
+
+#### 背景
+
+前セッション (2026-05-04 (2)) で時間切れになっていた以下を解消:
+- `architecture.md` / `tools-spec.md` / `data-model.md` の最新化 (share_token / shared_until / bookmarked / metric_keys / original_request / skeleton_markdown / advisor-cleanup cron / Gemini バイパス等の反映)
+- `STAGING_DEPLOY_REQUEST.md` の schema 追加分 + cron + 動作確認項目の更新
+
+並行して Antigravity 監査 (オプション A) はユーザーが [04-comprehensive-audit.md](./antigravity-tasks/04-comprehensive-audit.md) を渡せば開始できる状態に置いてある。
+
+#### 更新したファイル
+
+##### `docs/system-advisor/data-model.md` (全面書き換え)
+
+- Phase 1 時点の 6 テーブル想定 → 現状の 10 テーブル + カラム追加履歴を完全反映
+- `AdvisorChatSession.bookmarked` (しおり) を追加、cron 用 index `(bookmarked, updated_at)` も明記
+- `AdvisorReportDraft` の `metric_keys` / `original_request` / `skeleton_markdown` を反映
+- `AdvisorReportVersion` の `share_token` / `shared_at` / `shared_until` (公開シェア URL) を反映
+- `AdvisorSavedPrompt` / `AdvisorSettings` を新規追加
+- `AdvisorAuditLog.payload.kind` の `report_*` プレフィックス運用 (cron 削除分類用) を明記
+- 保持期間ポリシー (KNOWLEDGE.md §6-bis) と整合する §6 を追加
+- 全カラム解説に「なぜそのカラムがあるか」「どう運用するか」を加筆
+
+##### `docs/system-advisor/architecture.md` (全面書き換え)
+
+- Phase 1 時点の Anthropic 単独構成 → 現状の Anthropic + Gemini バイパス併用構成へ
+- `[TOOL:report_create|draft_revise|result_edit]` の hidden hint 経由 Gemini 直叩きフロー (§3.2)
+- レポート本文生成 (`/api/advisor/report/generate`) のパイプライン詳細 (§3.3)
+- 保持期間 cron (`/api/cron/advisor-cleanup`) の処理シーケンス (§3.5)
+- 公開シェアページ (`/advisor/r/[token]`) の RSC ベース処理 (§3.6)
+- ToolRegistry 19 個 (Core 5 + TASTAS Data 5 + External 5 + Future 2 + Reports 2) の正確な内訳
+- `query_search_console` 追加 / `list_available_metrics` 廃止 / `get_report_draft` 廃止を反映
+- Gemini フォールバック撤去の理由 (KNOWLEDGE.md §1.2 と整合)
+- ディレクトリ構成も実際のファイル配置に合わせて全面更新
+
+##### `docs/system-advisor/tools-spec.md` (全面書き換え)
+
+- ツール 18 → 19 の差分明記 (`query_search_console` 追加、`list_available_metrics` 廃止)
+- `update_report_draft` / `edit_report_section` の現行 input schema を転記
+- カテゴリに `reports` / `future` を追加 (`ToolCategory` の現行型に合わせる)
+- 廃止された設計判断 (§1.4) を明示し、混乱回避
+- 「ツールと Gemini バイパスの関係」を §8 として独立節化
+- READ ONLY tx + advisor_readonly ロールの二重防御を §5 で再確認
+
+##### `docs/system-advisor/STAGING_DEPLOY_REQUEST.md` (差分追加)
+
+- STEP 1 dry-run の期待結果に **`bookmarked` 1 個 + ドラフトに 3 個 + バージョンに 3 個 = 計 7 ADD COLUMN + 2 CREATE INDEX** を明記
+- STEP 6 動作確認に項目 21-25 (公開シェア / しおり / 保持期間バナー) を追加
+- STEP 7 を 2 つの cron (`advisor-knowledge-sync` + `advisor-cleanup`) 対応に拡張
+  - `advisor-cleanup` は vercel.json に既登録 (`0 19 * * *` UTC = 04:00 JST) を明記
+  - `advisor-knowledge-sync` は vercel.json 未登録、運用判断で追加検討と注記
+- 「Chat に送信」削除 (2026-05-04) を反映
+- トラブルシューティングに共有 URL 関連 4 項目 + cron 関連 2 項目を追加
+
+#### 変更ファイル
+
+- ✏️ `docs/system-advisor/data-model.md` (270 → 約 350 行、全面書き換え)
+- ✏️ `docs/system-advisor/architecture.md` (419 → 約 400 行、全面書き換え)
+- ✏️ `docs/system-advisor/tools-spec.md` (398 → 約 320 行、全面書き換え)
+- ✏️ `docs/system-advisor/STAGING_DEPLOY_REQUEST.md` (差分追加、474 → 約 510 行)
+- ✏️ `docs/system-advisor/HANDOFF.md` (本セッションログ追記)
+
+#### 学び・注意点
+
+- **「正本はコード」原則を全ドキュメントの冒頭に明記**: schema.prisma / registry.ts に齟齬があったらコードを正とする旨を毎ドキュメントの冒頭に書いた。これでドキュメント rot による混乱を回避
+- **architecture.md は ASCII 図が陳腐化しやすい**: テーブル一覧 / フロー図 / ディレクトリ構成は変更時にすぐ rot する。今回は実コードを grep / find で確認してから書いたので正確性 > 推測の優先順位を維持
+- **STAGING_DEPLOY_REQUEST.md は「dry-run 期待出力」が一番大事**: ここの DDL リストが古いと作業者が破壊的 SQL を見逃すリスクがある。schema 変更のたびに必ずここを更新する運用にする
+- **REPORT_FEATURE.md は本セッションでは触らず**: 既に十分詳細に書かれている (498 行)。architecture.md から相互参照する形にして責務分担を明確化
+
+#### 残課題
+
+- ✏️ `security-cost.md` も保持期間 cron / Gemini コスト試算反映の要更新 (本セッションでは時間配分上スキップ)
+- ✏️ `system-prompt.md` の最新化 (METRIC_CATALOG 静的埋め込みの仕組み等が反映されているか要確認)
+- 上記は次セッション以降に持ち越し
+
+---
+
+### 2026-05-04 (2): Canvas UI 全面リデザイン + サイドバー折り畳み + 楽観的 UI + Antigravity 監査依頼書
+
+#### Canvas UI 改修 (Gemini Canvas 風に刷新)
+
+- **角丸カード化**: Canvas を `rounded-xl border shadow-sm` で囲み、外側に `bg-slate-100 p-2.5` の余白で「浮かぶカード」レイアウト
+- **ヘッダー 1 行に集約**: タイトル / タブ / バージョン / アクションボタン群 / その他 (⋯) / 閉じる
+  - タイトルは 10 文字超で `…` で切り詰め
+  - draft / result タブは選択中のみ色付け (draft=赤、result=青)
+  - バージョンドロップダウンはタブの右に配置
+- **状態専用ヘッダー**:
+  - 編集中: `[✕ キャンセル] [✅ 保存]` のみ
+  - **drafting / updating / generating すべて**: `⏳ ○○中... + 中止` の単一ヘッダー (青いバナーは全廃止、ヘッダーで統一)
+- **ボタン整理**:
+  - draft 表示時: `✏️ 編集` + `[✨ レポート作成]` (黒背景、テキスト付き primary)
+  - result 表示時: `✏️ 編集` + `[🔄 レポート更新]` + `🔗 共有` + `⋯` + `✕`
+  - フッター完全廃止 (ヘッダーに集約)
+- **手動編集**: ヘッダーの ✏️ ボタンで DraftBodyView の編集モードを ON/OFF (state を Canvas に持ち上げ)
+- **しおり**: ヘッダーから ⋯ メニュー内に移動 (保持期間情報の真下)
+- **その他メニュー (⋯)**: 保持期間 → しおり → 削除 の順
+- **アイコンボタンに `<span title>` ラップ**: disabled 時もマウスオーバーで tooltip 表示
+
+#### チャットサイドバー折り畳み
+
+- 開いている時: ヘッダーに `<` トグルボタン追加
+- 閉じた時: 36px の細い縦バーに変身 (展開ボタン + 新規 chat アイコン)
+- **Canvas が「閉→開」遷移したタイミングで自動折り畳み** (`prevCanvasOpenRef` で 1 回だけ発火)
+
+#### Canvas / チャット幅調整
+
+- Canvas デフォルト幅: 720px → 900px → **960px**
+- リサイズハンドル: 透明 (背景と同色) → hover で青、ドラッグで濃い青 (`w-1.5 bg-transparent hover:bg-blue-400/60`)
+
+#### 楽観的 UI (中止ボタンの即時表示)
+
+- 早期 return (`!sessionId` / `loading && !draft` / `!draft`) を 1 つに統合
+- `optimisticActive = chatPhase !== 'idle' || chatLoading` で「ドラフト作成中... + 中止」をヘッダーに即時表示
+- ReportCanvas の新規 prop:
+  - `onCancelChatStream?: () => void` (chat-layout の `handleAbort` を渡す)
+  - `chatLoading?: boolean`
+- 中止ボタンが drafting / updating でも有効化 (SSE ストリーム abort)
+
+#### TOP のチップに「ログを集計してレポート生成」追加
+
+- 初回チャット画面の suggestion チップに 4 番目を追加
+- クリック → ChatInput に `report_create` ツールを選択 + テンプレ文章を入力欄にプリフィル (送信はしない)
+- 仕組み: ChatInput に `prefill?: { toolId, text, nonce }` prop 新設、`useEffect([input])` で textarea の自動リサイズも合わせて実行
+- 送信時に `setChatPrefill(null)` でクリア (ChatInput 再マウント時の重複適用バグ対応)
+
+#### Markdown 箇条書き表示の修正 (再掲)
+
+- `app/globals.css` の `*` リセット + Tailwind preflight + `@tailwindcss/typography` 未導入で `<ul>` の bullet が消える問題
+- 各 ReactMarkdown の `components` で `ul` / `ol` / `li` / `table` を明示スタイル化
+- 影響: report-canvas / unified-message / report-detail / 公開シェアページ
+
+#### 「Chat に送信」機能の完全撤去 (再掲)
+
+- ボタン削除、`/api/advisor/report/notify-gchat` 削除、`src/lib/advisor/reports/notify-google-chat.ts` 削除
+
+#### Antigravity 徹底監査依頼書を作成
+
+- `docs/system-advisor/antigravity-tasks/04-comprehensive-audit.md` を新規作成
+- 監査の柱 8 つ: Canvas/Agent 仕様の最新性 / バグ / 無駄コード / 非効率設計 / トークンコスト / 速度 / UI/UX / その他
+- 外部リサーチ (Gemini Canvas / ChatGPT Canvas / Claude Artifacts / MCP / prompt cache) を最初に実施するよう指示
+- 成果物フォーマット (P0/P1/P2 重大度 + 証拠 + 修正案) を厳密に規定
+- CLAUDE.md ルール (デプロイしない・push しない・本番 DB 触らない) のチェックリスト含む
+
+#### 変更ファイル (主要)
+
+- 🆕 `docs/system-advisor/antigravity-tasks/04-comprehensive-audit.md`
+- ✏️ `docs/system-advisor/antigravity-tasks/README.md` (タスク一覧に 04 追加)
+- ✏️ `src/components/advisor/report/report-canvas.tsx` (大規模リデザイン、~1700 行)
+- ✏️ `src/components/advisor/chat/chat-layout.tsx` (サイドバー折り畳み、suggestion 拡張、prefill state)
+- ✏️ `src/components/advisor/chat/chat-input.tsx` (prefill prop 追加)
+
+#### 学び・注意点
+
+- **状態専用ヘッダーの統一は読みやすさ激変**: 「青い帯が複数」→「ヘッダー 1 個」で UI ノイズ激減
+- **楽観的 UI は早期 return 統合とセット**: 3 つに分散していた早期 return ロジックを 1 つに統合してから `chatPhase` を最優先で見る形にしないと、ラグが目立つ
+- **ChatInput の prefill バグ**: 送信時に `chatPrefill=null` クリアしないと、ChatInput が `key={conversationId}` で再マウントされた瞬間に再適用される (key の罠)
+- **disabled 状態の tooltip**: `<button disabled title>` は Chrome で表示されないため、`<span title>` でラップする必要がある (アクセシビリティ的にも `aria-label` も併記)
+- **Antigravity 監査の依頼書を作る上で重要だったこと**: 「外部リサーチを必ず最初にやらせる」「証拠と再現条件を必須にする」「重大度のラベルを強制する」「監査者が手を動かして変更しないルールを明記する」 — これらが無いとレポートが推測ベースで散漫になる
+
+---
+
+### 2026-05-04: 公開シェア URL + しおり (永続保存) + 自動削除 cron 実装
+
+#### やったこと
+
+**1. レポート公開シェア URL 機能 (有効期限 30 日)**
+- スキーマ: `AdvisorReportVersion.share_token` (unique) + `shared_at` + `shared_until` 追加
+- 公開ページ: `app/advisor/r/[token]/page.tsx` (auth 不要、middleware の publicPaths で許可)
+  - WorkerLayout 配下にあるとワーカー BottomNav が表示される問題があったため、`EXCLUDED_PREFIXES` に `/advisor/` 追加
+- Server Actions: `enableShare` / `disableShare` / `extendShare` / `getShareState`
+  - `enableShare`: 30 日後を `shared_until` にセット、token は `crypto.randomBytes(24).toString('base64url')`
+  - `extendShare`: token 維持で `shared_until = now + 30d`
+  - `disableShare`: `shared_at` / `shared_until` / `share_token` 全部 null 化
+- 公開ページ表示: 「共有: {admin.name}」+ 「公開期限: あと N 日」バッジ (残日数で色変化)
+
+**2. しおり (永続保存) 機能**
+- スキーマ: `AdvisorChatSession.bookmarked` (Bool, default false) + `(bookmarked, updated_at)` index
+- Server Action: `toggleBookmark` / `getSessionBookmarkState`
+- UI:
+  - サイドバー: bookmarked のとき amber アイコン常時表示、OFF は hover 時
+  - 履歴一覧: 同上 + タイトル左に小バッジ
+  - Canvas: ヘッダー右にトグル + 直下に保持期間バナー (RetentionBanner)
+
+**3. 保持期間ステータス表示 (Canvas)**
+- bookmarked: 緑「しおりマーク (永続保存)」
+- 残り 7 日以上: グレー「保存期間: あと N 日」
+- 残り 7 日未満: amber「⚠️ あと N 日で自動削除されます」+「しおりで永続保存する」リンク
+
+**4. 自動削除 cron 実装**
+- 新規: `app/api/cron/advisor-cleanup/route.ts`
+- 動作:
+  - しおりなしセッションの Draft + Versions を 30 日後に削除
+  - Audit ログ 90 日 (report_* イベントは 180 日) で削除
+  - 失効済み共有 URL の token / shared_at / shared_until を null 化 (掃除)
+- vercel.json: `/api/cron/advisor-cleanup` を毎日 19:00 UTC (= 04:00 JST) に追加
+- 認証: 既存 `ADVISOR_CRON_SECRET` を流用
+
+**5. UI 改修: 共有メニュー集約**
+- フッターの 3 ボタン (`コピー` / `編集` / `URLでシェア`) を 2 ボタン (`編集` / `共有 ▼`) に集約
+- 「共有 ▼」クリックでドロップダウン: 本文コピー / URL コピー / +30日延長 / 共有停止
+
+**6. Markdown 箇条書きが見えない問題の修正**
+- 真因: `app/globals.css` の `* { padding: 0; margin: 0 }` + Tailwind preflight が `<ul>` をリセット
+- `prose` クラスは `@tailwindcss/typography` 未導入なので機能していなかった
+- 修正: 各 ReactMarkdown 呼び出しの `components` で `ul` / `ol` / `li` / `table` を明示スタイル化
+- 影響: report-canvas / unified-message / report-detail / 公開シェアページ
+
+**7. 「Chat に送信」機能を完全撤去**
+- ボタン削除、`/api/advisor/report/notify-gchat` 削除、`src/lib/advisor/reports/notify-google-chat.ts` 削除
+
+**8. UI 細かい改善**
+- 過去のチャット (生成済みレポートあり) を開くと自動で result タブを表示 (`initialViewDecidedForSessionRef` で session 単位 1 回)
+- result タブのボタン名を「レポート作成」→「レポート更新」に変更 (icon: Sparkles → RefreshCw)
+
+**9. 公開ページから WorkerLayout 系 UI を完全に外した**
+- `EXCLUDED_PREFIXES` に `/advisor/` 追加で BottomNav / PWA バナー / 通知プロンプトが消える
+
+**10. 公開ページに共有者表示**
+- `draft.adminId` から SystemAdmin の name を取得して「共有: {name}」を表示
+- メールは個人情報なので非表示 (name のみ)
+
+#### 議論で決まった保持期間ポリシー
+
+| データ種別 | 保持期間 | 例外 |
+|---|---|---|
+| Chat Session / Message | 永続 | (手動アーカイブのみ) |
+| Draft / Version | 30 日 | しおり付きセッションは永続 |
+| Audit ログ (一般) | 90 日 | — |
+| Audit ログ (report_*) | 180 日 | — |
+| 共有 URL | 30 日 | 「+30日延長」で何度でも可、停止すると即失効 |
+
+#### 学び・注意点
+
+- **Tailwind preflight + 自前 CSS の `*` リセット + `@tailwindcss/typography` 未導入**の三重コンボで `<ul>` の bullet が消える問題は、prose 信仰だと気付きにくい。各 Markdown 描画箇所で `components` を渡すのが安全。
+- **route group `(public)` は不要だった**: WorkerLayout 側に EXCLUDED_PREFIXES があるので、そこに 1 行追加するだけで済んだ。route group は最後の手段。
+- **共有 URL の失効ポリシー**: 「停止 → 再有効化で同じ token」だと漏れた URL を再アクセス可能にしてしまうので、再有効化時は **新規 token** を発行するのが安全。
+
+#### 変更ファイル
+
+新規:
+- `app/advisor/r/[token]/page.tsx` (公開シェアページ)
+- `app/api/cron/advisor-cleanup/route.ts` (保持期間 cron)
+
+スキーマ:
+- `prisma/schema.prisma` (share_token / shared_at / shared_until / bookmarked)
+
+Server Actions:
+- `src/lib/advisor/actions/report-versions.ts` (enableShare / disableShare / extendShare / getShareState)
+- `src/lib/advisor/actions/conversations.ts` (toggleBookmark / getSessionBookmarkState)
+
+Persistence:
+- `src/lib/advisor/persistence/report-versions.ts` (shareToken / sharedAt / sharedUntil 追加 + 失効チェック)
+
+UI:
+- `src/components/advisor/report/report-canvas.tsx` (RetentionBanner / 共有ドロップダウン / しおりトグル / Markdown components / 「レポート更新」リネーム / 初期 view 決定 / Chat送信削除)
+- `src/components/advisor/chat/chat-layout.tsx` (サイドバーしおりトグル)
+- `src/components/advisor/chat/unified-message.tsx` (Markdown components)
+- `src/components/advisor/history/history-client.tsx` (履歴しおりトグル + Markdown components)
+- `src/components/advisor/reports/report-detail.tsx` (Markdown components + remarkGfm)
+- `components/layout/WorkerLayout.tsx` (EXCLUDED_PREFIXES に `/advisor/` 追加)
+- `middleware.ts` (publicPaths に `/advisor/r` 追加)
+
+設定:
+- `vercel.json` (advisor-cleanup cron 追加)
+
+ドキュメント:
+- `docs/system-advisor/DEPLOY_CHECKLIST.md` (新カラム + cron 追記)
+- `docs/system-advisor/HUB_PLATFORM_MIGRATION_TODO.md` (§5-bis 追加 — Phase 1 中の追加実装を Core に持っていく旨)
+- `docs/system-advisor/KNOWLEDGE.md` (§6-bis 保持期間ポリシー追加)
+- `docs/system-advisor/REPORT_FEATURE.md` (notify-gchat 削除)
+
+削除:
+- `app/api/advisor/report/notify-gchat/` (Chat 送信 API)
+- `src/lib/advisor/reports/notify-google-chat.ts` (Chat 送信 lib)
+
+---
+
+### 2026-05-03 (5): hub-platform 統合方針確定 + 着手保留 (ドキュメントのみ)
+
+#### 決まったこと
+
+**大方針**: TASTAS Advisor の本番安定運用後に **hub-platform への統合**を実施する。
+それまでは TASTAS Advisor の完成度向上に集中。
+
+**hub-platform の現状把握 (新発見)**:
+- `/Users/kawashimaichirou/Desktop/バイブコーディング/hub-platform/` は既に Turborepo モノレポ
+- 7 アプリ稼働: agent-hub / project-hub / health-hub / autocast / communication-hub / mcp-server / hub
+- 統合 Supabase + schema 分離 (`agent_hub.*` / `project_hub.*` / `health_hub.*` 等) でマルチテナント済み
+- agent-hub に Orchestrator + 9 エージェント + Canvas + MCP が実装済み
+- → 新規 SaaS リポを作るより hub-platform 統合が筋が良いと判明
+
+**採用設計**:
+```
+hub-platform/
+├ packages/
+│  └ advisor-core/              🆕 System Advisor の汎用部品 (TASTAS から抽出)
+├ apps/
+│  ├ agent-hub/ (既存)            ← 統合司令塔
+│  ├ sushi-hub/                   🆕 Phase 5
+│  ├ band-hub/                    🆕 Phase 6
+│  └ tastas-hub/ or MCP 連携       🆕 Phase 7
+```
+
+**移行順序** (8 Phase):
+- Phase 1 (現在): TASTAS Advisor 完成度向上、本番安定運用
+- Phase 2: 着手判断 (ユーザーから明示の Go サイン)
+- Phase 3: TASTAS の Advisor 一式を hub-platform/scratch/ にコピー
+- Phase 4: hub-platform 側で advisor-core 抽出
+- Phase 5: sushi-hub 立ち上げ (MF 会計 1 ソース、月次 PL + 週次売上の 2 レポートだけ)
+- Phase 6: band-hub 立ち上げ
+- Phase 7: TASTAS を hub-platform 統合
+- Phase 8: Hub 間 MCP 連携 (横串相談実装)
+
+#### やったこと (ドキュメント整理のみ、コード変更なし)
+
+1. **`docs/system-advisor/HUB_PLATFORM_MIGRATION_TODO.md` を新規作成**
+   - 議論結論 / hub-platform 現状 / 採用設計 / 移行 8 Phase / コピーコマンド例 / README + HANDOFF_FROM_TASTAS のテンプレート
+   - **TASTAS 完成後にこのドキュメントから即実行できる状態**で保存
+
+2. **`docs/system-advisor/NEXT_SESSION.md` を更新**
+   - 「次セッションで議論したい 2 大トピック」 → 「TASTAS 完成度向上 (Phase 1) に集中」に書き換え
+   - 引き継ぎ完了サインの台本を更新
+
+3. **`docs/system-advisor/SAAS_PRODUCTIZATION.md` 冒頭に確定方針注釈**
+   - 「新規 SaaS リポ案は不採用、hub-platform 統合に確定」を明記
+   - 当初議論内容は履歴として保存
+
+4. **本ファイル (HANDOFF.md) のヘッダー更新**
+   - 「最終更新」「大方針」を 2026-05-03 (5) に書き換え
+
+#### 議論の経緯
+
+ユーザーから提起:
+- TASTAS 以外の事業 (寿司屋 / hubpratform / バンド) でも System Advisor が欲しい
+- 「UI 1 個作れば全プロジェクトに反映」させたい
+- MCP 経由で複数 Advisor が連携する未来
+
+検討の流れ:
+- 当初: 新規 SaaS リポ `advisor-platform` を立ち上げる案を出した
+- ユーザーから「agenthub という hub 内エージェントが既にある」と情報提供
+- hub-platform を調査 → Turborepo + 7 アプリ + 統合 Supabase + マルチエージェント実装済みと判明
+- 当初案を撤回、hub-platform 統合方針へ転換
+
+ユーザー判断: 「TASTAS のデバッグ・完成度向上が先、hub-platform 着手は後」
+→ 本セッションでは **方針のドキュメント化のみ実施、コード変更なし**
+
+#### 学び・注意点
+
+- **「新規リポを作る」前に「既存リポをちゃんと見る」**: hub-platform の存在を最初に把握できていれば、SaaS 化議論は不要だった
+- **動いているものを止めない原則**: TASTAS Advisor が安定する前に統合作業を始めない判断は正しい
+- **Phase 3 の「即実行可能性」を担保**: HUB_PLATFORM_MIGRATION_TODO.md にコマンド例まで書いて、未来の自分 (or 次の Claude) が迷わず着手できる状態に整えた
+
+#### 変更ファイル
+
+- 🆕 `docs/system-advisor/HUB_PLATFORM_MIGRATION_TODO.md` (新規)
+- ✏️ `docs/system-advisor/NEXT_SESSION.md`
+- ✏️ `docs/system-advisor/SAAS_PRODUCTIZATION.md`
+- ✏️ `docs/system-advisor/HANDOFF.md` (本ファイル)
+
+**コード変更なし** (`src/` 配下は touch していない)
+
+---
+
+### 2026-05-03 (4): レポート機能の徹底品質改善 + データソース全展開 + Gemini Canvas 撤去
+
+#### やったこと (15 件、徹底的にユーザーフィードバックに対応)
+
+**1. UI バグ: Canvas のドラフトタブが空表示 → 修正**
+- `{!hasResult && <DraftBodyView />}` の条件で result があるとドラフト本体が**非表示**になっていた
+- 修正: view='draft' のときは hasResult に関わらず常に表示
+- これでユーザーの「ドラフトが消えた」報告が解決
+
+**2. 履歴に複数選択削除 UI 追加**
+- `/system-admin/advisor/history` に「選択モード」追加 (チェックボックス + 全選択 + 一括削除)
+- `deleteConversations(ids[])` Server Action 追加 (既存 `deleteConversation` の bulk 版)
+
+**3. Gemini バイパス系の失敗時 fallback 撤去**
+- 旧: Gemini 失敗 → Anthropic に流れる → loop=1 TTFB 100 秒で結局答え返らない最悪 UX
+- 新: Gemini 失敗 → 即時エラー表示 (5〜10 秒で「失敗、再試行を」)
+- 前提条件 NG (no draft / admin mismatch) のみ Anthropic に流す
+
+**4. revise の同期: skeleton 変更 → 要件メタも自動更新**
+- `gemini-edit.ts` の出力に `updated_data_sources` / `updated_metric_keys` / `updated_outline` / `updated_goal` / `updated_title` 追加
+- skeleton で章を増やしたら → dataSources / metric_keys / outline / title / goal も同期更新
+- プロンプトで「迷ったら更新する側に倒す」「null は文言修正のみのときだけ」を強化
+- これで「LP_PV しか入ってないのに skeleton には流入経路ある」状態が解消
+
+**5. result_edit (生成済みレポート編集) 経路を新設**
+- `gemini-result-edit.ts` 新設、`[TOOL:result_edit]` 専用 Gemini バイパス
+- Canvas タブ ('draft' or 'result') を chat-layout に持ち上げ、forcedTool を view 連動:
+  - view='draft' → `draft_revise` (skeleton 編集)
+  - view='result' && hasResult → `result_edit` (生成済み本文編集)
+- ChatInput に「ドラフト修正指示」「レポート修正指示」が状態で切り替わる
+
+**6. 自動「ドラフト修正 → 再生成」フロー (auto-redraft)**
+- result_edit 中に「○○の表を追加」など新データ取得が必要な指示を Gemini が判定
+- `redirect_to_draft=true` + `draft_instruction` を返す → orchestrator が自動で:
+  1. draft_revise で skeleton 更新
+  2. upsertDraft
+  3. generateReport で再生成
+- ユーザーは Canvas で待つだけで新バージョンが完成 (40 秒前後)
+
+**7. Gemini に直近チャット履歴を渡す**
+- `chat-history-context.ts` 新設 (直近 8 件を Markdown 整形)
+- draft_revise / result_edit の両方で prompt 先頭に展開
+- ユーザー指摘「Gemini はチャット読めてるの?」 → No だった → 修正
+- 「さっき言った〇〇の続きで」のような文脈依存指示が動くように
+
+**8. チャットにイベントラベル追加**
+- 「📋 ドラフトを作成しました」「📝 ドラフトを更新しました」「📊 レポート v1 を生成しました」「✏️ レポート v2 を編集しました」「🔄 自動再生成しました」
+- ユーザーが履歴を見たときにフローが分かる + 次回 Gemini が読む履歴にも入って文脈になる
+- generate.ts でレポート生成完了時に assistant メッセージ永続化 + Canvas → chat-layout に reload callback
+
+**9. ヘッダーバッジの動的化**
+- 未生成: 赤「ドラフト」/ 生成済み: 青「レポート調整」
+- ステータスアイコンとして役立つ
+
+**10. CanvasStatusBar を動的テキスト化**
+- 旧: 「レポート生成中」固定
+- 新: orchestrator が SSE で送る「ドラフト更新中...」「レポート再生成中...」を `liveStatusText` で受けて表示
+
+**11. 過去 v の編集が消える問題を修正 (最重要)**
+- 真因: auto-redraft の最後の generateReport は完全新規生成 → v(N-1) で日付フォーマット直したのが消える
+- 修正: generate.ts で `previousResultMarkdown` を取得して Gemini に渡す
+- システムプロンプトに「**最重要ルール 1: 前回バージョンの編集スタイルを絶対維持**」追加
+
+**12. 表ごとの集計期間を出典行に統合 + 表前置き散文を禁止**
+- 注釈フォーマット: `*集計期間: ○○ / 出典: 本番 DB 指標集計 (LP_PV / LP別)*`
+- 表の前置き「以下の通りです」「上位 5 件は次の通り」を禁止 (情報量ゼロ)
+- ヘッダー直下の「対象期間: ○○ (JST)」固定形式も禁止 (色々なレポート形式に対応)
+- データソース別の期間表記:
+  - 期間集計系: `2026-04-27 〜 2026-05-03 (JST)`
+  - スナップショット系: `現時点スナップショット (取得: ○○)`
+  - 直近 N 期間系: `直近 24 時間`
+  - 直近 N 件系: `直近 30 件`
+
+**13. データソース全展開 (落としてた取得軸を全網羅)**
+- 真因 1: query_ga4 を `overview` 1 種だけで呼んでた → `traffic` (流入経路) `pages` (ページ別) `lpPerformance` `comparison` 全 5 種に並列展開
+- 真因 2: query_search_console を `[query]` 1 種 → `[query, page, device, country]` 4 種に展開
+- get_supabase_logs → source 別 (postgres/api/auth) 3 種
+- get_vercel_logs → level 別 (error/warning/info) 3 種
+- get_vercel_deployments → env 別 (production/preview) 2 種
+- 1 レポートあたりリクエスト数: 12 → 22 (Promise.all 並列なので体感速度変わらず)
+- これで「流入経路データが取得できない」「ページ別検索流入が空」が解決
+
+**14. LP_TO_LINE_CONV メトリクス実装**
+- 真因: 6 箇所のプロンプトで「例: LP_TO_LINE_CONV」と書いてあった → Gemini が実在指標と誤認 → query_metric が「不明な metric_key」で弾く
+- 修正: METRIC_CATALOG に実装 (LpClickEvent.button_id が `line_*` で始まるレコードを集計)
+- LP 別 / 日別 / キャンペーン別 全部対応
+- DB 動作確認: 全期間 37 件 (LP 7: 24, LP 3: 10, LP 5: 2, LP 6: 1)
+
+**15. Gemini Canvas 機能を完全撤去**
+- ユーザー判断: Gemini API 直叩きが安定動作するため Canvas UI 連携は重複機能
+- 削除: `gemini-canvas-bridge.ts` ファイル、`saveGeminiCanvasVersion` action、`getDraftWithCollectedData` action、Canvas 内 state/UI/ボタン全撤去
+- DB の `source: 'gemini_canvas'` レコードは過去データの参照互換のため型は残す
+
+#### Phase 別効果
+
+| Phase | 効果 |
+|---|---|
+| Phase A (revise バイパス) | TTFB 100s → 4〜10s |
+| Phase B (create バイパス) | 同 (初回も) |
+| Phase C (本セッション、品質向上) | 「動作はする」→「使い物になる」レベルへ |
+
+#### 残課題 (次セッション)
+
+- ✅ ほぼなし (実機テスト継続中)
+- 観察ポイント:
+  - LP 名が ID 数字のまま (`| LP ID 5 | 5 |`) — LandingPage テーブルから JOIN して name 取得する改修案あり (低優先)
+  - 過去ドラフトに古い skeleton 形式 (出典行なし、空行なし) が残っている — 必要なら revise で「全表に空行 + 出典追加して」で再構築可
+
+#### 変更ファイル (主要)
+
+新規:
+- `src/lib/advisor/llm/gemini-result-edit.ts`
+- `src/lib/advisor/llm/chat-history-context.ts`
+
+編集 (主なもの):
+- `src/lib/advisor/orchestrator.ts` — result_edit 分岐 + auto-redraft フロー + 履歴渡し + イベントラベル
+- `src/lib/advisor/llm/gemini-edit.ts` — 同期フィールド追加 + 履歴受け取り + 出典フォーマット
+- `src/lib/advisor/llm/gemini-draft-create.ts` — 同上
+- `src/lib/advisor/reports/generate.ts` — previousResultMarkdown / 集計期間注釈 / ヘッダー型強制禁止 / 散文禁止
+- `src/lib/advisor/reports/collect.ts` — 4 系統の expand 関数追加 (search_console / supabase / vercel logs / deployments) + ga4 5 種展開
+- `src/lib/advisor/tools/tastas-data/metrics-catalog.ts` — LP_TO_LINE_CONV 追加
+- `src/lib/advisor/tools/tastas-data/query-metric.ts` — LP_TO_LINE_CONV 集計ロジック
+- `src/lib/advisor/system-prompt.ts` — レポート作成モードセクション 140 行 → 15 行に圧縮
+- `src/components/advisor/report/report-canvas.tsx` — view 通知 callback / liveStatusText / バッジ動的化 / Gemini Canvas 撤去 / DraftBodyView 表示修正
+- `src/components/advisor/chat/chat-layout.tsx` — view 連動 forcedTool / messages reload
+- `src/components/advisor/chat/chat-input.tsx` — result_edit ツール追加
+- `src/components/advisor/history/history-client.tsx` — 複数選択削除 UI
+
+削除:
+- `src/lib/advisor/gemini-canvas-bridge.ts`
+
+#### 学び・注意点
+
+- **「Gemini が嘘をつく」事象は大半がプロンプトに「例」として書いた架空指標が原因**。
+  例示は実在する指標だけにする (LP_TO_LINE_CONV のように一見もっともらしい架空名を出さない)
+- **データソースの「能力フル展開」が collect 側でできていなかった**ことが、レポート品質低下の最大要因だった。
+  ツール側に reportType / dimensions / source などの enum がある場合、レポート用 collect では
+  デフォルトで全展開する設計が筋 (個別レポートで使わなくても並列なので速度影響なし)
+- **「過去 v の手作業修正を継承」設計は previousResultMarkdown を Gemini に渡すだけで実現可能**。
+  シンプルだが効果絶大。
+- **チャット履歴を Gemini バイパスに渡してなかった**のは初期実装の盲点。stateless な単発リクエストで動かしていたため、
+  ユーザーの直前の意図と不整合な編集が起きていた。直近 8 件渡すだけで文脈整合性が大幅改善。
 
 ---
 

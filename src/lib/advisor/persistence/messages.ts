@@ -56,11 +56,14 @@ export async function getRecentMessagesForOrchestrator(opts: {
   limit?: number;
 }): Promise<AdvisorMessageRecord[]> {
   // Orchestrator は内部呼び出しなので auth チェックは API Route 側で行う前提
+  // desc + take で「最新 N 件」を取得し、reverse() で時系列順に戻す。
+  // (asc + take だと「最古 N 件」になり、N 件超のセッションで新しい指示が LLM に渡らない)
   const rows = await prisma.advisorChatMessage.findMany({
     where: { session_id: opts.sessionId, is_compacted: false },
-    orderBy: { created_at: 'asc' },
+    orderBy: { created_at: 'desc' },
     take: opts.limit ?? 100,
   });
+  rows.reverse();
 
   return rows.map((r) => ({
     id: r.id,
