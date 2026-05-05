@@ -42,6 +42,7 @@
     "scripts",
     "tests",
     "★buckup_2025_1209",
-    "_legacy_agent-hub"
+    "_legacy_agent-hub",
+    "docs/system-advisor/handoff-bundle"
   ]
 }

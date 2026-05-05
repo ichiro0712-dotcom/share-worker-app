@@ -41,6 +41,9 @@ export interface ReportVersionRow {
   outputTokens: number | null
   editingLockAdminId: number | null
   editingLockAt: string | null
+  shareToken: string | null
+  sharedAt: string | null
+  sharedUntil: string | null
   createdAt: string
 }
 
@@ -60,6 +63,9 @@ function toRow(v: {
   output_tokens: number | null
   editing_lock_admin_id: number | null
   editing_lock_at: Date | null
+  share_token: string | null
+  shared_at: Date | null
+  shared_until: Date | null
   created_at: Date
 }): ReportVersionRow {
   return {
@@ -85,6 +91,9 @@ function toRow(v: {
     outputTokens: v.output_tokens,
     editingLockAdminId: v.editing_lock_admin_id,
     editingLockAt: v.editing_lock_at?.toISOString() ?? null,
+    shareToken: v.share_token,
+    sharedAt: v.shared_at?.toISOString() ?? null,
+    sharedUntil: v.shared_until?.toISOString() ?? null,
     createdAt: v.created_at.toISOString(),
   }
 }
@@ -169,6 +178,23 @@ export async function getLatestVersion(draftId: string): Promise<ReportVersionRo
     orderBy: { version_number: 'desc' },
   })
   return v ? toRow(v) : null
+}
+
+/**
+ * 公開シェア URL からの参照用 (auth 不要、middleware の publicPaths で守られる前提)。
+ * 以下のいずれかなら null を返す:
+ *  - shared_at が null (= シェア停止中)
+ *  - shared_until が null (= 有効期限未設定の停止中扱い)
+ *  - shared_until < now() (= 期限切れ)
+ */
+export async function getVersionByShareToken(token: string): Promise<ReportVersionRow | null> {
+  if (!token) return null
+  const v = await prisma.advisorReportVersion.findUnique({ where: { share_token: token } })
+  if (!v) return null
+  if (!v.shared_at) return null
+  if (!v.shared_until) return null
+  if (v.shared_until.getTime() < Date.now()) return null
+  return toRow(v)
 }
 
 /**
@@ -272,28 +298,35 @@ export async function deleteVersion(versionId: string): Promise<void> {
 }
 
 /**
- * admin 所有の全レポートバージョンを横断で一覧。
- * 履歴一覧画面で使う。
+ * admin 所有のセッションごとの「最新レポート 1 件」を横断で一覧。
+ * 履歴一覧画面で使う (1 セッション = 1 行)。
+ *
+ * sortBy:
+ *  - 'created_desc' (default): 最新バージョン作成日時の新しい順
+ *  - 'bookmark_first': しおり付きを上、その中で作成日時新しい順
  */
 export async function listAllVersionsForAdmin(input: {
   adminId: number
   searchTitle?: string
   limit?: number
   offset?: number
+  sortBy?: 'created_desc' | 'bookmark_first'
 }): Promise<{
   rows: Array<
     ReportVersionRow & {
       sessionId: string
       title: string | null
+      bookmarked: boolean
+      sessionUpdatedAt: string
     }
   >
   total: number
 }> {
   const limit = Math.min(input.limit ?? 50, 200)
   const offset = input.offset ?? 0
+  const sortBy = input.sortBy ?? 'created_desc'
 
-  // Draft 経由で adminId フィルタ。検索は draft.title または version.draft_snapshot.title でもいいが、
-  // draft.title (= 最新キャッシュ) で OK にする (簡潔さ優先)。
+  // Draft 経由で adminId フィルタ。検索は draft.title (= 最新キャッシュ) で OK。
   const draftWhere: Prisma.AdvisorReportDraftWhereInput = {
     admin_id: input.adminId,
   }
@@ -301,36 +334,109 @@ export async function listAllVersionsForAdmin(input: {
     draftWhere.title = { contains: input.searchTitle.trim(), mode: 'insensitive' }
   }
 
-  // 該当する draft の id 一覧を取得
+  // 該当する draft の id 一覧を取得 (1 セッション = 1 ドラフト)
   const drafts = await prisma.advisorReportDraft.findMany({
     where: draftWhere,
     select: { id: true, session_id: true, title: true },
   })
   const draftIds = drafts.map((d) => d.id)
-  const draftMeta = new Map(drafts.map((d) => [d.id, { sessionId: d.session_id, title: d.title }]))
+  const sessionIds = Array.from(new Set(drafts.map((d) => d.session_id)))
 
   if (draftIds.length === 0) {
     return { rows: [], total: 0 }
   }
 
-  const [versions, total] = await Promise.all([
-    prisma.advisorReportVersion.findMany({
-      where: { draft_id: { in: draftIds } },
-      orderBy: { created_at: 'desc' },
-      take: limit,
-      skip: offset,
-    }),
-    prisma.advisorReportVersion.count({ where: { draft_id: { in: draftIds } } }),
-  ])
+  // session の bookmarked と updated_at を別クエリで取得 (Draft → Session のリレーション未定義のため)
+  const sessions =
+    sessionIds.length === 0
+      ? []
+      : await prisma.advisorChatSession.findMany({
+          where: { id: { in: sessionIds } },
+          select: { id: true, bookmarked: true, updated_at: true },
+        })
+  const sessionMap = new Map(
+    sessions.map((s) => [
+      s.id,
+      { bookmarked: s.bookmarked, updatedAt: s.updated_at.toISOString() },
+    ])
+  )
 
-  const rows = versions.map((v) => {
-    const meta = draftMeta.get(v.draft_id) ?? { sessionId: '', title: null }
+  // draft ごとに最新 version を 1 件ずつ取得 (groupBy で最大 created_at を出してから fetch)
+  const latestPerDraft = await prisma.advisorReportVersion.groupBy({
+    by: ['draft_id'],
+    where: { draft_id: { in: draftIds } },
+    _max: { created_at: true },
+  })
+
+  // (draft_id, created_at) の組で findMany にぶつけられないので、各 draft の最新 version を id ベースで取り直す
+  const latestKeys = latestPerDraft
+    .filter((g): g is typeof g & { _max: { created_at: Date } } => g._max.created_at !== null)
+    .map((g) => ({ draft_id: g.draft_id, created_at: g._max.created_at }))
+
+  const latestVersions =
+    latestKeys.length === 0
+      ? []
+      : await prisma.advisorReportVersion.findMany({
+          where: {
+            OR: latestKeys.map((k) => ({
+              draft_id: k.draft_id,
+              created_at: k.created_at,
+            })),
+          },
+        })
+
+  // バージョンに「セッション情報」を結合
+  const draftMeta = new Map(
+    drafts.map((d) => {
+      const sess = sessionMap.get(d.session_id)
+      return [
+        d.id,
+        {
+          sessionId: d.session_id,
+          title: d.title,
+          bookmarked: sess?.bookmarked ?? false,
+          sessionUpdatedAt: sess?.updatedAt ?? new Date(0).toISOString(),
+        },
+      ] as const
+    })
+  )
+
+  // クライアント側でソート (件数が小規模 = adminごとのドラフト数 = 数百件想定なので問題ない)
+  type Joined = ReturnType<typeof toRow> & {
+    sessionId: string
+    title: string | null
+    bookmarked: boolean
+    sessionUpdatedAt: string
+  }
+  const allJoined: Joined[] = latestVersions.map((v) => {
+    const meta = draftMeta.get(v.draft_id) ?? {
+      sessionId: '',
+      title: null,
+      bookmarked: false,
+      sessionUpdatedAt: new Date(0).toISOString(),
+    }
     return {
       ...toRow(v),
       sessionId: meta.sessionId,
       title: meta.title,
+      bookmarked: meta.bookmarked,
+      sessionUpdatedAt: meta.sessionUpdatedAt,
     }
   })
+
+  if (sortBy === 'bookmark_first') {
+    allJoined.sort((a, b) => {
+      if (a.bookmarked !== b.bookmarked) return a.bookmarked ? -1 : 1
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    })
+  } else {
+    allJoined.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    )
+  }
+
+  const total = allJoined.length
+  const rows = allJoined.slice(offset, offset + limit)
 
   return { rows, total }
 }

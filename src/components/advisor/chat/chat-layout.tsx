@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Loader2, Plus, MessageSquare, PanelRightClose, PanelRightOpen, Trash2, Sun, Settings as SettingsIcon, LogOut, Bot, ShieldCheck, RefreshCw, FileText } from 'lucide-react'
+import { useSearchParams } from 'next/navigation'
+import { Loader2, Plus, MessageSquare, PanelRightClose, PanelRightOpen, PanelLeftClose, PanelLeftOpen, Trash2, Sun, Settings as SettingsIcon, LogOut, Bot, ShieldCheck, RefreshCw, FileText, Bookmark, BookmarkCheck, ChevronLeft } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/src/components/ui/shadcn/button'
 import { ScrollArea } from '@/src/components/ui/shadcn/scroll-area'
@@ -9,7 +10,7 @@ import { cn } from '@/src/lib/cn'
 import { UnifiedMessage, cleanMessageTags, parseChoices, type ChoiceGroup } from '@/src/components/advisor/chat/unified-message'
 import { ChatInput, type AttachedFile } from '@/src/components/advisor/chat/chat-input'
 import { StatusIndicator } from '@/src/components/advisor/chat/status-indicator'
-import { getConversations, getConversationMessages, deleteConversation, type ConversationSummary } from '@/src/lib/advisor/actions/conversations'
+import { getConversations, getConversationMessages, deleteConversation, toggleBookmark, type ConversationSummary } from '@/src/lib/advisor/actions/conversations'
 import { getPinnedAgents, getCAConversations, deleteCAConversation, type CustomAgent, type CAConversationSummary } from '@/src/lib/advisor/actions/custom-agents'
 import { getAgentIcon, ICON_COLORS } from '@/src/lib/advisor/agent-icons'
 import { approveAction } from '@/src/lib/advisor/actions/pending-actions'
@@ -42,6 +43,8 @@ export interface ChatLayoutProps {
 }
 
 export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatLayoutProps) {
+  const searchParams = useSearchParams()
+  const cidFromUrl = searchParams?.get('c') ?? null
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -92,11 +95,27 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
   const [canvasOpen, setCanvasOpen] = useState(false)
   /** ドラフトが存在するか (トグルボタンの可視判定 + 自動オープン用) */
   const [hasDraft, setHasDraft] = useState(false)
+  /** 左サイドバー (チャット履歴) の表示状態 */
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  /** Canvas が開いた瞬間に自動折り畳みするための、直前 canvasOpen 値 */
+  const prevCanvasOpenRef = useRef(false)
+  /** 初回 suggestion チップから ChatInput にツール+テキストをプリフィルするためのトリガー */
+  const [chatPrefill, setChatPrefill] = useState<{ toolId: string | null; text: string; nonce: number } | null>(null)
+  /**
+   * Canvas が現在表示しているタブ ('draft' | 'result') と「結果が存在するか」。
+   * Canvas からの onViewChange callback で更新され、ChatInput の forcedTool 切替に使う。
+   * - view='draft'  → forcedTool='draft_revise'
+   * - view='result' && hasResult → forcedTool='result_edit'
+   */
+  const [canvasView, setCanvasView] = useState<{ view: 'draft' | 'result'; hasResult: boolean }>({
+    view: 'draft',
+    hasResult: false,
+  })
   /**
    * Canvas 幅 (px)。チャット欄より大きい初期値 + 境界ドラッグでリサイズ可能。
    * localStorage に保存して再訪時に復元する。
    */
-  const [canvasWidth, setCanvasWidth] = useState(720)
+  const [canvasWidth, setCanvasWidth] = useState(960)
   const [resizingCanvas, setResizingCanvas] = useState(false)
   /**
    * Canvas に「いま何が動いているか」を伝えるためのフェーズ。
@@ -183,18 +202,43 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
     return () => { cancelled = true }
   }, [conversationId])
 
-  // URL の ?c=<id> から初期会話を開く (履歴ページからの遷移用)
+  // Canvas が「閉じている → 開いた」遷移時にサイドバーを自動折り畳み。
+  // Canvas を閉じてもサイドバーは自動復活させない (ユーザーの選択を尊重)。
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    const params = new URLSearchParams(window.location.search)
-    const cid = params.get('c')
-    if (cid) {
-      handleSelectConversation(cid)
-      // 履歴復元後は URL をきれいに戻す
-      window.history.replaceState({}, '', '/system-admin/advisor')
+    if (!prevCanvasOpenRef.current && canvasOpen) {
+      setSidebarOpen(false)
+    }
+    prevCanvasOpenRef.current = canvasOpen
+  }, [canvasOpen])
+
+  // URL の ?c=<id> から初期会話を開く (履歴ページからの遷移用)
+  // useSearchParams で URL 変化を監視するので SPA 遷移でも動く。
+  // 注意: URL から ?c= を消す処理 (router.replace) は意図的にやらない。
+  // force-dynamic + replace の組み合わせで RSC payload 再取得 → ChatLayout 再マウント
+  // → state がリセットされる挙動があったため、URL に ?c= を残したまま運用する。
+  // (リロード時に同じセッションが復元されるメリットもある)
+  useEffect(() => {
+    if (!cidFromUrl) return
+    if (cidFromUrl === conversationId) return  // 既に同じ会話を開いていれば何もしない
+    let cancelled = false
+    ;(async () => {
+      setConversationId(cidFromUrl)
+      setMessages([])
+      const msgs = await getConversationMessages(cidFromUrl)
+      if (cancelled) return
+      setMessages(msgs.map(m => ({
+        id: m.id,
+        role: m.role as Message['role'],
+        agent_id: m.agent_id ?? undefined,
+        content: m.role === 'user' ? stripToolHintPrefix(m.content) : m.content,
+        created_at: m.created_at,
+      })))
+    })()
+    return () => {
+      cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [cidFromUrl])
 
   // sessionUser は props から計算済みなので useEffect 不要
 
@@ -230,7 +274,11 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
     if (id === conversationId) return
     setConversationId(id)
     setMessages([])
-    setLoading(true)
+    // 注意: ここで setLoading(true) を立てない。
+    // loading は「LLM 応答中」フラグとして UI が「考え中...」を表示するために使われており、
+    // 過去メッセージの fetch にこれを使うと、履歴ページから遷移したときに永続的に
+    // 考え中表示になってしまう (元のセッションに応答中の処理が無いため fetch 完了後も
+    // 解除されないバグの原因になる)。
     const msgs = await getConversationMessages(id)
     setMessages(msgs.map(m => ({
       id: m.id,
@@ -240,7 +288,23 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
       content: m.role === 'user' ? stripToolHintPrefix(m.content) : m.content,
       created_at: m.created_at,
     })))
-    setLoading(false)
+  }
+
+  /**
+   * 現在の会話のメッセージを DB から再取得して messages state を上書き。
+   * Canvas 側でレポート生成 / 再生成が走った時に、サーバー側で appendMessage された
+   * 「📊 レポート vN を生成しました」イベントメッセージを画面に取り込む。
+   */
+  async function reloadCurrentMessages() {
+    if (!conversationId) return
+    const msgs = await getConversationMessages(conversationId)
+    setMessages(msgs.map(m => ({
+      id: m.id,
+      role: m.role as Message['role'],
+      agent_id: m.agent_id ?? undefined,
+      content: m.role === 'user' ? stripToolHintPrefix(m.content) : m.content,
+      created_at: m.created_at,
+    })))
   }
 
   async function handleDeleteConversation(id: string) {
@@ -361,6 +425,11 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
 
   async function handleChatSubmit(text: string, submitModelId: string, attachedFiles: AttachedFile[], toolId?: string) {
     if ((!text && attachedFiles.length === 0) || loading) return
+
+    // suggestion チップ (prefill) で起動したターンを送信した瞬間に prefill state をクリアする。
+    // クリアしないと、ChatInput が conversationId 切替で再マウントされた直後に
+    // 同じ prefill が「新しいリクエスト」として再適用され、入力欄にテンプレが復活してしまう。
+    setChatPrefill(null)
 
     // レポート作成ツールが指定されたら、送信タイミングで Canvas を開く
     // (ドラフトはまだ無い → プレビュー (0 埋め表) が表示される)
@@ -732,14 +801,46 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
 
   return (
     <div className="flex h-screen">
-      {/* 会話サイドバー */}
-      <div className="hidden md:flex w-64 border-r border-slate-200 bg-slate-50 flex-col shrink-0">
+      {/* サイドバー折り畳み中の細い展開ボタン (md 以上のみ) */}
+      {!sidebarOpen && (
+        <div className="hidden md:flex w-9 border-r border-slate-200 bg-slate-50 shrink-0 flex-col items-center pt-3">
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(true)}
+            className="h-8 w-8 rounded-md text-slate-500 hover:bg-slate-200 hover:text-slate-700 flex items-center justify-center"
+            title="チャット履歴を開く"
+          >
+            <PanelLeftOpen className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={handleNewChat}
+            className="mt-2 h-8 w-8 rounded-md text-slate-500 hover:bg-slate-200 hover:text-slate-700 flex items-center justify-center"
+            title="新規チャット"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {/* 会話サイドバー (折り畳み可能) */}
+      <div className={`${sidebarOpen ? 'hidden md:flex' : 'hidden'} w-64 border-r border-slate-200 bg-slate-50 flex-col shrink-0`}>
         <div className="p-3 border-b border-slate-200">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="h-7 w-7 rounded-lg bg-slate-800 text-white flex items-center justify-center">
-              <Bot className="h-4 w-4" />
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="h-7 w-7 rounded-lg bg-slate-800 text-white flex items-center justify-center shrink-0">
+                <Bot className="h-4 w-4" />
+              </div>
+              <div className="text-sm font-semibold text-slate-800 truncate">System Advisor</div>
             </div>
-            <div className="text-sm font-semibold text-slate-800">System Advisor</div>
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(false)}
+              className="h-7 w-7 rounded-md text-slate-400 hover:bg-slate-200 hover:text-slate-700 flex items-center justify-center shrink-0"
+              title="チャット履歴を折り畳む"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
           </div>
           <Button
             size="sm"
@@ -749,6 +850,13 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
             <Plus className="h-3.5 w-3.5" />
             新規chat
           </Button>
+          <Link
+            href="/system-admin/advisor/reports"
+            className="mt-2 flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors border border-slate-200"
+          >
+            <FileText className="h-3.5 w-3.5" />
+            レポート履歴
+          </Link>
         </div>
 
         {/* チャット履歴（通常会話 + CA会話をマージ） */}
@@ -772,7 +880,36 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
                 >
                   <MessageSquare className="h-3.5 w-3.5 shrink-0" />
                   <span className="truncate flex-1 text-xs">{stripToolHintPrefix(conv.title) || '新しい会話'}</span>
-                  <span className="text-[9px] text-slate-400 shrink-0 group-hover:hidden">
+                  {/* しおり: ON のときは常時表示 (永続保存中の目印)、OFF のときは hover 時のみ表示 */}
+                  <button
+                    onClick={async (e) => {
+                      e.stopPropagation()
+                      const res = await toggleBookmark(conv.id)
+                      if (res.ok) {
+                        setConversations((prev) =>
+                          prev.map((c) => (c.id === conv.id ? { ...c, bookmarked: res.bookmarked } : c))
+                        )
+                      }
+                    }}
+                    className={cn(
+                      'p-0.5 rounded shrink-0',
+                      conv.bookmarked
+                        ? 'text-amber-500 hover:text-amber-600'
+                        : 'hidden group-hover:block text-slate-400 hover:text-amber-500'
+                    )}
+                    title={
+                      conv.bookmarked
+                        ? 'しおり ON: このセッションのレポートは永続保存されます'
+                        : 'しおりを付ける (このセッションのレポートを永続保存)'
+                    }
+                  >
+                    {conv.bookmarked ? (
+                      <BookmarkCheck className="h-3 w-3 fill-amber-400" />
+                    ) : (
+                      <Bookmark className="h-3 w-3" />
+                    )}
+                  </button>
+                  <span className={cn('text-[9px] text-slate-400 shrink-0', conv.bookmarked ? '' : 'group-hover:hidden')}>
                     {formatTime(conv.updated_at)}
                   </span>
                   <button
@@ -792,8 +929,8 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
         </ScrollArea>
 
         {/* サイドバー下部: すべての履歴を見る + レポート履歴 */}
-        <div className="border-t border-slate-200 p-2 space-y-0.5">
-          {conversations.length > 0 && (
+        {conversations.length > 0 && (
+          <div className="border-t border-slate-200 p-2 space-y-0.5">
             <Link
               href="/system-admin/advisor/history"
               className="flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-md text-xs text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
@@ -801,15 +938,8 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
               <MessageSquare className="h-3.5 w-3.5" />
               すべての履歴を見る
             </Link>
-          )}
-          <Link
-            href="/system-admin/advisor/reports"
-            className="flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-md text-xs text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
-          >
-            <FileText className="h-3.5 w-3.5" />
-            レポート履歴
-          </Link>
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Chat領域 */}
@@ -870,13 +1000,31 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
               <div className="mt-6">
                 <div className="flex flex-wrap gap-2 justify-center max-w-2xl">
                   {[
-                    { label: 'ログの集計を依頼したい', message: '直近のログを集計して、エラーやアクセス傾向の概要を教えてください。' },
-                    { label: '追加機能を検討したい', message: '新しい機能の追加を検討しています。技術的に可能か、影響範囲を含めて教えてください。' },
-                    { label: 'システムや仕様について聞きたい', message: 'TASTAS の仕様や実装について質問させてください。' },
+                    // mode='submit': クリック即送信 (シンプルチャット用)
+                    // mode='prefill': ChatInput にツール選択 + テキストを入れて、ユーザーが内容を確認後に Enter で送信
+                    { label: 'ログの集計を依頼したい', message: '直近のログを集計して、エラーやアクセス傾向の概要を教えてください。', mode: 'submit' as const },
+                    { label: '追加機能を検討したい', message: '新しい機能の追加を検討しています。技術的に可能か、影響範囲を含めて教えてください。', mode: 'submit' as const },
+                    { label: 'システムや仕様について聞きたい', message: 'TASTAS の仕様や実装について質問させてください。', mode: 'submit' as const },
+                    {
+                      label: 'ログを集計してレポート生成',
+                      message:
+                        'ログを集計してレポートを作成したいです。\n' +
+                        '- 対象期間: (例: 直近 24 時間 / 直近 7 日)\n' +
+                        '- レポートの目的: (例: エラー傾向の振り返り / デプロイ前後の安定性確認)\n' +
+                        '- 含めたいログソース: (例: Vercel ログ (error/warning/info)、Supabase ログ (postgres/api/auth)、DB エラーログ、最近のデプロイ履歴)',
+                      mode: 'prefill' as const,
+                      toolId: 'report_create',
+                    },
                   ].map(item => (
                     <button
                       key={item.label}
-                      onClick={() => handleChatSubmit(item.message, DEFAULT_MODEL_ID, [], undefined)}
+                      onClick={() => {
+                        if (item.mode === 'prefill') {
+                          setChatPrefill({ toolId: item.toolId, text: item.message, nonce: Date.now() })
+                        } else {
+                          handleChatSubmit(item.message, DEFAULT_MODEL_ID, [], undefined)
+                        }
+                      }}
                       className="px-4 py-2 rounded-full border border-slate-200 text-sm text-slate-700 hover:text-slate-900 hover:border-slate-400 hover:bg-slate-50 transition-colors"
                     >
                       {item.label}
@@ -1039,7 +1187,17 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
           onAbort={handleAbort}
           placeholder="質問を入力 (Enter で送信、Shift+Enter で改行)"
           showModelSelector
-          forcedTool={conversationId && canvasOpen && hasDraft ? 'draft_revise' : null}
+          prefill={chatPrefill}
+          forcedTool={
+            // Canvas 文脈に応じて、ドラフト編集 (skeleton) と レポート編集 (生成済み本文) を切り替え:
+            // - レポート生成済み + 現在 result タブ表示中 → 'result_edit' (Gemini で本文書き換え)
+            // - それ以外 (ドラフトタブ表示中 or まだレポート未生成) → 'draft_revise' (skeleton 編集)
+            conversationId && canvasOpen && hasDraft
+              ? canvasView.view === 'result' && canvasView.hasResult
+                ? 'result_edit'
+                : 'draft_revise'
+              : null
+          }
           /* Canvas が開いている時はドラフト修正/作成経路 = Gemini Flash 直叩きに固定。
              モデルセレクタを操作不能にして「Gemini 2.5 Flash (固定)」と表示する。
              Canvas を閉じれば通常のモデル選択に戻る。
@@ -1061,19 +1219,25 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
             aria-orientation="vertical"
             onMouseDown={(e) => { e.preventDefault(); setResizingCanvas(true) }}
             className={cn(
-              'hidden lg:block w-1 shrink-0 cursor-col-resize bg-slate-200 hover:bg-slate-400 transition-colors',
-              resizingCanvas && 'bg-slate-500'
+              // デフォルトは背景と同色 (見えない) → hover / drag で色付け
+              'hidden lg:block w-1.5 shrink-0 cursor-col-resize bg-transparent hover:bg-blue-400/60 transition-colors',
+              resizingCanvas && 'bg-blue-500'
             )}
             title="ドラッグして幅を調整"
           />
           <div
-            className="hidden lg:flex border-l border-slate-200 shrink-0 flex-col"
+            className="hidden lg:flex shrink-0 flex-col min-h-0 bg-slate-100 p-2.5 h-screen"
             style={{ width: `${canvasWidth}px` }}
           >
             <ReportCanvas
               sessionId={conversationId}
               chatPhase={reportChatPhase}
               discardEditTrigger={discardCanvasEditTrigger}
+              onViewChange={setCanvasView}
+              onReportGenerated={reloadCurrentMessages}
+              liveStatusText={currentStatus}
+              onCancelChatStream={handleAbort}
+              chatLoading={loading}
               onClose={() => {
                 setCanvasOpen(false)
                 setHasDraft(false)

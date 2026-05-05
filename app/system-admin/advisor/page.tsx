@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import { getAdvisorAuth } from '@/src/lib/advisor/auth';
 import { ChatLayout } from '@/src/components/advisor/chat/chat-layout';
@@ -11,10 +12,12 @@ export default async function AdvisorPage() {
   }
 
   return (
-    <ChatLayout
-      adminName={auth.name || 'admin'}
-      adminEmail={auth.email}
-      adminRole={auth.role}
-    />
+    <Suspense fallback={null}>
+      <ChatLayout
+        adminName={auth.name || 'admin'}
+        adminEmail={auth.email}
+        adminRole={auth.role}
+      />
+    </Suspense>
   );
 }
