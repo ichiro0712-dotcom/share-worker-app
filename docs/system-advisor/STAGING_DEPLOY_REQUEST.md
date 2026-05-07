@@ -1,55 +1,48 @@
 # 【システム責任者向け】 System Advisor ステージング展開作業依頼
 
-**作成日**: 2026-05-01 (最終更新: **2026-05-06** — レポート履歴 UX 刷新を反映)
+**作成日**: 2026-05-01 (最終更新: **2026-05-07** — STEP 4 / STEP 3 / STEP 6 の整合性修正)
 **対象環境**: ステージング (https://stg-share-worker.vercel.app)
 **対象ブランチ**: `feature/system-advisor-chatbot` → `develop` へ PR でマージ予定
 **所要時間目安**: 50〜70 分 (待機時間含む / STEP 2 はスキップで短縮)
 
 ---
 
-## 📌 2026-05-06 追記サマリ (前回からの差分)
+## 📌 2026-05-07 追記サマリ (整合性修正版)
 
-このセクションは「前回 2026-05-04 版を読み終えて作業開始しようとしている方向け」の **差分のみ** 抜粋です。前回から **DB スキーマ変更・新規環境変数・新規 cron は無し**。純粋に UI / 取得ロジックの改修のみ。
+このセクションは「前回 (〜2026-05-06) 版を読み終えて作業中の方」向けの **差分・訂正サマリ** です。
 
-### 何が変わったか
+### ⚠️ 重要な訂正 (前回までの記述ミスを修正)
+
+| 旧記述 | 訂正内容 |
+|---|---|
+| STEP 3 表の脚注「`GA_CREDENTIALS_JSON` は既存のものを流用するため**新規追加不要**」 | **❌ 誤り。実際は Vercel に未登録だった**。今回新規追加が必要 (詳細は STEP 3 内の追加 #15 参照) |
+| STEP 4 の Service Account 例「`tastas-ga-reader@xxx.iam.gserviceaccount.com`」 | **正しい client_email は `tastas-api-user@tastas-488506.iam.gserviceaccount.com`** (開発者から JSON ファイル本体を Google Chat で別途共有) |
+| STEP 6 項目 #12「サイドバー**下部**のレポート履歴リンク」 | **サイドバー**上部** (新規 chat ボタン直下) に移動済み**。クリック先 `/system-admin/advisor/reports` は同じ |
+| 概要表「新規 Vercel 環境変数 14 個」 | **15 個** (`GA_CREDENTIALS_JSON` を含む)。Hobby プランなら `VERCEL_TEAM_ID` を除く 14 個 |
+
+### 2026-05-06 で追加された UX 改修 (DB / 環境変数 / cron への影響なし)
 - **レポート履歴一覧の UX 刷新** (`/system-admin/advisor/reports`)
-  - 1 セッション = 1 行表示 (古いバージョンが履歴に並ばないように、最新 1 件のみ表示)
+  - 1 セッション = 1 行表示 (古いバージョンが履歴に並ばない、最新 1 件のみ表示)
   - 行全体クリックでセッション画面に遷移
   - 各行に「しおり」トグル / 「期限」表示 (しおり ON は永続保存、OFF は あと N 日)
   - 「しおり付き優先」ソートを追加
-  - 「v / 出自 / サイズ」列を削除
 - **個別レポート画面 (`/reports/[versionId]`) を撤去**
   - 機能はすべて Canvas 側に集約済み (URL 共有 / コピー / 編集 / 削除)
   - 古いバージョンを見たいときは「履歴 → セッション画面 → Canvas のバージョンドロップダウンで切替」
-- **チャット画面の `?c=sessionId` ハンドリング修正**
-  - SPA 遷移 / StrictMode 二重マウント / RSC 再マウント に耐性を持つ実装に変更
-  - `useSearchParams` + cancelled フラグ + URL 維持の組み合わせ
-  - ChatLayout を `<Suspense>` でラップ (`useSearchParams` の要件)
-- **サイドバーの「レポート履歴」リンクを「新規チャット」ボタン直下に配置** (旧位置の重複は削除)
-- **`tsconfig.json` の `exclude` に `docs/system-advisor/handoff-bundle` を追加** (handoff コピーが型チェックに混入していた)
-- **新規ドキュメント**: [`ichiro/LLM_TASK_REPORT_HISTORY_UX.md`](../../ichiro/LLM_TASK_REPORT_HISTORY_UX.md) — 同じ UX を別エージェントに移植するための指示書
+- **サイドバーの「レポート履歴」リンクを「新規チャット」ボタン直下に配置**
 
-### システム責任者の作業 (前回から増えたもの)
-**ありません**。今回の追加変更は DB スキーマも環境変数も cron も増やしていない。前回 (2026-05-04) 版の STEP 1〜7 をそのまま実施すれば OK。
+### 動作確認に追加してほしい項目 (前回サマリから継続)
+STEP 6 を実施するときに、以下も確認してください (本文の表 #12 を新表現に置き換えて読む):
 
-ただし、前回まだ実施していなかった場合:
-1. **本ドキュメント全体を上から順に実施** (STEP 1〜7)
-2. STEP 6 (動作確認) の項目 12 が「サイドバー下部の **レポート履歴** リンク」だったが、今回の改装で **サイドバー上部 (新規チャットボタン直下)** に移動。位置だけ違うが機能は同じ。
-3. STEP 6 に確認項目を追加 (下記参照)
-
-### 動作確認に追加してほしい項目 (今回の改装ぶん)
 | # | シナリオ | 期待動作 |
 |---|---|---|
-| A | サイドバー左上の「新規chat」直下「レポート履歴」リンクを押す | `/system-admin/advisor/reports` に遷移 |
+| A | サイドバー左上の「新規chat」直下「**レポート履歴**」リンクを押す (旧 #12 の位置を移動) | `/system-admin/advisor/reports` に遷移 |
 | B | レポート履歴一覧で 1 セッションの最新 1 件のみ表示されている | 古いバージョンが並んでいない |
 | C | 行のどこをクリックしても (タイトルでなく) セッション画面に飛ぶ | URL に `?c=sessionId` が付き、過去の会話履歴と Canvas が表示される |
 | D | 期限カラムが表示される | しおりなしは「あと N 日」、しおり ON は「永続保存」バッジ |
 | E | しおりアイコンをクリックして ON/OFF できる | 行全体クリックは発火しない (しおり列だけ反応) |
 | F | 並び替えで「しおり付き優先」を選ぶ | しおり ON のセッションが上に来る |
 | G | 旧 URL `/system-admin/advisor/reports/[versionId]` を踏む | 404 になる (個別ページ撤去) |
-
-### 参考: 今回のセッションで踏んだ罠
-詳細は [`ichiro/LLM_TASK_REPORT_HISTORY_UX.md`](../../ichiro/LLM_TASK_REPORT_HISTORY_UX.md) §1 に記載。Service Worker (PWA) が dev 環境で `/system-admin/advisor` への遷移を横取りして失敗させる事象が一度発生したが、SPA 遷移 (`router.push`) に統一することで解消済み。
 
 ---
 
@@ -78,7 +71,7 @@ GitHub / 本番 Supabase (読み取り専用) / GA4 / Search Console / Vercel / 
 |---|---|
 | **新規 DB テーブル** | 11 個 (Advisor 関連、本体テーブルは触らない) |
 | **既存 Advisor テーブルへのカラム追加** | `advisor_chat_sessions.bookmarked` (しおり) / `advisor_report_drafts` に 3 カラム (`metric_keys` / `original_request` / `skeleton_markdown`) / `advisor_report_versions` に 3 カラム (`share_token` / `shared_at` / `shared_until`、共有 URL) |
-| **新規 Vercel 環境変数** | 14 個 (Hobby プランなら `VERCEL_TEAM_ID` を除く 13 個。Anthropic / Gemini / GitHub / Supabase / Search Console / Vercel API 等) |
+| **新規 Vercel 環境変数** | **15 個** (Hobby プランなら `VERCEL_TEAM_ID` を除く 14 個。Anthropic / Gemini / GitHub / Supabase / Search Console / Vercel API / GA Service Account JSON 等) |
 | **新規 Vercel Cron** | `advisor-cleanup` (毎日 04:00 JST = `0 19 * * *` UTC、保持期間に基づく自動削除) + `advisor-semantic-ingest` (毎日 04:30 JST = `30 19 * * *` UTC、しおり付きセッションの最新レポートを意味的記憶に取り込み) — 両方 vercel.json に既登録 |
 | **コード追加** | `src/lib/advisor/`, `app/system-admin/advisor/`, `app/api/advisor/`, `app/api/cron/advisor-cleanup/`, `app/advisor/r/[token]/`, `docs/system-advisor/` 配下 |
 
@@ -274,11 +267,14 @@ Vercel ダッシュボード → tastas プロジェクト → Settings → Envi
 | 12 | `VERCEL_API_TOKEN` | `vcp_...` ([Account Tokens](https://vercel.com/account/tokens) で発行) | Advisor の `get_vercel_logs` / `get_vercel_deployments` ツール用 |
 | 13 | `VERCEL_PROJECT_ID` | `prj_...` (Vercel ダッシュボード → tastas プロジェクト → Settings → General) | 対象プロジェクトを share-worker-app に固定 (アカウント全体検索を防ぐ) |
 | 14 | `VERCEL_TEAM_ID` | `team_...` (Team プランの場合のみ。Hobby なら不要) | Team Scope の API 呼び出し |
+| 15 | `GA_CREDENTIALS_JSON` | GA Service Account JSON 全体 (1 行に圧縮した文字列) — 開発者 (川島) から Google Chat で別途共有 | GA4 Reporting API + Search Console 両方の認証 |
 
-> **既存変数の流用**: `GA_CREDENTIALS_JSON` は既存のものを Search Console でも流用するため新規追加不要。
-> ただし、その Service Account のメールアドレスを Search Console プロパティに **「制限付きユーザー」以上** で追加する必要あり (STEP 4)。
+> **`GA_CREDENTIALS_JSON` について (2026-05-07 訂正)**:
+> 旧版の依頼書では「既存登録済みなので新規追加不要」と書いていましたが、**実際は Vercel に未登録**でした。お手数ですが新規追加をお願いします。
+> Service Account 自体は既に作成・運用中 (`tastas-api-user@tastas-488506.iam.gserviceaccount.com`)。JSON は開発者ローカルにのみ存在するため Google Chat で別途共有します。
+> 貼り付け時の注意: ① 改行を入れない (1 行 ~2300 文字) / ② 外側のクォート不要、`{` で始まり `}` で終わる JSON 本体 / ③ private_key 内の `\n` (バックスラッシュ + n) はそのまま残す (実改行に変換しない)。
 
-> **`ADVISOR_GOOGLE_CHAT_WEBHOOK_URL` の取得方法**:
+> **`ADVISOR_GOOGLE_CHAT_WEBHOOK_URL` の取得方法 (システム責任者側で発行が必要)**:
 > 1. 配信先にしたい Google Chat スペースを開く
 > 2. スペース名右側の▼ → 「アプリと統合」 → 「Webhook を追加」
 > 3. 名前 (例: "TASTAS Advisor")、アイコン URL (任意) を設定
@@ -286,36 +282,36 @@ Vercel ダッシュボード → tastas プロジェクト → Settings → Envi
 
 #### 動作確認
 
-- [ ] Vercel ダッシュボードで **14 個** (Hobby プランなら `VERCEL_TEAM_ID` を除く 13 個) の環境変数が **Preview 環境** に追加されている
+- [ ] Vercel ダッシュボードで **15 個** (Hobby プランなら `VERCEL_TEAM_ID` を除く 14 個) の環境変数が **Preview 環境** に追加されている
 - [ ] `ANTHROPIC_API_KEY` が `sk-ant-api03-` で始まる正しい形式
 - [ ] `ADVISOR_DATA_DATABASE_URL` の URL 中で特殊文字が `%XX` 形式にエンコードされている
 - [ ] `VERCEL_PROJECT_ID` が **share-worker-app の ID** であること (別プロジェクトの ID にしない)
+- [ ] `GA_CREDENTIALS_JSON` の値に改行が入っていない (1 行のまま登録されている)
 
 ---
 
 ### STEP 4: Search Console に Service Account を追加 ☐
 
-> Service Account のメールアドレスは `GA_CREDENTIALS_JSON` の中の `client_email` フィールド
-> (例: `tastas-ga-reader@xxx.iam.gserviceaccount.com`) です。Vercel の環境変数を JSON 化して取り出すか、
-> 元の JSON ファイルを参照してください。
+> Service Account のメールアドレス: **`tastas-api-user@tastas-488506.iam.gserviceaccount.com`**
+> (= STEP 3 で登録した `GA_CREDENTIALS_JSON` の `client_email` フィールドと同一)
+>
+> 既存の GA4 Reporting で使用中の Service Account をそのまま流用します。新規作成は不要です。
 
 #### 4-1. 手順
 
 1. [Google Search Console](https://search.google.com/search-console) を開く
 2. プロパティ `sc-domain:tastas.work` (または `https://tastas.work/`) を選択
 3. 設定 → ユーザーと権限 → ユーザーを追加
-4. メールアドレス: GA4 で使っている Service Account の `client_email`
+4. メールアドレス: `tastas-api-user@tastas-488506.iam.gserviceaccount.com`
 5. 権限: **「制限付き」** (= 閲覧のみ。これで十分)
 6. 追加
 
 #### 4-2. 動作確認
 
-ローカルで以下のスクリプトでテストできる (Vercel デプロイ後でも OK):
+- [ ] Search Console の「ユーザーと権限」一覧に `tastas-api-user@tastas-488506.iam.gserviceaccount.com` が表示されている
+- [ ] 権限が「制限付き」になっている
 
-```bash
-# Vercel デプロイ後に確認する場合は、Vercel の Function Log を見る方が早い
-# (ステージング動作確認 §STEP 6 で確認するので、ここは飛ばしてもよい)
-```
+> 実機の動作確認 (Advisor から `query_search_console` ツールで Search Console データが取れるか) は §STEP 6 の項目 #6 で実施します。
 
 ---
 
@@ -367,7 +363,7 @@ Vercel ダッシュボード → tastas プロジェクト → Settings → Envi
 | 9 | (削除済み: 「Chat に送信」機能は 2026-05-04 撤去) | — |
 | 10 | 結果ビューの「編集」ボタン → 本文を直接編集 → 「保存」 | 新しいバージョン (v2) として保存される |
 | 11 | チャットで「○章を簡潔に」と依頼 | `[TOOL:result_edit]` で Gemini が部分修正版 (v3) を作る |
-| 12 | サイドバー下部「レポート履歴」リンク | `/system-admin/advisor/reports` で全バージョン一覧 |
+| 12 | サイドバー上部 (新規 chat ボタン直下)「レポート履歴」リンク | `/system-admin/advisor/reports` でセッション単位の最新レポート一覧 (1 セッション = 1 行) |
 | 13 | ヘッダー右上の歯車アイコン | `/system-admin/advisor/settings` で設定ページ |
 | 14 | DevTools Console で `[advisor] heartbeat:` ログ | 5 秒ごとに heartbeat イベントが届いている |
 | 15 | 「レポート作成」ツール選択 → 送信 | 右 Canvas にドラフト要件 + ドラフト本体 (0 埋めの表骨格) が表示される |
@@ -457,10 +453,10 @@ curl -X POST https://stg-share-worker.vercel.app/api/cron/advisor-semantic-inges
 【ステージング展開完了】
 - STEP 1 (DB): 11 テーブル新規作成 + ADD COLUMN (bookmarked / metric_keys / original_request / skeleton_markdown / share_token / shared_at / shared_until) 全て確認 ☑
 - STEP 2 (本番ロール): 既に過去に作成済み、新規作業なし ☑ (川島確認済み 2026-05-01)
-- STEP 3 (Vercel 環境変数): 14 個全て追加 ☑ (Hobby プランなら VERCEL_TEAM_ID 除く 13 個)
-- STEP 4 (Search Console): Service Account を property に追加 ☑
-- STEP 5 (GitHub PR + マージ): #XXX マージ済 ☑
-- STEP 6 (動作確認): 25 項目全てパス (確認担当: 川島) ☑
+- STEP 3 (Vercel 環境変数): 15 個全て追加 ☑ (Hobby プランなら VERCEL_TEAM_ID 除く 14 個)
+- STEP 4 (Search Console): tastas-api-user@tastas-488506.iam.gserviceaccount.com を property に追加 ☑
+- STEP 5 (GitHub PR + マージ): #578 マージ済 ☑
+- STEP 6 (動作確認): 25 項目 + 2026-05-06 追加 7 項目 (A〜G) 全てパス (確認担当: 川島) ☑
 - STEP 7 (cron 3 種): advisor-knowledge-sync / advisor-cleanup / advisor-semantic-ingest 全て 200 で同期完了確認 ☑
 
 問題なし → 本番展開判断を待ちます
@@ -471,7 +467,7 @@ curl -X POST https://stg-share-worker.vercel.app/api/cron/advisor-semantic-inges
 ## 5. 環境変数一覧 (再掲・コピペ用)
 
 ```bash
-# === 必須 14 個 ===
+# === 必須 15 個 (Hobby プランなら VERCEL_TEAM_ID を除く 14 個) ===
 ANTHROPIC_API_KEY=sk-ant-api03-XXXXX
 GEMINI_API_KEY=AIzaXXXXX
 GITHUB_TOKEN_FOR_ADVISOR=ghp_XXXXX
@@ -486,10 +482,10 @@ ADVISOR_GOOGLE_CHAT_WEBHOOK_URL=https://chat.googleapis.com/v1/spaces/XXXXX
 VERCEL_API_TOKEN=vcp_XXXXX
 VERCEL_PROJECT_ID=prj_XXXXX
 VERCEL_TEAM_ID=team_XXXXX  # Hobby プランなら省略可
+GA_CREDENTIALS_JSON={"type":"service_account",...}  # 開発者から Google Chat で別途共有 (1 行に圧縮)
 
 # === 既存流用 (新規追加不要) ===
-# GA_CREDENTIALS_JSON  ← GA4 で既に使用中、Search Console でも流用
-# DATABASE_URL         ← ステージング Supabase 既存設定
+# DATABASE_URL  ← ステージング Supabase 既存設定
 ```
 
 ---
@@ -527,6 +523,8 @@ VERCEL_TEAM_ID=team_XXXXX  # Hobby プランなら省略可
 | Anthropic 401 invalid x-api-key | キー revoke / 残高 0 / typo | キー再発行・残高確認 |
 | `query_metric` で permission denied | `advisor_readonly` ロールの GRANT 漏れ (新しいテーブルが追加された後など) | 開発者 (川島) に連絡。STEP 2 の `<details>` 内の `GRANT SELECT ...` を再実行する |
 | `query_search_console` で 403 | Service Account を property に未追加 | STEP 4 を実施 |
+| `query_ga4` / `query_search_console` で「認証情報が未設定」エラー | `GA_CREDENTIALS_JSON` 未登録 | STEP 3 #15 を実施 (開発者から JSON を別途共有) |
+| `query_ga4` で「invalid_grant」「PEM」「private_key」関連エラー | `GA_CREDENTIALS_JSON` 内の `\n` が実改行に変換されている、または末尾改行欠落 | Vercel に登録するときに JSON を 1 行のまま貼り、`\n` をそのまま残す |
 | `get_supabase_logs` で 401 | `SUPABASE_MANAGEMENT_TOKEN` 未設定 / 期限切れ | 再発行 |
 | `get_supabase_logs` で 404 | Supabase Management API のエンドポイント仕様変更 (`/v1/projects/.../analytics/endpoints/logs.all` が現在 404) | **既知の課題**。当面は Supabase ダッシュボードから直接確認してください。Advisor 側の対応は後日検討 (TODO) |
 | `get_vercel_logs` が別プロジェクトのデプロイを返す | `VERCEL_PROJECT_ID` 未設定でアカウント全体から検索される | tastas プロジェクトの ID を `VERCEL_PROJECT_ID` に設定 |
