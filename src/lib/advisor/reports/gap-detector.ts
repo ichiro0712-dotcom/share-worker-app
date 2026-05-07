@@ -1,11 +1,15 @@
 /**
  * レポート Markdown の「空き穴」検出 (Phase 1)
  *
- * 検出対象:
+ * 検出対象 (2026-05-07 修正: 表のみに絞る):
  *  - 表のうち、本文セル (ヘッダ以外) が全て "-" / "N/A" / 空 / "0" のもの
- *  - 「取得できません」「未取得」「データなし」を含む段落
  *
- * 検出した穴は「ブロック単位」 (= 1 表 / 1 段落) で返す。
+ * 段落 (サマリ / 考察等) は触らない方針:
+ *  - 「取得できません」と書かれていても、それは「考察」の一部としてユーザーが意図的に残している可能性が高い
+ *  - LLM に書き直させると元の文脈 (サマリ全体・考察全体) を消してしまう事故が発生
+ *  - したがって表だけを対象に絞り、段落は手を入れない
+ *
+ * 検出した穴は「ブロック単位」 (= 1 表) で返す。
  * 同じ章の連続ブロックは groupGapBlocks で 1 グループにまとめる (リトライ時のコンテキスト共有)。
  */
 
@@ -15,30 +19,15 @@ export interface GapBlock {
   end: number
   /** 検出した生テキスト (改行込み) */
   rawText: string
-  /** ブロック種別 */
-  kind: 'empty_table' | 'unavailable_paragraph'
+  /** ブロック種別 (現在は empty_table のみ。段落は故意に対象外) */
+  kind: 'empty_table'
   /** 直前の章タイトル (例: "## LP5 パフォーマンス概要") */
   chapterTitle: string | null
-  /** 表のときの推定列名 (ヘッダ行から) */
+  /** 表の推定列名 (ヘッダ行から) */
   tableHeaders?: string[]
-  /** 段落のときの "取得できない" 旨の文言 */
-  unavailableReason?: string
 }
 
 const EMPTY_CELL_PATTERNS = ['-', '—', 'N/A', 'n/a', '未取得', 'データなし', '取得不可', '']
-
-const UNAVAILABLE_KEYWORDS = [
-  '取得できません',
-  '取得できませんでした',
-  '取得できない',
-  '集計できません',
-  '集計できませんでした',
-  '集計できない',
-  '現時点のデータでは集計できません',
-  '現在取得できません',
-  '未取得',
-  'データなし',
-]
 
 /**
  * 1 行の表のセルが「空」とみなせるか。
@@ -153,31 +142,8 @@ export function detectGapBlocks(markdown: string): GapBlock[] {
       }
     }
 
-    // === 「取得できません」段落の検出 ===
-    if (UNAVAILABLE_KEYWORDS.some((kw) => line.includes(kw))) {
-      // 直前直後で同じ段落の境界を取る (空行で区切られる)
-      let paraStart = i
-      while (paraStart > 0 && lines[paraStart - 1].trim() !== '') paraStart--
-      let paraEnd = i
-      while (paraEnd < lines.length - 1 && lines[paraEnd + 1].trim() !== '') paraEnd++
-      const start = lineStarts[paraStart]
-      const end = lineStarts[paraEnd + 1] ?? markdown.length
-      const rawText = markdown.slice(start, end)
-      // 同じ段落をすでに登録していなければ追加
-      if (!blocks.some((b) => b.start === start && b.end === end)) {
-        blocks.push({
-          start,
-          end,
-          rawText,
-          kind: 'unavailable_paragraph',
-          chapterTitle: findChapterTitle(lines, paraStart - 1),
-          unavailableReason: line.trim(),
-        })
-      }
-      i = paraEnd + 1
-      continue
-    }
-
+    // 段落 (= 「取得できません」を含むサマリ・考察等) は意図的に検出しない。
+    // LLM に書き直させると元の文脈を破壊する事故が発生したため、表のみ対象とする。
     i++
   }
 

@@ -201,6 +201,14 @@ export function ReportCanvas({
   const generateAbortRef = useRef<AbortController | null>(null)
   // セッション切替時の初期 view 決定 (一度だけ): result があれば 'result'、無ければ 'draft'
   const initialViewDecidedForSessionRef = useRef<string | null>(null)
+  // 「ユーザーが手動で過去バージョンを選択した」フラグ。
+  // セットされている間は reload (ポーリング) で activeVersionId を最新に上書きしない。
+  // - ユーザーが版ドロップダウンで選択 → setUserPickedVersion(true)
+  // - セッション切替 → false にリセット
+  // - 新バージョンが生まれた瞬間 (auto-redraft / 手動再生成完了) → false にリセット (= 最新に戻す)
+  const userPickedVersionRef = useRef<boolean>(false)
+  // 直近 reload で見えていた最新版 ID (= vs[0]?.id)。これが変わったときだけ「新版が出た」と判定する。
+  const lastSeenLatestVersionIdRef = useRef<string | null>(null)
   const shareMenuRef = useRef<HTMLDivElement | null>(null)
   const moreMenuRef = useRef<HTMLDivElement | null>(null)
   const [moreMenuOpen, setMoreMenuOpen] = useState(false)
@@ -211,6 +219,8 @@ export function ReportCanvas({
       setVersions([])
       setActiveVersionId(null)
       setActiveVersion(null)
+      userPickedVersionRef.current = false
+      lastSeenLatestVersionIdRef.current = null
       return
     }
     // 編集中はポーリングで上書きしない (admin の編集テキストが消える事故を防ぐ)
@@ -224,13 +234,35 @@ export function ReportCanvas({
     setDraft(d)
     setVersions(vs)
 
-    // active version の選定: **常に最新 (vs[0]) を表示する**。
-    //   ユーザーが過去バージョンを意図的に選んでドロップダウンで切り替える場合は、
-    //   別途 versionMenuOpen UI で明示的に setActiveVersionId するため、ここでは最新固定で OK。
-    //   旧仕様 (既選択を維持) だと revise / 自動再生成で新バージョンが出てもユーザーが古い v を見続ける事故があった。
-    const next = vs[0] ?? null
-    if (next?.id !== activeVersionId) {
-      setActiveVersionId(next?.id ?? null)
+    // active version の選定:
+    //   - 通常: 最新 (vs[0]) を表示
+    //   - ユーザーが手動で過去版を選んだ後 (userPickedVersionRef=true) は、その選択を維持
+    //   - ただし「新しいバージョンが出てきた」場合は最新に戻して手動選択フラグもリセット
+    //     (auto-redraft / 手動再生成 / 自動補完で v3 → v4 が生まれたら v4 を見せたい)
+    const latest = vs[0] ?? null
+    const latestId = latest?.id ?? null
+    const newVersionAppeared =
+      latestId !== null && latestId !== lastSeenLatestVersionIdRef.current
+    lastSeenLatestVersionIdRef.current = latestId
+
+    if (newVersionAppeared) {
+      // 新版誕生 → 強制的に最新に戻す + 手動選択フラグをクリア
+      userPickedVersionRef.current = false
+      if (latestId !== activeVersionId) {
+        setActiveVersionId(latestId)
+      }
+    } else if (!userPickedVersionRef.current) {
+      // 手動選択していない通常モード: 最新に追従 (= 既存の挙動)
+      if (latestId !== activeVersionId) {
+        setActiveVersionId(latestId)
+      }
+    } else {
+      // 手動選択中: activeVersionId が現在の versions に含まれているかだけ確認
+      // (削除等で消えていたら最新に戻す)
+      if (activeVersionId && !vs.some((v) => v.id === activeVersionId)) {
+        userPickedVersionRef.current = false
+        setActiveVersionId(latestId)
+      }
     }
 
     // セッションを開いた直後の初期 view 決定 (1 セッションにつき 1 回だけ):
@@ -298,6 +330,13 @@ export function ReportCanvas({
       cancelled = true
     }
   }, [activeVersionId])
+
+  // セッション切替時に「ユーザー手動選択」フラグをリセット
+  // (別セッションでは初期表示は最新版が望ましい)
+  useEffect(() => {
+    userPickedVersionRef.current = false
+    lastSeenLatestVersionIdRef.current = null
+  }, [sessionId])
 
   // active version 切替時にシェア状態を取得
   useEffect(() => {
@@ -871,6 +910,9 @@ export function ReportCanvas({
                           key={v.id}
                           type="button"
                           onClick={() => {
+                            // 手動選択 → ポーリングで最新に戻されないようフラグを立てる
+                            // (最新版を選んだ場合だけはフラグ不要)
+                            userPickedVersionRef.current = v.id !== versions[0]?.id
                             setActiveVersionId(v.id)
                             setVersionMenuOpen(false)
                           }}
