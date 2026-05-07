@@ -1214,6 +1214,10 @@ model Attendance {
   // 給与計算結果（承認後に設定）
   calculated_wage Int? @map("calculated_wage")
 
+  // 旧計算式での給与額（新計算式リリース時の遡及更新用）
+  // 新方式適用前の値を退避し、振込履歴との突合や万一のロールバックに使用
+  legacy_calculated_wage Int? @map("legacy_calculated_wage")
+
   created_at DateTime @default(now()) @map("created_at")
   updated_at DateTime @updatedAt @map("updated_at")
 
