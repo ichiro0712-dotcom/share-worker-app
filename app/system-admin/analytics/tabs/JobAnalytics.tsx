@@ -118,6 +118,7 @@ export default function JobAnalytics() {
   const [accessCustomBreakdown, setAccessCustomBreakdown] = useState<'daily' | 'monthly'>('daily');
   const [accessData, setAccessData] = useState<AnalyticsData | null>(null);
   const [accessLoading, setAccessLoading] = useState(true);
+  const [accessError, setAccessError] = useState<string | null>(null);
 
   // === 求人ランキングの状態 ===
   const [rankingMode, setRankingMode] = useState<RankingPeriodMode>('month');
@@ -125,6 +126,7 @@ export default function JobAnalytics() {
   const [rankingCustomEnd, setRankingCustomEnd] = useState('');
   const [rankingData, setRankingData] = useState<AnalyticsData | null>(null);
   const [rankingLoading, setRankingLoading] = useState(true);
+  const [rankingError, setRankingError] = useState<string | null>(null);
   const [activeOnly, setActiveOnly] = useState(false);
 
   // 求人ランキングソート
@@ -181,6 +183,7 @@ export default function JobAnalytics() {
   // === アクセス状況のデータ取得 ===
   const fetchAccessData = useCallback(async () => {
     setAccessLoading(true);
+    setAccessError(null);
     try {
       const { startDate, endDate, breakdown } = getAccessDateRange();
       if (!startDate || !endDate) {
@@ -189,10 +192,24 @@ export default function JobAnalytics() {
       }
       const params = new URLSearchParams({ startDate, endDate, breakdown });
       const res = await fetch(`/api/job-analytics?${params}`);
-      const json = await res.json();
-      setAccessData(json);
+      let json: unknown = null;
+      try {
+        json = await res.json();
+      } catch {
+        // 非JSONレスポンス（ログインHTML等）
+      }
+      const errorDetail = (json as { error?: string } | null)?.error;
+      if (!res.ok || errorDetail || !json) {
+        if (errorDetail) {
+          console.error('[job-analytics] API error detail:', errorDetail);
+        }
+        throw new Error(`求人アクセスデータの取得に失敗しました (HTTP ${res.status})`);
+      }
+      setAccessData(json as AnalyticsData);
     } catch (error) {
       console.error('Failed to fetch access data:', error);
+      setAccessError(error instanceof Error ? error.message : 'データの取得中に予期しないエラーが発生しました');
+      setAccessData(null);
     } finally {
       setAccessLoading(false);
     }
@@ -201,6 +218,7 @@ export default function JobAnalytics() {
   // === 求人ランキングのデータ取得 ===
   const fetchRankingData = useCallback(async () => {
     setRankingLoading(true);
+    setRankingError(null);
     try {
       const { startDate, endDate } = getRankingDateRange();
       if (!startDate || !endDate) {
@@ -210,10 +228,24 @@ export default function JobAnalytics() {
       const params = new URLSearchParams({ startDate, endDate });
       if (activeOnly) params.set('activeOnly', 'true');
       const res = await fetch(`/api/job-analytics?${params}`);
-      const json = await res.json();
-      setRankingData(json);
+      let json: unknown = null;
+      try {
+        json = await res.json();
+      } catch {
+        // 非JSONレスポンス（ログインHTML等）
+      }
+      const errorDetail = (json as { error?: string } | null)?.error;
+      if (!res.ok || errorDetail || !json) {
+        if (errorDetail) {
+          console.error('[job-analytics] API error detail:', errorDetail);
+        }
+        throw new Error(`求人ランキングデータの取得に失敗しました (HTTP ${res.status})`);
+      }
+      setRankingData(json as AnalyticsData);
     } catch (error) {
       console.error('Failed to fetch ranking data:', error);
+      setRankingError(error instanceof Error ? error.message : 'データの取得中に予期しないエラーが発生しました');
+      setRankingData(null);
     } finally {
       setRankingLoading(false);
     }
@@ -388,8 +420,22 @@ export default function JobAnalytics() {
           </div>
         )}
 
+        {/* エラー表示 */}
+        {!accessLoading && accessError && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 m-4">
+            <p className="text-sm font-medium text-red-800 mb-1">データを取得できませんでした</p>
+            <p className="text-sm text-red-700">{accessError}</p>
+            <button
+              onClick={fetchAccessData}
+              className="mt-3 px-3 py-1.5 text-sm font-medium text-red-700 bg-white border border-red-300 rounded-md hover:bg-red-50"
+            >
+              再読み込み
+            </button>
+          </div>
+        )}
+
         {/* アクセス状況テーブル */}
-        {!accessLoading && accessData && (
+        {!accessLoading && !accessError && accessData && (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -513,7 +559,21 @@ export default function JobAnalytics() {
           </div>
         )}
 
-        {!rankingLoading && rankingData && (
+        {/* エラー表示 */}
+        {!rankingLoading && rankingError && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 m-4">
+            <p className="text-sm font-medium text-red-800 mb-1">データを取得できませんでした</p>
+            <p className="text-sm text-red-700">{rankingError}</p>
+            <button
+              onClick={fetchRankingData}
+              className="mt-3 px-3 py-1.5 text-sm font-medium text-red-700 bg-white border border-red-300 rounded-md hover:bg-red-50"
+            >
+              再読み込み
+            </button>
+          </div>
+        )}
+
+        {!rankingLoading && !rankingError && rankingData && (
           <>
             {sortedJobRanking.length === 0 ? (
               <div className="p-8 text-center text-slate-400 text-sm">
@@ -598,12 +658,6 @@ export default function JobAnalytics() {
         )}
       </div>
 
-      {/* データなし */}
-      {!accessLoading && !accessData && !rankingLoading && !rankingData && (
-        <div className="text-center py-12 text-slate-400">
-          データの取得に失敗しました
-        </div>
-      )}
     </div>
   );
 }

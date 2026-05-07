@@ -1025,7 +1025,18 @@ export default function MetricDefinitions() {
             } else if (sectionId === 'jobAnalytics') {
                 const params = new URLSearchParams({ startDate, endDate, breakdown });
                 const res = await fetch(`/api/job-analytics?${params}`);
-                const json = await res.json();
+                let json: any = null; // eslint-disable-line @typescript-eslint/no-explicit-any
+                try {
+                    json = await res.json();
+                } catch {
+                    // 非JSONレスポンス（ログインHTML等）
+                }
+                if (!res.ok || json?.error || !json) {
+                    if (json?.error) {
+                        console.error('[job-analytics] API error detail:', json.error);
+                    }
+                    throw new Error(`求人分析データの取得に失敗しました (HTTP ${res.status})`);
+                }
 
                 if (json.breakdown && json.breakdown.length > 0) {
                     dateColumns = json.breakdown.map((r: Record<string, unknown>) => r.period as string);
@@ -1040,7 +1051,18 @@ export default function MetricDefinitions() {
                 const sourceParam = selectedSources.length === 0 ? 'all' : selectedSources.join(',');
                 const params = new URLSearchParams({ startDate, endDate, breakdown, source: sourceParam });
                 const res = await fetch(`/api/funnel-analytics?${params}`);
-                const json = await res.json();
+                let json: any = null; // eslint-disable-line @typescript-eslint/no-explicit-any
+                try {
+                    json = await res.json();
+                } catch {
+                    // 非JSONレスポンス（ログインHTML等）
+                }
+                if (!res.ok || json?.error || !json) {
+                    if (json?.error) {
+                        console.error('[funnel-analytics] API error detail:', json.error);
+                    }
+                    throw new Error(`登録動線データの取得に失敗しました (HTTP ${res.status})`);
+                }
 
                 // LP一覧をレスポンスから取得
                 if (json.lpSources && json.lpSources.length > 0) {
