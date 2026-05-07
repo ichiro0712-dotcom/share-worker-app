@@ -379,7 +379,7 @@ model Job {
   bookmarks                    Bookmark[]
   workDates                    JobWorkDate[]
   facility                     Facility             @relation(fields: [facility_id], references: [id], onDelete: Cascade)
-  template                     JobTemplate?         @relation(fields: [template_id], references: [id])
+  template                     JobTemplate?         @relation(fields: [template_id], references: [id], onDelete: Restrict)
   /// オファー対象ワーカー
   targetWorker                 User?                @relation("OfferTargetWorker", fields: [target_worker_id], references: [id])
   /// 親求人（切り出し元）

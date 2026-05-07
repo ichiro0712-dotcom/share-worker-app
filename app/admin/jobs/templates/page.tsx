@@ -179,7 +179,7 @@ export default function TemplatesPage() {
                             toast.error('施設情報が取得できませんでした。再ログインしてください');
                             return;
                           }
-                          if (!confirm(`「${template.name}」を削除しますか？\nこのテンプレートから作成済みの求人は残りますが、テンプレートとの紐付けは解除されます。`)) {
+                          if (!confirm(`「${template.name}」を削除しますか？\nこのテンプレートを使用している求人がある場合は削除できません。`)) {
                             return;
                           }
                           try {
