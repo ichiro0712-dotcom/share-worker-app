@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { getAdminJobTemplates, duplicateJobTemplate } from '@/src/lib/actions';
+import { getAdminJobTemplates, duplicateJobTemplate, deleteJobTemplate } from '@/src/lib/actions';
 import { Plus, Edit, Trash2, Copy } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
@@ -174,9 +174,26 @@ export default function TemplatesPage() {
                         <Copy className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => {
-                          if (confirm('このテンプレートを削除しますか？')) {
-                            toast.success('テンプレートを削除しました');
+                        onClick={async () => {
+                          if (!admin?.facilityId) {
+                            toast.error('施設情報が取得できませんでした。再ログインしてください');
+                            return;
+                          }
+                          if (!confirm(`「${template.name}」を削除しますか？\nこのテンプレートから作成済みの求人は残りますが、テンプレートとの紐付けは解除されます。`)) {
+                            return;
+                          }
+                          try {
+                            const result = await deleteJobTemplate(template.id, admin.facilityId);
+                            if (result.success) {
+                              toast.success('テンプレートを削除しました');
+                              const data = await getAdminJobTemplates(admin.facilityId);
+                              setTemplates(data);
+                            } else {
+                              toast.error(result.error || 'テンプレートの削除に失敗しました');
+                            }
+                          } catch (error) {
+                            console.error('Failed to delete template:', error);
+                            toast.error('テンプレートの削除に失敗しました');
                           }
                         }}
                         className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
