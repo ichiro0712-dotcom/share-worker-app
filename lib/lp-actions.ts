@@ -492,6 +492,33 @@ export async function updateLandingPageCtaUrl(
 }
 
 /**
+ * LPバッジ色を更新
+ * 許可される値: rose, orange, amber, emerald, teal, sky, blue, indigo, violet, pink
+ */
+const ALLOWED_BADGE_COLORS = [
+  'rose', 'orange', 'amber', 'emerald', 'teal', 'sky', 'blue', 'indigo', 'violet', 'pink',
+];
+
+export async function updateLandingPageBadgeColor(
+  lpNumber: number,
+  badgeColor: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!ALLOWED_BADGE_COLORS.includes(badgeColor)) {
+    return { success: false, error: '無効な色が指定されました' };
+  }
+  try {
+    await prisma.landingPage.update({
+      where: { lp_number: lpNumber },
+      data: { badge_color: badgeColor },
+    });
+    return { success: true };
+  } catch (error: any) {
+    console.error('[LP Badge Color Update] Error:', error);
+    return { success: false, error: error.message || '更新に失敗しました' };
+  }
+}
+
+/**
  * LP非表示/再表示を切り替え
  */
 export async function toggleLpHidden(
@@ -605,6 +632,7 @@ export async function copyLandingPage(
         delivery_utm_source: null,
         cta_url: sourceLp.cta_url,
         sort_order: newSortOrder,
+        badge_color: sourceLp.badge_color,
       },
     });
 

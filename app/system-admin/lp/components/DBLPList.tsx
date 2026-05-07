@@ -7,7 +7,7 @@ import LPUploadModal from './LPUploadModal';
 import GenreSelectModal from './GenreSelectModal';
 import GenreEditModal from './GenreEditModal';
 import HtmlEditModal from './HtmlEditModal';
-import { getLandingPages, deleteLandingPage, updateLandingPageName, updateLandingPageCtaUrl, toggleLpHidden, updateLpSortOrders, copyLandingPage } from '@/lib/lp-actions';
+import { getLandingPages, deleteLandingPage, updateLandingPageName, updateLandingPageCtaUrl, toggleLpHidden, updateLpSortOrders, copyLandingPage, updateLandingPageBadgeColor } from '@/lib/lp-actions';
 import type { LandingPage } from '@prisma/client';
 
 type Campaign = {
@@ -17,6 +17,23 @@ type Campaign = {
   genreName?: string;
   genrePrefix?: string;
 };
+
+// バッジ色パレット（10色）。Tailwindは静的解析するため完全クラス名で記述する必要あり
+const BADGE_COLORS: Record<string, { label: string; gradient: string; ring: string }> = {
+  rose:    { label: 'ローズ',    gradient: 'from-rose-500 to-rose-600',       ring: 'ring-rose-300' },
+  orange:  { label: 'オレンジ', gradient: 'from-orange-500 to-orange-600',   ring: 'ring-orange-300' },
+  amber:   { label: 'アンバー', gradient: 'from-amber-500 to-amber-600',     ring: 'ring-amber-300' },
+  emerald: { label: 'エメラルド', gradient: 'from-emerald-500 to-emerald-600', ring: 'ring-emerald-300' },
+  teal:    { label: 'ティール', gradient: 'from-teal-500 to-teal-600',       ring: 'ring-teal-300' },
+  sky:     { label: 'スカイ',   gradient: 'from-sky-500 to-sky-600',         ring: 'ring-sky-300' },
+  blue:    { label: 'ブルー',   gradient: 'from-blue-500 to-blue-600',       ring: 'ring-blue-300' },
+  indigo:  { label: 'インディゴ', gradient: 'from-indigo-500 to-indigo-600',   ring: 'ring-indigo-300' },
+  violet:  { label: 'バイオレット', gradient: 'from-violet-500 to-violet-600',   ring: 'ring-violet-300' },
+  pink:    { label: 'ピンク',   gradient: 'from-pink-500 to-pink-600',       ring: 'ring-pink-300' },
+};
+const BADGE_COLOR_KEYS = Object.keys(BADGE_COLORS);
+const getBadgeGradient = (color?: string | null) =>
+  BADGE_COLORS[color || 'rose']?.gradient || BADGE_COLORS.rose.gradient;
 
 type DBLPListProps = {
   initialPages: LandingPage[];
@@ -58,6 +75,36 @@ export default function DBLPList({ initialPages }: DBLPListProps) {
   // CTA URL編集状態
   const [ctaEditingId, setCtaEditingId] = useState<number | null>(null);
   const [ctaEditValue, setCtaEditValue] = useState('');
+
+  // カラーピッカー状態
+  const [colorPickerLpNumber, setColorPickerLpNumber] = useState<number | null>(null);
+  const colorPickerRef = useRef<HTMLDivElement>(null);
+
+  // カラーピッカー外クリックで閉じる
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (colorPickerRef.current && !colorPickerRef.current.contains(event.target as Node)) {
+        setColorPickerLpNumber(null);
+      }
+    };
+    if (colorPickerLpNumber !== null) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [colorPickerLpNumber]);
+
+  const handleColorChange = async (lpNumber: number, color: string) => {
+    setColorPickerLpNumber(null);
+    // 楽観的UI更新
+    setPages(prev =>
+      prev.map(p => (p.lp_number === lpNumber ? { ...p, badge_color: color } : p))
+    );
+    const result = await updateLandingPageBadgeColor(lpNumber, color);
+    if (!result.success) {
+      alert(result.error || '色の変更に失敗しました');
+      await refreshPages();
+    }
+  };
 
   // モーダル状態
   const [genreSelectModalOpen, setGenreSelectModalOpen] = useState(false);
@@ -483,15 +530,46 @@ export default function DBLPList({ initialPages }: DBLPListProps) {
                 <GripVertical className="w-5 h-5" />
               </div>
             )}
-            {/* LP番号バッジ */}
-            <div className={`
-              flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold
-              ${lp.is_published === false
-                ? 'bg-gray-200 text-gray-500'
-                : 'bg-gradient-to-br from-rose-500 to-rose-600 text-white'
-              }
-            `}>
-              {lp.lp_number}
+            {/* LP番号バッジ（クリックで色変更） */}
+            <div className="relative flex-shrink-0" ref={colorPickerLpNumber === lp.lp_number ? colorPickerRef : null}>
+              <button
+                type="button"
+                onClick={() => setColorPickerLpNumber(colorPickerLpNumber === lp.lp_number ? null : lp.lp_number)}
+                title="クリックして色を変更"
+                className={`
+                  w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold transition-all
+                  hover:scale-105 hover:shadow-md
+                  ${lp.is_published === false
+                    ? 'bg-gray-200 text-gray-500'
+                    : `bg-gradient-to-br ${getBadgeGradient(lp.badge_color)} text-white`
+                  }
+                `}
+              >
+                {lp.lp_number}
+              </button>
+              {colorPickerLpNumber === lp.lp_number && (
+                <div className="absolute left-0 top-full mt-2 z-20 bg-white rounded-lg shadow-lg border border-gray-200 p-3 w-[200px]">
+                  <p className="text-[10px] font-semibold text-gray-500 mb-2 whitespace-nowrap">バッジの色を選択</p>
+                  <div className="grid grid-cols-5 gap-2">
+                    {BADGE_COLOR_KEYS.map((colorKey) => {
+                      const isSelected = (lp.badge_color || 'rose') === colorKey;
+                      return (
+                        <button
+                          key={colorKey}
+                          type="button"
+                          onClick={() => handleColorChange(lp.lp_number, colorKey)}
+                          title={BADGE_COLORS[colorKey].label}
+                          className={`
+                            w-6 h-6 rounded-md bg-gradient-to-br ${BADGE_COLORS[colorKey].gradient}
+                            transition-transform hover:scale-110
+                            ${isSelected ? `ring-2 ring-offset-1 ${BADGE_COLORS[colorKey].ring}` : ''}
+                          `}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* タイトル & ステータス */}

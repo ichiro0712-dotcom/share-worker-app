@@ -1808,6 +1808,8 @@ model LandingPage {
   is_hidden           Boolean  @default(false) @map("is_hidden")
   /// 表示順序（D&D並び替え用、小さい順に表示）
   sort_order          Int      @default(0) @map("sort_order")
+  /// LP番号バッジの色（Tailwindカラー名: rose, orange, amber, emerald, teal, sky, blue, indigo, violet, pink）
+  badge_color         String   @default("rose") @map("badge_color") @db.VarChar(20)
   created_at          DateTime @default(now()) @map("created_at")
   updated_at          DateTime @updatedAt @map("updated_at")
 
