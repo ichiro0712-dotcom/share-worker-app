@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Upload, ArrowLeft, Plus, X, User as UserIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -16,7 +16,19 @@ import { KatakanaInput, KatakanaWithSpaceInput } from '@/components/ui/KatakanaI
 import { PhoneNumberInput } from '@/components/ui/PhoneNumberInput';
 import { HOUR_TIME_OPTIONS } from '@/constants/time-options';
 import { SmsVerification } from '@/components/ui/SmsVerification';
-import { QUALIFICATION_GROUPS } from '@/constants/qualifications';
+import { QUALIFICATION_GROUPS, WORKER_QUALIFICATIONS } from '@/constants/qualifications';
+import {
+  DESIRED_WORK_STYLE_OPTIONS,
+  LEGACY_DESIRED_WORK_STYLE_OPTIONS,
+  WORK_FREQUENCY_OPTIONS,
+  WORK_FREQUENCY_SPOT_OPTION,
+  LEGACY_WORK_FREQUENCY_OPTIONS,
+  DESIRED_WORK_PERIOD_OPTIONS,
+  JOB_TIMING_OPTIONS,
+  LEGACY_JOB_TIMING_OPTIONS,
+  EMPLOYMENT_STATUS_OPTIONS,
+  LEGACY_EMPLOYMENT_STATUS_OPTIONS,
+} from '@/constants/worker-registration-options';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import BankSelector from '@/components/ui/BankSelector';
 import BranchSelector from '@/components/ui/BranchSelector';
@@ -184,6 +196,27 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
     )
     : {};
 
+  // 希望の働き方: CSV → 配列に変換し、新値と旧値を分離
+  const initialDesiredWorkStyleArray = (userProfile.desired_work_style || '')
+    .split(',')
+    .map(v => v.trim())
+    .filter(v => v.length > 0);
+  const initialDesiredWorkStyleNew = initialDesiredWorkStyleArray.filter(v =>
+    (DESIRED_WORK_STYLE_OPTIONS as ReadonlyArray<string>).includes(v)
+  );
+  const initialDesiredWorkStyleLegacy = initialDesiredWorkStyleArray.filter(v =>
+    (LEGACY_DESIRED_WORK_STYLE_OPTIONS as ReadonlyArray<string>).includes(v)
+  );
+
+  // 資格: マスタ49項目に含まれない値を「その他」として抽出
+  const knownQualifications = WORKER_QUALIFICATIONS as ReadonlyArray<string>;
+  const initialOtherQualifications = userProfile.qualifications.filter(
+    q => !knownQualifications.includes(q)
+  );
+  const initialKnownQualifications = userProfile.qualifications.filter(q =>
+    knownQualifications.includes(q)
+  );
+
   const [formData, setFormData] = useState({
     // 1. 基本情報（データベースから取得）
     lastName,
@@ -196,8 +229,8 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
 
     // 2. 働き方と希望
     currentWorkStyle: userProfile.current_work_style || '',
-    // desired_work_style は CSV 形式の可能性があるため、最初の値をドロップダウン初期値として取り出す
-    desiredWorkStyle: (userProfile.desired_work_style || '').split(',')[0] || '',
+    // 希望の働き方: 新値の配列のみ formData で管理（旧値は別 state で保持）
+    desiredWorkStyle: initialDesiredWorkStyleNew as string[],
     jobChangeDesire: userProfile.job_change_desire || '',
     desiredWorkDaysPerWeek: userProfile.desired_work_days_week || '',
     desiredWorkPeriod: userProfile.desired_work_period || '',
@@ -221,7 +254,10 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
     emergencyContactAddress: userProfile.emergency_address || '',
 
     // 4. 資格・経験（データベースから取得）
-    qualifications: userProfile.qualifications as string[],
+    qualifications: initialKnownQualifications as string[],
+    // その他資格（マスタにない値を自由記述として表示）
+    hasOtherQualification: initialOtherQualifications.length > 0,
+    otherQualification: initialOtherQualifications.join(', '),
     experienceFields: initialExperienceFields as string[],
     experienceYears: initialExperienceYears as Record<string, string>,
 
@@ -248,9 +284,11 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
   const [isSaving, setIsSaving] = useState(false);
   // バリデーションエラー表示用（送信時にtrueになる）
   const [showErrors, setShowErrors] = useState(false);
-  // 希望の働き方をユーザーが明示的に変更したか（CSV 保持判定用）
-  // 初期マウント時は false、ドロップダウン onChange で true
-  const [desiredWorkStyleDirty, setDesiredWorkStyleDirty] = useState(false);
+  // 希望の働き方: 旧値（画面非表示の選択肢で保存されている値）を読み取り専用で保持。
+  // ユーザーが明示的に削除しない限り CSV に残し続ける（データ消失防止）
+  const [legacyDesiredWorkStyle, setLegacyDesiredWorkStyle] = useState<string[]>(
+    initialDesiredWorkStyleLegacy
+  );
   // 電話番号SMS認証トークン
   const [phoneVerificationToken, setPhoneVerificationToken] = useState<string | null>(null);
   // 電話番号が変更されたかどうか
@@ -346,6 +384,35 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
   const weekDays = ['月', '火', '水', '木', '金', '土', '日', '特になし'];
 
   const timeOptions = HOUR_TIME_OPTIONS;
+
+  // 希望の働き方: 複数選択トグル
+  const toggleDesiredWorkStyle = (value: string) => {
+    setFormData(prev => {
+      const curr = prev.desiredWorkStyle;
+      return {
+        ...prev,
+        desiredWorkStyle: curr.includes(value)
+          ? curr.filter(v => v !== value)
+          : [...curr, value],
+      };
+    });
+  };
+
+  // 希望の働き方の「単発・スポット」を外したら、「不定期/決まっていない」を自動クリア
+  // （登録フォームと同じ挙動）
+  useEffect(() => {
+    if (
+      !formData.desiredWorkStyle.includes('単発・スポット') &&
+      formData.desiredWorkDaysPerWeek === WORK_FREQUENCY_SPOT_OPTION
+    ) {
+      setFormData(prev => ({ ...prev, desiredWorkDaysPerWeek: '' }));
+    }
+  }, [formData.desiredWorkStyle, formData.desiredWorkDaysPerWeek]);
+
+  // 旧値ラベルを削除
+  const removeLegacyDesiredWorkStyle = (value: string) => {
+    setLegacyDesiredWorkStyle(prev => prev.filter(v => v !== value));
+  };
 
   const handleCheckboxChange = (field: 'qualifications' | 'experienceFields' | 'desiredWorkDays', value: string) => {
     setFormData(prev => {
@@ -625,7 +692,13 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
         form.append('phoneVerificationToken', phoneVerificationToken);
       }
       form.append('birthDate', formData.birthDate);
-      form.append('qualifications', formData.qualifications.join(','));
+
+      // 資格: マスタ選択値 + その他自由記述 を結合してCSV保存
+      const otherQualValues = formData.hasOtherQualification && formData.otherQualification.trim()
+        ? formData.otherQualification.split(',').map(s => s.trim()).filter(s => s.length > 0)
+        : [];
+      const qualificationsToSave = [...formData.qualifications, ...otherQualValues];
+      form.append('qualifications', qualificationsToSave.join(','));
       form.append('lastNameKana', formData.lastNameKana);
       form.append('firstNameKana', formData.firstNameKana);
       form.append('gender', formData.gender);
@@ -646,10 +719,15 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
 
       // 働き方・希望
       form.append('currentWorkStyle', formData.currentWorkStyle);
-      form.append('desiredWorkStyle', formData.desiredWorkStyle);
-      // ユーザーが desiredWorkStyle を明示的に触った場合のフラグ
-      // （CSV 複数値を単一値に潰す意思の有無を区別するため）
-      form.append('desiredWorkStyleChanged', desiredWorkStyleDirty ? 'true' : 'false');
+      // 希望の働き方: 新値（複数選択）+ 残存している旧値 を CSV 連結して保存
+      // 旧値はユーザーが明示的に削除しない限り維持（データ消失防止）
+      const desiredWorkStyleCsv = [
+        ...formData.desiredWorkStyle,
+        ...legacyDesiredWorkStyle,
+      ].join(',');
+      form.append('desiredWorkStyle', desiredWorkStyleCsv);
+      // 複数選択化により単一値潰しの判定不要 → 常にユーザー編集後の値で上書き
+      form.append('desiredWorkStyleChanged', 'true');
       form.append('jobChangeDesire', formData.jobChangeDesire);
       form.append('desiredWorkDaysPerWeek', formData.desiredWorkDaysPerWeek);
       form.append('desiredWorkPeriod', formData.desiredWorkPeriod);
@@ -896,7 +974,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
               )}
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">性別（出生時） <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium mb-2">性別 <span className="text-red-500">*</span></label>
               <select
                 value={formData.gender}
                 onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
@@ -933,105 +1011,113 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
           <h2 className="text-lg font-bold mb-4 pb-3 border-b">2. 働き方と希望 <span className="text-red-500">*</span></h2>
 
           <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">現在の働き方 <span className="text-red-500">*</span></label>
-                <select
-                  value={formData.currentWorkStyle}
-                  onChange={(e) => setFormData({ ...formData, currentWorkStyle: e.target.value })}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.currentWorkStyle ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
-                >
-                  <option value="">選択してください</option>
-                  {/* 新登録フォームの値（優先表示） */}
-                  <option value="就業中（常勤・正社員）">就業中（常勤・正社員）</option>
-                  <option value="就業中（非常勤・パート）">就業中（非常勤・パート）</option>
-                  <option value="離職中">離職中</option>
-                  <option value="学生">学生</option>
-                  {/* 既存ユーザーの値（seed / 旧フォーム） */}
-                  <option value="単発">単発</option>
-                  <option value="正社員">正社員</option>
-                  <option value="パート・アルバイト">パート・アルバイト</option>
-                  <option value="派遣">派遣</option>
-                  <option value="契約社員">契約社員</option>
-                  <option value="その他">その他</option>
-                </select>
-                {showErrors && !formData.currentWorkStyle && (
-                  <p className="text-red-500 text-xs mt-1">現在の働き方を選択してください</p>
+            <div>
+              <label className="block text-sm font-medium mb-2">お仕事のご状況 <span className="text-red-500">*</span></label>
+              <select
+                value={formData.currentWorkStyle}
+                onChange={(e) => setFormData({ ...formData, currentWorkStyle: e.target.value })}
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.currentWorkStyle ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+              >
+                <option value="">選択してください</option>
+                {EMPLOYMENT_STATUS_OPTIONS.map(opt => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+                {/* 旧値を保持しているユーザーのみ「（旧）xxx」形式で復活表示（候補2方針） */}
+                {(LEGACY_EMPLOYMENT_STATUS_OPTIONS as ReadonlyArray<string>).includes(formData.currentWorkStyle) && (
+                  <option value={formData.currentWorkStyle}>（旧）{formData.currentWorkStyle}</option>
                 )}
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">希望の働き方 <span className="text-red-500">*</span></label>
-                <select
-                  value={formData.desiredWorkStyle}
-                  onChange={(e) => {
-                    setFormData({ ...formData, desiredWorkStyle: e.target.value });
-                    setDesiredWorkStyleDirty(true);
-                  }}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.desiredWorkStyle ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
-                >
-                  <option value="">選択してください</option>
-                  {/* 新登録フォームの値（優先表示） */}
-                  <option value="単発・スポット">単発・スポット</option>
-                  <option value="常勤・正社員">常勤・正社員</option>
-                  <option value="非常勤・パート（扶養内）">非常勤・パート（扶養内）</option>
-                  <option value="非常勤・パート（扶養外）">非常勤・パート（扶養外）</option>
-                  <option value="派遣">派遣</option>
-                  <option value="こだわらない">こだわらない</option>
-                  {/* 既存ユーザーの値（重複する「派遣」を除外） */}
-                  <option value="単発">単発</option>
-                  <option value="正社員">正社員</option>
-                  <option value="パート・アルバイト">パート・アルバイト</option>
-                  <option value="契約社員">契約社員</option>
-                  <option value="その他">その他</option>
-                </select>
-                {showErrors && !formData.desiredWorkStyle && (
-                  <p className="text-red-500 text-xs mt-1">希望の働き方を選択してください</p>
-                )}
-              </div>
+              </select>
+              {showErrors && !formData.currentWorkStyle && (
+                <p className="text-red-500 text-xs mt-1">お仕事のご状況を選択してください</p>
+              )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">転職意欲 <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium mb-2">希望の働き方 <span className="text-red-500">*</span></label>
+              <p className="text-xs text-gray-500 mb-3">※複数選択できます</p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {DESIRED_WORK_STYLE_OPTIONS.map(opt => (
+                  <label key={opt} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.desiredWorkStyle.includes(opt)}
+                      onChange={() => toggleDesiredWorkStyle(opt)}
+                      className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                    />
+                    <span className="text-sm">{opt}</span>
+                  </label>
+                ))}
+              </div>
+              {/* 旧値（読み取り専用ラベル）: ユーザーが明示的に削除しない限りCSVに残し続ける */}
+              {legacyDesiredWorkStyle.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-xs text-gray-500 mb-2">登録時に保存された旧仕様の値（×ボタンで削除可能）</p>
+                  <div className="flex flex-wrap gap-2">
+                    {legacyDesiredWorkStyle.map(value => (
+                      <span
+                        key={value}
+                        className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs"
+                      >
+                        （旧）{value}
+                        <button
+                          type="button"
+                          onClick={() => removeLegacyDesiredWorkStyle(value)}
+                          className="text-gray-400 hover:text-red-500"
+                          aria-label={`${value}を削除`}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {showErrors && formData.desiredWorkStyle.length === 0 && legacyDesiredWorkStyle.length === 0 && (
+                <p className="text-red-500 text-xs mt-1">希望の働き方を選択してください</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">いつ頃の求人をお探しですか？ <span className="text-red-500">*</span></label>
               <select
                 value={formData.jobChangeDesire}
                 onChange={(e) => setFormData({ ...formData, jobChangeDesire: e.target.value })}
                 className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.jobChangeDesire ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
               >
                 <option value="">選択してください</option>
-                {/* 新登録フォームの値（優先表示） */}
-                <option value="いますぐ">いますぐ</option>
-                <option value="1ヶ月以内">1ヶ月以内</option>
-                <option value="3ヶ月以内">3ヶ月以内</option>
-                <option value="いまは情報収集のみ">いまは情報収集のみ</option>
-                {/* 既存ユーザーの値 */}
-                <option value="今はない">今はない</option>
-                <option value="いい仕事があれば">いい仕事があれば</option>
-                <option value="転職したい">転職したい</option>
+                {JOB_TIMING_OPTIONS.map(opt => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+                {/* 旧値復活表示 */}
+                {(LEGACY_JOB_TIMING_OPTIONS as ReadonlyArray<string>).includes(formData.jobChangeDesire) && (
+                  <option value={formData.jobChangeDesire}>（旧）{formData.jobChangeDesire}</option>
+                )}
               </select>
               {showErrors && !formData.jobChangeDesire && (
-                <p className="text-red-500 text-xs mt-1">転職意欲を選択してください</p>
+                <p className="text-red-500 text-xs mt-1">求人を探している時期を選択してください</p>
               )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-2">希望勤務日数（週）</label>
+                <label className="block text-sm font-medium mb-2">どのくらい働きたいですか？</label>
                 <select
                   value={formData.desiredWorkDaysPerWeek}
                   onChange={(e) => setFormData({ ...formData, desiredWorkDaysPerWeek: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 >
                   <option value="">特になし</option>
-                  {/* 新登録フォームの値（優先表示） */}
-                  <option value="週1回">週1回</option>
-                  <option value="週2〜3回">週2〜3回</option>
-                  <option value="週4〜5回">週4〜5回</option>
-                  <option value="週5回">週5回</option>
-                  <option value="不定期/決まっていない">不定期/決まっていない</option>
-                  {/* 既存ユーザーの値 */}
-                  <option value="週1〜2日">週1〜2日</option>
-                  <option value="週3〜4日">週3〜4日</option>
-                  <option value="週5日以上">週5日以上</option>
+                  {WORK_FREQUENCY_OPTIONS.map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                  {/* 「単発・スポット」を含む場合のみ表示（登録フォームと同じ条件付き表示） */}
+                  {formData.desiredWorkStyle.includes('単発・スポット') && (
+                    <option value={WORK_FREQUENCY_SPOT_OPTION}>{WORK_FREQUENCY_SPOT_OPTION}</option>
+                  )}
+                  {/* 旧値復活表示 */}
+                  {(LEGACY_WORK_FREQUENCY_OPTIONS as ReadonlyArray<string>).includes(formData.desiredWorkDaysPerWeek) && (
+                    <option value={formData.desiredWorkDaysPerWeek}>（旧）{formData.desiredWorkDaysPerWeek}</option>
+                  )}
                 </select>
               </div>
               <div>
@@ -1042,12 +1128,9 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 >
                   <option value="">特になし</option>
-                  <option value="1週間以内">1週間以内</option>
-                  <option value="3週間以内">3週間以内</option>
-                  <option value="1〜2ヶ月">1〜2ヶ月</option>
-                  <option value="3〜6ヶ月">3〜6ヶ月</option>
-                  <option value="6ヶ月以上">6ヶ月以上</option>
-                  <option value="未定">未定</option>
+                  {DESIRED_WORK_PERIOD_OPTIONS.map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -1263,7 +1346,36 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                   </div>
                 </div>
               ))}
-              {showErrors && formData.qualifications.length === 0 && (
+
+              {/* その他資格（自由記述） - 登録フォームと同じ仕様 */}
+              <div className="mb-4">
+                <h4 className="text-sm font-semibold text-gray-700 mb-2">その他</h4>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.hasOtherQualification}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      hasOtherQualification: e.target.checked,
+                      // チェックを外したら自由記述も空にする
+                      otherQualification: e.target.checked ? formData.otherQualification : '',
+                    })}
+                    className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                  />
+                  <span className="text-sm">その他（リストにない資格）</span>
+                </label>
+                {formData.hasOtherQualification && (
+                  <input
+                    type="text"
+                    value={formData.otherQualification}
+                    onChange={(e) => setFormData({ ...formData, otherQualification: e.target.value })}
+                    placeholder="資格名を入力してください（複数の場合はカンマ区切り）"
+                    className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                )}
+              </div>
+
+              {showErrors && formData.qualifications.length === 0 && !(formData.hasOtherQualification && formData.otherQualification.trim()) && (
                 <p className="text-red-500 text-xs mt-2">少なくとも1つの資格を選択してください</p>
               )}
             </div>

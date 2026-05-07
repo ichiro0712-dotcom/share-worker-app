@@ -416,10 +416,9 @@ export async function updateUserProfile(formData: FormData) {
         const desiredWorkDays = normalizeDesiredWorkDays(desiredWorkDaysRaw);
 
         // desired_work_style の CSV 保持ロジック:
-        // 編集画面は単一選択（初期値は DB CSV の先頭値）。
-        //   - ユーザーが明示的に変更していない（desiredWorkStyleChanged=false）場合は CSV 全体を保持
-        //   - ユーザーが明示的に触った場合は、送信された値（単一）で上書き（複数値→単一に潰す意思を尊重）
-        // これにより「別項目だけ更新」では CSV を保持しつつ、「希望の働き方を変えたい」は正しく反映される。
+        // 現在の編集画面は複数選択（チェックボックス）+ 旧値ラベル。
+        // クライアント側で「新値配列 + 残存旧値」を CSV 連結して送信し、常に desiredWorkStyleChanged=true。
+        // 旧クライアント（単一選択）からの呼び出しに対する後方互換のため、false の場合は既存CSVを保持する分岐を残す。
         const existingDesiredCsv = user.desired_work_style || '';
         const desiredWorkStyleToSave = desiredWorkStyleChanged
           ? (desiredWorkStyle || null)
