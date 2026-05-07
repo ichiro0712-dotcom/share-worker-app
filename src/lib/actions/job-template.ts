@@ -1,5 +1,6 @@
 'use server';
 
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
@@ -436,7 +437,8 @@ export async function updateJobTemplate(
 
 /**
  * 管理者用: 求人テンプレートを削除
- * 依存する Job レコードの template_id を NULL に切り離してから削除する。
+ * 安全側の挙動として、このテンプレートを使用している求人(Job)が1件でも存在する場合は
+ * 削除を中止する（元データ保護）。
  */
 export async function deleteJobTemplate(templateId: number, facilityId: number) {
     // 入力バリデーション
@@ -475,16 +477,70 @@ export async function deleteJobTemplate(templateId: number, facilityId: number) 
             };
         }
 
-        // 依存する Job の template_id を NULL に切り離してから削除
-        await prisma.$transaction([
-            prisma.job.updateMany({
-                where: { template_id: templateId },
-                data: { template_id: null },
-            }),
-            prisma.jobTemplate.delete({
+        // 使用中チェック: このテンプレートを参照する求人が1件でもあれば削除拒否
+        const referencingJobCount = await prisma.job.count({
+            where: { template_id: templateId },
+        });
+
+        if (referencingJobCount > 0) {
+            // ブロック理由を監査ログに記録（INFO相当）
+            logActivity({
+                userType: 'FACILITY',
+                userId: session?.adminId,
+                userEmail: session?.email,
+                action: 'JOB_TEMPLATE_DELETE',
+                targetType: 'JobTemplate',
+                targetId: templateId,
+                requestData: {
+                    facilityId,
+                    referencingJobCount,
+                    reason: 'IN_USE',
+                },
+                result: 'ERROR',
+                errorMessage: `Template in use by ${referencingJobCount} job(s)`,
+            }).catch(() => {});
+
+            return {
+                success: false,
+                error: 'このテンプレートは使用中の求人があるため削除できません',
+            };
+        }
+
+        try {
+            await prisma.jobTemplate.delete({
                 where: { id: templateId },
-            }),
-        ]);
+            });
+        } catch (deleteError) {
+            // 競合フォールバック:
+            // count チェックと delete の間に Job が新規作成された場合、DBレベルの
+            // FK 制約 (ON DELETE RESTRICT) で P2003 が発生する。
+            // ユーザー向けには同じ「使用中」メッセージを返す。
+            if (
+                deleteError instanceof Prisma.PrismaClientKnownRequestError &&
+                deleteError.code === 'P2003'
+            ) {
+                logActivity({
+                    userType: 'FACILITY',
+                    userId: session?.adminId,
+                    userEmail: session?.email,
+                    action: 'JOB_TEMPLATE_DELETE',
+                    targetType: 'JobTemplate',
+                    targetId: templateId,
+                    requestData: {
+                        facilityId,
+                        reason: 'IN_USE_RACE',
+                    },
+                    result: 'ERROR',
+                    errorMessage: 'FK constraint violated (P2003) — template became in-use during delete',
+                }).catch(() => {});
+
+                return {
+                    success: false,
+                    error: 'このテンプレートは使用中の求人があるため削除できません',
+                };
+            }
+            throw deleteError;
+        }
 
         console.log('[deleteJobTemplate] Template deleted:', templateId);
 
