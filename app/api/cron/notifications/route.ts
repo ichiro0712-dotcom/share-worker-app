@@ -222,28 +222,28 @@ async function sendFacilityDayBeforeReminders() {
         const admins = wd.job.facility.admins;
         if (admins.length === 0) continue;
 
-        const workerNames = wd.applications
-            .map(app => app.user?.name || '不明')
-            .join('、');
-
         const workDateStr = wd.work_date.toISOString().split('T')[0];
         const facilityEmails = admins.map(a => a.email);
         const primaryAdmin = admins[0];
 
-        await sendNotification({
-            notificationKey: 'FACILITY_REMINDER_DAY_BEFORE',
-            targetType: 'FACILITY',
-            recipientId: primaryAdmin.id,
-            recipientName: primaryAdmin.name,
-            facilityEmails,
-            variables: {
-                job_title: wd.job.title,
-                work_date: workDateStr,
-                worker_count: String(wd.applications.length),
-                worker_names: workerNames,
-            },
-        });
-        sentCount++;
+        for (const app of wd.applications) {
+            await sendNotification({
+                notificationKey: 'FACILITY_REMINDER_DAY_BEFORE',
+                targetType: 'FACILITY',
+                recipientId: primaryAdmin.id,
+                recipientName: primaryAdmin.name,
+                facilityEmails,
+                variables: {
+                    facility_name: wd.job.facility.facility_name,
+                    job_title: wd.job.title,
+                    work_date: workDateStr,
+                    worker_name: app.user?.name || '不明',
+                    start_time: wd.job.start_time || '',
+                    end_time: wd.job.end_time || '',
+                },
+            });
+            sentCount++;
+        }
     }
 
     return sentCount;
