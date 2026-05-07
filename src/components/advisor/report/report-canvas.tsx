@@ -1346,14 +1346,24 @@ export function ReportCanvas({
                 <span className="min-w-0 break-words">{editError}</span>
               </div>
             )}
-            <div className="mt-4 pt-3 border-t border-slate-200 text-[10px] text-slate-400">
-              生成: {activeVersion?.resultModel ?? draft.resultModel ?? 'unknown'} ·{' '}
-              {activeVersion?.createdAt ?? draft.generatedAt ?? ''}
-              {activeVersion && (
-                <>
-                  {' '}· {sourceLabel(activeVersion.source)}
-                  {activeVersion.lockedByOther && ' · 編集ロック中 (他管理者)'}
-                </>
+            <div className="mt-4 pt-3 border-t border-slate-200 text-[10px] text-slate-400 flex items-center gap-2 flex-wrap">
+              <span>
+                生成: {(activeVersion?.resultModel ?? draft.resultModel ?? 'unknown').replace('+autofill', '')} ·{' '}
+                {activeVersion?.createdAt ?? draft.generatedAt ?? ''}
+                {activeVersion && (
+                  <>
+                    {' '}· {sourceLabel(activeVersion.source)}
+                    {activeVersion.lockedByOther && ' · 編集ロック中 (他管理者)'}
+                  </>
+                )}
+              </span>
+              {(activeVersion?.resultModel ?? draft.resultModel ?? '').includes('+autofill') && (
+                <span
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-medium"
+                  title="生成後に空き穴 (-, N/A の表) を Gemini Tool Use で自動再取得しました"
+                >
+                  ⚡ 自動補完
+                </span>
               )}
             </div>
           </div>

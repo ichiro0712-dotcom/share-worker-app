@@ -18,7 +18,7 @@
 | STEP 3 表の脚注「`GA_CREDENTIALS_JSON` は既存のものを流用するため**新規追加不要**」 | **❌ 誤り。実際は Vercel に未登録だった**。今回新規追加が必要 (詳細は STEP 3 内の追加 #15 参照) |
 | STEP 4 の Service Account 例「`tastas-ga-reader@xxx.iam.gserviceaccount.com`」 | **正しい client_email は `tastas-api-user@tastas-488506.iam.gserviceaccount.com`** (開発者から JSON ファイル本体を Google Chat で別途共有) |
 | STEP 6 項目 #12「サイドバー**下部**のレポート履歴リンク」 | **サイドバー**上部** (新規 chat ボタン直下) に移動済み**。クリック先 `/system-admin/advisor/reports` は同じ |
-| 概要表「新規 Vercel 環境変数 14 個」 | **15 個** (`GA_CREDENTIALS_JSON` を含む)。Hobby プランなら `VERCEL_TEAM_ID` を除く 14 個 |
+| 概要表「新規 Vercel 環境変数 14 個」 | **16 個** (`GA_CREDENTIALS_JSON` + `GA4_PROPERTY_ID` を追加)。Hobby プランなら `VERCEL_TEAM_ID` を除く 15 個 |
 
 ### 2026-05-06 で追加された UX 改修 (DB / 環境変数 / cron への影響なし)
 - **レポート履歴一覧の UX 刷新** (`/system-admin/advisor/reports`)
@@ -71,7 +71,7 @@ GitHub / 本番 Supabase (読み取り専用) / GA4 / Search Console / Vercel / 
 |---|---|
 | **新規 DB テーブル** | 11 個 (Advisor 関連、本体テーブルは触らない) |
 | **既存 Advisor テーブルへのカラム追加** | `advisor_chat_sessions.bookmarked` (しおり) / `advisor_report_drafts` に 3 カラム (`metric_keys` / `original_request` / `skeleton_markdown`) / `advisor_report_versions` に 3 カラム (`share_token` / `shared_at` / `shared_until`、共有 URL) |
-| **新規 Vercel 環境変数** | **15 個** (Hobby プランなら `VERCEL_TEAM_ID` を除く 14 個。Anthropic / Gemini / GitHub / Supabase / Search Console / Vercel API / GA Service Account JSON 等) |
+| **新規 Vercel 環境変数** | **16 個** (Hobby プランなら `VERCEL_TEAM_ID` を除く 15 個。Anthropic / Gemini / GitHub / Supabase / Search Console / Vercel API / GA Service Account JSON 等) |
 | **新規 Vercel Cron** | `advisor-cleanup` (毎日 04:00 JST = `0 19 * * *` UTC、保持期間に基づく自動削除) + `advisor-semantic-ingest` (毎日 04:30 JST = `30 19 * * *` UTC、しおり付きセッションの最新レポートを意味的記憶に取り込み) — 両方 vercel.json に既登録 |
 | **コード追加** | `src/lib/advisor/`, `app/system-admin/advisor/`, `app/api/advisor/`, `app/api/cron/advisor-cleanup/`, `app/advisor/r/[token]/`, `docs/system-advisor/` 配下 |
 
@@ -268,6 +268,7 @@ Vercel ダッシュボード → tastas プロジェクト → Settings → Envi
 | 13 | `VERCEL_PROJECT_ID` | `prj_...` (Vercel ダッシュボード → tastas プロジェクト → Settings → General) | 対象プロジェクトを share-worker-app に固定 (アカウント全体検索を防ぐ) |
 | 14 | `VERCEL_TEAM_ID` | `team_...` (Team プランの場合のみ。Hobby なら不要) | Team Scope の API 呼び出し |
 | 15 | `GA_CREDENTIALS_JSON` | GA Service Account JSON 全体 (1 行に圧縮した文字列) — 開発者 (川島) から Google Chat で別途共有 | GA4 Reporting API + Search Console 両方の認証 |
+| 16 | `GA4_PROPERTY_ID` | `522574288` (固定値) | GA4 Reporting API の対象プロパティ |
 
 > **`GA_CREDENTIALS_JSON` について (2026-05-07 訂正)**:
 > 旧版の依頼書では「既存登録済みなので新規追加不要」と書いていましたが、**実際は Vercel に未登録**でした。お手数ですが新規追加をお願いします。
@@ -282,7 +283,7 @@ Vercel ダッシュボード → tastas プロジェクト → Settings → Envi
 
 #### 動作確認
 
-- [ ] Vercel ダッシュボードで **15 個** (Hobby プランなら `VERCEL_TEAM_ID` を除く 14 個) の環境変数が **Preview 環境** に追加されている
+- [ ] Vercel ダッシュボードで **16 個** (Hobby プランなら `VERCEL_TEAM_ID` を除く 15 個) の環境変数が **Preview 環境** に追加されている
 - [ ] `ANTHROPIC_API_KEY` が `sk-ant-api03-` で始まる正しい形式
 - [ ] `ADVISOR_DATA_DATABASE_URL` の URL 中で特殊文字が `%XX` 形式にエンコードされている
 - [ ] `VERCEL_PROJECT_ID` が **share-worker-app の ID** であること (別プロジェクトの ID にしない)
@@ -453,7 +454,7 @@ curl -X POST https://stg-share-worker.vercel.app/api/cron/advisor-semantic-inges
 【ステージング展開完了】
 - STEP 1 (DB): 11 テーブル新規作成 + ADD COLUMN (bookmarked / metric_keys / original_request / skeleton_markdown / share_token / shared_at / shared_until) 全て確認 ☑
 - STEP 2 (本番ロール): 既に過去に作成済み、新規作業なし ☑ (川島確認済み 2026-05-01)
-- STEP 3 (Vercel 環境変数): 15 個全て追加 ☑ (Hobby プランなら VERCEL_TEAM_ID 除く 14 個)
+- STEP 3 (Vercel 環境変数): 16 個全て追加 ☑ (Hobby プランなら VERCEL_TEAM_ID 除く 15 個)
 - STEP 4 (Search Console): tastas-api-user@tastas-488506.iam.gserviceaccount.com を property に追加 ☑
 - STEP 5 (GitHub PR + マージ): #578 マージ済 ☑
 - STEP 6 (動作確認): 25 項目 + 2026-05-06 追加 7 項目 (A〜G) 全てパス (確認担当: 川島) ☑
@@ -467,7 +468,7 @@ curl -X POST https://stg-share-worker.vercel.app/api/cron/advisor-semantic-inges
 ## 5. 環境変数一覧 (再掲・コピペ用)
 
 ```bash
-# === 必須 15 個 (Hobby プランなら VERCEL_TEAM_ID を除く 14 個) ===
+# === 必須 16 個 (Hobby プランなら VERCEL_TEAM_ID を除く 15 個) ===
 ANTHROPIC_API_KEY=sk-ant-api03-XXXXX
 GEMINI_API_KEY=AIzaXXXXX
 GITHUB_TOKEN_FOR_ADVISOR=ghp_XXXXX

@@ -22,6 +22,8 @@ import {
   getLatestVersion,
 } from '../persistence/report-versions'
 import { collectReportData, type CollectedItem } from './collect'
+import { detectGapBlocks, groupGapBlocks } from './gap-detector'
+import { autoFillReportGaps, type AutoFillResult } from './auto-fill'
 import { generateWithGemini, isGeminiAvailable } from '../llm/gemini'
 import { recordAudit } from '../persistence/audit'
 import { appendMessage } from '../persistence/messages'
@@ -406,18 +408,49 @@ export async function generateReport(input: GenerateReportInput): Promise<Genera
       throw new Error(`Gemini 呼び出し失敗: ${msg}`)
     }
 
+    // 2.5 自動補完 (空き穴を Gemini Tool Use で埋め直す。env で opt-in)
+    //    ADVISOR_AUTO_FILL_ENABLED=true のときだけ走る (デフォルト OFF)。
+    //    失敗しても元の geminiOut.text は壊れない (= autoFillReportGaps の保証)。
+    let finalMarkdown = geminiOut.text
+    let autoFill: AutoFillResult | null = null
+    if (process.env.ADVISOR_AUTO_FILL_ENABLED === 'true') {
+      try {
+        const gaps = detectGapBlocks(geminiOut.text)
+        if (gaps.length > 0) {
+          const groups = groupGapBlocks(gaps)
+          autoFill = await autoFillReportGaps(geminiOut.text, groups, {
+            adminId: input.adminId,
+            sessionId: input.sessionId,
+            rangeStart: draft.rangeStart,
+            rangeEnd: draft.rangeEnd,
+            originalRequest: draft.originalRequest ?? null,
+          })
+          if (autoFill.anySuccess) {
+            finalMarkdown = autoFill.filledMarkdown
+          }
+        }
+      } catch (e) {
+        // auto-fill の失敗は致命ではない (元レポートは保存される)。ログのみ。
+        console.error('[advisor:report-generate] auto-fill failed', e)
+      }
+    }
+
     // 3. バージョン作成 (= 最新版キャッシュも同時更新する)
     //    previous は冒頭で取得済 (Gemini に渡す用 + parent_version_id の両用)
     const version = await createReportVersion({
       draftId: draft.id,
-      resultMarkdown: geminiOut.text,
-      resultModel: geminiOut.model,
+      resultMarkdown: finalMarkdown,
+      resultModel: geminiOut.model + (autoFill?.anySuccess ? '+autofill' : ''),
       draftSnapshot: buildDraftSnapshot(draft),
       source: 'generated',
       parentVersionId: previous?.id ?? null,
-      generatedMs: geminiOut.tookMs,
-      inputTokens: geminiOut.inputTokens,
-      outputTokens: geminiOut.outputTokens,
+      generatedMs: geminiOut.tookMs + (autoFill?.totalMs ?? 0),
+      inputTokens:
+        (geminiOut.inputTokens ?? 0) +
+        (autoFill?.attempts.reduce((s, a) => s + (a.inputTokens ?? 0), 0) ?? 0),
+      outputTokens:
+        (geminiOut.outputTokens ?? 0) +
+        (autoFill?.attempts.reduce((s, a) => s + (a.outputTokens ?? 0), 0) ?? 0),
     })
 
     // 3.5 チャット履歴に「📊 レポート v1 を生成しました」を assistant メッセージとして残す。
@@ -426,13 +459,17 @@ export async function generateReport(input: GenerateReportInput): Promise<Genera
     //     - 次回 Gemini が draft_revise / result_edit する際に履歴 (= context) として使える
     //       (例: ユーザーが「さっき生成したレポートに○○を足して」のような文脈依存指示で効く)
     const failedCount = collected.items.filter((i) => !i.ok).length
+    const autoFillSummary = autoFill
+      ? `\n- 自動補完: ${autoFill.attempts.filter((a) => a.ok).length} / ${autoFill.attempts.length} ブロック成功 (${autoFill.totalMs}ms)`
+      : ''
     const eventLabel =
       `📊 **レポート v${version.versionNumber} を生成しました**\n` +
       `- 期間: ${draft.rangeStart ?? '?'} 〜 ${draft.rangeEnd ?? '?'}\n` +
       `- 使用データ: ${draft.dataSources.join(', ')}\n` +
       (draft.metricKeys.length > 0 ? `- 指標: ${draft.metricKeys.join(', ')}\n` : '') +
       `- 収集: 成功 ${collected.items.length - failedCount} / 失敗 ${failedCount}\n` +
-      `- 文字数: ${geminiOut.text.length.toLocaleString()} 文字`
+      `- 文字数: ${finalMarkdown.length.toLocaleString()} 文字` +
+      autoFillSummary
     await appendMessage({
       sessionId: input.sessionId,
       role: 'assistant',
@@ -464,13 +501,30 @@ export async function generateReport(input: GenerateReportInput): Promise<Genera
         collectedFailedCount: collected.items.filter((i) => !i.ok).length,
         collectMs: collected.totalMs,
         geminiMs: geminiOut.tookMs,
+        ...(autoFill
+          ? {
+              autoFillEnabled: true,
+              autoFillAnySuccess: autoFill.anySuccess,
+              autoFillTotalMs: autoFill.totalMs,
+              autoFillAttempts: autoFill.attempts.map((a) => ({
+                chapter: a.chapterTitle,
+                blockCount: a.blockCount,
+                ok: a.ok,
+                error: a.error,
+                tookMs: a.tookMs,
+                inputTokens: a.inputTokens,
+                outputTokens: a.outputTokens,
+                toolCallCount: a.toolCalls?.length ?? 0,
+              })),
+            }
+          : { autoFillEnabled: false }),
       },
     })
 
     const failed = collected.items.filter((i) => !i.ok).length
     return {
       draftId: draft.id,
-      resultMarkdown: geminiOut.text,
+      resultMarkdown: finalMarkdown,
       model: geminiOut.model,
       collectedCount: collected.items.length,
       collectedFailedCount: failed,
