@@ -200,7 +200,10 @@ async function sendFacilityDayBeforeReminders() {
             job: {
                 include: {
                     facility: {
-                        include: {
+                        select: {
+                            id: true,
+                            facility_name: true,
+                            staff_emails: true,
                             admins: {
                                 select: { id: true, name: true, email: true },
                             },
@@ -222,8 +225,18 @@ async function sendFacilityDayBeforeReminders() {
         const admins = wd.job.facility.admins;
         if (admins.length === 0) continue;
 
+        // 送信先は施設管理画面の「通知先メールアドレス」(staff_emails) を使用
+        // FacilityAdmin.email はログイン用アカウントのメールであり通知先ではない
+        const facilityEmails = wd.job.facility.staff_emails;
+        if (facilityEmails.length === 0) {
+            console.warn(
+                '[CRON-NOTIFY] staff_emails is empty, skipping facility:',
+                { facilityId: wd.job.facility.id, facilityName: wd.job.facility.facility_name }
+            );
+            continue;
+        }
+
         const workDateStr = wd.work_date.toISOString().split('T')[0];
-        const facilityEmails = admins.map(a => a.email);
         const primaryAdmin = admins[0];
 
         for (const app of wd.applications) {
@@ -386,7 +399,10 @@ async function sendFacilityDeadlineWarnings() {
         },
         include: {
             facility: {
-                include: {
+                select: {
+                    id: true,
+                    facility_name: true,
+                    staff_emails: true,
                     admins: {
                         select: { id: true, name: true, email: true },
                     },
@@ -432,8 +448,17 @@ async function sendFacilityDeadlineWarnings() {
         const admins = job.facility.admins;
         if (admins.length === 0) continue;
 
+        // 送信先は施設管理画面の「通知先メールアドレス」(staff_emails) を使用
+        const facilityEmails = job.facility.staff_emails;
+        if (facilityEmails.length === 0) {
+            console.warn(
+                '[CRON-NOTIFY] staff_emails is empty, skipping facility:',
+                { facilityId: job.facility.id, facilityName: job.facility.facility_name }
+            );
+            continue;
+        }
+
         const deadlineStr = deadline.toISOString().split('T')[0];
-        const facilityEmails = admins.map(a => a.email);
         const primaryAdmin = admins[0];
 
         // 残り枠数を計算

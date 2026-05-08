@@ -335,12 +335,13 @@ export async function sendApplicationNotification(
             return;
         }
 
-        // 施設情報を取得
+        // 施設情報を取得（通知先メールアドレス含む）
         const facility = await prisma.facility.findUnique({
             where: { id: facilityId },
-            select: { facility_name: true }
+            select: { facility_name: true, staff_emails: true }
         });
         const facilityName = facility?.facility_name || '';
+        const staffEmails = facility?.staff_emails ?? [];
 
         // 勤務日をフォーマット
         const workDate = new Date(application.workDate.work_date).toLocaleDateString('ja-JP', {
@@ -349,7 +350,7 @@ export async function sendApplicationNotification(
             weekday: 'short'
         });
 
-        // 施設管理者を取得（通知先）
+        // 施設管理者を取得（チャット/プッシュ通知のため）
         const admins = await prisma.facilityAdmin.findMany({
             where: { facility_id: facilityId },
         });
@@ -359,7 +360,12 @@ export async function sendApplicationNotification(
             return;
         }
 
+        if (staffEmails.length === 0) {
+            console.warn('[sendApplicationNotification] staff_emails is empty for facility:', facilityId);
+        }
+
         // 全管理者に通知送信
+        // facilityEmails は施設管理画面の「通知先メールアドレス」(staff_emails) を使用
         for (const admin of admins) {
             await sendNotification({
                 notificationKey: notificationKey,
@@ -367,7 +373,7 @@ export async function sendApplicationNotification(
                 recipientId: admin.id,
                 recipientName: admin.name,
                 recipientEmail: admin.email,
-                facilityEmails: admins.map(a => a.email), // 全管理者にメール送信
+                facilityEmails: staffEmails,
                 applicationId: applicationId,
                 variables: {
                     facility_name: facilityName,
@@ -398,19 +404,20 @@ export async function sendApplicationNotificationMultiple(
     workDates: string[]
 ) {
     try {
-        // 施設情報を取得
+        // 施設情報を取得（通知先メールアドレス含む）
         const facility = await prisma.facility.findUnique({
             where: { id: facilityId },
-            select: { facility_name: true }
+            select: { facility_name: true, staff_emails: true }
         });
         const facilityName = facility?.facility_name || '';
+        const staffEmails = facility?.staff_emails ?? [];
 
         // 勤務日をフォーマット（複数の場合は羅列）
         const workDateText = workDates.length === 1
             ? workDates[0]
             : workDates.map(d => `・${d}`).join('\n');
 
-        // 施設管理者を取得（通知先）
+        // 施設管理者を取得（チャット/プッシュ通知のため）
         const admins = await prisma.facilityAdmin.findMany({
             where: { facility_id: facilityId },
         });
@@ -420,7 +427,12 @@ export async function sendApplicationNotificationMultiple(
             return;
         }
 
+        if (staffEmails.length === 0) {
+            console.warn('[sendApplicationNotificationMultiple] staff_emails is empty for facility:', facilityId);
+        }
+
         // 全管理者に通知送信
+        // facilityEmails は施設管理画面の「通知先メールアドレス」(staff_emails) を使用
         for (const admin of admins) {
             await sendNotification({
                 notificationKey: 'FACILITY_NEW_APPLICATION',
@@ -428,7 +440,7 @@ export async function sendApplicationNotificationMultiple(
                 recipientId: admin.id,
                 recipientName: admin.name,
                 recipientEmail: admin.email,
-                facilityEmails: admins.map(a => a.email),
+                facilityEmails: staffEmails,
                 applicationId: applicationId,
                 variables: {
                     facility_name: facilityName,
@@ -995,11 +1007,19 @@ export async function sendMessageNotificationToFacility(
   try {
     const facility = await prisma.facility.findUnique({
       where: { id: facilityId },
-      include: { admins: true },
+      select: {
+        id: true,
+        facility_name: true,
+        staff_emails: true,
+      },
     });
 
     if (facility) {
-      const facilityEmails = facility.admins.map(a => a.email);
+      // 送信先は施設管理画面の「通知先メールアドレス」(staff_emails) を使用
+      const facilityEmails = facility.staff_emails;
+      if (facilityEmails.length === 0) {
+        console.warn('[sendMessageNotificationToFacility] staff_emails is empty for facility:', facilityId);
+      }
 
       await sendNotification({
         notificationKey: 'FACILITY_NEW_MESSAGE',
