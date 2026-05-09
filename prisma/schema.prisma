@@ -297,6 +297,9 @@ model JobTemplate {
   tags                   String[]
   /// 解雇の事由（労働条件通知書用、nullの場合はデフォルト文言を使用）
   dismissal_reasons      String?  @map("dismissal_reasons")
+  /// 性別指定（"MALE_ONLY" | "FEMALE_ONLY" | null）
+  /// 入浴介助・排泄介助など特定業務でのみ施設管理者が設定。ワーカー側UIには表示しない（参照用）
+  gender_requirement     String?  @map("gender_requirement")
   created_at             DateTime @default(now()) @map("created_at")
   updated_at             DateTime @updatedAt @map("updated_at")
   facility           Facility @relation(fields: [facility_id], references: [id], onDelete: Cascade)
@@ -374,6 +377,9 @@ model Job {
   offer_message                String?              @map("offer_message") @db.Text
   /// 親求人ID（限定求人から切り出された子求人の場合に設定）
   parent_job_id                Int?                 @map("parent_job_id")
+  /// 性別指定（"MALE_ONLY" | "FEMALE_ONLY" | null）
+  /// 入浴介助・排泄介助など特定業務でのみ施設管理者が設定。ワーカー側UIには表示しない（参照用）
+  gender_requirement           String?              @map("gender_requirement")
   created_at                   DateTime             @default(now()) @map("created_at")
   updated_at                   DateTime             @updatedAt @map("updated_at")
   bookmarks                    Bookmark[]

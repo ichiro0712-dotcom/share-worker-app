@@ -57,7 +57,7 @@ export default function EditJobTemplatePage() {
           notes: template.notes || '',
           icons: template.icons || [],
           workContent: template.workContent || [],
-          genderRequirement: '',
+          genderRequirement: ((template as any).genderRequirement as string) || '',
           dismissalReasons: '',
         });
       } catch (error) {

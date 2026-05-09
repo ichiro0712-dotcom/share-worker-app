@@ -40,6 +40,7 @@ export async function getAdminJobTemplates(facilityId: number) {
         attachments: template.attachments || [],
         notes: template.notes,
         tags: template.tags,
+        genderRequirement: (template as any).gender_requirement ?? null,
     }));
 }
 
@@ -88,6 +89,7 @@ export async function getJobTemplate(templateId: number, facilityId: number) {
         tags: template.tags,
         icons: template.tags,
         workContent: template.work_content || [],
+        genderRequirement: (template as any).gender_requirement ?? null,
     };
 }
 
@@ -120,6 +122,8 @@ export async function createJobTemplate(
         images?: string[];
         dresscodeImages?: string[];
         attachments?: string[];
+        // 性別指定（特定業務時のみ。施設管理者の参照用）
+        genderRequirement?: 'MALE_ONLY' | 'FEMALE_ONLY' | null;
     }
 ) {
     const session = await getFacilityAdminSessionData();
@@ -152,6 +156,7 @@ export async function createJobTemplate(
                 images: data.images || [],
                 dresscode_images: data.dresscodeImages || [],
                 attachments: data.attachments || [],
+                gender_requirement: data.genderRequirement ?? null,
             },
         });
 
@@ -253,6 +258,7 @@ export async function duplicateJobTemplate(templateId: number, facilityId: numbe
                 images: original.images || [],
                 dresscode_images: original.dresscode_images || [],
                 attachments: original.attachments || [],
+                gender_requirement: (original as any).gender_requirement ?? null,
             },
         });
 
@@ -335,6 +341,8 @@ export async function updateJobTemplate(
         images?: string[];
         dresscodeImages?: string[];
         attachments?: string[];
+        // 性別指定（特定業務時のみ。施設管理者の参照用）
+        genderRequirement?: 'MALE_ONLY' | 'FEMALE_ONLY' | null;
     }
 ) {
     const session = await getFacilityAdminSessionData();
@@ -382,6 +390,8 @@ export async function updateJobTemplate(
                 images: data.images || [],
                 dresscode_images: data.dresscodeImages || [],
                 attachments: data.attachments || [],
+                // genderRequirement は undefined のとき更新しない、null は明示的にクリア
+                ...(data.genderRequirement !== undefined && { gender_requirement: data.genderRequirement }),
             },
         });
 

@@ -236,6 +236,8 @@ export interface CreateJobInput {
   city?: string;
   addressLine?: string;
   address?: string;
+  // 性別指定（特定業務時のみ。ワーカー側UIには表示しない・施設管理者の参照用）
+  genderRequirement?: 'MALE_ONLY' | 'FEMALE_ONLY' | null;
 }
 
 export type WorkerListStatus = 'NOT_STARTED' | 'WORKING' | 'COMPLETED' | 'REVIEW_PENDING' | 'CANCELLED';

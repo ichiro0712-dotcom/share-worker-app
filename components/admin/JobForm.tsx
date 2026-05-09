@@ -214,8 +214,8 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
         recruitmentStartTime: '',
         recruitmentEndDay: 0,
         recruitmentEndTime: '',
-        // 共通
-        genderRequirement: '不問',
+        // 共通: 性別指定（'' = 指定なし, 'MALE_ONLY' = 男性のみ, 'FEMALE_ONLY' = 女性のみ）
+        genderRequirement: '',
         dismissalReasons: '',
         requiresInterview: false,
         // 限定求人用
@@ -519,6 +519,8 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
                 addressLine: jobData.address_line || facility?.addressLine || '',
                 building: '', // DBにないので空
                 address: jobData.address || facility?.address || '',
+                // 性別指定
+                genderRequirement: ((jobData as any).gender_requirement as string) || '',
             }));
 
         } catch (error) {
@@ -974,6 +976,8 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
             images: [],
             dresscodeImages: [],
             attachments: [],
+            // テンプレートの性別指定を引き継ぎ（求人作成時に変更可）
+            genderRequirement: ((template as any).genderRequirement as string) || '',
         }));
     };
 
@@ -1225,6 +1229,10 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
                     city: formData.city,
                     addressLine: formData.addressLine,
                     address: formData.address,
+                    // 性別指定（特定業務時のみ・施設管理者の参照用）
+                    genderRequirement: requiresGenderSpecification && (formData.genderRequirement === 'MALE_ONLY' || formData.genderRequirement === 'FEMALE_ONLY')
+                        ? formData.genderRequirement
+                        : null,
                 });
 
                 if (res.success) {
@@ -1270,6 +1278,10 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
                     recruitmentStartTime: formData.recruitmentStartTime || undefined,
                     recruitmentEndDay: formData.recruitmentEndDay,
                     recruitmentEndTime: formData.recruitmentEndTime || undefined,
+                    // 性別指定（特定業務時のみ。業務外の場合は null でクリア）
+                    genderRequirement: requiresGenderSpecification && (formData.genderRequirement === 'MALE_ONLY' || formData.genderRequirement === 'FEMALE_ONLY')
+                        ? formData.genderRequirement
+                        : null,
                 });
 
                 if (res.success) {
@@ -2196,17 +2208,21 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
                             {requiresGenderSpecification && (
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        性別指定 <span className="text-red-500">*</span>
+                                        性別指定
                                     </label>
-                                    <p className="text-xs text-gray-500 mb-2">入浴介助または排泄介助を選択した場合のみ指定が必要です</p>
+                                    <p className="text-xs text-gray-500 mb-2">
+                                        入浴介助または排泄介助を選択した場合のみ指定できます。
+                                        <br />
+                                        ※ ワーカーには表示されません。施設運営者の参照用です。
+                                    </p>
                                     <select
                                         value={formData.genderRequirement}
                                         onChange={(e) => handleInputChange('genderRequirement', e.target.value)}
                                         className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
                                     >
                                         <option value="">指定なし</option>
-                                        <option value="male">男性</option>
-                                        <option value="female">女性</option>
+                                        <option value="MALE_ONLY">男性のみ</option>
+                                        <option value="FEMALE_ONLY">女性のみ</option>
                                     </select>
                                 </div>
                             )}
