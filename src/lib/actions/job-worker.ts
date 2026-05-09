@@ -123,28 +123,26 @@ export async function getJobs(
     }
 
     // 都道府県フィルター
+    // Job.prefecture（厳密一致）を優先、未設定の旧データは Job.address のあいまい一致で救済
     if (searchParams?.prefecture) {
-        facilityConditions.address = {
-            contains: searchParams.prefecture,
-            mode: 'insensitive',
-        };
+        whereConditions.AND = whereConditions.AND || [];
+        whereConditions.AND.push({
+            OR: [
+                { prefecture: searchParams.prefecture },
+                { address: { contains: searchParams.prefecture, mode: 'insensitive' } },
+            ],
+        });
     }
 
-    // 市区町村フィルター（都道府県と組み合わせる）
+    // 市区町村フィルター
     if (searchParams?.city) {
-        if (facilityConditions.address) {
-            // 都道府県と市区町村の両方を含む
-            facilityConditions.AND = [
-                { address: { contains: searchParams.prefecture, mode: 'insensitive' } },
+        whereConditions.AND = whereConditions.AND || [];
+        whereConditions.AND.push({
+            OR: [
+                { city: searchParams.city },
                 { address: { contains: searchParams.city, mode: 'insensitive' } },
-            ];
-            delete facilityConditions.address;
-        } else {
-            facilityConditions.address = {
-                contains: searchParams.city,
-                mode: 'insensitive',
-            };
-        }
+            ],
+        });
     }
 
     // サービス種別フィルター（複数選択対応）
@@ -693,28 +691,26 @@ export async function getJobsListWithPagination(
     }
 
     // 都道府県フィルター
+    // Job.prefecture（厳密一致）を優先、未設定の旧データは Job.address のあいまい一致で救済
     if (searchParams?.prefecture) {
-        facilityConditions.address = {
-            contains: searchParams.prefecture,
-            mode: 'insensitive',
-        };
+        whereConditions.AND = whereConditions.AND || [];
+        whereConditions.AND.push({
+            OR: [
+                { prefecture: searchParams.prefecture },
+                { address: { contains: searchParams.prefecture, mode: 'insensitive' } },
+            ],
+        });
     }
 
-    // 市区町村フィルター（都道府県と組み合わせる）
+    // 市区町村フィルター
     if (searchParams?.city) {
-        if (facilityConditions.address) {
-            // 都道府県と市区町村の両方を含む
-            facilityConditions.AND = [
-                { address: { contains: searchParams.prefecture, mode: 'insensitive' } },
+        whereConditions.AND = whereConditions.AND || [];
+        whereConditions.AND.push({
+            OR: [
+                { city: searchParams.city },
                 { address: { contains: searchParams.city, mode: 'insensitive' } },
-            ];
-            delete facilityConditions.address;
-        } else {
-            facilityConditions.address = {
-                contains: searchParams.city,
-                mode: 'insensitive',
-            };
-        }
+            ],
+        });
     }
 
     // サービス種別フィルター（複数選択対応）
