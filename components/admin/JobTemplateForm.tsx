@@ -478,6 +478,10 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                 images: finalImages,
                 dresscodeImages: finalDresscodeImages,
                 attachments: finalAttachments,
+                // 性別指定（特定業務時のみ。業務外の場合は null でクリア）
+                genderRequirement: requiresGenderSpecification && (formData.genderRequirement === 'MALE_ONLY' || formData.genderRequirement === 'FEMALE_ONLY')
+                    ? (formData.genderRequirement as 'MALE_ONLY' | 'FEMALE_ONLY')
+                    : null,
             };
 
             let result;
@@ -1051,9 +1055,13 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    性別指定 <span className="text-red-500">*</span>
+                                    性別指定
                                 </label>
-                                <p className="text-xs text-gray-500 mb-2">入浴介助または排泄介助を選択した場合のみ指定が必要です</p>
+                                <p className="text-xs text-gray-500 mb-2">
+                                    入浴介助または排泄介助を選択した場合のみ指定できます。
+                                    <br />
+                                    ※ ワーカーには表示されません。施設運営者の参照用です。
+                                </p>
                                 <select
                                     value={formData.genderRequirement}
                                     onChange={(e) => handleInputChange('genderRequirement', e.target.value)}
@@ -1061,8 +1069,8 @@ export default function JobTemplateForm({ mode, templateId, initialData }: JobTe
                                     disabled={!requiresGenderSpecification}
                                 >
                                     <option value="">指定なし</option>
-                                    <option value="male">男性</option>
-                                    <option value="female">女性</option>
+                                    <option value="MALE_ONLY">男性のみ</option>
+                                    <option value="FEMALE_ONLY">女性のみ</option>
                                 </select>
                             </div>
 
