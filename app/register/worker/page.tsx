@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { Eye, EyeOff } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { PhoneNumberInput } from '@/components/ui/PhoneNumberInput';
@@ -66,6 +67,15 @@ function WorkerRegisterPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { showDebugError } = useDebugError();
+  const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
+
+  // ログイン済みワーカーがこのページに来た場合は求人トップへ転送
+  // (LPバナー「タスタスに登録」からの導線を非会員/会員でハンドリングするため)
+  useEffect(() => {
+    if (!isAuthLoading && isAuthenticated) {
+      router.replace('/');
+    }
+  }, [isAuthLoading, isAuthenticated, router]);
 
   const [currentStep, setCurrentStep] = useState<StepId>('1');
   const [isSubmitting, setIsSubmitting] = useState(false);
