@@ -108,6 +108,81 @@ export async function GET(request: NextRequest) {
   });
 }
 
+export async function POST(request: NextRequest) {
+  const session = await getSystemAdminSessionData();
+  if (!session) {
+    return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+  }
+
+  try {
+    const body = await request.json();
+    const { jobId } = body as { jobId: number };
+
+    if (typeof jobId !== 'number' || !Number.isFinite(jobId)) {
+      return NextResponse.json({ error: '無効な求人IDです' }, { status: 400 });
+    }
+
+    const job = await prisma.job.findUnique({
+      where: { id: jobId },
+      select: { id: true },
+    });
+    if (!job) {
+      return NextResponse.json({ error: '求人が見つかりません' }, { status: 404 });
+    }
+
+    const existing = await prisma.recommendedJob.findFirst({
+      where: { job_id: jobId },
+    });
+    if (existing) {
+      return NextResponse.json({ error: '既に登録済みです' }, { status: 400 });
+    }
+
+    const count = await prisma.recommendedJob.count();
+    if (count >= MAX_RECOMMENDED_JOBS) {
+      return NextResponse.json({ error: `最大${MAX_RECOMMENDED_JOBS}件までです` }, { status: 400 });
+    }
+
+    await prisma.recommendedJob.create({
+      data: { job_id: jobId, sort_order: count },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Recommended job create error:', error);
+    return NextResponse.json({ error: '登録に失敗しました' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  const session = await getSystemAdminSessionData();
+  if (!session) {
+    return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+  }
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const jobIdParam = searchParams.get('jobId');
+    const jobId = jobIdParam ? parseInt(jobIdParam, 10) : NaN;
+
+    if (!Number.isFinite(jobId)) {
+      return NextResponse.json({ error: '無効な求人IDです' }, { status: 400 });
+    }
+
+    const result = await prisma.recommendedJob.deleteMany({
+      where: { job_id: jobId },
+    });
+
+    if (result.count === 0) {
+      return NextResponse.json({ error: '登録されていません' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Recommended job delete error:', error);
+    return NextResponse.json({ error: '削除に失敗しました' }, { status: 500 });
+  }
+}
+
 export async function PUT(request: NextRequest) {
   const session = await getSystemAdminSessionData();
   if (!session) {
