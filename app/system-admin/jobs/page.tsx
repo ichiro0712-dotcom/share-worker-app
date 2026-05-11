@@ -19,6 +19,7 @@ import {
     Building2,
     CalendarDays,
     X,
+    Star,
 } from 'lucide-react';
 import { PREFECTURES } from '@/constants/job';
 import { getCitiesByPrefecture, Prefecture } from '@/constants/prefectureCities';
@@ -202,6 +203,60 @@ export default function SystemAdminJobsPage() {
     // 勤務日管理モーダル
     const [workDateModalJob, setWorkDateModalJob] = useState<Job | null>(null);
     const [workDateUpdating, setWorkDateUpdating] = useState<number | null>(null);
+
+    // おすすめ求人（LP）
+    const [recommendedJobIds, setRecommendedJobIds] = useState<Set<number>>(new Set());
+    const [recommendUpdating, setRecommendUpdating] = useState<number | null>(null);
+
+    const fetchRecommendedJobIds = async () => {
+        try {
+            const res = await fetch('/api/system-admin/recommended-jobs');
+            if (!res.ok) return;
+            const data = await res.json();
+            const ids = new Set<number>((data.jobs ?? []).map((r: any) => r.job.id as number));
+            setRecommendedJobIds(ids);
+        } catch (e) {
+            console.error('Failed to fetch recommended jobs', e);
+        }
+    };
+
+    useEffect(() => {
+        fetchRecommendedJobIds();
+    }, []);
+
+    const handleToggleRecommend = async (job: Job) => {
+        if (recommendUpdating === job.id) return;
+        const isRegistered = recommendedJobIds.has(job.id);
+        setRecommendUpdating(job.id);
+        try {
+            const res = isRegistered
+                ? await fetch(`/api/system-admin/recommended-jobs?jobId=${job.id}`, { method: 'DELETE' })
+                : await fetch('/api/system-admin/recommended-jobs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ jobId: job.id }),
+                });
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                toast.error(err.error || (isRegistered ? '解除に失敗しました' : '登録に失敗しました'));
+                return;
+            }
+
+            setRecommendedJobIds(prev => {
+                const next = new Set(prev);
+                if (isRegistered) next.delete(job.id);
+                else next.add(job.id);
+                return next;
+            });
+            toast.success(isRegistered ? 'おすすめ求人から外しました' : 'おすすめ求人に登録しました');
+        } catch (e) {
+            console.error(e);
+            toast.error('通信エラーが発生しました');
+        } finally {
+            setRecommendUpdating(null);
+        }
+    };
 
     const handleToggleWorkDate = async (workDateId: number, isClosed: boolean) => {
         setWorkDateUpdating(workDateId);
@@ -567,6 +622,19 @@ export default function SystemAdminJobsPage() {
                                     </td>
                                     <td className="px-4 py-4 text-right">
                                         <div className="flex items-center justify-end gap-1">
+                                            {/* おすすめ求人 */}
+                                            <button
+                                                onClick={() => handleToggleRecommend(job)}
+                                                disabled={recommendUpdating === job.id}
+                                                className={`p-1.5 rounded-lg transition-colors disabled:opacity-50 ${
+                                                    recommendedJobIds.has(job.id)
+                                                        ? 'text-amber-500 hover:text-amber-600 hover:bg-amber-50'
+                                                        : 'text-slate-400 hover:text-amber-500 hover:bg-amber-50'
+                                                }`}
+                                                title={recommendedJobIds.has(job.id) ? 'おすすめ求人から外す' : 'おすすめ求人に登録'}
+                                            >
+                                                <Star className={`w-4 h-4 ${recommendedJobIds.has(job.id) ? 'fill-current' : ''}`} />
+                                            </button>
                                             {/* 勤務日管理 */}
                                             <button
                                                 onClick={() => setWorkDateModalJob(job)}
