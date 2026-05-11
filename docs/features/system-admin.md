@@ -782,10 +782,51 @@ enum FacilityStatus {
 
 ---
 
+## 17. LP管理: LP番号バッジ色
+
+`/system-admin/lp` の LP 一覧では、LP 番号バッジの色を 10 色から選択できる。
+
+### 17.1 データ項目
+
+`LandingPage.badge_color` に Tailwind 色名を保存する。
+
+```prisma
+badge_color String @default("rose") @map("badge_color") @db.VarChar(20)
+```
+
+許可値:
+
+| 値 | 表示名 |
+|---|---|
+| `rose` | ローズ |
+| `orange` | オレンジ |
+| `amber` | アンバー |
+| `emerald` | エメラルド |
+| `teal` | ティール |
+| `sky` | スカイ |
+| `blue` | ブルー |
+| `indigo` | インディゴ |
+| `violet` | バイオレット |
+| `pink` | ピンク |
+
+### 17.2 UI / 更新
+
+- UI 定義: `app/system-admin/lp/components/DBLPList.tsx` の `BADGE_COLORS`
+- 更新処理: `lib/lp-actions.ts#updateLandingPageBadgeColor`
+- サーバ側でも `ALLOWED_BADGE_COLORS` で許可値を検証する。
+- 不正値は `無効な色が指定されました` を返し、DB 更新しない。
+
+### 17.3 コピー時の扱い
+
+LP コピーでは `copyLandingPage()` が元 LP の `badge_color` を新 LP に引き継ぐ。コピー後に別色へ変更したい場合は LP 一覧のカラーピッカーから変更する。
+
+---
+
 ## 更新履歴
 
 | 日付 | 内容 |
 |------|------|
+| 2026-05-11 | LP管理のLP番号バッジ色（`badge_color`）仕様を追加 |
 | 2025-12-04 | 初版作成。要件メモとして整理 |
 | 2025-12-05 | マップピン位置調整機能を追加 |
 | 2025-12-09 | 詳細要件定義書として大幅拡充。アナリティクス、AI監視機能、DB設計案を追加 |
