@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { getCurrentTime } from '@/utils/debugTime';
 import { getAuthenticatedUser } from './helpers';
 import { checkProfileComplete } from './user-profile';
+import { canApplyByGender } from '@/src/lib/jobGenderMatching';
 import {
     sendApplicationNotification,
     sendApplicationNotificationMultiple,
@@ -249,6 +250,13 @@ export async function applyForJob(jobId: string, workDateId?: number) {
             };
         }
 
+        // 性別指定バリデーション（求人の gender_requirement とユーザー性別をチェック）
+        const genderCheck = canApplyByGender(job.gender_requirement, user.gender);
+        if (!genderCheck.allowed) {
+            console.log('[applyForJob] Gender mismatch:', { jobReq: job.gender_requirement, userGender: user.gender });
+            return { success: false, error: genderCheck.reason || '応募条件を満たしていません' };
+        }
+
         const targetWorkDateId = workDateId || job.workDates[0].id;
         const targetWorkDate = job.workDates.find(wd => wd.id === targetWorkDateId);
 
@@ -472,6 +480,13 @@ export async function applyForJobMultipleDates(jobId: string, workDateIds: numbe
                 error: `プロフィールを完成させてください。未入力項目: ${profileCheck.missingFields.join('、')}`,
                 missingFields: profileCheck.missingFields,
             };
+        }
+
+        // 性別指定バリデーション
+        const genderCheck = canApplyByGender(job.gender_requirement, user.gender);
+        if (!genderCheck.allowed) {
+            console.log('[applyForJobMultipleDates] Gender mismatch:', { jobReq: job.gender_requirement, userGender: user.gender });
+            return { success: false, error: genderCheck.reason || '応募条件を満たしていません' };
         }
 
         const targetWorkDates = job.workDates.filter(wd => workDateIds.includes(wd.id));
@@ -1037,6 +1052,13 @@ export async function acceptOffer(jobId: string, workDateId: number) {
                 error: `プロフィールを完成させてください。未入力項目: ${profileCheck.missingFields.join('、')}`,
                 missingFields: profileCheck.missingFields,
             };
+        }
+
+        // 性別指定バリデーション（オファーの場合も誤承諾を防ぐ）
+        const genderCheck = canApplyByGender(job.gender_requirement, user.gender);
+        if (!genderCheck.allowed) {
+            console.log('[acceptOffer] Gender mismatch:', { jobReq: job.gender_requirement, userGender: user.gender });
+            return { success: false, error: genderCheck.reason || '応募条件を満たしていません' };
         }
 
         const targetWorkDate = job.workDates.find(wd => wd.id === workDateId);
