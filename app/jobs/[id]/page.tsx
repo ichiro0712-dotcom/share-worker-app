@@ -4,6 +4,10 @@ import JobDetailTracker from '@/components/tracking/JobDetailTracker';
 import { notFound } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { DEBUG_TIME_COOKIE_NAME, parseDebugTimeCookie, getCurrentTimeFromSettings } from '@/utils/debugTime.server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+import { canApplyByGender } from '@/src/lib/jobGenderMatching';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -121,7 +125,23 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
     targetWorkerId: jobData.target_worker_id,
     // 募集完了フラグ
     isRecruitmentClosed: jobData.isRecruitmentClosed || false,
+    // 性別指定
+    genderRequirement: jobData.gender_requirement || null,
   };
+
+  // 性別指定による応募可否判定（サーバー側）
+  const session = await getServerSession(authOptions);
+  let genderApplyResult: { allowed: boolean; reason?: string } = { allowed: true };
+  if (session?.user?.id) {
+    const currentUser = await prisma.user.findUnique({
+      where: { id: parseInt(session.user.id, 10) },
+      select: { gender: true },
+    });
+    genderApplyResult = canApplyByGender(jobData.gender_requirement, currentUser?.gender);
+  } else if (jobData.gender_requirement) {
+    // 未ログインかつ性別指定ありの求人
+    genderApplyResult = canApplyByGender(jobData.gender_requirement, null);
+  }
 
   const facility = {
     id: jobData.facility.id,
@@ -193,6 +213,7 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
         isPreviewMode={isPreviewMode}
         scheduledJobs={scheduledJobs}
         interviewPassRate={interviewPassRate}
+        genderApplyResult={genderApplyResult}
       />
     </>
   );

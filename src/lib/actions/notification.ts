@@ -6,6 +6,7 @@ import { getAuthenticatedUser, createNotification } from './helpers';
 import { sendNotification } from '../notification-service';
 import { getFacilityUnreadMessageCount, getWorkerUnreadMessageCount } from './message';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
+import { canApplyByGender } from '@/src/lib/jobGenderMatching';
 
 /**
  * ユーザーの通知一覧を取得
@@ -749,7 +750,13 @@ export async function sendFavoriteNewJobNotification(
     jobId: number
 ) {
     try {
-        // この施設をお気に入りしているワーカーを取得
+        // 求人の性別指定を取得（通知対象を絞り込むため）
+        const job = await prisma.job.findUnique({
+            where: { id: jobId },
+            select: { gender_requirement: true },
+        });
+
+        // この施設をお気に入りしているワーカーを取得（性別マッチ判定用に gender も取得）
         const bookmarks = await prisma.bookmark.findMany({
             where: {
                 target_facility_id: facilityId,
@@ -757,7 +764,7 @@ export async function sendFavoriteNewJobNotification(
             },
             include: {
                 user: {
-                    select: { id: true, name: true, email: true },
+                    select: { id: true, name: true, email: true, gender: true },
                 },
             },
         });
@@ -768,8 +775,16 @@ export async function sendFavoriteNewJobNotification(
         }
 
         let sentCount = 0;
+        let skippedByGender = 0;
         for (const bookmark of bookmarks) {
             if (!bookmark.user) continue;
+
+            // 性別指定フィルタ: 応募できないワーカーには通知しない
+            const genderCheck = canApplyByGender(job?.gender_requirement, bookmark.user.gender);
+            if (!genderCheck.allowed) {
+                skippedByGender++;
+                continue;
+            }
 
             await sendNotification({
                 notificationKey: 'WORKER_FAVORITE_NEW_JOB',
@@ -785,7 +800,7 @@ export async function sendFavoriteNewJobNotification(
             sentCount++;
         }
 
-        console.log('[sendFavoriteNewJobNotification] Sent to', sentCount, 'workers');
+        console.log('[sendFavoriteNewJobNotification] Sent to', sentCount, 'workers, skipped by gender:', skippedByGender);
         return { success: true, count: sentCount };
     } catch (error) {
         console.error('[sendFavoriteNewJobNotification] Error:', error);
