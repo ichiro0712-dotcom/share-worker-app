@@ -26,8 +26,17 @@ export function generateCsv(headers: string[], rows: string[][]): string {
   return headerRow + '\r\n' + dataRows;
 }
 
+// JST(Asia/Tokyo) 固定の日付フォーマッタ — Vercel ランタイムが UTC のため、
+// getFullYear 等のローカル系メソッドではなく Intl で明示的にJSTに変換する
+const JST_DATE_FORMATTER = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Tokyo',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
 /**
- * 日付フォーマット（yyyy/mm/dd）
+ * 日付フォーマット（yyyy/mm/dd, JST固定）
  * @param date Date型またはnull/undefined
  * @returns yyyy/mm/dd形式の文字列、または空文字
  */
@@ -35,10 +44,8 @@ export function formatDateForCsv(date: Date | string | null | undefined): string
   if (!date) return '';
   const d = new Date(date);
   if (isNaN(d.getTime())) return '';
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}/${month}/${day}`;
+  // en-CA は yyyy-mm-dd 形式で出力するためセパレータのみ置換
+  return JST_DATE_FORMATTER.format(d).replace(/-/g, '/');
 }
 
 /**

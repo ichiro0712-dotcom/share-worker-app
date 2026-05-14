@@ -50,27 +50,41 @@ const ATTENDANCE_INFO_HEADERS = [
   'ワーカー名',             // 36. User.name（追加項目）
 ];
 
+// JST(Asia/Tokyo) 固定で時/分を取り出すフォーマッタ — Vercel ランタイムが UTC のため
+// getHours/getMinutes ではJSTからずれる
+const JST_TIME_FORMATTER = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Asia/Tokyo',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+});
+
+function getJstHoursMinutes(datetime: Date): { hours: number; minutes: number } {
+  const parts = JST_TIME_FORMATTER.formatToParts(datetime);
+  const hours = Number(parts.find(p => p.type === 'hour')?.value ?? '0');
+  const minutes = Number(parts.find(p => p.type === 'minute')?.value ?? '0');
+  return { hours, minutes };
+}
+
 /**
- * DateTimeからhh:mm形式に変換
+ * DateTimeからhh:mm形式に変換（JST固定）
  */
 function formatDateTimeToTime(datetime: Date | null): string {
   if (!datetime) return '';
   const d = new Date(datetime);
-  const hours = String(d.getHours()).padStart(2, '0');
-  const minutes = String(d.getMinutes()).padStart(2, '0');
-  return `${hours}:${minutes}`;
+  if (isNaN(d.getTime())) return '';
+  const { hours, minutes } = getJstHoursMinutes(d);
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 }
 
 /**
- * 遅刻時間を計算（分）
+ * 遅刻時間を計算（分） — 実績時刻はJSTで比較
  */
 function calculateLateTime(scheduledStart: string, actualStart: Date | null): string {
   if (!actualStart || !scheduledStart) return '0:00';
 
   const [schedH, schedM] = scheduledStart.split(':').map(Number);
-  const actual = new Date(actualStart);
-  const actualH = actual.getHours();
-  const actualM = actual.getMinutes();
+  const { hours: actualH, minutes: actualM } = getJstHoursMinutes(new Date(actualStart));
 
   const diff = (actualH * 60 + actualM) - (schedH * 60 + schedM);
   if (diff <= 0) return '0:00';
@@ -81,15 +95,13 @@ function calculateLateTime(scheduledStart: string, actualStart: Date | null): st
 }
 
 /**
- * 早退時間を計算（分）
+ * 早退時間を計算（分） — 実績時刻はJSTで比較
  */
 function calculateEarlyLeaveTime(scheduledEnd: string, actualEnd: Date | null): string {
   if (!actualEnd || !scheduledEnd) return '0:00';
 
   const [schedH, schedM] = scheduledEnd.split(':').map(Number);
-  const actual = new Date(actualEnd);
-  const actualH = actual.getHours();
-  const actualM = actual.getMinutes();
+  const { hours: actualH, minutes: actualM } = getJstHoursMinutes(new Date(actualEnd));
 
   const diff = (schedH * 60 + schedM) - (actualH * 60 + actualM);
   if (diff <= 0) return '0:00';
