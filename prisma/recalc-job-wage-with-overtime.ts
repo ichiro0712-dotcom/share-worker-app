@@ -16,7 +16,12 @@
  *   ドライラン（読み取りのみ・差額一覧と集計を表示）:
  *     npx tsx prisma/recalc-job-wage-with-overtime.ts --dry-run
  *
- *   実行（実際にDBを更新）:
+ *   SQL生成（DBを更新せず、UPDATE文をファイル出力）:
+ *     npx tsx prisma/recalc-job-wage-with-overtime.ts --generate-sql
+ *     → prisma/output/recalc-job-wage-YYYYMMDD-HHmm.sql に保存
+ *     生成されたSQLをレビュー後、Supabase SQL Editor 等で実行する
+ *
+ *   実行（このスクリプトから直接DBを更新）:
  *     npx tsx prisma/recalc-job-wage-with-overtime.ts --execute
  *
  * 注意:
@@ -28,6 +33,8 @@
 
 import { PrismaClient } from '@prisma/client';
 import { calculateDailyWage } from '../utils/salary';
+import { mkdirSync, writeFileSync } from 'fs';
+import { join, dirname } from 'path';
 
 const prisma = new PrismaClient();
 
@@ -53,13 +60,19 @@ async function main() {
   const args = process.argv.slice(2);
   const isDryRun = args.includes('--dry-run');
   const isExecute = args.includes('--execute');
+  const isGenerateSql = args.includes('--generate-sql');
 
-  if (!isDryRun && !isExecute) {
-    console.error('使用方法: --dry-run または --execute を指定してください');
+  const modeCount = [isDryRun, isExecute, isGenerateSql].filter(Boolean).length;
+  if (modeCount !== 1) {
+    console.error('使用方法: --dry-run / --generate-sql / --execute のいずれか1つを指定してください');
     process.exit(1);
   }
 
-  const mode = isDryRun ? 'DRY RUN（読み取りのみ）' : 'EXECUTE（DB更新あり）';
+  const mode = isDryRun
+    ? 'DRY RUN（読み取りのみ）'
+    : isGenerateSql
+      ? 'GENERATE SQL（UPDATE文をファイル出力）'
+      : 'EXECUTE（DB更新あり）';
   console.log('='.repeat(70));
   console.log(`求人日給 再計算スクリプト - ${mode}`);
   console.log('='.repeat(70));
@@ -193,8 +206,75 @@ async function main() {
   if (isDryRun) {
     console.log('\n' + '='.repeat(70));
     console.log('DRY RUN モードのため DB は更新していません');
-    console.log('実際に更新するには --execute を付けて実行してください');
+    console.log('実際に更新するには --execute、SQLファイルを生成するには --generate-sql を指定してください');
     console.log('='.repeat(70));
+    await prisma.$disconnect();
+    return;
+  }
+
+  if (isGenerateSql) {
+    if (candidates.length === 0) {
+      console.log('\n更新対象がないためSQLは生成しません');
+      await prisma.$disconnect();
+      return;
+    }
+
+    const now = new Date();
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const timestamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
+    const outputPath = join(process.cwd(), 'prisma', 'output', `recalc-job-wage-${timestamp}.sql`);
+
+    const lines: string[] = [];
+    lines.push('-- 求人日給 再計算スクリプト 生成SQL');
+    lines.push(`-- 生成日時: ${now.toISOString()}`);
+    lines.push(`-- 対象求人数: ${candidates.length} 件`);
+    lines.push(`-- 旧wage合計: ${totalOldWage}`);
+    lines.push(`-- 新wage合計: ${totalNewWage}`);
+    lines.push(`-- 差額合計:   ${totalDiff}`);
+    lines.push('');
+    lines.push('-- 対象条件: status=PUBLISHED かつ 有効な応募0件');
+    lines.push('-- 実行方法: トランザクション内で実行することを推奨');
+    lines.push('-- 例:');
+    lines.push('--   BEGIN;');
+    lines.push('--   （以下のUPDATE群）');
+    lines.push('--   -- 結果を確認');
+    lines.push('--   COMMIT;  （または問題があれば ROLLBACK;）');
+    lines.push('');
+    lines.push('BEGIN;');
+    lines.push('');
+
+    for (const c of candidates) {
+      lines.push(
+        `-- Job #${c.jobId} ${c.startTime}-${c.endTime} 休${c.breakTime}分 時給¥${c.hourlyWage}: 旧¥${c.oldWage} → 新¥${c.newWage} (差額 ¥${c.diff})`,
+      );
+      lines.push(`UPDATE jobs SET wage = ${c.newWage} WHERE id = ${c.jobId} AND wage = ${c.oldWage};`);
+      lines.push('');
+    }
+
+    lines.push('-- 件数チェック用クエリ（実行前後で件数を比較できる）');
+    lines.push(
+      `-- SELECT COUNT(*) FROM jobs WHERE id IN (${candidates.map((c) => c.jobId).join(', ')});`,
+    );
+    lines.push('');
+    lines.push('COMMIT;');
+    lines.push('');
+
+    mkdirSync(dirname(outputPath), { recursive: true });
+    writeFileSync(outputPath, lines.join('\n'), 'utf-8');
+
+    console.log('\n' + '='.repeat(70));
+    console.log('SQLファイルを生成しました');
+    console.log('='.repeat(70));
+    console.log(`  出力先: ${outputPath}`);
+    console.log(`  対象求人数: ${candidates.length} 件`);
+    console.log('');
+    console.log('次の手順:');
+    console.log('  1. 生成されたSQLファイルの内容をレビューしてください');
+    console.log('  2. Supabase SQL Editor 等で本番/ステージングDBに対して実行してください');
+    console.log('  3. UPDATE文は WHERE wage = 旧wage 条件付きなので、');
+    console.log('     生成時から値が変わっている求人は更新されません（安全策）');
+    console.log('='.repeat(70));
+
     await prisma.$disconnect();
     return;
   }
