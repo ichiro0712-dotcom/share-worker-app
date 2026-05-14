@@ -11,7 +11,7 @@ import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 import { getFacilityAdminSessionData } from '@/lib/admin-session-server';
 import { getMinimumWageForPrefecture } from '@/src/lib/actions/minimumWage';
 import { notifyJobUpdated, notifyJobsUpdated, notifyJobsDeleted } from '@/src/lib/google-indexing';
-import { calculateTransportationFee } from '@/utils/salary';
+import { calculateTransportationFee, calculateDailyWage } from '@/utils/salary';
 
 /**
  * 開始時刻・終了時刻・休憩時間から実働時間（分）を計算
@@ -359,29 +359,7 @@ export async function createJobs(input: CreateJobInput) {
     }
     const transportationFee = calculateTransportationFee(workingMinutes);
 
-    const calculateWage = (startTime: string, endTime: string, breakMinutes: number, hourlyWage: number, transportFee: number) => {
-        const [startHour, startMin] = startTime.split(':').map(Number);
-        const isNextDay = endTime.startsWith('翌');
-        const endTimePart = isNextDay ? endTime.slice(1) : endTime;
-        const [endHour, endMin] = endTimePart.split(':').map(Number);
-
-        const startMinutes = startHour * 60 + startMin;
-        let endMinutes = endHour * 60 + endMin;
-
-        if (isNextDay) {
-            endMinutes += 24 * 60;
-        }
-
-        let totalMinutes = endMinutes - startMinutes;
-        if (totalMinutes < 0) totalMinutes += 24 * 60;
-
-        const workMinutes = totalMinutes - breakMinutes;
-        const workHours = workMinutes / 60;
-
-        return Math.floor(hourlyWage * workHours) + transportFee;
-    };
-
-    const wage = calculateWage(
+    const wage = calculateDailyWage(
         input.startTime,
         input.endTime,
         input.breakTime,
@@ -987,22 +965,7 @@ export async function updateJob(
         }
         const transportationFee = calculateTransportationFee(workingMinutes);
 
-        const calculateWage = (startTime: string, endTime: string, breakMinutes: number, hourlyWage: number, transportFee: number) => {
-            const [startHour, startMin] = startTime.split(':').map(Number);
-            const isNextDay = endTime.startsWith('翌');
-            const endTimePart = isNextDay ? endTime.slice(1) : endTime;
-            const [endHour, endMin] = endTimePart.split(':').map(Number);
-
-            let totalMinutes = (endHour * 60 + endMin) - (startHour * 60 + startMin);
-            if (isNextDay || totalMinutes < 0) totalMinutes += 24 * 60;
-
-            const workMinutes = totalMinutes - breakMinutes;
-            const workHours = workMinutes / 60;
-
-            return Math.floor(hourlyWage * workHours) + transportFee;
-        };
-
-        const wage = calculateWage(
+        const wage = calculateDailyWage(
             data.startTime,
             data.endTime,
             breakTimeMinutes,
