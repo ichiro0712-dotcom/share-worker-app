@@ -1,12 +1,11 @@
 /**
  * 給与計算ユーティリティ
  *
- * 計算ルール:
- * - ベース給与: 実働時間 × 時給
- * - 残業手当: 8時間超過分 × 時給 × 0.25
- * - 深夜手当: 22:00〜05:00の勤務時間 × 時給 × 0.25
- * - 深夜+残業: 1.5倍（ベース + 残業0.25 + 深夜0.25）
- * - 休憩時間は最も時給が高い時間帯から優先的に控除
+ * 計算ルール（厚労省通達準拠の2段階切り上げ方式）:
+ * - 通常時間（1.0倍）・深夜（1.25倍）・残業（1.25倍）・深夜残業（1.5倍）の4区分で独立計算
+ * - 各区分とも「割増時給 = ceil(時給 × 倍率)」「区分金額 = ceil(割増時給 × 時間 / 60)」の2段階で切り上げ
+ * - 合計 = 4区分の合算
+ * - 休憩時間は最も時給が高い時間帯から優先的に控除（深夜残業 > 残業/深夜 > 通常）
  */
 
 export interface SalaryCalculationInput {
@@ -26,14 +25,15 @@ export interface TimeBlock {
 }
 
 export interface SalaryCalculationResult {
-  basePay: number;         // ベース給与
-  overtimePay: number;     // 残業手当
-  nightPay: number;        // 深夜手当
-  totalPay: number;        // 合計
-  workedMinutes: number;   // 実働時間（分）
-  overtimeMinutes: number; // 残業時間（分）
-  nightMinutes: number;    // 深夜時間（休憩控除後、分）
-  breakdown: TimeBlock[];  // 時間帯別内訳
+  basePay: number;          // 通常時間（1.0倍）の金額
+  nightPay: number;         // 深夜（残業除く、1.25倍）の金額
+  overtimePay: number;      // 通常残業（1.25倍）の金額
+  nightOvertimePay: number; // 深夜残業（1.5倍）の金額
+  totalPay: number;         // 合計
+  workedMinutes: number;    // 実働時間（分）
+  overtimeMinutes: number;  // 残業時間合計（通常残業+深夜残業、分）
+  nightMinutes: number;     // 深夜時間合計（深夜+深夜残業、分）
+  breakdown: TimeBlock[];   // 時間帯別内訳
 }
 
 // 深夜時間帯の定義（22:00〜05:00）JST
@@ -308,21 +308,21 @@ export function calculateSalary(input: SalaryCalculationInput): SalaryCalculatio
   // 合計の深夜時間（深夜残業 + 深夜通常）
   const totalNightMinutes = adjustedNightOvertimeMinutes + adjustedNightMinutes;
 
-  // 金額計算
-  // 注意: hourlyRate / 60 を先に計算すると浮動小数点誤差でMath.ceilが+1ずれるため、
-  // 整数同士の乗算を先に行い、最後に60で割る（例: 480 * 1000 / 60 = 8000.0）
+  // 金額計算（厚労省通達準拠の2段階切り上げ方式）
+  // Step 1: 各区分の割増時給を算出（時給 × 倍率 → 1円単位で切り上げ）
+  // Step 2: 区分金額 = 割増時給 × 区分分数 / 60 → 1円単位で切り上げ
+  const normalRate = Math.ceil(hourlyRate * 1.0);          // 通常時間（hourlyRateが整数なら同値）
+  const nightHourlyRate = Math.ceil(hourlyRate * 1.25);    // 深夜
+  const overtimeHourlyRate = Math.ceil(hourlyRate * 1.25); // 通常残業
+  const nightOvertimeHourlyRate = Math.ceil(hourlyRate * 1.5); // 深夜残業
 
-  // ① ベース給与（全実働時間に対する基本給）
-  const basePay = Math.ceil((workedMinutes * hourlyRate) / 60);
-
-  // ② 残業手当（残業時間 × 0.25）
-  const overtimePay = Math.ceil((totalOvertimeMinutes * hourlyRate * 0.25) / 60);
-
-  // ③ 深夜手当（深夜時間 × 0.25）
-  const nightPay = Math.ceil((totalNightMinutes * hourlyRate * 0.25) / 60);
+  const basePay = Math.ceil((normalRate * adjustedNormalMinutes) / 60);
+  const nightPay = Math.ceil((nightHourlyRate * adjustedNightMinutes) / 60);
+  const overtimePay = Math.ceil((overtimeHourlyRate * adjustedOvertimeMinutes) / 60);
+  const nightOvertimePay = Math.ceil((nightOvertimeHourlyRate * adjustedNightOvertimeMinutes) / 60);
 
   // 合計
-  const totalPay = basePay + overtimePay + nightPay;
+  const totalPay = basePay + nightPay + overtimePay + nightOvertimePay;
 
   // 時間帯別内訳を生成
   const breakdown: TimeBlock[] = [];
@@ -335,7 +335,7 @@ export function calculateSalary(input: SalaryCalculationInput): SalaryCalculatio
       hours: adjustedNormalMinutes / 60,
       type: 'normal',
       rate: 1.0,
-      amount: Math.ceil((adjustedNormalMinutes * hourlyRate) / 60),
+      amount: basePay,
     });
   }
 
@@ -347,7 +347,7 @@ export function calculateSalary(input: SalaryCalculationInput): SalaryCalculatio
       hours: adjustedNightMinutes / 60,
       type: 'night',
       rate: 1.25,
-      amount: Math.ceil((adjustedNightMinutes * hourlyRate * 1.25) / 60),
+      amount: nightPay,
     });
   }
 
@@ -359,7 +359,7 @@ export function calculateSalary(input: SalaryCalculationInput): SalaryCalculatio
       hours: adjustedOvertimeMinutes / 60,
       type: 'overtime',
       rate: 1.25,
-      amount: Math.ceil((adjustedOvertimeMinutes * hourlyRate * 1.25) / 60),
+      amount: overtimePay,
     });
   }
 
@@ -371,14 +371,15 @@ export function calculateSalary(input: SalaryCalculationInput): SalaryCalculatio
       hours: adjustedNightOvertimeMinutes / 60,
       type: 'night_overtime',
       rate: 1.5,
-      amount: Math.ceil((adjustedNightOvertimeMinutes * hourlyRate * 1.5) / 60),
+      amount: nightOvertimePay,
     });
   }
 
   return {
     basePay,
-    overtimePay,
     nightPay,
+    overtimePay,
+    nightOvertimePay,
     totalPay,
     workedMinutes,
     overtimeMinutes: totalOvertimeMinutes,

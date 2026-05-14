@@ -32,6 +32,7 @@ const EXCLUDED_PREFIXES = [
   '/public/',  // SEO用公開ページ
   '/lp/',      // LP関連ページ（ウィジェット等）
   '/terms/facility',  // 施設向け利用規約ページのみ除外
+  '/advisor/',  // System Advisor 公開シェアレポート (/advisor/r/[token])
 ];
 
 export function WorkerLayout({ children }: WorkerLayoutProps) {

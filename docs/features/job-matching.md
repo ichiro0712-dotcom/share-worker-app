@@ -228,3 +228,27 @@ model Application {
 - [通知機能](./notifications.md) - マッチング通知
 - [レビュー機能](./reviews.md) - 勤務後のレビュー
 - [オファー・限定求人](./offer-limited-job.md) - 特殊求人タイプ
+
+---
+
+## 11. 求人テンプレート削除ルール
+
+施設管理者が求人テンプレートを削除する場合、使用中のテンプレートは削除できない。元データ保護のため、`Job.template_id` が 1 件でも参照していれば拒否する。
+
+### 11.1 実装
+
+`src/lib/actions/job-template.ts#deleteJobTemplate(templateId, facilityId)` で次の順に処理する。
+
+1. `templateId` と `facilityId` が正の整数か検証する。
+2. `validateFacilityAccess(facilityId)` で施設管理者セッションを確認する。
+3. 対象テンプレートが同じ施設に属するか確認する。
+4. `prisma.job.count({ where: { template_id: templateId } })` が 1 以上なら削除を拒否する。
+5. 削除直前に競合で参照が増え、DB の FK 制約 `P2003` が発生した場合も同じ「使用中」エラーとして返す。
+
+### 11.2 ユーザー向けエラー
+
+```text
+このテンプレートは使用中の求人があるため削除できません
+```
+
+削除拒否時は `JOB_TEMPLATE_DELETE` の操作ログに `referencingJobCount` と `reason` を残す。

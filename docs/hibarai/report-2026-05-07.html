@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>前払い機能 仕様検討レポート — MTG#1（2026-05-07）</title>
+<style>
+  :root {
+    --c-text: #1e293b;
+    --c-muted: #64748b;
+    --c-border: #e2e8f0;
+    --c-bg: #ffffff;
+    --c-bg-soft: #f8fafc;
+    --c-bg-card: #ffffff;
+    --c-primary: #0f172a;
+    --c-accent: #2563eb;
+    --c-accent-soft: #dbeafe;
+    --c-success: #16a34a;
+    --c-success-soft: #dcfce7;
+    --c-warning: #d97706;
+    --c-warning-soft: #fef3c7;
+    --c-danger: #dc2626;
+    --c-danger-soft: #fee2e2;
+    --c-info-soft: #e0f2fe;
+    --shadow-sm: 0 1px 2px rgba(15,23,42,.04), 0 1px 3px rgba(15,23,42,.06);
+    --shadow-md: 0 4px 6px -1px rgba(15,23,42,.06), 0 2px 4px -2px rgba(15,23,42,.04);
+    --radius: 8px;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", "YuGothic", Meiryo, system-ui, sans-serif;
+    line-height: 1.75;
+    color: var(--c-text);
+    background: var(--c-bg-soft);
+    margin: 0;
+    padding: 0;
+    font-feature-settings: "palt";
+  }
+  .container {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 48px 32px 96px;
+  }
+  @media (max-width: 640px) {
+    .container { padding: 24px 16px 48px; }
+  }
+
+  /* Header */
+  header.doc-header {
+    border-bottom: 3px solid var(--c-primary);
+    padding-bottom: 32px;
+    margin-bottom: 48px;
+  }
+  .eyebrow {
+    display: inline-block;
+    font-size: 12px;
+    letter-spacing: .12em;
+    font-weight: 600;
+    color: var(--c-accent);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  h1 {
+    font-size: 30px;
+    font-weight: 700;
+    color: var(--c-primary);
+    margin: 0 0 16px;
+    letter-spacing: -0.01em;
+    line-height: 1.4;
+  }
+  .meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-top: 24px;
+  }
+  .meta dt {
+    font-size: 11px;
+    color: var(--c-muted);
+    letter-spacing: .08em;
+    margin: 0 0 4px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  .meta dd {
+    margin: 0;
+    font-size: 14px;
+    color: var(--c-text);
+    font-weight: 500;
+  }
+
+  /* Sections */
+  section {
+    background: var(--c-bg-card);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius);
+    padding: 32px;
+    margin-bottom: 24px;
+    box-shadow: var(--shadow-sm);
+  }
+  @media (max-width: 640px) {
+    section { padding: 20px; }
+  }
+  section > h2 {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--c-primary);
+    margin: 0 0 8px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    letter-spacing: -0.005em;
+  }
+  section > h2 .num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: var(--c-primary);
+    color: #fff;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 700;
+  }
+  section > .lede {
+    color: var(--c-muted);
+    font-size: 14px;
+    margin: 0 0 24px;
+    padding-left: 44px;
+  }
+  h3 {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--c-primary);
+    margin: 28px 0 12px;
+    padding-left: 12px;
+    border-left: 3px solid var(--c-accent);
+  }
+
+  /* Summary callout */
+  .summary {
+    background: linear-gradient(135deg, #eff6ff 0%, #f0f9ff 100%);
+    border: 1px solid var(--c-accent-soft);
+    padding: 24px 28px;
+    border-radius: var(--radius);
+    margin-bottom: 32px;
+  }
+  .summary h2 { color: var(--c-accent); margin-top: 0; }
+  .summary p { margin: 12px 0 0; line-height: 1.85; }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 14px;
+  }
+  th, td {
+    text-align: left;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--c-border);
+    vertical-align: top;
+  }
+  th {
+    font-weight: 600;
+    color: var(--c-primary);
+    background: var(--c-bg-soft);
+    font-size: 13px;
+    letter-spacing: .02em;
+  }
+  td.label { font-weight: 600; color: var(--c-primary); width: 30%; white-space: nowrap; }
+  td.label-wide { font-weight: 600; color: var(--c-primary); width: 24%; }
+  tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: var(--c-bg-soft); }
+
+  /* Badges */
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .02em;
+    white-space: nowrap;
+  }
+  .badge.ok { background: var(--c-success-soft); color: var(--c-success); }
+  .badge.partial { background: var(--c-warning-soft); color: var(--c-warning); }
+  .badge.open { background: var(--c-danger-soft); color: var(--c-danger); }
+  .badge.info { background: var(--c-accent-soft); color: var(--c-accent); }
+
+  /* Flow diagram */
+  .flow {
+    display: grid;
+    gap: 12px;
+    margin: 20px 0 8px;
+  }
+  .flow-step {
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    gap: 16px;
+    align-items: stretch;
+  }
+  .flow-step .when {
+    background: var(--c-primary);
+    color: #fff;
+    padding: 12px;
+    border-radius: var(--radius);
+    text-align: center;
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1.4;
+  }
+  .flow-step .what {
+    background: var(--c-bg-soft);
+    padding: 14px 16px;
+    border-radius: var(--radius);
+    font-size: 14px;
+    border-left: 3px solid var(--c-accent);
+  }
+  .flow-step .what strong { color: var(--c-primary); }
+
+  /* Pillars */
+  .pillars {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+    margin: 16px 0;
+  }
+  .pillar {
+    background: var(--c-bg-soft);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+  .pillar h4 {
+    font-size: 13px;
+    margin: 0 0 6px;
+    color: var(--c-accent);
+    font-weight: 700;
+  }
+  .pillar p {
+    font-size: 13px;
+    margin: 0;
+    color: var(--c-text);
+    line-height: 1.6;
+  }
+
+  /* Highlight */
+  .highlight-card {
+    background: var(--c-warning-soft);
+    border: 1px solid #fbbf24;
+    padding: 16px 20px;
+    border-radius: var(--radius);
+    margin: 16px 0;
+    font-size: 14px;
+  }
+  .highlight-card.danger {
+    background: var(--c-danger-soft);
+    border-color: #fca5a5;
+  }
+  .highlight-card.info {
+    background: var(--c-info-soft);
+    border-color: #7dd3fc;
+  }
+  .highlight-card strong { color: var(--c-primary); }
+
+  /* Lists */
+  ul.checks { list-style: none; padding: 0; margin: 12px 0; }
+  ul.checks li {
+    padding: 8px 0 8px 28px;
+    position: relative;
+    font-size: 14px;
+    line-height: 1.7;
+  }
+  ul.checks li::before {
+    content: "✓";
+    position: absolute;
+    left: 4px;
+    top: 8px;
+    color: var(--c-success);
+    font-weight: 700;
+  }
+  ul.questions { list-style: none; padding: 0; margin: 12px 0; }
+  ul.questions li {
+    padding: 8px 0 8px 28px;
+    position: relative;
+    font-size: 14px;
+    line-height: 1.7;
+  }
+  ul.questions li::before {
+    content: "?";
+    position: absolute;
+    left: 8px;
+    top: 7px;
+    color: #fff;
+    font-weight: 700;
+    font-size: 11px;
+    width: 16px;
+    height: 16px;
+    background: var(--c-warning);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+
+  /* TOC */
+  nav.toc {
+    background: #fff;
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin-bottom: 24px;
+    box-shadow: var(--shadow-sm);
+  }
+  nav.toc h3 {
+    border-left: none;
+    padding-left: 0;
+    margin: 0 0 8px;
+    font-size: 12px;
+    color: var(--c-muted);
+    letter-spacing: .08em;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  nav.toc ol {
+    list-style: decimal;
+    padding-left: 20px;
+    margin: 0;
+    columns: 2;
+    column-gap: 32px;
+    font-size: 13px;
+  }
+  @media (max-width: 640px) { nav.toc ol { columns: 1; } }
+  nav.toc a {
+    color: var(--c-text);
+    text-decoration: none;
+    line-height: 1.9;
+  }
+  nav.toc a:hover { color: var(--c-accent); text-decoration: underline; }
+
+  /* Footnote / Sources */
+  footer.sources {
+    margin-top: 32px;
+    padding: 20px 24px;
+    background: var(--c-bg-soft);
+    border-radius: var(--radius);
+    font-size: 12px;
+    color: var(--c-muted);
+  }
+  footer.sources h3 {
+    border-left: none;
+    padding-left: 0;
+    font-size: 12px;
+    color: var(--c-muted);
+    letter-spacing: .08em;
+    font-weight: 600;
+    text-transform: uppercase;
+    margin: 0 0 8px;
+  }
+  footer.sources ul { padding-left: 18px; margin: 0; }
+  footer.sources li { line-height: 1.7; }
+  footer.sources a { color: var(--c-accent); text-decoration: none; word-break: break-all; }
+  footer.sources a:hover { text-decoration: underline; }
+
+  /* Print */
+  @media print {
+    body { background: #fff; font-size: 11pt; }
+    .container { padding: 16px; max-width: none; }
+    section { page-break-inside: avoid; box-shadow: none; border: 1px solid #ccc; }
+    nav.toc { display: none; }
+    a { color: var(--c-text) !important; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- Header -->
+<header class="doc-header">
+  <span class="eyebrow">前払い機能 — 仕様検討レポート</span>
+  <h1>確定報酬のポイント残高化 ＋ GMO あおぞら API 連携による即時前払い機能</h1>
+  <dl class="meta">
+    <div><dt>レポート作成日</dt><dd>2026-05-07</dd></div>
+    <div><dt>対象 MTG</dt><dd>キックオフ MTG (#1)</dd></div>
+    <div><dt>議事録</dt><dd>docs/hibarai/2026-5-7.md</dd></div>
+    <div><dt>提出先</dt><dd>事業責任者／プロダクトオーナー</dd></div>
+  </dl>
+</header>
+
+<!-- Executive summary -->
+<section class="summary">
+  <h2>エグゼクティブサマリ</h2>
+  <p>
+    タスタス内で、ワーカーが <strong>確定済み報酬を「ポイント残高」として保有</strong> し、<strong>GMO あおぞら API による 24/365 即時振込で前払いを受けられる仕組み</strong> を構築する。既存の「キャリ払い（キャリバライ）」に近いが、別システムとして新規構築する方針。
+  </p>
+  <p>
+    本 MTG（2026-05-07）で <strong>主要な仕様骨子は確定</strong> した。残課題は ① GMO API の細部（口座名義照合の API 化可否、Webhook 範囲、組戻し）② キャリバライ仕様の再現範囲 ③ 利用規約変更のタイミング ④ 個人別レート設定の運用 UI／UX、の 4 領域に集約される。
+  </p>
+</section>
+
+<!-- Table of Contents -->
+<nav class="toc">
+  <h3>目次</h3>
+  <ol>
+    <li><a href="#confirmed">MTG#1 で確定した仕様骨子</a></li>
+    <li><a href="#monthly-flow">月末締め・支払サイクル</a></li>
+    <li><a href="#rate">個人別 前払い率の設定方針</a></li>
+    <li><a href="#gmo">GMO あおぞら API 調査結果</a></li>
+    <li><a href="#open">残課題・要確認事項</a></li>
+    <li><a href="#risk">リスクと留意点</a></li>
+    <li><a href="#next">推奨アクション・次のステップ</a></li>
+  </ol>
+</nav>
+
+<!-- 1. Confirmed -->
+<section id="confirmed">
+  <h2><span class="num">1</span>MTG#1 で確定した仕様骨子</h2>
+  <p class="lede">議事録に基づき、ステータスが <span class="badge ok">✓ 確定</span> となった項目のみ列挙。</p>
+
+  <h3>1.1 機能の前提</h3>
+  <table>
+    <tr><td class="label">前払い対象</td><td>確定済み報酬のみ（給料日前倒し型 = 立替払いの早期化）</td></tr>
+    <tr><td class="label">前払い成立条件</td><td><strong>本人の勤怠完了 ＋ 本人レビューの提出</strong>（施設側の承認は待たない／振込を止めない）</td></tr>
+    <tr><td class="label">既存「キャリバライ」</td><td>近いが別システムとして構築。仕様再現範囲は要共有</td></tr>
+    <tr><td class="label">送金経路</td><td>GMO あおぞら API（24/365 即時振込）</td></tr>
+  </table>
+
+  <h3>1.2 残高・申請</h3>
+  <table>
+    <tr><td class="label">ポイント定義</td><td>確定報酬は自動的にポイント残高へ加算（1pt = 1円のウォレット型）</td></tr>
+    <tr><td class="label">前払い率（基本）</td><td><strong>勤務実績の 9 割をプール</strong>（前払い可能上限）</td></tr>
+    <tr><td class="label">前払い率（例外）</td><td>社保対象見込みの場合は 7 割等、ワーカー別に変動。当面は個別設定方式</td></tr>
+    <tr><td class="label">引き出し単位</td><td><strong>1 円単位</strong></td></tr>
+    <tr><td class="label">交通費</td><td>前払い対象金額に <strong>含めて</strong> チャージ可</td></tr>
+    <tr><td class="label">申請可能時間帯</td><td>24/365 申請可。完了は銀行都合に準じる（GW 等は停止可能性あり）</td></tr>
+  </table>
+
+  <h3>1.3 手数料</h3>
+  <table>
+    <tr><td class="label">負担者</td><td>ワーカー本人負担</td></tr>
+    <tr><td class="label">体系</td><td><strong>1 回ごとの固定額（100〜200 円程度）</strong>を予定（具体額は未確定）</td></tr>
+    <tr><td class="label">控除方法</td><td>チャージ済み残高から控除</td></tr>
+    <tr><td class="label">設計意図</td><td>まとめて引き出した方が得になる料率設計</td></tr>
+  </table>
+
+  <h3>1.4 セキュリティ・不正対策</h3>
+  <table>
+    <tr><td class="label">口座変更時</td><td><strong>メール／SMS 認証</strong>を挟む（ロック方式ではなく認証方式）。本人名義一致は必須</td></tr>
+    <tr><td class="label">緊急停止</td><td>システム管理者による <strong>全前払い一括停止スイッチ</strong></td></tr>
+    <tr><td class="label">基本制約</td><td><strong>勤怠に紐づいた金額以上は出さない</strong>（最小限の制約で十分という方針）</td></tr>
+    <tr><td class="label">過剰対策</td><td>原則しない（運用が複雑化するため）</td></tr>
+  </table>
+
+  <h3>1.5 ログ・履歴</h3>
+  <table>
+    <tr><td class="label">ログの作業日</td><td>勤務開始時の日時（「いついつ分の仕事がチャージされたか」を記録）</td></tr>
+    <tr><td class="label">履歴保持</td><td>5 年保持を想定（振込関連の法定保存期間に準拠／最終未確定）</td></tr>
+    <tr><td class="label">施設側 UI</td><td>前払い実行情報は <strong>施設には表示しない</strong></td></tr>
+  </table>
+</section>
+
+<!-- 2. Monthly settlement flow -->
+<section id="monthly-flow">
+  <h2><span class="num">2</span>月末締め・支払サイクル</h2>
+  <p class="lede">議事録 第 7 項に基づく。残額（プール 1 割分含む）は給料日に固定口座へ振込。</p>
+
+  <div class="flow">
+    <div class="flow-step">
+      <div class="when">勤務中</div>
+      <div class="what">ワーカーが勤怠完了 ＋ 本人レビュー提出 → <strong>確定額（交通費込み）がポイント残高に加算</strong></div>
+    </div>
+    <div class="flow-step">
+      <div class="when">月内随時</div>
+      <div class="what">ワーカーが前払い申請（24/365、1 円単位、上限 = 確定額 × 個人設定率） → <strong>手数料控除 → GMO 即時振込</strong></div>
+    </div>
+    <div class="flow-step">
+      <div class="when">当月末日<br>23:59</div>
+      <div class="what">前払い申請 <strong>締切</strong>（以降、引き出し条件が切替）</div>
+    </div>
+    <div class="flow-step">
+      <div class="when">翌月 1 日</div>
+      <div class="what">月次精算処理：残額（プール分の 1 割含む）を <strong>登録固定口座への振込手続き</strong></div>
+    </div>
+    <div class="flow-step">
+      <div class="when">翌月 15 日</div>
+      <div class="what">通常給与支払日として <strong>固定口座へ振込完了</strong> → 残高ゼロでクリア</div>
+    </div>
+  </div>
+
+  <div class="highlight-card info">
+    <strong>運用ポイント:</strong> 給料日 = 翌月 15 日で全社統一する設計。月初 1 日は精算バッチの起動日。月末締めにより、ポイント残高の自動失効ルール（B2）も同時に成立する。
+  </div>
+</section>
+
+<!-- 3. Individual rate -->
+<section id="rate">
+  <h2><span class="num">3</span>個人別 前払い率の設定方針</h2>
+  <p class="lede">議事録 第 3・4・15 項より。基本 9 割＋例外 7 割の個人別運用とする。</p>
+
+  <table>
+    <tr><th>観点</th><th>内容</th></tr>
+    <tr><td class="label">基本率</td><td>9 割（全ワーカー初期値）</td></tr>
+    <tr><td class="label">例外率</td><td>社保対象見込みの場合は 7 割（同一施設・同一期間で 2 ヶ月以上の契約が見込まれる場合）</td></tr>
+    <tr><td class="label">算出要素</td><td>勤務形態 / 勤務時間 / 時給 / 契約条件 / 社保対象の有無</td></tr>
+    <tr><td class="label">設定方式</td><td><strong>当面は個別手動設定可能な形</strong>（将来は勤務形態からの自動算出を検討）</td></tr>
+    <tr><td class="label">上限金額</td><td>将来的に個人ごとの上限金額（1 回／1 日／1 月）も設定可能とする</td></tr>
+  </table>
+
+  <h3>運用上の論点</h3>
+  <ul class="questions">
+    <li>9 割→ 7 割への切替は、施設とワーカーの合意により決定後、施設側で設定する案（未決定）</li>
+    <li>キャリバライの設定仕様をどこまで再現するか</li>
+    <li>社保対象判定（同一施設・2 ヶ月以上）をシステムで判定するか、運用判断か</li>
+  </ul>
+</section>
+
+<!-- 4. GMO API findings -->
+<section id="gmo">
+  <h2><span class="num">4</span>GMO あおぞら API 調査結果</h2>
+  <p class="lede">公式公開情報からの所見。詳細は GMO 開発者ポータルおよび直接ヒアリングで確定。</p>
+
+  <h3>4.1 API ラインアップ（無償・標準 API）</h3>
+  <p style="font-size:14px; margin: 8px 0 12px;">標準 API 28 種類（無償）＋ オプション API 7 種類（有償）の計 35 種類。本件で利用見込みのものは以下：</p>
+  <table>
+    <tr><th>API</th><th>用途</th><th>本件での利用見込み</th></tr>
+    <tr><td class="label">振込依頼</td><td>仕向け振込指示（仕様の中核）</td><td><span class="badge ok">必須</span></td></tr>
+    <tr><td class="label">振込状況照会</td><td>振込履歴・処理状況の照会</td><td><span class="badge ok">必須</span></td></tr>
+    <tr><td class="label">振込依頼結果照会</td><td>依頼／取消の処理状態の照会</td><td><span class="badge ok">必須</span></td></tr>
+    <tr><td class="label">振込手数料事前照会</td><td>手数料を申請前に取得</td><td><span class="badge info">推奨</span></td></tr>
+    <tr><td class="label">振込取消依頼</td><td>振込予約・申請の取消</td><td><span class="badge info">推奨</span></td></tr>
+    <tr><td class="label">残高照会</td><td>自社運用口座の残高監視</td><td><span class="badge info">推奨</span></td></tr>
+    <tr><td class="label">振込入金口座発行</td><td>バーチャル口座（個別 ID）の発行</td><td><span class="badge partial">将来検討</span></td></tr>
+    <tr><td class="label">通知配信制御 (Webhook)</td><td>イベント通知の配信制御</td><td><span class="badge info">推奨</span></td></tr>
+    <tr><td class="label">振込入金口座 入金明細通知</td><td>被仕向（着金）の Webhook</td><td><span class="badge partial">将来検討</span></td></tr>
+  </table>
+
+  <h3>4.2 技術仕様</h3>
+  <table>
+    <tr><td class="label">認可</td><td>OAuth 2.0 ＋ OpenID Connect</td></tr>
+    <tr><td class="label">プロトコル</td><td>HTTPS（TLS 1.2 以上）</td></tr>
+    <tr><td class="label">データ形式</td><td>JSON</td></tr>
+    <tr><td class="label">アーキテクチャ</td><td>REST</td></tr>
+    <tr><td class="label">SDK</td><td>Go / PHP（GitHub に公式 SDK 公開）</td></tr>
+    <tr><td class="label">テスト環境</td><td>sunabar（API 実験場、無料、本番接続前にフル検証可能）</td></tr>
+  </table>
+
+  <h3>4.3 振込手数料・限度額</h3>
+  <table>
+    <tr><th>項目</th><th>通常会員</th><th>振込料金とくとく会員（月額500円）</th></tr>
+    <tr><td class="label">同行宛</td><td>無料</td><td>無料</td></tr>
+    <tr><td class="label">他行宛</td><td><strong>143 円（税込）/ 件</strong></td><td><strong>129 円（税込）/ 件</strong></td></tr>
+    <tr><td class="label">組戻手数料</td><td colspan="2">880 円（税込）/ 件</td></tr>
+    <tr><td class="label">振込限度額（自動）</td><td colspan="2">0 円〜5 億円（初期値 500 万円）</td></tr>
+    <tr><td class="label">振込限度額（審査）</td><td colspan="2">5 億円超〜 99 億円</td></tr>
+  </table>
+
+  <div class="highlight-card">
+    <strong>⚠️ 要注意:</strong> 公式ページに <strong>「2026 年 5 月 10 日より変更予定」</strong> の注記あり。手数料額が改定される可能性が高く、ワーカー負担額（100〜200 円想定）の妥当性に直接影響する。GMO 担当者へ早期に確認を推奨。
+  </div>
+
+  <h3>4.4 24/365 と例外時間</h3>
+  <ul class="checks">
+    <li>同行内振込：24/365（システムメンテナンス時を除く）</li>
+    <li>他行宛振込：原則 24/365。<strong>毎週土曜 23:52〜00:10 / 日曜 23:52〜00:10</strong> は統合 ATM センター計画停止</li>
+    <li>送金先金融機関によっては <strong>翌営業日着金</strong> となるケースあり</li>
+    <li>UI 表示推奨：「申請はいつでも可／完了は銀行に準じる」（議事録 第 6 項）</li>
+  </ul>
+
+  <h3>4.5 振込先口座確認（名義照合）</h3>
+  <table>
+    <tr><td class="label">対応金融機関</td><td>全銀モアタイムシステム参加金融機関（メガバンク・地銀・信金等の多くを含む。詳細は同システム参加機関一覧で確認）</td></tr>
+    <tr><td class="label">利用時間</td><td>24/365（毎週土曜 23:52〜00:10 / 日曜 23:52〜00:10 は停止）</td></tr>
+    <tr><td class="label">API 化の可否</td><td><span class="badge open">要問い合わせ</span> 公式公開情報ではネットバンキング画面での利用のみ言及。API 提供されているかは GMO 担当者への確認が必要</td></tr>
+    <tr><td class="label">名義照合精度</td><td><span class="badge open">要問い合わせ</span> 完全一致／近似マッチの仕様は公開資料からは不明</td></tr>
+  </table>
+
+  <div class="highlight-card danger">
+    <strong>重要な未確認事項:</strong> 議事録 第 13 項で「口座名義は本人名義一致が重要」とされており、本機能は受取人名義の自動検証に依存する可能性が高い。<strong>API 経由で名義照合が利用可能かどうかは GMO へ最優先で確認すべき項目</strong>。利用不可の場合は、ワーカー登録時の本人名義確認を強化する代替設計が必要。
+  </div>
+
+  <h3>4.6 Webhook（イベント通知）</h3>
+  <ul class="checks">
+    <li>「振込入金口座 入金明細通知」（被仕向、すなわち着金）の Webhook は提供されている</li>
+  </ul>
+  <ul class="questions">
+    <li>仕向（自社からの振込）の <strong>振込結果通知 Webhook</strong> は公開資料からは確認できない</li>
+    <li>提供されていない場合は <strong>ポーリング（振込状況照会 API）方式</strong> で結果を取得する設計となる</li>
+  </ul>
+
+</section>
+
+<!-- 5. Open issues -->
+<section id="open">
+  <h2><span class="num">5</span>残課題・要確認事項</h2>
+  <p class="lede">MTG#1 で「未確定」または新出した項目。次回 MTG ／ クライアント側調査で順次クローズ。</p>
+
+  <h3>5.1 GMO 側へ確認すべき事項（最優先）</h3>
+  <ul class="questions">
+    <li><strong>口座名義照合の API 化可否</strong>（最優先）— 本人名義一致の自動検証ができるか</li>
+    <li><strong>仕向振込の結果 Webhook の有無</strong> — 失敗時の即時検知・組戻し対応に直結</li>
+    <li><strong>組戻し処理の API 化可否</strong> — 振込失敗時のリカバリー（組戻手数料 880 円が発生する想定）</li>
+    <li><strong>2026/5/10 の手数料改定の詳細</strong> — ワーカー負担額（100〜200 円）の妥当性に影響</li>
+    <li><strong>レート制限・並列処理性能</strong> — ピーク時の同時前払い申請への耐性</li>
+    <li><strong>エラーコード体系の全量</strong> — エラー時 UX（議事録 第 12 項）の詳細設計に必要</li>
+  </ul>
+
+  <h3>5.2 キャリバライに関する確認すべき事項</h3>
+  <ul class="questions">
+    <li><strong>キャリバライの仕様再現範囲</strong> — 率設定 / UI / 運用フロー</li>
+    <li><strong>個人別の前払い率の設定 UI と運用</strong>（system-admin での操作主体・承認フロー）</li>
+    <li><strong>社保対象判定の自動化要否</strong>（同一施設・2 ヶ月以上の自動検出か、運用判断か）</li>
+    <li><strong>利用規約変更の要否と時期</strong>（第 8 条「賃金等支払の立替え」の改定 or 前払いサービス利用規約の新設）</li>
+    <li>残課題項目（D3／A2／A3／A5／C4／C6／F1／F4／I1〜4／J1〜3／K1-2／K4／L1-5／N2／O1-2／P1-4）の方針</li>
+  </ul>
+
+  <h3>5.3 機能実装上の主な未確定項目</h3>
+  <table>
+    <tr><th>カテゴリ</th><th>項目</th><th>状態</th></tr>
+    <tr><td class="label-wide">確定後の修正</td><td>勤怠修正でポイント残高がマイナスになる場合の扱い（既前払済の追加請求運用）</td><td><span class="badge open">未確定</span></td></tr>
+    <tr><td class="label-wide">エラーUX</td><td>振込失敗時の通知文言・口座修正導線・組戻しフローの詳細</td><td><span class="badge partial">方向性のみ</span></td></tr>
+    <tr><td class="label-wide">SLA</td><td>申請から振込完了までの目標時間</td><td><span class="badge open">未確定</span></td></tr>
+    <tr><td class="label-wide">取消・キャンセル</td><td>ワーカー側からの支払い申請キャンセルは原則不可で良いか</td><td><span class="badge open">未確定</span></td></tr>
+    <tr><td class="label-wide">通知媒体</td><td>確定通知／申請結果通知（アプリ内 / メール / SMS）</td><td><span class="badge open">未確定</span></td></tr>
+    <tr><td class="label-wide">支払い口座残高</td><td>即時送金分のキャッシュが不足していた場合のエラーフロー</td><td><span class="badge open">未確定</span></td></tr>
+  </table>
+</section>
+
+<!-- 6. Risks -->
+<section id="risk">
+  <h2><span class="num">6</span>リスクと留意点</h2>
+  <p class="lede">仕様確定・実装・ローンチに向けた主要リスク。</p>
+
+  <div class="pillars">
+    <div class="pillar">
+      <h4>R1: 手数料改定（2026/5/10）</h4>
+      <p>他行宛振込手数料が改定される可能性。ワーカー負担 100〜200 円との整合性が崩れると、料金体系の再設計が必要。</p>
+    </div>
+    <div class="pillar">
+      <h4>R2: 名義照合 API 不可</h4>
+      <p>口座名義の自動照合が API 化されていない場合、不正・誤振込リスクが上昇。代替策として、登録時の本人名義確認の強化または手動レビュー導入が必要。</p>
+    </div>
+    <div class="pillar">
+      <h4>R3: 振込結果 Webhook 不在</h4>
+      <p>仕向振込の結果通知 Webhook が未提供の場合、ポーリング方式となり、ワーカーへの完了通知 UX に遅延が生じる。</p>
+    </div>
+    <div class="pillar">
+      <h4>R4: 既存 BankAccount 平文保存</h4>
+      <p>現状、口座情報は平文保存。前払い機能と同時に <strong>暗号化対応（at rest）</strong> を必須化すべき。</p>
+    </div>
+    <div class="pillar">
+      <h4>R5: 勤怠修正による残高ズレ</h4>
+      <p>確定後の勤怠修正で前払い済額を超える減額が発生した場合の運用フローが未定。マイナス残高許容 / 追加請求 / 別途精算のいずれを採るか要決定。</p>
+    </div>
+    <div class="pillar">
+      <h4>R6: 一括ローンチ方針</h4>
+      <p>「完全仕様確定後の一括リリース」方針のため、全項目クローズまでローンチ不可。残課題が多く残ると遅延に直結。</p>
+    </div>
+  </div>
+</section>
+
+<!-- 7. Next steps -->
+<section id="next">
+  <h2><span class="num">7</span>推奨アクション・次のステップ</h2>
+  <p class="lede">3 つのトラックを並行して走らせる構成を推奨。</p>
+
+  <h3>トラック A：GMO 接続準備（申込済み・進行中）</h3>
+  <ul class="checks">
+    <li>口座名義照合 API、振込結果 Webhook、組戻し API、2026/5/10 手数料改定の詳細を担当者に確認</li>
+    <li>sunabar（テスト環境）への接続申請、SDK 動作確認（Go／PHP）</li>
+  </ul>
+
+  <h3>トラック B：仕様クローズ（次回 MTG 群）</h3>
+  <ul class="checks">
+    <li>キャリバライの仕様取得 → 再現範囲の決定セッション</li>
+    <li>個人別レート設定の運用 UI／UX 詳細化</li>
+    <li>勤怠修正による残高調整方針の確定</li>
+    <li>エラー時 UX（通知文言・口座修正導線・組戻しフロー）の詳細化</li>
+    <li>通知媒体（アプリ内 / メール / SMS）の選定</li>
+    <li>残課題（5.2、5.3 の各項目）を順次クローズ</li>
+  </ul>
+
+  <h3>トラック C：規約・法務</h3>
+  <ul class="checks">
+    <li>求職者向け利用規約 第 8 条「賃金等支払の立替え」の改定要否レビュー</li>
+    <li>前払いサービス利用規約の新設要否レビュー</li>
+    <li>規約改定時期と告知計画の決定</li>
+  </ul>
+
+  <h3>マイルストーン目安</h3>
+  <table>
+    <tr><th>フェーズ</th><th>内容</th><th>目安</th></tr>
+    <tr><td class="label">Phase 1</td><td>残課題クローズ／仕様書 v1.0 作成</td><td>MTG 数回（2〜4 週間）</td></tr>
+    <tr><td class="label">Phase 2</td><td>キャリバライとの設定仕様差分整理</td><td>1〜2 週間</td></tr>
+    <tr><td class="label">Phase 3</td><td>GMO 接続完了（申込済み・進行中）</td><td>—</td></tr>
+    <tr><td class="label">Phase 4</td><td>実装</td><td>仕様凍結後、別途見積</td></tr>
+    <tr><td class="label">Phase 5</td><td>パイロット → 本番ローンチ</td><td>実装完了後</td></tr>
+  </table>
+</section>
+
+<!-- Sources -->
+<footer class="sources">
+  <h3>参照資料</h3>
+  <ul>
+    <li>議事録：<code>docs/hibarai/2026-5-7.md</code></li>
+    <li><a href="https://gmo-aozora.com/business/api-cooperation/">銀行API接続｜GMOあおぞらネット銀行</a></li>
+    <li><a href="https://gmo-aozora.com/business/api-cooperation/apilineup.html">APIラインアップ</a></li>
+    <li><a href="https://gmo-aozora.com/business/service/apipayment.html">リアルタイム振込・入金サービス</a></li>
+    <li><a href="https://gmo-aozora.com/business/contents/fee.html">法人口座 手数料</a></li>
+    <li><a href="https://gmo-aozora.com/business/service/aozoraprime.html">振込料金とくとく会員</a></li>
+    <li><a href="https://help.gmo-aozora.com/faqs/6686541aefe214ffd634262c/">振込限度額・送金限度額（FAQ）</a></li>
+    <li><a href="https://help.gmo-aozora.com/faqs/6686541defe214ffd6342ac0/">振込先口座確認サービス（FAQ）</a></li>
+    <li><a href="https://api.gmo-aozora.com/ganb/developer/api-docs/">GMOあおぞらネット銀行API開発者ポータル</a></li>
+    <li><a href="https://gmo-aozora.com/business/service/pdf/api-spec-corporate.pdf">オープンAPI仕様書 法人口座編 v1.8.0（PDF）</a></li>
+    <li><a href="https://gmo-aozora.com/business/service/pdf/api-spec-webhooks.pdf">オープンAPI仕様書 イベント通知編 v1.8.0（PDF）</a></li>
+    <li><a href="https://github.com/gmoaozora/gmo-aozora-api-go">GMO Aozora Go SDK（GitHub）</a></li>
+    <li><a href="https://gmo-aozora.com/priv/contents/first-sunabar.html">sunabar（API実験場）</a></li>
+  </ul>
+  <p style="margin-top:16px; padding-top:12px; border-top: 1px solid var(--c-border); font-size: 11px;">
+    本レポートは MTG#1（2026-05-07）の議事録および GMO あおぞらネット銀行の公開情報をもとに、社内事業責任者向けに作成。仕様は今後の MTG・GMO 担当者へのヒアリングを経て確定。
+  </p>
+</footer>
+
+</div>
+</body>
+</html>

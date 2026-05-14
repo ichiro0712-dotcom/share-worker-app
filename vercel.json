@@ -49,6 +49,14 @@
     {
       "path": "/api/cron/email-quota",
       "schedule": "0 21 * * *"
+    },
+    {
+      "path": "/api/cron/advisor-cleanup",
+      "schedule": "0 19 * * *"
+    },
+    {
+      "path": "/api/cron/advisor-semantic-ingest",
+      "schedule": "30 19 * * *"
     }
   ]
 }

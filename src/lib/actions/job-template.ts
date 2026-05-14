@@ -1,9 +1,10 @@
 'use server';
 
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
-import { getFacilityAdminSessionData } from '@/lib/admin-session-server';
+import { getFacilityAdminSessionData, validateFacilityAccess } from '@/lib/admin-session-server';
 
 /**
  * 管理者用: 施設に属する全ての求人テンプレートを取得
@@ -39,6 +40,7 @@ export async function getAdminJobTemplates(facilityId: number) {
         attachments: template.attachments || [],
         notes: template.notes,
         tags: template.tags,
+        genderRequirement: (template as any).gender_requirement ?? null,
     }));
 }
 
@@ -87,6 +89,7 @@ export async function getJobTemplate(templateId: number, facilityId: number) {
         tags: template.tags,
         icons: template.tags,
         workContent: template.work_content || [],
+        genderRequirement: (template as any).gender_requirement ?? null,
     };
 }
 
@@ -119,6 +122,8 @@ export async function createJobTemplate(
         images?: string[];
         dresscodeImages?: string[];
         attachments?: string[];
+        // 性別指定（特定業務時のみ。施設管理者の参照用）
+        genderRequirement?: 'MALE_ONLY' | 'FEMALE_ONLY' | null;
     }
 ) {
     const session = await getFacilityAdminSessionData();
@@ -151,6 +156,7 @@ export async function createJobTemplate(
                 images: data.images || [],
                 dresscode_images: data.dresscodeImages || [],
                 attachments: data.attachments || [],
+                gender_requirement: data.genderRequirement ?? null,
             },
         });
 
@@ -252,6 +258,7 @@ export async function duplicateJobTemplate(templateId: number, facilityId: numbe
                 images: original.images || [],
                 dresscode_images: original.dresscode_images || [],
                 attachments: original.attachments || [],
+                gender_requirement: (original as any).gender_requirement ?? null,
             },
         });
 
@@ -334,6 +341,8 @@ export async function updateJobTemplate(
         images?: string[];
         dresscodeImages?: string[];
         attachments?: string[];
+        // 性別指定（特定業務時のみ。施設管理者の参照用）
+        genderRequirement?: 'MALE_ONLY' | 'FEMALE_ONLY' | null;
     }
 ) {
     const session = await getFacilityAdminSessionData();
@@ -381,6 +390,8 @@ export async function updateJobTemplate(
                 images: data.images || [],
                 dresscode_images: data.dresscodeImages || [],
                 attachments: data.attachments || [],
+                // genderRequirement は undefined のとき更新しない、null は明示的にクリア
+                ...(data.genderRequirement !== undefined && { gender_requirement: data.genderRequirement }),
             },
         });
 
@@ -430,6 +441,162 @@ export async function updateJobTemplate(
         return {
             success: false,
             error: 'テンプレートの更新に失敗しました',
+        };
+    }
+}
+
+/**
+ * 管理者用: 求人テンプレートを削除
+ * 安全側の挙動として、このテンプレートを使用している求人(Job)が1件でも存在する場合は
+ * 削除を中止する（元データ保護）。
+ */
+export async function deleteJobTemplate(templateId: number, facilityId: number) {
+    // 入力バリデーション
+    if (!Number.isInteger(templateId) || templateId <= 0) {
+        return { success: false, error: '不正なテンプレートIDです' };
+    }
+    if (!Number.isInteger(facilityId) || facilityId <= 0) {
+        return { success: false, error: '不正な施設IDです' };
+    }
+
+    // 認可: セッションのfacility_idと一致するか検証
+    const access = await validateFacilityAccess(facilityId);
+    if (!access.valid) {
+        return {
+            success: false,
+            error: access.error === 'unauthorized'
+                ? '認証が必要です'
+                : 'この施設にアクセスする権限がありません',
+        };
+    }
+    const session = access.session;
+
+    try {
+        // 権限確認: 同じ施設のテンプレートか
+        const existingTemplate = await prisma.jobTemplate.findFirst({
+            where: {
+                id: templateId,
+                facility_id: facilityId,
+            },
+        });
+
+        if (!existingTemplate) {
+            return {
+                success: false,
+                error: 'テンプレートが見つからないか、アクセス権限がありません',
+            };
+        }
+
+        // 使用中チェック: このテンプレートを参照する求人が1件でもあれば削除拒否
+        const referencingJobCount = await prisma.job.count({
+            where: { template_id: templateId },
+        });
+
+        if (referencingJobCount > 0) {
+            // ブロック理由を監査ログに記録（INFO相当）
+            logActivity({
+                userType: 'FACILITY',
+                userId: session?.adminId,
+                userEmail: session?.email,
+                action: 'JOB_TEMPLATE_DELETE',
+                targetType: 'JobTemplate',
+                targetId: templateId,
+                requestData: {
+                    facilityId,
+                    referencingJobCount,
+                    reason: 'IN_USE',
+                },
+                result: 'ERROR',
+                errorMessage: `Template in use by ${referencingJobCount} job(s)`,
+            }).catch(() => {});
+
+            return {
+                success: false,
+                error: 'このテンプレートは使用中の求人があるため削除できません',
+            };
+        }
+
+        try {
+            await prisma.jobTemplate.delete({
+                where: { id: templateId },
+            });
+        } catch (deleteError) {
+            // 競合フォールバック:
+            // count チェックと delete の間に Job が新規作成された場合、DBレベルの
+            // FK 制約 (ON DELETE RESTRICT) で P2003 が発生する。
+            // ユーザー向けには同じ「使用中」メッセージを返す。
+            if (
+                deleteError instanceof Prisma.PrismaClientKnownRequestError &&
+                deleteError.code === 'P2003'
+            ) {
+                logActivity({
+                    userType: 'FACILITY',
+                    userId: session?.adminId,
+                    userEmail: session?.email,
+                    action: 'JOB_TEMPLATE_DELETE',
+                    targetType: 'JobTemplate',
+                    targetId: templateId,
+                    requestData: {
+                        facilityId,
+                        reason: 'IN_USE_RACE',
+                    },
+                    result: 'ERROR',
+                    errorMessage: 'FK constraint violated (P2003) — template became in-use during delete',
+                }).catch(() => {});
+
+                return {
+                    success: false,
+                    error: 'このテンプレートは使用中の求人があるため削除できません',
+                };
+            }
+            throw deleteError;
+        }
+
+        console.log('[deleteJobTemplate] Template deleted:', templateId);
+
+        revalidatePath('/admin/jobs/templates');
+
+        // ログ記録
+        logActivity({
+            userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
+            action: 'JOB_TEMPLATE_DELETE',
+            targetType: 'JobTemplate',
+            targetId: templateId,
+            requestData: {
+                facilityId,
+                name: existingTemplate.name,
+                title: existingTemplate.title,
+            },
+            result: 'SUCCESS',
+        }).catch(() => {});
+
+        return {
+            success: true,
+        };
+    } catch (error) {
+        console.error('[deleteJobTemplate] Error:', error);
+
+        // エラーログ記録
+        logActivity({
+            userType: 'FACILITY',
+            userId: session?.adminId,
+            userEmail: session?.email,
+            action: 'JOB_TEMPLATE_DELETE',
+            targetType: 'JobTemplate',
+            targetId: templateId,
+            requestData: {
+                facilityId,
+            },
+            result: 'ERROR',
+            errorMessage: getErrorMessage(error),
+            errorStack: getErrorStack(error),
+        }).catch(() => {});
+
+        return {
+            success: false,
+            error: 'テンプレートの削除に失敗しました',
         };
     }
 }

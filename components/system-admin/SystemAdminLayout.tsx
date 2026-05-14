@@ -22,6 +22,7 @@ import {
     Clock,
     FileSpreadsheet,
     Megaphone,
+    Bot,
 } from 'lucide-react';
 
 interface SystemAdminLayoutProps {
@@ -36,21 +37,32 @@ export default function SystemAdminLayout({ children }: SystemAdminLayoutProps) 
     const { admin, adminLogout } = useSystemAuth();
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-    // サイドバー折りたたみ状態
-    const [isCollapsed, setIsCollapsed] = useState(false);
+    // サイドバー折りたたみ状態 (ユーザー設定)
+    const [userCollapsed, setUserCollapsed] = useState(false);
 
-    // 折りたたみ状態をlocalStorageから復元
+    /**
+     * 特定ページではサイドバーを強制的に折りたたんで広い作業領域を確保する。
+     * 該当ページから出た時点で userCollapsed の値に戻る。
+     */
+    const forceCollapsedPaths = [
+        '/system-admin/advisor/settings',
+    ];
+    const isForceCollapsed = !!pathname && forceCollapsedPaths.some((p) => pathname.startsWith(p));
+    const isCollapsed = isForceCollapsed || userCollapsed;
+
+    // 折りたたみ状態をlocalStorageから復元 (ユーザー設定のみ復元、forceCollapsed は別軸)
     useEffect(() => {
         const savedState = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
         if (savedState !== null) {
-            setIsCollapsed(savedState === 'true');
+            setUserCollapsed(savedState === 'true');
         }
     }, []);
 
-    // 折りたたみ状態をlocalStorageに保存
+    // 折りたたみ状態をlocalStorageに保存。force collapsed 時はユーザー設定を変更させない。
     const toggleCollapsed = () => {
-        const newState = !isCollapsed;
-        setIsCollapsed(newState);
+        if (isForceCollapsed) return;
+        const newState = !userCollapsed;
+        setUserCollapsed(newState);
         localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(newState));
     };
 
@@ -81,6 +93,12 @@ export default function SystemAdminLayout({ children }: SystemAdminLayoutProps) 
             icon: <BarChart3 className="w-5 h-5" />,
             href: '/system-admin/analytics',
             active: pathname?.startsWith('/system-admin/analytics'),
+        },
+        {
+            title: 'システムアドバイザー',
+            icon: <Bot className="w-5 h-5" />,
+            href: '/system-admin/advisor',
+            active: pathname?.startsWith('/system-admin/advisor'),
         },
         {
             title: 'ワーカー管理',

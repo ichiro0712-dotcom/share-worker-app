@@ -50,6 +50,7 @@ const publicPaths = [
   '/robots.txt', // SEO: robots.txt
   '/sitemap.xml', // SEO: サイトマップ
   '/lp', // LP関連ページ（/lp, /lp/1, /lp/tracking等）
+  '/advisor/r', // System Advisor レポート公開シェア (URLを知っている人なら誰でも閲覧可)
 ];
 
 // 静的ファイルとAPI認証エンドポイント
@@ -72,6 +73,9 @@ const ignoredPaths = [
   '/api/cron', // Cron API（Vercel CronがCRON_SECRET認証を使用）
   '/api/upload', // アップロードAPI（API側で独自認証を実施）
   '/api/sms', // SMS認証API（新規登録時に未ログインで使用）
+  '/api/job-analytics', // 求人アナリティクスAPI（API側で system-admin 認証を実施）
+  '/api/funnel-analytics', // 登録動線アナリティクスAPI（API側で system-admin 認証を実施）
+  '/api/ga-analytics', // GA4 アナリティクスAPI（API側で system-admin 認証を実施）
   '/rogo', // ロゴ画像
   '/images', // 画像ファイル
   '/icons', // アイコン
@@ -91,9 +95,15 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 管理者ページは別の認証システム（localStorage）を使用しているためスキップ
+  // 管理者ページは別の認証システム（localStorage / iron-session）を使用しているためスキップ
   // Basic認証も適用しない（/admin, /system-admin は独自のログイン画面を持つ）
-  if (pathname.startsWith('/admin') || pathname.startsWith('/system-admin') || pathname.startsWith('/api/system-admin')) {
+  // /api/advisor は System Admin 専用なので NextAuth スキップ + iron-session 認証で別途守る
+  if (
+    pathname.startsWith('/admin') ||
+    pathname.startsWith('/system-admin') ||
+    pathname.startsWith('/api/system-admin') ||
+    pathname.startsWith('/api/advisor')
+  ) {
     return NextResponse.next();
   }
 

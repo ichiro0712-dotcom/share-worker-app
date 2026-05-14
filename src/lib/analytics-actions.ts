@@ -1,6 +1,7 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
+import { requireSystemAdminAuth } from '@/lib/system-admin-session-server';
 import {
     startOfMonth, endOfMonth, startOfYear, endOfYear,
     format, eachDayOfInterval, eachMonthOfInterval, differenceInHours
@@ -239,6 +240,7 @@ async function getRegionWhere(regionId: number | undefined) {
 // ========== ワーカー分析 ==========
 
 export async function getWorkerAnalyticsData(filter: AnalyticsFilter): Promise<WorkerMetrics[]> {
+    await requireSystemAdminAuth();
     const { dateList, dateFormat } = getDateRanges(filter);
     const periodWhere = getPeriodWhere(filter);
     const regionWhere = await getRegionWhere(filter.regionId);
@@ -411,6 +413,7 @@ export async function getWorkerAnalyticsData(filter: AnalyticsFilter): Promise<W
 // ========== 施設分析 ==========
 
 export async function getFacilityAnalyticsData(filter: AnalyticsFilter): Promise<FacilityMetrics[]> {
+    await requireSystemAdminAuth();
     const { dateList, dateFormat } = getDateRanges(filter);
     const periodWhere = getPeriodWhere(filter);
     const regionWhere = await getRegionWhere(filter.regionId);
@@ -549,6 +552,7 @@ export async function getFacilityAnalyticsData(filter: AnalyticsFilter): Promise
 // ========== 応募・マッチング分析 ==========
 
 export async function getMatchingAnalyticsData(filter: AnalyticsFilter): Promise<MatchingMetrics[]> {
+    await requireSystemAdminAuth();
     const { dateList, dateFormat } = getDateRanges(filter);
     const periodWhere = getPeriodWhere(filter);
     const regionWhere = await getRegionWhere(filter.regionId);

@@ -48,6 +48,8 @@ interface JobDetailClientProps {
   scheduledJobs?: ScheduledJob[]; // ユーザーのスケジュール済み仕事（時間重複判定用）
   isPublic?: boolean; // 公開版（未ログイン）表示モード
   interviewPassRate?: InterviewPassRateData | null; // 面接通過率データ（審査あり求人用）
+  /** 性別指定による応募可否（サーバー側判定結果）。allowed=false の場合は応募ボタンを無効化 */
+  genderApplyResult?: { allowed: boolean; reason?: string };
 }
 
 /**
@@ -67,7 +69,7 @@ function isTimeOverlapping(start1: string, end1: string, start2: string, end2: s
   return e1 > s2 && e2 > s1;
 }
 
-export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, facilityReviews, initialHasApplied: _initialHasApplied, initialAppliedWorkDateIds = [], selectedDate, isPreviewMode = false, scheduledJobs = [], isPublic = false, interviewPassRate = null }: JobDetailClientProps) {
+export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, facilityReviews, initialHasApplied: _initialHasApplied, initialAppliedWorkDateIds = [], selectedDate, isPreviewMode = false, scheduledJobs = [], isPublic = false, interviewPassRate = null, genderApplyResult }: JobDetailClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { refreshBadges } = useBadge();
@@ -1533,21 +1535,28 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
       {!isPreviewMode && !isPublic && (
         <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-200 z-10" style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom))' }}>
           <div className="p-4">
+            {genderApplyResult && !genderApplyResult.allowed && (
+              <p className="text-xs text-red-600 mb-2 text-center">
+                {genderApplyResult.reason || 'この求人は応募条件を満たしていないため応募不可です'}
+              </p>
+            )}
             <Button
               onClick={handleApplyButtonClick}
               size="lg"
               className="w-full"
-              disabled={isApplying || selectedWorkDateIds.length === 0 || !hasAvailableDates}
+              disabled={isApplying || selectedWorkDateIds.length === 0 || !hasAvailableDates || (genderApplyResult ? !genderApplyResult.allowed : false)}
             >
-              {!hasAvailableDates
-                ? '応募できる日程がありません'
-                : isApplying
-                  ? (job.jobType === 'OFFER' ? '受諾中...' : '応募中...')
-                  : selectedWorkDateIds.length > 0
-                    ? (job.jobType === 'OFFER' ? 'オファーを受ける' : `${selectedWorkDateIds.length}件の日程に応募する`)
-                    : !hasAvailableDates
-                      ? '応募できる日程がありません'
-                      : '日程を選択してください'}
+              {genderApplyResult && !genderApplyResult.allowed
+                ? '応募条件を満たしていません'
+                : !hasAvailableDates
+                  ? '応募できる日程がありません'
+                  : isApplying
+                    ? (job.jobType === 'OFFER' ? '受諾中...' : '応募中...')
+                    : selectedWorkDateIds.length > 0
+                      ? (job.jobType === 'OFFER' ? 'オファーを受ける' : `${selectedWorkDateIds.length}件の日程に応募する`)
+                      : !hasAvailableDates
+                        ? '応募できる日程がありません'
+                        : '日程を選択してください'}
             </Button>
           </div>
         </div>

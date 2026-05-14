@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { Eye, EyeOff } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { PhoneNumberInput } from '@/components/ui/PhoneNumberInput';
@@ -13,51 +14,20 @@ import RegistrationPageTracker from '@/components/tracking/RegistrationPageTrack
 import { isValidPhoneNumber } from '@/utils/inputValidation';
 import { HOUR_TIME_OPTIONS } from '@/constants/time-options';
 import { normalizeDesiredWorkDays } from '@/src/lib/normalize-desired-work-days';
+import {
+  REGISTRATION_QUALIFICATION_OPTIONS,
+  DESIRED_WORK_STYLE_OPTIONS,
+  WORK_FREQUENCY_OPTIONS,
+  WORK_FREQUENCY_SPOT_OPTION,
+  DESIRED_WORK_PERIOD_OPTIONS,
+  DESIRED_WORK_DAY_OPTIONS,
+  JOB_TIMING_OPTIONS,
+  EMPLOYMENT_STATUS_OPTIONS,
+} from '@/constants/worker-registration-options';
 
 // フォーム入力ステップ (1〜8) + SMS認証ステップ (sms)
 // PP 同意後に SMS を送信するため、認証は step 8 の後に別画面で行う
 type StepId = '1' | '2' | '2b' | '2c' | '3' | '4' | '5' | '6' | '7' | '8' | 'sms';
-
-// 資格オプション：表示ラベルとDB保存値のマッピング
-const QUALIFICATION_OPTIONS: { label: string; value: string }[] = [
-  { label: '正看護師', value: '看護師' },
-  { label: '准看護師', value: '准看護師' },
-  { label: '介護福祉士', value: '介護福祉士' },
-  { label: '実務者研修（ヘルパー1級）', value: '実務者研修' },
-  { label: '初任者研修（ヘルパー2級）', value: '初任者研修' },
-  { label: 'その他', value: 'その他' },
-];
-
-const DESIRED_WORK_STYLE_OPTIONS = [
-  '単発・スポット',
-  '常勤・正社員',
-  '非常勤・パート（扶養内）',
-  '非常勤・パート（扶養外）',
-  '派遣',
-  'こだわらない',
-];
-
-const WORK_FREQUENCY_OPTIONS = ['週1回', '週2〜3回', '週4〜5回', '週5回'];
-
-// step 2c: 希望勤務期間
-const DESIRED_WORK_PERIOD_OPTIONS = [
-  '1週間以内',
-  '3週間以内',
-  '1〜2ヶ月',
-  '3〜6ヶ月',
-  '6ヶ月以上',
-  '未定',
-];
-
-// step 2c: 希望勤務曜日（月〜日 + 特になし）
-const DESIRED_WORK_DAY_OPTIONS = ['月', '火', '水', '木', '金', '土', '日', '特になし'];
-const JOB_TIMING_OPTIONS = ['いますぐ', '1ヶ月以内', '3ヶ月以内', 'いまは情報収集のみ'];
-const EMPLOYMENT_STATUS_OPTIONS = [
-  '就業中（常勤・正社員）',
-  '就業中（非常勤・パート）',
-  '離職中',
-  '学生',
-];
 
 // SMS ステップで電話番号を見やすく表示（090-1234-5678）
 function formatPhoneForDisplay(phoneNumber: string): string {
@@ -97,6 +67,15 @@ function WorkerRegisterPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { showDebugError } = useDebugError();
+  const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
+
+  // ログイン済みワーカーがこのページに来た場合は求人トップへ転送
+  // (LPバナー「タスタスに登録」からの導線を非会員/会員でハンドリングするため)
+  useEffect(() => {
+    if (!isAuthLoading && isAuthenticated) {
+      router.replace('/');
+    }
+  }, [isAuthLoading, isAuthenticated, router]);
 
   const [currentStep, setCurrentStep] = useState<StepId>('1');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -260,7 +239,7 @@ function WorkerRegisterPageInner() {
     }
     if (
       !form.desiredWorkStyle.includes('単発・スポット') &&
-      form.workFrequency === '不定期/決まっていない'
+      form.workFrequency === WORK_FREQUENCY_SPOT_OPTION
     ) {
       setField('workFrequency', '');
     }
@@ -589,8 +568,8 @@ function WorkerRegisterPageInner() {
         <div className="px-5 pb-32">
           {currentStep === '1' && (
             <StepContainer question="どんな資格をお持ちですか？" hint="複数選択できます">
-              <div className="grid grid-cols-2 gap-2.5">
-                {QUALIFICATION_OPTIONS.map(opt => (
+              <div className="grid grid-cols-2 gap-2 [&>button]:min-h-[56px] [&>button]:p-3">
+                {REGISTRATION_QUALIFICATION_OPTIONS.map(opt => (
                   <CardOption
                     key={opt.value}
                     label={opt.label}
@@ -641,10 +620,10 @@ function WorkerRegisterPageInner() {
                 ))}
                 {form.desiredWorkStyle.includes('単発・スポット') && (
                   <CardOption
-                    label="不定期/決まっていない"
+                    label={WORK_FREQUENCY_SPOT_OPTION}
                     fullWidth
-                    selected={form.workFrequency === '不定期/決まっていない'}
-                    onClick={() => setField('workFrequency', '不定期/決まっていない')}
+                    selected={form.workFrequency === WORK_FREQUENCY_SPOT_OPTION}
+                    onClick={() => setField('workFrequency', WORK_FREQUENCY_SPOT_OPTION)}
                   />
                 )}
               </div>

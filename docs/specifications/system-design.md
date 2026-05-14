@@ -728,6 +728,17 @@ NEXTAUTH_URL="http://localhost:3000"
 | `cancelRateThreshold` | キャンセル率閾値 | この値を超えるキャンセル率でアラートが発動する | 通知設定で設定可能（デフォルト: 30%） | ダッシュボード アラート |
 | `consecutiveLowRatingCount` | 連続低評価回数 | この回数連続で低評価を受けるとアラートが発動する | 通知設定で設定可能（デフォルト: 3回） | ダッシュボード アラート |
 
+### 9.10 system-admin 内部 API 認証境界
+
+`/api/funnel-analytics` と `/api/job-analytics` は system-admin 画面のタブから呼び出す内部 API である。ワーカー向け NextAuth middleware で 401 にならないよう `middleware.ts` の `ignoredPaths` に追加するが、route handler 側で `getSystemAdminSessionData()` を必ず実行する。
+
+| API | middleware | route handler |
+|---|---|---|
+| `/api/funnel-analytics` | NextAuth JWT 対象外 | system-admin セッション必須 |
+| `/api/job-analytics` | NextAuth JWT 対象外 | system-admin セッション必須 |
+
+この分離により、ワーカー認証と system-admin 認証を混在させずに管理画面の集計 API を使える。`ignoredPaths` へ追加する API は、同じように handler 内で独自認証を持つことを条件にする。
+
 ---
 
 ## 10. 通知システム
@@ -846,6 +857,7 @@ notification_settings (
 
 | 日付 | 内容 |
 |------|------|
+| 2026-05-11 | system-admin 内部アナリティクス API の middleware バイパスと route handler 認証責務を追記 |
 | 2026-02-25 | 登録動線分析（9.8）: 集計方式を「コホート集計」として明記、全指標の計算方法を実装と整合（行動日フィルターなし明記）、applicationTotal指標追加、ソースフィルター転換率制約追記 |
 | 2026-02-25 | 登録動線分析（9.8）: PV指標4種追加（登録ページPV/UU、検索PV、詳細PV）、応募ボタンクリックUU追加、お気に入り定義修正（施設お気に入り除外）、ソースフィルター制約注記 |
 | 2026-02-24 | 指標定義: 求人分析（9.7）・登録動線分析（9.8）セクション追加、退会済みユーザーのログ保持ポリシー明記 |

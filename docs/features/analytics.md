@@ -336,3 +336,28 @@ components/system-admin/
 | 登録離脱トラッキング | 未実装 | 登録フローにイベント発火追加必要 |
 | 直前キャンセルの定義 | 要確認 | 24時間以内でOK？ |
 | バッチ処理の実行環境 | 要検討 | cron, Vercel Cron, 外部サービス |
+
+---
+
+## 13. 求人アナリティクス API 認証
+
+`/api/funnel-analytics` と `/api/job-analytics` は system-admin 画面から内部 API として呼び出される。NextAuth のワーカー向け middleware で 401 にならないよう、`middleware.ts` の `ignoredPaths` に以下を追加している。
+
+- `/api/job-analytics`
+- `/api/funnel-analytics`
+
+ただし認証を無くしたわけではない。各 route handler の先頭で `getSystemAdminSessionData()` を呼び、system-admin セッションが無い場合は 401 を返す。
+
+### 13.1 認証責務の分離
+
+| 層 | 責務 |
+|---|---|
+| `middleware.ts` | ワーカー向け NextAuth JWT の強制対象から内部 API を除外する |
+| `app/api/funnel-analytics/route.ts` | system-admin セッションを検証し、登録動線 KPI を返す |
+| `app/api/job-analytics/route.ts` | system-admin セッションを検証し、求人 PV / 応募 KPI を返す |
+
+### 13.2 セキュリティ注意点
+
+- `ignoredPaths` に入れる API は、route handler 側で必ず独自認証を行う。
+- `Cache-Control: no-store` を返し、管理画面の集計値を共有キャッシュに載せない。
+- クライアントからの `startDate`, `endDate`, `breakdown` は集計条件であり、認可条件として扱わない。

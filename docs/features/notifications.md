@@ -307,3 +307,30 @@ VAPID_SUBJECT=mailto:support@tastas.jp
 └── lib/
     └── push-notification.ts
 ```
+
+---
+
+## 10. 施設向けメール送信先
+
+施設向け通知メールの送信先は `Facility.staff_emails` に統一する。旧来の単一メール項目や管理者メールからの推測送信は使わない。
+
+### 10.1 対象処理
+
+| 処理 | 実装箇所 | 通知キー例 |
+|---|---|---|
+| 勤務前日リマインド | `app/api/cron/notifications/route.ts` | `FACILITY_REMINDER_DAY_BEFORE` |
+| 求人締切警告 | `app/api/cron/notifications/route.ts` | `FACILITY_DEADLINE_WARNING` |
+| 新規応募 | `src/lib/actions/notification.ts` | `FACILITY_NEW_APPLICATION` |
+| レビュー依頼・レビュー受信 | `src/lib/actions/notification.ts` | `FACILITY_REVIEW_REQUEST`, `FACILITY_REVIEW_RECEIVED` |
+| 募集枠充足 | `src/lib/actions/notification.ts` | `FACILITY_SLOTS_FILLED` |
+| 新着メッセージ | `src/lib/actions/notification.ts` | `FACILITY_NEW_MESSAGE` |
+
+### 10.2 送信ルール
+
+- `staff_emails` が空配列または未設定の場合は送信をスキップし、ログに施設 ID を残す。
+- テンプレート変数は送信前にすべて展開する。未置換の `{{variable}}` が残らないよう、通知テンプレート更新時にテスト送信で確認する。
+- 施設管理画面の「通知先メールアドレス」を唯一の運用入力とする。
+
+### 10.3 移行手順
+
+既存施設で `staff_emails` が空の場合は、`prisma/seed-fix-staff-emails-staging.ts` を参考にステージングで補完後、本番用の移行スクリプトを作成する。移行後は dev portal の通知ログで施設向け通知の宛先を確認する。

@@ -4,6 +4,7 @@ import { Resend } from 'resend';
 import { getTodayStart } from '@/utils/debugTime';
 import { getVersionForLog } from '@/lib/version';
 import { cacheResendQuotaHeader } from '@/src/lib/resend-quota';
+import { canApplyByGender } from '@/src/lib/jobGenderMatching';
 
 // Resend設定（遅延初期化 - APIキーがない場合はnull）
 let resend: Resend | null = null;
@@ -679,13 +680,17 @@ export async function sendNearbyJobNotifications(
         const canSend = await canSendNearbyNotification(workerId, notificationKey, maxPerDay);
         if (!canSend) continue;
 
-        // ワーカー情報を取得（名前に置換するため）
+        // ワーカー情報を取得（名前に置換するため・性別フィルタ用）
         const worker = await prisma.user.findUnique({
             where: { id: workerId },
-            select: { name: true, email: true, last_name_kana: true }
+            select: { name: true, email: true, last_name_kana: true, gender: true }
         });
 
         if (!worker) continue;
+
+        // 性別指定フィルタ: 応募できないワーカーには通知しない
+        const genderCheck = canApplyByGender(job.gender_requirement, worker.gender);
+        if (!genderCheck.allowed) continue;
 
         // 通知データ準備
         const variables = {

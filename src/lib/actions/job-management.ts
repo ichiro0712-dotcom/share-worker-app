@@ -511,6 +511,8 @@ export async function createJobs(input: CreateJobInput) {
             // オファー用
             target_worker_id: input.targetWorkerId ?? null,
             offer_message: input.offerMessage ?? null,
+            // 性別指定（特定業務時のみ。施設管理者の参照用）
+            gender_requirement: input.genderRequirement ?? null,
         },
     });
 
@@ -944,6 +946,8 @@ export async function updateJob(
         recruitmentStartTime?: string;
         recruitmentEndDay?: number;
         recruitmentEndTime?: string;
+        // 性別指定（特定業務時のみ。施設管理者の参照用）
+        genderRequirement?: 'MALE_ONLY' | 'FEMALE_ONLY' | null;
     }
 ): Promise<{ success: boolean; error?: string }> {
     // セッションからユーザー情報を取得
@@ -1039,6 +1043,8 @@ export async function updateJob(
                 ...((data.prefecture && data.city && data.addressLine) && {
                     address: `${data.prefecture}${data.city}${data.addressLine}`
                 }),
+                // 性別指定（undefined のときは更新しない、null のときは明示的にクリア）
+                ...(data.genderRequirement !== undefined && { gender_requirement: data.genderRequirement }),
                 updated_at: new Date(),
             },
         });

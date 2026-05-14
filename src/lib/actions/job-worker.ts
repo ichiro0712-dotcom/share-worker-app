@@ -15,6 +15,26 @@ import {
     JobListType
 } from './helpers';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
+import { buildGenderFilterWhere } from '@/src/lib/jobGenderMatching';
+
+/**
+ * 現在ログイン中ユーザーの性別を取得（未ログイン時はnull）
+ * 求人一覧の性別フィルタで使用
+ */
+async function getCurrentUserGender(): Promise<string | null> {
+    try {
+        const session = await getServerSession(authOptions);
+        if (!session?.user?.id) return null;
+        const userId = parseInt(session.user.id, 10);
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { gender: true },
+        });
+        return user?.gender ?? null;
+    } catch {
+        return null;
+    }
+}
 
 /**
  * キャッシュされた求人詳細を取得
@@ -123,28 +143,26 @@ export async function getJobs(
     }
 
     // 都道府県フィルター
+    // Job.prefecture（厳密一致）を優先、未設定の旧データは Job.address のあいまい一致で救済
     if (searchParams?.prefecture) {
-        facilityConditions.address = {
-            contains: searchParams.prefecture,
-            mode: 'insensitive',
-        };
+        whereConditions.AND = whereConditions.AND || [];
+        whereConditions.AND.push({
+            OR: [
+                { prefecture: searchParams.prefecture },
+                { address: { contains: searchParams.prefecture, mode: 'insensitive' } },
+            ],
+        });
     }
 
-    // 市区町村フィルター（都道府県と組み合わせる）
+    // 市区町村フィルター
     if (searchParams?.city) {
-        if (facilityConditions.address) {
-            // 都道府県と市区町村の両方を含む
-            facilityConditions.AND = [
-                { address: { contains: searchParams.prefecture, mode: 'insensitive' } },
+        whereConditions.AND = whereConditions.AND || [];
+        whereConditions.AND.push({
+            OR: [
+                { city: searchParams.city },
                 { address: { contains: searchParams.city, mode: 'insensitive' } },
-            ];
-            delete facilityConditions.address;
-        } else {
-            facilityConditions.address = {
-                contains: searchParams.city,
-                mode: 'insensitive',
-            };
-        }
+            ],
+        });
     }
 
     // サービス種別フィルター（複数選択対応）
@@ -327,6 +345,11 @@ export async function getJobs(
             });
         }
     }
+
+    // 性別指定フィルタ（求人の gender_requirement と ユーザー性別をマッチング）
+    const userGender = await getCurrentUserGender();
+    whereConditions.AND = whereConditions.AND || [];
+    whereConditions.AND.push(buildGenderFilterWhere(userGender));
 
     const jobs = await prisma.job.findMany({
         where: whereConditions,
@@ -693,28 +716,26 @@ export async function getJobsListWithPagination(
     }
 
     // 都道府県フィルター
+    // Job.prefecture（厳密一致）を優先、未設定の旧データは Job.address のあいまい一致で救済
     if (searchParams?.prefecture) {
-        facilityConditions.address = {
-            contains: searchParams.prefecture,
-            mode: 'insensitive',
-        };
+        whereConditions.AND = whereConditions.AND || [];
+        whereConditions.AND.push({
+            OR: [
+                { prefecture: searchParams.prefecture },
+                { address: { contains: searchParams.prefecture, mode: 'insensitive' } },
+            ],
+        });
     }
 
-    // 市区町村フィルター（都道府県と組み合わせる）
+    // 市区町村フィルター
     if (searchParams?.city) {
-        if (facilityConditions.address) {
-            // 都道府県と市区町村の両方を含む
-            facilityConditions.AND = [
-                { address: { contains: searchParams.prefecture, mode: 'insensitive' } },
+        whereConditions.AND = whereConditions.AND || [];
+        whereConditions.AND.push({
+            OR: [
+                { city: searchParams.city },
                 { address: { contains: searchParams.city, mode: 'insensitive' } },
-            ];
-            delete facilityConditions.address;
-        } else {
-            facilityConditions.address = {
-                contains: searchParams.city,
-                mode: 'insensitive',
-            };
-        }
+            ],
+        });
     }
 
     // サービス種別フィルター（複数選択対応）
@@ -957,6 +978,11 @@ export async function getJobsListWithPagination(
     if (sort === 'wage') {
         orderByCondition = { hourly_wage: 'desc' };
     }
+
+    // 性別指定フィルタ（求人の gender_requirement と ユーザー性別をマッチング）
+    const userGender = await getCurrentUserGender();
+    whereConditions.AND = whereConditions.AND || [];
+    whereConditions.AND.push(buildGenderFilterWhere(userGender));
 
     // workDatesの取得条件（先に定義して並列実行可能に）
     const workDatesWhereCondition: any = {
@@ -1702,6 +1728,9 @@ export async function getBookmarkedJobs(type: 'FAVORITE' | 'WATCH_LATER', option
         const limit = options?.limit ?? 50; // デフォルト50件
         const offset = options?.offset ?? 0;
 
+        // 性別指定フィルタ: ターゲット求人の gender_requirement とユーザー性別が一致するブックマークのみ
+        const genderFilter = buildGenderFilterWhere(user.gender);
+
         const bookmarks = await prisma.bookmark.findMany({
             where: {
                 user_id: user.id,
@@ -1709,6 +1738,7 @@ export async function getBookmarkedJobs(type: 'FAVORITE' | 'WATCH_LATER', option
                 target_job_id: {
                     not: null,
                 },
+                targetJob: { is: genderFilter },
             },
             include: {
                 targetJob: {
@@ -1764,6 +1794,10 @@ export async function getJobListTypeCounts(): Promise<{
     // 日本時間（JST）での今日の開始時刻を使用
     const todayStart = getJSTTodayStart(now);
 
+    // 性別指定フィルタ
+    const userGender = await getCurrentUserGender();
+    const genderFilter = buildGenderFilterWhere(userGender);
+
     // 基本条件（表示可能な求人）
     const baseConditions: any = {
         status: { in: ['PUBLISHED', 'WORKING', 'COMPLETED'] },
@@ -1788,7 +1822,8 @@ export async function getJobListTypeCounts(): Promise<{
         },
         facility: {
             deleted_at: null,
-        }
+        },
+        AND: [genderFilter],
     };
 
     // 「すべて」の件数（通常求人・説明会）

@@ -117,3 +117,25 @@ export type JobType = typeof JOB_TYPES[number];
 export type WorkContentOption = typeof WORK_CONTENT_OPTIONS[number];
 export type QualificationOption = typeof QUALIFICATION_OPTIONS[number];
 export type IconOption = typeof ICON_OPTIONS[number];
+
+// 性別指定（特定業務でのみ施設管理者が設定。ワーカー側UIには表示しない / 施設運営者の参照用）
+export const GENDER_REQUIREMENT_VALUES = ['MALE_ONLY', 'FEMALE_ONLY'] as const;
+export type GenderRequirement = typeof GENDER_REQUIREMENT_VALUES[number];
+
+export const GENDER_REQUIREMENT_LABELS: Record<GenderRequirement, string> = {
+  MALE_ONLY: '男性のみ',
+  FEMALE_ONLY: '女性のみ',
+};
+
+// 性別指定が必要となる業務（要件: 排泄介助・入浴介助系）
+export const WORK_CONTENTS_REQUIRING_GENDER: ReadonlyArray<string> = [
+  '排泄介助',
+  '入浴介助(全般)',
+  '入浴介助(大浴場)',
+  '入浴介助(個浴)',
+  '入浴介助(機械浴)',
+];
+
+export function requiresGenderSpecification(workContent: string[]): boolean {
+  return workContent.some((c) => WORK_CONTENTS_REQUIRING_GENDER.includes(c));
+}

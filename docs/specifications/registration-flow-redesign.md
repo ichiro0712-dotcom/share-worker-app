@@ -272,8 +272,8 @@ autoLoginUrl.searchParams.set('redirect', '/job-list');
 - 性別
 - 国籍
 - 緊急連絡先（氏名・電話番号）
-- 現在の働き方
-- 希望の働き方
+- お仕事のご状況
+- 希望の働き方（複数選択）
 - 銀行口座情報（銀行名、支店名、口座名義、口座番号）
 - 通帳コピー
 - 身分証明書
@@ -501,3 +501,23 @@ if (formData.accountName && !isKatakanaWithSpaceOnly(formData.accountName)) {
 1. **Phase 1**: 登録フォーム2ステップ化 + API変更 + メール認証リダイレクト変更 + プロフィール保存バリデーション緩和
 2. **Phase 2**: PWAインストール促進（モーダル + バナー）
 3. **Phase 3**: プロフィール未入力リマインド（バナー + バッジ + 求人詳細警告）
+
+---
+
+## 11. ログイン済みユーザーの新規登録ページアクセス
+
+LP の「タスタスに登録」バナーなどから `/register/worker` に遷移した際、既にログイン済みのワーカーは新規登録フォームを表示せず求人トップへ転送する。
+
+### 11.1 挙動
+
+| 状態 | 遷移 |
+|---|---|
+| 未ログイン | `/register/worker` の登録フォームを表示 |
+| ログイン済み | `router.replace('/')` で求人トップへ転送 |
+| 認証状態ロード中 | 判定完了までページ内で待機 |
+
+### 11.2 実装メモ
+
+`app/register/worker/page.tsx` で `useAuth()` の `isAuthenticated` と `isLoading` を参照する。`isAuthLoading` が false になり、かつ `isAuthenticated` が true の場合のみ redirect する。
+
+この分岐は会員が LP 経由で再度登録フォームに入ってしまう混乱を避けるためのもので、未会員の登録導線には影響しない。

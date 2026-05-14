@@ -535,3 +535,17 @@ await prisma.model.findMany({ where: { date_field: { lte: todayEnd } } });
 - Run `npm run build` before committing to ensure no TypeScript errors
 - Server Actions for all DB operations (see `src/lib/actions.ts`)
 - Use existing component patterns from `components/ui/`
+
+## 進行中の機能
+
+### System Advisor (`/system-admin/advisor`)
+
+System Admin 専用の LLM チャットボット (Anthropic Claude + Tool Use)。
+ローカル動作確認済み、ステージング/本番未展開。
+
+**新セッション開始時に必読**:
+- [docs/system-advisor/HANDOFF.md](docs/system-advisor/HANDOFF.md) — 現状ステータス・タスク・セッション履歴
+- [docs/system-advisor/DEPLOY_CHECKLIST.md](docs/system-advisor/DEPLOY_CHECKLIST.md) — **デプロイ時のやることリスト (永続化、セッションをまたいで残る)**
+
+**デプロイ系作業 (ステージング/本番への DB push、Vercel 環境変数追加、動作確認) は
+DEPLOY_CHECKLIST.md のチェックボックスで進捗管理する。HANDOFF.md には書かない。**
