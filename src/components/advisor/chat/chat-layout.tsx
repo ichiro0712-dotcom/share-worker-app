@@ -461,9 +461,15 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
         // execute_sql の成功結果 (table_id を含む) を一時バッファに積む。
         // done で「直前 assistant メッセージ」に紐づける。
         const d = data.data as Record<string, unknown>
-        if (typeof d.table_id === 'string' && Array.isArray(d.columns) && Array.isArray(d.rows)) {
+        if (
+          typeof d.table_id === 'string' &&
+          typeof d.table_db_id === 'number' &&
+          Array.isArray(d.columns) &&
+          Array.isArray(d.rows)
+        ) {
           streamingTablesRef.current.push({
             tableId: d.table_id,
+            tableDbId: d.table_db_id,
             purpose: String(d.purpose ?? ''),
             columns: d.columns as SqlResultTableData['columns'],
             rows: d.rows as unknown[][],

@@ -1,10 +1,18 @@
 'use client'
 
-import { useState } from 'react'
-import { Button } from '@/src/components/ui/shadcn/button'
+import { useEffect, useRef, useState, useCallback } from 'react'
+import { Copy, Check, Share2 } from 'lucide-react'
+import {
+  enableTableShare,
+  disableTableShare,
+  getTableShareState,
+} from '@/src/lib/advisor/actions/chat-tables'
 
 export interface SqlResultTableData {
-  tableId: string // "T-001"
+  /** 表示用 ID ("T-001") */
+  tableId: string
+  /** DB 上の数値 ID (共有 Server Action で使う) */
+  tableDbId: number
   purpose: string
   columns: Array<{ key: string; label: string; type?: string }>
   rows: unknown[][]
@@ -15,12 +23,9 @@ export interface SqlResultTableData {
 
 export interface SqlResultTableProps {
   data: SqlResultTableData
-  /**
-   * 「レポートに送る」ボタン押下時のコールバック。
-   * チャット側で hidden hint メッセージを送って add_tables_to_report を呼ぶ。
-   */
+  /** [📋 レポートに送る] 押下時のコールバック */
   onSendToReport?: (tableId: string) => void
-  /** ボタンを無効化 (送信中など) */
+  /** ボタン無効化 (送信中など) */
   sendDisabled?: boolean
 }
 
@@ -28,46 +33,43 @@ const PREVIEW_ROWS = 20
 
 /**
  * execute_sql の結果を表として表示する。
- * - ヘッダに表 ID バッジ (T-001) と purpose を表示
- * - 21 行目以降は折りたたみ
- * - [📋 レポートに送る] ボタンを下部に配置
+ * デザインは既存の MarkdownTable に揃える (slate ベース、border + bg-white)。
+ *
+ * 表ヘッダは最小限 (表 ID クリック可・行数・所要時間)。
+ * 共有ボタンはドロップダウンで Sheets コピー / レポート送信 / URL 共有 を提供。
  */
 export function SqlResultTable({
   data,
   onSendToReport,
   sendDisabled,
 }: SqlResultTableProps) {
+  const tableRef = useRef<HTMLTableElement | null>(null)
   const [expanded, setExpanded] = useState(false)
+  const [tableIdCopied, setTableIdCopied] = useState(false)
   const rowsToShow = expanded ? data.rows : data.rows.slice(0, PREVIEW_ROWS)
   const hasMore = data.rows.length > PREVIEW_ROWS
 
-  return (
-    <div className="my-3 rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
-      <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 px-3 py-2 text-xs dark:border-gray-700">
-        <span className="inline-flex items-center rounded bg-blue-600 px-2 py-0.5 font-mono text-white">
-          {data.tableId}
-        </span>
-        <span className="text-gray-700 dark:text-gray-200">{data.purpose}</span>
-        <span className="ml-auto text-gray-400 dark:text-gray-500">
-          {data.rowCount.toLocaleString('ja-JP')} 行
-          {data.truncated ? ' (上限到達)' : ''}
-          {typeof data.durationMs === 'number'
-            ? ` · ${data.durationMs}ms`
-            : ''}
-        </span>
-      </div>
+  function handleCopyTableId() {
+    navigator.clipboard.writeText(data.tableId).catch(() => {
+      /* ignore */
+    })
+    setTableIdCopied(true)
+    setTimeout(() => setTableIdCopied(false), 1500)
+  }
 
-      <div className="overflow-x-auto">
+  return (
+    <div className="my-3">
+      <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
         {data.columns.length === 0 || data.rows.length === 0 ? (
-          <div className="p-4 text-sm text-gray-500">データなし</div>
+          <div className="p-4 text-sm text-slate-500">データなし</div>
         ) : (
-          <table className="min-w-full text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-800">
+          <table ref={tableRef} className="w-full text-xs border-collapse">
+            <thead>
               <tr>
                 {data.columns.map((c) => (
                   <th
                     key={c.key}
-                    className="px-3 py-2 text-left font-medium text-gray-700 dark:text-gray-200"
+                    className="text-left py-2 px-3 font-medium text-slate-700 bg-slate-50 border-b border-slate-200"
                   >
                     {c.label}
                   </th>
@@ -76,14 +78,11 @@ export function SqlResultTable({
             </thead>
             <tbody>
               {rowsToShow.map((row, i) => (
-                <tr
-                  key={i}
-                  className="border-t border-gray-100 dark:border-gray-800"
-                >
+                <tr key={i}>
                   {data.columns.map((c, j) => (
                     <td
                       key={c.key}
-                      className="px-3 py-1.5 text-gray-900 dark:text-gray-100"
+                      className="py-2 px-3 text-slate-700 border-b border-slate-100"
                     >
                       {formatCell(row[j])}
                     </td>
@@ -99,7 +98,7 @@ export function SqlResultTable({
         <button
           type="button"
           onClick={() => setExpanded(true)}
-          className="block w-full border-t border-gray-200 px-3 py-2 text-xs text-blue-600 hover:bg-gray-50 dark:border-gray-700 dark:text-blue-400 dark:hover:bg-gray-800"
+          className="block w-full mt-1 text-[10px] text-blue-600 hover:underline text-center"
         >
           残り {data.rows.length - PREVIEW_ROWS} 行を表示
         </button>
@@ -108,26 +107,262 @@ export function SqlResultTable({
         <button
           type="button"
           onClick={() => setExpanded(false)}
-          className="block w-full border-t border-gray-200 px-3 py-2 text-xs text-blue-600 hover:bg-gray-50 dark:border-gray-700 dark:text-blue-400 dark:hover:bg-gray-800"
+          className="block w-full mt-1 text-[10px] text-blue-600 hover:underline text-center"
         >
           表示を折りたたむ
         </button>
       )}
 
-      <div className="flex items-center justify-end gap-2 border-t border-gray-200 px-3 py-2 dark:border-gray-700">
-        {onSendToReport && (
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={sendDisabled}
-            onClick={() => onSendToReport(data.tableId)}
+      {/* 表下のメタ + 共有ボタン (既存 MarkdownTable の Sheets ボタンと同じ並び) */}
+      <div className="flex items-center justify-between mt-1.5">
+        <div className="flex items-center gap-2 text-[10px] text-slate-500">
+          <button
+            type="button"
+            onClick={handleCopyTableId}
+            className="font-mono px-1.5 py-0.5 rounded border border-slate-200 bg-white hover:bg-slate-50 text-slate-600"
+            title="表 ID をコピー"
           >
-            📋 レポートに送る
-          </Button>
-        )}
+            {tableIdCopied ? '✓ コピー済' : data.tableId}
+          </button>
+          <span>{data.rowCount.toLocaleString('ja-JP')} 行</span>
+          {data.truncated && <span className="text-amber-600">上限到達</span>}
+          {typeof data.durationMs === 'number' && (
+            <span>{data.durationMs}ms</span>
+          )}
+        </div>
+        <ShareMenu
+          tableRef={tableRef}
+          tableId={data.tableId}
+          tableDbId={data.tableDbId}
+          onSendToReport={onSendToReport}
+          sendDisabled={sendDisabled}
+        />
       </div>
     </div>
   )
+}
+
+// ---- 共有ボタン (ドロップダウン) ------------------------------------------
+
+interface ShareMenuProps {
+  tableRef: React.RefObject<HTMLTableElement | null>
+  tableId: string
+  tableDbId: number
+  onSendToReport?: (tableId: string) => void
+  sendDisabled?: boolean
+}
+
+function ShareMenu({
+  tableRef,
+  tableId,
+  tableDbId,
+  onSendToReport,
+  sendDisabled,
+}: ShareMenuProps) {
+  const [open, setOpen] = useState(false)
+  const [sheetsCopied, setSheetsCopied] = useState(false)
+  const [urlCopied, setUrlCopied] = useState(false)
+  const [urlLoading, setUrlLoading] = useState(false)
+  const [shareState, setShareState] = useState<{
+    shared: boolean
+    token: string | null
+    sharedUntil: string | null
+  } | null>(null)
+  const menuRef = useRef<HTMLDivElement | null>(null)
+
+  // 外側クリックで閉じる
+  useEffect(() => {
+    if (!open) return
+    function onClick(e: MouseEvent) {
+      if (
+        menuRef.current &&
+        e.target instanceof Node &&
+        !menuRef.current.contains(e.target)
+      ) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onClick)
+    return () => document.removeEventListener('mousedown', onClick)
+  }, [open])
+
+  // 開いた時に現在の共有状態をフェッチ
+  useEffect(() => {
+    if (!open || shareState !== null) return
+    getTableShareState(tableDbId)
+      .then((res) => {
+        if (res.ok) {
+          setShareState({
+            shared: res.state.shared,
+            token: res.state.token,
+            sharedUntil: res.state.sharedUntil,
+          })
+        }
+      })
+      .catch(() => {
+        /* ignore */
+      })
+  }, [open, tableDbId, shareState])
+
+  const handleSheets = useCallback(async () => {
+    const table = tableRef.current
+    if (!table) return
+    const tsv = tableToTsv(table)
+    try {
+      await navigator.clipboard.writeText(tsv)
+      setSheetsCopied(true)
+      setTimeout(() => setSheetsCopied(false), 2000)
+    } catch {
+      /* ignore */
+    }
+  }, [tableRef])
+
+  const handleShareUrl = useCallback(async () => {
+    setUrlLoading(true)
+    try {
+      const res = await enableTableShare(tableDbId)
+      if (!res.ok) {
+        alert(`共有 URL 発行に失敗: ${res.reason}`)
+        return
+      }
+      const url = `${window.location.origin}/advisor/t/${res.token}`
+      await navigator.clipboard.writeText(url)
+      setShareState({
+        shared: true,
+        token: res.token,
+        sharedUntil: res.sharedUntil,
+      })
+      setUrlCopied(true)
+      setTimeout(() => setUrlCopied(false), 2500)
+    } finally {
+      setUrlLoading(false)
+    }
+  }, [tableDbId])
+
+  const handleDisableShare = useCallback(async () => {
+    if (!confirm('この表の共有 URL を停止しますか?')) return
+    await disableTableShare(tableDbId)
+    setShareState({ shared: false, token: null, sharedUntil: null })
+  }, [tableDbId])
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1 px-2 py-1 rounded-md bg-white border border-slate-200 text-[10px] text-slate-600 hover:text-slate-900 hover:bg-slate-50 shadow-sm transition-colors"
+        title="共有"
+      >
+        <Share2 className="h-3 w-3" />
+        <span>共有</span>
+      </button>
+      {open && (
+        <div className="absolute right-0 bottom-full mb-1 w-60 rounded-md border border-slate-200 bg-white shadow-lg py-1 z-10">
+          <MenuItem
+            onClick={handleSheets}
+            disabled={false}
+            label={sheetsCopied ? 'コピーしました' : 'Sheets にコピー'}
+            icon={sheetsCopied ? <Check className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
+            sub="表を TSV 形式でクリップボードへ"
+          />
+          {onSendToReport && (
+            <MenuItem
+              onClick={() => {
+                onSendToReport(tableId)
+                setOpen(false)
+              }}
+              disabled={sendDisabled}
+              label="レポートに送る"
+              icon={<span className="text-[12px]">📋</span>}
+              sub="Canvas のレポートドラフトに追記"
+            />
+          )}
+          <div className="border-t border-slate-100 my-1" />
+          {shareState?.shared ? (
+            <>
+              <MenuItem
+                onClick={async () => {
+                  if (!shareState.token) return
+                  const url = `${window.location.origin}/advisor/t/${shareState.token}`
+                  await navigator.clipboard.writeText(url)
+                  setUrlCopied(true)
+                  setTimeout(() => setUrlCopied(false), 2500)
+                }}
+                disabled={false}
+                label={urlCopied ? 'URL コピーしました' : 'URL をコピー'}
+                icon={urlCopied ? <Check className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
+                sub={
+                  shareState.sharedUntil
+                    ? `期限: ${formatRemaining(shareState.sharedUntil)}`
+                    : '共有中'
+                }
+              />
+              <MenuItem
+                onClick={handleDisableShare}
+                disabled={false}
+                label="共有 URL を停止"
+                icon={<span className="text-[12px]">⏹</span>}
+                sub="URL を無効化"
+              />
+            </>
+          ) : (
+            <MenuItem
+              onClick={handleShareUrl}
+              disabled={urlLoading}
+              label={urlLoading ? '発行中...' : 'URL で共有 (30 日)'}
+              icon={<span className="text-[12px]">🔗</span>}
+              sub="URL を発行してコピー"
+            />
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MenuItem({
+  onClick,
+  disabled,
+  label,
+  icon,
+  sub,
+}: {
+  onClick: () => void
+  disabled?: boolean
+  label: string
+  icon: React.ReactNode
+  sub?: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="flex w-full items-start gap-2 px-3 py-2 text-left text-[11px] hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-white"
+    >
+      <span className="mt-0.5">{icon}</span>
+      <span>
+        <span className="block text-slate-800">{label}</span>
+        {sub && <span className="block text-[10px] text-slate-400">{sub}</span>}
+      </span>
+    </button>
+  )
+}
+
+function tableToTsv(table: HTMLTableElement): string {
+  const lines: string[] = []
+  for (const row of Array.from(table.rows)) {
+    const cells: string[] = []
+    for (const cell of Array.from(row.cells)) {
+      const text = (cell.textContent ?? '')
+        .replace(/\r?\n/g, ' ')
+        .replace(/\t/g, ' ')
+        .trim()
+      cells.push(text)
+    }
+    lines.push(cells.join('\t'))
+  }
+  return lines.join('\n')
 }
 
 function formatCell(v: unknown): string {
@@ -138,4 +373,11 @@ function formatCell(v: unknown): string {
   }
   if (typeof v === 'boolean') return v ? '○' : '×'
   return String(v)
+}
+
+function formatRemaining(sharedUntil: string): string {
+  const ms = new Date(sharedUntil).getTime() - Date.now()
+  if (ms <= 0) return '期限切れ'
+  const days = Math.ceil(ms / (24 * 60 * 60 * 1000))
+  return `あと ${days} 日`
 }

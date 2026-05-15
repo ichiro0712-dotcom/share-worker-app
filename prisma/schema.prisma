@@ -2263,6 +2263,12 @@ model AdvisorChatTable {
   duration_ms   Int?
   /// SystemAdmin.id
   created_by_id Int
+  /// 共有 URL token (発行されていれば /advisor/t/<token> でアクセス可)
+  share_token   String?  @unique
+  /// 共有開始時刻 (null = 共有停止中)
+  shared_at     DateTime?
+  /// 共有期限 (null = 共有停止中 or 期限未設定)。レポートと同じく 30 日
+  shared_until  DateTime?
   created_at    DateTime @default(now())
 
   @@index([session_id, created_at])

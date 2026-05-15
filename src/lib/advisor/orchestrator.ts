@@ -715,7 +715,15 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
       toolCallsForPersistence.push({ id: tu.id, name: tu.name, input: tu.input });
       toolCallCount += 1;
 
-      // execute_sql は承認ゲート対象: sqlAutoApprove=false なら実行せず承認待ち通知を返す
+      // execute_sql は承認ゲート対象: sqlAutoApprove=false なら実行せず承認待ちで done する
+      //
+      // 設計メモ:
+      //   ここで Anthropic に「APPROVAL_REQUIRED」を tool_result として返して loop を続けると、
+      //   loop=1 で Anthropic が「ユーザーの承認を待ちます」みたいな応答を作るために 90+ 秒
+      //   TTFB を引き当てる事故が起きる。そもそも待つだけの応答に Claude を呼ぶ必要は無い。
+      //   そのため、ここで sql_approval_required を発火し、サーバー側で done を返して即終了する。
+      //   ユーザーが承認モーダルで OK を押すと、クライアントが新規メッセージ(「お願いします」)を
+      //   sqlAutoApprove=true で投げ直し、その時に LLM が同じ意図で execute_sql を再呼び出しする。
       if (tu.name === 'execute_sql' && !input.sqlAutoApprove) {
         const sqlInput = (tu.input ?? {}) as {
           sql?: string;
@@ -729,34 +737,65 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
           sql: sqlInput.sql ?? '',
           expectedRows: sqlInput.expected_rows,
         });
-        const blocked = {
-          ok: false as const,
-          error:
-            'APPROVAL_REQUIRED: ユーザーの承認待ちのため SQL は未実行です。' +
-            'ユーザーがこの後「お願いします」「実行して」等で承認すると再試行されます。',
-        };
-        // tool persistence (blocked record) ＋ Anthropic への tool_result 返却
-        await appendMessage({
+
+        // 監査ログ (承認待ち)
+        await recordAudit({
+          adminId: input.admin.id,
           sessionId: input.sessionId,
-          role: 'tool',
-          content: blocked.error,
-          toolResult: { tool_use_id: tu.id, ...blocked } as unknown as Prisma.InputJsonValue,
+          eventType: 'tool_call',
+          payload: {
+            tool: tu.name,
+            input: tu.input as Prisma.InputJsonValue,
+            ok: false,
+            status: 'awaiting_user_approval',
+          } as Prisma.InputJsonObject,
+          clientIp: input.clientIp,
+          clientUa: input.clientUa,
+        });
+
+        // サーバー側 done:
+        //   loop=1 を呼ばないので Anthropic API への往復は loop=0 で打ち切り。
+        //   ユーザー視点では「承認モーダル + チャット欄が解放されて、承認を押すと再送される」
+        //   挙動になる。
+        const noticeText =
+          assembledAssistantText.trimEnd() +
+          (assembledAssistantText ? '\n\n' : '') +
+          '⏳ SQL 実行の承認をお待ちしています。モーダルで「実行する」を押すと再開します。';
+
+        const persistedNotice = await appendMessage({
+          sessionId: input.sessionId,
+          role: 'assistant',
+          content: noticeText,
+          toolCalls:
+            toolCallsForPersistence.length > 0
+              ? (toolCallsForPersistence as unknown as Prisma.InputJsonValue)
+              : undefined,
+          inputTokens: totalInputTokens,
+          outputTokens: totalOutputTokens,
+          cacheReadTokens: totalCacheReadTokens,
+          cacheWriteTokens: totalCacheWriteTokens,
           model: primaryModel,
         });
-        toolResults.push({
-          type: 'tool_result',
-          tool_use_id: tu.id,
-          content: JSON.stringify(blocked).slice(0, 50_000),
-          is_error: true,
+        if (!assembledAssistantText) {
+          input.onEvent({
+            type: 'text',
+            text: '⏳ SQL 実行の承認をお待ちしています。モーダルで「実行する」を押すと再開します。',
+          });
+        }
+        input.onEvent({
+          type: 'usage',
+          inputTokens: totalInputTokens,
+          outputTokens: totalOutputTokens,
+          cacheReadTokens: totalCacheReadTokens,
+          cacheWriteTokens: totalCacheWriteTokens,
         });
         input.onEvent({
-          type: 'tool_result',
-          id: tu.id,
-          ok: false,
-          summary: 'execute_sql 承認待ち',
-          error: blocked.error,
+          type: 'done',
+          messageId: persistedNotice.id,
+          conversationId: input.sessionId,
         });
-        continue;
+        stopHeartbeat();
+        return;
       }
 
       const result = await executeToolByName(tu.name, tu.input, {
