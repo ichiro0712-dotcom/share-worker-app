@@ -75,7 +75,19 @@ export type AdvisorStreamEvent =
       conversationId: string;
       data?: Record<string, unknown>;
     }
-  | { type: 'error'; text: string };
+  | { type: 'error'; text: string }
+  /**
+   * SQL 実行が承認待ちで保留された時に発火する。
+   * クライアントはモーダルを表示し、ユーザーが承認したら sqlAutoApprove=true で
+   * 同セッションに「お願いします」のような短い継続メッセージを送って実行を再開させる。
+   */
+  | {
+      type: 'sql_approval_required';
+      toolUseId: string;
+      purpose: string;
+      sql: string;
+      expectedRows?: number;
+    };
 
 /**
  * 1 ループ (= Anthropic 1 リクエスト) ごとの計測値。
@@ -157,6 +169,13 @@ export interface OrchestratorRunInput {
   /** 監査ログ用 client info */
   clientIp?: string | null;
   clientUa?: string | null;
+  /**
+   * SQL 実行 (execute_sql) の事前承認フラグ。
+   * - false (デフォルト): 初回呼び出し時に承認待ちとなり、ツール結果は APPROVAL_REQUIRED で返す
+   * - true: 確認なしで即実行
+   * クライアント側でモーダル承認後にこのフラグを true にして再送する想定。
+   */
+  sqlAutoApprove?: boolean;
 }
 
 /**
@@ -183,6 +202,7 @@ const TOOL_STATUS_LABEL: Record<string, string> = {
   // tastas-data (DB / 指標)
   describe_db_table: 'DB スキーマを確認中...',
   query_metric: '指標を集計中...',
+  execute_sql: 'SQL を実行中...',
   get_jobs_summary: '求人データを集計中...',
   get_users_summary: 'ユーザーデータを集計中...',
   get_recent_errors: '直近のエラーログを確認中...',
@@ -196,6 +216,7 @@ const TOOL_STATUS_LABEL: Record<string, string> = {
   // reports
   update_report_draft: 'レポートドラフトを更新中...',
   edit_report_section: 'レポートを部分修正中... (Gemini に書き換えを依頼)',
+  add_tables_to_report: '表をレポートドラフトに追加中...',
 };
 
 function statusForTool(name: string): string {
@@ -693,6 +714,50 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
       });
       toolCallsForPersistence.push({ id: tu.id, name: tu.name, input: tu.input });
       toolCallCount += 1;
+
+      // execute_sql は承認ゲート対象: sqlAutoApprove=false なら実行せず承認待ち通知を返す
+      if (tu.name === 'execute_sql' && !input.sqlAutoApprove) {
+        const sqlInput = (tu.input ?? {}) as {
+          sql?: string;
+          purpose?: string;
+          expected_rows?: number;
+        };
+        input.onEvent({
+          type: 'sql_approval_required',
+          toolUseId: tu.id,
+          purpose: sqlInput.purpose ?? '(目的未指定)',
+          sql: sqlInput.sql ?? '',
+          expectedRows: sqlInput.expected_rows,
+        });
+        const blocked = {
+          ok: false as const,
+          error:
+            'APPROVAL_REQUIRED: ユーザーの承認待ちのため SQL は未実行です。' +
+            'ユーザーがこの後「お願いします」「実行して」等で承認すると再試行されます。',
+        };
+        // tool persistence (blocked record) ＋ Anthropic への tool_result 返却
+        await appendMessage({
+          sessionId: input.sessionId,
+          role: 'tool',
+          content: blocked.error,
+          toolResult: { tool_use_id: tu.id, ...blocked } as unknown as Prisma.InputJsonValue,
+          model: primaryModel,
+        });
+        toolResults.push({
+          type: 'tool_result',
+          tool_use_id: tu.id,
+          content: JSON.stringify(blocked).slice(0, 50_000),
+          is_error: true,
+        });
+        input.onEvent({
+          type: 'tool_result',
+          id: tu.id,
+          ok: false,
+          summary: 'execute_sql 承認待ち',
+          error: blocked.error,
+        });
+        continue;
+      }
 
       const result = await executeToolByName(tu.name, tu.input, {
         adminId: input.admin.id,

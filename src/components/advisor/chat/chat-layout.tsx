@@ -18,6 +18,11 @@ import { DEFAULT_MODEL_ID } from '@/src/lib/advisor/models'
 import { ReportCanvas } from '@/src/components/advisor/report/report-canvas'
 import { getDraftForSession } from '@/src/lib/advisor/actions/report-drafts'
 import { stripToolHintPrefix } from '@/src/lib/advisor/message-display'
+import {
+  SqlApprovalModal,
+  type SqlApprovalRequest,
+} from '@/src/components/advisor/chat/sql-approval-modal'
+import type { SqlResultTableData } from '@/src/components/advisor/chat/sql-result-table'
 
 // Advisor は単一エージェントなので、すべて "システムアドバイザー" 表示にする
 const AGENT_LABEL = 'システムアドバイザー'
@@ -131,6 +136,33 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
    * 「書き換えが始まったらユーザーの未保存編集は無視」という決まり。
    */
   const [discardCanvasEditTrigger, setDiscardCanvasEditTrigger] = useState(0)
+
+  /**
+   * execute_sql が返した表データの、メッセージ ID → 表配列 のマップ。
+   * ストリーミング中は仮 ID (-1) に蓄積し、done で確定 ID にリマップする。
+   */
+  const [sqlTablesByMessage, setSqlTablesByMessage] = useState<
+    Record<string, SqlResultTableData[]>
+  >({})
+  /** ストリーミング中の execute_sql 結果をいったん受ける一時バッファ */
+  const streamingTablesRef = useRef<SqlResultTableData[]>([])
+  /**
+   * SQL 承認モーダルの保留中要求 (null = 閉じている)。
+   * sql_approval_required イベントを受信すると open になる。
+   */
+  const [pendingSqlApproval, setPendingSqlApproval] =
+    useState<SqlApprovalRequest | null>(null)
+  /**
+   * セッション内 SQL 自動承認フラグ。
+   * ユーザーがモーダルで「セッション中はスキップ」をチェックすると true。
+   * 会話切替/ページリロードで false に戻る (sessionState のため永続化しない)。
+   */
+  const [sqlAutoApprove, setSqlAutoApprove] = useState(false)
+  /**
+   * モーダルで承認した「次の1リクエスト」だけ true で送るための ref。
+   * setSqlAutoApprove(true) は非同期反映なので、ref で同期的に1回だけ消費する。
+   */
+  const sqlApproveOnceRef = useRef(false)
 
   /**
    * Canvas 境界ドラッグでリサイズ。
@@ -322,7 +354,8 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
     text: string,
     convId: string | null,
     reqModelId?: string,
-    files?: { name: string; mimeType: string; base64: string }[]
+    files?: { name: string; mimeType: string; base64: string }[],
+    sqlAutoApproveOverride?: boolean
   ): Promise<{ accumulated: string; data: Record<string, any> | null; sources: string[] }> {
     const controller = new AbortController()
     abortRef.current = controller
@@ -336,6 +369,14 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
         projectIds: selectedProjectIds.length > 0 ? selectedProjectIds : undefined,
         modelId: reqModelId,
         files: files && files.length > 0 ? files : undefined,
+        sqlAutoApprove: (() => {
+          if (sqlAutoApproveOverride !== undefined) return sqlAutoApproveOverride
+          if (sqlApproveOnceRef.current) {
+            sqlApproveOnceRef.current = false
+            return true
+          }
+          return sqlAutoApprove
+        })(),
       }),
       signal: controller.signal,
     })
@@ -395,8 +436,32 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
       } else if (data.type === 'error') {
         setProgress(null)
         throw new Error(typeof data.text === 'string' ? data.text : 'Unknown stream error')
+      } else if (data.type === 'sql_approval_required') {
+        // 承認モーダル発火
+        setPendingSqlApproval({
+          toolUseId: String(data.toolUseId ?? ''),
+          purpose: String(data.purpose ?? '(目的未指定)'),
+          sql: String(data.sql ?? ''),
+          expectedRows:
+            typeof data.expectedRows === 'number' ? data.expectedRows : undefined,
+        })
+      } else if (data.type === 'tool_result' && data.ok && data.data) {
+        // execute_sql の成功結果 (table_id を含む) を一時バッファに積む。
+        // done で「直前 assistant メッセージ」に紐づける。
+        const d = data.data as Record<string, unknown>
+        if (typeof d.table_id === 'string' && Array.isArray(d.columns) && Array.isArray(d.rows)) {
+          streamingTablesRef.current.push({
+            tableId: d.table_id,
+            purpose: String(d.purpose ?? ''),
+            columns: d.columns as SqlResultTableData['columns'],
+            rows: d.rows as unknown[][],
+            rowCount: typeof d.row_count === 'number' ? d.row_count : (d.rows as unknown[]).length,
+            truncated: Boolean(d.truncated),
+            durationMs: typeof d.duration_ms === 'number' ? d.duration_ms : undefined,
+          })
+        }
       }
-      // tool_use / tool_result / usage は UI で消費する余地があるが今は無視
+      // tool_use / usage は UI で消費する余地があるが今は無視
       return false
     }
 
@@ -588,8 +653,9 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
         playNotificationSound('action')
       }
 
+      const newMessageId = result.data?.messageId ?? crypto.randomUUID()
       setMessages(prev => [...prev, {
-        id: result.data?.messageId ?? crypto.randomUUID(),
+        id: newMessageId,
         role: 'assistant',
         agent_id: agentId,
         content: cleanContent,
@@ -600,8 +666,18 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
       }])
       setStreamingContent('')
 
-      // 今回の応答で update_report_draft が呼ばれていたら Canvas を自動オープン
-      if (result.sources.includes('update_report_draft')) {
+      // execute_sql の結果表をメッセージ ID に紐づけ
+      if (streamingTablesRef.current.length > 0) {
+        const tables = streamingTablesRef.current
+        streamingTablesRef.current = []
+        setSqlTablesByMessage(prev => ({ ...prev, [newMessageId]: tables }))
+      }
+
+      // 今回の応答で update_report_draft または add_tables_to_report が呼ばれていたら Canvas を自動オープン
+      if (
+        result.sources.includes('update_report_draft') ||
+        result.sources.includes('add_tables_to_report')
+      ) {
         setHasDraft(true)
         setCanvasOpen(true)
       }
@@ -1050,6 +1126,14 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
                     videos: msg.videos,
                     sources: msg.sources,
                   }}
+                  sqlTables={sqlTablesByMessage[msg.id]}
+                  onSendTableToReport={(tableId) => {
+                    handleChatSubmit(
+                      `表 ${tableId} をレポートに追加してください。`,
+                      localStorage.getItem('agent-hub-base-model') ?? DEFAULT_MODEL_ID,
+                      []
+                    )
+                  }}
                   actionStatuses={actionStatuses}
                   onApproveAction={async (actionId) => {
                     setActionStatuses(prev => ({ ...prev, [actionId]: { status: 'executing' } }))
@@ -1246,6 +1330,26 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
           </div>
         </>
       )}
+
+      <SqlApprovalModal
+        open={!!pendingSqlApproval}
+        request={pendingSqlApproval}
+        onCancel={() => setPendingSqlApproval(null)}
+        onApprove={(skipForSession) => {
+          if (skipForSession) setSqlAutoApprove(true)
+          setPendingSqlApproval(null)
+          // 次の1リクエストだけ強制承認 (state 反映待ちを ref でバイパス)
+          sqlApproveOnceRef.current = true
+          // 承認後の再開:
+          // - 直前にユーザーが投げた質問の文脈は Anthropic 側に履歴として残っている。
+          // - 「お願いします」とだけ送ると LLM は同じ意図で execute_sql を再呼び出しする。
+          handleChatSubmit(
+            'お願いします',
+            localStorage.getItem('agent-hub-base-model') ?? DEFAULT_MODEL_ID,
+            []
+          )
+        }}
+      />
     </div>
   )
 }

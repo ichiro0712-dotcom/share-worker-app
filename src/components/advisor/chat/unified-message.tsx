@@ -15,6 +15,7 @@ import {
   MarkdownTr,
 } from '@/src/components/advisor/chat/markdown-table'
 import { resolveToolSource, CATEGORY_BADGE, type AdvisorSourceCategory } from '@/src/lib/advisor/tool-source-labels'
+import { SqlResultTable } from '@/src/components/advisor/chat/sql-result-table'
 
 // --- ファイルパス・URLリンク化 ---
 
@@ -113,6 +114,13 @@ interface UnifiedMessageProps {
   onChoiceSubmit?: (choiceGroupId: string, selected: string[]) => void
   /** 確定済みの選択肢 */
   submittedChoices?: Record<string, string[]>
+  /**
+   * このメッセージに紐づく execute_sql の結果表データ。
+   * メッセージ本文の下に表 + [レポートに送る] ボタンとして表示する。
+   */
+  sqlTables?: import('./sql-result-table').SqlResultTableData[]
+  /** [📋 レポートに送る] 押下時のハンドラ (チャット側で実装) */
+  onSendTableToReport?: (tableId: string) => void
 }
 
 // --- メインコンポーネント ---
@@ -125,6 +133,8 @@ export function UnifiedMessage({
   actionStatuses = {},
   onChoiceSubmit,
   submittedChoices = {},
+  sqlTables,
+  onSendTableToReport,
 }: UnifiedMessageProps) {
   const [copied, setCopied] = useState(false)
 
@@ -236,6 +246,19 @@ export function UnifiedMessage({
               })
             })()}
           </div>
+
+          {/* execute_sql の結果表 (T-XXX) */}
+          {sqlTables && sqlTables.length > 0 && (
+            <div className="mt-2 space-y-2">
+              {sqlTables.map((t) => (
+                <SqlResultTable
+                  key={t.tableId}
+                  data={t}
+                  onSendToReport={onSendTableToReport}
+                />
+              ))}
+            </div>
+          )}
 
           {/* 画像表示（Geminiスタイル: グリッド + クリックで拡大） */}
           {message.images && message.images.length > 0 && (
