@@ -818,6 +818,107 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
     //  代わりに system prompt 経由で Claude に "1〜2 行で何を変えたか短く返す" よう指示している。
     //  loop=1 の TTFB は dynamic prompt にドラフト状態を埋めることで get_report_draft 不要になり改善見込み)
     messages.push({ role: 'user', content: toolResults });
+
+    // 🚀 execute_sql 成功時のサーバー側短絡:
+    //   loop=1 (ツール結果を Claude に渡して整形応答を作る) は Anthropic 側で 100 秒級 TTFB
+    //   問題が出やすい。execute_sql は「表として結果が UI に表示されている」だけで十分に
+    //   完結するので、LLM に整形させずサーバー側で固定文を返して即 done する。
+    //   表 ID を本文に含めることでユーザーに参照方法を伝える + add_tables_to_report で
+    //   レポートに送る導線も残せる。
+    const executeSqlSuccess = toolUseBlocks.find((b) => b.name === 'execute_sql');
+    if (executeSqlSuccess && input.sqlAutoApprove) {
+      // toolResults に対応する成功結果があるか確認 (is_error=false)
+      const matched = toolResults.find(
+        (tr) => tr.tool_use_id === executeSqlSuccess.id && !tr.is_error
+      );
+      if (matched) {
+        // 短絡: tool_result の data から表 ID を抽出して固定文を組み立てる
+        let tableIdLine = '';
+        try {
+          const parsed = JSON.parse(
+            typeof matched.content === 'string' ? matched.content : ''
+          );
+          if (parsed?.ok && parsed?.data?.table_id) {
+            const td = parsed.data;
+            tableIdLine =
+              `**表 ${td.table_id}** (${td.row_count?.toLocaleString?.('ja-JP') ?? td.row_count} 行${
+                td.truncated ? ' / 上限到達' : ''
+              }) を取得しました。\n\n` +
+              `内容を確認したら、「表 ${td.table_id} をレポートに追加して」と言うとレポートに送れます。`;
+          }
+        } catch {
+          /* ignore */
+        }
+        const finalText =
+          (assembledAssistantText || '').trimEnd() +
+          (assembledAssistantText ? '\n\n' : '') +
+          (tableIdLine || 'SQL の結果を表として取得しました。');
+
+        const persistedShortcut = await appendMessage({
+          sessionId: input.sessionId,
+          role: 'assistant',
+          content: finalText,
+          toolCalls:
+            toolCallsForPersistence.length > 0
+              ? (toolCallsForPersistence as unknown as Prisma.InputJsonValue)
+              : undefined,
+          inputTokens: totalInputTokens,
+          outputTokens: totalOutputTokens,
+          cacheReadTokens: totalCacheReadTokens,
+          cacheWriteTokens: totalCacheWriteTokens,
+          model: primaryModel,
+        });
+        input.onEvent({ type: 'text', text: tableIdLine });
+        input.onEvent({
+          type: 'usage',
+          inputTokens: totalInputTokens,
+          outputTokens: totalOutputTokens,
+          cacheReadTokens: totalCacheReadTokens,
+          cacheWriteTokens: totalCacheWriteTokens,
+        });
+        input.onEvent({
+          type: 'done',
+          messageId: persistedShortcut.id,
+          conversationId: input.sessionId,
+        });
+        stopHeartbeat();
+        await Promise.all([
+          incrementSessionUsage({
+            sessionId: input.sessionId,
+            inputTokens: totalInputTokens,
+            outputTokens: totalOutputTokens,
+          }),
+          incrementUsage({
+            adminId: input.admin.id,
+            modelId: primaryModel,
+            inputTokens: totalInputTokens,
+            outputTokens: totalOutputTokens,
+            cacheReadTokens: totalCacheReadTokens,
+            cacheWriteTokens: totalCacheWriteTokens,
+            toolCallCount,
+          }),
+          recordAudit({
+            adminId: input.admin.id,
+            sessionId: input.sessionId,
+            messageId: persistedShortcut.id,
+            eventType: 'chat_response',
+            payload: {
+              inputTokens: totalInputTokens,
+              outputTokens: totalOutputTokens,
+              cacheReadTokens: totalCacheReadTokens,
+              cacheWriteTokens: totalCacheWriteTokens,
+              toolCallCount,
+              charCount: finalText.length,
+              loopTraces: loopTraces as unknown as Prisma.InputJsonValue,
+              shortCircuit: 'execute_sql',
+            } as Prisma.InputJsonObject,
+            clientIp: input.clientIp,
+            clientUa: input.clientUa,
+          }),
+        ]);
+        return;
+      }
+    }
   }
 
   // ループ上限超過: それまで生成した文章を捨てずに「途中まで」として保存して done。

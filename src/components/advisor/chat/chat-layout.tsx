@@ -14,7 +14,7 @@ import { getConversations, getConversationMessages, deleteConversation, toggleBo
 import { getPinnedAgents, getCAConversations, deleteCAConversation, type CustomAgent, type CAConversationSummary } from '@/src/lib/advisor/actions/custom-agents'
 import { getAgentIcon, ICON_COLORS } from '@/src/lib/advisor/agent-icons'
 import { approveAction } from '@/src/lib/advisor/actions/pending-actions'
-import { DEFAULT_MODEL_ID } from '@/src/lib/advisor/models'
+import { DEFAULT_MODEL_ID, AVAILABLE_MODELS } from '@/src/lib/advisor/models'
 import { ReportCanvas } from '@/src/components/advisor/report/report-canvas'
 import { getDraftForSession } from '@/src/lib/advisor/actions/report-drafts'
 import { stripToolHintPrefix } from '@/src/lib/advisor/message-display'
@@ -163,6 +163,18 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
    * setSqlAutoApprove(true) は非同期反映なので、ref で同期的に1回だけ消費する。
    */
   const sqlApproveOnceRef = useRef(false)
+
+  /**
+   * localStorage の "agent-hub-base-model" は古い無効な値 (例: "gemini-flash") が
+   * 残っているケースがあるため、AVAILABLE_MODELS に存在しないものは捨てて
+   * DEFAULT_MODEL_ID にフォールバックする。
+   */
+  const resolveBaseModelId = (): string => {
+    if (typeof window === 'undefined') return DEFAULT_MODEL_ID
+    const saved = localStorage.getItem('agent-hub-base-model')
+    if (saved && AVAILABLE_MODELS.some((m) => m.id === saved)) return saved
+    return DEFAULT_MODEL_ID
+  }
 
   /**
    * Canvas 境界ドラッグでリサイズ。
@@ -1130,7 +1142,7 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
                   onSendTableToReport={(tableId) => {
                     handleChatSubmit(
                       `表 ${tableId} をレポートに追加してください。`,
-                      localStorage.getItem('agent-hub-base-model') ?? DEFAULT_MODEL_ID,
+                      resolveBaseModelId(),
                       []
                     )
                   }}
@@ -1345,7 +1357,7 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
           // - 「お願いします」とだけ送ると LLM は同じ意図で execute_sql を再呼び出しする。
           handleChatSubmit(
             'お願いします',
-            localStorage.getItem('agent-hub-base-model') ?? DEFAULT_MODEL_ID,
+            resolveBaseModelId(),
             []
           )
         }}
