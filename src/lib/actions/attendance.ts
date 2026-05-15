@@ -6,6 +6,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedUser, getCurrentTime, getTodayStart } from './helpers';
+import { formatJSTDate } from '@/utils/jst';
 import { calculateSalary } from '@/src/lib/salary-calculator';
 import { sendNotification } from '@/src/lib/notification-service';
 import {
@@ -488,7 +489,7 @@ export async function createModificationRequest(
         variables: {
           workerName: user.name,
           workDate: attendance.application?.workDate.work_date
-            ? new Date(attendance.application.workDate.work_date).toLocaleDateString('ja-JP')
+            ? formatJSTDate(new Date(attendance.application.workDate.work_date))
             : '',
           requestedStartTime: requestedStart.toLocaleTimeString('ja-JP', {
             hour: '2-digit',
@@ -513,7 +514,7 @@ export async function createModificationRequest(
       attendance.facility?.facility_name || '',
       attendance.application?.workDate.job.title || '',
       attendance.application?.workDate.work_date
-        ? new Date(attendance.application.workDate.work_date).toLocaleDateString('ja-JP')
+        ? formatJSTDate(new Date(attendance.application.workDate.work_date))
         : '',
       request.workerComment
     ).catch(err => console.error('[createModificationRequest] Admin notification error:', err));
@@ -657,7 +658,7 @@ export async function resubmitModificationRequest(
         variables: {
           workerName: user.name,
           workDate: modification.attendance.application?.workDate.work_date
-            ? new Date(modification.attendance.application.workDate.work_date).toLocaleDateString('ja-JP')
+            ? formatJSTDate(new Date(modification.attendance.application.workDate.work_date))
             : '',
           requestedStartTime: requestedStart.toLocaleTimeString('ja-JP', {
             hour: '2-digit',

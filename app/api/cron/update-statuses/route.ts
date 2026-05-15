@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getJSTTimeString } from '@/utils/jst';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,12 +51,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const now = new Date();
-    // JSTで時間を取得するために、UTC時間に9時間を足す
-    // ただし、サーバーのタイムゾーン設定に依存するため、Dateオブジェクトをそのまま使うのが安全
-    // ここでは単純に現在時刻を使用
-
-    const currentTime = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
-    console.log('[CRON] Current time for status update:', currentTime);
+    // JST基準の現在時刻文字列（HH:MM）。求人のstart_time/end_time（JST想定で文字列保存）と比較するため
+    const currentTime = getJSTTimeString(now);
+    console.log('[CRON] Current time for status update (JST):', currentTime);
 
     // 1. SCHEDULED → WORKING（開始時刻を過ぎた）
     // 勤務日が今日以前、かつ開始時刻が現在時刻以前

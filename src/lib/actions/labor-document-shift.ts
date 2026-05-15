@@ -2,6 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedUser } from './helpers';
+import { formatJSTDate } from '@/utils/jst';
 import { sendNotification } from '../notification-service';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 import { getFacilityAdminSessionData } from '@/lib/admin-session-server';
@@ -469,7 +470,7 @@ export async function cancelShift(applicationId: number): Promise<{ success: boo
             variables: {
                 worker_name: application.user.name,
                 facility_name: application.workDate.job.facility.facility_name,
-                work_date: application.workDate.work_date.toLocaleDateString(),
+                work_date: formatJSTDate(application.workDate.work_date),
                 start_time: application.workDate.job.start_time,
                 end_time: application.workDate.job.end_time,
             },

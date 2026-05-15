@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { getAuthenticatedUser, createNotification } from './helpers';
+import { formatJSTDate } from '@/utils/jst';
 import { sendNotification } from '../notification-service';
 import { getFacilityUnreadMessageCount, getWorkerUnreadMessageCount } from './message';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
@@ -250,7 +251,7 @@ export async function sendMatchingNotification(
 
         // 勤務日時情報をフォーマット
         const formattedWorkDate = workDateInfo?.workDate
-            ? new Date(workDateInfo.workDate).toLocaleDateString('ja-JP', {
+            ? formatJSTDate(new Date(workDateInfo.workDate), {
                 year: 'numeric',
                 month: 'long',
                 day: 'numeric',
@@ -345,7 +346,7 @@ export async function sendApplicationNotification(
         const staffEmails = facility?.staff_emails ?? [];
 
         // 勤務日をフォーマット
-        const workDate = new Date(application.workDate.work_date).toLocaleDateString('ja-JP', {
+        const workDate = formatJSTDate(new Date(application.workDate.work_date), {
             month: 'long',
             day: 'numeric',
             weekday: 'short'
