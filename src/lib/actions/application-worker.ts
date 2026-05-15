@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { getCurrentTime } from '@/utils/debugTime';
+import { formatJSTDate } from '@/utils/jst';
 import { getAuthenticatedUser } from './helpers';
 import { checkProfileComplete } from './user-profile';
 import { canApplyByGender } from '@/src/lib/jobGenderMatching';
@@ -336,7 +337,7 @@ export async function applyForJob(jobId: string, workDateId?: number) {
             user.name,
             job.title,
             job.facility.facility_name,
-            targetWorkDate.work_date.toLocaleDateString('ja-JP')
+            formatJSTDate(targetWorkDate.work_date)
         ).catch(err => console.error('[applyForJob] Admin notification error:', err));
 
         if (isImmediateMatch) {
@@ -363,7 +364,7 @@ export async function applyForJob(jobId: string, workDateId?: number) {
                 user.name,
                 job.title,
                 job.facility.facility_name,
-                targetWorkDate.work_date.toLocaleDateString('ja-JP')
+                formatJSTDate(targetWorkDate.work_date)
             ).catch(err => console.error('[applyForJob] Admin matching notification error:', err));
 
             // 初回挨拶通知を送信（通知設定に基づく）
@@ -523,7 +524,7 @@ export async function applyForJobMultipleDates(jobId: string, workDateIds: numbe
             for (const workDateId of newWorkDateIds) {
                 const wd = targetWorkDates.find(w => w.id === workDateId);
                 if (wd && wd.matched_count >= wd.recruitment_count) {
-                    return { success: false, error: `勤務日（${new Date(wd.work_date).toLocaleDateString('ja-JP')}）は既に募集人数に達しています` };
+                    return { success: false, error: `勤務日（${formatJSTDate(new Date(wd.work_date))}）は既に募集人数に達しています` };
                 }
             }
         }
@@ -572,7 +573,7 @@ export async function applyForJobMultipleDates(jobId: string, workDateIds: numbe
 
         const appliedWorkDates = targetWorkDates
             .filter(wd => newWorkDateIds.includes(wd.id))
-            .map(wd => new Date(wd.work_date).toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' }));
+            .map(wd => formatJSTDate(new Date(wd.work_date), { month: 'long', day: 'numeric', weekday: 'short' }));
 
         sendApplicationNotificationMultiple(
             job.facility_id,
@@ -1127,13 +1128,13 @@ export async function acceptOffer(jobId: string, workDateId: number) {
             user.name,
             job.title,
             job.facility.facility_name,
-            targetWorkDate.work_date.toLocaleDateString('ja-JP')
+            formatJSTDate(targetWorkDate.work_date)
         ).catch(err => console.error('[acceptOffer] Admin application notification error:', err));
         sendAdminMatchingNotification(
             user.name,
             job.title,
             job.facility.facility_name,
-            targetWorkDate.work_date.toLocaleDateString('ja-JP')
+            formatJSTDate(targetWorkDate.work_date)
         ).catch(err => console.error('[acceptOffer] Admin matching notification error:', err));
 
         // マッチングメッセージの送信

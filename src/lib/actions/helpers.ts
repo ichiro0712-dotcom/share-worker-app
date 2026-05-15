@@ -84,7 +84,7 @@ export function formatMessageTime(date: Date): string {
   } else if (days < 7) {
     return `${days}日前`;
   } else {
-    return date.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' });
+    return date.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', timeZone: 'Asia/Tokyo' });
   }
 }
 

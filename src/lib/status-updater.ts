@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { getJSTTimeString } from '@/utils/jst';
 
 /**
  * アプリケーションのステータスをリアルタイムで更新
@@ -13,7 +14,8 @@ export async function updateApplicationStatuses(options?: {
     facilityId?: number;
 }): Promise<{ scheduledToWorking: number; workingToCompleted: number }> {
     const now = new Date();
-    const currentTime = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
+    // JST基準の現在時刻文字列（HH:MM）。求人のstart_time/end_time（JST想定で文字列保存）と比較するため
+    const currentTime = getJSTTimeString(now);
 
     // ベースのwhere条件
     const baseWhereScheduled: Record<string, unknown> = {
