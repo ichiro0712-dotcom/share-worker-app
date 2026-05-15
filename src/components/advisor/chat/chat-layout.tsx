@@ -1274,6 +1274,24 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
           )}
         </div>
 
+        {/* SQL 自動承認バナー (sqlAutoApprove=true の時のみ表示、解除リンク付き) */}
+        {sqlAutoApprove && (
+          <div className="px-4 pt-2">
+            <div className="max-w-3xl mx-auto flex items-center justify-between gap-3 rounded border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800">
+              <span>
+                ⚡ このセッション中、SQL 実行の承認確認は省略されます
+              </span>
+              <button
+                type="button"
+                onClick={() => setSqlAutoApprove(false)}
+                className="text-amber-800 underline hover:text-amber-900"
+              >
+                解除する
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* 入力エリア
             key に conversationId を含めることで、新規チャット (null) や別の会話に切り替えた時に
             ChatInput を強制再マウントし、ツール選択 / 添付ファイル / 入力中テキストをデフォルトにリセットする。
