@@ -191,6 +191,9 @@ export function UnifiedMessage({
               const segments = sqlTables && sqlTables.length > 0
                 ? splitContentByTableMarker(message.content, tableMap)
                 : [{ kind: 'md' as const, text: message.content }]
+              if (process.env.NODE_ENV === 'development' && sqlTables && sqlTables.length > 0) {
+                console.debug('[unified-message] sqlTables:', sqlTables.map(t => t.tableId), 'segments:', segments.map(s => s.kind === 'table' ? `T:${s.data.tableId}` : `md(${s.text.length})`))
+              }
 
               const renderMdSegment = (text: string, segIdx: number) => {
                 const videoParts = text.split(/\[VIDEO:(.*?)\]/)

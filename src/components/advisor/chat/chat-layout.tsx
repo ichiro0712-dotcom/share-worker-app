@@ -762,9 +762,13 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
 
       // サーバー側で Markdown 表に T-XXX が後付けされた場合、本文中の T-XXX に対応する
       // SqlResultTableData を DB から取得して紐付ける。
-      if (annotatedContent && conversationId) {
+      // 注意: 新規セッションでも動くよう result.data?.conversationId を優先で使う
+      //       (この時点で state の conversationId はまだ反映されていない)
+      const sessionIdForTables =
+        (result.data?.conversationId as string | undefined) ?? conversationId
+      if (annotatedContent && sessionIdForTables) {
         try {
-          const all = await getSessionTables(conversationId)
+          const all = await getSessionTables(sessionIdForTables)
           // 本文に登場する T-XXX のみ抽出
           const referenced = new Set<string>()
           const re = /\*\*表 (T-\d+)\*\*/g
