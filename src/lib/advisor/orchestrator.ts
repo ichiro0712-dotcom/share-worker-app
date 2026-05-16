@@ -14,6 +14,7 @@ import { ADVISOR_MODELS, getClaudeClient, type AdvisorModelId } from './claude';
 import { buildSystemPrompt } from './system-prompt';
 import { buildCachedSystem, extractCacheStats } from './prompt-cache';
 import { describeAllToolsForLLM, executeToolByName } from './tools/registry';
+import { annotateAndPersistTables } from './markdown-table-extractor';
 import { getRecentMessagesForOrchestrator, appendMessage } from './persistence/messages';
 import { getDraftBySession, upsertDraft } from './persistence/report-drafts';
 import { editDraftWithGemini } from './llm/gemini-edit';
@@ -31,6 +32,7 @@ import { incrementUsage } from './cost-guard';
 import { recordAudit } from './persistence/audit';
 import { getAdvisorSettings } from './persistence/settings';
 import { Prisma } from '@prisma/client';
+import prisma from '@/lib/prisma';
 
 /**
  * Stream イベント型 (legacy UI 互換)
@@ -203,6 +205,7 @@ const TOOL_STATUS_LABEL: Record<string, string> = {
   describe_db_table: 'DB スキーマを確認中...',
   query_metric: '指標を集計中...',
   execute_sql: 'SQL を実行中...',
+  get_table: '過去の表 (T-XXX) を取得中...',
   get_jobs_summary: '求人データを集計中...',
   get_users_summary: 'ユーザーデータを集計中...',
   get_recent_errors: '直近のエラーログを確認中...',
@@ -649,6 +652,28 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
         model: primaryModel,
       });
 
+      // 応答本文内の Markdown 表を抽出して advisor_chat_tables に登録し、
+      // T-XXX を採番して本文を書き換える。
+      // - ストリーム送信は終わっているので、書き換えは DB のみ
+      // - クライアントが次回このセッションを開いた時にプレフィックス行付きで表示される
+      // - 別セッションから「T-XXX を get_table」で参照可能になる
+      try {
+        const annotated = await annotateAndPersistTables({
+          content: assembledAssistantText,
+          sessionId: input.sessionId,
+          messageId: persistedMessage.id,
+          adminId: input.admin.id,
+        });
+        if (annotated.createdIds.length > 0) {
+          await prisma.advisorChatMessage.update({
+            where: { id: persistedMessage.id },
+            data: { content: annotated.content },
+          });
+        }
+      } catch (e) {
+        console.error('[advisor] Markdown table annotate failed:', e);
+      }
+
       input.onEvent({
         type: 'usage',
         inputTokens: totalInputTokens,
@@ -907,6 +932,23 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
           cacheWriteTokens: totalCacheWriteTokens,
           model: primaryModel,
         });
+        // ショートカット応答にも Markdown 表があれば自動採番 (短い固定文なので通常は無いが念のため)
+        try {
+          const annotated = await annotateAndPersistTables({
+            content: finalText,
+            sessionId: input.sessionId,
+            messageId: persistedShortcut.id,
+            adminId: input.admin.id,
+          });
+          if (annotated.createdIds.length > 0) {
+            await prisma.advisorChatMessage.update({
+              where: { id: persistedShortcut.id },
+              data: { content: annotated.content },
+            });
+          }
+        } catch (e) {
+          console.error('[advisor] Markdown table annotate (shortcut) failed:', e);
+        }
         input.onEvent({ type: 'text', text: tableIdLine });
         input.onEvent({
           type: 'usage',

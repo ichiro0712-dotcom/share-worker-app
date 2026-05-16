@@ -5,6 +5,7 @@ import { getUsersSummaryTool } from './get-users-summary';
 import { getRecentErrorsTool } from './get-recent-errors';
 import { describeDbTableTool } from './describe-db-table';
 import { executeSqlTool } from './execute-sql';
+import { getTableTool } from './get-table';
 
 // list_available_metrics は system prompt にカタログを静的埋め込みすることで廃止した。
 // (Claude のツール round-trip を 1 回減らすため。詳細: src/lib/advisor/system-prompt.ts)
@@ -15,4 +16,5 @@ export const tastasDataTools: AdvisorTool[] = [
   getRecentErrorsTool as unknown as AdvisorTool,
   describeDbTableTool as unknown as AdvisorTool,
   executeSqlTool as unknown as AdvisorTool,
+  getTableTool as unknown as AdvisorTool,
 ];
