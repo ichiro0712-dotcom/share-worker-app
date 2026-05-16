@@ -184,81 +184,111 @@ export function UnifiedMessage({
           {/* Markdown本文（単一改行を保持）+ 動画マーカー対応 */}
           <div className="text-sm leading-relaxed prose prose-sm prose-neutral dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_p]:my-1.5 [&_ul]:my-1.5 [&_ol]:my-1.5 [&_li]:my-0.5 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_h2]:font-semibold [&_h3]:font-medium [&_code]:text-xs [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded">
             {(() => {
-              // [VIDEO:...] マーカーを分離して個別レンダリング
-              const videoParts = message.content.split(/\[VIDEO:(.*?)\]/)
-              return videoParts.map((part, idx) => {
-                if (idx % 2 === 1) {
-                  // 奇数インデックス = 動画URL
+              // 「**表 T-XXX** (N 行)」マーカー + 直後の Markdown 表ブロックを SqlResultTable に置換する。
+              // sqlTables に存在する表だけ置換し、残りは通常の ReactMarkdown で描画する。
+              const tableMap = new Map<string, NonNullable<typeof sqlTables>[number]>()
+              for (const t of sqlTables ?? []) tableMap.set(t.tableId, t)
+              const segments = sqlTables && sqlTables.length > 0
+                ? splitContentByTableMarker(message.content, tableMap)
+                : [{ kind: 'md' as const, text: message.content }]
+
+              const renderMdSegment = (text: string, segIdx: number) => {
+                const videoParts = text.split(/\[VIDEO:(.*?)\]/)
+                return videoParts.map((part, idx) => {
+                  if (idx % 2 === 1) {
+                    return (
+                      <div key={`seg-${segIdx}-vid-${idx}`} className="relative inline-block my-2 group">
+                        <video controls className="rounded-lg max-w-full max-h-96 shadow-sm">
+                          <source src={part} />
+                        </video>
+                        <a
+                          href={part}
+                          download={`generated-video-${Date.now()}.mp4`}
+                          className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
+                          title="ダウンロード"
+                        >
+                          <Download className="h-4 w-4" />
+                        </a>
+                      </div>
+                    )
+                  }
+                  if (!part.trim()) return null
                   return (
-                    <div key={idx} className="relative inline-block my-2 group">
-                      <video controls className="rounded-lg max-w-full max-h-96 shadow-sm">
-                        <source src={part} />
-                      </video>
-                      <a
-                        href={part}
-                        download={`generated-video-${Date.now()}.mp4`}
-                        className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
-                        title="ダウンロード"
-                      >
-                        <Download className="h-4 w-4" />
-                      </a>
-                    </div>
+                    <ReactMarkdown key={`seg-${segIdx}-md-${idx}`} remarkPlugins={[remarkGfm]} components={{
+                      p: ({ children }) => <p><LinkifyContent>{children}</LinkifyContent></p>,
+                      ul: ({ children }) => <ul className="list-disc list-outside pl-5 my-2 space-y-1 marker:text-slate-400">{children}</ul>,
+                      ol: ({ children }) => <ol className="list-decimal list-outside pl-5 my-2 space-y-1 marker:text-slate-400">{children}</ol>,
+                      li: ({ children }) => <li className="leading-relaxed"><LinkifyContent>{children}</LinkifyContent></li>,
+                      a: ({ href, children }) => (
+                        <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                          {children}
+                        </a>
+                      ),
+                      table: ({ children }) => <MarkdownTable>{children}</MarkdownTable>,
+                      thead: ({ children }) => <MarkdownThead>{children}</MarkdownThead>,
+                      tbody: ({ children }) => <MarkdownTbody>{children}</MarkdownTbody>,
+                      tr: ({ children }) => <MarkdownTr>{children}</MarkdownTr>,
+                      th: ({ children }) => <MarkdownTh>{children}</MarkdownTh>,
+                      td: ({ children }) => <MarkdownTd>{children}</MarkdownTd>,
+                      img: ({ src, alt }) => {
+                        if (!src || typeof src !== 'string') return null
+                        const imgSrc = src as string
+                        return (
+                          <div className="relative inline-block my-2 group">
+                            <img src={imgSrc} alt={alt ?? ''} className="rounded-lg max-w-full max-h-96 shadow-sm" loading="lazy" />
+                            <a
+                              href={imgSrc}
+                              download={`generated-image-${Date.now()}.png`}
+                              className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
+                              title="ダウンロード"
+                            >
+                              <Download className="h-4 w-4" />
+                            </a>
+                          </div>
+                        )
+                      },
+                    }}>{normalizeMarkdown(part).replace(/(?<!\n)\n(?!\n)/g, '  \n')}</ReactMarkdown>
                   )
+                })
+              }
+
+              return segments.flatMap((seg, segIdx) => {
+                if (seg.kind === 'table') {
+                  return [
+                    <SqlResultTable
+                      key={`seg-tbl-${segIdx}-${seg.data.tableId}`}
+                      data={seg.data}
+                      onSendToReport={onSendTableToReport}
+                    />,
+                  ]
                 }
-                if (!part.trim()) return null
-                return (
-                  <ReactMarkdown key={idx} remarkPlugins={[remarkGfm]} components={{
-                    p: ({ children }) => <p><LinkifyContent>{children}</LinkifyContent></p>,
-                    ul: ({ children }) => <ul className="list-disc list-outside pl-5 my-2 space-y-1 marker:text-slate-400">{children}</ul>,
-                    ol: ({ children }) => <ol className="list-decimal list-outside pl-5 my-2 space-y-1 marker:text-slate-400">{children}</ol>,
-                    li: ({ children }) => <li className="leading-relaxed"><LinkifyContent>{children}</LinkifyContent></li>,
-                    a: ({ href, children }) => (
-                      <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                        {children}
-                      </a>
-                    ),
-                    // GFM table を綺麗に表示し、右下にスプレッドシートコピーボタンを表示
-                    table: ({ children }) => <MarkdownTable>{children}</MarkdownTable>,
-                    thead: ({ children }) => <MarkdownThead>{children}</MarkdownThead>,
-                    tbody: ({ children }) => <MarkdownTbody>{children}</MarkdownTbody>,
-                    tr: ({ children }) => <MarkdownTr>{children}</MarkdownTr>,
-                    th: ({ children }) => <MarkdownTh>{children}</MarkdownTh>,
-                    td: ({ children }) => <MarkdownTd>{children}</MarkdownTd>,
-                    img: ({ src, alt }) => {
-                      if (!src || typeof src !== 'string') return null
-                      const imgSrc = src as string
-                      return (
-                        <div className="relative inline-block my-2 group">
-                          <img src={imgSrc} alt={alt ?? ''} className="rounded-lg max-w-full max-h-96 shadow-sm" loading="lazy" />
-                          <a
-                            href={imgSrc}
-                            download={`generated-image-${Date.now()}.png`}
-                            className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
-                            title="ダウンロード"
-                          >
-                            <Download className="h-4 w-4" />
-                          </a>
-                        </div>
-                      )
-                    },
-                  }}>{normalizeMarkdown(part).replace(/(?<!\n)\n(?!\n)/g, '  \n')}</ReactMarkdown>
-                )
+                return renderMdSegment(seg.text, segIdx)
               })
             })()}
           </div>
 
-          {/* execute_sql の結果表 (T-XXX) */}
-          {sqlTables && sqlTables.length > 0 && (
-            <div className="mt-2 space-y-2">
-              {sqlTables.map((t) => (
-                <SqlResultTable
-                  key={t.tableId}
-                  data={t}
-                  onSendToReport={onSendTableToReport}
-                />
-              ))}
-            </div>
-          )}
+          {/* Markdown 本文に表マーカーが見つからなかった残り (= 「表 T-XXX」プレフィックスを
+              一度も書かない execute_sql 直接結果など) は本文の下に追記でレンダリング。
+              splitContentByTableMarker が消費した表は重複しないよう除外する */}
+          {(() => {
+            if (!sqlTables || sqlTables.length === 0) return null
+            const consumed = new Set<string>(
+              extractConsumedTableIds(message.content)
+            )
+            const orphans = sqlTables.filter((t) => !consumed.has(t.tableId))
+            if (orphans.length === 0) return null
+            return (
+              <div className="mt-2 space-y-2">
+                {orphans.map((t) => (
+                  <SqlResultTable
+                    key={t.tableId}
+                    data={t}
+                    onSendToReport={onSendTableToReport}
+                  />
+                ))}
+              </div>
+            )
+          })()}
 
           {/* 画像表示（Geminiスタイル: グリッド + クリックで拡大） */}
           {message.images && message.images.length > 0 && (
@@ -512,6 +542,84 @@ export function parseChoices(content: string): { cleanContent: string; choices: 
   ).trim()
 
   return { cleanContent, choices }
+}
+
+// --- ユーティリティ: T-XXX 表マーカーで本文を分割 ---
+
+type MdSegment = { kind: 'md'; text: string }
+type TableSegment = {
+  kind: 'table'
+  data: import('./sql-result-table').SqlResultTableData
+}
+export type ContentSegment = MdSegment | TableSegment
+
+/**
+ * 「**表 T-XXX**...」マーカーと直後の Markdown 表を SqlResultTable に置換し、
+ * 本文を `[md, table, md, table, ...]` のセグメント列に分解する。
+ * tableMap に該当 T-XXX が無いマーカーは無視し、Markdown のまま残す。
+ */
+export function splitContentByTableMarker(
+  content: string,
+  tableMap: Map<string, import('./sql-result-table').SqlResultTableData>
+): ContentSegment[] {
+  if (tableMap.size === 0) return [{ kind: 'md', text: content }]
+
+  // **表 T-XXX** (N 行) 形式のプレフィックス行
+  const markerRegex = /\*\*表 (T-\d+)\*\*(?:[^\n]*)\n+/g
+  const segments: ContentSegment[] = []
+  let lastIndex = 0
+  let m: RegExpExecArray | null
+
+  while ((m = markerRegex.exec(content)) !== null) {
+    const tableId = m[1]
+    const data = tableMap.get(tableId)
+    if (!data) continue // 該当データ無し → 無視
+
+    // マーカー直後の Markdown 表ブロックの範囲を探す
+    const afterMarker = markerRegex.lastIndex
+    const tableBlock = findNextMarkdownTable(content, afterMarker)
+    if (!tableBlock) continue
+
+    // [lastIndex, m.index) は通常 markdown
+    if (m.index > lastIndex) {
+      segments.push({ kind: 'md', text: content.slice(lastIndex, m.index) })
+    }
+    segments.push({ kind: 'table', data })
+    lastIndex = tableBlock.end
+    markerRegex.lastIndex = tableBlock.end
+  }
+  // 残り
+  if (lastIndex < content.length) {
+    segments.push({ kind: 'md', text: content.slice(lastIndex) })
+  }
+  return segments.length > 0 ? segments : [{ kind: 'md', text: content }]
+}
+
+/**
+ * 本文中の `**表 T-XXX**` プレフィックス行を全て収集する (consumed 判定用)。
+ */
+export function extractConsumedTableIds(content: string): string[] {
+  const re = /\*\*表 (T-\d+)\*\*/g
+  const out: string[] = []
+  let m: RegExpExecArray | null
+  while ((m = re.exec(content)) !== null) out.push(m[1])
+  return out
+}
+
+/**
+ * content の startIndex 以降で最初の Markdown 表ブロック (連続する `|...|` 行) を見つける。
+ */
+function findNextMarkdownTable(
+  content: string,
+  startIndex: number
+): { start: number; end: number } | null {
+  // 表の開始: 行頭が `|` で始まる
+  // 表のヘッダ + 区切り + 1行以上の本文。最大「空行」で終わる
+  const re = /\|[^\n]+\|[ \t]*\n\|[ \t]*[-: ]+\|[^\n]*\n(?:\|[^\n]+\|[ \t]*\n?)+/m
+  const slice = content.slice(startIndex)
+  const m = re.exec(slice)
+  if (!m) return null
+  return { start: startIndex + m.index, end: startIndex + m.index + m[0].length }
 }
 
 // --- ユーティリティ: 全タグをクリーン ---
