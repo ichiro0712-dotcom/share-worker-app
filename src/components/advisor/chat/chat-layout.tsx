@@ -23,6 +23,7 @@ import {
   type SqlApprovalRequest,
 } from '@/src/components/advisor/chat/sql-approval-modal'
 import type { SqlResultTableData } from '@/src/components/advisor/chat/sql-result-table'
+import { getSessionTables } from '@/src/lib/advisor/actions/chat-tables'
 
 // Advisor は単一エージェントなので、すべて "システムアドバイザー" 表示にする
 const AGENT_LABEL = 'システムアドバイザー'
@@ -268,6 +269,7 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
     ;(async () => {
       setConversationId(cidFromUrl)
       setMessages([])
+      setSqlTablesByMessage({})
       const msgs = await getConversationMessages(cidFromUrl)
       if (cancelled) return
       setMessages(msgs.map(m => ({
@@ -277,6 +279,9 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
         content: m.role === 'user' ? stripToolHintPrefix(m.content) : m.content,
         created_at: m.created_at,
       })))
+      const tableMap = await fetchAndMapSessionTables(cidFromUrl, msgs)
+      if (cancelled) return
+      setSqlTablesByMessage(tableMap)
     })()
     return () => {
       cancelled = true
@@ -318,6 +323,7 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
     if (id === conversationId) return
     setConversationId(id)
     setMessages([])
+    setSqlTablesByMessage({})
     // 注意: ここで setLoading(true) を立てない。
     // loading は「LLM 応答中」フラグとして UI が「考え中...」を表示するために使われており、
     // 過去メッセージの fetch にこれを使うと、履歴ページから遷移したときに永続的に
@@ -332,6 +338,61 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
       content: m.role === 'user' ? stripToolHintPrefix(m.content) : m.content,
       created_at: m.created_at,
     })))
+    const tableMap = await fetchAndMapSessionTables(id, msgs)
+    setSqlTablesByMessage(tableMap)
+  }
+
+  /**
+   * 指定セッションの SQL 結果表 (advisor_chat_tables) を取得し、
+   * 時系列で「自分より前の最も新しい assistant メッセージ」に紐付けてマップを返す。
+   *
+   * 紐付け規約 (C 案):
+   * - 表.created_at より前の assistant メッセージのうち最も新しいものに紐付ける
+   * - 該当 assistant が無ければ最初の assistant メッセージにフォールバック (= 古い会話で
+   *   message_id が記録されていないケースの救済)
+   * - assistant メッセージが1つも無い場合は捨てる (実運用ではほぼ起きない)
+   */
+  async function fetchAndMapSessionTables(
+    sessionId: string,
+    msgs: Array<{ id: string; role: string; created_at: string }>
+  ): Promise<Record<string, SqlResultTableData[]>> {
+    let tables: Awaited<ReturnType<typeof getSessionTables>>
+    try {
+      tables = await getSessionTables(sessionId)
+    } catch (e) {
+      console.warn('[advisor] getSessionTables failed:', e)
+      return {}
+    }
+    if (tables.length === 0) return {}
+
+    const assistantMsgs = msgs
+      .filter(m => m.role === 'assistant' || m.role === 'agent')
+      .map(m => ({ id: m.id, t: new Date(m.created_at).getTime() }))
+      .sort((a, b) => a.t - b.t)
+    if (assistantMsgs.length === 0) return {}
+
+    const out: Record<string, SqlResultTableData[]> = {}
+    for (const tbl of tables) {
+      const tableTime = new Date(tbl.createdAt).getTime()
+      // 自分より前の assistant メッセージで最も新しいもの
+      let target = assistantMsgs[0].id
+      for (const am of assistantMsgs) {
+        if (am.t <= tableTime) target = am.id
+        else break
+      }
+      const data: SqlResultTableData = {
+        tableId: tbl.tableId,
+        tableDbId: tbl.tableDbId,
+        purpose: tbl.purpose,
+        columns: tbl.columns,
+        rows: tbl.rows,
+        rowCount: tbl.rowCount,
+        truncated: tbl.truncated,
+        durationMs: tbl.durationMs ?? undefined,
+      }
+      ;(out[target] ??= []).push(data)
+    }
+    return out
   }
 
   /**
@@ -349,6 +410,8 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
       content: m.role === 'user' ? stripToolHintPrefix(m.content) : m.content,
       created_at: m.created_at,
     })))
+    const tableMap = await fetchAndMapSessionTables(conversationId, msgs)
+    setSqlTablesByMessage(tableMap)
   }
 
   async function handleDeleteConversation(id: string) {

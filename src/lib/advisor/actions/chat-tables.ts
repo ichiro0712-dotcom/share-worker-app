@@ -149,6 +149,49 @@ export async function disableTableShare(
 }
 
 /**
+ * セッション内の全表を時系列順で取得 (再ログイン後の再表示用)。
+ * - 認証必須 (System Admin)
+ * - 自分が作った表のみ
+ * - 古い順 (created_at ASC) で返す
+ */
+export async function getSessionTables(sessionId: string): Promise<
+  Array<{
+    id: number
+    tableId: string
+    tableDbId: number
+    purpose: string
+    columns: Array<{ key: string; label: string; type?: string }>
+    rows: unknown[][]
+    rowCount: number
+    truncated: boolean
+    durationMs: number | null
+    createdAt: string
+  }>
+> {
+  const auth = await requireAdvisorAuth()
+  const rows = await prisma.advisorChatTable.findMany({
+    where: { session_id: sessionId, created_by_id: auth.adminId },
+    orderBy: { created_at: 'asc' },
+  })
+  return rows.map((r) => ({
+    id: r.id,
+    tableId: `T-${String(r.id).padStart(3, '0')}`,
+    tableDbId: r.id,
+    purpose: r.purpose,
+    columns: r.columns as unknown as Array<{
+      key: string
+      label: string
+      type?: string
+    }>,
+    rows: r.rows as unknown as unknown[][],
+    rowCount: r.row_count,
+    truncated: r.truncated,
+    durationMs: r.duration_ms,
+    createdAt: r.created_at.toISOString(),
+  }))
+}
+
+/**
  * 公開ページ用: token から表データを取得 (認証不要)。
  * 期限切れや停止中は null を返す。
  */

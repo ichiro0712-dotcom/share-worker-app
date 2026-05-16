@@ -1,8 +1,9 @@
 /**
  * Advisor データクリーンアップ cron エンドポイント
  *
- * 保持期間ポリシー (2026-05-04 確定):
+ * 保持期間ポリシー (2026-05-04 確定 / 2026-05-16 表追加):
  *   - しおりなしセッションの Draft / Versions: 30 日触られなければ削除
+ *   - しおりなしセッションの ChatTable (execute_sql 結果): 30 日触られなければ削除
  *   - Audit ログ: 90 日経過したものは削除 (ただし report_* イベントは 180 日保持)
  *   - 失効済み共有 URL の token / shared_at / shared_until は cleanup 対象 (掃除のため null 化)
  *
@@ -38,8 +39,10 @@ interface CleanupResult {
   completedAt: string
   deletedDrafts: number
   deletedVersions: number
+  deletedChatTables: number
   deletedAuditLogs: number
   expiredSharesCleared: number
+  expiredChatTableSharesCleared: number
 }
 
 async function runCleanup(): Promise<CleanupResult> {
@@ -63,6 +66,7 @@ async function runCleanup(): Promise<CleanupResult> {
 
   let deletedDrafts = 0
   let deletedVersions = 0
+  let deletedChatTables = 0
 
   if (sessionIds.length > 0) {
     // 2. 対象セッションに紐づくドラフト + そのドラフトに紐づくバージョンを削除。
@@ -94,6 +98,16 @@ async function runCleanup(): Promise<CleanupResult> {
       })
       deletedDrafts = draftDel.count
     }
+
+    // 2.5. しおりなしセッションの SQL 結果表 (advisor_chat_tables) も
+    //      30 日経過していれば削除する。
+    const chatTableDel = await prisma.advisorChatTable.deleteMany({
+      where: {
+        session_id: { in: sessionIds },
+        created_at: { lt: draftCutoff },
+      },
+    })
+    deletedChatTables = chatTableDel.count
   }
 
   // 3. Audit ログ削除 (event_type と payload.kind で「report 系か」を判定)
@@ -131,13 +145,24 @@ async function runCleanup(): Promise<CleanupResult> {
     data: { shared_at: null, shared_until: null, share_token: null },
   })
 
+  // 5. 表 (advisor_chat_tables) の期限切れ共有 URL も同様に null 化
+  const expiredChatTableShare = await prisma.advisorChatTable.updateMany({
+    where: {
+      shared_until: { lt: now },
+      shared_at: { not: null },
+    },
+    data: { shared_at: null, shared_until: null, share_token: null },
+  })
+
   return {
     startedAt,
     completedAt: new Date().toISOString(),
     deletedDrafts,
     deletedVersions,
+    deletedChatTables,
     deletedAuditLogs,
     expiredSharesCleared: expiredShare.count,
+    expiredChatTableSharesCleared: expiredChatTableShare.count,
   }
 }
 
