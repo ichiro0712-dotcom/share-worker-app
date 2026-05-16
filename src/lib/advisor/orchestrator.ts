@@ -654,9 +654,10 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
 
       // 応答本文内の Markdown 表を抽出して advisor_chat_tables に登録し、
       // T-XXX を採番して本文を書き換える。
-      // - ストリーム送信は終わっているので、書き換えは DB のみ
-      // - クライアントが次回このセッションを開いた時にプレフィックス行付きで表示される
+      // - ストリーム送信は終わっているが、done イベントに annotatedContent を含めて
+      //   クライアントが即座に T-XXX 付きで表示できるようにする (リロード不要)
       // - 別セッションから「T-XXX を get_table」で参照可能になる
+      let annotatedFinalContent: string | null = null;
       try {
         const annotated = await annotateAndPersistTables({
           content: assembledAssistantText,
@@ -669,6 +670,7 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
             where: { id: persistedMessage.id },
             data: { content: annotated.content },
           });
+          annotatedFinalContent = annotated.content;
         }
       } catch (e) {
         console.error('[advisor] Markdown table annotate failed:', e);
@@ -685,6 +687,9 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
         type: 'done',
         messageId: persistedMessage.id,
         conversationId: input.sessionId,
+        data: annotatedFinalContent
+          ? { annotatedContent: annotatedFinalContent }
+          : undefined,
       });
       stopHeartbeat();
 

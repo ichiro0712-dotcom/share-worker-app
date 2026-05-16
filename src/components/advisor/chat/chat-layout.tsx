@@ -735,11 +735,17 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
       }
 
       const newMessageId = result.data?.messageId ?? crypto.randomUUID()
+      // サーバー側で Markdown 表に T-XXX を後付け採番した結果が返ってきたらそれを優先表示
+      // (リロード無しで「表 T-XXX」プレフィックス + SqlResultTable が出るようにする)
+      const annotatedContent =
+        typeof result.data?.annotatedContent === 'string'
+          ? cleanMessageTags(result.data.annotatedContent)
+          : null
       setMessages(prev => [...prev, {
         id: newMessageId,
         role: 'assistant',
         agent_id: agentId,
-        content: cleanContent,
+        content: annotatedContent ?? cleanContent,
         created_at: new Date().toISOString(),
         actionIds: actionIds.length > 0 ? actionIds : undefined,
         choices: choices.length > 0 ? choices : undefined,
@@ -747,11 +753,44 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
       }])
       setStreamingContent('')
 
-      // execute_sql の結果表をメッセージ ID に紐づけ
+      // execute_sql の結果表をメッセージ ID に紐づけ (即時バッファ分)
       if (streamingTablesRef.current.length > 0) {
         const tables = streamingTablesRef.current
         streamingTablesRef.current = []
         setSqlTablesByMessage(prev => ({ ...prev, [newMessageId]: tables }))
+      }
+
+      // サーバー側で Markdown 表に T-XXX が後付けされた場合、本文中の T-XXX に対応する
+      // SqlResultTableData を DB から取得して紐付ける。
+      if (annotatedContent && conversationId) {
+        try {
+          const all = await getSessionTables(conversationId)
+          // 本文に登場する T-XXX のみ抽出
+          const referenced = new Set<string>()
+          const re = /\*\*表 (T-\d+)\*\*/g
+          let m: RegExpExecArray | null
+          while ((m = re.exec(annotatedContent)) !== null) referenced.add(m[1])
+          const dataForMsg: SqlResultTableData[] = all
+            .filter(t => referenced.has(t.tableId))
+            .map(t => ({
+              tableId: t.tableId,
+              tableDbId: t.tableDbId,
+              purpose: t.purpose,
+              columns: t.columns,
+              rows: t.rows,
+              rowCount: t.rowCount,
+              truncated: t.truncated,
+              durationMs: t.durationMs ?? undefined,
+            }))
+          if (dataForMsg.length > 0) {
+            setSqlTablesByMessage(prev => ({
+              ...prev,
+              [newMessageId]: [...(prev[newMessageId] ?? []), ...dataForMsg],
+            }))
+          }
+        } catch (e) {
+          console.warn('[advisor] annotate post-fetch failed:', e)
+        }
       }
 
       // 今回の応答で update_report_draft または add_tables_to_report が呼ばれていたら Canvas を自動オープン
