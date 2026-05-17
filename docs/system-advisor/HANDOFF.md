@@ -1,10 +1,11 @@
 # System Advisor 引き継ぎ資料 (継続更新)
 
-**ブランチ**: `feature/system-advisor-chatbot`
-**最終更新**: 2026-05-06 — hub-platform 連携 (handoff-bundle 作成 / 追加バグ報告対応 / 機能 3, 8 採用 / Anthropic キー同期問題)
-**ステータス**: ローカルで動作確認済み。本番Supabase接続済み (IPv4 アドオン)。ステージング展開待ち。
+**ブランチ**: `feature/advisor-sql-tool` (主たる開発、`feature/system-advisor-chatbot` から派生)
+**最終更新**: 2026-05-17 — **METRIC_CATALOG 完全網羅完了**。48 → **92 個** (available 89 + future 3) に拡張。Attendance / LaborDoc / Repeat / 求人詳細 / LP 帰属 / 求人構造 / 単位指標等 B群40 + D群10 を一括追加。`scripts/smoke-test-metrics.ts` で全 89 metric を直近 90 日で叩いて **89/89 成功**。`npm run build` パス、`scripts/check-metrics-consistency.ts` パス。前回更新: METRIC_CATALOG を 12 → 27 個 (ワーカー/施設/求人/LP/Funnel 系)。レポート自動補完を 4 ツール対応に強化。tools-spec.md / data-model.md / architecture.md / REPORT_FEATURE.md / system-prompt.md を現状コードと整合化。
+**ステータス**: ローカルで全機能動作確認済み。本番 Supabase 接続済み。ステージング/本番展開待ち。
 **大方針** (2026-05-03 確定): TASTAS Advisor 安定運用後に hub-platform へ統合。詳細は [HUB_PLATFORM_MIGRATION_TODO.md](./HUB_PLATFORM_MIGRATION_TODO.md)
 **次セッションへ**: [NEXT_SESSION.md](./NEXT_SESSION.md) を最初に読むこと。
+**直近セッション**: [HANDOFF_2026-05-16.md](./HANDOFF_2026-05-16.md) — execute_sql / 表 T-XXX / 共有メニュー / GA4 pageTraffic / Markdown 表自動採番 / auto-fill 復活 / METRIC_CATALOG 拡張 等の作業ログ。
 
 > このファイルは **毎回作り直さず、ここを更新** する。
 > 新しいセッションで何かやったら、末尾の「セッションログ」に新しい節を追記する。
