@@ -122,3 +122,76 @@ function formatCell(v: unknown): string {
   // パイプはエスケープ
   return s.replace(/\|/g, '\\|').replace(/\n/g, ' ');
 }
+
+/**
+ * 文字列群から「T-XXX」形式のテーブル ID を抽出する (重複排除)。
+ *
+ * 用途: ユーザーの修正指示 / draft.skeleton_markdown / previousResultMarkdown 等を
+ * スキャンして「このレポートが参照する T-XXX」を炙り出す。
+ *
+ * 検出対象: `T-001` / `T-001` (全角ハイフン) / `T1` / `t-1` / `T_1` 等のバリアント。
+ * 半角・全角・大文字・小文字を吸収する。"T-XXX" のような大文字 X 連続 (プレースホルダ) は除外。
+ */
+export function extractTableIdsFromText(...sources: Array<string | null | undefined>): string[] {
+  const ids = new Set<string>();
+  // 半角/全角ハイフン・アンダースコア・空白を許容、桁数は 1〜5 桁を想定
+  const re = /\bT[-_ ‐−–—]?(\d{1,5})\b/gi;
+  for (const src of sources) {
+    if (!src) continue;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(src)) !== null) {
+      const n = Number(m[1]);
+      if (!Number.isFinite(n) || n <= 0) continue;
+      ids.add(`T-${String(n).padStart(3, '0')}`);
+    }
+  }
+  return Array.from(ids);
+}
+
+/**
+ * テキストから T-XXX を抽出して DB から取得し、Markdown 表として整形する。
+ *
+ * 戻り値: 「## 表 T-XXX (purpose)\n\nMarkdown 表」を結合した 1 つの文字列、
+ * および取得失敗した ID リスト。
+ *
+ * Gemini の draft_revise / generate プロンプトに「参照される T-XXX の中身」を
+ * 添付するために使う。Gemini はツール呼び出しができないので、サーバー側で
+ * 解決してプロンプトに混ぜる必要がある。
+ *
+ * 1表あたり最大 maxRowsPerTable 行に切り詰める (Gemini 入力サイズ制御)。
+ */
+export async function fetchReferencedTablesAsMarkdown(
+  text: string | null | undefined,
+  options: { extraSources?: Array<string | null | undefined>; maxRowsPerTable?: number } = {}
+): Promise<{ markdown: string; foundIds: string[]; missingIds: string[] }> {
+  const ids = extractTableIdsFromText(text, ...(options.extraSources ?? []));
+  if (ids.length === 0) {
+    return { markdown: '', foundIds: [], missingIds: [] };
+  }
+  const maxRows = options.maxRowsPerTable ?? 200;
+  const { found, missing } = await fetchTablesByStringIds(ids);
+  if (found.length === 0) {
+    return { markdown: '', foundIds: [], missingIds: missing };
+  }
+  const sections: string[] = [];
+  for (const t of found) {
+    const limited: ChatTableData = {
+      ...t,
+      rows: t.rows.slice(0, maxRows),
+    };
+    const truncated = t.rows.length > limited.rows.length;
+    const truncNote = truncated
+      ? `\n_(全 ${t.rowCount.toLocaleString('ja-JP')} 行のうち最初の ${limited.rows.length.toLocaleString('ja-JP')} 行のみ表示)_`
+      : '';
+    sections.push(
+      `### 表 ${t.tableId} — ${t.purpose || '(目的未指定)'}\n\n` +
+        tableToMarkdown(limited) +
+        truncNote
+    );
+  }
+  return {
+    markdown: sections.join('\n\n'),
+    foundIds: found.map((t) => t.tableId),
+    missingIds: missing,
+  };
+}

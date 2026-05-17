@@ -160,6 +160,7 @@ export async function getSessionTables(sessionId: string): Promise<
     tableId: string
     tableDbId: number
     purpose: string
+    sqlText: string
     columns: Array<{ key: string; label: string; type?: string }>
     rows: unknown[][]
     rowCount: number
@@ -178,6 +179,7 @@ export async function getSessionTables(sessionId: string): Promise<
     tableId: `T-${String(r.id).padStart(3, '0')}`,
     tableDbId: r.id,
     purpose: r.purpose,
+    sqlText: r.sql_text,
     columns: r.columns as unknown as Array<{
       key: string
       label: string

@@ -26,6 +26,7 @@ import {
   tableToMarkdown,
   type ChatTableData,
 } from '../tastas-data/chat-tables';
+import { CHAT_TABLE_PSEUDO_SOURCE } from '../../reports/collect';
 
 interface Input {
   /** 追加する表 ID の配列。例: ["T-001", "T-003"] */
@@ -133,12 +134,20 @@ export const addTablesToReportTool: AdvisorTool<Input, Output> = {
     const originalRequestToSave =
       isFirstCreation && ctx.userMessage ? ctx.userMessage : undefined;
 
+    // dataSources を merge: 既存に chat_table 擬似 toolKey を追加。
+    // これがないと canGenerate=false で「レポート作成」ボタンが押せない。
+    // collect.ts 側で chat_table は実ツール呼び出しをスキップする扱い。
+    const mergedDataSources = Array.from(
+      new Set([...(existing?.dataSources ?? []), CHAT_TABLE_PSEUDO_SOURCE])
+    );
+
     const draft = await upsertDraft({
       sessionId: ctx.sessionId,
       adminId: ctx.adminId,
       title: isFirstCreation ? newTitle : undefined,
       skeletonMarkdown: newSkeleton,
       originalRequest: originalRequestToSave,
+      dataSources: mergedDataSources,
     });
 
     return {
