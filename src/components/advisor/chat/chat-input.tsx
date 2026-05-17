@@ -156,16 +156,24 @@ export function ChatInput({
   }, [])
 
   // 親が forcedTool を変えたら追従。
-  // - forcedTool='draft_revise' で来たらツールをオンにする
-  // - null で来たら何もしない (ユーザー選択を尊重)
-  // 親が forcedTool を解除しても、ユーザーの能動選択を勝手に消さないようにするため、
-  // 効果は "forcedTool が新しく値を持った瞬間" のみ。
+  // - forcedTool='draft_revise' / 'result_edit' で来たらツールをオンにする
+  // - null に変化した瞬間 (= Canvas を閉じた等)、現在の selectedTool が
+  //   "Canvas 文脈で自動セットされたツール" (draft_revise / result_edit) なら解除する。
+  //   それ以外 (ユーザーが能動的に選んだツール) は残す。
+  //   理由: 「レポートを閉じてもチャット欄でレポート修正指示ツールが残っている」のは
+  //   UX として直感に反するため、Canvas を閉じたら関連ツールも一緒に解除する。
+  const CANVAS_TOOLS = ['draft_revise', 'result_edit']
   const lastForcedToolRef = useRef<string | null>(null)
   useEffect(() => {
     if (forcedTool && forcedTool !== lastForcedToolRef.current) {
       setSelectedTool(forcedTool)
+    } else if (!forcedTool && lastForcedToolRef.current) {
+      setSelectedTool((current) =>
+        current && CANVAS_TOOLS.includes(current) ? null : current
+      )
     }
     lastForcedToolRef.current = forcedTool
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [forcedTool])
 
   // 親 (suggestion チップ等) から「ツール選択 + テキスト挿入」を発火された時。

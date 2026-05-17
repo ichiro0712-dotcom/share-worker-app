@@ -53,6 +53,8 @@ interface Output {
   duration_ms: number;
   /** purpose をそのまま返す (LLM が後続の応答に使う) */
   purpose: string;
+  /** 実行された SELECT 文 (sanitized = LIMIT 自動付与済み)。UI で折りたたみ表示するのに使う */
+  sql_text: string;
 }
 
 const STATEMENT_TIMEOUT_MS = 10_000;
@@ -202,6 +204,7 @@ export const executeSqlTool: AdvisorTool<Input, Output> = {
         truncated,
         duration_ms: durationMs,
         purpose: input.purpose,
+        sql_text: guard.sanitizedSql,
       },
       metadata: {
         tookMs: durationMs,

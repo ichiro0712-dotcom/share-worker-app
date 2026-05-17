@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Loader2, Plus, MessageSquare, PanelRightClose, PanelRightOpen, PanelLeftClose, PanelLeftOpen, Trash2, Sun, Settings as SettingsIcon, LogOut, Bot, ShieldCheck, RefreshCw, FileText, Bookmark, BookmarkCheck, ChevronLeft } from 'lucide-react'
+import { Loader2, Plus, MessageSquare, PanelRightClose, PanelLeftClose, PanelLeftOpen, Trash2, Sun, Settings as SettingsIcon, LogOut, Bot, ShieldCheck, RefreshCw, FileText, Bookmark, BookmarkCheck, ChevronLeft } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/src/components/ui/shadcn/button'
 import { ScrollArea } from '@/src/components/ui/shadcn/scroll-area'
@@ -384,6 +384,7 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
         tableId: tbl.tableId,
         tableDbId: tbl.tableDbId,
         purpose: tbl.purpose,
+        sqlText: tbl.sqlText,
         columns: tbl.columns,
         rows: tbl.rows,
         rowCount: tbl.rowCount,
@@ -534,6 +535,7 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
             tableId: d.table_id,
             tableDbId: d.table_db_id,
             purpose: String(d.purpose ?? ''),
+            sqlText: typeof d.sql_text === 'string' ? d.sql_text : undefined,
             columns: d.columns as SqlResultTableData['columns'],
             rows: d.rows as unknown[][],
             rowCount: typeof d.row_count === 'number' ? d.row_count : (d.rows as unknown[]).length,
@@ -737,9 +739,14 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
       const newMessageId = result.data?.messageId ?? crypto.randomUUID()
       // サーバー側で Markdown 表に T-XXX を後付け採番した結果が返ってきたらそれを優先表示
       // (リロード無しで「表 T-XXX」プレフィックス + SqlResultTable が出るようにする)
+      // 注意: orchestrator は done イベントを `{ type, messageId, conversationId, data: { annotatedContent } }`
+      // の形で送るため、annotatedContent は外側の result.data ではなく内側の result.data.data に入る。
+      const doneInnerData = result.data?.data as
+        | { annotatedContent?: unknown }
+        | undefined
       const annotatedContent =
-        typeof result.data?.annotatedContent === 'string'
-          ? cleanMessageTags(result.data.annotatedContent)
+        typeof doneInnerData?.annotatedContent === 'string'
+          ? cleanMessageTags(doneInnerData.annotatedContent)
           : null
       setMessages(prev => [...prev, {
         id: newMessageId,
@@ -1158,17 +1165,29 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
             </span>
           </div>
           <div className="flex items-center gap-1">
-            {/* レポート Canvas トグル: ドラフトが存在する時だけ表示 */}
+            {/* レポート Canvas トグル: ドラフトが存在する時だけ表示。
+                ラベル付きで「ここからレポートを開ける」ことを明示する
+                (アイコンだけだと気付かれにくく、ユーザーが「再度ひらけない」と
+                 報告したのを受けて明示化した) */}
             {hasDraft && (
               <Button
                 size="sm"
-                variant="ghost"
+                variant={canvasOpen ? 'ghost' : 'outline'}
                 onClick={() => setCanvasOpen(v => !v)}
-                className="h-7 px-2 gap-1 text-xs text-slate-600 hover:text-slate-900"
+                className="h-7 px-2 gap-1.5 text-xs"
                 title={canvasOpen ? 'レポート Canvas を閉じる' : 'レポート Canvas を開く'}
               >
-                {canvasOpen ? <PanelRightClose className="h-3.5 w-3.5" /> : <PanelRightOpen className="h-3.5 w-3.5" />}
-                <FileText className="h-3.5 w-3.5" />
+                {canvasOpen ? (
+                  <>
+                    <PanelRightClose className="h-3.5 w-3.5" />
+                    <span>レポートを閉じる</span>
+                  </>
+                ) : (
+                  <>
+                    <FileText className="h-3.5 w-3.5" />
+                    <span>レポートを開く</span>
+                  </>
+                )}
               </Button>
             )}
             {/* 設定ページへのリンク (歯車アイコン) — 新規タブで開く */}
@@ -1465,8 +1484,12 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
               onCancelChatStream={handleAbort}
               chatLoading={loading}
               onClose={() => {
+                // Canvas を閉じるだけ。hasDraft は触らない。
+                // 以前は setHasDraft(false) もしていたが、これだと
+                // ヘッダーの「Canvas を開く」トグルボタン (hasDraft 条件で表示) が
+                // 消えてしまい、ユーザーが Canvas を再度開けなくなるバグがあった。
+                // DB 上のドラフトは閉じても残っているので、ボタンは出し続けて OK。
                 setCanvasOpen(false)
-                setHasDraft(false)
               }}
             />
           </div>

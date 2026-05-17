@@ -576,20 +576,28 @@ export function splitContentByTableMarker(
   while ((m = markerRegex.exec(content)) !== null) {
     const tableId = m[1]
     const data = tableMap.get(tableId)
-    if (!data) continue // 該当データ無し → 無視
+    if (!data) continue // 該当データ無し → 無視 (本文はそのまま残す)
 
     // マーカー直後の Markdown 表ブロックの範囲を探す
     const afterMarker = markerRegex.lastIndex
     const tableBlock = findNextMarkdownTable(content, afterMarker)
-    if (!tableBlock) continue
 
     // [lastIndex, m.index) は通常 markdown
     if (m.index > lastIndex) {
       segments.push({ kind: 'md', text: content.slice(lastIndex, m.index) })
     }
     segments.push({ kind: 'table', data })
-    lastIndex = tableBlock.end
-    markerRegex.lastIndex = tableBlock.end
+
+    if (tableBlock) {
+      // マーカー + 後続の Markdown 表ブロックをまとめて表 UI に置換
+      lastIndex = tableBlock.end
+      markerRegex.lastIndex = tableBlock.end
+    } else {
+      // execute_sql 短絡パスのように Markdown 表本体が無いケース。
+      // マーカー行 (現在の m[0] 範囲) だけを消費して表 UI に置き換える。
+      lastIndex = afterMarker
+      // markerRegex.lastIndex はすでに afterMarker
+    }
   }
   // 残り
   if (lastIndex < content.length) {

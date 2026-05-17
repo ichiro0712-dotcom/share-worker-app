@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { Copy, Check, Share2 } from 'lucide-react'
+import { Copy, Check, Share2, ChevronDown, ChevronRight, Code } from 'lucide-react'
 import {
   enableTableShare,
   disableTableShare,
@@ -19,6 +19,13 @@ export interface SqlResultTableData {
   rowCount: number
   truncated: boolean
   durationMs?: number
+  /**
+   * 実行された SELECT 文。
+   * 「あとで振り返って SQL の中身を見たい」というユーザー要望を受けて追加。
+   * 折りたたみ UI でデフォルト非表示、クリックで展開。
+   * 未指定 (旧データ) の場合は折りたたみボタン自体を出さない。
+   */
+  sqlText?: string
 }
 
 export interface SqlResultTableProps {
@@ -46,8 +53,11 @@ export function SqlResultTable({
   const tableRef = useRef<HTMLTableElement | null>(null)
   const [expanded, setExpanded] = useState(false)
   const [tableIdCopied, setTableIdCopied] = useState(false)
+  const [sqlOpen, setSqlOpen] = useState(false)
+  const [sqlCopied, setSqlCopied] = useState(false)
   const rowsToShow = expanded ? data.rows : data.rows.slice(0, PREVIEW_ROWS)
   const hasMore = data.rows.length > PREVIEW_ROWS
+  const hasSql = !!(data.sqlText && data.sqlText.trim().length > 0)
 
   function handleCopyTableId() {
     navigator.clipboard.writeText(data.tableId).catch(() => {
@@ -57,8 +67,56 @@ export function SqlResultTable({
     setTimeout(() => setTableIdCopied(false), 1500)
   }
 
+  function handleCopySql() {
+    if (!data.sqlText) return
+    navigator.clipboard.writeText(data.sqlText).catch(() => {
+      /* ignore */
+    })
+    setSqlCopied(true)
+    setTimeout(() => setSqlCopied(false), 1500)
+  }
+
   return (
     <div className="my-3">
+      {/* SQL 折り畳み (sqlText がある場合のみ表示)。
+          ユーザー要望: 承認モーダルだけだとリロード後に SQL を見返せないので、
+          表カード自体に「使った SQL」を畳んで持たせる。 */}
+      {hasSql && (
+        <div className="mb-1.5">
+          <button
+            type="button"
+            onClick={() => setSqlOpen((v) => !v)}
+            className="inline-flex items-center gap-1 text-[10px] text-slate-500 hover:text-slate-800"
+            title={sqlOpen ? '実行された SQL を畳む' : '実行された SQL を表示'}
+          >
+            {sqlOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+            <Code className="h-3 w-3" />
+            <span>{sqlOpen ? '実行 SQL を畳む' : '実行 SQL を表示'}</span>
+          </button>
+          {sqlOpen && (
+            <div className="mt-1 rounded-md border border-slate-200 bg-slate-50">
+              <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-200 text-[10px] text-slate-500">
+                <span className="truncate" title={data.purpose}>
+                  目的: {data.purpose || '(未指定)'}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleCopySql}
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-slate-200 bg-white hover:bg-slate-100"
+                  title="SQL をコピー"
+                >
+                  {sqlCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                  <span>{sqlCopied ? 'コピー済' : 'SQL コピー'}</span>
+                </button>
+              </div>
+              <pre className="px-3 py-2 text-[11px] leading-relaxed text-slate-700 whitespace-pre-wrap break-words font-mono overflow-x-auto">
+                {data.sqlText}
+              </pre>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
         {data.columns.length === 0 || data.rows.length === 0 ? (
           <div className="p-4 text-sm text-slate-500">データなし</div>
