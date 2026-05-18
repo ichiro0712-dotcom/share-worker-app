@@ -11,6 +11,12 @@
 import { calculateSalary } from '@/src/lib/salary-calculator';
 import { TRANSPORTATION_FEE_MAX, TRANSPORTATION_FEE_RATE_PER_HOUR } from '@/constants/salary';
 
+// JSTオフセット（+9時間 = 32400000ミリ秒）
+// Vercel等のUTCサーバーで Date#setHours / setDate を使うと
+// サーバーのローカルタイムゾーン(UTC)で解釈されてJSTと9時間ズレるため、
+// 全てUTCプリミティブ+このオフセットでJST時刻を構築する
+const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
+
 /**
  * 時刻をパースする（翌日プレフィックス対応）
  * @param time - 時刻文字列 (HH:mm または 翌HH:mm 形式)
@@ -25,23 +31,30 @@ const parseTime = (time: string): { hour: number; min: number; isNextDay: boolea
 
 /**
  * 時刻文字列からDateオブジェクトを生成（JST基準）
- * @param timeStr - 時刻文字列 (HH:mm 形式)
+ *
+ * baseDate の JST 日付に対して timeStr の時刻(JST)を設定する。
+ * サーバー(UTC)・クライアント(JST)どちらで実行しても同じ結果になる。
+ *
+ * @param timeStr - 時刻文字列 (HH:mm 形式、または 翌HH:mm)
  * @param isNextDay - 翌日かどうか
- * @param baseDate - 基準日（省略時は今日）
- * @returns Date オブジェクト
+ * @param baseDate - 基準日（このDateのJST日付を使用）
+ * @returns Date オブジェクト（指定したJST時刻に対応するUTC Date）
  */
 const timeStringToDate = (
   timeStr: string,
   isNextDay: boolean,
-  baseDate: Date = new Date()
+  baseDate: Date
 ): Date => {
   const parsed = parseTime(timeStr);
-  const date = new Date(baseDate);
-  date.setHours(parsed.hour, parsed.min, 0, 0);
-  if (isNextDay || parsed.isNextDay) {
-    date.setDate(date.getDate() + 1);
-  }
-  return date;
+  // baseDateのJST日付を取得（タイムゾーン非依存）
+  const baseJst = new Date(baseDate.getTime() + JST_OFFSET_MS);
+  const year = baseJst.getUTCFullYear();
+  const month = baseJst.getUTCMonth();
+  const dayOfMonth = baseJst.getUTCDate() + ((isNextDay || parsed.isNextDay) ? 1 : 0);
+  // 「JST year-month-dayOfMonth parsed.hour:parsed.min」を表すUTCタイムスタンプ
+  return new Date(
+    Date.UTC(year, month, dayOfMonth, parsed.hour, parsed.min, 0, 0) - JST_OFFSET_MS
+  );
 };
 
 /**
@@ -73,17 +86,22 @@ export const calculateDailyWage = (
     const start = parseTime(startTime);
     const end = parseTime(endTime);
 
-    // 基準日を設定（JST）
-    const baseDate = new Date();
-    baseDate.setHours(0, 0, 0, 0);
+    // 基準日（JSTでの「今日」の 00:00 を表すUTC Date）
+    // サーバー(UTC)で new Date().setHours(0,0,0,0) を使うと UTC 00:00 = JST 09:00 になり
+    // 後段の calculateSalary が時間帯判定をミスるため、UTCプリミティブで構築する
+    const now = new Date();
+    const jstNow = new Date(now.getTime() + JST_OFFSET_MS);
+    const baseDate = new Date(
+      Date.UTC(jstNow.getUTCFullYear(), jstNow.getUTCMonth(), jstNow.getUTCDate(), 0, 0, 0, 0) - JST_OFFSET_MS
+    );
 
     // 開始・終了時刻をDateオブジェクトに変換
     const startDate = timeStringToDate(startTime, false, baseDate);
     let endDate = timeStringToDate(endTime, end.isNextDay, baseDate);
 
-    // 終了時刻が開始時刻より前の場合は翌日とみなす
+    // 終了時刻が開始時刻より前の場合は翌日とみなす（ms加算でTZ非依存）
     if (endDate <= startDate) {
-      endDate.setDate(endDate.getDate() + 1);
+      endDate = new Date(endDate.getTime() + 24 * 60 * 60 * 1000);
     }
 
     // salary-calculatorを使用して割増計算
