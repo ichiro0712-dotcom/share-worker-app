@@ -16,5 +16,5 @@ export default async function RegisterThanksPage() {
     redirect('/login');
   }
 
-  return <ThanksClient userName={session.user.name ?? ''} lineUrl={THANKS_LINE_URL} />;
+  return <ThanksClient lineUrl={THANKS_LINE_URL} />;
 }
