@@ -6,6 +6,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { getCurrentTime } from './helpers';
+import { formatJSTDate, formatJSTDateTime } from '@/utils/jst';
 import { calculateSalary } from '@/src/lib/salary-calculator';
 import { sendNotification } from '@/src/lib/notification-service';
 import { sendAdminAttendanceModificationApprovedNotification } from './notification';
@@ -406,7 +407,7 @@ export async function approveModificationRequest(
       applicationId: applicationId,
       variables: {
         work_date: modification.attendance.application?.workDate.work_date
-          ? new Date(modification.attendance.application.workDate.work_date).toLocaleDateString('ja-JP')
+          ? formatJSTDate(new Date(modification.attendance.application.workDate.work_date))
           : '',
         facility_name: modification.attendance.facility.facility_name,
         approved_start_time: modification.requested_start_time.toLocaleTimeString('ja-JP', {
@@ -437,7 +438,7 @@ export async function approveModificationRequest(
       modification.attendance.facility.facility_name,
       modification.attendance.application?.workDate.job.title || '',
       modification.attendance.application?.workDate.work_date
-        ? new Date(modification.attendance.application.workDate.work_date).toLocaleDateString('ja-JP')
+        ? formatJSTDate(new Date(modification.attendance.application.workDate.work_date))
         : ''
     ).catch(err => console.error('[approveModificationRequest] Admin notification error:', err));
 
@@ -565,7 +566,7 @@ export async function rejectModificationRequest(
       applicationId: applicationId,
       variables: {
         work_date: modification.attendance.application?.workDate.work_date
-          ? new Date(modification.attendance.application.workDate.work_date).toLocaleDateString('ja-JP')
+          ? formatJSTDate(new Date(modification.attendance.application.workDate.work_date))
           : '',
         facility_name: modification.attendance.facility.facility_name,
         admin_comment: request.adminComment,
@@ -996,7 +997,7 @@ export async function getUsageDetailsCSV(
     // CSV行を生成
     const rows = items.map((item) => {
       const checkIn = item.actualStartTime
-        ? new Date(item.actualStartTime).toLocaleString('ja-JP', {
+        ? formatJSTDateTime(new Date(item.actualStartTime), {
             year: 'numeric',
             month: '2-digit',
             day: '2-digit',
@@ -1005,7 +1006,7 @@ export async function getUsageDetailsCSV(
           })
         : '';
       const checkOut = item.actualEndTime
-        ? new Date(item.actualEndTime).toLocaleString('ja-JP', {
+        ? formatJSTDateTime(new Date(item.actualEndTime), {
             year: 'numeric',
             month: '2-digit',
             day: '2-digit',

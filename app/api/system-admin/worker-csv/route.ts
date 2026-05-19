@@ -58,16 +58,33 @@ function splitName(name: string): { lastName: string; firstName: string } {
   return { lastName: name, firstName: '' };
 }
 
+// JST(Asia/Tokyo) 固定で年/月/日を取り出すフォーマッタ
+const JST_YMD_FORMATTER = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Tokyo',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+function getJstYmd(date: Date): { year: number; month: number; day: number } {
+  const parts = JST_YMD_FORMATTER.formatToParts(date);
+  return {
+    year: Number(parts.find(p => p.type === 'year')?.value ?? '0'),
+    month: Number(parts.find(p => p.type === 'month')?.value ?? '0'),
+    day: Number(parts.find(p => p.type === 'day')?.value ?? '0'),
+  };
+}
+
 /**
- * 生年月日から年齢を計算
+ * 生年月日から年齢を計算（JST基準）
  */
 function calculateAge(birthDate: Date | null): string {
   if (!birthDate) return '';
-  const today = new Date();
-  const birth = new Date(birthDate);
-  let age = today.getFullYear() - birth.getFullYear();
-  const monthDiff = today.getMonth() - birth.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+  const today = getJstYmd(new Date());
+  const birth = getJstYmd(new Date(birthDate));
+  let age = today.year - birth.year;
+  const monthDiff = today.month - birth.month;
+  if (monthDiff < 0 || (monthDiff === 0 && today.day < birth.day)) {
     age--;
   }
   return String(age);
@@ -110,12 +127,12 @@ function workerToRow(user: any, lpMap: Map<string, string>): (string | number | 
 
   return [
     user.id,
-    user.created_at ? new Date(user.created_at).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '',
+    user.created_at ? new Date(user.created_at).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Asia/Tokyo' }) : '',
     lastName,
     firstName,
     user.last_name_kana || '',
     user.first_name_kana || '',
-    user.birth_date ? new Date(user.birth_date).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '',
+    user.birth_date ? new Date(user.birth_date).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Asia/Tokyo' }) : '',
     calculateAge(user.birth_date),
     user.gender || '',
     user.phone_number || '',

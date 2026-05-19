@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { formatJSTDate } from '@/utils/jst';
 import webPush from 'web-push';
 import { Resend } from 'resend';
 import { getTodayStart } from '@/utils/debugTime';
@@ -697,7 +698,7 @@ export async function sendNearbyJobNotifications(
             facility_name: job.facility.facility_name,
             job_title: job.title,
             work_date: job.workDates[0]?.work_date
-                ? new Date(job.workDates[0].work_date).toLocaleDateString('ja-JP')
+                ? formatJSTDate(new Date(job.workDates[0].work_date))
                 : '未定',
             worker_name: worker.name,
             worker_last_name: worker.last_name_kana || worker.name,

@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { getCurrentTime, getTodayStart } from '@/utils/debugTime';
+import { formatJSTDate } from '@/utils/jst';
 import {
     sendMatchingNotification,
     sendReviewRequestNotification,
@@ -240,7 +241,7 @@ export async function updateApplicationStatus(
                 application.user.name,
                 application.workDate.job.title,
                 application.workDate.job.facility.facility_name,
-                application.workDate.work_date.toLocaleDateString('ja-JP')
+                formatJSTDate(application.workDate.work_date)
             ).catch(err => console.error('[updateApplicationStatus] Admin matching notification error:', err));
 
             // 枠が埋まったかチェック
@@ -565,7 +566,7 @@ export async function getJobsWithApplications(
                 workDates: job.workDates.map(wd => ({
                     id: wd.id,
                     date: wd.work_date.toISOString(),
-                    formattedDate: new Date(wd.work_date).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' }),
+                    formattedDate: formatJSTDate(new Date(wd.work_date), { month: 'numeric', day: 'numeric', weekday: 'short' }),
                     recruitmentCount: wd.recruitment_count,
                     appliedCount: wd.applied_count,
                     matchedCount: wd.matched_count,
