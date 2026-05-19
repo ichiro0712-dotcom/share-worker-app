@@ -287,18 +287,16 @@ export function SmsVerification({
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <span className="font-medium">電話番号認証済み</span>
-          {!initialVerified && (
-            <button
-              type="button"
-              onClick={() => {
-                setState('input');
-                verifiedPhoneRef.current = '';
-              }}
-              className="text-xs text-gray-400 hover:text-gray-600 ml-auto"
-            >
-              変更する
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => {
+              setState('input');
+              verifiedPhoneRef.current = '';
+            }}
+            className="text-xs text-gray-400 hover:text-gray-600 ml-auto"
+          >
+            変更する
+          </button>
         </div>
       )}
     </div>
