@@ -5,11 +5,10 @@ import Link from 'next/link';
 import { trackGA4Event } from '@/src/lib/ga4-events';
 
 interface Props {
-  userName: string;
   lineUrl: string;
 }
 
-export default function ThanksClient({ userName, lineUrl }: Props) {
+export default function ThanksClient({ lineUrl }: Props) {
   useEffect(() => {
     try {
       trackGA4Event('worker_register_thanks_view', {});
@@ -30,45 +29,51 @@ export default function ThanksClient({ userName, lineUrl }: Props) {
           <div className="mx-auto mb-5 w-20 h-20 rounded-full bg-gradient-to-br from-[#E8F7FB] to-[#D4F1F9] flex items-center justify-center text-3xl">
             🎉
           </div>
-          <h2 className="text-xl font-bold text-gray-800 mb-2">
+          <h2 className="text-xl font-bold text-gray-800 mb-6">
             会員登録が完了しました！
           </h2>
-          <p className="text-sm text-gray-500 leading-relaxed mb-8">
-            {userName ? `${userName} さん、ありがとうございます。` : ''}
-            <br />
-            LINE登録者限定で、
-            <br />
-            ご希望に合った施設をお探しいたします！
-          </p>
 
-          <div className="flex flex-col gap-3 max-w-xs mx-auto">
+          <div className="bg-[#EAF7FB] rounded-2xl px-5 py-5 mb-6 text-left">
+            <p className="text-center text-[#2AADCF] font-bold mb-3">
+              ＼ LINE追加でお仕事探しがもっと快適に！ ／
+            </p>
+            <ul className="text-sm text-gray-700 space-y-2">
+              <li>・新着・おすすめ求人をスマホへ最速でお届け！</li>
+              <li>・サイトの使い方の疑問はチャットで気軽に質問！</li>
+              <li>・その他、お知らせやキャンペーンをご案内！</li>
+            </ul>
+          </div>
+
+          <div className="flex flex-col gap-3 items-center max-w-xs mx-auto">
             {lineUrl ? (
               <a
                 href={lineUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="py-4 px-6 rounded-full text-lg font-bold text-white shadow-[0_6px_24px_rgba(6,199,85,0.35)]"
-                style={{ background: 'linear-gradient(135deg,#06C755 0%,#05B34C 100%)' }}
                 onClick={() => {
                   try {
                     trackGA4Event('worker_register_thanks_line_click', {});
                   } catch {}
                 }}
               >
-                📲 公式LINEに登録
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="https://scdn.line-apps.com/n/line_add_friends/btn/ja.png"
+                  alt="友だち追加"
+                  height={36}
+                  style={{ border: 0 }}
+                />
               </a>
             ) : null}
 
             <Link
               href="/"
-              className="py-3 px-6 rounded-full text-sm font-medium text-gray-700 border border-gray-200 bg-white"
+              className="py-3 px-6 rounded-full text-sm font-medium text-gray-700 border border-gray-200 bg-white w-full text-center"
               onClick={() => {
                 try {
                   trackGA4Event('worker_register_thanks_jobs_click', {});
                 } catch {}
               }}
             >
-              お仕事一覧
+              求人ページはこちら
             </Link>
           </div>
         </div>
