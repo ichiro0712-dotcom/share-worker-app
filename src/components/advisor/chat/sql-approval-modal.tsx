@@ -1,0 +1,92 @@
+'use client'
+
+import { useState } from 'react'
+import { Button } from '@/src/components/ui/shadcn/button'
+
+export interface SqlApprovalRequest {
+  toolUseId: string
+  purpose: string
+  sql: string
+  expectedRows?: number
+}
+
+export interface SqlApprovalModalProps {
+  open: boolean
+  request: SqlApprovalRequest | null
+  onApprove: (skipForSession: boolean) => void
+  onCancel: () => void
+}
+
+/**
+ * SQL 実行承認モーダル
+ *
+ * - LLM が宣言した「目的 (purpose)」を主に表示
+ * - SQL 本文は折りたたみで詳細確認可能 (デフォルト閉)
+ * - 「このセッション中は確認をスキップ」チェックでセッションスキップ可能
+ *   (タブを閉じるまで有効、永続化はしない)
+ *
+ * スタイル: 既存 chat-layout に合わせて slate ベースのライトテーマで統一
+ * (dark: プレフィックスは使わない)
+ */
+export function SqlApprovalModal({
+  open,
+  request,
+  onApprove,
+  onCancel,
+}: SqlApprovalModalProps) {
+  const [showSql, setShowSql] = useState(false)
+  const [skip, setSkip] = useState(false)
+
+  if (!open || !request) return null
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
+        <h2 className="mb-1 text-lg font-semibold text-slate-900">
+          SQL 実行します。よろしいですか？
+        </h2>
+        <p className="mb-4 text-xs text-slate-500">(システム責任者推奨)</p>
+
+        <div className="mb-3 rounded border border-slate-200 bg-slate-50 p-3 text-sm">
+          <div className="mb-1 text-xs font-medium text-slate-500">📊 目的</div>
+          <div className="text-slate-900">{request.purpose}</div>
+          {typeof request.expectedRows === 'number' && (
+            <div className="mt-2 text-xs text-slate-500">
+              期待行数: 約 {request.expectedRows} 行
+            </div>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setShowSql((v) => !v)}
+          className="mb-3 text-xs text-blue-600 hover:underline"
+        >
+          {showSql ? '▼ 詳細 (SQL) を閉じる' : '▶ 詳細 (SQL) を見る'}
+        </button>
+        {showSql && (
+          <pre className="mb-3 max-h-48 overflow-auto rounded bg-slate-900 p-3 text-xs text-slate-100">
+            {request.sql || '(SQL 未受信)'}
+          </pre>
+        )}
+
+        <label className="mb-4 flex items-center gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={skip}
+            onChange={(e) => setSkip(e.target.checked)}
+            className="h-4 w-4"
+          />
+          <span>このセッション中は確認をスキップ</span>
+        </label>
+
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={onCancel}>
+            キャンセル
+          </Button>
+          <Button onClick={() => onApprove(skip)}>実行する</Button>
+        </div>
+      </div>
+    </div>
+  )
+}

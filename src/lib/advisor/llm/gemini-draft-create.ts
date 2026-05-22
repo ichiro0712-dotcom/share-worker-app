@@ -52,6 +52,9 @@ const DATA_SOURCE_OPTIONS = [
   { key: 'get_vercel_logs', label: 'Vercel ログ', note: 'ランタイムログ' },
   { key: 'get_vercel_deployments', label: 'Vercel デプロイ履歴', note: '直近のデプロイ状況 / 成功失敗' },
   { key: 'get_recent_commits', label: 'GitHub コミット履歴', note: '最近の変更履歴' },
+  // 擬似 toolKey: チャットで既に作られた T-XXX 表を再利用する場合に指定する。
+  // ユーザーが「T-060 の数値で埋めて」のような指示をしたら、これを data_sources に入れる。
+  { key: 'chat_table', label: 'チャット履歴の既存表 (T-XXX)', note: 'ユーザーが直前に execute_sql 等で作った表を再利用するときに指定 (具体的な T-XXX ID は skeleton 本文に書く)' },
 ]
 
 function buildDataSourceListForPrompt(): string {

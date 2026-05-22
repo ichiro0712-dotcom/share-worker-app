@@ -226,7 +226,7 @@ src/
   │   - cachedPart: 役割 / METRIC_CATALOG / プロジェクト知識 (5 分 ephemeral cache)
   │   - dynamicPart: セッション情報 + 現在のレポートドラフト全体 (あれば)
   ├─ 履歴ロード (最大 N 件)
-  ├─ Anthropic messages.stream (tools: registry の 17 個)
+  ├─ Anthropic messages.stream (tools: registry の 22 個)
   ▼
 [Anthropic レスポンス]
   ├─ assistant: "確認します..." (text → SSE)
@@ -288,13 +288,21 @@ Gemini が `redirect_to_draft=true + draft_instruction` を返し、orchestrator
   2. status = 'generating' に更新
   3. collectReportData() — 並列にデータ収集
      - query_metric × supportedGroupBy 全展開
-     - query_ga4 × 5 種 (overview / traffic / pages / lpPerformance / comparison)
+     - query_ga4 × 6 種 (overview / traffic / pages / lpPerformance / comparison / pageTraffic)
      - query_search_console × 4 種 ([query] / [page] / [device] / [country])
      - get_supabase_logs / get_vercel_logs / etc.
+     - `chat_table` 擬似 toolKey はスキップ (add_tables_to_report 由来)
   4. buildUserPrompt() — 要件 + original_request + skeleton + 収集 JSON (50KB cap)
   5. Gemini 2.5 Flash で本文生成 (15-30 秒)
-  6. createReportVersion() で AdvisorReportVersion (vN+1) として保存
-  7. status = 'completed' / generated_at / generation_count++
+  6. **auto-fill フック** (ADVISOR_AUTO_FILL_ENABLED=true のとき)
+     - detectGapBlocks() で「全セル空 (80%以上)」または「1列以上が完全空」の表を検出
+     - 各空ブロックを Claude Haiku 4.5 の Tool Use ループに渡す
+     - 渡すツール 4 種: query_metric / query_ga4 / query_search_console / get_table
+     - 取れたら Markdown 表を置換、取れなければ元のまま (anySuccess=false)
+     - 詳細: src/lib/advisor/reports/{gap-detector,auto-fill}.ts
+  7. createReportVersion() で AdvisorReportVersion (vN+1) として保存
+     - 自動補完が効いた版は result_model に "+autofill" サフィックス
+  8. status = 'completed' / generated_at / generation_count++
   ▼
 [Canvas]
   ├─ ポーリングで完了検知 → 「ドラフト / レポート (vN)」タブが現れる
@@ -302,6 +310,61 @@ Gemini が `redirect_to_draft=true + draft_instruction` を返し、orchestrator
 ```
 
 詳細は [REPORT_FEATURE.md](./REPORT_FEATURE.md) を参照。
+
+### 3.3.5 execute_sql フロー (2026-05-16 追加)
+
+```
+[LLM] 「LP5 の 5月 PV を日別で取りたい」 → execute_sql ツール呼び出し
+  ▼
+[Orchestrator: tool_use 検出]
+  ├─ sqlAutoApprove=false なら → sql_approval_required SSE を発火、loop 一時停止
+  │   [Client] SQL 承認モーダル表示 → ユーザー承認
+  │   [Client] sqlAutoApprove=true で同セッションに「お願いします」短文を再送
+  ├─ sqlAutoApprove=true なら → そのまま実行
+  ▼
+[Server: execute-sql.ts]
+  1. SQL 安全性チェック (SELECT/WITH 限定、危険キーワード拒否、複文禁止、センシティブカラムブロック)
+  2. LIMIT 自動付与 (デフォルト 1000)
+  3. advisorDataPrisma で READ ONLY tx で実行 (statement_timeout=10s)
+  4. 結果を AdvisorChatTable に保存 (T-XXX 採番)
+  5. AdvisorSqlAuditLog に記録
+  ▼
+[Orchestrator: 短絡パス]
+  ├─ loop=1 を呼ばずサーバー側固定文 `**表 T-035** (7 行) を取得しました...` を組み立て
+  ├─ tool_result SSE + text SSE で結果ストリーミング
+  └─ done SSE 発火 (Anthropic loop=1 TTFB 100 秒問題を回避)
+```
+
+### 3.3.6 表の T-XXX 後付け採番フロー
+
+```
+[Orchestrator: 通常チャット応答完了直後]
+  ▼
+[annotateAndPersistTables() (markdown-table-extractor.ts)]
+  ├─ assistant メッセージ本文に含まれる Markdown 表を全て抽出
+  ├─ 各表を AdvisorChatTable に新規 INSERT (T-XXX 連番採番)
+  ├─ 本文に「**表 T-XXX** (N 行)」プレフィックス行を挿入
+  └─ AdvisorChatMessage.content を更新
+  ▼
+[done SSE]
+  - data: { annotatedContent: "...更新後の Markdown..." } を含める
+  - クライアントは即座に T-XXX バッジ + 共有メニュー付きの UI に切り替わる (リロード不要)
+```
+
+### 3.3.7 表の共有 URL (`/advisor/t/[token]`)
+
+```
+[User] 表ヘッダの ⋮ → 「URL で共有」クリック
+  │ enableTableShare() server action 呼び出し
+  ▼
+[Server]
+  ├─ AdvisorChatTable に share_token / shared_at / shared_until=now+30d を保存
+  ▼
+[公開ユーザー] https://tastas.work/advisor/t/{token}
+  ├─ AdvisorChatTable.findUnique({ share_token })
+  ├─ shared_at が null / shared_until < now なら 404 / expired
+  └─ Markdown 表をレンダリング (認証不要、token-knowing)
+```
 
 ### 3.4 知識同期 cron (`/api/cron/advisor-knowledge-sync`)
 

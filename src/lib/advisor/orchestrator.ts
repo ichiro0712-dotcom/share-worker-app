@@ -14,6 +14,7 @@ import { ADVISOR_MODELS, getClaudeClient, type AdvisorModelId } from './claude';
 import { buildSystemPrompt } from './system-prompt';
 import { buildCachedSystem, extractCacheStats } from './prompt-cache';
 import { describeAllToolsForLLM, executeToolByName } from './tools/registry';
+import { annotateAndPersistTables } from './markdown-table-extractor';
 import { getRecentMessagesForOrchestrator, appendMessage } from './persistence/messages';
 import { getDraftBySession, upsertDraft } from './persistence/report-drafts';
 import { editDraftWithGemini } from './llm/gemini-edit';
@@ -21,6 +22,7 @@ import { createDraftWithGemini } from './llm/gemini-draft-create';
 import { editResultWithGemini } from './llm/gemini-result-edit';
 import { buildChatHistoryContext } from './llm/chat-history-context';
 import { generateReport } from './reports/generate';
+import { fetchReferencedTablesAsMarkdown } from './tools/tastas-data/chat-tables';
 import {
   createReportVersion,
   buildDraftSnapshot,
@@ -31,6 +33,7 @@ import { incrementUsage } from './cost-guard';
 import { recordAudit } from './persistence/audit';
 import { getAdvisorSettings } from './persistence/settings';
 import { Prisma } from '@prisma/client';
+import prisma from '@/lib/prisma';
 
 /**
  * Stream イベント型 (legacy UI 互換)
@@ -75,7 +78,19 @@ export type AdvisorStreamEvent =
       conversationId: string;
       data?: Record<string, unknown>;
     }
-  | { type: 'error'; text: string };
+  | { type: 'error'; text: string }
+  /**
+   * SQL 実行が承認待ちで保留された時に発火する。
+   * クライアントはモーダルを表示し、ユーザーが承認したら sqlAutoApprove=true で
+   * 同セッションに「お願いします」のような短い継続メッセージを送って実行を再開させる。
+   */
+  | {
+      type: 'sql_approval_required';
+      toolUseId: string;
+      purpose: string;
+      sql: string;
+      expectedRows?: number;
+    };
 
 /**
  * 1 ループ (= Anthropic 1 リクエスト) ごとの計測値。
@@ -157,6 +172,13 @@ export interface OrchestratorRunInput {
   /** 監査ログ用 client info */
   clientIp?: string | null;
   clientUa?: string | null;
+  /**
+   * SQL 実行 (execute_sql) の事前承認フラグ。
+   * - false (デフォルト): 初回呼び出し時に承認待ちとなり、ツール結果は APPROVAL_REQUIRED で返す
+   * - true: 確認なしで即実行
+   * クライアント側でモーダル承認後にこのフラグを true にして再送する想定。
+   */
+  sqlAutoApprove?: boolean;
 }
 
 /**
@@ -183,6 +205,8 @@ const TOOL_STATUS_LABEL: Record<string, string> = {
   // tastas-data (DB / 指標)
   describe_db_table: 'DB スキーマを確認中...',
   query_metric: '指標を集計中...',
+  execute_sql: 'SQL を実行中...',
+  get_table: '過去の表 (T-XXX) を取得中...',
   get_jobs_summary: '求人データを集計中...',
   get_users_summary: 'ユーザーデータを集計中...',
   get_recent_errors: '直近のエラーログを確認中...',
@@ -196,6 +220,7 @@ const TOOL_STATUS_LABEL: Record<string, string> = {
   // reports
   update_report_draft: 'レポートドラフトを更新中...',
   edit_report_section: 'レポートを部分修正中... (Gemini に書き換えを依頼)',
+  add_tables_to_report: '表をレポートドラフトに追加中...',
 };
 
 function statusForTool(name: string): string {
@@ -353,7 +378,11 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
   //   handled=false で Anthropic にフォールバック。これらは「Gemini を呼ぶ意味が
   //   無い」ケースなので Anthropic で通常チャットとして扱うのが正しい。
   const trimmed = input.userMessage.trimStart();
-  if (trimmed.startsWith('[TOOL:report_create]')) {
+  // 本文に表 ID (T-001 形式) が含まれている場合は Gemini バイパスから外す。
+  // Gemini draft-create は T-XXX を知らないため「不明」と返してしまう。
+  // Anthropic 経由なら add_tables_to_report ツールで実データを取り込んでレポート化できる。
+  const hasTableRef = /\bT-\d{3,}\b/.test(displayUserMessage);
+  if (trimmed.startsWith('[TOOL:report_create]') && !hasTableRef) {
     const bypassResult = await tryGeminiDraftCreateBypass({
       input,
       userRequest: displayUserMessage,
@@ -628,6 +657,30 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
         model: primaryModel,
       });
 
+      // 応答本文内の Markdown 表を抽出して advisor_chat_tables に登録し、
+      // T-XXX を採番して本文を書き換える。
+      // - ストリーム送信は終わっているが、done イベントに annotatedContent を含めて
+      //   クライアントが即座に T-XXX 付きで表示できるようにする (リロード不要)
+      // - 別セッションから「T-XXX を get_table」で参照可能になる
+      let annotatedFinalContent: string | null = null;
+      try {
+        const annotated = await annotateAndPersistTables({
+          content: assembledAssistantText,
+          sessionId: input.sessionId,
+          messageId: persistedMessage.id,
+          adminId: input.admin.id,
+        });
+        if (annotated.createdIds.length > 0) {
+          await prisma.advisorChatMessage.update({
+            where: { id: persistedMessage.id },
+            data: { content: annotated.content },
+          });
+          annotatedFinalContent = annotated.content;
+        }
+      } catch (e) {
+        console.error('[advisor] Markdown table annotate failed:', e);
+      }
+
       input.onEvent({
         type: 'usage',
         inputTokens: totalInputTokens,
@@ -639,6 +692,9 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
         type: 'done',
         messageId: persistedMessage.id,
         conversationId: input.sessionId,
+        data: annotatedFinalContent
+          ? { annotatedContent: annotatedFinalContent }
+          : undefined,
       });
       stopHeartbeat();
 
@@ -693,6 +749,96 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
       });
       toolCallsForPersistence.push({ id: tu.id, name: tu.name, input: tu.input });
       toolCallCount += 1;
+
+      // execute_sql は承認ゲート対象: sqlAutoApprove=false なら実行せず承認待ちで done する
+      //
+      // 設計メモ:
+      //   ここで Anthropic に「APPROVAL_REQUIRED」を tool_result として返して loop を続けると、
+      //   loop=1 で Anthropic が「ユーザーの承認を待ちます」みたいな応答を作るために 90+ 秒
+      //   TTFB を引き当てる事故が起きる。そもそも待つだけの応答に Claude を呼ぶ必要は無い。
+      //   そのため、ここで sql_approval_required を発火し、サーバー側で done を返して即終了する。
+      //   ユーザーが承認モーダルで OK を押すと、クライアントが新規メッセージ(「お願いします」)を
+      //   sqlAutoApprove=true で投げ直し、その時に LLM が同じ意図で execute_sql を再呼び出しする。
+      if (tu.name === 'execute_sql' && !input.sqlAutoApprove) {
+        const sqlInput = (tu.input ?? {}) as {
+          sql?: string;
+          purpose?: string;
+          expected_rows?: number;
+        };
+        input.onEvent({
+          type: 'sql_approval_required',
+          toolUseId: tu.id,
+          purpose: sqlInput.purpose ?? '(目的未指定)',
+          sql: sqlInput.sql ?? '',
+          expectedRows: sqlInput.expected_rows,
+        });
+
+        // 監査ログ (承認待ち)
+        await recordAudit({
+          adminId: input.admin.id,
+          sessionId: input.sessionId,
+          eventType: 'tool_call',
+          payload: {
+            tool: tu.name,
+            input: tu.input as Prisma.InputJsonValue,
+            ok: false,
+            status: 'awaiting_user_approval',
+          } as Prisma.InputJsonObject,
+          clientIp: input.clientIp,
+          clientUa: input.clientUa,
+        });
+
+        // サーバー側 done:
+        //   loop=1 を呼ばないので Anthropic API への往復は loop=0 で打ち切り。
+        //   ユーザー視点では「承認モーダル + チャット欄が解放されて、承認を押すと再送される」
+        //   挙動になる。
+        //   履歴保存テキストには SQL の中身も含めて、リロード後に「何の SQL の承認だったか」
+        //   を振り返れるようにする (ユーザー要望: チャット履歴に SQL を残す)
+        const sqlExcerpt = sqlInput.sql ? sqlInput.sql.trim() : '';
+        const sqlBlock = sqlExcerpt
+          ? `\n\n**承認待ち SQL**: ${sqlInput.purpose ?? '(目的未指定)'}\n\n\`\`\`sql\n${sqlExcerpt}\n\`\`\``
+          : '';
+        const noticeText =
+          assembledAssistantText.trimEnd() +
+          (assembledAssistantText ? '\n\n' : '') +
+          '⏳ SQL 実行の承認をお待ちしています。モーダルで「実行する」を押すと再開します。' +
+          sqlBlock;
+
+        const persistedNotice = await appendMessage({
+          sessionId: input.sessionId,
+          role: 'assistant',
+          content: noticeText,
+          toolCalls:
+            toolCallsForPersistence.length > 0
+              ? (toolCallsForPersistence as unknown as Prisma.InputJsonValue)
+              : undefined,
+          inputTokens: totalInputTokens,
+          outputTokens: totalOutputTokens,
+          cacheReadTokens: totalCacheReadTokens,
+          cacheWriteTokens: totalCacheWriteTokens,
+          model: primaryModel,
+        });
+        if (!assembledAssistantText) {
+          input.onEvent({
+            type: 'text',
+            text: '⏳ SQL 実行の承認をお待ちしています。モーダルで「実行する」を押すと再開します。',
+          });
+        }
+        input.onEvent({
+          type: 'usage',
+          inputTokens: totalInputTokens,
+          outputTokens: totalOutputTokens,
+          cacheReadTokens: totalCacheReadTokens,
+          cacheWriteTokens: totalCacheWriteTokens,
+        });
+        input.onEvent({
+          type: 'done',
+          messageId: persistedNotice.id,
+          conversationId: input.sessionId,
+        });
+        stopHeartbeat();
+        return;
+      }
 
       const result = await executeToolByName(tu.name, tu.input, {
         adminId: input.admin.id,
@@ -753,6 +899,231 @@ export async function runOrchestrator(input: OrchestratorRunInput): Promise<void
     //  代わりに system prompt 経由で Claude に "1〜2 行で何を変えたか短く返す" よう指示している。
     //  loop=1 の TTFB は dynamic prompt にドラフト状態を埋めることで get_report_draft 不要になり改善見込み)
     messages.push({ role: 'user', content: toolResults });
+
+    // 🚀 execute_sql 成功時のサーバー側短絡:
+    //   loop=1 (ツール結果を Claude に渡して整形応答を作る) は Anthropic 側で 100 秒級 TTFB
+    //   問題が出やすい。execute_sql は「表として結果が UI に表示されている」だけで十分に
+    //   完結するので、LLM に整形させずサーバー側で固定文を返して即 done する。
+    //   表 ID を本文に含めることでユーザーに参照方法を伝える + add_tables_to_report で
+    //   レポートに送る導線も残せる。
+    const executeSqlSuccess = toolUseBlocks.find((b) => b.name === 'execute_sql');
+    if (executeSqlSuccess && input.sqlAutoApprove) {
+      // toolResults に対応する成功結果があるか確認 (is_error=false)
+      const matched = toolResults.find(
+        (tr) => tr.tool_use_id === executeSqlSuccess.id && !tr.is_error
+      );
+      if (matched) {
+        // 短絡: tool_result の data から表 ID を抽出して固定文を組み立てる
+        let tableIdLine = '';
+        try {
+          const parsed = JSON.parse(
+            typeof matched.content === 'string' ? matched.content : ''
+          );
+          if (parsed?.ok && parsed?.data?.table_id) {
+            const td = parsed.data;
+            const rowStr = td.row_count?.toLocaleString?.('ja-JP') ?? td.row_count;
+            const truncStr = td.truncated ? ' / 上限到達' : '';
+            const durStr =
+              typeof td.duration_ms === 'number' ? ` / ${td.duration_ms}ms` : '';
+            tableIdLine =
+              `SQL を実行しました (**表 ${td.table_id}**、${rowStr} 行${truncStr}${durStr})。\n\n` +
+              `内容を確認したら、「表 ${td.table_id} をレポートに追加して」と言うとレポートに送れます。`;
+          }
+        } catch {
+          /* ignore */
+        }
+        const finalText =
+          (assembledAssistantText || '').trimEnd() +
+          (assembledAssistantText ? '\n\n' : '') +
+          (tableIdLine || 'SQL を実行しました。結果を表として取得しています。');
+
+        const persistedShortcut = await appendMessage({
+          sessionId: input.sessionId,
+          role: 'assistant',
+          content: finalText,
+          toolCalls:
+            toolCallsForPersistence.length > 0
+              ? (toolCallsForPersistence as unknown as Prisma.InputJsonValue)
+              : undefined,
+          inputTokens: totalInputTokens,
+          outputTokens: totalOutputTokens,
+          cacheReadTokens: totalCacheReadTokens,
+          cacheWriteTokens: totalCacheWriteTokens,
+          model: primaryModel,
+        });
+        // ショートカット応答にも Markdown 表があれば自動採番 (短い固定文なので通常は無いが念のため)
+        try {
+          const annotated = await annotateAndPersistTables({
+            content: finalText,
+            sessionId: input.sessionId,
+            messageId: persistedShortcut.id,
+            adminId: input.admin.id,
+          });
+          if (annotated.createdIds.length > 0) {
+            await prisma.advisorChatMessage.update({
+              where: { id: persistedShortcut.id },
+              data: { content: annotated.content },
+            });
+          }
+        } catch (e) {
+          console.error('[advisor] Markdown table annotate (shortcut) failed:', e);
+        }
+        input.onEvent({ type: 'text', text: tableIdLine });
+        input.onEvent({
+          type: 'usage',
+          inputTokens: totalInputTokens,
+          outputTokens: totalOutputTokens,
+          cacheReadTokens: totalCacheReadTokens,
+          cacheWriteTokens: totalCacheWriteTokens,
+        });
+        input.onEvent({
+          type: 'done',
+          messageId: persistedShortcut.id,
+          conversationId: input.sessionId,
+        });
+        stopHeartbeat();
+        await Promise.all([
+          incrementSessionUsage({
+            sessionId: input.sessionId,
+            inputTokens: totalInputTokens,
+            outputTokens: totalOutputTokens,
+          }),
+          incrementUsage({
+            adminId: input.admin.id,
+            modelId: primaryModel,
+            inputTokens: totalInputTokens,
+            outputTokens: totalOutputTokens,
+            cacheReadTokens: totalCacheReadTokens,
+            cacheWriteTokens: totalCacheWriteTokens,
+            toolCallCount,
+          }),
+          recordAudit({
+            adminId: input.admin.id,
+            sessionId: input.sessionId,
+            messageId: persistedShortcut.id,
+            eventType: 'chat_response',
+            payload: {
+              inputTokens: totalInputTokens,
+              outputTokens: totalOutputTokens,
+              cacheReadTokens: totalCacheReadTokens,
+              cacheWriteTokens: totalCacheWriteTokens,
+              toolCallCount,
+              charCount: finalText.length,
+              loopTraces: loopTraces as unknown as Prisma.InputJsonValue,
+              shortCircuit: 'execute_sql',
+            } as Prisma.InputJsonObject,
+            clientIp: input.clientIp,
+            clientUa: input.clientUa,
+          }),
+        ]);
+        return;
+      }
+    }
+
+    // 🚀 add_tables_to_report 成功時のサーバー側短絡:
+    //   loop=1 で Claude に整形応答を作らせると Anthropic 側 TTFB が 100 秒級になる事象を
+    //   構造的に回避する。表の取り込みは「ドラフトに表が追加された」という事実のみ伝えれば
+    //   十分なので、固定文で即 done する。Canvas が自動オープンする導線は既存。
+    const addTablesSuccess = toolUseBlocks.find(
+      (b) => b.name === 'add_tables_to_report'
+    );
+    if (addTablesSuccess) {
+      const matched = toolResults.find(
+        (tr) => tr.tool_use_id === addTablesSuccess.id && !tr.is_error
+      );
+      if (matched) {
+        let summaryLine = '';
+        try {
+          const parsed = JSON.parse(
+            typeof matched.content === 'string' ? matched.content : ''
+          );
+          const added: string[] = parsed?.data?.added_tables ?? [];
+          const notFound: string[] = parsed?.data?.not_found ?? [];
+          if (added.length > 0) {
+            summaryLine =
+              `✅ レポートドラフトに ${added.length} 件の表を取り込みました (${added.join(', ')})。\n\n` +
+              `右側 Canvas で内容を確認してください。「**レポート作成**」ボタンを押すと、Gemini が本文・考察・見出しを付けて完成版を生成します。`;
+            if (notFound.length > 0) {
+              summaryLine += `\n\n⚠️ 見つからなかった ID: ${notFound.join(', ')}`;
+            }
+          } else {
+            summaryLine =
+              '指定された表 ID が見つかりませんでした。チャット上の表ヘッダで "T-XXX" 形式の ID を確認してください。';
+          }
+        } catch {
+          summaryLine = 'レポートに表を取り込みました。';
+        }
+
+        const finalText =
+          (assembledAssistantText || '').trimEnd() +
+          (assembledAssistantText ? '\n\n' : '') +
+          summaryLine;
+
+        const persistedShortcut = await appendMessage({
+          sessionId: input.sessionId,
+          role: 'assistant',
+          content: finalText,
+          toolCalls:
+            toolCallsForPersistence.length > 0
+              ? (toolCallsForPersistence as unknown as Prisma.InputJsonValue)
+              : undefined,
+          inputTokens: totalInputTokens,
+          outputTokens: totalOutputTokens,
+          cacheReadTokens: totalCacheReadTokens,
+          cacheWriteTokens: totalCacheWriteTokens,
+          model: primaryModel,
+        });
+        input.onEvent({ type: 'text', text: summaryLine });
+        input.onEvent({
+          type: 'usage',
+          inputTokens: totalInputTokens,
+          outputTokens: totalOutputTokens,
+          cacheReadTokens: totalCacheReadTokens,
+          cacheWriteTokens: totalCacheWriteTokens,
+        });
+        input.onEvent({
+          type: 'done',
+          messageId: persistedShortcut.id,
+          conversationId: input.sessionId,
+        });
+        stopHeartbeat();
+        await Promise.all([
+          incrementSessionUsage({
+            sessionId: input.sessionId,
+            inputTokens: totalInputTokens,
+            outputTokens: totalOutputTokens,
+          }),
+          incrementUsage({
+            adminId: input.admin.id,
+            modelId: primaryModel,
+            inputTokens: totalInputTokens,
+            outputTokens: totalOutputTokens,
+            cacheReadTokens: totalCacheReadTokens,
+            cacheWriteTokens: totalCacheWriteTokens,
+            toolCallCount,
+          }),
+          recordAudit({
+            adminId: input.admin.id,
+            sessionId: input.sessionId,
+            messageId: persistedShortcut.id,
+            eventType: 'chat_response',
+            payload: {
+              inputTokens: totalInputTokens,
+              outputTokens: totalOutputTokens,
+              cacheReadTokens: totalCacheReadTokens,
+              cacheWriteTokens: totalCacheWriteTokens,
+              toolCallCount,
+              charCount: finalText.length,
+              loopTraces: loopTraces as unknown as Prisma.InputJsonValue,
+              shortCircuit: 'add_tables_to_report',
+            } as Prisma.InputJsonObject,
+            clientIp: input.clientIp,
+            clientUa: input.clientUa,
+          }),
+        ]);
+        return;
+      }
+    }
   }
 
   // ループ上限超過: それまで生成した文章を捨てずに「途中まで」として保存して done。
@@ -1062,6 +1433,22 @@ async function tryGeminiDraftReviseBypass(args: {
       contextCount: 8,
     }).catch(() => '')
 
+    // 3.5. ユーザー指示や現在の skeleton に含まれる T-XXX 表 ID を解決して
+    //      その実データを Markdown として Gemini に添付する。
+    //      Gemini はツール (get_table 等) を呼べないので、サーバー側で先回りする。
+    const refTables = await fetchReferencedTablesAsMarkdown(instruction, {
+      extraSources: [draft.skeletonMarkdown],
+      maxRowsPerTable: 200,
+    }).catch((e) => {
+      console.warn('[advisor:gemini-bypass] referenced tables fetch failed:', e)
+      return { markdown: '', foundIds: [] as string[], missingIds: [] as string[] }
+    })
+    if (refTables.foundIds.length > 0) {
+      console.log(
+        `[advisor:gemini-bypass] revise: referenced tables resolved (${refTables.foundIds.join(', ')})`
+      )
+    }
+
     // 4. Gemini で編集
     const result = await editDraftWithGemini({
       currentSkeleton: draft.skeletonMarkdown,
@@ -1071,11 +1458,13 @@ async function tryGeminiDraftReviseBypass(args: {
         goal: draft.goal,
         rangeStart: draft.rangeStart,
         rangeEnd: draft.rangeEnd,
+        dataSources: draft.dataSources,
         metricKeys: draft.metricKeys,
         outline: draft.outline,
         notes: draft.notes,
       },
       chatHistoryContext,
+      referencedTablesMarkdown: refTables.markdown,
       abortSignal: input.abortSignal,
     })
     elapsedMs = result.metrics.elapsedMs
@@ -1466,6 +1855,21 @@ async function runAutoRedraftAndRegenerate(args: {
       throw new Error('draft.skeletonMarkdown が空のため自動再生成できません')
     }
     input.onEvent({ type: 'status', status: 'ドラフトを更新中...' })
+
+    // 参照 T-XXX 表を事前解決 (Gemini は get_table を呼べない)
+    const refTablesForAutoRedraft = await fetchReferencedTablesAsMarkdown(draftInstruction, {
+      extraSources: [draft.skeletonMarkdown],
+      maxRowsPerTable: 200,
+    }).catch((e) => {
+      console.warn('[advisor:gemini-bypass] auto-redraft referenced tables fetch failed:', e)
+      return { markdown: '', foundIds: [] as string[], missingIds: [] as string[] }
+    })
+    if (refTablesForAutoRedraft.foundIds.length > 0) {
+      console.log(
+        `[advisor:gemini-bypass] auto-redraft: referenced tables resolved (${refTablesForAutoRedraft.foundIds.join(', ')})`
+      )
+    }
+
     const reviseResult = await editDraftWithGemini({
       currentSkeleton: draft.skeletonMarkdown,
       userInstruction: draftInstruction,
@@ -1474,11 +1878,13 @@ async function runAutoRedraftAndRegenerate(args: {
         goal: draft.goal,
         rangeStart: draft.rangeStart,
         rangeEnd: draft.rangeEnd,
+        dataSources: draft.dataSources,
         metricKeys: draft.metricKeys,
         outline: draft.outline,
         notes: draft.notes,
       },
       chatHistoryContext,
+      referencedTablesMarkdown: refTablesForAutoRedraft.markdown,
       abortSignal: input.abortSignal,
     })
     totalGeminiMs += reviseResult.metrics.elapsedMs

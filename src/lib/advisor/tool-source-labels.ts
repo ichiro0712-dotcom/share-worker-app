@@ -60,6 +60,11 @@ export const TOOL_SOURCE_LABELS: Record<string, ToolSourceLabel> = {
   // reports (レポートドラフト操作)
   update_report_draft: { label: 'レポートドラフト更新 (Canvas)', category: 'other' },
   edit_report_section: { label: 'レポート部分修正 (Gemini)', category: 'other' },
+  add_tables_to_report: { label: '表をレポートに追加', category: 'other' },
+
+  // tastas-data 追加 (任意SQL / T-XXX 参照)
+  execute_sql: { label: '任意 SQL 実行 (本番DB)', category: 'tastas-db' },
+  get_table: { label: '過去の表 (T-XXX) を取得', category: 'tastas-db' },
 }
 
 /**
