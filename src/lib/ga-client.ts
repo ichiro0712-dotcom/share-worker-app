@@ -270,6 +270,104 @@ export async function fetchLpPerformanceReport(
     return { lpPages };
 }
 
+// ======================== ページ × 流入元 クロス集計 ========================
+
+export interface GA4PageTrafficRow {
+    pagePath: string;
+    source: string;
+    medium: string;
+    sessions: number;
+    totalUsers: number;
+    pageViews: number;
+    bounceRate: number;
+}
+
+export interface GA4PageTrafficData {
+    /** ページ × 流入元の組み合わせ */
+    rows: GA4PageTrafficRow[];
+    /** 適用したフィルタ (デバッグ用) */
+    filter: { pagePathPrefix?: string; pagePathContains?: string };
+}
+
+/**
+ * 「ページ × 流入元」のクロス集計。
+ * 例: 「LP30 にどの流入元から来たか」「特定ページの流入元別 PV」を取得する用途。
+ *
+ * page_path_prefix / page_path_contains のどちらかを指定する。
+ * 未指定の場合は site 全体になるが、組み合わせ爆発を防ぐため必ず絞ること。
+ */
+export async function fetchPageTrafficReport(
+    startDate: string,
+    endDate: string,
+    options: {
+        pagePathPrefix?: string;
+        pagePathContains?: string;
+        limit?: number;
+    } = {}
+): Promise<GA4PageTrafficData> {
+    const analyticsClient = getClient();
+    const propertyId = getPropertyId();
+
+    const dimensionFilter = options.pagePathPrefix
+        ? {
+              filter: {
+                  fieldName: 'pagePath',
+                  stringFilter: {
+                      matchType: 'BEGINS_WITH' as const,
+                      value: options.pagePathPrefix,
+                  },
+              },
+          }
+        : options.pagePathContains
+          ? {
+                filter: {
+                    fieldName: 'pagePath',
+                    stringFilter: {
+                        matchType: 'CONTAINS' as const,
+                        value: options.pagePathContains,
+                    },
+                },
+            }
+          : undefined;
+
+    const [response] = await analyticsClient.runReport({
+        property: `properties/${propertyId}`,
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [
+            { name: 'pagePath' },
+            { name: 'sessionSource' },
+            { name: 'sessionMedium' },
+        ],
+        metrics: [
+            { name: 'sessions' },
+            { name: 'totalUsers' },
+            { name: 'screenPageViews' },
+            { name: 'bounceRate' },
+        ],
+        ...(dimensionFilter ? { dimensionFilter } : {}),
+        orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+        limit: options.limit ?? 100,
+    });
+
+    const rows: GA4PageTrafficRow[] = (response.rows || []).map((row) => ({
+        pagePath: row.dimensionValues?.[0]?.value || '',
+        source: row.dimensionValues?.[1]?.value || '(not set)',
+        medium: row.dimensionValues?.[2]?.value || '(not set)',
+        sessions: parseInt(row.metricValues?.[0]?.value || '0'),
+        totalUsers: parseInt(row.metricValues?.[1]?.value || '0'),
+        pageViews: parseInt(row.metricValues?.[2]?.value || '0'),
+        bounceRate: parseFloat(row.metricValues?.[3]?.value || '0'),
+    }));
+
+    return {
+        rows,
+        filter: {
+            pagePathPrefix: options.pagePathPrefix,
+            pagePathContains: options.pagePathContains,
+        },
+    };
+}
+
 // ======================== GA4差分比較レポート ========================
 
 export interface GA4ComparisonData {

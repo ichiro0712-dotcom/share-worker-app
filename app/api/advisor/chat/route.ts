@@ -47,6 +47,13 @@ interface ChatRequestBody {
   modelId?: string;
   /** 添付ファイル (画像/動画/PDF) — base64 エンコード済み */
   files?: Array<{ name: string; mimeType: string; base64: string }>;
+  /**
+   * execute_sql の事前承認フラグ。
+   * - 初回は省略 (= false) で送る。execute_sql が呼ばれると sql_approval_required イベントが返る。
+   * - ユーザーが承認モーダルで OK を押したら、クライアントが自動で短い再要求メッセージを
+   *   true 付きで送信する。セッション内スキップ ON ならそれ以降は常に true を付ける。
+   */
+  sqlAutoApprove?: boolean;
 }
 
 /**
@@ -213,6 +220,7 @@ export async function POST(req: Request) {
           abortSignal: req.signal,
           clientIp,
           clientUa,
+          sqlAutoApprove: body.sqlAutoApprove === true,
         });
       } catch (e) {
         const errMsg = e instanceof Error ? e.message : String(e);

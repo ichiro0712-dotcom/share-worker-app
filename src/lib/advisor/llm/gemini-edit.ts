@@ -38,6 +38,8 @@ export interface EditDraftRequirements {
   goal: string | null
   rangeStart: string | null
   rangeEnd: string | null
+  /** 現在の data_sources (Gemini が updated_data_sources を判断するために必須) */
+  dataSources: string[]
   metricKeys: string[]
   outline: string | null
   notes: string | null
@@ -52,6 +54,13 @@ export interface EditDraftParams {
   requirements: EditDraftRequirements
   /** 直近のチャット履歴 (Markdown 整形済み)。空文字なら省略される。文脈を Gemini に渡す。 */
   chatHistoryContext?: string
+  /**
+   * ユーザー指示 / skeleton 内で参照される T-XXX 表の中身 (Markdown 表で整形済み)。
+   * Gemini はツールを呼べないため、サーバー側で事前に解決して添付する。
+   * 「T-070 の数値で表を埋めて」のような指示が来た時、Gemini がこれを見て
+   * skeleton のセルに数値を書き込めるようにする。
+   */
+  referencedTablesMarkdown?: string
   /** AbortSignal (クライアント中断時) */
   abortSignal?: AbortSignal
 }
@@ -316,10 +325,30 @@ ${params.chatHistoryContext}
 
 `
     : ''
-  return `${historyBlock}# 現在のレポート要件 (参考、変更しない)
+  // 参照される T-XXX 表の中身 (ユーザー指示や skeleton に登場する ID をサーバー側で解決済み)。
+  // Gemini はツールを呼べないので、ここで表データを直接プロンプトに添付する。
+  const tablesBlock = params.referencedTablesMarkdown && params.referencedTablesMarkdown.trim().length > 0
+    ? `# 📋 参照される過去の表 (T-XXX) の中身 (重要)
+
+以下はユーザー指示 / skeleton で参照されている過去の表 (T-XXX) の **実データ** です。
+**ユーザーが「T-XXX で表を埋めて / T-XXX のデータを使って」と言った場合、
+updated_skeleton には「T-XXX 参照」とだけ書くのではなく、必ず以下の rows の数値で
+表の各セルを直接埋めること** (skeleton 内の表をプレースホルダ "0" / "-" から
+実数値に置き換える)。
+列名 / 列数は表の意図に合わせて適切に並べ替えてよい (skeleton のヘッダに合わせる)。
+
+${params.referencedTablesMarkdown}
+
+`
+    : ''
+  return `${historyBlock}${tablesBlock}# 現在のレポート要件 (参考、変更しない)
 - タイトル: ${r.title ?? '(未設定)'}
 - 目的: ${r.goal ?? '(未設定)'}
 - 期間: ${r.rangeStart ?? '?'} 〜 ${r.rangeEnd ?? '?'}
+- 現在の data_sources: ${r.dataSources.length > 0 ? r.dataSources.join(', ') : '(未指定)'}
+  ※ \`chat_table\` はチャットで作った表 (T-XXX) を埋め込んだ擬似ソース。
+    レポート生成時はスキップされるので、新しいデータ取得が必要な指示が来たら
+    updated_data_sources には \`chat_table\` を外して必要なソース (query_metric / query_ga4 等) を入れる。
 - 取得指標 (metric_keys): ${r.metricKeys.length > 0 ? r.metricKeys.join(', ') : '(未指定)'}
 - アウトライン: ${r.outline ?? '(未指定)'}
 - メモ: ${r.notes ?? '(未指定)'}

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Loader2, Plus, MessageSquare, PanelRightClose, PanelRightOpen, PanelLeftClose, PanelLeftOpen, Trash2, Sun, Settings as SettingsIcon, LogOut, Bot, ShieldCheck, RefreshCw, FileText, Bookmark, BookmarkCheck, ChevronLeft } from 'lucide-react'
+import { Loader2, Plus, MessageSquare, PanelRightClose, PanelLeftClose, PanelLeftOpen, Trash2, Sun, Settings as SettingsIcon, LogOut, Bot, ShieldCheck, RefreshCw, FileText, Bookmark, BookmarkCheck, ChevronLeft } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/src/components/ui/shadcn/button'
 import { ScrollArea } from '@/src/components/ui/shadcn/scroll-area'
@@ -14,10 +14,16 @@ import { getConversations, getConversationMessages, deleteConversation, toggleBo
 import { getPinnedAgents, getCAConversations, deleteCAConversation, type CustomAgent, type CAConversationSummary } from '@/src/lib/advisor/actions/custom-agents'
 import { getAgentIcon, ICON_COLORS } from '@/src/lib/advisor/agent-icons'
 import { approveAction } from '@/src/lib/advisor/actions/pending-actions'
-import { DEFAULT_MODEL_ID } from '@/src/lib/advisor/models'
+import { DEFAULT_MODEL_ID, AVAILABLE_MODELS } from '@/src/lib/advisor/models'
 import { ReportCanvas } from '@/src/components/advisor/report/report-canvas'
 import { getDraftForSession } from '@/src/lib/advisor/actions/report-drafts'
 import { stripToolHintPrefix } from '@/src/lib/advisor/message-display'
+import {
+  SqlApprovalModal,
+  type SqlApprovalRequest,
+} from '@/src/components/advisor/chat/sql-approval-modal'
+import type { SqlResultTableData } from '@/src/components/advisor/chat/sql-result-table'
+import { getSessionTables } from '@/src/lib/advisor/actions/chat-tables'
 
 // Advisor は単一エージェントなので、すべて "システムアドバイザー" 表示にする
 const AGENT_LABEL = 'システムアドバイザー'
@@ -133,6 +139,45 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
   const [discardCanvasEditTrigger, setDiscardCanvasEditTrigger] = useState(0)
 
   /**
+   * execute_sql が返した表データの、メッセージ ID → 表配列 のマップ。
+   * ストリーミング中は仮 ID (-1) に蓄積し、done で確定 ID にリマップする。
+   */
+  const [sqlTablesByMessage, setSqlTablesByMessage] = useState<
+    Record<string, SqlResultTableData[]>
+  >({})
+  /** ストリーミング中の execute_sql 結果をいったん受ける一時バッファ */
+  const streamingTablesRef = useRef<SqlResultTableData[]>([])
+  /**
+   * SQL 承認モーダルの保留中要求 (null = 閉じている)。
+   * sql_approval_required イベントを受信すると open になる。
+   */
+  const [pendingSqlApproval, setPendingSqlApproval] =
+    useState<SqlApprovalRequest | null>(null)
+  /**
+   * セッション内 SQL 自動承認フラグ。
+   * ユーザーがモーダルで「セッション中はスキップ」をチェックすると true。
+   * 会話切替/ページリロードで false に戻る (sessionState のため永続化しない)。
+   */
+  const [sqlAutoApprove, setSqlAutoApprove] = useState(false)
+  /**
+   * モーダルで承認した「次の1リクエスト」だけ true で送るための ref。
+   * setSqlAutoApprove(true) は非同期反映なので、ref で同期的に1回だけ消費する。
+   */
+  const sqlApproveOnceRef = useRef(false)
+
+  /**
+   * localStorage の "agent-hub-base-model" は古い無効な値 (例: "gemini-flash") が
+   * 残っているケースがあるため、AVAILABLE_MODELS に存在しないものは捨てて
+   * DEFAULT_MODEL_ID にフォールバックする。
+   */
+  const resolveBaseModelId = (): string => {
+    if (typeof window === 'undefined') return DEFAULT_MODEL_ID
+    const saved = localStorage.getItem('agent-hub-base-model')
+    if (saved && AVAILABLE_MODELS.some((m) => m.id === saved)) return saved
+    return DEFAULT_MODEL_ID
+  }
+
+  /**
    * Canvas 境界ドラッグでリサイズ。
    * mousedown で resizingCanvas=true → mousemove で幅を更新 → mouseup で確定 + localStorage 保存。
    */
@@ -224,6 +269,7 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
     ;(async () => {
       setConversationId(cidFromUrl)
       setMessages([])
+      setSqlTablesByMessage({})
       const msgs = await getConversationMessages(cidFromUrl)
       if (cancelled) return
       setMessages(msgs.map(m => ({
@@ -233,6 +279,9 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
         content: m.role === 'user' ? stripToolHintPrefix(m.content) : m.content,
         created_at: m.created_at,
       })))
+      const tableMap = await fetchAndMapSessionTables(cidFromUrl, msgs)
+      if (cancelled) return
+      setSqlTablesByMessage(tableMap)
     })()
     return () => {
       cancelled = true
@@ -274,6 +323,7 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
     if (id === conversationId) return
     setConversationId(id)
     setMessages([])
+    setSqlTablesByMessage({})
     // 注意: ここで setLoading(true) を立てない。
     // loading は「LLM 応答中」フラグとして UI が「考え中...」を表示するために使われており、
     // 過去メッセージの fetch にこれを使うと、履歴ページから遷移したときに永続的に
@@ -288,6 +338,62 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
       content: m.role === 'user' ? stripToolHintPrefix(m.content) : m.content,
       created_at: m.created_at,
     })))
+    const tableMap = await fetchAndMapSessionTables(id, msgs)
+    setSqlTablesByMessage(tableMap)
+  }
+
+  /**
+   * 指定セッションの SQL 結果表 (advisor_chat_tables) を取得し、
+   * 時系列で「自分より前の最も新しい assistant メッセージ」に紐付けてマップを返す。
+   *
+   * 紐付け規約 (C 案):
+   * - 表.created_at より前の assistant メッセージのうち最も新しいものに紐付ける
+   * - 該当 assistant が無ければ最初の assistant メッセージにフォールバック (= 古い会話で
+   *   message_id が記録されていないケースの救済)
+   * - assistant メッセージが1つも無い場合は捨てる (実運用ではほぼ起きない)
+   */
+  async function fetchAndMapSessionTables(
+    sessionId: string,
+    msgs: Array<{ id: string; role: string; created_at: string }>
+  ): Promise<Record<string, SqlResultTableData[]>> {
+    let tables: Awaited<ReturnType<typeof getSessionTables>>
+    try {
+      tables = await getSessionTables(sessionId)
+    } catch (e) {
+      console.warn('[advisor] getSessionTables failed:', e)
+      return {}
+    }
+    if (tables.length === 0) return {}
+
+    const assistantMsgs = msgs
+      .filter(m => m.role === 'assistant' || m.role === 'agent')
+      .map(m => ({ id: m.id, t: new Date(m.created_at).getTime() }))
+      .sort((a, b) => a.t - b.t)
+    if (assistantMsgs.length === 0) return {}
+
+    const out: Record<string, SqlResultTableData[]> = {}
+    for (const tbl of tables) {
+      const tableTime = new Date(tbl.createdAt).getTime()
+      // 自分より前の assistant メッセージで最も新しいもの
+      let target = assistantMsgs[0].id
+      for (const am of assistantMsgs) {
+        if (am.t <= tableTime) target = am.id
+        else break
+      }
+      const data: SqlResultTableData = {
+        tableId: tbl.tableId,
+        tableDbId: tbl.tableDbId,
+        purpose: tbl.purpose,
+        sqlText: tbl.sqlText,
+        columns: tbl.columns,
+        rows: tbl.rows,
+        rowCount: tbl.rowCount,
+        truncated: tbl.truncated,
+        durationMs: tbl.durationMs ?? undefined,
+      }
+      ;(out[target] ??= []).push(data)
+    }
+    return out
   }
 
   /**
@@ -305,6 +411,8 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
       content: m.role === 'user' ? stripToolHintPrefix(m.content) : m.content,
       created_at: m.created_at,
     })))
+    const tableMap = await fetchAndMapSessionTables(conversationId, msgs)
+    setSqlTablesByMessage(tableMap)
   }
 
   async function handleDeleteConversation(id: string) {
@@ -322,7 +430,8 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
     text: string,
     convId: string | null,
     reqModelId?: string,
-    files?: { name: string; mimeType: string; base64: string }[]
+    files?: { name: string; mimeType: string; base64: string }[],
+    sqlAutoApproveOverride?: boolean
   ): Promise<{ accumulated: string; data: Record<string, any> | null; sources: string[] }> {
     const controller = new AbortController()
     abortRef.current = controller
@@ -336,6 +445,14 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
         projectIds: selectedProjectIds.length > 0 ? selectedProjectIds : undefined,
         modelId: reqModelId,
         files: files && files.length > 0 ? files : undefined,
+        sqlAutoApprove: (() => {
+          if (sqlAutoApproveOverride !== undefined) return sqlAutoApproveOverride
+          if (sqlApproveOnceRef.current) {
+            sqlApproveOnceRef.current = false
+            return true
+          }
+          return sqlAutoApprove
+        })(),
       }),
       signal: controller.signal,
     })
@@ -395,8 +512,39 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
       } else if (data.type === 'error') {
         setProgress(null)
         throw new Error(typeof data.text === 'string' ? data.text : 'Unknown stream error')
+      } else if (data.type === 'sql_approval_required') {
+        // 承認モーダル発火
+        setPendingSqlApproval({
+          toolUseId: String(data.toolUseId ?? ''),
+          purpose: String(data.purpose ?? '(目的未指定)'),
+          sql: String(data.sql ?? ''),
+          expectedRows:
+            typeof data.expectedRows === 'number' ? data.expectedRows : undefined,
+        })
+      } else if (data.type === 'tool_result' && data.ok && data.data) {
+        // execute_sql の成功結果 (table_id を含む) を一時バッファに積む。
+        // done で「直前 assistant メッセージ」に紐づける。
+        const d = data.data as Record<string, unknown>
+        if (
+          typeof d.table_id === 'string' &&
+          typeof d.table_db_id === 'number' &&
+          Array.isArray(d.columns) &&
+          Array.isArray(d.rows)
+        ) {
+          streamingTablesRef.current.push({
+            tableId: d.table_id,
+            tableDbId: d.table_db_id,
+            purpose: String(d.purpose ?? ''),
+            sqlText: typeof d.sql_text === 'string' ? d.sql_text : undefined,
+            columns: d.columns as SqlResultTableData['columns'],
+            rows: d.rows as unknown[][],
+            rowCount: typeof d.row_count === 'number' ? d.row_count : (d.rows as unknown[]).length,
+            truncated: Boolean(d.truncated),
+            durationMs: typeof d.duration_ms === 'number' ? d.duration_ms : undefined,
+          })
+        }
       }
-      // tool_use / tool_result / usage は UI で消費する余地があるが今は無視
+      // tool_use / usage は UI で消費する余地があるが今は無視
       return false
     }
 
@@ -588,11 +736,23 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
         playNotificationSound('action')
       }
 
+      const newMessageId = result.data?.messageId ?? crypto.randomUUID()
+      // サーバー側で Markdown 表に T-XXX を後付け採番した結果が返ってきたらそれを優先表示
+      // (リロード無しで「表 T-XXX」プレフィックス + SqlResultTable が出るようにする)
+      // 注意: orchestrator は done イベントを `{ type, messageId, conversationId, data: { annotatedContent } }`
+      // の形で送るため、annotatedContent は外側の result.data ではなく内側の result.data.data に入る。
+      const doneInnerData = result.data?.data as
+        | { annotatedContent?: unknown }
+        | undefined
+      const annotatedContent =
+        typeof doneInnerData?.annotatedContent === 'string'
+          ? cleanMessageTags(doneInnerData.annotatedContent)
+          : null
       setMessages(prev => [...prev, {
-        id: result.data?.messageId ?? crypto.randomUUID(),
+        id: newMessageId,
         role: 'assistant',
         agent_id: agentId,
-        content: cleanContent,
+        content: annotatedContent ?? cleanContent,
         created_at: new Date().toISOString(),
         actionIds: actionIds.length > 0 ? actionIds : undefined,
         choices: choices.length > 0 ? choices : undefined,
@@ -600,8 +760,55 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
       }])
       setStreamingContent('')
 
-      // 今回の応答で update_report_draft が呼ばれていたら Canvas を自動オープン
-      if (result.sources.includes('update_report_draft')) {
+      // execute_sql の結果表をメッセージ ID に紐づけ (即時バッファ分)
+      if (streamingTablesRef.current.length > 0) {
+        const tables = streamingTablesRef.current
+        streamingTablesRef.current = []
+        setSqlTablesByMessage(prev => ({ ...prev, [newMessageId]: tables }))
+      }
+
+      // サーバー側で Markdown 表に T-XXX が後付けされた場合、本文中の T-XXX に対応する
+      // SqlResultTableData を DB から取得して紐付ける。
+      // 注意: 新規セッションでも動くよう result.data?.conversationId を優先で使う
+      //       (この時点で state の conversationId はまだ反映されていない)
+      const sessionIdForTables =
+        (result.data?.conversationId as string | undefined) ?? conversationId
+      if (annotatedContent && sessionIdForTables) {
+        try {
+          const all = await getSessionTables(sessionIdForTables)
+          // 本文に登場する T-XXX のみ抽出
+          const referenced = new Set<string>()
+          const re = /\*\*表 (T-\d+)\*\*/g
+          let m: RegExpExecArray | null
+          while ((m = re.exec(annotatedContent)) !== null) referenced.add(m[1])
+          const dataForMsg: SqlResultTableData[] = all
+            .filter(t => referenced.has(t.tableId))
+            .map(t => ({
+              tableId: t.tableId,
+              tableDbId: t.tableDbId,
+              purpose: t.purpose,
+              columns: t.columns,
+              rows: t.rows,
+              rowCount: t.rowCount,
+              truncated: t.truncated,
+              durationMs: t.durationMs ?? undefined,
+            }))
+          if (dataForMsg.length > 0) {
+            setSqlTablesByMessage(prev => ({
+              ...prev,
+              [newMessageId]: [...(prev[newMessageId] ?? []), ...dataForMsg],
+            }))
+          }
+        } catch (e) {
+          console.warn('[advisor] annotate post-fetch failed:', e)
+        }
+      }
+
+      // 今回の応答で update_report_draft または add_tables_to_report が呼ばれていたら Canvas を自動オープン
+      if (
+        result.sources.includes('update_report_draft') ||
+        result.sources.includes('add_tables_to_report')
+      ) {
         setHasDraft(true)
         setCanvasOpen(true)
       }
@@ -958,17 +1165,29 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
             </span>
           </div>
           <div className="flex items-center gap-1">
-            {/* レポート Canvas トグル: ドラフトが存在する時だけ表示 */}
+            {/* レポート Canvas トグル: ドラフトが存在する時だけ表示。
+                ラベル付きで「ここからレポートを開ける」ことを明示する
+                (アイコンだけだと気付かれにくく、ユーザーが「再度ひらけない」と
+                 報告したのを受けて明示化した) */}
             {hasDraft && (
               <Button
                 size="sm"
-                variant="ghost"
+                variant={canvasOpen ? 'ghost' : 'outline'}
                 onClick={() => setCanvasOpen(v => !v)}
-                className="h-7 px-2 gap-1 text-xs text-slate-600 hover:text-slate-900"
+                className="h-7 px-2 gap-1.5 text-xs"
                 title={canvasOpen ? 'レポート Canvas を閉じる' : 'レポート Canvas を開く'}
               >
-                {canvasOpen ? <PanelRightClose className="h-3.5 w-3.5" /> : <PanelRightOpen className="h-3.5 w-3.5" />}
-                <FileText className="h-3.5 w-3.5" />
+                {canvasOpen ? (
+                  <>
+                    <PanelRightClose className="h-3.5 w-3.5" />
+                    <span>レポートを閉じる</span>
+                  </>
+                ) : (
+                  <>
+                    <FileText className="h-3.5 w-3.5" />
+                    <span>レポートを開く</span>
+                  </>
+                )}
               </Button>
             )}
             {/* 設定ページへのリンク (歯車アイコン) — 新規タブで開く */}
@@ -1049,6 +1268,14 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
                     images: msg.images,
                     videos: msg.videos,
                     sources: msg.sources,
+                  }}
+                  sqlTables={sqlTablesByMessage[msg.id]}
+                  onSendTableToReport={(tableId) => {
+                    handleChatSubmit(
+                      `表 ${tableId} をレポートに追加してください。`,
+                      resolveBaseModelId(),
+                      []
+                    )
                   }}
                   actionStatuses={actionStatuses}
                   onApproveAction={async (actionId) => {
@@ -1172,6 +1399,24 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
           )}
         </div>
 
+        {/* SQL 自動承認バナー (sqlAutoApprove=true の時のみ表示、解除リンク付き) */}
+        {sqlAutoApprove && (
+          <div className="px-4 pt-2">
+            <div className="max-w-3xl mx-auto flex items-center justify-between gap-3 rounded border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800">
+              <span>
+                ⚡ このセッション中、SQL 実行の承認確認は省略されます
+              </span>
+              <button
+                type="button"
+                onClick={() => setSqlAutoApprove(false)}
+                className="text-amber-800 underline hover:text-amber-900"
+              >
+                解除する
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* 入力エリア
             key に conversationId を含めることで、新規チャット (null) や別の会話に切り替えた時に
             ChatInput を強制再マウントし、ツール選択 / 添付ファイル / 入力中テキストをデフォルトにリセットする。
@@ -1239,13 +1484,37 @@ export function ChatLayout({ adminName, adminEmail = '', adminRole = '' }: ChatL
               onCancelChatStream={handleAbort}
               chatLoading={loading}
               onClose={() => {
+                // Canvas を閉じるだけ。hasDraft は触らない。
+                // 以前は setHasDraft(false) もしていたが、これだと
+                // ヘッダーの「Canvas を開く」トグルボタン (hasDraft 条件で表示) が
+                // 消えてしまい、ユーザーが Canvas を再度開けなくなるバグがあった。
+                // DB 上のドラフトは閉じても残っているので、ボタンは出し続けて OK。
                 setCanvasOpen(false)
-                setHasDraft(false)
               }}
             />
           </div>
         </>
       )}
+
+      <SqlApprovalModal
+        open={!!pendingSqlApproval}
+        request={pendingSqlApproval}
+        onCancel={() => setPendingSqlApproval(null)}
+        onApprove={(skipForSession) => {
+          if (skipForSession) setSqlAutoApprove(true)
+          setPendingSqlApproval(null)
+          // 次の1リクエストだけ強制承認 (state 反映待ちを ref でバイパス)
+          sqlApproveOnceRef.current = true
+          // 承認後の再開:
+          // - 直前にユーザーが投げた質問の文脈は Anthropic 側に履歴として残っている。
+          // - 「お願いします」とだけ送ると LLM は同じ意図で execute_sql を再呼び出しする。
+          handleChatSubmit(
+            'お願いします',
+            resolveBaseModelId(),
+            []
+          )
+        }}
+      />
     </div>
   )
 }

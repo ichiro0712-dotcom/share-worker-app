@@ -216,6 +216,13 @@ async function runMetricQuery(input: {
 const DEPRECATED_TOOL_KEYS = new Set(['list_available_metrics'])
 
 /**
+ * 擬似 toolKey。実ツール呼び出しは行わず、skeleton に埋め込み済みの表データを
+ * そのまま使う合図。`add_tables_to_report` 由来のドラフトが付ける。
+ * canGenerate の dataSources 空チェックを通すためだけに使う。
+ */
+export const CHAT_TABLE_PSEUDO_SOURCE = 'chat_table'
+
+/**
  * query_ga4 を複数 report_type で並列展開する。
  * GA4 ツールは report_type ごとに異なる dimensions / metrics を返すため、レポート用は
  * overview (全体合計 + 日別) / traffic (流入経路 = source/medium) / pages (ページ別 PV) の
@@ -493,8 +500,12 @@ export async function collectReportData(input: CollectInput): Promise<CollectRes
   const start = Date.now()
   const range = { start: input.rangeStart, end: input.rangeEnd }
 
-  // 廃止済みのツール名をドラフトから除外 (古いセッション救済)
-  const liveToolKeys = input.toolKeys.filter((k) => !DEPRECATED_TOOL_KEYS.has(k))
+  // 廃止済みのツール名 + 擬似 toolKey (chat_table 等) をドラフトから除外。
+  // chat_table は「skeleton 内に表データが既に埋め込まれている」合図で、実ツール呼び出しは
+  // 不要。dataSources を空にしないためだけに add_tables_to_report が付ける。
+  const liveToolKeys = input.toolKeys.filter(
+    (k) => !DEPRECATED_TOOL_KEYS.has(k) && k !== CHAT_TABLE_PSEUDO_SOURCE
+  )
 
   // 複数引数パターンで並列展開するツールはここで分離する。
   // - query_metric: metric_keys × group_by 全展開

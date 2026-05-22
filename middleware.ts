@@ -51,6 +51,7 @@ const publicPaths = [
   '/sitemap.xml', // SEO: サイトマップ
   '/lp', // LP関連ページ（/lp, /lp/1, /lp/tracking等）
   '/advisor/r', // System Advisor レポート公開シェア (URLを知っている人なら誰でも閲覧可)
+  '/advisor/t', // System Advisor 表 (T-XXX) 公開シェア (URLを知っている人なら誰でも閲覧可)
 ];
 
 // 静的ファイルとAPI認証エンドポイント

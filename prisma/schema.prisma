@@ -2239,3 +2239,63 @@ model AdvisorSettings {
 
   @@map("advisor_settings")
 }
+
+/// チャットで execute_sql ツールが返した表 (T-XXX で参照)
+/// セッションをまたいでもこの ID で参照可能 (例: 「T-001 をレポートに入れて」)
+model AdvisorChatTable {
+  /// 表 ID。SERIAL なので "T-" + id でユーザー向けに表示 (例: id=1 → "T-001")
+  id            Int      @id @default(autoincrement())
+  session_id    String
+  /// 表を生成した execute_sql ツール呼び出しを含む assistant メッセージ id (任意)
+  message_id    String?
+  /// LLM が宣言した「この SQL の目的」 (UI と監査ログに表示)
+  purpose       String   @db.Text
+  /// 実行された SELECT 文
+  sql_text      String   @db.Text
+  /// カラム定義 [{ key: string, label: string, type?: string }]
+  columns       Json
+  /// 行データ。max 1000 行で切り詰め
+  rows          Json
+  row_count     Int
+  /// LIMIT で切り詰められたか
+  truncated     Boolean  @default(false)
+  /// 実行所要時間 (ms)
+  duration_ms   Int?
+  /// SystemAdmin.id
+  created_by_id Int
+  /// 共有 URL token (発行されていれば /advisor/t/<token> でアクセス可)
+  share_token   String?  @unique
+  /// 共有開始時刻 (null = 共有停止中)
+  shared_at     DateTime?
+  /// 共有期限 (null = 共有停止中 or 期限未設定)。レポートと同じく 30 日
+  shared_until  DateTime?
+  created_at    DateTime @default(now())
+
+  @@index([session_id, created_at])
+  @@index([created_by_id, created_at])
+  @@map("advisor_chat_tables")
+}
+
+/// execute_sql ツールの監査ログ (実行されたもの・ブロックされたもの双方を記録)
+model AdvisorSqlAuditLog {
+  id            String   @id @default(cuid())
+  session_id    String?
+  admin_id      Int
+  purpose       String   @db.Text
+  sql_text      String   @db.Text
+  /// "ok" | "blocked" | "error"
+  status        String   @db.VarChar(20)
+  /// blocked の理由 (e.g. "SENSITIVE_COLUMN:users.email", "FORBIDDEN_KEYWORD:DELETE")
+  block_reason  String?  @db.Text
+  /// error 時のメッセージ
+  error_message String?  @db.Text
+  row_count     Int?
+  duration_ms   Int?
+  /// 紐付く AdvisorChatTable.id (status=ok の時のみ)
+  chat_table_id Int?
+  created_at    DateTime @default(now())
+
+  @@index([admin_id, created_at(sort: Desc)])
+  @@index([status, created_at(sort: Desc)])
+  @@map("advisor_sql_audit_logs")
+}

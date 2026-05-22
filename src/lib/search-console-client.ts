@@ -16,9 +16,12 @@ import path from 'path'
 
 const SCOPES = ['https://www.googleapis.com/auth/webmasters.readonly']
 
-let authClient: Auth.JWT | null = null
+let authClient: Auth.GoogleAuth | null = null
 
-function getAuthClient(): Auth.JWT {
+// google.auth.JWT + keyFile 経路は `invalid_grant: account not found` で動かない既知バグがある
+// (キー自体は有効だが、JWT クラスが keyFile から拾うときに何かを失敗する)。
+// GoogleAuth + keyFile 経路は同じキーで通るので、こちらを使う。
+function getAuthClient(): Auth.GoogleAuth {
   if (authClient) return authClient
 
   const credentialsJson = process.env.GA_CREDENTIALS_JSON
@@ -27,9 +30,11 @@ function getAuthClient(): Auth.JWT {
       client_email: string
       private_key: string
     }
-    authClient = new google.auth.JWT({
-      email: credentials.client_email,
-      key: credentials.private_key,
+    authClient = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: credentials.client_email,
+        private_key: credentials.private_key,
+      },
       scopes: SCOPES,
     })
     return authClient
@@ -41,7 +46,7 @@ function getAuthClient(): Auth.JWT {
       'GOOGLE_APPLICATION_CREDENTIALS または GA_CREDENTIALS_JSON が未設定です'
     )
   }
-  authClient = new google.auth.JWT({
+  authClient = new google.auth.GoogleAuth({
     keyFile: path.resolve(process.cwd(), credentialsPath),
     scopes: SCOPES,
   })

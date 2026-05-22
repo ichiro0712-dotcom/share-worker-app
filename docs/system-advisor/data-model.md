@@ -22,6 +22,8 @@
 | `AdvisorReportDraft` | Canvas で固める **レポート要件 + ドラフト本体 (skeleton)** | 2026-04 + 2026-05-02 拡張 |
 | `AdvisorReportVersion` | レポート本文のバージョン管理 + **共有 URL** (token / 期限) | 2026-04 + 2026-05-04 拡張 |
 | `AdvisorSettings` | システム設定シングルトン (モデル切替 / システムプロンプト上書き) | P1 |
+| **`AdvisorChatTable`** | execute_sql の結果表 (T-XXX 採番、共有 URL、Markdown 表) | **2026-05-16** |
+| **`AdvisorSqlAuditLog`** | execute_sql の監査ログ (SQL 文・所要・行数・承認状態) | **2026-05-16** |
 
 すべて `Advisor` プレフィックス + `advisor_*` テーブル名で既存テーブルと衝突しないようにする。
 **カラム追加履歴**:
@@ -30,6 +32,8 @@
 - `AdvisorReportDraft.original_request` (2026-05-02, 元の要望保存)
 - `AdvisorReportDraft.skeleton_markdown` (2026-05-02, Canvas で見せる骨格)
 - `AdvisorReportVersion.share_token` / `shared_at` / `shared_until` (2026-05-04, 公開シェア URL)
+- `AdvisorChatTable` 新規 (2026-05-16, T-XXX 表データ + 共有 URL `/advisor/t/[token]`)
+- `AdvisorSqlAuditLog` 新規 (2026-05-16, SQL 監査)
 
 ---
 
@@ -282,6 +286,66 @@ model AdvisorSettings {
 ```
 
 設定ページ (`/system-admin/advisor/settings`) で System Admin が編集。**コード変更せず DB 1 行更新でモデル切替できる**ようにする目的。
+
+### 2.10 `AdvisorChatTable` (2026-05-16 追加)
+
+```prisma
+model AdvisorChatTable {
+  id              Int       @id @default(autoincrement())  // T-{padStart(3,'0')} の元
+  session_id      String    // AdvisorChatSession.id
+  message_id      String?   // 紐づくメッセージ (null = 後付け採番)
+  created_by_id   Int       // SystemAdmin.id
+  purpose         String    @db.Text   // execute_sql の purpose、または「<章タイトル>」
+  columns         Json      // [{ key, label, type? }, ...]
+  rows            Json      // unknown[][] (最大 1000 行)
+  row_count       Int
+  truncated       Boolean   @default(false)
+  duration_ms     Int?
+  // 共有 URL (`/advisor/t/[token]` 公開ページ、30 日有効)
+  share_token     String?   @unique
+  shared_at       DateTime?
+  shared_until    DateTime?
+  created_at      DateTime  @default(now())
+
+  @@index([session_id, created_at])
+  @@index([share_token])
+  @@map("advisor_chat_tables")
+}
+```
+
+**役割**:
+- `execute_sql` 成功時の結果表を永続化 (T-XXX 連番採番、`T-${id.padStart(3,'0')}`)
+- Markdown 表の後付け採番 (`annotate-markdown-tables.ts`) でも生成される (assistant メッセージ内 Markdown 表を自動拾い)
+- 別セッションから `get_table` / `add_tables_to_report` 経由で参照可能
+- 共有 URL: 公開ページ `/advisor/t/[token]` (token-knowing、30 日有効)
+
+**保持期間**: 関連セッションが「お気に入り (bookmarked)」されていれば永続、お気に入りなしは 30 日後に cron で削除。
+
+### 2.11 `AdvisorSqlAuditLog` (2026-05-16 追加)
+
+```prisma
+model AdvisorSqlAuditLog {
+  id            Int       @id @default(autoincrement())
+  session_id    String
+  message_id    String?
+  admin_id      Int
+  sql           String    @db.Text
+  purpose       String    @db.Text
+  approved      Boolean   @default(false)
+  approval_mode String?   // 'manual' | 'session_auto' (sqlAutoApprove)
+  ok            Boolean
+  error         String?   @db.Text
+  row_count     Int?
+  duration_ms   Int?
+  table_id      Int?      // 成功時の AdvisorChatTable.id
+  created_at    DateTime  @default(now())
+
+  @@index([session_id, created_at])
+  @@map("advisor_sql_audit_logs")
+}
+```
+
+**役割**: `execute_sql` ツールが実行される度に SQL 文・承認状態・実行結果を記録。本番 DB への直接的な SQL アクセスは全てここに残る (= compliance / security 観点)。
 
 ---
 
