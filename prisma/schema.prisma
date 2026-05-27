@@ -108,6 +108,15 @@ model User {
   /// 銀行口座情報（構造化データ）
   bankAccount BankAccount?
 
+  /// 日払いポイント残高
+  pointBalance           PointBalance?
+  /// 日払いポイント台帳
+  pointLedgerEntries     PointLedgerEntry[]
+  /// 日払い前払い率設定履歴
+  advancePaymentPolicies AdvancePaymentPolicy[]
+  /// 日払い出金申請
+  withdrawalRequests     WithdrawalRequest[]
+
   /// LP経由登録情報
   /// 登録時にアクセスしたLP番号（"0", "1", "2" など）
   registration_lp_id         String? @map("registration_lp_id")
@@ -302,8 +311,8 @@ model JobTemplate {
   gender_requirement     String?  @map("gender_requirement")
   created_at             DateTime @default(now()) @map("created_at")
   updated_at             DateTime @updatedAt @map("updated_at")
-  facility           Facility @relation(fields: [facility_id], references: [id], onDelete: Cascade)
-  jobs               Job[]
+  facility               Facility @relation(fields: [facility_id], references: [id], onDelete: Cascade)
+  jobs                   Job[]
 
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
   updated_by_type String? @map("updated_by_type")
@@ -562,28 +571,29 @@ model LaborDocumentDownloadToken {
 }
 
 model Review {
-  id                   Int          @id @default(autoincrement())
-  facility_id          Int          @map("facility_id")
-  user_id              Int          @map("user_id")
-  job_id               Int          @map("job_id")
-  work_date_id         Int?         @map("work_date_id")
-  application_id       Int?         @map("application_id")
-  reviewer_type        ReviewerType @map("reviewer_type")
+  id                   Int                @id @default(autoincrement())
+  facility_id          Int                @map("facility_id")
+  user_id              Int                @map("user_id")
+  job_id               Int                @map("job_id")
+  work_date_id         Int?               @map("work_date_id")
+  application_id       Int?               @map("application_id")
+  reviewer_type        ReviewerType       @map("reviewer_type")
   rating               Int
-  rating_attendance    Int?         @map("rating_attendance")
-  rating_skill         Int?         @map("rating_skill")
-  rating_execution     Int?         @map("rating_execution")
-  rating_communication Int?         @map("rating_communication")
-  rating_attitude      Int?         @map("rating_attitude")
-  good_points          String?      @map("good_points")
+  rating_attendance    Int?               @map("rating_attendance")
+  rating_skill         Int?               @map("rating_skill")
+  rating_execution     Int?               @map("rating_execution")
+  rating_communication Int?               @map("rating_communication")
+  rating_attitude      Int?               @map("rating_attitude")
+  good_points          String?            @map("good_points")
   improvements         String?
-  created_at           DateTime     @default(now()) @map("created_at")
-  updated_at           DateTime     @updatedAt @map("updated_at")
-  application          Application? @relation(fields: [application_id], references: [id], onDelete: Cascade)
-  facility             Facility     @relation(fields: [facility_id], references: [id], onDelete: Cascade)
-  job                  Job          @relation(fields: [job_id], references: [id], onDelete: Cascade)
-  user                 User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  workDate             JobWorkDate? @relation(fields: [work_date_id], references: [id], onDelete: Cascade)
+  created_at           DateTime           @default(now()) @map("created_at")
+  updated_at           DateTime           @updatedAt @map("updated_at")
+  application          Application?       @relation(fields: [application_id], references: [id], onDelete: Cascade)
+  facility             Facility           @relation(fields: [facility_id], references: [id], onDelete: Cascade)
+  job                  Job                @relation(fields: [job_id], references: [id], onDelete: Cascade)
+  user                 User               @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  workDate             JobWorkDate?       @relation(fields: [work_date_id], references: [id], onDelete: Cascade)
+  pointLedgerEntries   PointLedgerEntry[]
 
   /// 更新者種別 ("WORKER" | "FACILITY_ADMIN" | "SYSTEM_ADMIN")
   updated_by_type String? @map("updated_by_type")
@@ -1234,6 +1244,7 @@ model Attendance {
   job                 Job?                           @relation(fields: [job_id], references: [id], onDelete: SetNull)
   modificationRequest AttendanceModificationRequest?
   editHistories       AttendanceEditHistory[]
+  pointLedgerEntries  PointLedgerEntry[]
 
   @@index([user_id, created_at])
   @@index([facility_id, created_at])
@@ -1568,6 +1579,14 @@ model BankAccount {
   accountNumber     String      @map("account_number") @db.VarChar(7)
   accountHolderName String      @map("account_holder_name") @db.VarChar(100)
 
+  accountHolderNameKana  String?   @map("account_holder_name_kana") @db.VarChar(48)
+  isVerified             Boolean   @default(false) @map("is_verified")
+  verifiedAt             DateTime? @map("verified_at")
+  lastChangedAt          DateTime? @map("last_changed_at")
+  cooldownUntil          DateTime? @map("cooldown_until")
+  encryptedAccountNumber String?   @map("encrypted_account_number") @db.Text
+  encryptionVersion      Int?      @map("encryption_version")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -1575,6 +1594,8 @@ model BankAccount {
   updatedByType String? @map("updated_by_type")
   /// 更新者ID
   updatedById   Int?    @map("updated_by_id")
+
+  withdrawalRequests WithdrawalRequest[]
 
   @@map("bank_accounts")
 }
@@ -2078,48 +2099,48 @@ model AdvisorUsageDaily {
 /// 1 セッション = 0 or 1 ドラフト。LLM が update_report_draft ツールで更新する。
 /// 「レポート作成」ボタン押下で result_markdown が生成される。
 model AdvisorReportDraft {
-  id           String  @id @default(cuid())
+  id                String    @id @default(cuid())
   /// AdvisorChatSession.id を参照 (1セッションに1ドラフト)
-  session_id   String  @unique
-  admin_id     Int
+  session_id        String    @unique
+  admin_id          Int
   /// レポートのタイトル (LLM が決めるが admin が後から書き換え可)
-  title        String? @db.VarChar(300)
+  title             String?   @db.VarChar(300)
   /// レポートの目的・問い (チャットで固めた要件のサマリ)
-  goal         String? @db.Text
+  goal              String?   @db.Text
   /// 集めるデータソースのキー配列 (例: ["query_metric", "query_ga4", "get_recent_errors"])
   /// tool-source-labels.ts のキーと対応
-  data_sources Json?
+  data_sources      Json?
   /// data_sources に "query_metric" が含まれている場合の取得対象 metric キー配列
   /// (例: ["LP_PV", "LP_TO_LINE_CONV"])。MetricDefinitions.tsx のキーと対応。
   /// dataSources に query_metric が無ければ無視される。
-  metric_keys  Json?
+  metric_keys       Json?
   /// 対象期間 (YYYY-MM-DD, JST 基準)
-  range_start  String? @db.VarChar(10)
-  range_end    String? @db.VarChar(10)
+  range_start       String?   @db.VarChar(10)
+  range_end         String?   @db.VarChar(10)
   /// アウトライン (Markdown 箇条書き、章立て)
-  outline      String? @db.Text
+  outline           String?   @db.Text
   /// 追加メモ (LLM が考慮事項・除外条件を書き込む)
-  notes        String? @db.Text
+  notes             String?   @db.Text
   /// このドラフトを作るきっかけになったユーザーの初回要望 (生のメッセージ本文)。
   /// 修正指示が来た時に Claude が「元々何を求められていたか」を見失わないよう保存する。
-  original_request String? @db.Text
+  original_request  String?   @db.Text
   /// レポート本体のドラフト (0 埋めの表骨格 + 章立てが入った Markdown)。
   /// ユーザーが「LP5 まで」のような構造変更を指示した時、Claude がここを書き換える。
   /// 数字は実データではなく 0 / プレースホルダ。最終レポートは別 (result_markdown)。
-  skeleton_markdown String? @db.Text
+  skeleton_markdown String?   @db.Text
   /// "drafting" | "generating" | "completed" | "failed"
-  status       String  @default("drafting") @db.VarChar(20)
+  status            String    @default("drafting") @db.VarChar(20)
   /// 生成完了後の Markdown 本文
-  result_markdown String? @db.Text
+  result_markdown   String?   @db.Text
   /// 生成に使ったモデル (例: "gemini-2.5-flash")
-  result_model String?  @db.VarChar(100)
+  result_model      String?   @db.VarChar(100)
   /// エラー時のメッセージ
-  error_message String? @db.Text
+  error_message     String?   @db.Text
   /// レポート生成回数 (再生成カウンタ)
-  generation_count Int @default(0)
-  generated_at  DateTime?
-  created_at    DateTime @default(now())
-  updated_at    DateTime @updatedAt
+  generation_count  Int       @default(0)
+  generated_at      DateTime?
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
 
   @@index([admin_id, updated_at(sort: Desc)])
   @@index([status])
@@ -2136,28 +2157,28 @@ model AdvisorReportDraft {
 /// - source="manual_edit": admin が Canvas 上で手動編集して保存
 /// - source="llm_edit": チャット経由で LLM 部分修正 (edit_report_section)
 model AdvisorReportVersion {
-  id              String  @id @default(cuid())
+  id                    String    @id @default(cuid())
   /// AdvisorReportDraft.id 参照 (FK 貼らず論理参照、ドラフトを消したらクリーンアップは別途)
-  draft_id        String
+  draft_id              String
   /// 1, 2, 3... draft_id 内でユニーク
-  version_number  Int
+  version_number        Int
   /// レポート本文 (Markdown)
-  result_markdown String  @db.Text
+  result_markdown       String    @db.Text
   /// 生成 / 編集に使ったモデル ("gemini-2.5-flash", "manual" 等)
-  result_model    String  @db.VarChar(100)
+  result_model          String    @db.VarChar(100)
   /// このバージョンが作られた時のドラフトのスナップショット
   /// (title, goal, dataSources, metricKeys, range_start, range_end, outline, notes)
   /// 後からドラフトを編集しても、このバージョンの "元" が分かるように残す
-  draft_snapshot  Json
+  draft_snapshot        Json
   /// "generated" | "manual_edit" | "llm_edit"
-  source          String  @db.VarChar(20)
+  source                String    @db.VarChar(20)
   /// 直前のバージョン (どこから派生したか) — 初回生成時のみ null
-  parent_version_id String?
+  parent_version_id     String?
   /// 生成にかかった ms
-  generated_ms    Int?
+  generated_ms          Int?
   /// LLM 入力 / 出力トークン (manual_edit のときは null)
-  input_tokens    Int?
-  output_tokens   Int?
+  input_tokens          Int?
+  output_tokens         Int?
   /// admin が編集モード中 (textarea を開いている) のときのロック
   /// 5 分でタイムアウトする (cron 不要、読み取り側でチェック)
   editing_lock_admin_id Int?
@@ -2165,14 +2186,14 @@ model AdvisorReportVersion {
   /// 公開シェア用トークン (URL を知っている人なら誰でも閲覧可)。
   /// 一度発行したら停止/再発行されるまで同じ値を使う (停止 = shared_at = null)。
   /// シェア有効/無効は shared_at + shared_until 両方で判定する (token は記録のため残す)。
-  share_token     String?   @unique @db.VarChar(64)
+  share_token           String?   @unique @db.VarChar(64)
   /// シェア有効化された時刻。null = シェア停止中。
-  shared_at       DateTime?
+  shared_at             DateTime?
   /// シェア URL の有効期限 (デフォルト: shared_at + 30 日)。
   /// shared_until < now() の場合は token 一致しても 404 を返す。
   /// 「URL を再発行 (+30日延長)」操作で更新される。
-  shared_until    DateTime?
-  created_at      DateTime @default(now())
+  shared_until          DateTime?
+  created_at            DateTime  @default(now())
 
   @@unique([draft_id, version_number])
   @@index([draft_id, version_number(sort: Desc)])
@@ -2244,32 +2265,32 @@ model AdvisorSettings {
 /// セッションをまたいでもこの ID で参照可能 (例: 「T-001 をレポートに入れて」)
 model AdvisorChatTable {
   /// 表 ID。SERIAL なので "T-" + id でユーザー向けに表示 (例: id=1 → "T-001")
-  id            Int      @id @default(autoincrement())
+  id            Int       @id @default(autoincrement())
   session_id    String
   /// 表を生成した execute_sql ツール呼び出しを含む assistant メッセージ id (任意)
   message_id    String?
   /// LLM が宣言した「この SQL の目的」 (UI と監査ログに表示)
-  purpose       String   @db.Text
+  purpose       String    @db.Text
   /// 実行された SELECT 文
-  sql_text      String   @db.Text
+  sql_text      String    @db.Text
   /// カラム定義 [{ key: string, label: string, type?: string }]
   columns       Json
   /// 行データ。max 1000 行で切り詰め
   rows          Json
   row_count     Int
   /// LIMIT で切り詰められたか
-  truncated     Boolean  @default(false)
+  truncated     Boolean   @default(false)
   /// 実行所要時間 (ms)
   duration_ms   Int?
   /// SystemAdmin.id
   created_by_id Int
   /// 共有 URL token (発行されていれば /advisor/t/<token> でアクセス可)
-  share_token   String?  @unique
+  share_token   String?   @unique
   /// 共有開始時刻 (null = 共有停止中)
   shared_at     DateTime?
   /// 共有期限 (null = 共有停止中 or 期限未設定)。レポートと同じく 30 日
   shared_until  DateTime?
-  created_at    DateTime @default(now())
+  created_at    DateTime  @default(now())
 
   @@index([session_id, created_at])
   @@index([created_by_id, created_at])
@@ -2298,4 +2319,310 @@ model AdvisorSqlAuditLog {
   @@index([admin_id, created_at(sort: Desc)])
   @@index([status, created_at(sort: Desc)])
   @@map("advisor_sql_audit_logs")
+}
+
+// ===== HIBARAI MODELS =====
+
+enum PointLedgerKind {
+  ATTENDANCE_CONFIRMED
+  WITHDRAWAL_RESERVED
+  WITHDRAWAL_COMPLETED
+  WITHDRAWAL_REVERTED
+  MANUAL_ADJUSTMENT
+  PAYMENT_DEDUCTION
+
+  @@map("point_ledger_kind")
+}
+
+enum WithdrawalStatus {
+  DRAFT
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
+  CANCELLED
+
+  @@map("withdrawal_status")
+}
+
+enum AdvanceProgram {
+  HIBARAI
+  LEGACY_CARRYBARAI
+  DISABLED
+
+  @@map("advance_program")
+}
+
+enum GmoTokenAccountType {
+  CORPORATE
+  PRIVATE
+
+  @@map("gmo_token_account_type")
+}
+
+enum HibaraiAuditActorType {
+  WORKER
+  SYSTEM_ADMIN
+  SYSTEM_CRON
+  GMO_WEBHOOK
+
+  @@map("hibarai_audit_actor_type")
+}
+
+enum HibaraiAuditResult {
+  SUCCESS
+  ERROR
+  WARNING
+
+  @@map("hibarai_audit_result")
+}
+
+/// ワーカー単位の現時点ポイント残高（1pt = 1円）
+model PointBalance {
+  id              String   @id @default(cuid())
+  worker_id       Int      @unique @map("worker_id")
+  /// IMPORTANT: balance は PointLedgerEntry の SUM(delta) と必ず一致。直接UPDATEせず、ledger insert + balance同時更新を1トランザクションで。
+  /// 想定: アプリ層で point_balances.balance, total_charged, total_withdrawn の直接UPDATE禁止。専用関数経由のみ。
+  balance         Int      @default(0)
+  total_charged   Int      @default(0) @map("total_charged")
+  total_withdrawn Int      @default(0) @map("total_withdrawn")
+  updated_at      DateTime @updatedAt @map("updated_at")
+
+  /// ユーザー削除が本当に必要な場合は、削除前に監査ログへ archive する運用を必須にする。
+  worker              User                @relation(fields: [worker_id], references: [id], onDelete: Restrict)
+  ledger_entries      PointLedgerEntry[]
+  withdrawal_requests WithdrawalRequest[]
+
+  @@map("point_balances")
+}
+
+/// ポイント残高の全変動を記録する append-only 台帳
+model PointLedgerEntry {
+  id                        String          @id @default(cuid())
+  worker_id                 Int             @map("worker_id")
+  kind                      PointLedgerKind
+  delta                     Int
+  balance_after             Int             @map("balance_after")
+  idempotency_key           String          @unique @map("idempotency_key") @db.VarChar(128)
+  source_id                 String?         @map("source_id") @db.VarChar(100)
+  source_type               String?         @map("source_type") @db.VarChar(50)
+  attendance_id             Int?            @map("attendance_id")
+  application_id            Int?            @map("application_id")
+  job_id                    Int?            @map("job_id")
+  work_date                 DateTime?       @map("work_date") @db.Date
+  gross_reward_amount       Int?            @map("gross_reward_amount")
+  transportation_fee_amount Int?            @map("transportation_fee_amount")
+  advanceable_amount        Int?            @map("advanceable_amount")
+  scheduled_payment_amount  Int?            @map("scheduled_payment_amount")
+  settlement_month          DateTime?       @map("settlement_month") @db.Date
+  scheduled_payment_date    DateTime?       @map("scheduled_payment_date") @db.Date
+  review_id                 Int?            @map("review_id")
+  note                      String?         @db.Text
+  created_at                DateTime        @default(now()) @map("created_at")
+  created_by_admin_id       Int?            @map("created_by_admin_id")
+
+  /// ユーザー削除が本当に必要な場合は、削除前に監査ログへ archive する運用を必須にする。
+  worker        User         @relation(fields: [worker_id], references: [id], onDelete: Restrict, map: "point_ledger_entries_worker_user_id_fkey")
+  point_balance PointBalance @relation(fields: [worker_id], references: [worker_id], onDelete: Restrict, map: "point_ledger_entries_worker_balance_id_fkey")
+  attendance    Attendance?  @relation(fields: [attendance_id], references: [id], onDelete: SetNull)
+  review        Review?      @relation(fields: [review_id], references: [id], onDelete: SetNull)
+
+  /// Migration時に部分unique indexを追加すること:
+  /// CREATE UNIQUE INDEX point_ledger_entries_attendance_confirmed_once
+  /// ON point_ledger_entries(attendance_id)
+  /// WHERE kind = 'ATTENDANCE_CONFIRMED' AND attendance_id IS NOT NULL;
+  @@index([worker_id, created_at(sort: Desc)])
+  @@index([attendance_id])
+  @@index([settlement_month, worker_id])
+  @@index([scheduled_payment_date])
+  @@index([review_id])
+  @@map("point_ledger_entries")
+}
+
+/// ワーカー別の前払い率・上限設定履歴
+model AdvancePaymentPolicy {
+  id                       String         @id @default(cuid())
+  worker_id                Int            @map("worker_id")
+  /// Migration時に rate_basis_points の CHECK 制約（0〜10000）を追加すること。
+  rate_basis_points        Int            @map("rate_basis_points")
+  monthly_limit_amount     Int?           @map("monthly_limit_amount")
+  daily_limit_amount       Int?           @map("daily_limit_amount")
+  per_request_limit_amount Int?           @map("per_request_limit_amount")
+  advance_program          AdvanceProgram @default(HIBARAI) @map("advance_program")
+  carrybarai_reference_id  String?        @map("carrybarai_reference_id") @db.VarChar(100)
+  is_suspended             Boolean        @default(false) @map("is_suspended")
+  reason                   String         @db.Text
+  effective_from           DateTime       @map("effective_from")
+  effective_to             DateTime?      @map("effective_to")
+  created_by_admin_id      Int            @map("created_by_admin_id")
+  created_at               DateTime       @default(now()) @map("created_at")
+  replaced_by_id           String?        @unique @map("replaced_by_id")
+  active_slot              String?        @default("active") @map("active_slot") @db.VarChar(16)
+
+  /// ユーザー削除が本当に必要な場合は、削除前に監査ログへ archive する運用を必須にする。
+  worker      User                  @relation(fields: [worker_id], references: [id], onDelete: Restrict)
+  replaced_by AdvancePaymentPolicy? @relation("AdvancePaymentPolicyReplacement", fields: [replaced_by_id], references: [id], onDelete: SetNull)
+  replaces    AdvancePaymentPolicy? @relation("AdvancePaymentPolicyReplacement")
+
+  @@unique([worker_id, active_slot])
+  @@index([advance_program])
+  @@index([worker_id, effective_from(sort: Desc)])
+  @@index([effective_to])
+  @@map("advance_payment_policies")
+}
+
+/// 日払い出金申請
+model WithdrawalRequest {
+  id                       String           @id @default(cuid())
+  worker_id                Int              @map("worker_id")
+  requested_amount         Int              @map("requested_amount")
+  fee_amount               Int              @map("fee_amount")
+  transfer_amount          Int              @map("transfer_amount")
+  status                   WithdrawalStatus @default(DRAFT)
+  idempotency_key          String           @unique @map("idempotency_key") @db.VarChar(128)
+  bank_account_id          String           @map("bank_account_id")
+  gmo_apply_no             String?          @unique @map("gmo_apply_no") @db.VarChar(16)
+  gmo_account_id           String?          @map("gmo_account_id") @db.VarChar(64)
+  gmo_transfer_status_code Int?             @map("gmo_transfer_status_code")
+  gmo_transfer_status_name String?          @map("gmo_transfer_status_name") @db.VarChar(100)
+  error_code               String?          @map("error_code") @db.VarChar(100)
+  error_message            String?          @map("error_message") @db.Text
+  client_ip                String           @map("client_ip") @db.VarChar(45)
+  user_agent               String           @map("user_agent") @db.Text
+  requested_at             DateTime         @default(now()) @map("requested_at")
+  submitted_to_gmo_at      DateTime?        @map("submitted_to_gmo_at")
+  completed_at             DateTime?        @map("completed_at")
+  failed_at                DateTime?        @map("failed_at")
+  refunded_at              DateTime?        @map("refunded_at")
+  last_polled_at           DateTime?        @map("last_polled_at")
+  next_poll_at             DateTime?        @map("next_poll_at")
+  poll_attempt_count       Int              @default(0) @map("poll_attempt_count")
+  gmo_refund_status        Int?             @map("gmo_refund_status")
+  gmo_is_repayment         Boolean?         @map("gmo_is_repayment")
+  gmo_repayment_date       DateTime?        @map("gmo_repayment_date") @db.Date
+
+  /// ユーザー削除が本当に必要な場合は、削除前に監査ログへ archive する運用を必須にする。
+  worker            User              @relation(fields: [worker_id], references: [id], onDelete: Restrict, map: "withdrawal_requests_worker_user_id_fkey")
+  point_balance     PointBalance      @relation(fields: [worker_id], references: [worker_id], onDelete: Restrict, map: "withdrawal_requests_worker_balance_id_fkey")
+  bank_account      BankAccount       @relation(fields: [bank_account_id], references: [id], onDelete: Restrict)
+  transfer_attempts TransferAttempt[]
+
+  @@index([worker_id, requested_at(sort: Desc)])
+  @@index([status, requested_at])
+  @@index([status, next_poll_at])
+  @@map("withdrawal_requests")
+}
+
+/// GMOへのリクエスト/レスポンス追跡用 append-only ログ
+model TransferAttempt {
+  id                    String   @id @default(cuid())
+  withdrawal_request_id String   @map("withdrawal_request_id")
+  attempt_no            Int      @map("attempt_no")
+  idempotency_key       String?  @map("idempotency_key") @db.VarChar(128)
+  request_method        String   @map("request_method") @db.VarChar(10)
+  request_url           String   @map("request_url") @db.Text
+  request_headers       Json     @map("request_headers")
+  request_body          Json     @map("request_body")
+  response_status_code  Int?     @map("response_status_code")
+  response_body         Json?    @map("response_body")
+  gmo_apply_no          String?  @map("gmo_apply_no") @db.VarChar(16)
+  gmo_status_code       Int?     @map("gmo_status_code")
+  gmo_status_name       String?  @map("gmo_status_name") @db.VarChar(100)
+  error_code            String?  @map("error_code") @db.VarChar(100)
+  occurred_at           DateTime @default(now()) @map("occurred_at")
+  duration_ms           Int?     @map("duration_ms")
+
+  withdrawal_request WithdrawalRequest @relation(fields: [withdrawal_request_id], references: [id], onDelete: Restrict)
+
+  @@unique([withdrawal_request_id, attempt_no])
+  @@index([withdrawal_request_id, occurred_at(sort: Desc)])
+  @@index([idempotency_key])
+  @@map("transfer_attempts")
+}
+
+/// GMO OAuth トークン保存
+model GmoOAuthToken {
+  id            String              @id @default(cuid())
+  scope         String              @db.VarChar(256)
+  account_type  GmoTokenAccountType @default(CORPORATE) @map("account_type")
+  access_token  String              @map("access_token") @db.Text
+  refresh_token String              @map("refresh_token") @db.Text
+  token_type    String              @default("Bearer") @map("token_type") @db.VarChar(20)
+  expires_at    DateTime            @map("expires_at")
+  id_token      String?             @map("id_token") @db.Text
+  gmo_user_sub  String?             @map("gmo_user_sub") @db.VarChar(255)
+  revoked_at    DateTime?           @map("revoked_at")
+  created_at    DateTime            @default(now()) @map("created_at")
+  updated_at    DateTime            @updatedAt @map("updated_at")
+
+  @@index([account_type, revoked_at])
+  @@index([expires_at])
+  @@map("gmo_oauth_tokens")
+}
+
+/// GMO 着金通知受信記録・冪等処理用
+model GmoWebhookEvent {
+  id                 String    @id @default(cuid())
+  event_type         String    @map("event_type") @db.VarChar(100)
+  message_id         String    @unique @map("message_id") @db.VarChar(128)
+  payload            Json
+  signature_header   String?   @map("signature_header") @db.Text
+  signature_valid    Boolean   @default(false) @map("signature_valid")
+  received_at        DateTime  @default(now()) @map("received_at")
+  processed_at       DateTime? @map("processed_at")
+  processing_error   String?   @map("processing_error") @db.Text
+  virtual_account_id String?   @map("virtual_account_id") @db.VarChar(64)
+  deposit_amount     Int?      @map("deposit_amount")
+  remitter_name_kana String?   @map("remitter_name_kana") @db.VarChar(100)
+
+  @@index([event_type, received_at(sort: Desc)])
+  @@map("gmo_webhook_events")
+}
+
+/// 日払い専用監査ログ（append-only）
+model HibaraiAuditLog {
+  id              String                @id @default(cuid())
+  actor_type      HibaraiAuditActorType @map("actor_type")
+  actor_id        String?               @map("actor_id") @db.VarChar(100)
+  action          String                @db.VarChar(100)
+  target_type     String?               @map("target_type") @db.VarChar(100)
+  target_id       String?               @map("target_id") @db.VarChar(100)
+  tenant_scope    String?               @map("tenant_scope") @db.VarChar(100)
+  request_id      String?               @map("request_id") @db.VarChar(100)
+  idempotency_key String?               @map("idempotency_key") @db.VarChar(128)
+  payload         Json
+  result          HibaraiAuditResult
+  error_code      String?               @map("error_code") @db.VarChar(100)
+  ip_address      String?               @map("ip_address") @db.VarChar(45)
+  user_agent      String?               @map("user_agent") @db.Text
+  chain_scope     String                @default("global") @map("chain_scope") @db.VarChar(50)
+  chain_sequence  BigInt                @map("chain_sequence")
+  hash_prev       String?               @map("hash_prev") @db.VarChar(128)
+  hash_self       String                @map("hash_self") @db.VarChar(128)
+  created_at      DateTime              @default(now()) @map("created_at")
+
+  /// 関連エンティティ削除が本当に必要な場合は、削除前に監査ログへ archive する運用を必須にする。
+  @@unique([chain_scope, chain_sequence])
+  @@unique([hash_self])
+  @@index([created_at(sort: Desc)])
+  @@index([actor_type, action, created_at(sort: Desc)])
+  @@index([target_type, target_id])
+  @@index([idempotency_key])
+  @@map("hibarai_audit_logs")
+}
+
+/// 日払い緊急停止状態（シングルトン: id = "global"）
+model EmergencyStopState {
+  /// Migration時に CHECK 制約（id = 'global'）を追加すること。
+  id                   String    @id @default("global")
+  is_stopped           Boolean   @default(false) @map("is_stopped")
+  stopped_at           DateTime? @map("stopped_at")
+  stopped_by_admin_id  Int?      @map("stopped_by_admin_id")
+  stopped_reason       String?   @map("stopped_reason") @db.Text
+  released_at          DateTime? @map("released_at")
+  released_by_admin_id Int?      @map("released_by_admin_id")
+  updated_at           DateTime  @updatedAt @map("updated_at")
+
+  @@map("emergency_stop_states")
 }
