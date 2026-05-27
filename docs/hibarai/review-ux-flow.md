@@ -9,13 +9,13 @@
 
 ## 1. Bottom Line
 
-全体として、仕様は成立していますが、このまま画面化すると「給与系の申請画面」になりやすく、PayPayのような直感性にはまだ足りません。最重要は、ワーカーに「今いくら受け取れるか」「何をすれば増えるか」「失敗したらどう直すか」を1画面で見せることです。
+全体として、仕様は成立していますが、このまま画面化すると「報酬受け取り系の申請画面」になりやすく、PayPayのような直感性にはまだ足りません。最重要は、ワーカーに「今いくら受け取れるか」「何をすれば増えるか」「失敗したらどう直すか」を1画面で見せることです。
 
 ## 2. 致命的なUX問題（P0）
 
 - **P0-A**: レビュー提出が前払い解放条件なのに、導線が別機能に見える。「レビューしないとお金が受け取れない」と理解しづらい。
 - **P0-B**: 口座登録/変更がプロフィール編集に埋もれると重すぎる。銀行名、支店、口座番号、本人認証が同居すると、夜勤明けユーザーには離脱要因。
-- **P0-C**: "前払い率・プール・社保・組戻し"の業務用語がワーカー向けに不向き。「今すぐ受け取れる金額」「給与日に入る金額」に変換すべき。
+- **P0-C**: "前払い率・プール・控除・組戻し"の業務用語がワーカー向けに不向き。「今すぐ受け取れる金額」「支払日に入る金額」に変換すべき。
 - **P0-D**: エラー時の安心導線が未定。「振込エラー」だけでは不安が強い。原因、直す場所、再申請可否を1画面で出す必要。
 
 ## 3. ワーカー側フローの改善案
@@ -25,7 +25,7 @@
 | **A1 残高確認** | 2〜3ステップ | 0〜1ステップ | 5タブを「探す/仕事/お金/メッセージ/マイページ」にし、`お金`タブで大きく「¥12,480 今すぐ受け取れます」 |
 | **A2 引き出し申請** | 5〜6ステップ | 3ステップ | `お金` → 金額入力 → 確認ボトムシート → 完了。手数料と振込予定額を同じ画面に |
 | **A3 口座登録/変更** | 6〜8ステップ | 登録3、変更4 | 登録: 口座入力 → 確認 → 完了。変更: 口座入力 → SMS/メール認証 → 確認 → 完了。プロフィール編集とは分離 |
-| **A4 履歴閲覧** | 2〜4ステップ | 1〜2ステップ | `お金`画面内に「履歴」タブ。`受け取り済み/申請中/給与日に入る`で色分け |
+| **A4 履歴閲覧** | 2〜4ステップ | 1〜2ステップ | `お金`画面内に「履歴」タブ。`受け取り済み/申請中/支払日に入る`で色分け |
 | **A5 出金エラー** | 5ステップ以上 | 3ステップ | 通知 → エラー詳細 → 口座修正/再申請。エラーコードは隠し、原因を日本語化 |
 | **A6 レビュー提出** | 4ステップ | 2ステップ | `レビューすると ¥8,640 受け取れます`カード → 30秒レビュー → 残高反映。自由記述は任意またはチップ選択中心 |
 
@@ -86,7 +86,7 @@
 | 手数料100〜200円本人負担 | 手数料 ¥143 を引いて振り込みます |
 | 1円単位で引き出し可能 | 1円から受け取れます |
 | 月末締め | 5/31 23:59まで受け取りできます |
-| 前払い率7割 | 一部は給与日に入ります |
+| 前払い率7割 | 一部は支払日に入ります |
 | レビューを投稿してください | 30秒レビューで受け取りできます |
 | 投稿中... | 送信しています |
 | その口座では再引き出し不可 | この口座では受け取れません。別の口座を登録してください |
@@ -149,5 +149,5 @@
 ## 9. 画像生成プロンプト用デザイン要件
 
 ```text
-Japanese mobile app UI mockup for a wage advance feature used by Japanese female nurses and caregivers, age 30-60, friendly PayPay-like familiarity without copying any real brand logo. Clean white background, bright red primary CTA, soft blue information accents, large bold yen balance at top reading "¥12,480", label "今すぐ受け取れる金額", main button "受け取る", flat five-tab bottom navigation, card-based sections, icon-first navigation, Japanese text, accessible 16px+ typography, large tap targets, calm trustworthy healthcare-fintech feeling, modern but warm, simple step indicator "レビュー → 受け取り → 完了", history list with status chips, bank account card, error recovery card with friendly copy "口座を確認してください". Show the app on a smartphone held by a Japanese nurse in a break room, no real payment app logos, no dark theme, no excessive gradients.
+Japanese mobile app UI mockup for an early contractor fee receipt feature used by Japanese female nurses and caregivers, age 30-60, friendly PayPay-like familiarity without copying any real brand logo. Clean white background, bright red primary CTA, soft blue information accents, large bold yen balance at top reading "¥12,480", label "今すぐ受け取れる金額", main button "受け取る", flat five-tab bottom navigation, card-based sections, icon-first navigation, Japanese text, accessible 16px+ typography, large tap targets, calm trustworthy healthcare-fintech feeling, modern but warm, simple step indicator "レビュー → 受け取り → 完了", history list with status chips, bank account card, error recovery card with friendly copy "口座を確認してください". Show the app on a smartphone held by a Japanese nurse in a break room, no real payment app logos, no dark theme, no excessive gradients.
 ```

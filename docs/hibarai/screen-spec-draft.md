@@ -60,7 +60,7 @@
 | 固定用語 | 用途 | 使用しない表現 |
 |---|---|---|
 | 今すぐ受け取れる金額 | ワーカーが今日受け取れる上限 | 前払い可能額、プール、チャージ |
-| 給与日に入る金額 | 月次給与日に振り込まれる見込み | 残り、保留分、1割分 |
+| 支払日に入る金額 | 各案件の既存の報酬支払日に振り込まれる見込み | 残り、保留分、1割分 |
 | 受け取る | ワーカーの出金アクション | 前払い申請、引き出し申請 |
 | 受取口座 | ワーカーの振込先口座 | 振込先口座、銀行口座 |
 
@@ -76,7 +76,7 @@
 | 手数料100〜200円本人負担 | 手数料 ¥143 を引いて振り込みます | W2 |
 | 1円単位で引き出し可能 | 1円から受け取れます | W2, W8 |
 | 月末締め | 5/31 23:59まで受け取りできます | W1, W8 |
-| 前払い率7割 | 一部は給与日に入ります | W8 |
+| 前払い率7割 | 一部は支払日に入ります | W8 |
 | レビューを投稿してください | 30秒レビューで受け取りできます | W1, W7 |
 | 投稿中... | 送信しています | W7 |
 | その口座では再引き出し不可 | この口座では受け取れません。別の口座を登録してください | W6 |
@@ -125,7 +125,7 @@
 |---|---|---|---|
 | 残高 | `available` | 受け取れます | 利用可能 |
 | 残高 | `locked_by_review` | 30秒レビューで受け取りできます | レビュー未提出 |
-| 残高 | `month_closed` | 給与日に入ります | 月次締め済み |
+| 残高 | `month_closed` | 支払日に入ります | 月次締め済み |
 | 残高 | `global_stopped` | ただいま受け取りを停止しています | 緊急停止中 |
 | 口座 | `unregistered` | 受取口座を登録してください | 未登録 |
 | 口座 | `verified` | 登録済み | 登録済み |
@@ -160,7 +160,7 @@ stateDiagram-v2
   口座確認必要 --> 口座変更: 受取口座を直す
   口座変更 --> 変更後確認中: 本人認証成功
   変更後確認中 --> 残高反映: クールダウン終了
-  残高反映 --> 給与日入金予定: 月末締め
+  残高反映 --> 支払日入金予定: 月末締め
 ```
 
 ### 3.2 管理者側: 緊急停止と解除
@@ -188,7 +188,7 @@ flowchart TD
   F --> G[管理者キューで再申請可否確認]
   C -- いいえ --> H[A3 管理者キュー]
   H --> I[再処理 / 保留 / 完了扱い]
-  G --> J[再申請または給与日精算]
+  G --> J[再申請または支払日精算]
 ```
 
 ---
@@ -249,7 +249,7 @@ flowchart TD
 |---|---|---|---|
 | `WorkerMoneyHeader` | default | `title="お金"` | stickyヘッダー。右にFAQアイコン |
 | `AvailableBalanceCard` | `available / zero / stopped / cooldown` | `availableAmount`, `deadlineText`, `canReceive`, `disabledReason` | 「今すぐ受け取れる金額」と大きな金額を表示。主ボタンは「受け取る」 |
-| `PaydayAmountSummary` | default | `paydayAmount`, `paydayDate` | 「給与日に入る金額」を小さく表示。W8へ遷移 |
+| `ScheduledPaymentAmountSummary` | default | `scheduledPaymentAmount`, `scheduledPaymentDate` | 「支払日に入る金額」を小さく表示。W8へ遷移 |
 | `ReviewUnlockCard` | `visible / hidden` | `items[]`, `totalUnlockAmount` | 「レビューすると ¥8,640 受け取れます」。W7へ遷移 |
 | `BankAccountCard` | `registered / unregistered / cooldown / blocked` | `bankName`, `branchName`, `last4`, `status` | 未登録なら「受取口座を登録」。登録済みは変更導線 |
 | `LatestHistoryList` | `hasItems / empty / hasError` | `historyItems[3]` | 直近3件。W5へ遷移 |
@@ -610,10 +610,10 @@ stateDiagram-v2
 
 | コンポーネント | 状態 | props案 | 表示・挙動 |
 |---|---|---|---|
-| `HistoryFilterTabs` | default | `activeTab` | `すべて / 申請中 / 受け取り済み / 確認が必要 / 給与日に入る` |
+| `HistoryFilterTabs` | default | `activeTab` | `すべて / 申請中 / 受け取り済み / 確認が必要 / 支払日に入る` |
 | `HistoryMonthSelector` | default | `selectedMonth`, `availableMonths` | 月別表示 |
 | `WithdrawalTimelineList` | `hasItems / empty` | `items[]` | 日付ごとにタイムライン表示 |
-| `HistoryItem` | `accepted / processing / completed / failed / payday` | `amount`, `fee`, `status`, `date`, `destinationLast4` | 失敗行はW6へ |
+| `HistoryItem` | `accepted / processing / completed / failed / scheduled_payment` | `amount`, `fee`, `status`, `date`, `destinationLast4` | 失敗行はW6へ |
 | `SupportCodeInline` | `visible / hidden` | `supportCode` | エラー履歴に表示 |
 
 ### W5-4. インタラクション・状態遷移
@@ -857,12 +857,12 @@ stateDiagram-v2
 
 | コンポーネント | 状態 | props案 | 表示・挙動 |
 |---|---|---|---|
-| `BalanceBreakdownSummary` | default | `availableAmount`, `paydayAmount`, `monthDeadline` | 2つの金額を並べる |
-| `WorkEarningBreakdownList` | `hasItems / empty` | `items[]` | 勤務日・施設名・受け取れる金額・給与日に入る金額 |
+| `BalanceBreakdownSummary` | default | `availableAmount`, `scheduledPaymentAmount`, `monthDeadline` | 2つの金額を並べる |
+| `WorkEarningBreakdownList` | `hasItems / empty` | `items[]` | 勤務日・施設名・受け取れる金額・支払日に入る金額 |
 | `ReviewPendingBreakdown` | `visible / hidden` | `pendingItems[]` | 「レビューすると増えます」 |
 | `FeeRuleCard` | default | `feeExample` | 手数料説明 |
-| `MonthCloseNotice` | default | `deadlineText`, `paydayDate` | 月末締めの説明 |
-| `FAQAccordion` | default | `faqItems[]` | 受け取り時間、口座、失敗、給与日など |
+| `MonthCloseNotice` | default | `deadlineText`, `scheduledPaymentDate` | 月末締めの説明 |
+| `FAQAccordion` | default | `faqItems[]` | 受け取り時間、口座、失敗、支払日など |
 
 ### W8-4. インタラクション・状態遷移
 
@@ -888,7 +888,7 @@ stateDiagram-v2
 |---|---|
 | 内訳 | 表形式に近い情報は見出し・説明を明確化 |
 | FAQ | 開閉状態を読み上げ可能にする |
-| 金額 | 「今すぐ受け取れる金額」「給与日に入る金額」を省略しない |
+| 金額 | 「今すぐ受け取れる金額」「支払日に入る金額」を省略しない |
 | 長文 | 1段落を短くし、専門用語を避ける |
 
 ### W8-7. セキュリティ要件
@@ -904,7 +904,7 @@ stateDiagram-v2
 
 | イベント | 発火タイミング | 主な属性 |
 |---|---|---|
-| `balance_breakdown_viewed` | 画面表示 | `available_amount_bucket`, `payday_amount_bucket` |
+| `balance_breakdown_viewed` | 画面表示 | `available_amount_bucket`, `scheduled_payment_amount_bucket` |
 | `balance_breakdown_work_clicked` | 勤務行タップ | `work_status`, `has_review_pending` |
 | `money_faq_opened` | FAQ開閉 | `faq_key` |
 | `balance_breakdown_receive_clicked` | 受け取るタップ | `available_amount_bucket` |
@@ -1115,7 +1115,7 @@ stateDiagram-v2
   再処理待ち --> 完了: 再処理成功
   再処理待ち --> 再失敗: 再処理失敗
   再失敗 --> 保留
-  保留 --> 完了: 給与日精算など
+  保留 --> 完了: 支払日精算など
 ```
 
 | 操作 | 条件 | 遷移・結果 |
@@ -1465,15 +1465,15 @@ stateDiagram-v2
 
 | 優先度 | 未確定事項 | 画面への影響 | 確認先 |
 |---|---|---|---|
-| P0 | 前払いの法的・会計的性質 | 手数料表示、給与日に入る金額、同意文言 | 法務・社労士・経理 |
-| P0 | 手数料を本人負担にする根拠 | W2の手数料表示、同意導線 | 法務・労使協定 |
-| P0 | 前払い可能額の算定母数 | W1/W2/W8の金額、A4の設定 | 労務・給与計算 |
-| P0 | 勤怠完了の定義 | W7の解放条件、過払い対応 | プロダクト・労務 |
+| P0 | 前払いの法的・会計的性質 | 手数料表示、支払日に入る金額、同意文言 | 法務・契約・経理 |
+| P0 | 手数料を本人負担にする根拠 | W2の手数料表示、同意導線 | 法務・業務委託契約条項 |
+| P0 | 前払い可能額の算定母数 | W1/W2/W8の金額、A4の設定 | 契約・報酬計算 |
+| P0 | 勤怠完了の定義 | W7の解放条件、過払い対応 | プロダクト・契約 |
 | P0 | 施設承認前に支払う場合の過払い回収 | W8説明、A3/A5例外処理 | 法務・経理 |
 | P0 | キャリ払いとの併用・移行排他 | W1残高、A5履歴、二重払い防止 | 既存運用担当 |
 | P0 | GMO方式の確定 | W6エラー分類、A3再処理、通知 | GMO/決済担当 |
 | P0 | 口座名義照合の実現可否 | W3/W4の本人名義チェック、初回出金制限 | GMO/法務 |
-| P0 | 月末23:59申請が月跨ぎ失敗した場合の精算月 | W1/W8期限表示、A5履歴分類 | 経理・給与 |
+| P0 | 月末23:59申請が月跨ぎ失敗した場合の精算月 | W1/W8期限表示、A5履歴分類 | 経理・報酬 |
 | P1 | 履歴保持期間 | W5表示期間、A5/A6保存期間 | 法務・セキュリティ |
 | P1 | 個人別率・上限の初期リリース範囲 | A4のプリセット/個別入力 | プロダクト |
 | P1 | 変更後クールダウン時間 | W4完了、W1無効理由 | セキュリティ |

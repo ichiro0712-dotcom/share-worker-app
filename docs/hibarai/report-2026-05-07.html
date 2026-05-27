@@ -426,7 +426,7 @@
 
   <h3>1.1 機能の前提</h3>
   <table>
-    <tr><td class="label">前払い対象</td><td>確定済み報酬のみ（給料日前倒し型 = 立替払いの早期化）</td></tr>
+    <tr><td class="label">前払い対象</td><td>確定済み報酬のみ（業務委託報酬の早期受領）</td></tr>
     <tr><td class="label">前払い成立条件</td><td><strong>本人の勤怠完了 ＋ 本人レビューの提出</strong>（施設側の承認は待たない／振込を止めない）</td></tr>
     <tr><td class="label">既存「キャリバライ」</td><td>近いが別システムとして構築。仕様再現範囲は要共有</td></tr>
     <tr><td class="label">送金経路</td><td>GMO あおぞら API（24/365 即時振込）</td></tr>
@@ -436,7 +436,7 @@
   <table>
     <tr><td class="label">ポイント定義</td><td>確定報酬は自動的にポイント残高へ加算（1pt = 1円のウォレット型）</td></tr>
     <tr><td class="label">前払い率（基本）</td><td><strong>勤務実績の 9 割をプール</strong>（前払い可能上限）</td></tr>
-    <tr><td class="label">前払い率（例外）</td><td>社保対象見込みの場合は 7 割等、ワーカー別に変動。当面は個別設定方式</td></tr>
+    <tr><td class="label">前払い率（例外）</td><td>労働者性が否認できない場合の留意等により 7 割等、ワーカー別に変動。当面は個別設定方式</td></tr>
     <tr><td class="label">引き出し単位</td><td><strong>1 円単位</strong></td></tr>
     <tr><td class="label">交通費</td><td>前払い対象金額に <strong>含めて</strong> チャージ可</td></tr>
     <tr><td class="label">申請可能時間帯</td><td>24/365 申請可。完了は銀行都合に準じる（GW 等は停止可能性あり）</td></tr>
@@ -469,7 +469,7 @@
 <!-- 2. Monthly settlement flow -->
 <section id="monthly-flow">
   <h2><span class="num">2</span>月末締め・支払サイクル</h2>
-  <p class="lede">議事録 第 7 項に基づく。残額（プール 1 割分含む）は給料日に固定口座へ振込。</p>
+  <p class="lede">議事録 第 7 項に基づく。残額（プール 1 割分含む）は各案件の既存報酬支払日に受取口座へ振込。</p>
 
   <div class="flow">
     <div class="flow-step">
@@ -486,16 +486,16 @@
     </div>
     <div class="flow-step">
       <div class="when">翌月 1 日</div>
-      <div class="what">月次精算処理：残額（プール分の 1 割含む）を <strong>登録固定口座への振込手続き</strong></div>
+      <div class="what">月次精算処理：残額（プール分の 1 割含む）を <strong>各案件の既存報酬支払日に向けた受取口座への振込手続き</strong></div>
     </div>
     <div class="flow-step">
-      <div class="when">翌月 15 日</div>
-      <div class="what">通常給与支払日として <strong>固定口座へ振込完了</strong> → 残高ゼロでクリア</div>
+      <div class="when">既存支払日</div>
+      <div class="what">既存の報酬支払日として <strong>受取口座へ振込完了</strong> → 残高ゼロでクリア</div>
     </div>
   </div>
 
   <div class="highlight-card info">
-    <strong>運用ポイント:</strong> 給料日 = 翌月 15 日で全社統一する設計。月初 1 日は精算バッチの起動日。月末締めにより、ポイント残高の自動失効ルール（B2）も同時に成立する。
+    <strong>運用ポイント:</strong> 報酬支払日は全社統一せず、案件ごとの既存支払日を維持する設計。月初 1 日は精算バッチの起動日。月末締めにより、ポイント残高の自動失効ルール（B2）も同時に成立する。
   </div>
 </section>
 
@@ -507,8 +507,8 @@
   <table>
     <tr><th>観点</th><th>内容</th></tr>
     <tr><td class="label">基本率</td><td>9 割（全ワーカー初期値）</td></tr>
-    <tr><td class="label">例外率</td><td>社保対象見込みの場合は 7 割（同一施設・同一期間で 2 ヶ月以上の契約が見込まれる場合）</td></tr>
-    <tr><td class="label">算出要素</td><td>勤務形態 / 勤務時間 / 時給 / 契約条件 / 社保対象の有無</td></tr>
+    <tr><td class="label">例外率</td><td>労働者性が否認できない場合の留意が必要な場合は 7 割等</td></tr>
+    <tr><td class="label">算出要素</td><td>勤務形態 / 勤務時間 / 報酬単価 / 契約条件 / 労働者性が否認できない場合の留意</td></tr>
     <tr><td class="label">設定方式</td><td><strong>当面は個別手動設定可能な形</strong>（将来は勤務形態からの自動算出を検討）</td></tr>
     <tr><td class="label">上限金額</td><td>将来的に個人ごとの上限金額（1 回／1 日／1 月）も設定可能とする</td></tr>
   </table>
@@ -517,7 +517,7 @@
   <ul class="questions">
     <li>9 割→ 7 割への切替は、施設とワーカーの合意により決定後、施設側で設定する案（未決定）</li>
     <li>キャリバライの設定仕様をどこまで再現するか</li>
-    <li>社保対象判定（同一施設・2 ヶ月以上）をシステムで判定するか、運用判断か</li>
+    <li>労働者性が否認できない場合の留意点をシステムで検知するか、運用判断か</li>
   </ul>
 </section>
 
@@ -615,8 +615,8 @@
   <ul class="questions">
     <li><strong>キャリバライの仕様再現範囲</strong> — 率設定 / UI / 運用フロー</li>
     <li><strong>個人別の前払い率の設定 UI と運用</strong>（system-admin での操作主体・承認フロー）</li>
-    <li><strong>社保対象判定の自動化要否</strong>（同一施設・2 ヶ月以上の自動検出か、運用判断か）</li>
-    <li><strong>利用規約変更の要否と時期</strong>（第 8 条「賃金等支払の立替え」の改定 or 前払いサービス利用規約の新設）</li>
+    <li><strong>労働者性が否認できない場合の留意点の自動化要否</strong>（自動検出か、運用判断か）</li>
+    <li><strong>利用規約変更の要否と時期</strong>（第 8 条「報酬等支払の立替え」の改定 or 前払いサービス利用規約の新設）</li>
     <li>残課題項目（D3／A2／A3／A5／C4／C6／F1／F4／I1〜4／J1〜3／K1-2／K4／L1-5／N2／O1-2／P1-4）の方針</li>
   </ul>
 
@@ -688,7 +688,7 @@
 
   <h3>トラック C：規約・法務</h3>
   <ul class="checks">
-    <li>求職者向け利用規約 第 8 条「賃金等支払の立替え」の改定要否レビュー</li>
+    <li>求職者向け利用規約 第 8 条「報酬等支払の立替え」の改定要否レビュー</li>
     <li>前払いサービス利用規約の新設要否レビュー</li>
     <li>規約改定時期と告知計画の決定</li>
   </ul>
