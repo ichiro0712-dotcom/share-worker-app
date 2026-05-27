@@ -725,6 +725,13 @@ export async function toggleWorkerSuspension(id: number, suspend: boolean) {
             data: {
                 is_suspended: suspend,
                 suspended_at: suspend ? new Date() : null,
+                // 停止時はログインの抜け道となるトークンも失効（auto-login / password-reset 経由のバイパスを防止）
+                ...(suspend ? {
+                    auto_login_token: null,
+                    auto_login_token_expires: null,
+                    password_reset_token: null,
+                    password_reset_token_expires: null,
+                } : {}),
             },
         });
 

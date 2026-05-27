@@ -45,6 +45,41 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // 退会・停止チェック（退会優先）
+    // この経路は NextAuth の authorize() を通らないため、ここで明示的にガードする
+    if (user.deleted_at) {
+      console.warn('[AutoLogin] Blocked: account withdrawn, userId:', user.id);
+      logActivity({
+        userType: 'WORKER',
+        userId: user.id,
+        userEmail: user.email,
+        action: 'LOGIN_FAILED',
+        targetType: 'User',
+        targetId: user.id,
+        result: 'ERROR',
+        errorMessage: 'アカウント退会済み（auto-login経由）',
+      }).catch(() => {});
+      const errorUrl = new URL('/login', request.nextUrl.origin);
+      errorUrl.searchParams.set('error', 'AccountWithdrawn');
+      return secureRedirect(errorUrl);
+    }
+    if (user.is_suspended) {
+      console.warn('[AutoLogin] Blocked: account suspended, userId:', user.id);
+      logActivity({
+        userType: 'WORKER',
+        userId: user.id,
+        userEmail: user.email,
+        action: 'LOGIN_FAILED',
+        targetType: 'User',
+        targetId: user.id,
+        result: 'ERROR',
+        errorMessage: 'アカウント停止中（auto-login経由）',
+      }).catch(() => {});
+      const errorUrl = new URL('/login', request.nextUrl.origin);
+      errorUrl.searchParams.set('error', 'AccountSuspended');
+      return secureRedirect(errorUrl);
+    }
+
     // auto_login_token の検証
     if (
       user.auto_login_token !== token ||
