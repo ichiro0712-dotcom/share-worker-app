@@ -27,6 +27,34 @@ export const authOptions: NextAuthOptions = {
             throw new Error('ユーザーが見つかりません');
           }
 
+          // 退会・停止チェック（退会優先）
+          if (user.deleted_at) {
+            logActivity({
+              userType: 'WORKER',
+              userId: user.id,
+              userEmail: user.email,
+              action: 'LOGIN_FAILED',
+              targetType: 'User',
+              targetId: user.id,
+              result: 'ERROR',
+              errorMessage: 'アカウント退会済み（自動ログイン）',
+            }).catch(() => {});
+            throw new Error('このアカウントは退会済みです。');
+          }
+          if (user.is_suspended) {
+            logActivity({
+              userType: 'WORKER',
+              userId: user.id,
+              userEmail: user.email,
+              action: 'LOGIN_FAILED',
+              targetType: 'User',
+              targetId: user.id,
+              result: 'ERROR',
+              errorMessage: 'アカウント停止中（自動ログイン）',
+            }).catch(() => {});
+            throw new Error('このアカウントは停止されています。お問い合わせください。');
+          }
+
           // 自動ログイントークンの検証
           if (
             user.auto_login_token !== credentials.autoLoginToken ||
@@ -108,11 +136,11 @@ export const authOptions: NextAuthOptions = {
           user = emailMatches[0];
         } else {
           // 電話番号ログイン: DB 側も正規化して比較（レガシーデータのハイフン・全角数字対応）
+          // 退会済みもヒットさせ、認証後段で deleted_at/is_suspended をチェックして専用エラーを返す
           const rows = await prisma.$queryRaw<{ id: number }[]>(
             Prisma.sql`SELECT id FROM users
               WHERE regexp_replace(translate(phone_number, '０１２３４５６７８９', '0123456789'), '[^0-9]', '', 'g') = ${parsed.value}
               AND phone_verified = true
-              AND deleted_at IS NULL
               ORDER BY id DESC`
           );
           const candidates = rows.length > 0
@@ -147,6 +175,34 @@ export const authOptions: NextAuthOptions = {
             errorMessage: 'ユーザーが見つかりません',
           }).catch(() => {});
           throw new Error('メールアドレスまたはパスワードが正しくありません');
+        }
+
+        // 退会・停止チェック（退会優先）
+        if (user.deleted_at) {
+          logActivity({
+            userType: 'WORKER',
+            userId: user.id,
+            userEmail: user.email,
+            action: 'LOGIN_FAILED',
+            targetType: 'User',
+            targetId: user.id,
+            result: 'ERROR',
+            errorMessage: 'アカウント退会済み',
+          }).catch(() => {});
+          throw new Error('このアカウントは退会済みです。');
+        }
+        if (user.is_suspended) {
+          logActivity({
+            userType: 'WORKER',
+            userId: user.id,
+            userEmail: user.email,
+            action: 'LOGIN_FAILED',
+            targetType: 'User',
+            targetId: user.id,
+            result: 'ERROR',
+            errorMessage: 'アカウント停止中',
+          }).catch(() => {});
+          throw new Error('このアカウントは停止されています。お問い合わせください。');
         }
 
         // テストユーザーログイン用の特別パスワード（開発環境 + 環境変数フラグ必須）
@@ -220,6 +276,7 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id as string;
 
         // DBから最新のユーザー情報を取得（プロフィール画像の更新を反映）
+        // 同時に退会・停止状態を再チェックし、該当する場合はセッションを失効させる
         try {
           const dbUser = await prisma.user.findUnique({
             where: { id: parseInt(token.id as string) },
@@ -227,13 +284,20 @@ export const authOptions: NextAuthOptions = {
               name: true,
               email: true,
               profile_image: true,
+              is_suspended: true,
+              deleted_at: true,
             },
           });
-          if (dbUser) {
-            session.user.name = dbUser.name;
-            session.user.email = dbUser.email;
-            session.user.image = dbUser.profile_image;
+          if (!dbUser || dbUser.deleted_at || dbUser.is_suspended) {
+            // ユーザー消失/退会/停止 → セッション失効（getServerSession で user を未定義に）
+            // 既存コードは `if (session.user && token.id)` 等で user 不在を許容する形のため
+            // user プロパティを削除する形で無効化する
+            delete (session as { user?: unknown }).user;
+            return session;
           }
+          session.user.name = dbUser.name;
+          session.user.email = dbUser.email;
+          session.user.image = dbUser.profile_image;
         } catch (error) {
           console.error('Failed to fetch user from DB in session callback:', error);
         }
