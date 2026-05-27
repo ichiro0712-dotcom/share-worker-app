@@ -124,6 +124,13 @@ export default function SystemAdminLayout({ children }: SystemAdminLayoutProps) 
             href: '/system-admin/attendance',
             active: pathname?.startsWith('/system-admin/attendance'),
         },
+        // TODO: フィーチャーフラグ NEXT_PUBLIC_FEATURE_HIBARAI 公開時にここに追加
+        // {
+        //     title: '日払い管理',
+        //     icon: <WalletCards className="w-5 h-5" />,
+        //     href: '/system-admin/hibarai',
+        //     active: pathname?.startsWith('/system-admin/hibarai'),
+        // },
         {
             title: 'CSV出力',
             icon: <FileSpreadsheet className="w-5 h-5" />,

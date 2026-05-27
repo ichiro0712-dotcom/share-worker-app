@@ -18,8 +18,16 @@ export default {
         // ワーカー向けカラー（デフォルト）
         primary: {
           DEFAULT: "#FF3333",
+          cta: "#D92D20",
+          "cta-dark": "#C92A2A",
           dark: "#E62E2E",
           light: "#FFE5E5",
+          soft: "#FFE7E7",
+          border: "#FECACA",
+        },
+        money: {
+          accent: "#2EC4B6",
+          "accent-soft": "#DDF8F5",
         },
         secondary: {
           DEFAULT: "#3895FF",
