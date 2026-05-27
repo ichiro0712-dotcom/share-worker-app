@@ -3,11 +3,11 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getSystemWorkerDetail, toggleWorkerSuspension, generateWorkerMasqueradeToken, getWorkerEditLogs } from '@/src/lib/system-actions';
+import { getSystemWorkerDetail, toggleWorkerSuspension, generateWorkerMasqueradeToken, getWorkerEditLogs, withdrawWorker } from '@/src/lib/system-actions';
 import {
     ChevronLeft, Ban, CheckCircle, Mail, Phone, MapPin, Calendar, Briefcase,
     FileText, Star, User, Clock, AlertTriangle, LogIn, Shield, CreditCard,
-    Building, Users, History, Link2
+    Building, Users, History, Link2, UserX, X
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -74,9 +74,14 @@ export default function SystemAdminWorkerDetailPage({ params }: { params: { id: 
     const [worker, setWorker] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [isSuspended, setIsSuspended] = useState(false);
+    const [isWithdrawn, setIsWithdrawn] = useState(false);
+    const [withdrawnAt, setWithdrawnAt] = useState<Date | string | null>(null);
+    const [deleteReason, setDeleteReason] = useState<string | null>(null);
     const [processing, setProcessing] = useState(false);
     const [editLogs, setEditLogs] = useState<any[]>([]);
     const [showEditLogs, setShowEditLogs] = useState(false);
+    const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+    const [withdrawReasonInput, setWithdrawReasonInput] = useState('');
 
     useEffect(() => {
         const loadWorker = async () => {
@@ -89,6 +94,9 @@ export default function SystemAdminWorkerDetailPage({ params }: { params: { id: 
                 if (data) {
                     setWorker(data);
                     setIsSuspended(data.isSuspended);
+                    setIsWithdrawn(!!data.isWithdrawn);
+                    setWithdrawnAt(data.withdrawnAt ?? null);
+                    setDeleteReason(data.deleteReason ?? null);
                 }
                 setEditLogs(logs);
             } catch (error) {
@@ -132,6 +140,43 @@ export default function SystemAdminWorkerDetailPage({ params }: { params: { id: 
                 details: debugInfo.details,
                 stack: debugInfo.stack,
                 context: { workerId, targetSuspension: !isSuspended }
+            });
+            toast.error('エラーが発生しました');
+        } finally {
+            setProcessing(false);
+        }
+    };
+
+    const handleOpenWithdrawModal = () => {
+        setWithdrawReasonInput('');
+        setShowWithdrawModal(true);
+    };
+
+    const handleConfirmWithdraw = async () => {
+        if (!confirm('このワーカーを「退会済み」にします。\nワーカーは即座にログインできなくなり、この操作はサポート問い合わせ無しには元に戻せません。\n本当に実行してよろしいですか？')) {
+            return;
+        }
+        setProcessing(true);
+        try {
+            const result = await withdrawWorker(workerId, withdrawReasonInput.trim() || undefined);
+            if (result.success) {
+                setIsWithdrawn(true);
+                setWithdrawnAt(new Date());
+                setDeleteReason(withdrawReasonInput.trim() || null);
+                setShowWithdrawModal(false);
+                toast.success('退会扱いにしました');
+            } else {
+                toast.error(result.error || '更新に失敗しました');
+            }
+        } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'update',
+                operation: 'ワーカー退会処理',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { workerId }
             });
             toast.error('エラーが発生しました');
         } finally {
@@ -207,7 +252,11 @@ export default function SystemAdminWorkerDetailPage({ params }: { params: { id: 
                         <div>
                             <h1 className="text-xl font-bold text-gray-900 flex items-center gap-3">
                                 {worker.name}
-                                {isSuspended ? (
+                                {isWithdrawn ? (
+                                    <span className="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded-full flex items-center gap-1 font-medium">
+                                        <UserX className="w-4 h-4" /> 退会済み
+                                    </span>
+                                ) : isSuspended ? (
                                     <span className="px-3 py-1 bg-red-100 text-red-700 text-sm rounded-full flex items-center gap-1 font-medium">
                                         <Ban className="w-4 h-4" /> 停止中
                                     </span>
@@ -222,36 +271,70 @@ export default function SystemAdminWorkerDetailPage({ params }: { params: { id: 
                     </div>
 
                     <div className="flex gap-3">
-                        <button
-                            onClick={handleMasquerade}
-                            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors"
-                        >
-                            <LogIn className="w-4 h-4" />
-                            ワーカーとしてログイン
-                        </button>
-                        <button
-                            onClick={handleToggleSuspension}
-                            disabled={processing}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-white transition-colors ${isSuspended
-                                ? 'bg-green-600 hover:bg-green-700'
-                                : 'bg-red-600 hover:bg-red-700'
-                                } disabled:opacity-50`}
-                        >
-                            {isSuspended ? (
-                                <>
-                                    <CheckCircle className="w-4 h-4" />
-                                    停止解除
-                                </>
-                            ) : (
-                                <>
-                                    <Ban className="w-4 h-4" />
-                                    アカウント停止
-                                </>
-                            )}
-                        </button>
+                        {!isWithdrawn && (
+                            <button
+                                onClick={handleMasquerade}
+                                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors"
+                            >
+                                <LogIn className="w-4 h-4" />
+                                ワーカーとしてログイン
+                            </button>
+                        )}
+                        {!isWithdrawn && (
+                            <button
+                                onClick={handleToggleSuspension}
+                                disabled={processing}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-white transition-colors ${isSuspended
+                                    ? 'bg-green-600 hover:bg-green-700'
+                                    : 'bg-red-600 hover:bg-red-700'
+                                    } disabled:opacity-50`}
+                            >
+                                {isSuspended ? (
+                                    <>
+                                        <CheckCircle className="w-4 h-4" />
+                                        停止解除
+                                    </>
+                                ) : (
+                                    <>
+                                        <Ban className="w-4 h-4" />
+                                        アカウント停止
+                                    </>
+                                )}
+                            </button>
+                        )}
+                        {!isWithdrawn && (
+                            <button
+                                onClick={handleOpenWithdrawModal}
+                                disabled={processing}
+                                className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-white bg-gray-700 hover:bg-gray-800 transition-colors disabled:opacity-50"
+                            >
+                                <UserX className="w-4 h-4" />
+                                退会済みにする
+                            </button>
+                        )}
                     </div>
                 </div>
             </header>
+
+            {/* 退会済みバナー（退会時のみ表示） */}
+            {isWithdrawn && (
+                <div className="bg-gray-100 border-b border-gray-300 px-6 py-4">
+                    <div className="max-w-7xl mx-auto flex items-start gap-3">
+                        <UserX className="w-5 h-5 text-gray-600 mt-0.5 flex-shrink-0" />
+                        <div className="flex-1">
+                            <p className="font-medium text-gray-900">このワーカーは退会済みです</p>
+                            <p className="text-sm text-gray-600 mt-1">
+                                退会日時: {withdrawnAt ? format(new Date(withdrawnAt), 'yyyy/MM/dd HH:mm') : '不明'}
+                            </p>
+                            {deleteReason && (
+                                <p className="text-sm text-gray-600 mt-1">
+                                    退会理由（運営メモ）: {deleteReason}
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Main Content - Bento Grid */}
             <main className="p-6 max-w-7xl mx-auto">
@@ -730,6 +813,67 @@ export default function SystemAdminWorkerDetailPage({ params }: { params: { id: 
                     </div>
                 </div>
             </main>
+
+            {/* 退会確認モーダル */}
+            {showWithdrawModal && (
+                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                        <div className="flex items-start justify-between mb-4">
+                            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                <UserX className="w-5 h-5 text-gray-700" />
+                                退会扱いにする
+                            </h3>
+                            <button
+                                onClick={() => setShowWithdrawModal(false)}
+                                disabled={processing}
+                                className="p-1 hover:bg-gray-100 rounded disabled:opacity-50"
+                            >
+                                <X className="w-5 h-5 text-gray-500" />
+                            </button>
+                        </div>
+                        <div className="space-y-4">
+                            <div className="bg-amber-50 border border-amber-200 rounded p-3 text-sm text-amber-900">
+                                <p className="font-medium mb-1">⚠️ この操作は元に戻せません</p>
+                                <p>
+                                    退会扱いにすると、ワーカーは即座にログインできなくなります。
+                                    同じメールアドレス・電話番号での再登録もブロックされます（再登録機能は本実装後に対応予定）。
+                                </p>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    退会理由（任意・運営メモ用）
+                                </label>
+                                <textarea
+                                    value={withdrawReasonInput}
+                                    onChange={(e) => setWithdrawReasonInput(e.target.value)}
+                                    placeholder="例: 本人からの退会希望（電話）"
+                                    rows={3}
+                                    maxLength={500}
+                                    disabled={processing}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm disabled:bg-gray-50"
+                                />
+                                <p className="text-xs text-gray-500 mt-1">運営側（System Admin）のみ閲覧可能です</p>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-3 mt-6">
+                            <button
+                                onClick={() => setShowWithdrawModal(false)}
+                                disabled={processing}
+                                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded font-medium disabled:opacity-50"
+                            >
+                                キャンセル
+                            </button>
+                            <button
+                                onClick={handleConfirmWithdraw}
+                                disabled={processing}
+                                className="px-4 py-2 bg-gray-800 hover:bg-gray-900 text-white rounded font-medium disabled:opacity-50"
+                            >
+                                {processing ? '処理中...' : '退会扱いにする'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

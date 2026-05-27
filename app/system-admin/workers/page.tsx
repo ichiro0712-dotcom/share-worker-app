@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { getSystemWorkers, geocodeAddress } from '@/src/lib/system-actions';
-import { Search, Filter, Eye, Ban, ChevronDown, X, ArrowUpDown, Users, MapPin, Star, Briefcase, CheckCircle2 } from 'lucide-react';
+import { Search, Filter, Eye, Ban, ChevronDown, X, ArrowUpDown, Users, MapPin, Star, Briefcase, CheckCircle2, UserX } from 'lucide-react';
 import { PREFECTURES, QUALIFICATION_OPTIONS } from '@/constants/job';
 import { getCitiesByPrefecture, Prefecture } from '@/constants/prefectureCities';
 
@@ -20,6 +20,7 @@ interface Worker {
     gender: string | null;
     birth_date: Date | null;
     isSuspended: boolean;
+    isWithdrawn: boolean;
     phoneVerified: boolean;
     age: number | null;
     avgRating: number | null;
@@ -41,7 +42,7 @@ export default function SystemAdminWorkersPage() {
 
     // フィルター状態
     const [showFilters, setShowFilters] = useState(false);
-    const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'suspended'>('all');
+    const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'suspended' | 'withdrawn'>('all');
     const [prefectureFilter, setPrefectureFilter] = useState('');
     const [cityFilter, setCityFilter] = useState('');
     const [qualificationFilter, setQualificationFilter] = useState('');
@@ -268,6 +269,7 @@ export default function SystemAdminWorkersPage() {
                                     <option value="all">すべて</option>
                                     <option value="active">有効</option>
                                     <option value="suspended">停止中</option>
+                                    <option value="withdrawn">退会済み</option>
                                 </select>
                             </div>
 
@@ -422,7 +424,7 @@ export default function SystemAdminWorkersPage() {
                     <span className="text-xs text-slate-500">フィルター:</span>
                     {statusFilter !== 'all' && (
                         <span className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-100 text-indigo-700 text-xs rounded-full">
-                            {statusFilter === 'active' ? '有効' : '停止中'}
+                            {statusFilter === 'active' ? '有効' : statusFilter === 'suspended' ? '停止中' : '退会済み'}
                             <button onClick={() => { setStatusFilter('all'); fetchWorkers(); }}>
                                 <X className="w-3 h-3" />
                             </button>
@@ -530,7 +532,12 @@ export default function SystemAdminWorkersPage() {
                                             <div>
                                                 <div className="font-bold text-slate-800">{worker.name || '名前未設定'}</div>
                                                 <div className="text-xs text-slate-500">ID: {worker.id}</div>
-                                                {worker.isSuspended && (
+                                                {worker.isWithdrawn ? (
+                                                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-gray-200 text-gray-700 text-[10px] font-medium mt-0.5">
+                                                        <UserX className="w-2.5 h-2.5" />
+                                                        退会済み
+                                                    </span>
+                                                ) : worker.isSuspended && (
                                                     <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-red-100 text-red-700 text-[10px] font-medium mt-0.5">
                                                         <Ban className="w-2.5 h-2.5" />
                                                         停止中
