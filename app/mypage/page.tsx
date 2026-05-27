@@ -14,11 +14,16 @@ import {
   Bell,
 } from 'lucide-react';
 import { UserCard, LogoutButton } from './MyPageContent';
+import { BalanceCard } from '@/components/money/BalanceCard';
+import { workerBalance } from '@/lib/dummy-data/hibarai';
+import { isHibaraiEnabled } from '@/lib/features';
 
 // 静的メニュー項目（ログアウト以外）
 // 出退勤記録は仕事管理画面の右上ボタンからアクセスするため削除
 const menuItems = [
   { icon: 'calendar', label: '仕事管理', href: '/my-jobs' },
+  // TODO: フィーチャーフラグ NEXT_PUBLIC_FEATURE_HIBARAI 公開時にここに追加
+  // { icon: 'wallet', label: '日払い', href: '/mypage/money' },
   { icon: 'messageSquare', label: 'レビュー', href: '/mypage/reviews' },
   { icon: 'heart', label: 'お気に入り施設', href: '/favorites' },
   { icon: 'star', label: 'ブックマーク求人', href: '/bookmarks' },
@@ -58,6 +63,17 @@ export default function MyPage() {
 
       {/* 動的ユーザー情報カード - Client Component */}
       <UserCard />
+
+      {isHibaraiEnabled() && (
+        <div className="px-4 pb-4">
+          <BalanceCard
+            availableAmount={workerBalance.availableAmount}
+            deadlineText={workerBalance.deadlineText}
+            href="/mypage/money"
+            compact
+          />
+        </div>
+      )}
 
       {/* 静的メニュー - Server Component（即座にHTML表示） */}
       <div className="bg-white border-b border-gray-200">
