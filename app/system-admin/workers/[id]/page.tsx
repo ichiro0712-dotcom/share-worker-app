@@ -3,11 +3,11 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getSystemWorkerDetail, toggleWorkerSuspension, generateWorkerMasqueradeToken, getWorkerEditLogs, withdrawWorker } from '@/src/lib/system-actions';
+import { getSystemWorkerDetail, toggleWorkerSuspension, generateWorkerMasqueradeToken, getWorkerEditLogs, withdrawWorker, revertWorkerWithdrawal } from '@/src/lib/system-actions';
 import {
     ChevronLeft, Ban, CheckCircle, Mail, Phone, MapPin, Calendar, Briefcase,
     FileText, Star, User, Clock, AlertTriangle, LogIn, Shield, CreditCard,
-    Building, Users, History, Link2, UserX, X
+    Building, Users, History, Link2, UserX, X, RotateCcw
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -82,6 +82,8 @@ export default function SystemAdminWorkerDetailPage({ params }: { params: { id: 
     const [showEditLogs, setShowEditLogs] = useState(false);
     const [showWithdrawModal, setShowWithdrawModal] = useState(false);
     const [withdrawReasonInput, setWithdrawReasonInput] = useState('');
+    const [showRevertModal, setShowRevertModal] = useState(false);
+    const [revertReasonInput, setRevertReasonInput] = useState('');
 
     useEffect(() => {
         const loadWorker = async () => {
@@ -153,7 +155,7 @@ export default function SystemAdminWorkerDetailPage({ params }: { params: { id: 
     };
 
     const handleConfirmWithdraw = async () => {
-        if (!confirm('このワーカーを「退会済み」にします。\nワーカーは即座にログインできなくなり、この操作はサポート問い合わせ無しには元に戻せません。\n本当に実行してよろしいですか？')) {
+        if (!confirm('このワーカーを「退会済み」にします。\nワーカーは即座にログインできなくなります。\n誤操作した場合は退会済みバナーの「退会を取り消す」から復帰できます。\n本当に実行してよろしいですか？')) {
             return;
         }
         setProcessing(true);
@@ -173,6 +175,44 @@ export default function SystemAdminWorkerDetailPage({ params }: { params: { id: 
             showDebugError({
                 type: 'update',
                 operation: 'ワーカー退会処理',
+                message: debugInfo.message,
+                details: debugInfo.details,
+                stack: debugInfo.stack,
+                context: { workerId }
+            });
+            toast.error('エラーが発生しました');
+        } finally {
+            setProcessing(false);
+        }
+    };
+
+    const handleOpenRevertModal = () => {
+        // 取消モーダルには現在の delete_reason をプリセット（編集して再開理由を追記できる）
+        setRevertReasonInput(deleteReason ?? '');
+        setShowRevertModal(true);
+    };
+
+    const handleConfirmRevert = async () => {
+        if (!confirm('このワーカーの退会扱いを取り消します。\nワーカーは再度ログインできるようになります。\n本当に取り消してよろしいですか？')) {
+            return;
+        }
+        setProcessing(true);
+        try {
+            const result = await revertWorkerWithdrawal(workerId, revertReasonInput);
+            if (result.success) {
+                setIsWithdrawn(false);
+                setWithdrawnAt(null);
+                setDeleteReason(revertReasonInput.trim() || null);
+                setShowRevertModal(false);
+                toast.success('退会扱いを取り消しました');
+            } else {
+                toast.error(result.error || '更新に失敗しました');
+            }
+        } catch (error) {
+            const debugInfo = extractDebugInfo(error);
+            showDebugError({
+                type: 'update',
+                operation: 'ワーカー退会取消処理',
                 message: debugInfo.message,
                 details: debugInfo.details,
                 stack: debugInfo.stack,
@@ -331,6 +371,28 @@ export default function SystemAdminWorkerDetailPage({ params }: { params: { id: 
                                     退会理由（運営メモ）: {deleteReason}
                                 </p>
                             )}
+                        </div>
+                        <button
+                            onClick={handleOpenRevertModal}
+                            disabled={processing}
+                            className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg font-medium text-sm transition-colors disabled:opacity-50 flex-shrink-0"
+                        >
+                            <RotateCcw className="w-4 h-4" />
+                            退会を取り消す
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* 退会履歴メモ（取消後も保持される運営メモ） */}
+            {!isWithdrawn && deleteReason && (
+                <div className="bg-amber-50 border-b border-amber-200 px-6 py-3">
+                    <div className="max-w-7xl mx-auto flex items-start gap-3">
+                        <History className="w-4 h-4 text-amber-700 mt-0.5 flex-shrink-0" />
+                        <div className="flex-1 text-sm">
+                            <p className="font-medium text-amber-900">退会履歴（運営メモ）</p>
+                            <p className="text-amber-800 mt-0.5 whitespace-pre-wrap">{deleteReason}</p>
+                            <p className="text-xs text-amber-700 mt-1">※過去に退会扱いになった記録です。System Admin のみ閲覧可能。</p>
                         </div>
                     </div>
                 </div>
@@ -833,10 +895,13 @@ export default function SystemAdminWorkerDetailPage({ params }: { params: { id: 
                         </div>
                         <div className="space-y-4">
                             <div className="bg-amber-50 border border-amber-200 rounded p-3 text-sm text-amber-900">
-                                <p className="font-medium mb-1">⚠️ この操作は元に戻せません</p>
+                                <p className="font-medium mb-1">⚠️ 操作にご注意ください</p>
                                 <p>
                                     退会扱いにすると、ワーカーは即座にログインできなくなります。
                                     同じメールアドレス・電話番号での再登録もブロックされます（再登録機能は本実装後に対応予定）。
+                                </p>
+                                <p className="mt-2 text-xs">
+                                    誤操作の場合は、退会済みバナーの「退会を取り消す」から復帰できます。
                                 </p>
                             </div>
                             <div>
@@ -869,6 +934,68 @@ export default function SystemAdminWorkerDetailPage({ params }: { params: { id: 
                                 className="px-4 py-2 bg-gray-800 hover:bg-gray-900 text-white rounded font-medium disabled:opacity-50"
                             >
                                 {processing ? '処理中...' : '退会扱いにする'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 退会取消確認モーダル */}
+            {showRevertModal && (
+                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                        <div className="flex items-start justify-between mb-4">
+                            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                <RotateCcw className="w-5 h-5 text-gray-700" />
+                                退会を取り消す
+                            </h3>
+                            <button
+                                onClick={() => setShowRevertModal(false)}
+                                disabled={processing}
+                                className="p-1 hover:bg-gray-100 rounded disabled:opacity-50"
+                            >
+                                <X className="w-5 h-5 text-gray-500" />
+                            </button>
+                        </div>
+                        <div className="space-y-4">
+                            <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-900">
+                                <p className="font-medium mb-1">退会扱いを取り消します</p>
+                                <p>
+                                    取り消し後、このワーカーは従来のメールアドレス・電話番号・パスワードで再度ログインできるようになります。
+                                </p>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    退会理由メモ（編集可能）
+                                </label>
+                                <textarea
+                                    value={revertReasonInput}
+                                    onChange={(e) => setRevertReasonInput(e.target.value)}
+                                    placeholder="例: 2026-05-25 本人退会希望／2026-05-27 誤操作のため取消"
+                                    rows={4}
+                                    maxLength={500}
+                                    disabled={processing}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm disabled:bg-gray-50"
+                                />
+                                <p className="text-xs text-gray-500 mt-1">
+                                    既存の退会理由がプリセットされています。再開理由などを追記して保存できます。取消後は「退会履歴（運営メモ）」として詳細画面に表示されます。
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-3 mt-6">
+                            <button
+                                onClick={() => setShowRevertModal(false)}
+                                disabled={processing}
+                                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded font-medium disabled:opacity-50"
+                            >
+                                キャンセル
+                            </button>
+                            <button
+                                onClick={handleConfirmRevert}
+                                disabled={processing}
+                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded font-medium disabled:opacity-50"
+                            >
+                                {processing ? '処理中...' : '退会を取り消す'}
                             </button>
                         </div>
                     </div>
