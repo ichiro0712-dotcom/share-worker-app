@@ -813,6 +813,65 @@ export async function withdrawWorker(id: number, reason?: string) {
 }
 
 /**
+ * システム管理用：ワーカー退会扱いを取り消す
+ * - deleted_at を NULL に戻す
+ * - delete_reason は updatedReason で上書き（運営メモを編集して再開理由を追記可能）
+ * - SystemLog に WORKER_WITHDRAWAL_REVERTED を記録
+ *
+ * パスワード等は退会時に変更していないため、取消後はワーカーが従来の認証情報で
+ * 再度ログインできるようになる。
+ */
+export async function revertWorkerWithdrawal(id: number, updatedReason?: string) {
+    const { adminId } = await requireSystemAdminAuth();
+    try {
+        const current = await prisma.user.findUnique({
+            where: { id },
+            select: { id: true, deleted_at: true, email: true, name: true, delete_reason: true },
+        });
+        if (!current) {
+            return { success: false, error: 'ワーカーが見つかりません' };
+        }
+        if (!current.deleted_at) {
+            return { success: false, error: '退会済みではないワーカーです' };
+        }
+
+        // updatedReason が undefined の場合は既存の delete_reason を維持
+        // 空文字または空白のみの場合は null にする
+        const nextReason = updatedReason === undefined
+            ? current.delete_reason
+            : (updatedReason.trim() || null);
+
+        await prisma.user.update({
+            where: { id },
+            data: {
+                deleted_at: null,
+                delete_reason: nextReason,
+            },
+        });
+
+        await prisma.systemLog.create({
+            data: {
+                admin_id: adminId,
+                action: 'WORKER_WITHDRAWAL_REVERTED',
+                target_type: 'User',
+                target_id: id,
+                details: {
+                    previousReason: current.delete_reason,
+                    updatedReason: nextReason,
+                    workerEmail: current.email,
+                    workerName: current.name,
+                },
+            },
+        }).catch(() => {});
+
+        return { success: true };
+    } catch (error) {
+        console.error('Failed to revert worker withdrawal:', error);
+        return { success: false, error: '退会取消処理に失敗しました' };
+    }
+}
+
+/**
  * システム管理用：施設一覧取得
  */
 export async function getSystemFacilities(
