@@ -193,7 +193,7 @@ export async function getSystemWorkers(
     sort: string = 'created_at',
     order: 'asc' | 'desc' = 'desc',
     filters?: {
-        status?: 'all' | 'active' | 'suspended';
+        status?: 'all' | 'active' | 'suspended' | 'withdrawn';
         prefecture?: string;
         city?: string;
         qualification?: string;
@@ -235,11 +235,15 @@ export async function getSystemWorkers(
 
     // フィルター条件
     if (filters) {
-        // ステータスフィルター
+        // ステータスフィルター（退会優先: 退会済みは suspended/active から除外）
         if (filters.status === 'active') {
             where.is_suspended = false;
+            where.deleted_at = null;
         } else if (filters.status === 'suspended') {
             where.is_suspended = true;
+            where.deleted_at = null;
+        } else if (filters.status === 'withdrawn') {
+            where.deleted_at = { not: null };
         }
 
         // 都道府県フィルター
@@ -294,6 +298,7 @@ export async function getSystemWorkers(
                 gender: true,
                 birth_date: true,
                 is_suspended: true,
+                deleted_at: true,
                 phone_verified: true,
                 lat: true,
                 lng: true,
@@ -359,6 +364,7 @@ export async function getSystemWorkers(
                 totalWorkCount,
                 distance,
                 isSuspended: w.is_suspended || false,
+                isWithdrawn: !!w.deleted_at,
                 phoneVerified: w.phone_verified || false,
                 age: null, // 後で計算
             };
@@ -426,6 +432,7 @@ export async function getSystemWorkers(
                     gender: true,
                     birth_date: true,
                     is_suspended: true,
+                    deleted_at: true,
                     phone_verified: true,
                     lat: true,
                     lng: true,
@@ -487,6 +494,7 @@ export async function getSystemWorkers(
                 return {
                     ...w,
                     isSuspended: w.is_suspended || false,
+                    isWithdrawn: !!w.deleted_at,
                     phoneVerified: w.phone_verified || false,
                     age: calculateAge(w.birth_date),
                     avgRating: stat ? stat.sum / stat.count : null,
@@ -670,6 +678,9 @@ export async function getSystemWorkerDetail(id: number) {
         created_at: worker.created_at,
         isSuspended: worker.is_suspended || false,
         suspendedAt: worker.suspended_at,
+        isWithdrawn: !!worker.deleted_at,
+        withdrawnAt: worker.deleted_at,
+        deleteReason: worker.delete_reason,
         // 集計データ
         totalWorkDays,
         cancelRate,
@@ -692,22 +703,171 @@ export async function getSystemWorkerDetail(id: number) {
 
 /**
  * システム管理用：ワーカーアカウント停止/解除
+ * 退会済みワーカーには適用不可（退会優先）
  */
 export async function toggleWorkerSuspension(id: number, suspend: boolean) {
-    await requireSystemAdminAuth();
+    const { adminId } = await requireSystemAdminAuth();
     try {
+        // 退会済みチェック
+        const current = await prisma.user.findUnique({
+            where: { id },
+            select: { deleted_at: true },
+        });
+        if (!current) {
+            return { success: false, error: 'ワーカーが見つかりません' };
+        }
+        if (current.deleted_at) {
+            return { success: false, error: '退会済みワーカーには停止操作を行えません' };
+        }
+
         const worker = await prisma.user.update({
             where: { id },
             data: {
                 is_suspended: suspend,
                 suspended_at: suspend ? new Date() : null,
+                // 停止時はログインの抜け道となるトークンも失効（auto-login / password-reset 経由のバイパスを防止）
+                ...(suspend ? {
+                    auto_login_token: null,
+                    auto_login_token_expires: null,
+                    password_reset_token: null,
+                    password_reset_token_expires: null,
+                } : {}),
             },
         });
+
+        await prisma.systemLog.create({
+            data: {
+                admin_id: adminId,
+                action: suspend ? 'WORKER_SUSPENDED' : 'WORKER_UNSUSPENDED',
+                target_type: 'User',
+                target_id: id,
+                details: {},
+            },
+        }).catch(() => {});
 
         return { success: true, isSuspended: worker.is_suspended };
     } catch (error) {
         console.error('Failed to toggle suspension:', error);
         return { success: false, error: '更新に失敗しました' };
+    }
+}
+
+/**
+ * システム管理用：ワーカーを退会扱いにする
+ * - deleted_at に現在日時をセット（ソフトデリート）
+ * - delete_reason に運営メモを保存（任意・運営側のみ閲覧可）
+ * - 認証用トークン（auto_login_token / password_reset_token）をクリア
+ * - SystemLog に WORKER_WITHDRAWN を記録
+ *
+ * 注意: 取り急ぎ対応として「ログイン不可」のみ担保する実装。
+ * 同一 email/phone での再登録は本実装時に部分ユニーク制約導入後に対応予定。
+ */
+export async function withdrawWorker(id: number, reason?: string) {
+    const { adminId } = await requireSystemAdminAuth();
+    try {
+        const current = await prisma.user.findUnique({
+            where: { id },
+            select: { id: true, deleted_at: true, email: true, name: true },
+        });
+        if (!current) {
+            return { success: false, error: 'ワーカーが見つかりません' };
+        }
+        if (current.deleted_at) {
+            return { success: false, error: '既に退会済みのワーカーです' };
+        }
+
+        const trimmedReason = reason?.trim() || null;
+
+        await prisma.user.update({
+            where: { id },
+            data: {
+                deleted_at: new Date(),
+                delete_reason: trimmedReason,
+                // ログインの抜け道となるトークンを失効
+                auto_login_token: null,
+                auto_login_token_expires: null,
+                password_reset_token: null,
+                password_reset_token_expires: null,
+            },
+        });
+
+        await prisma.systemLog.create({
+            data: {
+                admin_id: adminId,
+                action: 'WORKER_WITHDRAWN',
+                target_type: 'User',
+                target_id: id,
+                details: {
+                    reason: trimmedReason,
+                    workerEmail: current.email,
+                    workerName: current.name,
+                },
+            },
+        }).catch(() => {});
+
+        return { success: true };
+    } catch (error) {
+        console.error('Failed to withdraw worker:', error);
+        return { success: false, error: '退会処理に失敗しました' };
+    }
+}
+
+/**
+ * システム管理用：ワーカー退会扱いを取り消す
+ * - deleted_at を NULL に戻す
+ * - delete_reason は updatedReason で上書き（運営メモを編集して再開理由を追記可能）
+ * - SystemLog に WORKER_WITHDRAWAL_REVERTED を記録
+ *
+ * パスワード等は退会時に変更していないため、取消後はワーカーが従来の認証情報で
+ * 再度ログインできるようになる。
+ */
+export async function revertWorkerWithdrawal(id: number, updatedReason?: string) {
+    const { adminId } = await requireSystemAdminAuth();
+    try {
+        const current = await prisma.user.findUnique({
+            where: { id },
+            select: { id: true, deleted_at: true, email: true, name: true, delete_reason: true },
+        });
+        if (!current) {
+            return { success: false, error: 'ワーカーが見つかりません' };
+        }
+        if (!current.deleted_at) {
+            return { success: false, error: '退会済みではないワーカーです' };
+        }
+
+        // updatedReason が undefined の場合は既存の delete_reason を維持
+        // 空文字または空白のみの場合は null にする
+        const nextReason = updatedReason === undefined
+            ? current.delete_reason
+            : (updatedReason.trim() || null);
+
+        await prisma.user.update({
+            where: { id },
+            data: {
+                deleted_at: null,
+                delete_reason: nextReason,
+            },
+        });
+
+        await prisma.systemLog.create({
+            data: {
+                admin_id: adminId,
+                action: 'WORKER_WITHDRAWAL_REVERTED',
+                target_type: 'User',
+                target_id: id,
+                details: {
+                    previousReason: current.delete_reason,
+                    updatedReason: nextReason,
+                    workerEmail: current.email,
+                    workerName: current.name,
+                },
+            },
+        }).catch(() => {});
+
+        return { success: true };
+    } catch (error) {
+        console.error('Failed to revert worker withdrawal:', error);
+        return { success: false, error: '退会取消処理に失敗しました' };
     }
 }
 

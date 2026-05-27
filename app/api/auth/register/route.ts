@@ -178,10 +178,18 @@ export async function POST(request: NextRequest) {
     }
 
     // メールアドレスの重複チェック（case-insensitive、既存レガシーデータ対応）
+    // 退会済みアカウントの場合は専用メッセージを返す（取り急ぎ対応・再登録は本実装後）
     const existingEmailUser = await prisma.user.findFirst({
       where: { email: { equals: normalizedEmail, mode: 'insensitive' } },
+      select: { id: true, deleted_at: true },
     });
     if (existingEmailUser) {
+      if (existingEmailUser.deleted_at) {
+        return NextResponse.json(
+          { error: '以前ご利用いただいたアカウントです。再登録をご希望の場合はお問い合わせください。' },
+          { status: 409 }
+        );
+      }
       return NextResponse.json(
         { error: 'このメールアドレスは既に登録されています' },
         { status: 409 }
@@ -218,14 +226,17 @@ export async function POST(request: NextRequest) {
         // ロック取得後の再チェック（race safe）
         // 既存データにハイフンや全角数字が残っている可能性に備え、SQL 側で正規化比較
         // translate で全角数字 → 半角数字、regexp_replace で非数字除去
-        const phoneExists = await tx.$queryRaw<{ id: number }[]>(
-          Prisma.sql`SELECT id FROM users
+        // 退会済みもヒットさせ、後段で deleted_at を確認して専用エラーを返す
+        const phoneExists = await tx.$queryRaw<{ id: number; deleted_at: Date | null }[]>(
+          Prisma.sql`SELECT id, deleted_at FROM users
             WHERE regexp_replace(translate(phone_number, '０１２３４５６７８９', '0123456789'), '[^0-9]', '', 'g') = ${normalizedPhone}
             AND phone_verified = true
-            AND deleted_at IS NULL
             LIMIT 1`
         );
         if (phoneExists.length > 0) {
+          if (phoneExists[0].deleted_at) {
+            throw new Error('PHONE_WITHDRAWN_USER');
+          }
           throw new Error('PHONE_ALREADY_REGISTERED');
         }
 
@@ -269,6 +280,12 @@ export async function POST(request: NextRequest) {
         });
       });
     } catch (e) {
+      if (e instanceof Error && e.message === 'PHONE_WITHDRAWN_USER') {
+        return NextResponse.json(
+          { error: '以前ご利用いただいたアカウントです。再登録をご希望の場合はお問い合わせください。' },
+          { status: 409 }
+        );
+      }
       if (e instanceof Error && e.message === 'PHONE_ALREADY_REGISTERED') {
         return NextResponse.json(
           { error: 'この電話番号は既に登録されています' },
@@ -278,6 +295,17 @@ export async function POST(request: NextRequest) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
         const target = (e.meta?.target as string[] | undefined)?.join(',') || '';
         if (target.includes('email')) {
+          // P2002 で email がぶつかった場合、退会済みかどうかを確認して適切なメッセージを返す
+          const conflicting = await prisma.user.findFirst({
+            where: { email: { equals: normalizedEmail, mode: 'insensitive' } },
+            select: { deleted_at: true },
+          });
+          if (conflicting?.deleted_at) {
+            return NextResponse.json(
+              { error: '以前ご利用いただいたアカウントです。再登録をご希望の場合はお問い合わせください。' },
+              { status: 409 }
+            );
+          }
           return NextResponse.json(
             { error: 'このメールアドレスは既に登録されています' },
             { status: 409 }

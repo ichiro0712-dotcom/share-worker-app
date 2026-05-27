@@ -39,6 +39,17 @@ function WorkerLoginInner() {
     });
   }, []);
 
+  // /api/auth/auto-login 等から ?error= で遷移してきた場合の表示
+  useEffect(() => {
+    const errorCode = searchParams?.get('error');
+    if (!errorCode) return;
+    if (errorCode === 'AccountWithdrawn') {
+      setError('このアカウントは退会済みです。');
+    } else if (errorCode === 'AccountSuspended') {
+      setError('このアカウントは停止されています。お問い合わせください。');
+    }
+  }, [searchParams]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
