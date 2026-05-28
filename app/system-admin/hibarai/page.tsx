@@ -8,7 +8,8 @@ import { getOAuthTokenStatus, revokeTokens } from '@/lib/actions/hibarai/oauth-t
 import { getHibaraiSettings, getGmoRemitterBalance } from '@/lib/actions/hibarai/settings';
 import { getEmergencyStopState } from '@/lib/actions/hibarai/emergency-stop';
 import { HibaraiSettingsForm } from '@/components/admin/hibarai/HibaraiSettingsForm';
-import { adminErrors, adminSummary, adminWithdrawals } from '@/lib/dummy-data/hibarai';
+import { adminErrors, adminWithdrawals } from '@/lib/dummy-data/hibarai';
+import { getAdminDashboardSummary } from '@/lib/actions/hibarai/admin-dashboard';
 import { isHibaraiEnabled } from '@/lib/features';
 import { getSystemAdminSessionData } from '@/lib/system-admin-session-server';
 
@@ -36,6 +37,7 @@ export default async function HibaraiAdminDashboardPage({
   const hibaraiSettings = await getHibaraiSettings();
   const gmoBalance = await getGmoRemitterBalance();
   const emergencyStop = await getEmergencyStopState();
+  const adminSummary = await getAdminDashboardSummary();
   const accountTypeLabel = tokenStatus.accountType === 'PRIVATE' ? '個人' : tokenStatus.accountType === 'CORPORATE' ? '法人' : '-';
   const oauthMessage = searchParams?.oauth === 'success'
     ? 'GMO接続が完了しました。'
