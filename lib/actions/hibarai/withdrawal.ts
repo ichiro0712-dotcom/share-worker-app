@@ -164,7 +164,7 @@ export async function createWithdrawalRequest(
         if (policy && policy.advance_program !== 'HIBARAI') {
           throw new ProgramNotAllowedError('Advance program is not HIBARAI')
         }
-        if (policy?.per_request_limit_amount && input.amount > policy.per_request_limit_amount) {
+        if (policy?.per_request_limit_amount != null && input.amount > policy.per_request_limit_amount) {
           throw new OverLimitError('Per request limit exceeded')
         }
 

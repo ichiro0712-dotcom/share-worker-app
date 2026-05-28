@@ -545,6 +545,16 @@ test('P0-4: transfer_attempts記録が失敗してもsubmit本体は完了する
   assert.equal(state.withdrawals[0].status, 'PROCESSING')
 })
 
+test('per_request_limit=0 は「制限なし」ではなく全出金を止める', async () => {
+  const state = createState({ balance: 1000, perRequestLimit: 0 })
+  installPrismaMock(state)
+  await assert.rejects(
+    () => createWithdrawalRequest(createInput({ amount: 1, idempotencyKey: 'limit-zero' })),
+    OverLimitError
+  )
+  assert.equal(state.balance, 1000)
+})
+
 test('P0-5: advance_program=DISABLED のワーカーは出金できない', async () => {
   const state = createState({ balance: 1000, advanceProgram: 'DISABLED' })
   installPrismaMock(state)
