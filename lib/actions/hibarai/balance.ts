@@ -1,5 +1,6 @@
-'use server'
-
+// 'use server' にしない。getMoneyHomeData(workerId)/getWorkerHistory(workerId) を公開アクション露出させない
+// （露出すると任意 workerId で他人の残高・履歴を取得できるIDORになる）。
+// ワーカー画面(W1/W2/W5)は Server Component で getAuthenticatedUser().id を渡してサーバーサイドで呼ぶ。
 import { Prisma } from '@prisma/client'
 import { isHibaraiEnabled } from '@/lib/features'
 import prisma from '@/lib/prisma'
@@ -13,7 +14,10 @@ export type MoneyHomeData = {
   reviewUnlockAmount: number
   scheduledPaymentAmount: number
   fee: number
-  bankAccount: (BankAccountSummary & { id: string | null }) | null
+  deadlineText: string
+  scheduledPaymentDate: string
+  // 口座未登録でも既定オブジェクト(status:'unregistered')を返すため null にはならない
+  bankAccount: BankAccountSummary & { id: string | null }
   history: WorkerHistoryItem[]
   policy: {
     rateBasisPoints: number
@@ -88,6 +92,8 @@ export async function getMoneyHomeData(workerId: number): Promise<MoneyHomeData>
     reviewUnlockAmount,
     scheduledPaymentAmount: scheduledPayment._sum.scheduled_payment_amount ?? 0,
     fee,
+    deadlineText: buildDeadlineText(now),
+    scheduledPaymentDate: buildScheduledPaymentDate(now),
     bankAccount: bankAccount
       ? {
           id: bankAccount.id,
@@ -190,4 +196,40 @@ function getHistoryStatus(kind: string): WorkerHistoryItem['status'] {
   if (kind === 'WITHDRAWAL_COMPLETED') return 'completed'
   if (kind === 'WITHDRAWAL_REVERTED') return 'failed'
   return 'accepted'
+}
+
+/** 現在のJST月の月末締切テキスト。 */
+function buildDeadlineText(now: Date): string {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit' }).formatToParts(now)
+  const y = Number(parts.find((p) => p.type === 'year')?.value)
+  const m = Number(parts.find((p) => p.type === 'month')?.value) // 1-12
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate()
+  return `${m}月${lastDay}日 23:59まで受け取りできます`
+}
+
+/** 翌月15日（給与日想定）のテキスト。 */
+function buildScheduledPaymentDate(now: Date): string {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tokyo', month: '2-digit' }).formatToParts(now)
+  const m = Number(parts.find((p) => p.type === 'month')?.value)
+  const nextMonth = m === 12 ? 1 : m + 1
+  return `${nextMonth}月15日`
+}
+
+/** W5用: ワーカーの支払い履歴（台帳）を新しい順に取得する。 */
+export async function getWorkerHistory(workerId: number, limit = 100): Promise<WorkerHistoryItem[]> {
+  if (!isHibaraiEnabled()) throw new Error('Feature disabled')
+  const rows = await prisma.pointLedgerEntry.findMany({
+    where: { worker_id: workerId },
+    orderBy: { created_at: 'desc' },
+    take: limit,
+    select: { id: true, kind: true, delta: true, note: true, created_at: true },
+  })
+  return rows.map((row) => ({
+    id: row.id,
+    date: row.created_at.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', timeZone: 'Asia/Tokyo' }),
+    title: getHistoryTitle(row.kind),
+    status: getHistoryStatus(row.kind),
+    amount: row.delta,
+    note: row.note ?? '',
+  }))
 }
