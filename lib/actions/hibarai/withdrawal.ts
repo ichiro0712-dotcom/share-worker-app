@@ -14,9 +14,9 @@ import type { TransferRequest } from '@/lib/gmo-aozora'
 import { getAuthenticatedUser } from '@/src/lib/actions/helpers'
 import { getActiveAccessToken } from './oauth-token'
 import { createHibaraiAuditLog, recordHibaraiAudit } from './audit'
+import { getEffectiveWithdrawalFee } from './settings'
 import {
   formatJSTDate,
-  getDefaultWithdrawalFee,
   getErrorMessage,
   getJSTMonthStart,
   getJSTSettlementMonthStart,
@@ -123,6 +123,9 @@ export async function createWithdrawalRequest(
       throw new InvalidIdempotencyKeyError('Invalid idempotencyKey')
     }
 
+    // 有効手数料はトランザクション開始前に確定（申請時の値をsnapshotとして保存）
+    const fee = await getEffectiveWithdrawalFee()
+
     return await prisma.$transaction(
       async (tx) => {
         const existing = await tx.withdrawalRequest.findUnique({
@@ -201,7 +204,6 @@ export async function createWithdrawalRequest(
 
         await checkWithdrawalRateLimits(tx, input.workerId, input.amount, policy)
 
-        const fee = getDefaultWithdrawalFee()
         const transferAmount = input.amount - fee
         if (transferAmount <= 0) throw new Error('Transfer amount must be positive after fee')
 

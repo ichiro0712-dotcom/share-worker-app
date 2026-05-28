@@ -122,6 +122,9 @@ type MockablePrisma = {
     findFirst: (args: { where: { withdrawal_request_id: string; gmo_apply_no?: { not: null } } }) => Promise<TransferAttemptRecord | null>
     aggregate: (args: { where: { withdrawal_request_id: string } }) => Promise<{ _max: { attempt_no: number | null } }>
   }
+  systemSetting: {
+    findUnique: (args: { where: { key: string } }) => Promise<{ value: string } | null>
+  }
 }
 
 test('並列で2つのcreateWithdrawalは1つだけ成功する', async () => {
@@ -636,6 +639,8 @@ function installPrismaMock(state: MockState): void {
       expires_at: new Date(Date.now() + 60 * 60 * 1000),
     }),
   }
+  // getEffectiveWithdrawalFee は systemSetting を読む。null → env(HIBARAI_DEFAULT_FEE_JPY=143)にフォールバック
+  prisma.systemSetting = { findUnique: async () => null }
   prisma.transferAttempt = {
     create: async ({ data }: { data: TransferAttemptRecord }) => {
       if (state.transferAttempts.some((a) => a.withdrawal_request_id === data.withdrawal_request_id && a.attempt_no === data.attempt_no)) {

@@ -5,7 +5,8 @@ import { isHibaraiEnabled } from '@/lib/features'
 import prisma from '@/lib/prisma'
 import type { BankAccountSummary, WorkerHistoryItem } from '@/lib/dummy-data/hibarai'
 import { createHibaraiAuditLog } from './audit'
-import { getDefaultWithdrawalFee, getJSTSettlementMonthStart } from './utils'
+import { getJSTSettlementMonthStart } from './utils'
+import { getEffectiveWithdrawalFee } from './settings'
 
 export type MoneyHomeData = {
   availableAmount: number
@@ -80,11 +81,13 @@ export async function getMoneyHomeData(workerId: number): Promise<MoneyHomeData>
     return total + Math.floor(wage * rate / 10000)
   }, 0)
 
+  const fee = await getEffectiveWithdrawalFee()
+
   return {
     availableAmount: balance.balance,
     reviewUnlockAmount,
     scheduledPaymentAmount: scheduledPayment._sum.scheduled_payment_amount ?? 0,
-    fee: getDefaultWithdrawalFee(),
+    fee,
     bankAccount: bankAccount
       ? {
           id: bankAccount.id,
