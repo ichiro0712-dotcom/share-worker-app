@@ -1,5 +1,7 @@
-'use server'
-
+// 'use server' にしない。createWithdrawalRequest(任意workerId)・submitWithdrawalToGmo・
+// markWithdrawalCompleted・revertReservation 等の金銭プリミティブを公開アクションとして露出させないため。
+// 公開アクションは認証付きの withdrawal-action.ts(createWithdrawalForCurrentUser) のみ。
+// submit/poll/revert は cron 等のサーバーサイドからのみ呼ぶ。
 import { Prisma, WithdrawalStatus } from '@prisma/client'
 import { isHibaraiEnabled } from '@/lib/features'
 import prisma from '@/lib/prisma'
@@ -11,7 +13,6 @@ import {
   isValidIdempotencyKey,
 } from '@/lib/gmo-aozora'
 import type { TransferRequest } from '@/lib/gmo-aozora'
-import { getAuthenticatedUser } from '@/src/lib/actions/helpers'
 import { getActiveAccessToken } from './oauth-token'
 import { createHibaraiAuditLog, recordHibaraiAudit } from './audit'
 import { getEffectiveWithdrawalFee } from './settings'
@@ -138,6 +139,8 @@ export async function createWithdrawalRequest(
           throw new Error('Invalid withdrawal amount')
         }
 
+        // 停止行をロックしてから判定し、停止コミットとの競合（停止前のfalseを読んで申請成立）を防ぐ
+        await tx.$queryRaw`SELECT id FROM emergency_stop_states WHERE id = 'global' FOR UPDATE`
         const stop = await tx.emergencyStopState.findUnique({ where: { id: 'global' } })
         if (stop?.is_stopped) throw new EmergencyStoppedError('Emergency stop is active')
 
@@ -291,16 +294,12 @@ export async function createWithdrawalRequest(
   }
 }
 
-export async function createWithdrawalRequestForCurrentUser(
-  input: CreateWithdrawalForCurrentUserInput
-): Promise<{ id: string; idempotencyKey: string }> {
-  if (!isHibaraiEnabled()) throw new Error('Feature disabled')
-  const user = await getAuthenticatedUser()
-  return createWithdrawalRequest({ ...input, workerId: user.id })
-}
-
 export async function submitWithdrawalToGmo(withdrawalRequestId: string): Promise<void> {
   if (!isHibaraiEnabled()) throw new Error('Feature disabled')
+
+  // 緊急停止中は送金しない（cron入口チェックに加え、送信直前にも再確認する多層防御）
+  const stop = await prisma.emergencyStopState.findUnique({ where: { id: 'global' } })
+  if (stop?.is_stopped) return
 
   const now = new Date()
   // 初回送信(PENDING)か、応答不明後の再送(既にPROCESSING)かを判定する。

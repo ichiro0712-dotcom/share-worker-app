@@ -21,7 +21,7 @@ export async function saveHibaraiSettings(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!isHibaraiEnabled()) return { ok: false, error: 'Feature disabled' }
   const session = await getSystemAdminSessionData()
-  if (!session) return { ok: false, error: '認証が必要です' }
+  if (!session?.adminId) return { ok: false, error: '認証が必要です' }
 
   const fee = input.withdrawalFeeJpy
   // 手数料0は無料出金になり得るため正の整数のみ許可

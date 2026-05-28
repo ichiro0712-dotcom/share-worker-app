@@ -125,6 +125,9 @@ type MockablePrisma = {
   systemSetting: {
     findUnique: (args: { where: { key: string } }) => Promise<{ value: string } | null>
   }
+  emergencyStopState: {
+    findUnique: (args: { where: { id: string } }) => Promise<{ is_stopped: boolean } | null>
+  }
 }
 
 test('並列で2つのcreateWithdrawalは1つだけ成功する', async () => {
@@ -548,6 +551,22 @@ test('P0-4: transfer_attempts記録が失敗してもsubmit本体は完了する
   assert.equal(state.withdrawals[0].status, 'PROCESSING')
 })
 
+test('緊急停止中は送信(submit)もGMOへ送らない', async () => {
+  const state = createState({ balance: 1000 })
+  installPrismaMock(state)
+  const calls = installGmoFetchMock(() => jsonResponse({
+    applyNo: '1234567890123456', resultCode: '1', applyEndDatetime: '2026-05-28T10:00:00+09:00', accountId: '101011234567',
+  }))
+  const request = await createWithdrawalRequest(createInput({ amount: 500, idempotencyKey: 'stop-submit' }))
+
+  // 申請後に緊急停止
+  state.stop = true
+  await submitWithdrawalToGmo(request.id)
+
+  assert.equal(calls.length, 0) // GMOへ送らない
+  assert.equal(state.withdrawals[0].status, 'PENDING') // claimもせずPENDINGのまま
+})
+
 test('per_request_limit=0 は「制限なし」ではなく全出金を止める', async () => {
   const state = createState({ balance: 1000, perRequestLimit: 0 })
   installPrismaMock(state)
@@ -641,6 +660,8 @@ function installPrismaMock(state: MockState): void {
   }
   // getEffectiveWithdrawalFee は systemSetting を読む。null → env(HIBARAI_DEFAULT_FEE_JPY=143)にフォールバック
   prisma.systemSetting = { findUnique: async () => null }
+  // submitWithdrawalToGmo は送信前に緊急停止を再確認する。state.stop を反映
+  prisma.emergencyStopState = { findUnique: async () => (state.stop ? { is_stopped: true } : null) }
   prisma.transferAttempt = {
     create: async ({ data }: { data: TransferAttemptRecord }) => {
       if (state.transferAttempts.some((a) => a.withdrawal_request_id === data.withdrawal_request_id && a.attempt_no === data.attempt_no)) {
