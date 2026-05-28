@@ -2,6 +2,26 @@
   "enabledPlugins": {
     "ralph-loop@claude-plugins-official": true
   },
+  "permissions": {
+    "deny": [
+      "Bash(npx prisma migrate dev:*)",
+      "Bash(npx prisma migrate reset:*)",
+      "Bash(npx prisma migrate deploy:*)",
+      "Bash(prisma migrate dev:*)",
+      "Bash(prisma migrate reset:*)",
+      "Bash(prisma migrate deploy:*)",
+      "Bash(supabase db reset:*)",
+      "Bash(supabase link:*)",
+      "Bash(vercel env add:*)",
+      "Bash(vercel env rm:*)",
+      "Bash(vercel env pull:*)",
+      "Bash(npx prisma db push --accept-data-loss:*)",
+      "Bash(prisma db push --accept-data-loss:*)",
+      "Bash(npx prisma db push --force-reset:*)",
+      "Bash(prisma db push --force-reset:*)",
+      "Bash(tsx prisma/seed-attendance.ts:*)"
+    ]
+  },
   "hooks": {
     "PostToolUse": [
       {

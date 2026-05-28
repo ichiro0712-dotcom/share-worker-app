@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { getAuthenticatedUser, getCurrentTime } from './helpers';
 import { sendReviewReceivedNotificationToFacility, sendAdminLowRatingStreakNotification } from './notification';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
+import { chargePointsOnReviewSubmitted } from '@/lib/actions/hibarai/review-trigger';
 
 /**
  * 年代を計算する内部ヘルパー
@@ -137,6 +138,10 @@ export async function submitReview(
                     review_count: facilityReviews.length,
                 },
             });
+        });
+
+        await chargePointsOnReviewSubmitted(applications[0].id, user.id).catch((error) => {
+            console.error('[submitReview] Hibarai charge failed:', error);
         });
 
         // 操作ログを記録
@@ -309,4 +314,3 @@ export async function getFacilityReviews(facilityId: number) {
         return [];
     }
 }
-

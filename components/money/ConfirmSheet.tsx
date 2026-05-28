@@ -15,8 +15,9 @@ type ConfirmSheetProps = {
   description: string;
   rows: ConfirmRow[];
   confirmLabel: string;
+  confirmDisabled?: boolean;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
 };
 
 export function ConfirmSheet({
@@ -25,6 +26,7 @@ export function ConfirmSheet({
   description,
   rows,
   confirmLabel,
+  confirmDisabled = false,
   onClose,
   onConfirm,
 }: ConfirmSheetProps) {
@@ -84,7 +86,8 @@ export function ConfirmSheet({
           <button
             type="button"
             onClick={onConfirm}
-            className="min-h-14 rounded-full bg-gradient-to-r from-primary-cta to-primary-cta-dark px-5 text-base font-bold text-white shadow-primary hover:brightness-105"
+            disabled={confirmDisabled}
+            className="min-h-14 rounded-full bg-gradient-to-r from-primary-cta to-primary-cta-dark px-5 text-base font-bold text-white shadow-primary hover:brightness-105 disabled:cursor-not-allowed disabled:from-slate-300 disabled:to-slate-300 disabled:shadow-none"
           >
             {confirmLabel}
           </button>

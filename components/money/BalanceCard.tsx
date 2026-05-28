@@ -4,8 +4,8 @@ import { Banknote, ChevronRight } from 'lucide-react';
 type BalanceCardProps = {
   availableAmount: number;
   deadlineText: string;
-  paydayAmount?: number;
-  paydayDate?: string;
+  scheduledPaymentAmount?: number;
+  scheduledPaymentDate?: string;
   href?: string;
   compact?: boolean;
 };
@@ -15,18 +15,30 @@ const yenFormatter = new Intl.NumberFormat('ja-JP');
 export function BalanceCard({
   availableAmount,
   deadlineText,
-  paydayAmount,
-  paydayDate,
+  scheduledPaymentAmount,
+  scheduledPaymentDate,
   href = '/mypage/money/receive',
   compact = false,
 }: BalanceCardProps) {
+  // 桁数に応じてフォントサイズを自動縮小（100万円超等の長い数字でも崩れないように）
+  const digitCount = String(Math.max(0, Math.trunc(availableAmount))).length;
+  const desktopSizeClass =
+    digitCount >= 9 ? 'text-[28px]' :
+    digitCount >= 8 ? 'text-[34px]' :
+    digitCount >= 7 ? 'text-[38px]' :
+    'text-[44px]';
+  const compactSizeClass =
+    digitCount >= 9 ? 'text-xl' :
+    digitCount >= 8 ? 'text-2xl' :
+    'text-3xl';
+
   return (
     <section className={`rounded-2xl border border-primary-border bg-white shadow-card ${compact ? 'p-4' : 'p-5'}`}>
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="text-[13px] font-bold text-slate-600">今すぐ受け取れる金額</p>
           <p
-            className={`${compact ? 'text-3xl' : 'text-[44px]'} mt-2 font-black leading-none tracking-normal text-slate-950 tabular-nums`}
+            className={`${compact ? compactSizeClass : desktopSizeClass} mt-2 font-black leading-none tracking-normal text-slate-950 tabular-nums whitespace-nowrap`}
             aria-label={`${yenFormatter.format(availableAmount)}円`}
           >
             ¥{yenFormatter.format(availableAmount)}
@@ -39,15 +51,15 @@ export function BalanceCard({
 
       <p className="mt-3 text-[13px] leading-relaxed text-slate-600">{deadlineText}</p>
 
-      {paydayAmount !== undefined && paydayDate && (
+      {scheduledPaymentAmount !== undefined && scheduledPaymentDate && (
         <Link
           href="/mypage/money/breakdown"
           className="mt-4 flex min-h-11 items-center justify-between rounded-xl bg-slate-50 px-3 text-sm text-slate-700 hover:bg-slate-100 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-blue-200"
         >
-          <span>給与日に入る金額</span>
+          <span>支払日に入る金額</span>
           <span className="font-bold tabular-nums">
-            ¥{yenFormatter.format(paydayAmount)}
-            <span className="ml-2 text-[13px] font-medium text-slate-600">{paydayDate}</span>
+            ¥{yenFormatter.format(scheduledPaymentAmount)}
+            <span className="ml-2 text-[13px] font-medium text-slate-600">{scheduledPaymentDate}</span>
           </span>
         </Link>
       )}

@@ -1,0 +1,798 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>日払い機能 サイクル全体図 | +タスタス</title>
+<style>
+  @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap");
+  :root{
+    --primary:#D92D20;
+    --primary-soft:#FFE7E7;
+    --primary-border:#FECACA;
+    --brand:#FF3333;
+    --accent:#2EC4B6;
+    --accent-soft:#DDF8F5;
+    --bg:#F8FAFC;
+    --surface:#FFFFFF;
+    --text:#0F172A;
+    --muted:#475569;
+    --muted-2:#64748B;
+    --line:#E2E8F0;
+    --success:#16A34A;
+    --success-soft:#DCFCE7;
+    --warning:#F59E0B;
+    --warning-soft:#FEF3C7;
+    --error:#DC2626;
+    --error-soft:#FEE2E2;
+    --info:#2563EB;
+    --info-soft:#DBEAFE;
+    --font:"Hiragino Sans","Yu Gothic UI","Noto Sans JP",sans-serif;
+    --shadow-sm:0 1px 2px rgba(15,23,42,.04);
+    --shadow:0 1px 2px rgba(15,23,42,.04),0 8px 22px rgba(15,23,42,.05);
+    --shadow-lg:0 4px 8px rgba(15,23,42,.06),0 24px 48px rgba(15,23,42,.08);
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;
+    background:linear-gradient(180deg,#fff 0,#F1F5F9 60%,#E2E8F0 100%);
+    font-family:var(--font);
+    color:var(--text);
+    font-feature-settings:"palt";
+    line-height:1.75;
+  }
+  a{color:inherit}
+  .page{max-width:1240px;margin:0 auto;padding:56px 28px 96px}
+
+  /* ===== Header ===== */
+  .hero{margin-bottom:36px}
+  .brand{display:flex;align-items:center;gap:12px;margin-bottom:22px;font-weight:800}
+  .brand-mark{
+    width:44px;height:44px;border-radius:14px;
+    background:linear-gradient(135deg,var(--brand),var(--primary));
+    color:#fff;display:grid;place-items:center;font-size:28px;line-height:1;
+    box-shadow:0 12px 22px rgba(217,45,32,.22);
+  }
+  .brand-name{font-size:17px;letter-spacing:.02em}
+  .eyebrow{
+    display:inline-block;font-size:12px;font-weight:800;color:var(--primary);
+    letter-spacing:.18em;margin-bottom:10px;
+  }
+  h1{font-size:34px;line-height:1.4;margin:0 0 14px;font-weight:800;letter-spacing:-.005em}
+  .lede{font-size:15px;color:var(--muted);max-width:780px;margin:0}
+
+  /* ===== Meta / Legend ===== */
+  .meta{
+    margin-top:28px;display:grid;grid-template-columns:1fr 320px;gap:18px;align-items:stretch;
+  }
+  .meta-card{
+    background:var(--surface);border:1px solid var(--line);border-radius:18px;
+    padding:18px 20px;box-shadow:var(--shadow-sm);
+  }
+  .meta-card h2{font-size:13px;font-weight:800;color:var(--muted);margin:0 0 12px;letter-spacing:.06em}
+  .legend{display:grid;grid-template-columns:repeat(2,1fr);gap:10px 18px}
+  .legend-item{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:700;color:var(--text)}
+  .actor-dot{width:14px;height:14px;border-radius:50%;flex:0 0 auto}
+  .actor-worker{background:var(--primary)}
+  .actor-system{background:var(--info)}
+  .actor-gmo{background:#0EA5E9}
+  .actor-admin{background:#7C3AED}
+  .actor-facility{background:#9CA3AF}
+  .glossary{display:grid;grid-template-columns:repeat(2,1fr);gap:8px 14px;font-size:12px;color:var(--muted)}
+  .glossary b{color:var(--text);font-weight:700}
+
+  /* ===== Phase ===== */
+  .phase{
+    margin-top:48px;
+  }
+  .phase-head{
+    display:flex;align-items:center;gap:14px;margin-bottom:24px;
+  }
+  .phase-num{
+    width:40px;height:40px;border-radius:14px;
+    background:#0F172A;color:#fff;display:grid;place-items:center;
+    font-size:15px;font-weight:800;font-feature-settings:"tnum";
+  }
+  .phase-title{margin:0;font-size:21px;font-weight:800;letter-spacing:-.002em}
+  .phase-sub{font-size:13px;color:var(--muted);margin-top:2px}
+
+  /* ===== Timeline ===== */
+  .timeline{position:relative;padding-left:32px}
+  .timeline::before{
+    content:"";position:absolute;left:14px;top:8px;bottom:8px;
+    width:2px;background:linear-gradient(180deg,var(--line) 0%,var(--line) 100%);
+    border-radius:2px;
+  }
+  .step{
+    position:relative;margin-bottom:22px;
+  }
+  .step:last-child{margin-bottom:0}
+  .step-dot{
+    position:absolute;left:-26px;top:18px;width:14px;height:14px;border-radius:50%;
+    background:#fff;border:3px solid var(--info);box-shadow:0 0 0 4px #fff;
+    z-index:2;
+  }
+  .step.worker .step-dot{border-color:var(--primary)}
+  .step.system .step-dot{border-color:var(--info)}
+  .step.gmo .step-dot{border-color:#0EA5E9}
+  .step.admin .step-dot{border-color:#7C3AED}
+  .step.facility .step-dot{border-color:#9CA3AF}
+  .step.highlight .step-dot{
+    background:var(--primary);border-color:var(--primary);
+    box-shadow:0 0 0 4px #fff,0 0 0 8px rgba(217,45,32,.16);
+  }
+
+  .step-card{
+    background:var(--surface);border:1px solid var(--line);border-radius:18px;
+    padding:18px 20px;box-shadow:var(--shadow-sm);
+    transition:box-shadow .18s ease,transform .18s ease;
+  }
+  .step-card:hover{box-shadow:var(--shadow);transform:translateY(-1px)}
+  .step.highlight .step-card{
+    border-color:var(--primary-border);
+    background:linear-gradient(135deg,#fff,#fffafa);
+  }
+  .step-head{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:baseline;margin-bottom:8px}
+  .step-time{
+    font-size:12px;font-weight:800;color:var(--muted);
+    background:#F1F5F9;border-radius:999px;padding:3px 10px;letter-spacing:.04em;
+    font-feature-settings:"tnum";
+  }
+  .step-actor{
+    font-size:12px;font-weight:800;
+    border-radius:999px;padding:3px 10px;
+  }
+  .step-actor.worker{background:var(--primary-soft);color:var(--primary)}
+  .step-actor.system{background:var(--info-soft);color:var(--info)}
+  .step-actor.gmo{background:#E0F2FE;color:#0369A1}
+  .step-actor.admin{background:#EDE9FE;color:#6D28D9}
+  .step-actor.facility{background:#F1F5F9;color:#475569}
+  .step-title{margin:0;font-size:16px;font-weight:800;line-height:1.5}
+  .step-desc{margin:6px 0 0;font-size:14px;color:var(--muted);line-height:1.85}
+
+  .step-body{margin-top:12px;display:grid;grid-template-columns:1fr 220px;gap:18px;align-items:start}
+  .step-body.no-mini{grid-template-columns:1fr}
+  .step-details{display:grid;gap:10px}
+
+  .data-row{
+    display:grid;grid-template-columns:140px 1fr;gap:12px;font-size:13px;
+    padding:8px 0;border-top:1px dashed var(--line);
+  }
+  .data-row:first-child{border-top:0;padding-top:0}
+  .data-label{color:var(--muted);font-weight:700}
+  .data-value{color:var(--text);font-weight:700;font-feature-settings:"tnum"}
+  .data-value.muted{color:var(--muted);font-weight:500}
+
+  .badges{display:flex;flex-wrap:wrap;gap:6px}
+  .badge{
+    font-size:11px;font-weight:800;letter-spacing:.02em;
+    border-radius:999px;padding:4px 10px;
+    border:1px solid;
+  }
+  .badge.ok{color:var(--success);background:var(--success-soft);border-color:#BBF7D0}
+  .badge.wait{color:var(--info);background:var(--info-soft);border-color:#BFDBFE}
+  .badge.need{color:#B45309;background:var(--warning-soft);border-color:#FDE68A}
+  .badge.danger{color:var(--error);background:var(--error-soft);border-color:#FECACA}
+  .badge.neutral{color:var(--muted);background:#F1F5F9;border-color:var(--line)}
+  .badge.unlocked{color:#fff;background:var(--primary);border-color:var(--primary)}
+
+  /* Mini phone preview */
+  .mini-phone{
+    position:relative;width:220px;justify-self:end;
+  }
+  .mini-phone-frame{
+    border-radius:24px;background:#0F172A;padding:6px;box-shadow:var(--shadow-lg);
+    aspect-ratio:9 / 19.5;overflow:hidden;
+  }
+  .mini-phone iframe{
+    border:0;background:#fff;border-radius:20px;
+    width:390px;height:844px;
+    transform:scale(.54);transform-origin:top left;
+    pointer-events:none;
+  }
+  .mini-phone .scale-wrap{
+    width:100%;height:100%;background:#fff;border-radius:20px;overflow:hidden;
+    position:relative;
+  }
+  .mini-link{
+    display:flex;align-items:center;justify-content:center;gap:6px;
+    margin-top:8px;font-size:12px;font-weight:800;color:var(--text);
+    background:#fff;border:1px solid var(--line);border-radius:999px;
+    padding:8px 14px;text-decoration:none;min-height:36px;
+    transition:transform .18s ease,box-shadow .18s ease;
+  }
+  .mini-link:hover{transform:translateY(-1px);box-shadow:var(--shadow-sm)}
+
+  /* Connector arrow */
+  .flow-arrow{
+    position:relative;height:18px;margin:-6px 0 -6px 6px;
+  }
+  .flow-arrow::before{
+    content:"↓";display:block;color:var(--muted-2);font-weight:800;font-size:14px;
+  }
+
+  /* Side note */
+  .note{
+    margin-top:12px;padding:12px 14px;background:#FFFBEB;border-left:4px solid var(--warning);
+    border-radius:10px;font-size:13px;color:#7C2D12;
+  }
+  .note.info{background:#EFF6FF;border-color:var(--info);color:#1E3A8A}
+  .note.danger{background:#FEF2F2;border-color:var(--error);color:#7F1D1D}
+  .note b{font-weight:800}
+
+  /* Parallel section */
+  .parallel{
+    margin-top:48px;display:grid;grid-template-columns:1fr 1fr;gap:20px;
+  }
+  .parallel-card{
+    background:var(--surface);border:1px solid var(--line);border-radius:18px;
+    padding:20px;box-shadow:var(--shadow-sm);
+  }
+  .parallel-card h3{margin:0 0 6px;font-size:16px;font-weight:800;display:flex;align-items:center;gap:8px}
+  .parallel-card p{margin:0 0 14px;font-size:13px;color:var(--muted)}
+  .parallel-card ul{margin:0;padding-left:18px;font-size:13px;color:var(--text);display:grid;gap:6px}
+  .parallel-card .actor-dot{width:10px;height:10px}
+
+  /* Status panel */
+  .status-panel{
+    margin-top:48px;background:var(--surface);border:1px solid var(--line);
+    border-radius:18px;padding:24px;box-shadow:var(--shadow-sm);
+  }
+  .status-panel h2{margin:0 0 18px;font-size:18px;font-weight:800}
+  .status-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .status-cell{
+    border:1px solid var(--line);border-radius:14px;padding:14px;background:#F8FAFC;
+  }
+  .status-cell b{display:block;font-size:13px;margin-bottom:8px}
+  .status-flow{font-size:12px;color:var(--muted);line-height:1.85}
+  .status-flow code{
+    background:#fff;border:1px solid var(--line);border-radius:5px;
+    padding:1px 6px;font-family:"SF Mono",ui-monospace,monospace;font-size:11px;
+    color:var(--text);
+  }
+
+  /* Footer */
+  .footer{
+    margin-top:60px;padding-top:24px;border-top:1px solid var(--line);
+    color:var(--muted);font-size:12px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;
+  }
+  .footer a{color:var(--primary);font-weight:700;text-decoration:none}
+
+  @media (max-width:900px){
+    .meta{grid-template-columns:1fr}
+    .step-body{grid-template-columns:1fr}
+    .mini-phone{justify-self:start}
+    .parallel{grid-template-columns:1fr}
+    .status-grid{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<main class="page">
+
+  <!-- ============ Header ============ -->
+  <section class="hero">
+    <div class="brand">
+      <div class="brand-mark">+</div>
+      <div class="brand-name">+タスタス</div>
+    </div>
+    <div class="eyebrow">HIBARAI CYCLE — SPEC</div>
+    <h1>日払い機能 サイクル全体図</h1>
+    <p class="lede">
+      ワーカーが勤務を終えてから、前払いを受け取り、月末締めと報酬支払日処理までを1サイクルとして可視化した内部仕様書です。
+      各ステップで「誰が何をするか」「データ状態がどう変わるか」「対応する画面はどれか」が辿れます。
+    </p>
+
+    <div class="meta">
+      <div class="meta-card">
+        <h2>登場人物（凡例）</h2>
+        <div class="legend">
+          <div class="legend-item"><span class="actor-dot actor-worker"></span> ワーカー（看護師・介護士）</div>
+          <div class="legend-item"><span class="actor-dot actor-system"></span> +タスタス システム</div>
+          <div class="legend-item"><span class="actor-dot actor-gmo"></span> GMO（振込）</div>
+          <div class="legend-item"><span class="actor-dot actor-admin"></span> システム管理者</div>
+          <div class="legend-item"><span class="actor-dot actor-facility"></span> 施設（並行・前払い影響なし）</div>
+          <div class="legend-item"><span class="actor-dot" style="background:var(--success)"></span> ★前払い解放トリガー</div>
+        </div>
+      </div>
+      <div class="meta-card">
+        <h2>用語</h2>
+        <div class="glossary">
+          <div><b>今すぐ受け取れる金額</b><br>＝前払い対象額 ×適用率（90%/70%）− 既出金額</div>
+          <div><b>支払日に入る金額</b><br>＝残り（10%等）+ 締め後分</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ Phase 1 ============ -->
+  <section class="phase">
+    <div class="phase-head">
+      <div class="phase-num">1</div>
+      <div>
+        <h2 class="phase-title">勤務〜前払い解放</h2>
+        <div class="phase-sub">勤務完了 + 本人レビュー提出が解放条件</div>
+      </div>
+    </div>
+
+    <div class="timeline">
+
+      <!-- Step 1.1 -->
+      <div class="step worker">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-head">
+            <span class="step-time">09:00</span>
+            <span class="step-actor worker">ワーカー</span>
+            <h3 class="step-title">勤務開始 打刻</h3>
+          </div>
+          <p class="step-desc">スポット求人の勤務開始時刻に到着し、+タスタス アプリで出勤打刻。</p>
+          <div class="step-details">
+            <div class="data-row">
+              <div class="data-label">勤怠ステータス</div>
+              <div class="data-value"><span class="badge wait">勤務中</span></div>
+            </div>
+            <div class="data-row">
+              <div class="data-label">前払い可能額</div>
+              <div class="data-value muted">— （まだ）</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 1.2 -->
+      <div class="step worker">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-head">
+            <span class="step-time">18:00</span>
+            <span class="step-actor worker">ワーカー</span>
+            <h3 class="step-title">勤務終了 打刻</h3>
+          </div>
+          <p class="step-desc">所定時刻に退勤打刻。勤怠が「本人完了」になる。施設側の確認はまだだが、前払いはここから先のステップで対象になる。</p>
+          <div class="step-details">
+            <div class="data-row">
+              <div class="data-label">勤怠ステータス</div>
+              <div class="data-value"><span class="badge wait">本人完了</span></div>
+            </div>
+            <div class="data-row">
+              <div class="data-label">勤務時間</div>
+              <div class="data-value">9時間 (休憩1時間)</div>
+            </div>
+            <div class="data-row">
+              <div class="data-label">前払い可能額</div>
+              <div class="data-value"><span class="badge need">レビュー待ち</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 1.3 ★unlock -->
+      <div class="step worker highlight">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-head">
+            <span class="step-time">18:01</span>
+            <span class="step-actor worker">ワーカー</span>
+            <h3 class="step-title">★ 本人レビュー提出 — 前払い解放</h3>
+          </div>
+          <p class="step-desc">星評価とチップ選択で30秒レビュー。提出した瞬間に前払い可能額が確定し、ワーカー画面に「今すぐ受け取れる金額」が出現する。</p>
+          <div class="step-body">
+            <div class="step-details">
+              <div class="data-row">
+                <div class="data-label">勤怠ステータス</div>
+                <div class="data-value"><span class="badge ok">本人レビュー済</span></div>
+              </div>
+              <div class="data-row">
+                <div class="data-label">前払い対象基準額</div>
+                <div class="data-value">¥12,000 <span class="data-value muted">（時給1,500×8h ※基準は別途確定）</span></div>
+              </div>
+              <div class="data-row">
+                <div class="data-label">適用率</div>
+                <div class="data-value">90%（標準）</div>
+              </div>
+              <div class="data-row">
+                <div class="data-label">今すぐ受け取れる金額</div>
+                <div class="data-value"><span class="badge unlocked">¥10,800</span></div>
+              </div>
+            </div>
+            <div class="mini-phone">
+              <div class="mini-phone-frame"><div class="scale-wrap"><iframe src="07-review.html" title="レビュー画面"></iframe></div></div>
+              <a class="mini-link" href="07-review.html">07 レビュー → 開く</a>
+            </div>
+          </div>
+          <div class="note info">
+            <b>仕様メモ:</b> 施設レビューは別経路。施設側の評価/承認は前払いの可否に影響しない（施設承認前でも振込が走る設計）。
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ Phase 2 ============ -->
+  <section class="phase">
+    <div class="phase-head">
+      <div class="phase-num">2</div>
+      <div>
+        <h2 class="phase-title">受け取り申請 → 振込完了</h2>
+        <div class="phase-sub">ワーカーが申請してから着金まで（成功フロー）</div>
+      </div>
+    </div>
+
+    <div class="timeline">
+
+      <!-- Step 2.1 -->
+      <div class="step worker">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-head">
+            <span class="step-time">18:02</span>
+            <span class="step-actor worker">ワーカー</span>
+            <h3 class="step-title">お金タブ → 受け取りタップ</h3>
+          </div>
+          <p class="step-desc">残高 ¥10,800 を確認し「受け取る」ボタンをタップ。</p>
+          <div class="step-body">
+            <div class="step-details">
+              <div class="data-row">
+                <div class="data-label">受取口座</div>
+                <div class="data-value">みずほ銀行 普通 ****1234</div>
+              </div>
+              <div class="data-row">
+                <div class="data-label">操作</div>
+                <div class="data-value"><span class="badge wait">受け取る タップ</span></div>
+              </div>
+            </div>
+            <div class="mini-phone">
+              <div class="mini-phone-frame"><div class="scale-wrap"><iframe src="01-home.html" title="お金タブ"></iframe></div></div>
+              <a class="mini-link" href="01-home.html">01 お金タブ → 開く</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2.2 -->
+      <div class="step worker">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-head">
+            <span class="step-time">18:02</span>
+            <span class="step-actor worker">ワーカー</span>
+            <h3 class="step-title">金額入力 → 確認シート</h3>
+          </div>
+          <p class="step-desc">全額または1円単位で金額を指定。手数料と振込予定額を同一画面に表示し、確認シートで最終確認。</p>
+          <div class="step-body">
+            <div class="step-details">
+              <div class="data-row">
+                <div class="data-label">受け取り金額</div>
+                <div class="data-value">¥10,800</div>
+              </div>
+              <div class="data-row">
+                <div class="data-label">手数料</div>
+                <div class="data-value">¥143</div>
+              </div>
+              <div class="data-row">
+                <div class="data-label">振込予定額</div>
+                <div class="data-value">¥10,657</div>
+              </div>
+            </div>
+            <div class="mini-phone">
+              <div class="mini-phone-frame"><div class="scale-wrap"><iframe src="03-confirm.html" title="確認シート"></iframe></div></div>
+              <a class="mini-link" href="02-withdraw.html">02 / 03 → 開く</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2.3 -->
+      <div class="step system">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-head">
+            <span class="step-time">即時</span>
+            <span class="step-actor system">システム</span>
+            <h3 class="step-title">申請受付 + 冪等キー発行</h3>
+          </div>
+          <p class="step-desc">サーバー側で前払い可能額を再計算（クライアント値は信用しない）。一意な <code>withdrawal_idempotency_key</code> を発行し、二重送金を防ぐ。</p>
+          <div class="step-details">
+            <div class="data-row">
+              <div class="data-label">サーバー再計算</div>
+              <div class="data-value"><span class="badge ok">OK ¥10,800</span></div>
+            </div>
+            <div class="data-row">
+              <div class="data-label">レート制限チェック</div>
+              <div class="data-value"><span class="badge ok">通過</span></div>
+            </div>
+            <div class="data-row">
+              <div class="data-label">監査ログ</div>
+              <div class="data-value muted">WITHDRAWAL_REQUESTED 記録</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2.4 -->
+      <div class="step gmo">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-head">
+            <span class="step-time">+5秒</span>
+            <span class="step-actor gmo">GMO</span>
+            <h3 class="step-title">振込API呼び出し</h3>
+          </div>
+          <p class="step-desc">GMO（あおぞらAPI または 即給byGMO）に振込指示。Webhook署名検証用シークレット・冪等キー付与。</p>
+          <div class="step-details">
+            <div class="data-row">
+              <div class="data-label">送金額</div>
+              <div class="data-value">¥10,657</div>
+            </div>
+            <div class="data-row">
+              <div class="data-label">受取人名義照合</div>
+              <div class="data-value muted">本人名義一致が必須（運用 or API依存）</div>
+            </div>
+            <div class="data-row">
+              <div class="data-label">通信</div>
+              <div class="data-value muted">TLS1.2+ / OAuth2 / IP制限</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2.5 -->
+      <div class="step gmo">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-head">
+            <span class="step-time">数十秒〜数時間</span>
+            <span class="step-actor gmo">GMO銀行ネットワーク</span>
+            <h3 class="step-title">銀行処理</h3>
+          </div>
+          <p class="step-desc">受取人銀行への送金。営業時間外・GWでは翌営業日着金あり。24/365申請可だが、完了は銀行に準じる。</p>
+          <div class="step-details">
+            <div class="data-row">
+              <div class="data-label">ワーカー画面表示</div>
+              <div class="data-value"><span class="badge wait">銀行確認中</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2.6 -->
+      <div class="step system">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-head">
+            <span class="step-time">完了次第</span>
+            <span class="step-actor system">システム</span>
+            <h3 class="step-title">Webhook受信 → 完了確定</h3>
+          </div>
+          <p class="step-desc">GMOからのWebhookを署名検証して受信。送金台帳を更新し、ワーカーへプッシュ通知。</p>
+          <div class="step-body">
+            <div class="step-details">
+              <div class="data-row">
+                <div class="data-label">状態</div>
+                <div class="data-value"><span class="badge ok">振込完了</span></div>
+              </div>
+              <div class="data-row">
+                <div class="data-label">監査ログ</div>
+                <div class="data-value muted">WITHDRAWAL_COMPLETED + GMO取引ID 記録</div>
+              </div>
+              <div class="data-row">
+                <div class="data-label">残高</div>
+                <div class="data-value">¥0 （支払日に¥1,200予定）</div>
+              </div>
+            </div>
+            <div class="mini-phone">
+              <div class="mini-phone-frame"><div class="scale-wrap"><iframe src="04-complete.html" title="完了画面"></iframe></div></div>
+              <a class="mini-link" href="04-complete.html">04 完了 → 開く</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2.7 ERROR sub-flow -->
+      <div class="step gmo">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-head">
+            <span class="step-time">エラー時</span>
+            <span class="step-actor gmo">GMO</span>
+            <h3 class="step-title">サブフロー：振込エラー</h3>
+          </div>
+          <p class="step-desc">口座番号・名義不一致・凍結等で振込失敗。ワーカーには原因を日本語化して伝え、エラーコードは隠す。同じ口座での再申請は不可。</p>
+          <div class="step-body">
+            <div class="step-details">
+              <div class="data-row">
+                <div class="data-label">エラー種別</div>
+                <div class="data-value"><span class="badge danger">口座不一致</span></div>
+              </div>
+              <div class="data-row">
+                <div class="data-label">ワーカー向け表示</div>
+                <div class="data-value">「口座を確認できませんでした。受取口座を直してください。」</div>
+              </div>
+              <div class="data-row">
+                <div class="data-label">再申請</div>
+                <div class="data-value">口座変更後に可能（同口座は不可）</div>
+              </div>
+            </div>
+            <div class="mini-phone">
+              <div class="mini-phone-frame"><div class="scale-wrap"><iframe src="06-error.html" title="エラー詳細"></iframe></div></div>
+              <a class="mini-link" href="06-error.html">06 エラー → 開く</a>
+            </div>
+          </div>
+          <div class="note danger">
+            <b>セキュリティ:</b> 「口座存在有無」「名義一致詳細」「内部リスクスコア」など、攻撃者の手がかりになる情報はユーザーに渡さない。サポートコードのみ表示。
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ Phase 3 ============ -->
+  <section class="phase">
+    <div class="phase-head">
+      <div class="phase-num">3</div>
+      <div>
+        <h2 class="phase-title">月末締め → 報酬支払日（既存）</h2>
+        <div class="phase-sub">前払い残額（10%等）の精算と二重払い防止</div>
+      </div>
+    </div>
+
+    <div class="timeline">
+
+      <!-- Step 3.1 -->
+      <div class="step system">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-head">
+            <span class="step-time">5/31 23:59 JST</span>
+            <span class="step-actor system">システム</span>
+            <h3 class="step-title">月末締切</h3>
+          </div>
+          <p class="step-desc">当月分の前払い新規申請を停止。進行中のWebhook待ちは継続処理。</p>
+          <div class="step-details">
+            <div class="data-row">
+              <div class="data-label">新規申請</div>
+              <div class="data-value"><span class="badge danger">停止</span></div>
+            </div>
+            <div class="data-row">
+              <div class="data-label">進行中の振込</div>
+              <div class="data-value muted">完了 or 失敗まで継続</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3.2 -->
+      <div class="step system">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-head">
+            <span class="step-time">6/1 00:00 JST</span>
+            <span class="step-actor system">システム</span>
+            <h3 class="step-title">月跨ぎ処理</h3>
+          </div>
+          <p class="step-desc">残額（報酬の10%等、プール分）を各案件の既存報酬支払日の対象として予約。当月の前払い実績を報酬計算と突合し、二重払いを排除。</p>
+          <div class="step-details">
+            <div class="data-row">
+              <div class="data-label">突合チェック</div>
+              <div class="data-value"><span class="badge ok">前払い実績と報酬額が整合</span></div>
+            </div>
+            <div class="data-row">
+              <div class="data-label">残額（支払日支払い）</div>
+              <div class="data-value">¥1,200 ×全勤務分</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3.3 -->
+      <div class="step system">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-head">
+            <span class="step-time">既存支払日</span>
+            <span class="step-actor system">システム</span>
+            <h3 class="step-title">報酬支払日（既存）</h3>
+          </div>
+          <p class="step-desc">登録済みの受取口座に総額を振込。前払いで既に受け取った分は控除済み。</p>
+          <div class="step-details">
+            <div class="data-row">
+              <div class="data-label">支払額</div>
+              <div class="data-value">報酬総額 − 前払い済 − 手数料合計</div>
+            </div>
+            <div class="data-row">
+              <div class="data-label">ワーカー通知</div>
+              <div class="data-value">プッシュ通知 + 履歴反映</div>
+            </div>
+            <div class="data-row">
+              <div class="data-label">サイクル完了</div>
+              <div class="data-value"><span class="badge ok">CLOSED</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ Parallel actors ============ -->
+  <section class="phase">
+    <div class="phase-head">
+      <div class="phase-num">●</div>
+      <div>
+        <h2 class="phase-title">並行する関係者の動き</h2>
+        <div class="phase-sub">サイクルの裏で同時に走るアクション</div>
+      </div>
+    </div>
+
+    <div class="parallel">
+      <div class="parallel-card">
+        <h3><span class="actor-dot actor-admin"></span> システム管理者</h3>
+        <p>常時の監視と、緊急時の介入。</p>
+        <ul>
+          <li>前払いダッシュボードで本日申請件数・エラー件数を確認</li>
+          <li>異常検知時は緊急一括停止スイッチで全ワーカーの前払いを停止</li>
+          <li>出金エラーキューを処理（口座不一致・銀行停止時間・残高不足で自動分類）</li>
+          <li>個別ワーカーの前払い率・上限金額・停止状態を設定</li>
+          <li>引き出し履歴をCSV出力、監査ログを5年保管</li>
+        </ul>
+      </div>
+      <div class="parallel-card">
+        <h3><span class="actor-dot actor-facility"></span> 施設</h3>
+        <p>前払いには直接関与しない（仕様）。</p>
+        <ul>
+          <li>勤怠の最終確定・修正は施設管理画面で行う</li>
+          <li>施設レビュー（任意・自由提出）は別経路で蓄積</li>
+          <li>前払い実行の有無は施設画面に表示しない</li>
+          <li>施設マニュアル/FAQ に「報酬処理はタスタス側で行います」を明記</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ Status flow ============ -->
+  <section class="status-panel">
+    <h2>勤怠ステータスと前払い可否の対応</h2>
+    <div class="status-grid">
+      <div class="status-cell">
+        <b>① 予定</b>
+        <div class="status-flow"><code>SCHEDULED</code> → 前払い対象 ❌<br>勤務日まで何も起きない</div>
+      </div>
+      <div class="status-cell">
+        <b>② 勤務中</b>
+        <div class="status-flow"><code>IN_PROGRESS</code> → 前払い対象 ❌<br>出勤打刻済み、まだ終わっていない</div>
+      </div>
+      <div class="status-cell">
+        <b>③ 本人完了</b>
+        <div class="status-flow"><code>WORKER_DONE</code> → 前払い対象 ❌<br>退勤打刻済み、レビュー未提出</div>
+      </div>
+      <div class="status-cell">
+        <b>④ 本人レビュー済 ★</b>
+        <div class="status-flow"><code>REVIEWED</code> → 前払い対象 ✅<br><b>解放トリガー</b>。前払い可能額が算出される</div>
+      </div>
+      <div class="status-cell">
+        <b>⑤ 施設確認済</b>
+        <div class="status-flow"><code>FACILITY_CONFIRMED</code> → 前払い対象 ✅<br>すでに振込済みなら影響なし</div>
+      </div>
+      <div class="status-cell">
+        <b>⑥ 報酬締め済</b>
+        <div class="status-flow"><code>SETTLED</code> → 前払い対象 ❌<br>既存報酬支払日処理に組み込まれた</div>
+      </div>
+    </div>
+    <div class="note" style="margin-top:18px">
+      <b>例外シナリオ:</b> 勤怠取消・修正・退会・口座エラー・組戻し・労働者性が否認できない場合・キャリ払い併用は、未確定論点として
+      <code>docs/hibarai/review-architect-logic.md</code> に整理。
+    </div>
+  </section>
+
+  <!-- ============ Footer ============ -->
+  <footer class="footer">
+    <span>+タスタス 日払い機能 サイクル仕様 | 内部資料</span>
+    <span>関連: <a href="index.html">モック一覧</a> / docs/hibarai/screen-spec-draft.md / review-*.md</span>
+  </footer>
+
+</main>
+</body>
+</html>

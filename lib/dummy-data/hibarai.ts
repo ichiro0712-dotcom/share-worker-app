@@ -60,8 +60,9 @@ export const workerBalance = {
   availableAmount: 12480,
   reviewUnlockAmount: 8640,
   fee: 143,
-  paydayAmount: 3120,
-  paydayDate: '6月25日（水）',
+  scheduledPaymentAmount: 3120,
+  // ダミーの支払日は案件ごとの既存報酬支払日を表す。全社統一日ではない。
+  scheduledPaymentDate: '6月25日（水）',
   deadlineText: '5/31 23:59まで受け取りできます',
   account: {
     bankName: 'みずほ銀行',
@@ -166,7 +167,7 @@ export const balanceBreakdownRows = [
   { label: 'チャージ済み', amount: 38400, note: 'レビュー後に受け取れるようになった勤務分' },
   { label: '出金済み', amount: -24500, note: 'すでに受け取った金額' },
   { label: '手数料', amount: -1420, note: '受け取り時に引かれた手数料' },
-  { label: '給与日に入る金額', amount: 3120, note: '一部は給与日に入ります' },
+  { label: '支払日に入る金額', amount: 3120, note: '一部は案件ごとの既存の支払日に入ります' },
 ];
 
 export const hibaraiFaqItems = [
@@ -184,7 +185,7 @@ export const hibaraiFaqItems = [
   },
   {
     question: '月末を過ぎた金額はどうなりますか？',
-    answer: '5/31 23:59を過ぎた分は、給与日に入る金額として通常の給与日に振り込まれます。',
+    answer: '5/31 23:59を過ぎた分は、支払日に入る金額として各案件の既存の支払日に振り込まれます。',
   },
   {
     question: '口座を変更した直後に受け取れますか？',
@@ -194,7 +195,7 @@ export const hibaraiFaqItems = [
 
 export const glossaryItems = [
   { term: '今すぐ受け取れる金額', description: '今日、受け取る操作ができる上限額です。' },
-  { term: '給与日に入る金額', description: '日払いで受け取らず、給与日に振り込まれる予定の金額です。' },
+  { term: '支払日に入る金額', description: '日払いで受け取らず、各案件の既存の支払日に振り込まれる予定の金額です。' },
   { term: '受取口座', description: '日払いの振込先として登録した銀行口座です。' },
 ];
 

@@ -21,8 +21,8 @@ export default function MoneyHomePage() {
         <BalanceCard
           availableAmount={workerBalance.availableAmount}
           deadlineText={workerBalance.deadlineText}
-          paydayAmount={workerBalance.paydayAmount}
-          paydayDate={workerBalance.paydayDate}
+          scheduledPaymentAmount={workerBalance.scheduledPaymentAmount}
+          scheduledPaymentDate={workerBalance.scheduledPaymentDate}
         />
 
         <div className="mt-4">
