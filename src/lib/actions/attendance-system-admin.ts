@@ -9,6 +9,7 @@ import { getCurrentTime } from './helpers';
 import { calculateSalary } from '@/src/lib/salary-calculator';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 import { requireSystemAdminAuth } from '@/lib/system-admin-session-server';
+import { reconcileHibaraiChargeInTx } from '@/lib/actions/hibarai/review-trigger';
 import type {
   AttendanceFilter,
   AttendanceSortOption,
@@ -757,6 +758,13 @@ export async function updateAttendanceBySystemAdmin(
           calculated_wage: data.calculatedWage,
           status: data.status,
         },
+      });
+
+      // 日払い: wage変更を反映（チャージ済なら差額調整、未チャージで前提が揃えば初回チャージ）
+      await reconcileHibaraiChargeInTx(tx, attendanceId, {
+        type: 'SYSTEM_ADMIN',
+        id: String(auth.adminId),
+        trigger: 'system_admin_edit',
       });
 
       // 退勤済み(CHECKED_OUT)に更新した場合、紐づくApplicationをCOMPLETED_PENDINGに更新

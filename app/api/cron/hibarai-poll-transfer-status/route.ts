@@ -21,6 +21,7 @@ type PollWithdrawalRow = {
   gmo_apply_no: string | null
   gmo_account_id: string | null
   poll_attempt_count: number
+  settlement_month: Date
 }
 
 export async function GET(request: Request): Promise<Response> {
@@ -59,7 +60,7 @@ export async function GET(request: Request): Promise<Response> {
       const result = await prisma.$transaction(
         async (tx) => {
           const rows = await tx.$queryRaw<PollWithdrawalRow[]>`
-            SELECT id, worker_id, requested_amount, status, idempotency_key, gmo_apply_no, gmo_account_id, poll_attempt_count
+            SELECT id, worker_id, requested_amount, status, idempotency_key, gmo_apply_no, gmo_account_id, poll_attempt_count, settlement_month
             FROM withdrawal_requests
             WHERE id = ${withdrawal.id}
               AND status IN ('PROCESSING', 'PENDING')
@@ -184,6 +185,7 @@ async function completeWithdrawalInTransaction(
         idempotency_key: ledgerKey,
         source_id: row.id,
         source_type: 'WithdrawalRequest',
+        settlement_month: row.settlement_month,
         note: statusName,
       },
     })
@@ -233,6 +235,7 @@ async function revertWithdrawalInTransaction(
         idempotency_key: ledgerKey,
         source_id: row.id,
         source_type: 'WithdrawalRequest',
+        settlement_month: row.settlement_month,
         note: statusName,
       },
     })

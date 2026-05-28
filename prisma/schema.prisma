@@ -2415,6 +2415,8 @@ model PointLedgerEntry {
   transportation_fee_amount Int?            @map("transportation_fee_amount")
   advanceable_amount        Int?            @map("advanceable_amount")
   scheduled_payment_amount  Int?            @map("scheduled_payment_amount")
+  /// チャージ時の前払い率(basis points)。勤怠修正後の差額調整で原チャージと同じ率を使うため保存。
+  rate_basis_points         Int?            @map("rate_basis_points")
   settlement_month          DateTime?       @map("settlement_month") @db.Date
   scheduled_payment_date    DateTime?       @map("scheduled_payment_date") @db.Date
   review_id                 Int?            @map("review_id")
@@ -2479,9 +2481,14 @@ model WithdrawalRequest {
   requested_amount         Int              @map("requested_amount")
   fee_amount               Int              @map("fee_amount")
   transfer_amount          Int              @map("transfer_amount")
+  /// 申請時に開いている精算月(JST)。失敗・組戻しでも変えない。月末スイープ・給与控除の集計キー。
+  settlement_month         DateTime         @map("settlement_month") @db.Date
   status                   WithdrawalStatus @default(DRAFT)
   idempotency_key          String           @unique @map("idempotency_key") @db.VarChar(128)
   bank_account_id          String           @map("bank_account_id")
+  /// 申請確定時の振込先口座スナップショット(immutable)。GMO送金はこの値のみ使う。
+  /// {bankCode,branchCode,accountType,accountNumber,accountHolderName,accountHolderNameKana,lastChangedAt}
+  bank_snapshot            Json             @map("bank_snapshot")
   gmo_apply_no             String?          @unique @map("gmo_apply_no") @db.VarChar(16)
   gmo_account_id           String?          @map("gmo_account_id") @db.VarChar(64)
   gmo_transfer_status_code Int?             @map("gmo_transfer_status_code")
@@ -2511,6 +2518,7 @@ model WithdrawalRequest {
   @@index([worker_id, requested_at(sort: Desc)])
   @@index([status, requested_at])
   @@index([status, next_poll_at])
+  @@index([settlement_month, worker_id])
   @@map("withdrawal_requests")
 }
 

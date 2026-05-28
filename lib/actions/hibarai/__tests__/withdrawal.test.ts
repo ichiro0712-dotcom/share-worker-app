@@ -20,6 +20,7 @@ let revertReservation = null as unknown as typeof import('../withdrawal').revert
 let EmergencyStoppedError = null as unknown as typeof import('../withdrawal-errors').EmergencyStoppedError
 let InsufficientBalanceError = null as unknown as typeof import('../withdrawal-errors').InsufficientBalanceError
 let OverLimitError = null as unknown as typeof import('../withdrawal-errors').OverLimitError
+let ProgramNotAllowedError = null as unknown as typeof import('../withdrawal-errors').ProgramNotAllowedError
 const originalFetch = globalThis.fetch
 
 test.before(async () => {
@@ -32,6 +33,7 @@ test.before(async () => {
   EmergencyStoppedError = withdrawalErrors.EmergencyStoppedError
   InsufficientBalanceError = withdrawalErrors.InsufficientBalanceError
   OverLimitError = withdrawalErrors.OverLimitError
+  ProgramNotAllowedError = withdrawalErrors.ProgramNotAllowedError
 })
 
 test.after(() => {
@@ -45,6 +47,8 @@ type WithdrawalRecord = {
   requested_amount: number
   fee_amount: number
   transfer_amount: number
+  settlement_month: Date
+  bank_snapshot?: unknown
   status: string
   idempotency_key: string
   client_ip: string
@@ -65,6 +69,30 @@ type LedgerRecord = {
   delta: number
   balance_after: number
   idempotency_key: string
+  settlement_month?: Date
+}
+
+type BankAccountState = {
+  id: string
+  bankCode: string
+  branchCode: string
+  accountNumber: string
+  accountType: 'ORDINARY' | 'CURRENT'
+  accountHolderName: string
+  accountHolderNameKana: string | null
+  isVerified: boolean
+  cooldownUntil: Date | null
+  lastChangedAt: Date | null
+}
+
+type TransferAttemptRecord = {
+  withdrawal_request_id: string
+  attempt_no: number
+  idempotency_key?: string | null
+  gmo_apply_no?: string | null
+  error_code?: string | null
+  response_status_code?: number | null
+  [key: string]: unknown
 }
 
 type MockState = {
@@ -76,6 +104,9 @@ type MockState = {
   stop: boolean
   perRequestLimit: number | null
   nextWithdrawalId: number
+  bankAccount: BankAccountState
+  transferAttempts: TransferAttemptRecord[]
+  advanceProgram: string
 }
 
 type MockTx = ReturnType<typeof createTx>
@@ -85,6 +116,11 @@ type MockablePrisma = {
   withdrawalRequest: MockTx['withdrawalRequest']
   gmoOAuthToken: {
     findFirst: () => Promise<{ access_token: string; expires_at: Date } | null>
+  }
+  transferAttempt: {
+    create: (args: { data: TransferAttemptRecord }) => Promise<TransferAttemptRecord>
+    findFirst: (args: { where: { withdrawal_request_id: string; gmo_apply_no?: { not: null } } }) => Promise<TransferAttemptRecord | null>
+    aggregate: (args: { where: { withdrawal_request_id: string } }) => Promise<{ _max: { attempt_no: number | null } }>
   }
 }
 
@@ -152,6 +188,14 @@ test('引当のreverseで残高が戻る', async () => {
   assert.equal(state.balance, 1000)
   assert.equal(state.withdrawals[0].status, 'FAILED')
   assert.equal(state.ledger.some((entry) => entry.kind === 'WITHDRAWAL_REVERTED'), true)
+
+  // settlement_month が申請→引当→組戻しまで一貫して刻まれる
+  const expectedMonth = state.withdrawals[0].settlement_month
+  assert.ok(expectedMonth instanceof Date)
+  const reserved = state.ledger.find((entry) => entry.kind === 'WITHDRAWAL_RESERVED')
+  const reverted = state.ledger.find((entry) => entry.kind === 'WITHDRAWAL_REVERTED')
+  assert.equal(reserved?.settlement_month?.getTime(), expectedMonth.getTime())
+  assert.equal(reverted?.settlement_month?.getTime(), expectedMonth.getTime())
 })
 
 test('GMO 5xxでは残高を戻さずPROCESSINGで保留する', async () => {
@@ -217,24 +261,6 @@ test('GMO応答不明はnext_poll_at後に同じ冪等キーで再送しapplyNo�
   assert.equal(state.ledger.some((entry) => entry.kind === 'WITHDRAWAL_REVERTED'), false)
 })
 
-test('GMOの明示的拒否は引当を戻す', async () => {
-  const state = createState({ balance: 1000 })
-  installPrismaMock(state)
-  installGmoFetchMock(() => jsonResponse({
-    applyNo: '1234567890123456',
-    resultCode: '2',
-    applyEndDatetime: '2026-05-28T10:00:00+09:00',
-  }))
-  const request = await createWithdrawalRequest(createInput({ amount: 500, idempotencyKey: 'gmo-rejected' }))
-
-  await assert.rejects(() => submitWithdrawalToGmo(request.id), /GMO rejected/)
-
-  assert.equal(state.balance, 1000)
-  assert.equal(state.totalWithdrawn, 0)
-  assert.equal(state.withdrawals[0].status, 'FAILED')
-  assert.equal(state.ledger.some((entry) => entry.kind === 'WITHDRAWAL_REVERTED'), true)
-})
-
 test('同じWithdrawalRequestへの2並列submitは1回だけGMOへ送る', async () => {
   const state = createState({ balance: 1000 })
   installPrismaMock(state)
@@ -261,6 +287,291 @@ test('同じWithdrawalRequestへの2並列submitは1回だけGMOへ送る', asyn
   assert.equal(state.ledger.some((entry) => entry.kind === 'WITHDRAWAL_REVERTED'), false)
 })
 
+const SUCCESS_TRANSFER = {
+  applyNo: '1234567890123456',
+  resultCode: '1',
+  applyEndDatetime: '2026-05-28T10:00:00+09:00',
+  accountId: '101011234567',
+}
+
+test('P0-3: createWithdrawalRequestは申請時の口座をsnapshotに保存する', async () => {
+  const state = createState({ balance: 1000 })
+  installPrismaMock(state)
+
+  await createWithdrawalRequest(createInput({ amount: 500, idempotencyKey: 'snap-store' }))
+
+  const snap = state.withdrawals[0].bank_snapshot as Record<string, unknown> | undefined
+  assert.ok(snap, 'bank_snapshot should be saved at request time')
+  assert.equal(snap?.bankCode, '0001')
+  assert.equal(snap?.branchCode, '001')
+  assert.equal(snap?.accountNumber, '1234567')
+  assert.equal(snap?.accountType, 'ORDINARY')
+})
+
+test('P0-3: GMOペイロードはsnapshotの値で組む', async () => {
+  const state = createState({ balance: 1000 })
+  installPrismaMock(state)
+  const calls = installGmoFetchMock(() => jsonResponse(SUCCESS_TRANSFER))
+  const request = await createWithdrawalRequest(createInput({ amount: 500, idempotencyKey: 'snap-payload' }))
+
+  await submitWithdrawalToGmo(request.id)
+
+  assert.equal(calls.length, 1)
+  const body = JSON.parse(String(calls[0].init?.body))
+  const snap = state.withdrawals[0].bank_snapshot as Record<string, unknown>
+  assert.equal(body.transfers[0].accountNumber, snap.accountNumber)
+  assert.equal(body.transfers[0].beneficiaryBankCode, snap.bankCode)
+  assert.equal(body.transfers[0].beneficiaryBranchCode, snap.branchCode)
+})
+
+test('P0-3: 申請後に口座フィールド(口座番号)が変わったら送金せずrevertする', async () => {
+  const state = createState({ balance: 1000 })
+  installPrismaMock(state)
+  const calls = installGmoFetchMock(() => jsonResponse(SUCCESS_TRANSFER))
+  const request = await createWithdrawalRequest(createInput({ amount: 500, idempotencyKey: 'snap-changed' }))
+
+  // lastChangedAt を更新する口座編集パスは未実装でも、フィールド直接比較で検知する
+  state.bankAccount.accountNumber = '7654321'
+
+  await assert.rejects(() => submitWithdrawalToGmo(request.id))
+
+  assert.equal(calls.length, 0) // GMOへ一度も送らない
+  assert.equal(state.withdrawals[0].status, 'FAILED')
+  assert.equal(state.balance, 1000) // 引当が戻る
+  assert.equal(state.ledger.some((e) => e.kind === 'WITHDRAWAL_REVERTED'), true)
+})
+
+test('P0-3: GMO応答不明後の再送は口座変更でもrevertしない（二重送金防止）', async () => {
+  const state = createState({ balance: 1000 })
+  installPrismaMock(state)
+  let attempt = 0
+  const calls = installGmoFetchMock(() => {
+    attempt += 1
+    if (attempt === 1) return jsonResponse({ errorCode: 'SERVER_ERROR', errorMessage: 'server error' }, 500)
+    return jsonResponse(SUCCESS_TRANSFER)
+  })
+  const request = await createWithdrawalRequest(createInput({ amount: 500, idempotencyKey: 'snap-resend' }))
+
+  // 初回送信 → 500 で応答不明(PROCESSING)
+  await assert.rejects(() => submitWithdrawalToGmo(request.id), /server error/)
+  assert.equal(state.withdrawals[0].status, 'PROCESSING')
+
+  // この後に口座が変わっても、再送では revert しない（初回送金がGMOに届いている可能性があるため）
+  state.bankAccount.accountNumber = '7654321'
+  state.withdrawals[0].next_poll_at = new Date(Date.now() - 1000)
+  await submitWithdrawalToGmo(request.id)
+
+  assert.equal(calls.length, 2) // 同じ冪等キーで再送した
+  assert.notEqual(state.withdrawals[0].status, 'FAILED')
+  assert.equal(state.balance, 500) // 返金していない
+})
+
+test('P0-3: 再送時のローカル失敗(snapshot不正)でも返金せずPROCESSING維持', async () => {
+  const state = createState({ balance: 1000 })
+  installPrismaMock(state)
+  const calls = installGmoFetchMock(() => jsonResponse({ errorCode: 'SERVER_ERROR', errorMessage: 'server error' }, 500))
+  const request = await createWithdrawalRequest(createInput({ amount: 500, idempotencyKey: 'snap-resend-localfail' }))
+
+  // 初回送信 → 500 で応答不明(PROCESSING)
+  await assert.rejects(() => submitWithdrawalToGmo(request.id), /server error/)
+  assert.equal(state.withdrawals[0].status, 'PROCESSING')
+
+  // 再送時に snapshot が壊れていても、返金せず PROCESSING を維持する（二重支払い防止）
+  state.withdrawals[0].bank_snapshot = { broken: true }
+  state.withdrawals[0].next_poll_at = new Date(Date.now() - 1000)
+  await assert.rejects(() => submitWithdrawalToGmo(request.id))
+
+  assert.equal(state.withdrawals[0].status, 'PROCESSING')
+  assert.equal(state.balance, 500)
+  assert.equal(state.ledger.some((e) => e.kind === 'WITHDRAWAL_REVERTED'), false)
+})
+
+test('P0-3: 送信時に口座がcooldown中ならrevertする', async () => {
+  const state = createState({ balance: 1000 })
+  installPrismaMock(state)
+  const calls = installGmoFetchMock(() => jsonResponse(SUCCESS_TRANSFER))
+  const request = await createWithdrawalRequest(createInput({ amount: 500, idempotencyKey: 'snap-cooldown' }))
+
+  state.bankAccount.cooldownUntil = new Date(Date.now() + 60 * 60 * 1000)
+
+  await assert.rejects(() => submitWithdrawalToGmo(request.id))
+
+  assert.equal(calls.length, 0)
+  assert.equal(state.withdrawals[0].status, 'FAILED')
+  assert.equal(state.balance, 1000)
+})
+
+test('P0-3: 送信時に口座がunverifiedならrevertする', async () => {
+  const state = createState({ balance: 1000 })
+  installPrismaMock(state)
+  const calls = installGmoFetchMock(() => jsonResponse(SUCCESS_TRANSFER))
+  const request = await createWithdrawalRequest(createInput({ amount: 500, idempotencyKey: 'snap-unverified' }))
+
+  state.bankAccount.isVerified = false
+
+  await assert.rejects(() => submitWithdrawalToGmo(request.id))
+
+  assert.equal(calls.length, 0)
+  assert.equal(state.withdrawals[0].status, 'FAILED')
+  assert.equal(state.balance, 1000)
+})
+
+test('P0-4: resultCode=2(未完了)はapplyNoを保存しPROCESSING維持（返金しない）', async () => {
+  const state = createState({ balance: 1000 })
+  installPrismaMock(state)
+  installGmoFetchMock(() => jsonResponse({
+    applyNo: '1234567890123456',
+    resultCode: '2',
+    applyEndDatetime: '2026-05-28T10:00:00+09:00',
+    accountId: '101011234567',
+  }))
+  const request = await createWithdrawalRequest(createInput({ amount: 500, idempotencyKey: 'rc2' }))
+
+  await submitWithdrawalToGmo(request.id)
+
+  assert.equal(state.withdrawals[0].status, 'PROCESSING')
+  assert.equal(state.withdrawals[0].gmo_apply_no, '1234567890123456')
+  assert.equal(state.balance, 500) // 返金していない
+  assert.equal(state.ledger.some((e) => e.kind === 'WITHDRAWAL_REVERTED'), false)
+})
+
+test('P0-4: 送信成功時にtransfer_attemptsへ記録する', async () => {
+  const state = createState({ balance: 1000 })
+  installPrismaMock(state)
+  installGmoFetchMock(() => jsonResponse({
+    applyNo: '1234567890123456',
+    resultCode: '1',
+    applyEndDatetime: '2026-05-28T10:00:00+09:00',
+    accountId: '101011234567',
+  }))
+  const request = await createWithdrawalRequest(createInput({ amount: 500, idempotencyKey: 'attempt-ok' }))
+
+  await submitWithdrawalToGmo(request.id)
+
+  assert.equal(state.transferAttempts.length, 1)
+  assert.equal(state.transferAttempts[0].attempt_no, 1)
+  assert.equal(state.transferAttempts[0].gmo_apply_no, '1234567890123456')
+})
+
+test('P0-4: 送信失敗(500)時もtransfer_attemptsへ記録する', async () => {
+  const state = createState({ balance: 1000 })
+  installPrismaMock(state)
+  installGmoFetchMock(() => jsonResponse({ errorCode: 'SERVER_ERROR', errorMessage: 'server error' }, 500))
+  const request = await createWithdrawalRequest(createInput({ amount: 500, idempotencyKey: 'attempt-fail' }))
+
+  await assert.rejects(() => submitWithdrawalToGmo(request.id), /server error/)
+
+  assert.equal(state.transferAttempts.length, 1)
+  assert.equal(state.transferAttempts[0].gmo_apply_no ?? null, null)
+  assert.ok(state.transferAttempts[0].error_code)
+})
+
+test('P0-4: 過去試行にapplyNoがあれば再送せずapplyNoを回収する（二重送金防止）', async () => {
+  const state = createState({ balance: 1000 })
+  installPrismaMock(state)
+  const calls = installGmoFetchMock(() => jsonResponse({
+    applyNo: '9999999999999999',
+    resultCode: '1',
+    applyEndDatetime: '2026-05-28T10:00:00+09:00',
+    accountId: '101011234567',
+  }))
+  const request = await createWithdrawalRequest(createInput({ amount: 500, idempotencyKey: 'recover' }))
+
+  // 初回送信はGMOに到達しapplyNoを得たが、DB保存に失敗してPROCESSING(applyNo未保存)で残った状況を再現:
+  // transfer_attempts にだけ applyNo が記録されている
+  state.transferAttempts.push({
+    withdrawal_request_id: request.id,
+    attempt_no: 1,
+    idempotency_key: state.withdrawals[0].idempotency_key,
+    gmo_apply_no: '1111111111111111',
+  })
+  state.withdrawals[0].status = 'PROCESSING'
+  state.withdrawals[0].gmo_apply_no = null
+  state.withdrawals[0].next_poll_at = new Date(Date.now() - 1000)
+
+  await submitWithdrawalToGmo(request.id)
+
+  assert.equal(calls.length, 0) // 再送しない
+  assert.equal(state.withdrawals[0].gmo_apply_no, '1111111111111111') // 過去試行のapplyNoを回収
+  assert.equal(state.withdrawals[0].status, 'PROCESSING')
+})
+
+test('P0-4: transfer_attemptsはトークンを記録せず、再送でattempt_noが増える', async () => {
+  const state = createState({ balance: 1000 })
+  installPrismaMock(state)
+  let attempt = 0
+  installGmoFetchMock(() => {
+    attempt += 1
+    if (attempt === 1) return jsonResponse({ errorCode: 'SERVER_ERROR', errorMessage: 'server error' }, 500)
+    return jsonResponse({
+      applyNo: '1234567890123456',
+      resultCode: '1',
+      applyEndDatetime: '2026-05-28T10:00:00+09:00',
+      accountId: '101011234567',
+    })
+  })
+  const request = await createWithdrawalRequest(createInput({ amount: 500, idempotencyKey: 'attempt-seq' }))
+
+  await assert.rejects(() => submitWithdrawalToGmo(request.id), /server error/)
+  state.withdrawals[0].next_poll_at = new Date(Date.now() - 1000)
+  await submitWithdrawalToGmo(request.id)
+
+  assert.deepEqual(state.transferAttempts.map((a) => a.attempt_no).sort(), [1, 2])
+  for (const a of state.transferAttempts) {
+    const headers = JSON.stringify((a as Record<string, unknown>).request_headers ?? {}).toLowerCase()
+    assert.ok(!headers.includes('authorization'), 'headers must not contain authorization')
+    assert.ok(!headers.includes('access-token'), 'headers must not contain token')
+  }
+})
+
+test('P0-4: transfer_attempts記録が失敗してもsubmit本体は完了する', async () => {
+  const state = createState({ balance: 1000 })
+  installPrismaMock(state)
+  installGmoFetchMock(() => jsonResponse({
+    applyNo: '1234567890123456',
+    resultCode: '1',
+    applyEndDatetime: '2026-05-28T10:00:00+09:00',
+    accountId: '101011234567',
+  }))
+  const request = await createWithdrawalRequest(createInput({ amount: 500, idempotencyKey: 'attempt-recfail' }))
+
+  // 記録(create)だけ失敗させる（findFirst/aggregateは生かす）
+  const prisma = prismaModule.default as unknown as MockablePrisma
+  prisma.transferAttempt.create = async () => { throw new Error('record failed') }
+
+  await submitWithdrawalToGmo(request.id)
+
+  assert.equal(state.withdrawals[0].gmo_apply_no, '1234567890123456') // 本体は成功
+  assert.equal(state.withdrawals[0].status, 'PROCESSING')
+})
+
+test('P0-5: advance_program=DISABLED のワーカーは出金できない', async () => {
+  const state = createState({ balance: 1000, advanceProgram: 'DISABLED' })
+  installPrismaMock(state)
+
+  await assert.rejects(
+    () => createWithdrawalRequest(createInput({ amount: 500, idempotencyKey: 'prog-disabled' })),
+    ProgramNotAllowedError
+  )
+
+  assert.equal(state.balance, 1000) // 引当しない
+  assert.equal(state.ledger.length, 0)
+  assert.equal(state.withdrawals.length, 0)
+})
+
+test('P0-5: advance_program=LEGACY_CARRYBARAI のワーカーは出金できない', async () => {
+  const state = createState({ balance: 1000, advanceProgram: 'LEGACY_CARRYBARAI' })
+  installPrismaMock(state)
+
+  await assert.rejects(
+    () => createWithdrawalRequest(createInput({ amount: 500, idempotencyKey: 'prog-legacy' })),
+    ProgramNotAllowedError
+  )
+
+  assert.equal(state.balance, 1000)
+  assert.equal(state.withdrawals.length, 0)
+})
+
 function createInput(overrides: { amount: number; idempotencyKey: string }) {
   return {
     workerId: 1,
@@ -282,6 +593,20 @@ function createState(overrides: Partial<MockState> = {}): MockState {
     stop: false,
     perRequestLimit: null,
     nextWithdrawalId: 1,
+    bankAccount: {
+      id: 'bank_1',
+      bankCode: '0001',
+      branchCode: '001',
+      accountNumber: '1234567',
+      accountType: 'ORDINARY',
+      accountHolderName: 'サトウ ミサキ',
+      accountHolderNameKana: 'サトウ ミサキ',
+      isVerified: true,
+      cooldownUntil: null,
+      lastChangedAt: new Date('2026-05-01T00:00:00.000Z'),
+    },
+    transferAttempts: [],
+    advanceProgram: 'HIBARAI',
     ...overrides,
   }
 }
@@ -301,17 +626,32 @@ function installPrismaMock(state: MockState): void {
       expires_at: new Date(Date.now() + 60 * 60 * 1000),
     }),
   }
+  prisma.transferAttempt = {
+    create: async ({ data }: { data: TransferAttemptRecord }) => {
+      if (state.transferAttempts.some((a) => a.withdrawal_request_id === data.withdrawal_request_id && a.attempt_no === data.attempt_no)) {
+        throw new Error('duplicate transfer_attempt (withdrawal_request_id, attempt_no)')
+      }
+      state.transferAttempts.push(data)
+      return data
+    },
+    findFirst: async ({ where }: { where: { withdrawal_request_id: string; gmo_apply_no?: { not: null } } }) => {
+      const rows = state.transferAttempts
+        .filter((a) => a.withdrawal_request_id === where.withdrawal_request_id)
+        .filter((a) => (where.gmo_apply_no ? a.gmo_apply_no != null : true))
+        .sort((a, b) => b.attempt_no - a.attempt_no)
+      return rows[0] ?? null
+    },
+    aggregate: async ({ where }: { where: { withdrawal_request_id: string } }) => {
+      const nos = state.transferAttempts
+        .filter((a) => a.withdrawal_request_id === where.withdrawal_request_id)
+        .map((a) => a.attempt_no)
+      return { _max: { attempt_no: nos.length > 0 ? Math.max(...nos) : null } }
+    },
+  }
 }
 
 function createTx(state: MockState) {
-  const bankAccount = {
-    bankCode: '0001',
-    branchCode: '001',
-    accountNumber: '1234567',
-    accountType: 'ORDINARY' as const,
-    accountHolderName: 'サトウ ミサキ',
-    accountHolderNameKana: 'サトウ ミサキ',
-  }
+  const bankAccount = state.bankAccount
 
   return {
     $executeRaw: async () => undefined,
@@ -321,7 +661,11 @@ function createTx(state: MockState) {
         return [{ balance: state.balance, total_charged: 0, total_withdrawn: state.totalWithdrawn }]
       }
       if (sql.includes('withdrawal_requests')) {
-        return state.withdrawals.filter((withdrawal) => withdrawal.id === values[0])
+        // 実 DB と同様に「SELECT した列だけ」を返す。列漏れ(例: settlement_month未取得)を検出するため。
+        const columns = parseSelectColumns(sql)
+        return state.withdrawals
+          .filter((withdrawal) => withdrawal.id === values[0])
+          .map((withdrawal) => projectColumns(withdrawal, columns))
       }
       return []
     },
@@ -391,12 +735,36 @@ function createTx(state: MockState) {
       findUnique: async () => state.stop ? { id: 'global', is_stopped: true } : null,
     },
     advancePaymentPolicy: {
-      findFirst: async () => state.perRequestLimit
-        ? { is_suspended: false, per_request_limit_amount: state.perRequestLimit, daily_limit_amount: null, monthly_limit_amount: null }
-        : null,
+      findFirst: async () => {
+        if (state.perRequestLimit === null && state.advanceProgram === 'HIBARAI') return null
+        return {
+          is_suspended: false,
+          per_request_limit_amount: state.perRequestLimit,
+          daily_limit_amount: null,
+          monthly_limit_amount: null,
+          advance_program: state.advanceProgram,
+        }
+      },
     },
     bankAccount: {
-      findFirst: async () => ({ id: 'bank_1' }),
+      findFirst: async () => {
+        const ba = state.bankAccount
+        const now = new Date()
+        if (!ba.isVerified) return null
+        if (ba.cooldownUntil && ba.cooldownUntil > now) return null
+        return {
+          id: ba.id,
+          bankCode: ba.bankCode,
+          branchCode: ba.branchCode,
+          accountNumber: ba.accountNumber,
+          accountType: ba.accountType,
+          accountHolderName: ba.accountHolderName,
+          accountHolderNameKana: ba.accountHolderNameKana,
+          isVerified: ba.isVerified,
+          cooldownUntil: ba.cooldownUntil,
+          lastChangedAt: ba.lastChangedAt,
+        }
+      },
     },
     pointLedgerEntry: {
       create: async ({ data }: { data: LedgerRecord }) => {
@@ -449,4 +817,17 @@ function jsonResponse(body: unknown, status = 200): Response {
     status,
     headers: { 'Content-Type': 'application/json' },
   })
+}
+
+function parseSelectColumns(sql: string): string[] {
+  const match = sql.match(/SELECT\s+([\s\S]+?)\s+FROM/i)
+  if (!match) return []
+  return match[1].split(',').map((column) => column.trim())
+}
+
+function projectColumns<T extends Record<string, unknown>>(row: T, columns: string[]): Partial<T> {
+  if (columns.length === 0) return row
+  const projected: Record<string, unknown> = {}
+  for (const column of columns) projected[column] = row[column]
+  return projected as Partial<T>
 }

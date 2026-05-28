@@ -5,7 +5,7 @@ import { isHibaraiEnabled } from '@/lib/features'
 import prisma from '@/lib/prisma'
 import type { BankAccountSummary, WorkerHistoryItem } from '@/lib/dummy-data/hibarai'
 import { createHibaraiAuditLog } from './audit'
-import { getDefaultWithdrawalFee } from './utils'
+import { getDefaultWithdrawalFee, getJSTSettlementMonthStart } from './utils'
 
 export type MoneyHomeData = {
   availableAmount: number
@@ -53,7 +53,17 @@ export async function getMoneyHomeData(workerId: number): Promise<MoneyHomeData>
       select: { id: true, calculated_wage: true },
     }),
     prisma.pointLedgerEntry.aggregate({
-      where: { worker_id: workerId, kind: 'ATTENDANCE_CONFIRMED' },
+      where: {
+        worker_id: workerId,
+        // 当月精算分のみ。前月以前は月末スイープで給与口座へ振替済み想定。
+        settlement_month: getJSTSettlementMonthStart(now),
+        // チャージ + 勤怠修正の差額調整(source_type=AttendanceWageAdjustment)のみ合算。
+        // 他用途のMANUAL_ADJUSTMENTを巻き込まない（review-trigger.ts の ADJUSTMENT_SOURCE_TYPE と一致）。
+        OR: [
+          { kind: 'ATTENDANCE_CONFIRMED' },
+          { kind: 'MANUAL_ADJUSTMENT', source_type: 'AttendanceWageAdjustment' },
+        ],
+      },
       _sum: { scheduled_payment_amount: true },
     }),
     prisma.pointLedgerEntry.findMany({
