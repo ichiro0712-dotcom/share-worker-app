@@ -78,6 +78,7 @@ const ignoredPaths = [
   '/api/job-analytics', // 求人アナリティクスAPI（API側で system-admin 認証を実施）
   '/api/funnel-analytics', // 登録動線アナリティクスAPI（API側で system-admin 認証を実施）
   '/api/ga-analytics', // GA4 アナリティクスAPI（API側で system-admin 認証を実施）
+  '/api/gmo', // GMO OAuth/API（API側で feature flag + system-admin 認証を実施）
   '/rogo', // ロゴ画像
   '/images', // 画像ファイル
   '/icons', // アイコン

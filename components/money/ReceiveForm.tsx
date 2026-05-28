@@ -5,27 +5,67 @@ import { useRouter } from 'next/navigation';
 import { WalletCards } from 'lucide-react';
 import { AccountCard } from './AccountCard';
 import { ConfirmSheet } from './ConfirmSheet';
+import { createWithdrawalRequestForCurrentUser } from '@/lib/actions/hibarai/withdrawal';
 import type { BankAccountSummary } from '@/lib/dummy-data/hibarai';
 
 type ReceiveFormProps = {
   maxAmount: number;
   fee: number;
-  account: BankAccountSummary;
+  account: (BankAccountSummary & { id?: string | null }) | null;
+  bankAccountId: string | null;
+  clientIp: string;
+  initialUserAgent: string;
 };
 
 const yenFormatter = new Intl.NumberFormat('ja-JP');
 
-export function ReceiveForm({ maxAmount, fee, account }: ReceiveFormProps) {
+export function ReceiveForm({
+  maxAmount,
+  fee,
+  account,
+  bankAccountId,
+  clientIp,
+  initialUserAgent,
+}: ReceiveFormProps) {
   const router = useRouter();
   const [amount, setAmount] = useState(maxAmount);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
 
   const transferAmount = useMemo(() => Math.max(amount - fee, 0), [amount, fee]);
-  const isInvalid = amount < 1 || amount > maxAmount;
+  const isAccountReady = Boolean(bankAccountId && account?.status === 'verified');
+  const isInvalid = amount < 1 || amount > maxAmount || !isAccountReady;
 
   const handleAmountChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const nextValue = Number(event.target.value.replace(/[^\d]/g, ''));
     setAmount(Number.isNaN(nextValue) ? 0 : nextValue);
+    setErrorMessage(null);
+  };
+
+  const handleConfirm = async () => {
+    if (isInvalid || isSubmitting || !bankAccountId) return;
+
+    setIsSubmitting(true);
+    setErrorMessage(null);
+    try {
+      const result = await createWithdrawalRequestForCurrentUser({
+        amount,
+        bankAccountId,
+        idempotencyKey,
+        clientIp,
+        userAgent: typeof navigator === 'undefined' ? initialUserAgent : navigator.userAgent,
+      });
+      router.push(`/mypage/money/receive/complete?requestId=${encodeURIComponent(result.id)}`);
+      router.refresh();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '受け取り申請に失敗しました';
+      setErrorMessage(message);
+      setIsSheetOpen(false);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -61,7 +101,14 @@ export function ReceiveForm({ maxAmount, fee, account }: ReceiveFormProps) {
           </div>
           {isInvalid && (
             <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-[13px] font-bold text-red-700">
-              1円以上、¥{yenFormatter.format(maxAmount)} 以下で入力してください。
+              {isAccountReady
+                ? `1円以上、¥${yenFormatter.format(maxAmount)} 以下で入力してください。`
+                : '確認済みの受取口座が必要です。'}
+            </p>
+          )}
+          {errorMessage && (
+            <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-[13px] font-bold text-red-700">
+              {errorMessage}
             </p>
           )}
         </section>
@@ -87,7 +134,10 @@ export function ReceiveForm({ maxAmount, fee, account }: ReceiveFormProps) {
         </section>
 
         <div className="mt-4">
-          <AccountCard account={account} readonly />
+          <AccountCard
+            account={account ?? { bankName: '未登録', branchName: '-', last4: '----', status: 'unregistered' }}
+            readonly
+          />
         </div>
       </main>
 
@@ -96,10 +146,10 @@ export function ReceiveForm({ maxAmount, fee, account }: ReceiveFormProps) {
           <button
             type="button"
             onClick={() => setIsSheetOpen(true)}
-            disabled={isInvalid}
+            disabled={isInvalid || isSubmitting}
             className="min-h-14 w-full rounded-full bg-gradient-to-r from-primary-cta to-primary-cta-dark px-5 text-base font-bold text-white shadow-primary hover:brightness-105 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:from-slate-300 disabled:to-slate-300 disabled:shadow-none"
           >
-            受け取る
+            {isSubmitting ? '申請中' : '受け取る'}
           </button>
         </div>
       </div>
@@ -112,11 +162,12 @@ export function ReceiveForm({ maxAmount, fee, account }: ReceiveFormProps) {
           { label: '受け取る金額', value: `¥${yenFormatter.format(amount)}` },
           { label: '手数料', value: `¥${yenFormatter.format(fee)}` },
           { label: '振込予定額', value: `¥${yenFormatter.format(transferAmount)}`, emphasized: true },
-          { label: '受取口座', value: `${account.bankName} ****${account.last4}` },
+          { label: '受取口座', value: `${account?.bankName ?? '未登録'} ****${account?.last4 ?? '----'}` },
         ]}
-        confirmLabel="この内容で受け取る"
+        confirmLabel={isSubmitting ? '申請中' : 'この内容で受け取る'}
+        confirmDisabled={isSubmitting || isInvalid}
         onClose={() => setIsSheetOpen(false)}
-        onConfirm={() => router.push('/mypage/money/receive/complete')}
+        onConfirm={handleConfirm}
       />
     </>
   );

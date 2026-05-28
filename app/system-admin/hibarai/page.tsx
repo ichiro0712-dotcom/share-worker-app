@@ -1,11 +1,13 @@
 import Link from 'next/link';
 import { AlertTriangle, Banknote, PauseCircle, ReceiptText, Settings, ShieldAlert } from 'lucide-react';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { EmergencyStopSwitch } from '@/components/admin/hibarai/EmergencyStopSwitch';
 import { ErrorQueueTable } from '@/components/admin/hibarai/ErrorQueueTable';
 import { SummaryCard } from '@/components/admin/hibarai/SummaryCard';
+import { getOAuthTokenStatus, revokeTokens } from '@/lib/actions/hibarai/oauth-token';
 import { adminErrors, adminSummary, adminWithdrawals } from '@/lib/dummy-data/hibarai';
 import { isHibaraiEnabled } from '@/lib/features';
+import { getSystemAdminSessionData } from '@/lib/system-admin-session-server';
 
 const yenFormatter = new Intl.NumberFormat('ja-JP');
 
@@ -16,10 +18,24 @@ const statusLabels = {
   failed: '失敗',
 } as const;
 
-export default function HibaraiAdminDashboardPage() {
+export default async function HibaraiAdminDashboardPage({
+  searchParams,
+}: {
+  searchParams?: { oauth?: string };
+}) {
   if (!isHibaraiEnabled()) notFound();
 
+  const session = await getSystemAdminSessionData();
+  if (!session) redirect('/system-admin/login');
+
   const recentWithdrawals = adminWithdrawals.slice(0, 5);
+  const tokenStatus = await getOAuthTokenStatus();
+  const accountTypeLabel = tokenStatus.accountType === 'PRIVATE' ? '個人' : tokenStatus.accountType === 'CORPORATE' ? '法人' : '-';
+  const oauthMessage = searchParams?.oauth === 'success'
+    ? 'GMO接続が完了しました。'
+    : searchParams?.oauth
+      ? 'GMO接続に失敗しました。設定を確認してください。'
+      : null;
 
   return (
     <main className="mx-auto max-w-[1600px] p-8">
@@ -50,6 +66,52 @@ export default function HibaraiAdminDashboardPage() {
       <div className="mt-6">
         <EmergencyStopSwitch />
       </div>
+
+      <section className="mt-6 rounded-admin-card border border-slate-200 bg-white shadow-sm">
+        <div className="flex min-h-16 items-center justify-between border-b border-slate-200 px-4">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">GMO接続設定</h2>
+            <p className="mt-1 text-[13px] text-slate-600">OAuth2トークンの接続状態を確認します。</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/api/gmo/oauth/authorize" className="inline-flex min-h-11 items-center gap-2 rounded-admin-button bg-admin-primary px-4 text-sm font-bold text-white hover:bg-admin-primary-dark">
+              <Settings className="h-4 w-4" aria-hidden="true" />
+              GMOに接続する
+            </Link>
+            <form action={revokeTokens}>
+              <button type="submit" className="inline-flex min-h-11 items-center gap-2 rounded-admin-button border border-slate-300 px-4 text-sm font-bold text-slate-700 hover:bg-slate-50">
+                <ShieldAlert className="h-4 w-4" aria-hidden="true" />
+                接続を解除する
+              </button>
+            </form>
+          </div>
+        </div>
+        <div className="grid gap-4 p-4 md:grid-cols-4">
+          <div>
+            <p className="text-[12px] font-bold text-slate-500">状態</p>
+            <p className="mt-1 text-sm font-bold text-slate-900">
+              {tokenStatus.connected ? `有効（残り${tokenStatus.daysUntilExpiry}日）` : tokenStatus.expiresAt ? '期限切れ' : '未接続'}
+            </p>
+          </div>
+          <div>
+            <p className="text-[12px] font-bold text-slate-500">有効期限</p>
+            <p className="mt-1 text-sm text-slate-700">{tokenStatus.expiresAt ? new Date(tokenStatus.expiresAt).toLocaleString('ja-JP') : '-'}</p>
+          </div>
+          <div>
+            <p className="text-[12px] font-bold text-slate-500">scope</p>
+            <p className="mt-1 break-words text-sm text-slate-700">{tokenStatus.scope ?? '-'}</p>
+          </div>
+          <div>
+            <p className="text-[12px] font-bold text-slate-500">accountType</p>
+            <p className="mt-1 text-sm text-slate-700">{accountTypeLabel}</p>
+          </div>
+        </div>
+        {oauthMessage && (
+          <div className={`border-t px-4 py-3 text-sm font-bold ${searchParams?.oauth === 'success' ? 'border-emerald-100 bg-emerald-50 text-emerald-700' : 'border-red-100 bg-red-50 text-red-700'}`}>
+            {oauthMessage}
+          </div>
+        )}
+      </section>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_420px]">
         <ErrorQueueTable rows={adminErrors} limit={5} />
