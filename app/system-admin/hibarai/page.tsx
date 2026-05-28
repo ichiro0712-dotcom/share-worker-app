@@ -8,8 +8,9 @@ import { getOAuthTokenStatus, revokeTokens } from '@/lib/actions/hibarai/oauth-t
 import { getHibaraiSettings, getGmoRemitterBalance } from '@/lib/actions/hibarai/settings';
 import { getEmergencyStopState } from '@/lib/actions/hibarai/emergency-stop';
 import { HibaraiSettingsForm } from '@/components/admin/hibarai/HibaraiSettingsForm';
-import { adminErrors, adminWithdrawals } from '@/lib/dummy-data/hibarai';
+import { adminWithdrawals } from '@/lib/dummy-data/hibarai';
 import { getAdminDashboardSummary } from '@/lib/actions/hibarai/admin-dashboard';
+import { getHibaraiErrors } from '@/lib/actions/hibarai/admin-errors';
 import { isHibaraiEnabled } from '@/lib/features';
 import { getSystemAdminSessionData } from '@/lib/system-admin-session-server';
 
@@ -38,6 +39,7 @@ export default async function HibaraiAdminDashboardPage({
   const gmoBalance = await getGmoRemitterBalance();
   const emergencyStop = await getEmergencyStopState();
   const adminSummary = await getAdminDashboardSummary();
+  const hibaraiErrors = await getHibaraiErrors(5);
   const accountTypeLabel = tokenStatus.accountType === 'PRIVATE' ? '個人' : tokenStatus.accountType === 'CORPORATE' ? '法人' : '-';
   const oauthMessage = searchParams?.oauth === 'success'
     ? 'GMO接続が完了しました。'
@@ -153,7 +155,7 @@ export default async function HibaraiAdminDashboardPage({
       </section>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_420px]">
-        <ErrorQueueTable rows={adminErrors} limit={5} />
+        <ErrorQueueTable rows={hibaraiErrors} limit={5} />
 
         <section className="rounded-admin-card border border-slate-200 bg-white shadow-sm">
           <div className="flex min-h-16 items-center justify-between border-b border-slate-200 px-4">
