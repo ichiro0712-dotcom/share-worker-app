@@ -8,8 +8,30 @@ import { Plus, Edit, Trash2, Copy } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 
+const JOB_STATUS_LABELS: Record<string, string> = {
+  DRAFT: '下書き',
+  PUBLISHED: '公開中',
+  STOPPED: '停止中',
+  WORKING: '稼働中',
+  COMPLETED: '完了',
+  CANCELLED: 'キャンセル',
+};
+
+interface BlockingJob {
+  id: number;
+  title: string;
+  status: string;
+}
+
+interface BlockingInfo {
+  templateName: string;
+  jobs: BlockingJob[];
+  count: number;
+}
+
 interface TemplateData {
   id: number;
+  usageCount: number;
   name: string;
   title: string;
   startTime: string;
@@ -34,6 +56,42 @@ export default function TemplatesPage() {
   const { admin, isAdmin, isAdminLoading } = useAuth();
   const [templates, setTemplates] = useState<TemplateData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [blockingInfo, setBlockingInfo] = useState<BlockingInfo | null>(null);
+
+  const handleDeleteTemplate = async (template: TemplateData) => {
+    if (!admin?.facilityId) {
+      toast.error('施設情報が取得できませんでした。再ログインしてください');
+      return;
+    }
+    // 未使用テンプレートのみ破壊的確認ダイアログを表示。
+    // 使用中の場合はサーバー側でブロックされるため、確認なしで呼び出し詳細を提示する。
+    if (template.usageCount === 0) {
+      if (!confirm(`「${template.name}」を削除しますか？`)) {
+        return;
+      }
+    }
+    try {
+      const result = await deleteJobTemplate(template.id, admin.facilityId);
+      if (result.success) {
+        toast.success('テンプレートを削除しました');
+        const data = await getAdminJobTemplates(admin.facilityId);
+        setTemplates(data);
+        return;
+      }
+      if ('blockingJobs' in result && result.blockingJobs) {
+        setBlockingInfo({
+          templateName: template.name,
+          jobs: result.blockingJobs,
+          count: ('blockingJobCount' in result && result.blockingJobCount) || result.blockingJobs.length,
+        });
+        return;
+      }
+      toast.error(result.error || 'テンプレートの削除に失敗しました');
+    } catch (error) {
+      console.error('Failed to delete template:', error);
+      toast.error('テンプレートの削除に失敗しました');
+    }
+  };
 
   useEffect(() => {
     if (isAdminLoading) return;
@@ -146,6 +204,11 @@ export default function TemplatesPage() {
                         <span>•</span>
                         <span>募集: {template.recruitmentCount}名</span>
                       </div>
+                      {template.usageCount > 0 && (
+                        <span className="inline-flex items-center mt-2 px-2 py-0.5 text-xs font-medium bg-amber-50 text-amber-700 rounded border border-amber-200">
+                          使用中の求人: {template.usageCount}件
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <button
@@ -174,30 +237,17 @@ export default function TemplatesPage() {
                         <Copy className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={async () => {
-                          if (!admin?.facilityId) {
-                            toast.error('施設情報が取得できませんでした。再ログインしてください');
-                            return;
-                          }
-                          if (!confirm(`「${template.name}」を削除しますか？\nこのテンプレートを使用している求人がある場合は削除できません。`)) {
-                            return;
-                          }
-                          try {
-                            const result = await deleteJobTemplate(template.id, admin.facilityId);
-                            if (result.success) {
-                              toast.success('テンプレートを削除しました');
-                              const data = await getAdminJobTemplates(admin.facilityId);
-                              setTemplates(data);
-                            } else {
-                              toast.error(result.error || 'テンプレートの削除に失敗しました');
-                            }
-                          } catch (error) {
-                            console.error('Failed to delete template:', error);
-                            toast.error('テンプレートの削除に失敗しました');
-                          }
-                        }}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
-                        title="削除"
+                        onClick={() => handleDeleteTemplate(template)}
+                        className={
+                          template.usageCount > 0
+                            ? 'p-2 text-gray-400 hover:bg-gray-100 rounded transition-colors'
+                            : 'p-2 text-red-600 hover:bg-red-50 rounded transition-colors'
+                        }
+                        title={
+                          template.usageCount > 0
+                            ? '使用中の求人があるため削除できません（クリックで詳細）'
+                            : '削除'
+                        }
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -223,6 +273,50 @@ export default function TemplatesPage() {
           )}
         </div>
       </div>
+
+      {/* 削除ブロック詳細モーダル */}
+      {blockingInfo && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setBlockingInfo(null)}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl w-full max-w-md p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-base font-bold text-gray-900 mb-2">
+              テンプレートを削除できません
+            </h2>
+            <p className="text-sm text-gray-600 mb-3">
+              「{blockingInfo.templateName}」は下記の求人で使用中のため削除できません。
+              先に該当求人を削除または停止してください。
+            </p>
+            <div className="max-h-60 overflow-y-auto rounded border border-gray-200 divide-y divide-gray-100">
+              {blockingInfo.jobs.map((job) => (
+                <div key={job.id} className="flex items-center justify-between px-3 py-2">
+                  <span className="text-sm text-gray-800 truncate mr-2">{job.title}</span>
+                  <span className="shrink-0 px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">
+                    {JOB_STATUS_LABELS[job.status] ?? job.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+            {blockingInfo.count > blockingInfo.jobs.length && (
+              <p className="text-xs text-gray-500 mt-2">
+                ほか{blockingInfo.count - blockingInfo.jobs.length}件
+              </p>
+            )}
+            <div className="flex justify-end mt-4">
+              <button
+                onClick={() => setBlockingInfo(null)}
+                className="px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
+              >
+                閉じる
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

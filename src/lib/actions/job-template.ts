@@ -15,8 +15,19 @@ export async function getAdminJobTemplates(facilityId: number) {
         orderBy: { created_at: 'desc' },
     });
 
+    // 各テンプレートを参照する求人数を1クエリで集計（N+1回避）
+    const usageCounts = await prisma.job.groupBy({
+        by: ['template_id'],
+        where: { template_id: { in: templates.map((t) => t.id) } },
+        _count: { _all: true },
+    });
+    const usageCountMap = new Map(
+        usageCounts.map((u) => [u.template_id, u._count._all])
+    );
+
     return templates.map((template) => ({
         id: template.id,
+        usageCount: usageCountMap.get(template.id) ?? 0,
         name: template.name,
         title: template.title,
         startTime: template.start_time,
@@ -493,6 +504,14 @@ export async function deleteJobTemplate(templateId: number, facilityId: number) 
         });
 
         if (referencingJobCount > 0) {
+            // 使用中の求人を特定して返す（UIで「どの求人が使っているか」を提示するため）
+            const blockingJobs = await prisma.job.findMany({
+                where: { template_id: templateId },
+                select: { id: true, title: true, status: true },
+                orderBy: { created_at: 'desc' },
+                take: 20,
+            });
+
             // ブロック理由を監査ログに記録（INFO相当）
             logActivity({
                 userType: 'FACILITY',
@@ -513,6 +532,8 @@ export async function deleteJobTemplate(templateId: number, facilityId: number) 
             return {
                 success: false,
                 error: 'このテンプレートは使用中の求人があるため削除できません',
+                blockingJobs,
+                blockingJobCount: referencingJobCount,
             };
         }
 
@@ -544,9 +565,18 @@ export async function deleteJobTemplate(templateId: number, facilityId: number) 
                     errorMessage: 'FK constraint violated (P2003) — template became in-use during delete',
                 }).catch(() => {});
 
+                const blockingJobs = await prisma.job.findMany({
+                    where: { template_id: templateId },
+                    select: { id: true, title: true, status: true },
+                    orderBy: { created_at: 'desc' },
+                    take: 20,
+                });
+
                 return {
                     success: false,
                     error: 'このテンプレートは使用中の求人があるため削除できません',
+                    blockingJobs,
+                    blockingJobCount: blockingJobs.length,
                 };
             }
             throw deleteError;
