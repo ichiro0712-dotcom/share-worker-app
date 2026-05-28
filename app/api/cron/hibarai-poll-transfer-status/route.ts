@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { isHibaraiEnabled } from '@/lib/features'
 import prisma from '@/lib/prisma'
 import { createGmoClient, TransferStatusResponseSchema } from '@/lib/gmo-aozora'
-import { getAdminStatusInfo, isFailureStatus } from '@/lib/gmo-aozora/transfer-status'
+import { getAdminStatusInfo, isBalanceRestorableFailureStatus } from '@/lib/gmo-aozora/transfer-status'
 import { getActiveAccessToken } from '@/lib/actions/hibarai/oauth-token'
 import { createHibaraiAuditLog, recordHibaraiAudit } from '@/lib/actions/hibarai/audit'
 import { createSupportCode, getErrorMessage } from '@/lib/actions/hibarai/utils'
@@ -89,7 +89,25 @@ export async function GET(request: Request): Promise<Response> {
             return 'success' as const
           }
 
-          if (statusCode === 22 || statusCode === 25 || statusCode === 40 || isFailureStatus(statusCode)) {
+          // 組戻不成立(26): 送金済みで資金が受取人側に残っている（戻っていない）。
+          // 残高を復元すると再出金で二重支払いになるため、残高は戻さず送金済み扱いとし、
+          // 要調査のERROR監査を残して手動対応に回す。
+          if (statusCode === 26) {
+            await completeWithdrawalInTransaction(tx, row, statusCode, statusName)
+            await createHibaraiAuditLog(tx, {
+              actorType: 'SYSTEM_CRON',
+              action: 'WITHDRAWAL_RECALL_FAILED',
+              targetType: 'WithdrawalRequest',
+              targetId: row.id,
+              idempotencyKey: `recall-failed-${row.idempotency_key}`,
+              payload: { statusCode, statusName, applyNo: row.gmo_apply_no } as Prisma.InputJsonValue,
+              result: 'ERROR',
+            })
+            return 'failure' as const
+          }
+
+          // 残高を復元してよい失敗のみ返却する（26は上で除外済み）。
+          if (isBalanceRestorableFailureStatus(statusCode)) {
             await revertWithdrawalInTransaction(tx, row, statusCode, statusName)
             return 'failure' as const
           }

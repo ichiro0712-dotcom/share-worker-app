@@ -61,6 +61,17 @@ const TERMINAL_STATUSES = new Set<number>([20, 22, 25, 26, 40, 3, 4, 5, 8])
 const FAILURE_STATUSES = new Set<number>([3, 4, 5, 8, 22, 25, 26, 40])
 
 /**
+ * 残高を復元してよい失敗終端状態（＝資金が受取人側に渡っていない、または確実に戻った状態）。
+ * 3:差戻 4:取下げ 5:期限切れ 8:承認取消 = 送金前に終了（資金未流出）
+ * 22:資金返却 25:組戻済 = 資金が確実に戻った
+ * 40:手続不成立 = 送金不成立（資金未流出）
+ *
+ * ⚠ 26:組戻不成立 は**除外**する。組戻し(recall)が成立せず資金は受取人側に残っているため、
+ *   残高を復元すると再出金で二重支払い（運営者損失）になる。26は別途、送金済み扱い＋手動調査とする。
+ */
+const BALANCE_RESTORABLE_FAILURE_STATUSES = new Set<number>([3, 4, 5, 8, 22, 25, 40])
+
+/**
  * GMO振込ステータスが以後変化しない終端状態かを判定する。
  */
 export const isTerminalStatus = (code: number): boolean => TERMINAL_STATUSES.has(code)
@@ -74,6 +85,13 @@ export const isSuccessStatus = (code: number): boolean => code === TRANSFER_STAT
  * GMO振込ステータスが失敗または要対応の終端状態かを判定する。
  */
 export const isFailureStatus = (code: number): boolean => FAILURE_STATUSES.has(code)
+
+/**
+ * 残高を復元してよい失敗終端状態か（資金が受取人に渡っていない/確実に戻った）。
+ * 26:組戻不成立 は false（資金が戻っていないため復元すると二重支払いになる）。
+ */
+export const isBalanceRestorableFailureStatus = (code: number): boolean =>
+  BALANCE_RESTORABLE_FAILURE_STATUSES.has(code)
 
 /**
  * ユーザー表示用の振込ステータス文言を返す。
