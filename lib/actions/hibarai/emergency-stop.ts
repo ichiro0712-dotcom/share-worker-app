@@ -1,5 +1,5 @@
-'use server'
-
+// 'use server' にしない（adminId を引数で受ける停止/解除を公開アクションとして露出させない）。
+// 公開アクションは認証付きの emergency-stop-action.ts のみ。
 import { Prisma } from '@prisma/client'
 import { isHibaraiEnabled } from '@/lib/features'
 import prisma from '@/lib/prisma'
@@ -63,9 +63,9 @@ export async function triggerEmergencyStop(adminId: number, reason: string): Pro
   }
 }
 
-export async function releaseEmergencyStop(adminId: number, approverId: number, reason: string): Promise<void> {
+// 解除は単独可（二者承認なし）。誰が・いつ・なぜ解除したかは監査ログに必ず残す。
+export async function releaseEmergencyStop(adminId: number, reason: string): Promise<void> {
   if (!isHibaraiEnabled()) throw new Error('Feature disabled')
-  if (adminId === approverId) throw new Error('Two-person approval is required')
 
   try {
     await prisma.$transaction(
@@ -83,7 +83,7 @@ export async function releaseEmergencyStop(adminId: number, approverId: number, 
           data: {
             is_stopped: false,
             released_at: new Date(),
-            released_by_admin_id: approverId,
+            released_by_admin_id: adminId,
           },
         })
         await createHibaraiAuditLog(tx, {
@@ -93,7 +93,7 @@ export async function releaseEmergencyStop(adminId: number, approverId: number, 
           targetType: 'EmergencyStopState',
           targetId: 'global',
           idempotencyKey: `emergency-release-${Date.now()}`,
-          payload: { reason, approverId } as Prisma.InputJsonValue,
+          payload: { reason } as Prisma.InputJsonValue,
           result: 'SUCCESS',
         })
       },
@@ -106,10 +106,54 @@ export async function releaseEmergencyStop(adminId: number, approverId: number, 
       action: 'EMERGENCY_STOP_RELEASE_FAILED',
       targetType: 'EmergencyStopState',
       targetId: 'global',
-      payload: { reason, approverId } as Prisma.InputJsonValue,
+      payload: { reason } as Prisma.InputJsonValue,
       result: 'ERROR',
       errorCode: getErrorMessage(error).slice(0, 100),
     }).catch(() => {})
     throw error
   }
+}
+
+export type EmergencyStopStateView = {
+  isStopped: boolean
+  stoppedAt: Date | null
+  stoppedReason: string | null
+  releasedAt: Date | null
+}
+
+/** 現在の緊急停止状態を取得する。 */
+export async function getEmergencyStopState(): Promise<EmergencyStopStateView> {
+  const s = await prisma.emergencyStopState.findUnique({ where: { id: 'global' } })
+  return {
+    isStopped: s?.is_stopped ?? false,
+    stoppedAt: s?.stopped_at ?? null,
+    stoppedReason: s?.stopped_reason ?? null,
+    releasedAt: s?.released_at ?? null,
+  }
+}
+
+export type EmergencyStopHistoryItem = {
+  action: 'EMERGENCY_STOP_TRIGGERED' | 'EMERGENCY_STOP_RELEASED' | string
+  actorId: string | null
+  at: Date
+  reason: string | null
+}
+
+/** 停止/解除の操作履歴を監査ログから取得する。 */
+export async function getEmergencyStopHistory(limit = 10): Promise<EmergencyStopHistoryItem[]> {
+  const logs = await prisma.hibaraiAuditLog.findMany({
+    where: { action: { in: ['EMERGENCY_STOP_TRIGGERED', 'EMERGENCY_STOP_RELEASED'] } },
+    orderBy: { created_at: 'desc' },
+    take: limit,
+    select: { action: true, actor_id: true, created_at: true, payload: true },
+  })
+  return logs.map((l) => {
+    const payload = (l.payload ?? {}) as { reason?: unknown }
+    return {
+      action: l.action,
+      actorId: l.actor_id,
+      at: l.created_at,
+      reason: typeof payload.reason === 'string' ? payload.reason : null,
+    }
+  })
 }

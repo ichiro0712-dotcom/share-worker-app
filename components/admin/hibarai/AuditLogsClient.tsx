@@ -22,6 +22,7 @@ const resultClass: Record<AuditLogItem['result'], string> = {
   成功: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   失敗: 'bg-red-50 text-red-700 border-red-200',
   承認待ち: 'bg-amber-50 text-amber-700 border-amber-200',
+  警告: 'bg-orange-50 text-orange-700 border-orange-200',
 };
 
 export function AuditLogsClient({ rows }: AuditLogsClientProps) {

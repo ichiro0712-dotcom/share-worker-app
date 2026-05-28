@@ -74,6 +74,10 @@ export async function updateSystemSetting(
   value: string,
   updatedBy?: { type: string; id: number }
 ): Promise<{ success: boolean; error?: string }> {
+  // 日払い(hibarai_*)設定は専用の saveHibaraiSettings 経由のみ（検証・監査の迂回防止）
+  if (key.startsWith('hibarai_')) {
+    return { success: false, error: '日払い設定は専用画面から変更してください' };
+  }
   try {
     await prisma.systemSetting.upsert({
       where: { key },
@@ -131,6 +135,12 @@ export async function updateSystemSettings(
   settings: Record<string, string>,
   updatedBy?: { type: string; id: number }
 ): Promise<{ success: boolean; error?: string }> {
+  // 日払い(hibarai_*)設定は専用の saveHibaraiSettings 経由のみ許可する。
+  // 汎用APIで更新すると手数料の正値検証や監査ログを迂回できてしまうため拒否。
+  const hibaraiKeys = Object.keys(settings).filter((key) => key.startsWith('hibarai_'));
+  if (hibaraiKeys.length > 0) {
+    return { success: false, error: '日払い設定は専用画面から変更してください' };
+  }
   try {
     const updates = Object.entries(settings).map(([key, value]) =>
       prisma.systemSetting.upsert({

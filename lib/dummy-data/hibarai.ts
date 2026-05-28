@@ -52,7 +52,7 @@ export type AuditLogItem = {
   action: string;
   target: string;
   ipAddress: string;
-  result: '成功' | '失敗' | '承認待ち';
+  result: '成功' | '失敗' | '承認待ち' | '警告';
   type: 'withdrawal' | 'account' | 'policy' | 'emergency' | 'auth';
 };
 

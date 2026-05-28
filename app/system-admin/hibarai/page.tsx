@@ -5,7 +5,11 @@ import { EmergencyStopSwitch } from '@/components/admin/hibarai/EmergencyStopSwi
 import { ErrorQueueTable } from '@/components/admin/hibarai/ErrorQueueTable';
 import { SummaryCard } from '@/components/admin/hibarai/SummaryCard';
 import { getOAuthTokenStatus, revokeTokens } from '@/lib/actions/hibarai/oauth-token';
-import { adminErrors, adminSummary, adminWithdrawals } from '@/lib/dummy-data/hibarai';
+import { getHibaraiSettings, getGmoRemitterBalance } from '@/lib/actions/hibarai/settings';
+import { getEmergencyStopState } from '@/lib/actions/hibarai/emergency-stop';
+import { HibaraiSettingsForm } from '@/components/admin/hibarai/HibaraiSettingsForm';
+import { adminErrors, adminWithdrawals } from '@/lib/dummy-data/hibarai';
+import { getAdminDashboardSummary } from '@/lib/actions/hibarai/admin-dashboard';
 import { isHibaraiEnabled } from '@/lib/features';
 import { getSystemAdminSessionData } from '@/lib/system-admin-session-server';
 
@@ -30,6 +34,10 @@ export default async function HibaraiAdminDashboardPage({
 
   const recentWithdrawals = adminWithdrawals.slice(0, 5);
   const tokenStatus = await getOAuthTokenStatus();
+  const hibaraiSettings = await getHibaraiSettings();
+  const gmoBalance = await getGmoRemitterBalance();
+  const emergencyStop = await getEmergencyStopState();
+  const adminSummary = await getAdminDashboardSummary();
   const accountTypeLabel = tokenStatus.accountType === 'PRIVATE' ? '個人' : tokenStatus.accountType === 'CORPORATE' ? '法人' : '-';
   const oauthMessage = searchParams?.oauth === 'success'
     ? 'GMO接続が完了しました。'
@@ -63,8 +71,39 @@ export default async function HibaraiAdminDashboardPage({
         <SummaryCard title="出金額合計" value={`¥${yenFormatter.format(adminSummary.totalWithdrawn)}`} description="本日申請分の出金額合計です。" icon={ReceiptText} tone="slate" />
       </div>
 
+      <section className="mt-6 rounded-admin-card border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-lg font-bold text-slate-900">GMO送金元 残高</h2>
+        <p className="mt-1 text-[13px] text-slate-600">送金元口座の引き出し可能残高です。枯渇すると出金が失敗します。</p>
+        {(() => {
+          if (!gmoBalance.available || gmoBalance.withdrawableAmount == null) {
+            return <p className="mt-3 text-sm font-bold text-slate-500">残高を取得できませんでした（GMO未接続またはdummyモード）。</p>;
+          }
+          const lv = gmoBalance.level;
+          const tone =
+            lv === 'critical' ? { c: 'text-red-700', b: 'bg-red-50 border-red-200', label: '危険' }
+            : lv === 'warning' ? { c: 'text-orange-700', b: 'bg-orange-50 border-orange-200', label: '警告' }
+            : lv === 'caution' ? { c: 'text-amber-700', b: 'bg-amber-50 border-amber-200', label: '注意' }
+            : { c: 'text-emerald-700', b: 'bg-emerald-50 border-emerald-200', label: '正常' };
+          return (
+            <div className={`mt-3 flex flex-wrap items-center gap-4 rounded-lg border p-4 ${tone.b}`}>
+              <p className={`text-3xl font-black tabular-nums ${tone.c}`}>¥{yenFormatter.format(gmoBalance.withdrawableAmount)}</p>
+              <span className={`rounded-full border px-3 py-1 text-sm font-bold ${tone.c}`}>{tone.label}</span>
+              <span className="text-[12px] text-slate-500">
+                閾値: 注意 ¥{yenFormatter.format(gmoBalance.thresholds.caution)} / 警告 ¥{yenFormatter.format(gmoBalance.thresholds.warning)} / 危険 ¥{yenFormatter.format(gmoBalance.thresholds.critical)}
+              </span>
+            </div>
+          );
+        })()}
+      </section>
+
+      <section className="mt-6 rounded-admin-card border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-lg font-bold text-slate-900">日払い 全体設定</h2>
+        <p className="mt-1 mb-4 text-[13px] text-slate-600">振込手数料（一律）とGMO残高アラート閾値。変更は監査ログに記録されます。</p>
+        <HibaraiSettingsForm settings={hibaraiSettings} />
+      </section>
+
       <div className="mt-6">
-        <EmergencyStopSwitch />
+        <EmergencyStopSwitch initialStopped={emergencyStop.isStopped} />
       </div>
 
       <section className="mt-6 rounded-admin-card border border-slate-200 bg-white shadow-sm">

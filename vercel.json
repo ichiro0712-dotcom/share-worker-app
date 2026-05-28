@@ -63,6 +63,10 @@
       "schedule": "0 * * * *"
     },
     {
+      "path": "/api/cron/hibarai-gmo-balance-alert",
+      "schedule": "*/30 * * * *"
+    },
+    {
       "path": "/api/cron/advisor-cleanup",
       "schedule": "0 19 * * *"
     },

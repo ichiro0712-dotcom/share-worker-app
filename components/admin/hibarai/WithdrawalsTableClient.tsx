@@ -1,45 +1,56 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import type { AdminWithdrawalItem, WithdrawalStatus } from '@/lib/dummy-data/hibarai';
+import { Fragment, useMemo, useState, useTransition } from 'react';
+import { fetchWithdrawalDetail } from '@/lib/actions/hibarai/admin-withdrawals-action';
+import type {
+  AdminWithdrawalRow,
+  AdminWithdrawalSummary,
+  AdminWithdrawalUiStatus,
+  AdminWithdrawalDetail,
+} from '@/lib/actions/hibarai/admin-withdrawals';
 
 type WithdrawalsTableClientProps = {
-  rows: AdminWithdrawalItem[];
+  rows: AdminWithdrawalRow[];
+  summary: AdminWithdrawalSummary;
 };
 
-type StatusFilter = 'all' | WithdrawalStatus;
+type StatusFilter = 'all' | AdminWithdrawalUiStatus;
 
-const statusLabels: Record<WithdrawalStatus, string> = {
+const statusLabels: Record<AdminWithdrawalUiStatus, string> = {
   completed: '完了',
   accepted: '受付済み',
   processing: '銀行処理中',
   failed: '失敗',
 };
 
-const statusClass: Record<WithdrawalStatus, string> = {
+const statusClass: Record<AdminWithdrawalUiStatus, string> = {
   completed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   accepted: 'bg-blue-50 text-blue-700 border-blue-200',
   processing: 'bg-amber-50 text-amber-700 border-amber-200',
   failed: 'bg-red-50 text-red-700 border-red-200',
 };
 
-const yenFormatter = new Intl.NumberFormat('ja-JP');
-const pageSize = 5;
+const yen = new Intl.NumberFormat('ja-JP');
+const pageSize = 20;
 
-export function WithdrawalsTableClient({ rows }: WithdrawalsTableClientProps) {
+export function WithdrawalsTableClient({ rows, summary }: WithdrawalsTableClientProps) {
   const [status, setStatus] = useState<StatusFilter>('all');
   const [workerQuery, setWorkerQuery] = useState('');
   const [minAmount, setMinAmount] = useState('');
   const [maxAmount, setMaxAmount] = useState('');
   const [page, setPage] = useState(1);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [detail, setDetail] = useState<AdminWithdrawalDetail | null>(null);
+  const [isPending, startTransition] = useTransition();
 
   const filteredRows = useMemo(() => {
     return rows.filter((row) => {
       const matchesStatus = status === 'all' || row.status === status;
-      const matchesWorker = !workerQuery || row.workerName.includes(workerQuery) || row.workerId.includes(workerQuery);
+      const q = workerQuery.trim();
+      const matchesWorker = !q || row.workerName.includes(q) || String(row.workerId).includes(q);
       const min = minAmount ? Number(minAmount) : 0;
       const max = maxAmount ? Number(maxAmount) : Number.POSITIVE_INFINITY;
-      const matchesAmount = row.amount >= min && row.amount <= max;
+      const matchesAmount = row.requestedAmount >= min && row.requestedAmount <= max;
       return matchesStatus && matchesWorker && matchesAmount;
     });
   }, [maxAmount, minAmount, rows, status, workerQuery]);
@@ -48,133 +59,174 @@ export function WithdrawalsTableClient({ rows }: WithdrawalsTableClientProps) {
   const currentPage = Math.min(page, totalPages);
   const visibleRows = filteredRows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-  const handleCsvExport = () => {
-    window.alert('CSV出力を開始しました（ダミー）');
+  const toggleDetail = (id: string) => {
+    if (expandedId === id) {
+      setExpandedId(null);
+      setDetail(null);
+      return;
+    }
+    setExpandedId(id);
+    setDetail(null);
+    startTransition(async () => {
+      const d = await fetchWithdrawalDetail(id);
+      setDetail(d);
+    });
   };
 
   return (
-    <section className="rounded-admin-card border border-slate-200 bg-white shadow-sm">
-      <div className="flex flex-col gap-4 border-b border-slate-200 p-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+    <div className="grid gap-4">
+      {/* サマリ */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <SummaryCard label="件数" value={String(summary.total)} />
+        <SummaryCard label="完了" value={String(summary.byStatus.completed)} />
+        <SummaryCard label="処理中" value={String(summary.byStatus.processing)} />
+        <SummaryCard label="失敗" value={String(summary.byStatus.failed)} />
+        <SummaryCard label="申請額合計" value={`¥${yen.format(summary.totalRequestedAmount)}`} />
+      </div>
+
+      <section className="rounded-admin-card border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-3 border-b border-slate-200 p-4 lg:flex-row lg:flex-wrap lg:items-end">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">引き出し履歴</h2>
-            <p className="mt-1 text-[13px] leading-relaxed text-slate-600">検索・フィルタは画面内ダミーで動作します。</p>
+            <label className="mb-1 block text-[13px] font-bold text-slate-600">状態</label>
+            <select value={status} onChange={(e) => { setStatus(e.target.value as StatusFilter); setPage(1); }}
+              className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm">
+              <option value="all">すべて</option>
+              <option value="completed">完了</option>
+              <option value="accepted">受付済み</option>
+              <option value="processing">銀行処理中</option>
+              <option value="failed">失敗</option>
+            </select>
           </div>
-          <button
-            type="button"
-            onClick={handleCsvExport}
-            className="min-h-11 rounded-admin-button bg-admin-primary px-4 text-sm font-bold text-white hover:bg-admin-primary-dark"
-          >
-            CSV出力
-          </button>
+          <div>
+            <label className="mb-1 block text-[13px] font-bold text-slate-600">ワーカー（名前/ID）</label>
+            <input value={workerQuery} onChange={(e) => { setWorkerQuery(e.target.value); setPage(1); }}
+              className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm" />
+          </div>
+          <div>
+            <label className="mb-1 block text-[13px] font-bold text-slate-600">金額(下限)</label>
+            <input inputMode="numeric" value={minAmount} onChange={(e) => { setMinAmount(e.target.value.replace(/\D/g, '')); setPage(1); }}
+              className="min-h-10 w-28 rounded-lg border border-slate-300 px-3 text-sm tabular-nums" />
+          </div>
+          <div>
+            <label className="mb-1 block text-[13px] font-bold text-slate-600">金額(上限)</label>
+            <input inputMode="numeric" value={maxAmount} onChange={(e) => { setMaxAmount(e.target.value.replace(/\D/g, '')); setPage(1); }}
+              className="min-h-10 w-28 rounded-lg border border-slate-300 px-3 text-sm tabular-nums" />
+          </div>
         </div>
 
-        <div className="grid gap-3 lg:grid-cols-[160px_1fr_130px_130px]">
-          <select
-            value={status}
-            onChange={(event) => {
-              setStatus(event.target.value as StatusFilter);
-              setPage(1);
-            }}
-            className="min-h-11 rounded-lg border border-slate-300 px-3 text-sm"
-            aria-label="状態で絞り込み"
-          >
-            <option value="all">すべて</option>
-            <option value="completed">完了</option>
-            <option value="accepted">受付済み</option>
-            <option value="processing">銀行処理中</option>
-            <option value="failed">失敗</option>
-          </select>
-          <input
-            value={workerQuery}
-            onChange={(event) => {
-              setWorkerQuery(event.target.value);
-              setPage(1);
-            }}
-            className="min-h-11 rounded-lg border border-slate-300 px-3 text-sm"
-            placeholder="ワーカー名・ID"
-          />
-          <input
-            value={minAmount}
-            onChange={(event) => setMinAmount(event.target.value.replace(/\D/g, ''))}
-            inputMode="numeric"
-            className="min-h-11 rounded-lg border border-slate-300 px-3 text-sm tabular-nums"
-            placeholder="最小金額"
-          />
-          <input
-            value={maxAmount}
-            onChange={(event) => setMaxAmount(event.target.value.replace(/\D/g, ''))}
-            inputMode="numeric"
-            className="min-h-11 rounded-lg border border-slate-300 px-3 text-sm tabular-nums"
-            placeholder="最大金額"
-          />
-        </div>
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[980px] text-left">
-          <thead className="bg-slate-50 text-sm text-slate-600">
-            <tr>
-              <th className="px-4 py-3 font-bold">ID</th>
-              <th className="px-4 py-3 font-bold">ワーカー</th>
-              <th className="px-4 py-3 text-right font-bold">金額</th>
-              <th className="px-4 py-3 text-right font-bold">手数料</th>
-              <th className="px-4 py-3 font-bold">状態</th>
-              <th className="px-4 py-3 font-bold">申請時刻</th>
-              <th className="px-4 py-3 font-bold">完了時刻</th>
-              <th className="px-4 py-3 font-bold">銀行</th>
-            </tr>
-          </thead>
-          <tbody>
-            {visibleRows.map((row) => (
-              <tr key={row.id} className="border-t border-slate-100">
-                <td className="px-4 py-4 text-sm font-bold text-slate-900">{row.id}</td>
-                <td className="px-4 py-4">
-                  <p className="text-base font-bold text-slate-900">{row.workerName}</p>
-                  <p className="text-[13px] text-slate-600">{row.workerId}</p>
-                </td>
-                <td className="px-4 py-4 text-right text-base font-bold text-slate-900 tabular-nums">¥{yenFormatter.format(row.amount)}</td>
-                <td className="px-4 py-4 text-right text-sm text-slate-700 tabular-nums">¥{yenFormatter.format(row.fee)}</td>
-                <td className="px-4 py-4">
-                  <span className={`inline-flex min-h-7 items-center rounded-full border px-2.5 text-[13px] font-bold ${statusClass[row.status]}`}>
-                    {statusLabels[row.status]}
-                  </span>
-                </td>
-                <td className="px-4 py-4 text-sm text-slate-700">{row.requestedAt}</td>
-                <td className="px-4 py-4 text-sm text-slate-700">{row.completedAt}</td>
-                <td className="px-4 py-4 text-sm text-slate-700">{row.bankName}</td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50 text-left text-[13px] text-slate-600">
+                <th className="p-3">申請日時</th>
+                <th className="p-3">ワーカー</th>
+                <th className="p-3 text-right">申請額</th>
+                <th className="p-3 text-right">手数料</th>
+                <th className="p-3 text-right">振込額</th>
+                <th className="p-3">状態</th>
+                <th className="p-3">振込先</th>
+                <th className="p-3">精算月</th>
+                <th className="p-3">GMO申込</th>
+                <th className="p-3"></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="flex items-center justify-between border-t border-slate-200 p-4">
-        <p className="text-[13px] text-slate-600">
-          {filteredRows.length}件中 {visibleRows.length}件を表示
-        </p>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setPage((value) => Math.max(1, value - 1))}
-            disabled={currentPage === 1}
-            className="min-h-11 rounded-admin-button border border-slate-300 px-4 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            前へ
-          </button>
-          <span className="inline-flex min-h-11 items-center px-2 text-sm font-bold text-slate-700 tabular-nums">
-            {currentPage} / {totalPages}
-          </span>
-          <button
-            type="button"
-            onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
-            disabled={currentPage === totalPages}
-            className="min-h-11 rounded-admin-button border border-slate-300 px-4 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            次へ
-          </button>
+            </thead>
+            <tbody>
+              {visibleRows.length === 0 && (
+                <tr><td colSpan={10} className="p-6 text-center text-slate-500">該当する出金がありません。</td></tr>
+              )}
+              {visibleRows.map((row) => (
+                <Fragment key={row.id}>
+                  <tr className="border-b border-slate-100">
+                    <td className="p-3 whitespace-nowrap">{row.requestedAt}</td>
+                    <td className="p-3">{row.workerName}<span className="ml-1 text-[12px] text-slate-400">#{row.workerId}</span></td>
+                    <td className="p-3 text-right tabular-nums">¥{yen.format(row.requestedAmount)}</td>
+                    <td className="p-3 text-right tabular-nums">¥{yen.format(row.feeAmount)}</td>
+                    <td className="p-3 text-right tabular-nums">¥{yen.format(row.transferAmount)}</td>
+                    <td className="p-3">
+                      <span className={`inline-block rounded-full border px-2 py-0.5 text-[12px] font-bold ${statusClass[row.status]}`}>
+                        {statusLabels[row.status]}
+                      </span>
+                    </td>
+                    <td className="p-3 whitespace-nowrap">{row.bankName}<span className="ml-1 text-[12px] text-slate-400">…{row.accountLast4}</span></td>
+                    <td className="p-3 whitespace-nowrap">{row.settlementMonth}</td>
+                    <td className="p-3 tabular-nums">{row.gmoApplyNo ?? '-'}</td>
+                    <td className="p-3">
+                      <button type="button" onClick={() => toggleDetail(row.id)}
+                        className="rounded-md border border-slate-300 px-2 py-1 text-[12px] font-bold text-slate-700 hover:bg-slate-50">
+                        {expandedId === row.id ? '閉じる' : '詳細'}
+                      </button>
+                    </td>
+                  </tr>
+                  {expandedId === row.id && (
+                    <tr className="border-b border-slate-100 bg-slate-50">
+                      <td colSpan={10} className="p-4">
+                        {isPending && !detail && <p className="text-[13px] text-slate-500">読み込み中…</p>}
+                        {detail && detail.id === row.id && (
+                          <div className="grid gap-3">
+                            {row.errorMessage && <p className="text-[13px] font-bold text-red-600">エラー: {row.errorMessage}</p>}
+                            <div className="text-[13px] text-slate-700">
+                              GMO状態: {detail.gmoTransferStatusName ?? '-'} / 申込番号: {detail.gmoApplyNo ?? '-'}
+                            </div>
+                            <div>
+                              <p className="mb-1 text-[13px] font-bold text-slate-600">GMO送信試行（transfer_attempts）</p>
+                              {detail.attempts.length === 0 ? (
+                                <p className="text-[13px] text-slate-500">送信試行はまだありません。</p>
+                              ) : (
+                                <table className="w-full text-[13px]">
+                                  <thead><tr className="text-left text-slate-500">
+                                    <th className="py-1 pr-3">#</th><th className="py-1 pr-3">日時</th>
+                                    <th className="py-1 pr-3">HTTP</th><th className="py-1 pr-3">申込番号</th>
+                                    <th className="py-1 pr-3">エラー</th><th className="py-1 pr-3">所要(ms)</th>
+                                  </tr></thead>
+                                  <tbody>
+                                    {detail.attempts.map((a) => (
+                                      <tr key={a.attemptNo} className="border-t border-slate-200">
+                                        <td className="py-1 pr-3">{a.attemptNo}</td>
+                                        <td className="py-1 pr-3 whitespace-nowrap">{a.occurredAt}</td>
+                                        <td className="py-1 pr-3">{a.responseStatusCode ?? '-'}</td>
+                                        <td className="py-1 pr-3">{a.gmoApplyNo ?? '-'}</td>
+                                        <td className="py-1 pr-3">{a.errorCode ?? '-'}</td>
+                                        <td className="py-1 pr-3">{a.durationMs ?? '-'}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        {!isPending && detail === null && expandedId === row.id && (
+                          <p className="text-[13px] text-slate-500">詳細を取得できませんでした。</p>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
         </div>
-      </div>
-    </section>
+
+        <div className="flex items-center justify-between p-4 text-sm">
+          <p className="text-slate-600">{filteredRows.length}件中 {visibleRows.length}件表示</p>
+          <div className="flex items-center gap-2">
+            <button type="button" disabled={currentPage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="rounded-md border border-slate-300 px-3 py-1 disabled:opacity-40">前へ</button>
+            <span className="tabular-nums">{currentPage} / {totalPages}</span>
+            <button type="button" disabled={currentPage >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              className="rounded-md border border-slate-300 px-3 py-1 disabled:opacity-40">次へ</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function SummaryCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-admin-card border border-slate-200 bg-white p-4 shadow-sm">
+      <p className="text-[13px] font-bold text-slate-600">{label}</p>
+      <p className="mt-1 text-xl font-black text-slate-900 tabular-nums">{value}</p>
+    </div>
   );
 }

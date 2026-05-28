@@ -1,5 +1,7 @@
-'use server'
-
+// 'use server' にしない。createWithdrawalRequest(任意workerId)・submitWithdrawalToGmo・
+// markWithdrawalCompleted・revertReservation 等の金銭プリミティブを公開アクションとして露出させないため。
+// 公開アクションは認証付きの withdrawal-action.ts(createWithdrawalForCurrentUser) のみ。
+// submit/poll/revert は cron 等のサーバーサイドからのみ呼ぶ。
 import { Prisma, WithdrawalStatus } from '@prisma/client'
 import { isHibaraiEnabled } from '@/lib/features'
 import prisma from '@/lib/prisma'
@@ -11,12 +13,11 @@ import {
   isValidIdempotencyKey,
 } from '@/lib/gmo-aozora'
 import type { TransferRequest } from '@/lib/gmo-aozora'
-import { getAuthenticatedUser } from '@/src/lib/actions/helpers'
 import { getActiveAccessToken } from './oauth-token'
 import { createHibaraiAuditLog, recordHibaraiAudit } from './audit'
+import { getEffectiveWithdrawalFee } from './settings'
 import {
   formatJSTDate,
-  getDefaultWithdrawalFee,
   getErrorMessage,
   getJSTMonthStart,
   getJSTSettlementMonthStart,
@@ -123,6 +124,9 @@ export async function createWithdrawalRequest(
       throw new InvalidIdempotencyKeyError('Invalid idempotencyKey')
     }
 
+    // 有効手数料はトランザクション開始前に確定（申請時の値をsnapshotとして保存）
+    const fee = await getEffectiveWithdrawalFee()
+
     return await prisma.$transaction(
       async (tx) => {
         const existing = await tx.withdrawalRequest.findUnique({
@@ -135,6 +139,8 @@ export async function createWithdrawalRequest(
           throw new Error('Invalid withdrawal amount')
         }
 
+        // 停止行をロックしてから判定し、停止コミットとの競合（停止前のfalseを読んで申請成立）を防ぐ
+        await tx.$queryRaw`SELECT id FROM emergency_stop_states WHERE id = 'global' FOR UPDATE`
         const stop = await tx.emergencyStopState.findUnique({ where: { id: 'global' } })
         if (stop?.is_stopped) throw new EmergencyStoppedError('Emergency stop is active')
 
@@ -164,7 +170,7 @@ export async function createWithdrawalRequest(
         if (policy && policy.advance_program !== 'HIBARAI') {
           throw new ProgramNotAllowedError('Advance program is not HIBARAI')
         }
-        if (policy?.per_request_limit_amount && input.amount > policy.per_request_limit_amount) {
+        if (policy?.per_request_limit_amount != null && input.amount > policy.per_request_limit_amount) {
           throw new OverLimitError('Per request limit exceeded')
         }
 
@@ -201,7 +207,6 @@ export async function createWithdrawalRequest(
 
         await checkWithdrawalRateLimits(tx, input.workerId, input.amount, policy)
 
-        const fee = getDefaultWithdrawalFee()
         const transferAmount = input.amount - fee
         if (transferAmount <= 0) throw new Error('Transfer amount must be positive after fee')
 
@@ -289,16 +294,12 @@ export async function createWithdrawalRequest(
   }
 }
 
-export async function createWithdrawalRequestForCurrentUser(
-  input: CreateWithdrawalForCurrentUserInput
-): Promise<{ id: string; idempotencyKey: string }> {
-  if (!isHibaraiEnabled()) throw new Error('Feature disabled')
-  const user = await getAuthenticatedUser()
-  return createWithdrawalRequest({ ...input, workerId: user.id })
-}
-
 export async function submitWithdrawalToGmo(withdrawalRequestId: string): Promise<void> {
   if (!isHibaraiEnabled()) throw new Error('Feature disabled')
+
+  // 緊急停止中は送金しない（cron入口チェックに加え、送信直前にも再確認する多層防御）
+  const stop = await prisma.emergencyStopState.findUnique({ where: { id: 'global' } })
+  if (stop?.is_stopped) return
 
   const now = new Date()
   // 初回送信(PENDING)か、応答不明後の再送(既にPROCESSING)かを判定する。

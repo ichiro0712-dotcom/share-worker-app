@@ -1,32 +1,43 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { AlertTriangle, PlayCircle, Square } from 'lucide-react';
-
-type StopHistoryItem = {
-  date: string;
-  actor: string;
-  action: string;
-  reason: string;
-};
+import { triggerStopAction, releaseStopAction } from '@/lib/actions/hibarai/emergency-stop-action';
+import type { EmergencyStopHistoryItem } from '@/lib/actions/hibarai/emergency-stop';
 
 type EmergencyStopControlPanelProps = {
-  history: StopHistoryItem[];
+  initialStopped: boolean;
+  history: EmergencyStopHistoryItem[];
 };
 
-export function EmergencyStopControlPanel({ history }: EmergencyStopControlPanelProps) {
-  const [isStopped, setIsStopped] = useState(false);
-  const [confirmStage, setConfirmStage] = useState<0 | 1 | 2>(0);
-  const [nextAction, setNextAction] = useState<'stop' | 'resume'>('stop');
+const actionLabel: Record<string, string> = {
+  EMERGENCY_STOP_TRIGGERED: '緊急停止',
+  EMERGENCY_STOP_RELEASED: '解除',
+};
 
-  const startAction = (action: 'stop' | 'resume') => {
-    setNextAction(action);
-    setConfirmStage(1);
-  };
+export function EmergencyStopControlPanel({ initialStopped, history }: EmergencyStopControlPanelProps) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const isStopped = initialStopped;
+  const [reason, setReason] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
-  const completeAction = () => {
-    setIsStopped(nextAction === 'stop' ? true : false);
-    setConfirmStage(0);
+  const handle = (action: 'stop' | 'resume') => {
+    setError(null);
+    if (!reason.trim()) {
+      setError('理由を入力してください');
+      return;
+    }
+    startTransition(async () => {
+      const res = action === 'stop' ? await triggerStopAction(reason) : await releaseStopAction(reason);
+      if (res.ok) {
+        setReason('');
+        router.refresh();
+      } else {
+        setError(res.error);
+      }
+    });
   };
 
   return (
@@ -38,88 +49,51 @@ export function EmergencyStopControlPanel({ history }: EmergencyStopControlPanel
             <h2 className={`mt-2 text-3xl font-black ${isStopped ? 'text-red-700' : 'text-emerald-700'}`}>
               {isStopped ? '停止中' : '稼働中'}
             </h2>
-            <p className="mt-2 text-[13px] leading-relaxed text-slate-600">
-              停止は単独可、解除は二者承認の想定です。このUIプロトタイプではダミーで状態を切り替えます。
+            <p className="mt-1 text-[13px] text-slate-600">
+              {isStopped ? '全ワーカーの日払い受け取りを停止中です。' : '日払いは正常に稼働しています。'}
             </p>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <button
-              type="button"
-              onClick={() => startAction('stop')}
-              disabled={isStopped}
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-admin-button bg-red-700 px-5 text-sm font-bold text-white hover:bg-red-800 disabled:cursor-not-allowed disabled:bg-slate-300"
-            >
-              <Square className="h-4 w-4" aria-hidden="true" />
-              停止する
-            </button>
-            <button
-              type="button"
-              onClick={() => startAction('resume')}
-              disabled={!isStopped}
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-admin-button bg-admin-primary px-5 text-sm font-bold text-white hover:bg-admin-primary-dark disabled:cursor-not-allowed disabled:bg-slate-300"
-            >
-              <PlayCircle className="h-4 w-4" aria-hidden="true" />
-              再開する
-            </button>
-          </div>
+          <span className={`flex h-14 w-14 items-center justify-center rounded-xl ${isStopped ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
+            {isStopped ? <AlertTriangle className="h-7 w-7" /> : <PlayCircle className="h-7 w-7" />}
+          </span>
         </div>
 
-        {confirmStage > 0 && (
-          <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
-            <div className="flex gap-3">
-              <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-700" aria-hidden="true" />
-              <div className="min-w-0">
-                <h3 className="text-base font-bold text-slate-900">
-                  {confirmStage === 1 ? '内容を確認してください' : '最終確認です'}
-                </h3>
-                <p className="mt-1 text-[13px] leading-relaxed text-slate-600">
-                  {nextAction === 'stop'
-                    ? '全ワーカーの受け取り操作が止まります。必要な関係者に連絡済みか確認してください。'
-                    : '本番では別の管理者の承認後に再開します。プロトタイプではこの操作で再開します。'}
-                </p>
-                <div className="mt-4 flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setConfirmStage(0)}
-                    className="min-h-11 rounded-admin-button border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 hover:bg-slate-50"
-                  >
-                    キャンセル
-                  </button>
-                  {confirmStage === 1 ? (
-                    <button
-                      type="button"
-                      onClick={() => setConfirmStage(2)}
-                      className="min-h-11 rounded-admin-button bg-amber-700 px-4 text-sm font-bold text-white hover:bg-amber-800"
-                    >
-                      次の確認へ
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={completeAction}
-                      className={`min-h-11 rounded-admin-button px-4 text-sm font-bold text-white ${nextAction === 'stop' ? 'bg-red-700 hover:bg-red-800' : 'bg-admin-primary hover:bg-admin-primary-dark'}`}
-                    >
-                      {nextAction === 'stop' ? '緊急停止を確定' : '再開を確定'}
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
+        <div className="mt-5 grid gap-3">
+          <label htmlFor="es-reason" className="text-sm font-bold text-slate-900">理由（必須・監査ログに記録）</label>
+          <textarea id="es-reason" value={reason} onChange={(e) => setReason(e.target.value)}
+            className="min-h-20 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            placeholder={isStopped ? '例: 原因解消を確認したため解除' : '例: GMOからの不正検知のため停止'} />
+          {error && <p className="text-[13px] font-bold text-red-600">{error}</p>}
+          <div>
+            {isStopped ? (
+              <button type="button" onClick={() => handle('resume')} disabled={isPending || !reason.trim()}
+                className="inline-flex min-h-12 items-center gap-2 rounded-admin-button bg-admin-primary px-5 text-sm font-bold text-white hover:bg-admin-primary-dark disabled:bg-slate-300">
+                <PlayCircle className="h-4 w-4" />{isPending ? '処理中…' : '緊急停止を解除する'}
+              </button>
+            ) : (
+              <button type="button" onClick={() => handle('stop')} disabled={isPending || !reason.trim()}
+                className="inline-flex min-h-12 items-center gap-2 rounded-admin-button bg-red-700 px-5 text-sm font-bold text-white hover:bg-red-800 disabled:bg-slate-300">
+                <Square className="h-4 w-4" />{isPending ? '処理中…' : '全ワーカーを緊急停止する'}
+              </button>
+            )}
           </div>
-        )}
+        </div>
       </section>
 
       <section className="rounded-admin-card border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 p-4">
-          <h2 className="text-lg font-bold text-slate-900">停止履歴</h2>
+          <h2 className="text-lg font-bold text-slate-900">操作履歴</h2>
         </div>
         <div className="divide-y divide-slate-100">
-          {history.map((item) => (
-            <div key={`${item.date}-${item.action}`} className="grid gap-2 p-4 lg:grid-cols-[180px_120px_180px_1fr]">
-              <p className="text-sm font-bold text-slate-900">{item.date}</p>
-              <p className="text-sm text-slate-700">{item.action}</p>
-              <p className="text-sm text-slate-700">{item.actor}</p>
-              <p className="text-[13px] leading-relaxed text-slate-600">{item.reason}</p>
+          {history.length === 0 && <p className="p-4 text-sm text-slate-500">操作履歴はありません。</p>}
+          {history.map((item, i) => (
+            <div key={i} className="grid gap-2 p-4 lg:grid-cols-[200px_120px_140px_1fr]">
+              <p className="text-sm font-bold text-slate-900">{item.at.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}</p>
+              <p className={`text-sm font-bold ${item.action === 'EMERGENCY_STOP_TRIGGERED' ? 'text-red-700' : 'text-emerald-700'}`}>
+                {actionLabel[item.action] ?? item.action}
+              </p>
+              <p className="text-sm text-slate-700">管理者ID: {item.actorId ?? '-'}</p>
+              <p className="text-[13px] leading-relaxed text-slate-600">{item.reason ?? '-'}</p>
             </div>
           ))}
         </div>

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { WalletCards } from 'lucide-react';
 import { AccountCard } from './AccountCard';
 import { ConfirmSheet } from './ConfirmSheet';
-import { createWithdrawalRequestForCurrentUser } from '@/lib/actions/hibarai/withdrawal';
+import { createWithdrawalForCurrentUser } from '@/lib/actions/hibarai/withdrawal-action';
 import type { BankAccountSummary } from '@/lib/dummy-data/hibarai';
 
 type ReceiveFormProps = {
@@ -50,7 +50,7 @@ export function ReceiveForm({
     setIsSubmitting(true);
     setErrorMessage(null);
     try {
-      const result = await createWithdrawalRequestForCurrentUser({
+      const result = await createWithdrawalForCurrentUser({
         amount,
         bankAccountId,
         idempotencyKey,
