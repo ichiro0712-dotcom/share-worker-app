@@ -7,6 +7,7 @@ import { sendReviewReceivedNotificationToWorker, sendAdminLowRatingStreakNotific
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 import { getFacilityAdminSessionData } from '@/lib/admin-session-server';
 import { getJSTTodayStart, normalizeToJSTDayStart } from '@/utils/debugTime.server';
+import { readStoredAccountNumber } from '@/lib/actions/hibarai/account-encryption';
 
 /**
  * 施設管理者用: ワーカーの詳細情報を取得（統計・評価・キャンセル率含む）
@@ -208,7 +209,7 @@ export async function getWorkerDetail(workerId: number, facilityId: number) {
       bankName: user.bank_name,
       branchName: user.branch_name,
       accountName: user.account_name,
-      accountNumber: user.account_number,
+      accountNumber: readStoredAccountNumber(user.account_number),
       pensionNumber: user.pension_number,
       ourFacilityWorkDays: ourFacilityCompletedApps.length,
       ourFacilityAvgRating: ourAvgRating,
