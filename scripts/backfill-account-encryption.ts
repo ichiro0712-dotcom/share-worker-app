@@ -8,8 +8,13 @@
  * - 鍵 HIBARAI_ACCOUNT_ENC_KEY が未設定なら中断。
  *
  * 使い方:
- *   npx tsx scripts/backfill-account-encryption.ts             # dry-run（確認）
- *   npx tsx scripts/backfill-account-encryption.ts --execute   # 実行（DBバックアップ後に）
+ *   npx tsx scripts/backfill-account-encryption.ts                       # dry-run（読み取りのみ・変更なし）
+ *   npx tsx scripts/backfill-account-encryption.ts --execute --confirm   # 実行（要DBバックアップ）
+ *
+ * 安全装置:
+ * - 実行時に必ず「接続先DB」を表示する（本番/ステージングの取り違えを目視で防ぐ）。
+ * - DATABASE_URL 未設定なら何もせず中断。
+ * - --execute は --confirm が無い限り拒否（接続先DBを確認してから付ける）。
  *
  * ⚠️ 実行前に必ずDBバックアップを取得してください。鍵を紛失すると復号不能になります。
  */
@@ -22,10 +27,36 @@ import {
 
 const prisma = new PrismaClient()
 const EXECUTE = process.argv.includes('--execute')
+const CONFIRMED = process.argv.includes('--confirm')
+
+/** 接続先DBを認証情報を伏せて表示用に整形（host/db名だけ）。誤接続を目視で防ぐ。 */
+function describeTargetDb(): string {
+  const url = process.env.DATABASE_URL
+  if (!url) return '(DATABASE_URL 未設定)'
+  try {
+    const u = new URL(url)
+    return `${u.hostname}${u.port ? ':' + u.port : ''}${u.pathname}` // 例: db.xxxx.supabase.co:5432/postgres
+  } catch {
+    return '(DATABASE_URL の形式が不正)'
+  }
+}
 
 async function main() {
+  // 安全装置1: 接続先DBを必ず表示（本番/ステージング/ローカルの取り違えを目視で防ぐ）
+  console.log(`接続先DB: ${describeTargetDb()}`)
+  if (!process.env.DATABASE_URL) {
+    console.error('❌ DATABASE_URL が未設定です。中断します（どのDBにも接続しません）。')
+    process.exit(1)
+  }
   if (!isAccountEncryptionConfigured()) {
     console.error('❌ HIBARAI_ACCOUNT_ENC_KEY が未設定です。中断します。')
+    process.exit(1)
+  }
+  // 安全装置2: --execute は --confirm が無い限り拒否（上のDB表示を見て納得してから付ける）
+  if (EXECUTE && !CONFIRMED) {
+    console.error('\n❌ --execute には --confirm が必要です。上の「接続先DB」が正しいことを確認し、DBバックアップ取得後に')
+    console.error('   npx tsx scripts/backfill-account-encryption.ts --execute --confirm')
+    console.error('   を実行してください。')
     process.exit(1)
   }
 
@@ -47,7 +78,9 @@ async function main() {
   console.log(`今回暗号化する: ${toEncrypt} 件`)
 
   if (!EXECUTE) {
-    console.log('\n[dry-run] DBは変更していません。実行するには --execute を付けてください（DBバックアップ後に）。')
+    console.log('\n[dry-run] DBは変更していません（読み取りのみ）。上の「接続先DB」を確認し、バックアップ後に')
+    console.log('  npx tsx scripts/backfill-account-encryption.ts --execute --confirm')
+    console.log('で実行してください。')
     return
   }
 
