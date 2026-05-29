@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
 import { WalletCards } from 'lucide-react';
 import { AccountCard } from './AccountCard';
 import { ConfirmSheet } from './ConfirmSheet';
@@ -15,6 +16,7 @@ type ReceiveFormProps = {
   bankAccountId: string | null;
   clientIp: string;
   initialUserAgent: string;
+  isFirstWithdrawal?: boolean;
 };
 
 const yenFormatter = new Intl.NumberFormat('ja-JP');
@@ -26,8 +28,19 @@ export function ReceiveForm({
   bankAccountId,
   clientIp,
   initialUserAgent,
+  isFirstWithdrawal = false,
 }: ReceiveFormProps) {
   const router = useRouter();
+
+  // 初回の受け取りは、口座(特に名義カナ)の確認を促す（非強制の通知）。
+  useEffect(() => {
+    if (!isFirstWithdrawal) return;
+    toast(
+      '初回の受け取りです。登録口座（銀行・支店・口座番号・口座名義カナ）が正しいかご確認ください。誤りがあると振込に失敗します。',
+      { duration: 8000, icon: 'ℹ️', id: 'first-withdrawal-account-check' },
+    );
+  }, [isFirstWithdrawal]);
+
   const [amount, setAmount] = useState(maxAmount);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);

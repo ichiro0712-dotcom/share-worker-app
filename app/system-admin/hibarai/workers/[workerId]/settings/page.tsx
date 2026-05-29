@@ -1,9 +1,12 @@
 import { notFound, redirect } from 'next/navigation';
 import { WorkerSettingsPanel } from '@/components/admin/hibarai/WorkerSettingsPanel';
+import { ManualBalanceAdjustmentForm } from '@/components/admin/hibarai/ManualBalanceAdjustmentForm';
 import { isHibaraiEnabled } from '@/lib/features';
 import { getWorkerPolicyForAdmin } from '@/lib/actions/hibarai/policy';
 import { getSystemAdminSessionData } from '@/lib/system-admin-session-server';
 import prisma from '@/lib/prisma';
+
+export const dynamic = 'force-dynamic';
 
 type WorkerSettingsPageProps = {
   params: {
@@ -20,9 +23,10 @@ export default async function WorkerHibaraiSettingsPage({ params }: WorkerSettin
   const workerId = Number(params.workerId);
   if (!Number.isInteger(workerId) || workerId <= 0) notFound();
 
-  const [worker, policy] = await Promise.all([
+  const [worker, policy, balance] = await Promise.all([
     prisma.user.findUnique({ where: { id: workerId }, select: { id: true, name: true } }),
     getWorkerPolicyForAdmin(workerId),
+    prisma.pointBalance.findUnique({ where: { worker_id: workerId }, select: { balance: true } }),
   ]);
   if (!worker) notFound();
 
@@ -35,6 +39,9 @@ export default async function WorkerHibaraiSettingsPage({ params }: WorkerSettin
         </p>
       </div>
       <WorkerSettingsPanel workerId={worker.id} workerName={worker.name} policy={policy} />
+      <div className="mt-6">
+        <ManualBalanceAdjustmentForm workerId={worker.id} currentBalance={balance?.balance ?? 0} />
+      </div>
     </main>
   );
 }

@@ -7,6 +7,7 @@ import { recordHibaraiAudit } from '@/lib/actions/hibarai/audit'
 import { createSupportCode, getErrorMessage } from '@/lib/actions/hibarai/utils'
 import { getGmoRemitterBalance } from '@/lib/actions/hibarai/settings'
 import { planFundedSubmissions } from '@/lib/actions/hibarai/submit-funds-gate'
+import { notifyWorkerWithdrawalFailed } from '@/lib/actions/hibarai/failure-notification'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -83,6 +84,9 @@ export async function GET(request: Request): Promise<Response> {
         result: 'ERROR',
         errorCode: supportCode,
       }).catch(() => {})
+      // 送信時に口座不備等でFAILEDへ戻った場合のみワーカーへ通知（helperがstatus=FAILEDを判定）。
+      // PROCESSING維持（GMO到達不明）の場合は通知しない。
+      notifyWorkerWithdrawalFailed(withdrawal.id).catch(() => {})
     }
   }
 
