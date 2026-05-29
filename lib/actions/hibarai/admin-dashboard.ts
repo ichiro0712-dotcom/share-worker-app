@@ -33,6 +33,9 @@ export type AdminDashboardSummary = {
   errorCount: number
   stoppedWorkers: number
   totalWithdrawn: number
+  // 未送金（GMO未送信で滞留中＝処理待ち/入金待ち）。残高不足だとここが増える。
+  pendingTransferCount: number
+  pendingTransferAmount: number
 }
 
 /** A1ダッシュボードの集計（本日基準・JST）。 */
@@ -40,7 +43,13 @@ export async function getAdminDashboardSummary(): Promise<AdminDashboardSummary>
   const todayStart = getTodayJSTStart()
   const activeNonFailed = { notIn: [WithdrawalStatus.FAILED, WithdrawalStatus.CANCELLED] }
 
-  const [todayRequests, todaySum, errorCount, stoppedWorkers] = await Promise.all([
+  // 未送金（GMO未送信で滞留）: status PENDING/PROCESSING かつ gmo_apply_no 未発行。
+  const notYetTransferred = {
+    gmo_apply_no: null,
+    status: { in: [WithdrawalStatus.PENDING, WithdrawalStatus.PROCESSING] },
+  }
+
+  const [todayRequests, todaySum, errorCount, stoppedWorkers, pendingTransfer] = await Promise.all([
     prisma.withdrawalRequest.count({ where: { requested_at: { gte: todayStart } } }),
     prisma.withdrawalRequest.aggregate({
       where: { requested_at: { gte: todayStart }, status: activeNonFailed },
@@ -50,6 +59,11 @@ export async function getAdminDashboardSummary(): Promise<AdminDashboardSummary>
     prisma.advancePaymentPolicy.count({
       where: { active_slot: 'active', OR: [{ is_suspended: true }, { advance_program: 'DISABLED' }] },
     }),
+    prisma.withdrawalRequest.aggregate({
+      where: notYetTransferred,
+      _count: true,
+      _sum: { transfer_amount: true },
+    }),
   ])
 
   return {
@@ -57,6 +71,8 @@ export async function getAdminDashboardSummary(): Promise<AdminDashboardSummary>
     errorCount,
     stoppedWorkers,
     totalWithdrawn: todaySum._sum?.requested_amount ?? 0,
+    pendingTransferCount: pendingTransfer._count ?? 0,
+    pendingTransferAmount: pendingTransfer._sum?.transfer_amount ?? 0,
   }
 }
 
