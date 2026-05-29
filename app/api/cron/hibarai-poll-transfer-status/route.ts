@@ -7,6 +7,7 @@ import { getAdminStatusInfo, isBalanceRestorableFailureStatus } from '@/lib/gmo-
 import { getActiveAccessToken } from '@/lib/actions/hibarai/oauth-token'
 import { createHibaraiAuditLog, recordHibaraiAudit } from '@/lib/actions/hibarai/audit'
 import { createSupportCode, getErrorMessage } from '@/lib/actions/hibarai/utils'
+import { notifyWorkerWithdrawalFailed } from '@/lib/actions/hibarai/failure-notification'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -137,7 +138,12 @@ export async function GET(request: Request): Promise<Response> {
       )
 
       if (result === 'success') summary.successCount += 1
-      if (result === 'failure') summary.failureCount += 1
+      if (result === 'failure') {
+        summary.failureCount += 1
+        // 失敗をワーカーへ通知（fire-and-forget）。helper側で status=FAILED のみ送信し、
+        // 組戻不成立26(COMPLETED永続)は通知しない。
+        notifyWorkerWithdrawalFailed(withdrawal.id).catch(() => {})
+      }
       if (result === 'intermediate') summary.intermediateCount += 1
       if (result === 'skipped') summary.skippedCount += 1
     } catch (error) {

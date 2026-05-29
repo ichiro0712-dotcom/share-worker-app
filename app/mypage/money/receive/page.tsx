@@ -5,6 +5,7 @@ import { ReceiveForm } from '@/components/money/ReceiveForm';
 import { isHibaraiEnabled } from '@/lib/features';
 import { getAuthenticatedUser } from '@/src/lib/actions/helpers';
 import { getMoneyHomeData } from '@/lib/actions/hibarai/balance';
+import prisma from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +14,11 @@ export default async function ReceivePage() {
 
   const user = await getAuthenticatedUser();
   const moneyHomeData = await getMoneyHomeData(user.id);
+
+  // 口座登録済みかつ過去に出金実績が無い＝初回。口座(特に名義カナ)の確認を促す。
+  const priorWithdrawalCount = await prisma.withdrawalRequest.count({ where: { worker_id: user.id } });
+  const isFirstWithdrawal = Boolean(moneyHomeData.bankAccount?.id) && priorWithdrawalCount === 0;
+
   const requestHeaders = headers();
   const clientIp = requestHeaders.get('x-forwarded-for')?.split(',')[0]?.trim()
     ?? requestHeaders.get('x-real-ip')
@@ -29,6 +35,7 @@ export default async function ReceivePage() {
         bankAccountId={moneyHomeData.bankAccount?.id ?? null}
         clientIp={clientIp}
         initialUserAgent={userAgent}
+        isFirstWithdrawal={isFirstWithdrawal}
       />
     </div>
   );
