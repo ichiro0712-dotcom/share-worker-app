@@ -154,7 +154,6 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
     addressLine: jobData.facility.address_line,
     lat: jobData.facility.lat,
     lng: jobData.facility.lng,
-    phoneNumber: jobData.facility.phone_number,
     description: jobData.facility.description || '',
     images: jobData.facility.images,
     rating: jobData.facility.rating,

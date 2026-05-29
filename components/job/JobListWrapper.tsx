@@ -152,7 +152,6 @@ export async function JobListWrapper({ params }: JobListWrapperProps) {
     address: job.facility.address,
     lat: job.facility.lat,
     lng: job.facility.lng,
-    phoneNumber: job.facility.phone_number,
     description: job.facility.description || '',
     images: job.facility.images,
     rating: job.facility.rating,

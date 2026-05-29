@@ -4,7 +4,6 @@ export interface Facility {
   type: string;
   corporationName: string;
   address: string;
-  phoneNumber: string;
   lat: number;
   lng: number;
   rating: number;
