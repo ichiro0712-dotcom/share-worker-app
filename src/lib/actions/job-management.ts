@@ -12,6 +12,7 @@ import { getFacilityAdminSessionData } from '@/lib/admin-session-server';
 import { getMinimumWageForPrefecture } from '@/src/lib/actions/minimumWage';
 import { notifyJobUpdated, notifyJobsUpdated, notifyJobsDeleted } from '@/src/lib/google-indexing';
 import { calculateTransportationFee, calculateDailyWage } from '@/utils/salary';
+import { isFeatureEnabled } from '@/constants/features';
 
 /**
  * 開始時刻・終了時刻・休憩時間から実働時間（分）を計算
@@ -437,7 +438,8 @@ export async function createJobs(input: CreateJobInput) {
     }
 
     // オファー・説明会の場合は審査なしに固定
-    const requiresInterview = (dbJobType === 'OFFER' || dbJobType === 'ORIENTATION')
+    // 選考あり機能が無効（フラグOFF）の場合も、新規作成はサーバー側で審査なしに固定（UIをすり抜けた値も防ぐ）
+    const requiresInterview = (dbJobType === 'OFFER' || dbJobType === 'ORIENTATION' || !isFeatureEnabled('SELECTION_JOB_ENABLED'))
         ? false
         : (input.requiresInterview || false);
 
@@ -994,7 +996,11 @@ export async function updateJob(
                 images: data.images || [],
                 dresscode_images: data.dresscodeImages || [],
                 attachments: data.attachments || [],
-                ...(data.requiresInterview !== undefined && { requires_interview: data.requiresInterview }),
+                // 選考あり機能が無効（フラグOFF）の場合、新たに「審査あり」へ変更することは禁止。
+                // ただし既存の選考あり求人の値は維持する（false→書き込まず温存。即時マッチングへ勝手に変えない）
+                ...(data.requiresInterview !== undefined
+                    && (isFeatureEnabled('SELECTION_JOB_ENABLED') || data.requiresInterview === false)
+                    && { requires_interview: data.requiresInterview }),
                 ...(data.prefecture !== undefined && { prefecture: data.prefecture }),
                 ...(data.city !== undefined && { city: data.city }),
                 ...(data.addressLine !== undefined && { address_line: data.addressLine }),
