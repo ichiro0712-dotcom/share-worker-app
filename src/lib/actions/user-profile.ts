@@ -7,6 +7,7 @@ import { getAuthenticatedUser } from './helpers';
 import { geocodeAddress } from '@/src/lib/geocoding';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 import { generateBankAccountName } from '@/lib/string-utils';
+import { readStoredAccountNumber, toStoredAccountNumber } from '@/lib/actions/hibarai/account-encryption';
 import { validatePhoneVerificationToken } from '@/src/lib/auth/phone-verification';
 import { syncWorkerToTasLink, mapUserToTasLinkPayload } from '@/src/lib/taslink';
 import { normalizePhoneDigits, phoneLockKey as computePhoneLockKey } from '@/src/lib/auth/identifier';
@@ -252,7 +253,8 @@ export async function getUserProfile() {
             branch_code: user.branch_code,
             branch_name: user.branch_name,
             account_name: user.account_name,
-            account_number: user.account_number,
+            // 保存値は暗号化されている場合があるため復号して返す（平文ならそのまま）
+            account_number: readStoredAccountNumber(user.account_number),
             // その他
             pension_number: user.pension_number,
             id_document: user.id_document,
@@ -639,7 +641,11 @@ export async function updateUserProfile(formData: FormData) {
                 branch_name: branchName || null,
                 // 口座名義は姓名カナから自動生成（小文字カタカナは大文字に変換）
                 account_name: generateBankAccountName(lastNameKana || '', firstNameKana || '') || null,
-                account_number: accountNumber || null,
+                // 口座番号は保存時に暗号化（鍵未設定時は平文のまま＝段階移行で保存を壊さない）。
+                // 空入力のときは undefined にして既存値を保持（Prismaはundefinedを更新しない）。
+                // ＝鍵障害で表示が空白になった状態で保存しても、既存の口座番号を消さない（データ消失防止）。
+                account_number:
+                    accountNumber && accountNumber.trim() !== '' ? toStoredAccountNumber(accountNumber) : undefined,
                 pension_number: pensionNumber || null,
                 id_document: idDocumentPath,
                 bank_book_image: bankBookImagePath,

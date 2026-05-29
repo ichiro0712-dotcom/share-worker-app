@@ -10,6 +10,7 @@ import { createFacilityAdminSession } from '@/lib/admin-session-server';
 import { geocodeAddress } from '@/src/lib/geocoding';
 import { sendAdminNewFacilityNotification, sendAdminNewWorkerNotification, sendAdminHighCancelRateNotification, sendAdminLowRatingStreakNotification } from '@/src/lib/actions/notification';
 import { generateUniqueEmergencyCode, generateQRSecretToken } from '@/src/lib/emergency-code-utils';
+import { readStoredAccountNumber } from '@/lib/actions/hibarai/account-encryption';
 export { geocodeAddress };
 
 
@@ -672,7 +673,8 @@ export async function getSystemWorkerDetail(id: number) {
         bank_name: worker.bank_name,
         branch_name: worker.branch_name,
         account_name: worker.account_name,
-        account_number: worker.account_number,
+        // 暗号化保存に対応（平文ならそのまま）
+        account_number: readStoredAccountNumber(worker.account_number),
         bank_book_image: worker.bank_book_image,
         pension_number: worker.pension_number,
         created_at: worker.created_at,
