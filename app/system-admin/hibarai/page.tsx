@@ -96,6 +96,15 @@ export default async function HibaraiAdminDashboardPage({
             </div>
           );
         })()}
+        <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <span className="text-[12px] font-bold text-slate-500">未送金（処理待ち・入金待ち）</span>
+          <span className={`text-lg font-bold tabular-nums ${adminSummary.pendingTransferCount > 0 ? 'text-amber-700' : 'text-slate-900'}`}>
+            {adminSummary.pendingTransferCount}件 / ¥{yenFormatter.format(adminSummary.pendingTransferAmount)}
+          </span>
+          <span className="text-[12px] text-slate-500">
+            GMO未送信で滞留中の受け取りです。残高不足のときはここが増えます（失敗ではなく、入金後に自動送金されます）。
+          </span>
+        </div>
       </section>
 
       <section className="mt-6 rounded-admin-card border border-slate-200 bg-white p-5 shadow-sm">

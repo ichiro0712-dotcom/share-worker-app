@@ -5,6 +5,8 @@ import prisma from '@/lib/prisma'
 import { submitWithdrawalToGmo } from '@/lib/actions/hibarai/withdrawal'
 import { recordHibaraiAudit } from '@/lib/actions/hibarai/audit'
 import { createSupportCode, getErrorMessage } from '@/lib/actions/hibarai/utils'
+import { getGmoRemitterBalance } from '@/lib/actions/hibarai/settings'
+import { planFundedSubmissions } from '@/lib/actions/hibarai/submit-funds-gate'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -38,11 +40,33 @@ export async function GET(request: Request): Promise<Response> {
     },
     orderBy: { requested_at: 'asc' },
     take: 50,
-    select: { id: true },
+    select: { id: true, transfer_amount: true },
   })
 
-  const summary = { submittedCount: 0, errorCount: 0 }
+  // 送金元残高で送れる依頼だけを送信する（不足分は未送金のまま据え置き＝失敗にしない）。
+  // GMO未接続/dummyで残高取得不可のときは資金ゲートしない(null)→従来どおり全件試行。
+  const remitter = await getGmoRemitterBalance()
+  const availableFunds = remitter.available ? remitter.withdrawableAmount : null
+  const { submit, skipped } = planFundedSubmissions(
+    pending.map((p) => ({ id: p.id, transferAmount: p.transfer_amount })),
+    availableFunds,
+  )
+  const submitSet = new Set(submit)
+
+  if (skipped.length > 0) {
+    await recordHibaraiAudit({
+      actorType: 'SYSTEM_CRON',
+      action: 'WITHDRAWAL_SUBMIT_SKIPPED_INSUFFICIENT_FUNDS',
+      targetType: 'GmoBalance',
+      targetId: 'remitter',
+      payload: { skippedCount: skipped.length, availableFunds } as Prisma.InputJsonValue,
+      result: 'WARNING',
+    }).catch(() => {})
+  }
+
+  const summary = { submittedCount: 0, errorCount: 0, skippedInsufficientFunds: skipped.length }
   for (const withdrawal of pending) {
+    if (!submitSet.has(withdrawal.id)) continue // 残高不足: 未送金のまま次回cronで再評価
     try {
       await submitWithdrawalToGmo(withdrawal.id)
       summary.submittedCount += 1
