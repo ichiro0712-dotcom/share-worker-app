@@ -1,7 +1,38 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { mapWithdrawalStatus, summarizeWithdrawals, type AdminWithdrawalRow } from '../admin-withdrawals'
+import {
+  buildWithdrawalStatusWhere,
+  mapWithdrawalStatus,
+  resolveWithdrawalOrderBy,
+  summarizeWithdrawals,
+  type AdminWithdrawalRow,
+} from '../admin-withdrawals'
+
+test('resolveWithdrawalOrderBy: ホワイトリストキーをPrisma orderByへ、未知は申請日時降順', () => {
+  assert.deepEqual(resolveWithdrawalOrderBy('amount', 'asc'), { requested_amount: 'asc' })
+  assert.deepEqual(resolveWithdrawalOrderBy('completedAt', 'desc'), { completed_at: 'desc' })
+  assert.deepEqual(resolveWithdrawalOrderBy('worker', null), { worker_id: 'desc' })
+  // 未知のsortは既定(requested_at desc)、未知のorderはdesc
+  assert.deepEqual(resolveWithdrawalOrderBy('__evil__', 'sideways'), { requested_at: 'desc' })
+  assert.deepEqual(resolveWithdrawalOrderBy(null, 'asc'), { requested_at: 'asc' })
+  // 継承プロパティ(toString/constructor/__proto__)はすり抜けず既定にフォールバック
+  assert.deepEqual(resolveWithdrawalOrderBy('toString', 'desc'), { requested_at: 'desc' })
+  assert.deepEqual(resolveWithdrawalOrderBy('constructor', 'asc'), { requested_at: 'asc' })
+  assert.deepEqual(resolveWithdrawalOrderBy('__proto__', 'desc'), { requested_at: 'desc' })
+})
+
+test('buildWithdrawalStatusWhere: UIフィルタ→DB状態集合、all/未知は絞り込みなし', () => {
+  assert.deepEqual(buildWithdrawalStatusWhere('completed'), { status: { in: ['COMPLETED'] } })
+  assert.deepEqual(buildWithdrawalStatusWhere('accepted'), { status: { in: ['PENDING', 'DRAFT'] } })
+  assert.deepEqual(buildWithdrawalStatusWhere('failed'), { status: { in: ['FAILED', 'REFUNDED', 'CANCELLED'] } })
+  assert.deepEqual(buildWithdrawalStatusWhere('all'), {})
+  assert.deepEqual(buildWithdrawalStatusWhere(null), {})
+  assert.deepEqual(buildWithdrawalStatusWhere('__evil__'), {})
+  // 継承プロパティはすり抜けず絞り込みなし
+  assert.deepEqual(buildWithdrawalStatusWhere('toString'), {})
+  assert.deepEqual(buildWithdrawalStatusWhere('__proto__'), {})
+})
 
 test('DB状態→UI状態マップ', () => {
   assert.equal(mapWithdrawalStatus('COMPLETED'), 'completed')

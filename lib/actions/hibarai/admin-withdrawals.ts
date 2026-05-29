@@ -1,11 +1,51 @@
 // 管理者向け 振込履歴(A5) の読み取り。
 // 'use server' にしない（Server Component から呼ぶ純粋なサーバー関数。公開アクションにはしない）。
 // クライアントは型のみ import（import type）で参照するため実行時のバンドル流入はない。
-import type { WithdrawalStatus } from '@prisma/client'
+import { Prisma, WithdrawalStatus } from '@prisma/client'
 import prisma from '@/lib/prisma'
 
 /** UI表示用の状態区分 */
 export type AdminWithdrawalUiStatus = 'completed' | 'accepted' | 'processing' | 'failed'
+
+/** エクスポート/一覧の並び替えキー（ホワイトリスト）。 */
+export type WithdrawalSortKey = 'requestedAt' | 'completedAt' | 'amount' | 'status' | 'worker'
+
+const SORT_FIELD: Record<WithdrawalSortKey, string> = {
+  requestedAt: 'requested_at',
+  completedAt: 'completed_at',
+  amount: 'requested_amount',
+  status: 'status',
+  worker: 'worker_id',
+}
+
+// 継承プロパティ(toString/__proto__等)でホワイトリストをすり抜けないよう own プロパティのみ判定する。
+const hasOwn = (obj: object, key: string): boolean => Object.prototype.hasOwnProperty.call(obj, key)
+
+/** sort/order クエリを Prisma orderBy へ。未知値は安全な既定(申請日時の降順)（純粋）。 */
+export function resolveWithdrawalOrderBy(
+  sort: string | null | undefined,
+  order: string | null | undefined,
+): Prisma.WithdrawalRequestOrderByWithRelationInput {
+  const key: WithdrawalSortKey = sort && hasOwn(SORT_FIELD, sort) ? (sort as WithdrawalSortKey) : 'requestedAt'
+  const dir: Prisma.SortOrder = order === 'asc' ? 'asc' : 'desc'
+  // SORT_FIELD はホワイトリスト済みのカラム名のみ。
+  return { [SORT_FIELD[key]]: dir } as Prisma.WithdrawalRequestOrderByWithRelationInput
+}
+
+const STATUS_FILTER_DB: Record<AdminWithdrawalUiStatus, WithdrawalStatus[]> = {
+  completed: [WithdrawalStatus.COMPLETED],
+  processing: [WithdrawalStatus.PROCESSING],
+  accepted: [WithdrawalStatus.PENDING, WithdrawalStatus.DRAFT],
+  failed: [WithdrawalStatus.FAILED, WithdrawalStatus.REFUNDED, WithdrawalStatus.CANCELLED],
+}
+
+/** UIステータスフィルタ → Prisma where。all/未知は絞り込みなし({})（純粋）。 */
+export function buildWithdrawalStatusWhere(status: string | null | undefined): Prisma.WithdrawalRequestWhereInput {
+  if (status && hasOwn(STATUS_FILTER_DB, status)) {
+    return { status: { in: STATUS_FILTER_DB[status as AdminWithdrawalUiStatus] } }
+  }
+  return {}
+}
 
 /** DBの WithdrawalStatus を UI区分へマップする */
 export function mapWithdrawalStatus(status: WithdrawalStatus | string): AdminWithdrawalUiStatus {
@@ -79,9 +119,14 @@ export type AdminWithdrawalsResult = {
 /**
  * 管理者向けに直近の出金申請を取得する（ワーカー名・銀行名・GMO申込番号・精算月込み）。
  */
-export async function getAdminWithdrawals(limit = 200): Promise<AdminWithdrawalsResult> {
+export async function getAdminWithdrawals(
+  limit = 200,
+  orderBy: Prisma.WithdrawalRequestOrderByWithRelationInput = { requested_at: 'desc' },
+  where: Prisma.WithdrawalRequestWhereInput = {},
+): Promise<AdminWithdrawalsResult> {
   const withdrawals = await prisma.withdrawalRequest.findMany({
-    orderBy: { requested_at: 'desc' },
+    where,
+    orderBy,
     take: limit,
     include: { worker: { select: { id: true, name: true } } },
   })
