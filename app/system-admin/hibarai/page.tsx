@@ -59,6 +59,10 @@ export default async function HibaraiAdminDashboardPage({
             <ShieldAlert className="h-4 w-4" aria-hidden="true" />
             緊急停止
           </Link>
+          <Link href="/system-admin/hibarai/monitoring" className="inline-flex min-h-11 items-center gap-2 rounded-admin-button border border-slate-300 px-4 text-sm font-bold text-slate-700 hover:bg-slate-50">
+            <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+            運用監視
+          </Link>
           <Link href="/system-admin/hibarai/settlements" className="inline-flex min-h-11 items-center gap-2 rounded-admin-button border border-slate-300 px-4 text-sm font-bold text-slate-700 hover:bg-slate-50">
             <Banknote className="h-4 w-4" aria-hidden="true" />
             給与控除リコンサイル
