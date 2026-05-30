@@ -8,6 +8,13 @@ import { geocodeAddress } from '@/src/lib/geocoding';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 import { generateBankAccountName } from '@/lib/string-utils';
 import { readStoredAccountNumber, toStoredAccountNumber } from '@/lib/actions/hibarai/account-encryption';
+import {
+    didUserBankFieldsChange,
+    hasActiveWithdrawal,
+    syncBankAccountFromUser,
+    workerBankLockKey,
+    type UserBankSnapshot,
+} from '@/lib/actions/hibarai/bank-account-bridge';
 import { validatePhoneVerificationToken } from '@/src/lib/auth/phone-verification';
 import { syncWorkerToTasLink, mapUserToTasLinkPayload } from '@/src/lib/taslink';
 import { normalizePhoneDigits, phoneLockKey as computePhoneLockKey } from '@/src/lib/auth/identifier';
@@ -655,15 +662,55 @@ export async function updateUserProfile(formData: FormData) {
                 updated_by_id: user.id,
         };
 
-        if (isPhoneChanged) {
-            const lockKey = computePhoneLockKey(normalizedPhone);
-            try {
-                await prisma.$transaction(async (tx) => {
-                    // pg_advisory_xact_lock は void を返すため $executeRaw を使用
+        // W3/W4 ガード: 銀行関連フィールドが変わるなら、進行中(PENDING/PROCESSING)の出金が無いときのみ許可。
+        // 振込直前の口座差し替えによる事故（誤先送金）を入口でブロックする。
+        const existingBank = await prisma.user.findUnique({
+            where: { id: user.id },
+            select: {
+                bank_code: true, bank_name: true, branch_code: true, branch_name: true,
+                account_name: true, account_number: true,
+            },
+        });
+        if (!existingBank) {
+            return { success: false, error: 'ユーザーが見つかりません' };
+        }
+        const nextBankSnapshot: UserBankSnapshot = {
+            bank_code: bankCode || null,
+            bank_name: bankName || null,
+            branch_code: branchCode || null,
+            branch_name: branchName || null,
+            account_name: generateBankAccountName(lastNameKana || '', firstNameKana || '') || null,
+            // 空入力は既存値を保持（updateData側の preserve-on-blank と同じ意味）
+            account_number: accountNumber && accountNumber.trim() !== '' ? accountNumber : existingBank.account_number,
+        };
+        // 早期リターン: 銀行フィールド変更時は active withdrawal を事前チェック（UX上の早めの弾き）。
+        // tx内でも再チェックして TOCTOU を最小化する（下記）。
+        const bankFieldsChanging = didUserBankFieldsChange(existingBank, nextBankSnapshot);
+        if (bankFieldsChanging) {
+            if (await hasActiveWithdrawal(user.id)) {
+                return {
+                    success: false,
+                    error: '受け取り処理中（申請中・処理中）があるため、銀行口座情報は変更できません。処理完了後に再度お試しください。',
+                };
+            }
+        }
+
+        // User更新 + BankAccount橋渡しを「同一トランザクション」で実施（atomicity）。
+        // 同期失敗時は user.update もrollback＝Userだけ新口座・BankAccountは古いままで誤送金、を防ぐ。
+        // active-withdrawalの再チェックもtx内で実施（TOCTOU最小化。完全serializationには
+        // 出金作成側にも同ロックが要るためそれは別途）。
+        const lockKey = isPhoneChanged ? computePhoneLockKey(normalizedPhone) : null;
+        try {
+            await prisma.$transaction(async (tx) => {
+                // ワーカー銀行ロック: 同じworkerに対する createWithdrawalRequest と直列化（W3/W4 TOCTOU排除）
+                const bankLockKey = workerBankLockKey(user.id);
+                await tx.$executeRaw(
+                    Prisma.sql`SELECT pg_advisory_xact_lock(${bankLockKey}::bigint)`
+                );
+                if (lockKey != null) {
                     await tx.$executeRaw(
                         Prisma.sql`SELECT pg_advisory_xact_lock(${lockKey}::bigint)`
                     );
-                    // ロック取得後、直前再チェック（正規化比較）
                     const dup = await tx.$queryRaw<{ id: number }[]>(
                         Prisma.sql`SELECT id FROM users
                             WHERE regexp_replace(translate(phone_number, '０１２３４５６７８９', '0123456789'), '[^0-9]', '', 'g') = ${normalizedPhone}
@@ -673,25 +720,58 @@ export async function updateUserProfile(formData: FormData) {
                             LIMIT 1`
                     );
                     if (dup.length > 0) throw new Error('PHONE_DUPLICATE_RACE');
-                    await tx.user.update({
-                        where: { id: user.id },
-                        data: updateData,
-                    });
+                }
+
+                // tx内で existingBank を読み直し、freshな値でゲート判定＋同期スナップショットを構築。
+                // pre-tx の読みでは「読み→tx開始」の間に他で更新される可能性があるため再読込。
+                const freshBank = await tx.user.findUnique({
+                    where: { id: user.id },
+                    select: {
+                        bank_code: true, bank_name: true, branch_code: true, branch_name: true,
+                        account_name: true, account_number: true,
+                    },
                 });
-            } catch (e) {
-                if (e instanceof Error && e.message === 'PHONE_DUPLICATE_RACE') {
+                if (!freshBank) throw new Error('USER_NOT_FOUND');
+                const freshNextSnapshot: UserBankSnapshot = {
+                    bank_code: bankCode || null,
+                    bank_name: bankName || null,
+                    branch_code: branchCode || null,
+                    branch_name: branchName || null,
+                    account_name: generateBankAccountName(lastNameKana || '', firstNameKana || '') || null,
+                    // 空入力はfresh側の既存値を保持（preserve-on-blank をfresh基準で）
+                    account_number: accountNumber && accountNumber.trim() !== '' ? accountNumber : freshBank.account_number,
+                };
+                // fresh値での再判定（pre-tx判定はUX用の早期return、こちらが authoritative）
+                if (didUserBankFieldsChange(freshBank, freshNextSnapshot)) {
+                    const activeCount = await tx.withdrawalRequest.count({
+                        where: { worker_id: user.id, status: { in: ['PENDING', 'PROCESSING'] } },
+                    });
+                    if (activeCount > 0) throw new Error('ACTIVE_WITHDRAWAL_EXISTS');
+                }
+                await tx.user.update({ where: { id: user.id }, data: updateData });
+                // 同期失敗で全体rollback（fail-safe: Userだけ新値・BankAccount古いままを防ぐ）
+                await syncBankAccountFromUser(user.id, freshNextSnapshot, {
+                    tx,
+                    updatedByType: 'WORKER',
+                    updatedById: user.id,
+                });
+            });
+        } catch (e) {
+            if (e instanceof Error) {
+                if (e.message === 'PHONE_DUPLICATE_RACE') {
+                    return { success: false, error: 'この電話番号は既に他のアカウントで使われています' };
+                }
+                if (e.message === 'ACTIVE_WITHDRAWAL_EXISTS') {
                     return {
                         success: false,
-                        error: 'この電話番号は既に他のアカウントで使われています',
+                        error: '受け取り処理中（申請中・処理中）があるため、銀行口座情報は変更できません。処理完了後に再度お試しください。',
                     };
                 }
-                throw e;
+                if (e.message === 'USER_NOT_FOUND') {
+                    return { success: false, error: 'ユーザーが見つかりません' };
+                }
             }
-        } else {
-            await prisma.user.update({
-                where: { id: user.id },
-                data: updateData,
-            });
+            throw e;
         }
 
         // プロフィール関連ページのキャッシュを無効化
