@@ -5,6 +5,7 @@
 import { Prisma, WithdrawalStatus } from '@prisma/client'
 import { isHibaraiEnabled } from '@/lib/features'
 import prisma from '@/lib/prisma'
+import { workerBankLockKey } from './bank-account-bridge'
 import {
   GmoApiError,
   TransferRequestSchema,
@@ -129,6 +130,11 @@ export async function createWithdrawalRequest(
 
     return await prisma.$transaction(
       async (tx) => {
+        // ワーカー銀行ロック: プロフィール口座編集 tx と同じキーを取り直列化する。
+        // 「W3/W4ガード（編集中の出金作成禁止）」のTOCTOUを排除する目的で、両者が同じキーを取る運用。
+        const bankLockKey = workerBankLockKey(input.workerId)
+        await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(${bankLockKey}::bigint)`)
+
         const existing = await tx.withdrawalRequest.findUnique({
           where: { idempotency_key: idempotencyKey },
           select: { id: true },
