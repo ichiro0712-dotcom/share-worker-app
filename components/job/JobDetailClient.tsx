@@ -1225,7 +1225,6 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
             <div className="text-sm text-gray-600 space-y-1">
               <p>{facility.corporationName}</p>
               <p>{facility.name}</p>
-              <p>電話番号: {facility.phoneNumber}</p>
               <button
                 onClick={() => router.push(`/facilities/${facility.id}`)}
                 className="mt-2 text-sm text-primary hover:text-primary/80 hover:underline flex items-center gap-1"

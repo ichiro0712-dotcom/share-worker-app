@@ -55,7 +55,6 @@ export async function getMyApplications(options?: { limit?: number; offset?: num
                                         address: true,
                                         lat: true,
                                         lng: true,
-                                        phone_number: true,
                                         description: true,
                                         images: true,
                                         rating: true,
@@ -164,7 +163,6 @@ export async function getMyApplications(options?: { limit?: number; offset?: num
                         address: job.facility.address,
                         lat: job.facility.lat,
                         lng: job.facility.lng,
-                        phone_number: job.facility.phone_number,
                         description: job.facility.description,
                         images: job.facility.images,
                         rating: job.facility.rating,
@@ -818,7 +816,6 @@ export async function getApplicationDetail(applicationId: number) {
                     prefecture: job.facility.prefecture,
                     city: job.facility.city,
                     address_line: job.facility.address_line,
-                    phone_number: job.facility.phone_number,
                     smoking_measure: job.facility.smoking_measure,
                 },
                 template: job.template ? {
