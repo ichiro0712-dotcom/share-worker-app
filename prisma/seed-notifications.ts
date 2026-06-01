@@ -762,6 +762,39 @@ ID: {{facility_id}}
             consecutive_cancel_count: 3
         },
     },
+    // 日払い: 出金（受け取り）失敗
+    {
+        notification_key: 'WORKER_WITHDRAWAL_FAILED',
+        name: '日払い 受け取り失敗',
+        description: '日払いの振込が失敗した時にワーカーへ送信（口座確認・再申請を促す）',
+        target_type: 'WORKER',
+        // チャットはジョブ/応募スレッド前提のため無効。メール＋プッシュで通知する。
+        chat_enabled: false,
+        email_enabled: true,
+        push_enabled: true,
+        chat_message: null,
+        email_subject: '【+タスタス】受け取り（日払い）に失敗しました',
+        email_body: `{{worker_name}}様
+
+日払いの受け取り（{{amount}}円）に失敗しました。
+
+登録されている振込先口座（銀行名・支店・口座番号・口座名義カナ）に
+誤りがある可能性があります。お手数ですが口座情報をご確認・修正のうえ、
+再度受け取り申請をお願いします。
+
+※ご請求額は残高に戻っています。再申請で受け取れます。
+
+▼ 詳細・口座の確認はこちら
+{{account_url}}
+
+サポートコード: {{support_code}}
+
+──────────────────────────
++タスタス 運営
+──────────────────────────`,
+        push_title: '受け取りに失敗しました',
+        push_body: '口座情報を確認して再申請してください',
+    },
 ];
 
 async function seedNotificationSettings() {

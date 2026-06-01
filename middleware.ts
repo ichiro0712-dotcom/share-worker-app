@@ -52,6 +52,7 @@ const publicPaths = [
   '/lp', // LP関連ページ（/lp, /lp/1, /lp/tracking等）
   '/advisor/r', // System Advisor レポート公開シェア (URLを知っている人なら誰でも閲覧可)
   '/advisor/t', // System Advisor 表 (T-XXX) 公開シェア (URLを知っている人なら誰でも閲覧可)
+  '/hibarai-mocks', // 日払い機能デザインモック（Basic認証は保持、NextAuth不要）
 ];
 
 // 静的ファイルとAPI認証エンドポイント
@@ -77,6 +78,7 @@ const ignoredPaths = [
   '/api/job-analytics', // 求人アナリティクスAPI（API側で system-admin 認証を実施）
   '/api/funnel-analytics', // 登録動線アナリティクスAPI（API側で system-admin 認証を実施）
   '/api/ga-analytics', // GA4 アナリティクスAPI（API側で system-admin 認証を実施）
+  '/api/gmo', // GMO OAuth/API（API側で feature flag + system-admin 認証を実施）
   '/rogo', // ロゴ画像
   '/images', // 画像ファイル
   '/icons', // アイコン

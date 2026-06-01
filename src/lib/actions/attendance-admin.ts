@@ -12,6 +12,7 @@ import { sendNotification } from '@/src/lib/notification-service';
 import { sendAdminAttendanceModificationApprovedNotification } from './notification';
 import { randomBytes } from 'crypto';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
+import { reconcileHibaraiChargeInTx } from '@/lib/actions/hibarai/review-trigger';
 import {
   ATTENDANCE_ERROR_CODES,
   createAttendanceError,
@@ -375,6 +376,13 @@ export async function approveModificationRequest(
           data: { status: 'COMPLETED_RATED' },
         });
       }
+
+      // 日払い: wage変更を反映（チャージ済なら差額調整、未チャージで前提が揃えば初回チャージ）
+      await reconcileHibaraiChargeInTx(tx, modification.attendance_id, {
+        type: 'WORKER',
+        id: String(modification.attendance.user.id),
+        trigger: 'modification_approved',
+      });
     });
 
     // 3. 操作ログを記録

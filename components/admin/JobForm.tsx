@@ -33,6 +33,7 @@ import {
     END_HOUR_OPTIONS,
     MINUTE_OPTIONS,
     WORK_FREQUENCY_ICONS,
+    isFeatureEnabled,
 } from '@/constants';
 import type { JobTypeValue } from '@/constants/job';
 import { QUALIFICATION_GROUPS } from '@/constants/qualifications';
@@ -1187,7 +1188,8 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
                 let workDates = selectedDates;
 
                 // オファーのみ審査なし固定（限定求人は審査あり/なし選択可能）
-                const requiresInterview = formData.jobType === 'OFFER'
+                // 選考あり機能が無効（フラグOFF）の場合は、新規作成は常に審査なし（即時マッチング）に固定
+                const requiresInterview = (formData.jobType === 'OFFER' || !isFeatureEnabled('SELECTION_JOB_ENABLED'))
                     ? false
                     : formData.requiresInterview;
 
@@ -1509,6 +1511,8 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
                                         </div>
 
                                         {/* 右側：審査してマッチング（説明会の場合はグレーアウト） */}
+                                        {/* 選考あり機能は無効化中（フラグOFF）。要件定義確定後に再開予定のためUIのみ非表示 */}
+                                        {isFeatureEnabled('SELECTION_JOB_ENABLED') && (
                                         <div className={`flex items-start md:border-l md:border-blue-200 md:pl-4 ${formData.jobType === 'ORIENTATION' ? 'opacity-50' : ''}`}>
                                             <label className={`flex items-start gap-3 ${formData.jobType === 'ORIENTATION' ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
                                                 <input
@@ -1533,6 +1537,7 @@ export default function JobForm({ mode, jobId, initialData, isOfferMode = false,
                                                 </div>
                                             </label>
                                         </div>
+                                        )}
                                     </div>
                                 </div>
                             )}

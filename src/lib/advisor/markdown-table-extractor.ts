@@ -68,13 +68,49 @@ function parseRow(line: string): string[] {
 }
 
 /**
+ * LLM が書いた Markdown 表のヘッダ + 行数から重複判定 fingerprint を作る。
+ * 同じセッションで execute_sql が既に同じ列構成・同じ行数で登録した表があれば、
+ * その T-XXX を再利用して新規採番をスキップするために使う。
+ */
+function tableFingerprint(headerLabels: string[], rowCount: number): string {
+  // ヘッダは順序保持で小文字化・空白圧縮して比較に使う
+  const normalizedHeader = headerLabels
+    .map((h) => h.toLowerCase().replace(/\s+/g, '').replace(/[*_]/g, ''))
+    .join('|');
+  return `${normalizedHeader}#${rowCount}`;
+}
+
+/**
+ * advisor_chat_tables の columns (jsonb) から fingerprint を再構築する。
+ * columns は `[{key, label}, ...]` 形式で保存されている前提。
+ */
+function fingerprintFromStoredTable(
+  columns: unknown,
+  rowCount: number
+): string | null {
+  if (!Array.isArray(columns)) return null;
+  const labels: string[] = [];
+  for (const c of columns) {
+    if (c && typeof c === 'object' && 'label' in c) {
+      const label = (c as { label: unknown }).label;
+      if (typeof label === 'string') labels.push(label);
+      else return null;
+    } else {
+      return null;
+    }
+  }
+  return tableFingerprint(labels, rowCount);
+}
+
+/**
  * メッセージ本文中の Markdown 表ごとに advisor_chat_tables へ登録し、
  * 表の直前にプレフィックス行を挿入した content を返す。
  *
- * 重複防止:
- * - 表の直前行に「表 T-XXX」が既にあるものはスキップ (execute_sql 由来等)
- *
- * すでに採番済みかの判定は厳密ではないが、見た目の重複を避けるベストエフォート。
+ * 重複防止 (2 段階):
+ * 1. 表の直前 200 文字以内に「表 T-XXX」が既にあれば skip (execute_sql 由来の言及)
+ * 2. fingerprint (ヘッダラベル + 行数) が同じセッションの直近 1 時間以内の
+ *    既存テーブルと一致するなら、新規採番せずに既存 T-XXX を本文に挿入する。
+ *    → 「execute_sql で出た表と同じ内容を LLM が本文中に再掲載する」典型ケースを抑止
  */
 export async function annotateAndPersistTables(args: {
   content: string;
@@ -86,6 +122,23 @@ export async function annotateAndPersistTables(args: {
   const tables = extractMarkdownTables(content);
   if (tables.length === 0) return { content, createdIds: [] };
 
+  // 同セッションの直近 1 時間の表を fingerprint 化して引き当て用 Map を作る
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+  const recentTables = await prisma.advisorChatTable.findMany({
+    where: {
+      session_id: sessionId,
+      created_at: { gte: oneHourAgo },
+    },
+    select: { id: true, columns: true, row_count: true },
+    orderBy: { id: 'desc' },
+    take: 50,
+  });
+  const fpToId = new Map<string, number>();
+  for (const r of recentTables) {
+    const fp = fingerprintFromStoredTable(r.columns, r.row_count);
+    if (fp && !fpToId.has(fp)) fpToId.set(fp, r.id);
+  }
+
   // 末尾から処理することで、挿入によるオフセットずれを回避する
   let out = content;
   const createdIds: number[] = [];
@@ -93,12 +146,24 @@ export async function annotateAndPersistTables(args: {
   for (let i = tables.length - 1; i >= 0; i--) {
     const t = tables[i];
 
-    // 直前 200 文字以内に「表 T-XXX」が既にあれば skip
+    // 1. 直前 200 文字以内に「表 T-XXX」が既にあれば skip
     const lookbackStart = Math.max(0, t.start - 200);
     const lookback = out.slice(lookbackStart, t.start);
     if (ALREADY_NUMBERED_REGEX.test(lookback)) continue;
 
-    // 採番 + 永続化
+    // 2. fingerprint で直近の既存テーブルと一致するなら、新規採番せず既存 T-XXX を再利用
+    const fp = tableFingerprint(t.headerLabels, t.rows.length);
+    const existingId = fpToId.get(fp);
+    if (existingId !== undefined) {
+      // 既存 T-XXX を参照するプレフィックスに置換 + 表本体を削除
+      // (表本体は既に UI 上で T-XXX として表示されているため、本文に重複表示しない)
+      const tableIdLabel = formatTableId(existingId);
+      const replacement = `\n**表 ${tableIdLabel}** (${t.rows.length} 行、既出)\n\n`;
+      out = out.slice(0, t.start) + replacement + out.slice(t.end);
+      continue;
+    }
+
+    // 3. 新規採番 + 永続化
     const columns = t.headerLabels.map((label) => ({ key: label, label }));
     const rowsAsJson: string[][] = t.rows;
     let created: { id: number };
@@ -124,6 +189,8 @@ export async function annotateAndPersistTables(args: {
       continue;
     }
     createdIds.unshift(created.id);
+    // 採番済みとして fingerprint Map にも追加 (同メッセージ内で 2 度書かれた場合の対策)
+    fpToId.set(fp, created.id);
     const tableIdLabel = formatTableId(created.id);
 
     // 表の直前にプレフィックス行を挿入

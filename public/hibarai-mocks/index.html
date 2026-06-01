@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>+タスタス 日払い機能 デザインモック一覧</title>
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap");
+    :root{--primary:#E63946;--primary-2:#FF4757;--primary-soft:#FFE3E5;--accent:#2EC4B6;--accent-soft:#DDF8F5;--bg:#FAFBFC;--surface:#FFFFFF;--text:#0F172A;--muted:#64748B;--line:#E2E8F0;--success:#16A34A;--success-soft:#DCFCE7;--warning:#F59E0B;--warning-soft:#FEF3C7;--error:#DC2626;--error-soft:#FEE2E2;--shadow:0 1px 2px rgba(15,23,42,.04),0 14px 34px rgba(15,23,42,.07);--font:"Hiragino Sans","Yu Gothic UI","Noto Sans JP",sans-serif}
+    *{box-sizing:border-box} body{margin:0;background:linear-gradient(180deg,#fff 0,#F1F5F9 100%);font-family:var(--font);color:var(--text);font-feature-settings:"palt"} a{color:inherit}.page{max-width:1240px;margin:0 auto;padding:48px 32px 72px}.hero{display:grid;grid-template-columns:1fr 360px;gap:32px;align-items:end;margin-bottom:34px}.brand{display:flex;align-items:center;gap:12px;margin-bottom:18px;font-weight:800}.brand-mark{width:42px;height:42px;border-radius:15px;background:linear-gradient(135deg,var(--primary),var(--primary-2));color:#fff;display:grid;place-items:center;font-size:28px;box-shadow:0 10px 20px rgba(230,57,70,.22)}.eyebrow{font-size:12px;font-weight:800;color:var(--primary);margin-bottom:8px}h1{font-size:34px;line-height:1.35;margin:0}p{line-height:1.8;color:var(--muted)}.hero p{font-size:15px;max-width:720px}.hero-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:20px;box-shadow:var(--shadow)}.hero-card b{display:block;font-size:14px;margin-bottom:10px}.hero-card div{display:flex;gap:8px;flex-wrap:wrap}.pill{border-radius:999px;background:#F8FAFC;border:1px solid var(--line);padding:7px 10px;font-size:12px;font-weight:800;color:#475569}.pill.red{background:var(--primary-soft);color:var(--primary);border-color:#FFD0D5}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}.mock-card{background:#fff;border:1px solid var(--line);border-radius:20px;padding:16px;box-shadow:var(--shadow);display:flex;flex-direction:column;min-height:402px}.thumb{height:248px;border-radius:16px;background:linear-gradient(145deg,#E2E8F0,#F8FAFC);border:1px solid var(--line);overflow:hidden;display:grid;place-items:center;margin-bottom:14px}.thumb-inner{width:106px;height:228px;overflow:hidden;border-radius:18px;box-shadow:0 12px 28px rgba(15,23,42,.18)}.thumb iframe{border:0;width:390px;height:844px;transform:scale(.27);transform-origin:top left;pointer-events:none}.desktop-inner{width:188px;height:118px;overflow:hidden;border-radius:8px;box-shadow:0 12px 28px rgba(15,23,42,.14)}.desktop-inner iframe{border:0;width:1440px;height:900px;transform:scale(.13);transform-origin:top left;pointer-events:none}.mock-card h2{font-size:17px;margin:0 0 6px}.mock-card p{font-size:13px;margin:0 0 14px}.open{margin-top:auto;height:42px;border-radius:21px;background:#0F172A;color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;font-size:13px;font-weight:800;transition:transform .18s ease,box-shadow .18s ease}.open:hover{transform:translateY(-1px);box-shadow:0 8px 16px rgba(15,23,42,.16)}.section{margin-top:36px;background:#fff;border:1px solid var(--line);border-radius:22px;padding:24px;box-shadow:var(--shadow)}.section h2{font-size:22px;margin:0 0 18px}.tokens{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.token{border:1px solid var(--line);border-radius:16px;padding:14px;background:#fff}.swatch{height:46px;border-radius:12px;margin-bottom:10px;border:1px solid rgba(15,23,42,.06)}.token b{display:block;font-size:13px}.token span{font-size:12px;color:var(--muted);font-feature-settings:"tnum"}.checklist{display:grid;grid-template-columns:repeat(2,1fr);gap:10px 18px}.check{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:#F8FAFC}.box{width:18px;height:18px;border-radius:5px;background:var(--success);color:#fff;display:grid;place-items:center;flex:0 0 auto;margin-top:2px}.check b{font-size:14px}.check span{display:block;font-size:12px;line-height:1.65;color:var(--muted);margin-top:2px}.notes{display:grid;grid-template-columns:1fr 1fr;gap:16px}.note{border-radius:16px;background:#F8FAFC;border:1px solid var(--line);padding:16px}.note b{font-size:14px}.note p{font-size:13px;margin:6px 0 0}.footer{margin-top:28px;color:var(--muted);font-size:12px;text-align:center}
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <div>
+        <div class="brand"><div class="brand-mark">+</div><div>+タスタス</div></div>
+        <div class="eyebrow">HIBARAI DESIGN MOCKS</div>
+        <h1>日払い機能 主要画面モック一覧</h1>
+        <p>看護師・介護士向けに、モダンだが親しみやすく、Pay系サービスの直感性を参考にした静的HTMLモックです。各ファイルは単体で開けるインラインCSS構成です。</p>
+      </div>
+      <div class="hero-card">
+        <b>承認確認ポイント</b>
+        <div><span class="pill red">iPhone 14 390x844</span><span class="pill">9:41表示</span><span class="pill">5タブ</span><span class="pill">インラインSVG</span><span class="pill">PC管理画面</span></div>
+      </div>
+    </section>
+    <section style="margin-bottom:28px">
+      <a href="cycle.html" style="display:flex;align-items:center;gap:16px;padding:20px 22px;background:linear-gradient(135deg,#0F172A,#1E293B);color:#fff;border-radius:18px;text-decoration:none;box-shadow:0 14px 34px rgba(15,23,42,.18);transition:transform .18s ease,box-shadow .18s ease" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 18px 40px rgba(15,23,42,.24)'" onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 14px 34px rgba(15,23,42,.18)'">
+        <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#FF3333,#D92D20);display:grid;place-items:center;flex:0 0 auto;font-size:22px;font-weight:800">⟳</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:11px;font-weight:800;letter-spacing:.16em;opacity:.7;margin-bottom:4px">HIBARAI CYCLE</div>
+          <div style="font-size:18px;font-weight:800;margin-bottom:2px">日払い機能 サイクル全体図</div>
+          <div style="font-size:13px;opacity:.8">勤務完了 → レビュー → 受け取り → 振込 → 月末締りまでの1サイクルをタイムラインで可視化</div>
+        </div>
+        <div style="font-size:22px;opacity:.7">→</div>
+      </a>
+    </section>
+    <section class="grid">
+      <article class="mock-card"><div class="thumb"><div class="thumb-inner"><iframe src="01-home.html" title="お金タブ"></iframe></div></div><h2>01 お金タブ</h2><p>残高、レビュー解放、受取口座、履歴を1画面で確認できます。</p><a class="open" href="01-home.html">開く</a></article>
+      <article class="mock-card"><div class="thumb"><div class="thumb-inner"><iframe src="02-withdraw.html" title="受け取る"></iframe></div></div><h2>02 受け取る</h2><p>金額入力、全額チップ、手数料と振込予定額を同時に表示します。</p><a class="open" href="02-withdraw.html">開く</a></article>
+      <article class="mock-card"><div class="thumb"><div class="thumb-inner"><iframe src="03-confirm.html" title="確認ボトムシート"></iframe></div></div><h2>03 確認シート</h2><p>遷移せずに内容を確認できるボトムシートです。</p><a class="open" href="03-confirm.html">開く</a></article>
+      <article class="mock-card"><div class="thumb"><div class="thumb-inner"><iframe src="04-complete.html" title="完了"></iframe></div></div><h2>04 完了</h2><p>チェック演出と銀行確認中の進行状況を見せます。</p><a class="open" href="04-complete.html">開く</a></article>
+      <article class="mock-card"><div class="thumb"><div class="thumb-inner"><iframe src="05-account-edit.html" title="受取口座変更"></iframe></div></div><h2>05 口座変更</h2><p>口座入力後のSMS本人確認ステップです。</p><a class="open" href="05-account-edit.html">開く</a></article>
+      <article class="mock-card"><div class="thumb"><div class="thumb-inner"><iframe src="06-error.html" title="エラー詳細"></iframe></div></div><h2>06 エラー詳細</h2><p>不安を煽らず、原因と次の行動を明確化します。</p><a class="open" href="06-error.html">開く</a></article>
+      <article class="mock-card"><div class="thumb"><div class="thumb-inner"><iframe src="07-review.html" title="レビュー提出"></iframe></div></div><h2>07 レビュー提出</h2><p>大きな星評価とチップ選択で30秒レビューを表現します。</p><a class="open" href="07-review.html">開く</a></article>
+      <article class="mock-card"><div class="thumb"><div class="desktop-inner"><iframe src="08-admin-dashboard.html" title="管理者ダッシュボード"></iframe></div></div><h2>08 管理者</h2><p>緊急停止、エラーキュー、前払い設定のPC管理画面です。</p><a class="open" href="08-admin-dashboard.html">開く</a></article>
+    </section>
+    <section class="section">
+      <h2>デザイントークン</h2>
+      <div class="tokens">
+        <div class="token"><div class="swatch" style="background:#E63946"></div><b>Primary</b><span>#E63946</span></div>
+        <div class="token"><div class="swatch" style="background:#FFE3E5"></div><b>Primary soft</b><span>#FFE3E5</span></div>
+        <div class="token"><div class="swatch" style="background:#2EC4B6"></div><b>Accent</b><span>#2EC4B6</span></div>
+        <div class="token"><div class="swatch" style="background:#FAFBFC"></div><b>Background</b><span>#FAFBFC</span></div>
+        <div class="token"><div class="swatch" style="background:#FFFFFF"></div><b>Surface</b><span>#FFFFFF</span></div>
+        <div class="token"><div class="swatch" style="background:#0F172A"></div><b>Text primary</b><span>#0F172A</span></div>
+        <div class="token"><div class="swatch" style="background:#64748B"></div><b>Text secondary</b><span>#64748B</span></div>
+        <div class="token"><div class="swatch" style="background:#E2E8F0"></div><b>Border</b><span>#E2E8F0</span></div>
+      </div>
+    </section>
+    <section class="section">
+      <h2>フィードバックチェックリスト</h2>
+      <div class="checklist">
+        <div class="check"><div class="box">✓</div><div><b>残高が一目で分かる</b><span>「今すぐ受け取れる金額」が最初に目に入るか。</span></div></div>
+        <div class="check"><div class="box">✓</div><div><b>レビュー導線が別機能に見えない</b><span>レビュー後に受け取れる金額が自然に伝わるか。</span></div></div>
+        <div class="check"><div class="box">✓</div><div><b>手数料と振込予定額が明確</b><span>受け取り前に差し引き後の金額を確認できるか。</span></div></div>
+        <div class="check"><div class="box">✓</div><div><b>口座エラーが怖すぎない</b><span>原因と直し方が、利用者向けの言葉になっているか。</span></div></div>
+        <div class="check"><div class="box">✓</div><div><b>30〜60代でも読みやすい</b><span>本文16px前後、ボタン56px、十分な余白があるか。</span></div></div>
+        <div class="check"><div class="box">✓</div><div><b>管理者の危険操作が見える</b><span>緊急停止とエラーキューが埋もれていないか。</span></div></div>
+      </div>
+    </section>
+    <section class="section">
+      <h2>設計メモ</h2>
+      <div class="notes">
+        <div class="note"><b>コピー</b><p>UXレビューのAfter列を基準に、「前払い申請」ではなく「受け取る」を主動詞にしています。</p></div>
+        <div class="note"><b>見た目</b><p>赤を主CTA、青緑を安心・医療系アクセントに限定し、カード影と余白でリッチさを出しています。</p></div>
+      </div>
+    </section>
+    <div class="footer">docs/hibarai/mocks/index.html</div>
+  </main>
+</body>
+</html>
