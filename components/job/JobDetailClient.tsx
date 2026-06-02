@@ -50,6 +50,8 @@ interface JobDetailClientProps {
   interviewPassRate?: InterviewPassRateData | null; // 面接通過率データ（審査あり求人用）
   /** 性別指定による応募可否（サーバー側判定結果）。allowed=false の場合は応募ボタンを無効化 */
   genderApplyResult?: { allowed: boolean; reason?: string };
+  /** 資格要件による応募可否（サーバー側判定結果）。allowed=false の場合は応募ボタンを無効化 */
+  qualificationApplyResult?: { allowed: boolean; reason?: string };
 }
 
 /**
@@ -69,7 +71,7 @@ function isTimeOverlapping(start1: string, end1: string, start2: string, end2: s
   return e1 > s2 && e2 > s1;
 }
 
-export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, facilityReviews, initialHasApplied: _initialHasApplied, initialAppliedWorkDateIds = [], selectedDate, isPreviewMode = false, scheduledJobs = [], isPublic = false, interviewPassRate = null, genderApplyResult }: JobDetailClientProps) {
+export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, facilityReviews, initialHasApplied: _initialHasApplied, initialAppliedWorkDateIds = [], selectedDate, isPreviewMode = false, scheduledJobs = [], isPublic = false, interviewPassRate = null, genderApplyResult, qualificationApplyResult }: JobDetailClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { refreshBadges } = useBadge();
@@ -1534,18 +1536,26 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
       {!isPreviewMode && !isPublic && (
         <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-200 z-10" style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom))' }}>
           <div className="p-4">
-            {genderApplyResult && !genderApplyResult.allowed && (
-              <p className="text-xs text-red-600 mb-2 text-center">
-                {genderApplyResult.reason || 'この求人は応募条件を満たしていないため応募不可です'}
-              </p>
-            )}
+            {(() => {
+              // 性別・資格のいずれかが応募不可なら、その理由を表示
+              const blockedResult = (genderApplyResult && !genderApplyResult.allowed)
+                ? genderApplyResult
+                : (qualificationApplyResult && !qualificationApplyResult.allowed)
+                  ? qualificationApplyResult
+                  : null;
+              return blockedResult ? (
+                <p className="text-xs text-red-600 mb-2 text-center">
+                  {blockedResult.reason || 'この求人は応募条件を満たしていないため応募不可です'}
+                </p>
+              ) : null;
+            })()}
             <Button
               onClick={handleApplyButtonClick}
               size="lg"
               className="w-full"
-              disabled={isApplying || selectedWorkDateIds.length === 0 || !hasAvailableDates || (genderApplyResult ? !genderApplyResult.allowed : false)}
+              disabled={isApplying || selectedWorkDateIds.length === 0 || !hasAvailableDates || (genderApplyResult ? !genderApplyResult.allowed : false) || (qualificationApplyResult ? !qualificationApplyResult.allowed : false)}
             >
-              {genderApplyResult && !genderApplyResult.allowed
+              {(genderApplyResult && !genderApplyResult.allowed) || (qualificationApplyResult && !qualificationApplyResult.allowed)
                 ? '応募条件を満たしていません'
                 : !hasAvailableDates
                   ? '応募できる日程がありません'

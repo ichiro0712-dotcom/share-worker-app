@@ -8,6 +8,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { canApplyByGender } from '@/src/lib/jobGenderMatching';
+import { canApplyByQualification } from '@/src/lib/jobQualificationMatching';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -129,15 +130,21 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
     genderRequirement: jobData.gender_requirement || null,
   };
 
-  // 性別指定による応募可否判定（サーバー側）
+  // 性別指定・資格要件による応募可否判定（サーバー側）
   const session = await getServerSession(authOptions);
+  // オファー求人は施設の直接指名のため、資格チェックは行わない（クライアント確定方針）
+  const isOfferJob = jobData.job_type === 'OFFER';
   let genderApplyResult: { allowed: boolean; reason?: string } = { allowed: true };
+  let qualificationApplyResult: { allowed: boolean; reason?: string } = { allowed: true };
   if (session?.user?.id) {
     const currentUser = await prisma.user.findUnique({
       where: { id: parseInt(session.user.id, 10) },
-      select: { gender: true },
+      select: { gender: true, qualifications: true },
     });
     genderApplyResult = canApplyByGender(jobData.gender_requirement, currentUser?.gender);
+    if (!isOfferJob) {
+      qualificationApplyResult = canApplyByQualification(jobData.required_qualifications, currentUser?.qualifications);
+    }
   } else if (jobData.gender_requirement) {
     // 未ログインかつ性別指定ありの求人
     genderApplyResult = canApplyByGender(jobData.gender_requirement, null);
@@ -213,6 +220,7 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
         scheduledJobs={scheduledJobs}
         interviewPassRate={interviewPassRate}
         genderApplyResult={genderApplyResult}
+        qualificationApplyResult={qualificationApplyResult}
       />
     </>
   );
