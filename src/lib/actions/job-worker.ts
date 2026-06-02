@@ -16,6 +16,7 @@ import {
 } from './helpers';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 import { buildGenderFilterWhere } from '@/src/lib/jobGenderMatching';
+import { expandUserQualificationsForJobMatch } from '@/src/lib/jobQualificationMatching';
 
 /**
  * 現在ログイン中ユーザーの性別を取得（未ログイン時はnull）
@@ -246,38 +247,17 @@ export async function getJobs(
                 const userQualifications = user.qualifications || [];
 
                 if (userQualifications.length > 0) {
-                    // 資格のマッピング: ユーザー登録資格 → 求人の資格要件
-                    const qualificationMapping: Record<string, string[]> = {
-                        '看護師': ['正看護師', '准看護師'],
-                        '正看護師': ['正看護師'],
-                        '准看護師': ['准看護師'],
-                        '介護福祉士': ['介護福祉士'],
-                        '初任者研修': ['初任者研修'],
-                        '実務者研修': ['実務者研修'],
-                        'ヘルパー2級': ['初任者研修', 'ヘルパー2級'],
-                        'ヘルパー1級': ['実務者研修', 'ヘルパー1級'],
-                    };
-
-                    // ユーザーの資格から対応する求人資格要件のリストを作成
-                    const matchingQualifications: string[] = [];
-                    for (const userQual of userQualifications) {
-                        const mapped = qualificationMapping[userQual];
-                        if (mapped) {
-                            matchingQualifications.push(...mapped);
-                        } else {
-                            // マッピングがない場合はそのまま追加
-                            matchingQualifications.push(userQual);
-                        }
-                    }
-
-                    // 重複を除去
-                    const uniqueQualifications = Array.from(new Set(matchingQualifications));
+                    // 応募チェック（canApplyByQualification）と整合する完全一致ベースのマッチング。
+                    // 別名（正看護師=看護師）のみ展開する。
+                    const uniqueQualifications = expandUserQualificationsForJobMatch(userQualifications);
 
                     // 求人の資格要件がユーザーの資格に含まれる、または資格要件がない求人を抽出
                     whereConditions.AND.push({
                         OR: [
                             // 資格要件がない求人（誰でも応募可能）
                             { required_qualifications: { equals: [] } },
+                            // 無資格可の求人（誰でも応募可能）
+                            { required_qualifications: { has: '無資格可' } },
                             // ユーザーの資格のいずれかが求人の資格要件に含まれる
                             { required_qualifications: { hasSome: uniqueQualifications } },
                         ],
@@ -812,29 +792,13 @@ export async function getJobsListWithPagination(
                 const user = await getAuthenticatedUser();
                 const userQualifications = user.qualifications || [];
                 if (userQualifications.length > 0) {
-                    const qualificationMapping: Record<string, string[]> = {
-                        '看護師': ['正看護師', '准看護師'],
-                        '正看護師': ['正看護師'],
-                        '准看護師': ['准看護師'],
-                        '介護福祉士': ['介護福祉士'],
-                        '初任者研修': ['初任者研修'],
-                        '実務者研修': ['実務者研修'],
-                        'ヘルパー2級': ['初任者研修', 'ヘルパー2級'],
-                        'ヘルパー1級': ['実務者研修', 'ヘルパー1級'],
-                    };
-                    const matchingQualifications: string[] = [];
-                    for (const userQual of userQualifications) {
-                        const mapped = qualificationMapping[userQual];
-                        if (mapped) {
-                            matchingQualifications.push(...mapped);
-                        } else {
-                            matchingQualifications.push(userQual);
-                        }
-                    }
-                    const uniqueQualifications = Array.from(new Set(matchingQualifications));
+                    // 応募チェック（canApplyByQualification）と整合する完全一致ベースのマッチング。
+                    // 別名（正看護師=看護師）のみ展開する。
+                    const uniqueQualifications = expandUserQualificationsForJobMatch(userQualifications);
                     whereConditions.AND.push({
                         OR: [
                             { required_qualifications: { equals: [] } },
+                            { required_qualifications: { has: '無資格可' } },
                             { required_qualifications: { hasSome: uniqueQualifications } },
                         ],
                     });
