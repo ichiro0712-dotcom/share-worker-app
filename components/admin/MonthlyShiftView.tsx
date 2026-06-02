@@ -50,6 +50,7 @@ export interface JobWithApplications {
     startTime: string;
     endTime: string;
     hourlyWage: number;
+    wage: number;
     transportationFee?: number;
     workContent: string[];
     requiredQualifications: string[];
