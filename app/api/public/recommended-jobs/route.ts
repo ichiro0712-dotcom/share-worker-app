@@ -172,7 +172,6 @@ export async function GET(request: NextRequest) {
       address: f.address,
       lat: f.lat,
       lng: f.lng,
-      phoneNumber: f.phone_number,
       description: f.description || '',
       images: f.images,
       rating: f.rating,

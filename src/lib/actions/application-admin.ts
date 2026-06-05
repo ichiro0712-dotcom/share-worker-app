@@ -555,6 +555,8 @@ export async function getJobsWithApplications(
                 startTime: job.start_time,
                 endTime: job.end_time,
                 hourlyWage: job.hourly_wage,
+                wage: job.wage,
+                transportationFee: job.transportation_fee,
                 workContent: job.work_content,
                 requiredQualifications: job.required_qualifications,
                 requiresInterview: job.requires_interview,

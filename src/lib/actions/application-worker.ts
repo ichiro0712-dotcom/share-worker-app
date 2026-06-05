@@ -7,6 +7,7 @@ import { formatJSTDate } from '@/utils/jst';
 import { getAuthenticatedUser } from './helpers';
 import { checkProfileComplete } from './user-profile';
 import { canApplyByGender } from '@/src/lib/jobGenderMatching';
+import { canApplyByQualification } from '@/src/lib/jobQualificationMatching';
 import {
     sendApplicationNotification,
     sendApplicationNotificationMultiple,
@@ -55,7 +56,6 @@ export async function getMyApplications(options?: { limit?: number; offset?: num
                                         address: true,
                                         lat: true,
                                         lng: true,
-                                        phone_number: true,
                                         description: true,
                                         images: true,
                                         rating: true,
@@ -164,7 +164,6 @@ export async function getMyApplications(options?: { limit?: number; offset?: num
                         address: job.facility.address,
                         lat: job.facility.lat,
                         lng: job.facility.lng,
-                        phone_number: job.facility.phone_number,
                         description: job.facility.description,
                         images: job.facility.images,
                         rating: job.facility.rating,
@@ -256,6 +255,13 @@ export async function applyForJob(jobId: string, workDateId?: number) {
         if (!genderCheck.allowed) {
             console.log('[applyForJob] Gender mismatch:', { jobReq: job.gender_requirement, userGender: user.gender });
             return { success: false, error: genderCheck.reason || '応募条件を満たしていません' };
+        }
+
+        // 資格要件バリデーション（求人の required_qualifications とユーザー保有資格をチェック）
+        const qualificationCheck = canApplyByQualification(job.required_qualifications, user.qualifications);
+        if (!qualificationCheck.allowed) {
+            console.log('[applyForJob] Qualification mismatch:', { jobReq: job.required_qualifications, userQuals: user.qualifications });
+            return { success: false, error: qualificationCheck.reason || '応募条件を満たしていません' };
         }
 
         const targetWorkDateId = workDateId || job.workDates[0].id;
@@ -488,6 +494,13 @@ export async function applyForJobMultipleDates(jobId: string, workDateIds: numbe
         if (!genderCheck.allowed) {
             console.log('[applyForJobMultipleDates] Gender mismatch:', { jobReq: job.gender_requirement, userGender: user.gender });
             return { success: false, error: genderCheck.reason || '応募条件を満たしていません' };
+        }
+
+        // 資格要件バリデーション
+        const qualificationCheck = canApplyByQualification(job.required_qualifications, user.qualifications);
+        if (!qualificationCheck.allowed) {
+            console.log('[applyForJobMultipleDates] Qualification mismatch:', { jobReq: job.required_qualifications, userQuals: user.qualifications });
+            return { success: false, error: qualificationCheck.reason || '応募条件を満たしていません' };
         }
 
         const targetWorkDates = job.workDates.filter(wd => workDateIds.includes(wd.id));
@@ -818,7 +831,6 @@ export async function getApplicationDetail(applicationId: number) {
                     prefecture: job.facility.prefecture,
                     city: job.facility.city,
                     address_line: job.facility.address_line,
-                    phone_number: job.facility.phone_number,
                     smoking_measure: job.facility.smoking_measure,
                 },
                 template: job.template ? {

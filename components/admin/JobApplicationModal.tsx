@@ -51,6 +51,7 @@ interface JobWithApplications {
     startTime: string;
     endTime: string;
     hourlyWage: number;
+    wage: number;
     transportationFee?: number;
     workContent: string[];
     requiredQualifications: string[];
@@ -117,15 +118,6 @@ function getQualificationColor(qualification: string): { bg: string; text: strin
     return { bg: 'bg-gray-100', text: 'text-gray-600' };
 }
 
-// 総支給額を計算する関数
-function calculateTotalPayment(hourlyWage: number, startTime: string, endTime: string, transportationFee: number = 0): number {
-    const [startH, startM] = startTime.split(':').map(Number);
-    const [endH, endM] = endTime.split(':').map(Number);
-    let hours = (endH + endM / 60) - (startH + startM / 60);
-    if (hours < 0) hours += 24; // 日跨ぎ対応
-    return Math.round(hourlyWage * hours + transportationFee);
-}
-
 // 勤務時間を計算する関数
 function calculateWorkHours(startTime: string, endTime: string): number {
     const [startH, startM] = startTime.split(':').map(Number);
@@ -178,7 +170,9 @@ export default function JobApplicationModal({
 
     const transportationFee = job.transportationFee || 0;
     const workHours = calculateWorkHours(job.startTime, job.endTime);
-    const totalPayment = calculateTotalPayment(job.hourlyWage, job.startTime, job.endTime, transportationFee);
+    // 総支給額は求人作成時に確定・保存された日給(Job.wage: 休憩控除・割増・交通費込み)をそのまま表示する。
+    // モーダル内で時給×時間幅を再計算すると休憩控除や割増が反映されず、求人・ワーカー画面と乖離するため。
+    const totalPayment = job.wage;
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
