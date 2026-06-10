@@ -676,8 +676,29 @@ export async function deleteJobs(jobIds: number[], facilityId: number): Promise<
             return { success: false, message: '削除対象の求人が見つかりません' };
         }
 
+        // チャット履歴保全ガード: 応募（=チャット履歴）が1件でも存在する求人は
+        // 物理削除しない。Job削除は JobWorkDate→Application→Message を連鎖削除し、
+        // キャンセル済みを含む過去のチャットが消えてしまうため。
+        // 該当求人は「停止」での運用を案内する。
+        const workDatesWithApplications = await prisma.jobWorkDate.findMany({
+            where: {
+                job_id: { in: jobsToDelete.map(j => j.id) },
+                applications: { some: {} }, // 状態問わず（キャンセル済みの応募も保全対象）
+            },
+            select: { job_id: true },
+        });
+        const blockedJobIds = new Set(workDatesWithApplications.map(wd => wd.job_id));
+        const deletableJobs = jobsToDelete.filter(j => !blockedJobIds.has(j.id));
+
+        if (deletableJobs.length === 0) {
+            return {
+                success: false,
+                message: '応募・チャット履歴のある求人は削除（取り消し）できません。マッチングのキャンセル、または求人の「停止」をご利用ください。',
+            };
+        }
+
         // オファー求人の場合、削除前にワーカーへ通知メッセージを送信
-        for (const job of jobsToDelete) {
+        for (const job of deletableJobs) {
             if (job.job_type === 'OFFER' && job.target_worker_id) {
                 try {
                     // メッセージスレッドを取得
@@ -714,7 +735,7 @@ export async function deleteJobs(jobIds: number[], facilityId: number): Promise<
             }
         }
 
-        const validJobIds = jobsToDelete.map(j => j.id);
+        const validJobIds = deletableJobs.map(j => j.id);
 
         const result = await prisma.job.deleteMany({
             where: { id: { in: validJobIds } },
@@ -739,9 +760,12 @@ export async function deleteJobs(jobIds: number[], facilityId: number): Promise<
         // Google Indexing API に削除を通知
         notifyJobsDeleted(validJobIds);
 
+        const skippedCount = blockedJobIds.size;
         return {
             success: true,
-            message: `${result.count}件の求人を削除しました`,
+            message: skippedCount > 0
+                ? `${result.count}件の求人を削除しました（応募・チャット履歴のある${skippedCount}件は削除せず保全しました。「停止」をご利用ください）`
+                : `${result.count}件の求人を削除しました`,
             deletedCount: result.count,
         };
     } catch (error) {
@@ -1157,11 +1181,15 @@ export async function updateJob(
         }
 
         if (data.removeWorkDateIds && data.removeWorkDateIds.length > 0) {
+            // チャット履歴保全ガード: 応募が1件でも存在する勤務日は物理削除しない。
+            // applied_count は有効な応募数のみを数えるため、全てキャンセル済み
+            // （applied_count=0 だがチャットは残存）の日程まで消えてしまう。
+            // applications:{none:{}} で「応募が一切ない日程」だけを削除対象にする。
             await prisma.jobWorkDate.deleteMany({
                 where: {
                     id: { in: data.removeWorkDateIds },
                     job_id: jobId,
-                    applied_count: 0,
+                    applications: { none: {} },
                 },
             });
         }

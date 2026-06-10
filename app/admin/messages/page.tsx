@@ -261,8 +261,10 @@ export default function AdminMessagesPage() {
   const filteredConversations = conversations.filter((conv) => {
     if (filterType === 'all') return true;
     if (filterType === 'unread') return conv.unreadCount > 0;
-    if (filterType === 'scheduled') return conv.status === 'SCHEDULED';
-    if (filterType === 'completed') return conv.status.includes('COMPLETED');
+    // 会話の代表ステータス（最新メッセージの応募）ではなく、全応募を集計した
+    // フラグで判定する。これによりキャンセル後も有効な応募があれば消えない。
+    if (filterType === 'scheduled') return conv.hasUpcoming ?? (conv.status === 'SCHEDULED' || conv.status === 'WORKING');
+    if (filterType === 'completed') return conv.hasCompleted ?? conv.status.includes('COMPLETED');
     if (filterType === 'office') return false;
     return true;
   });
@@ -700,6 +702,11 @@ export default function AdminMessagesPage() {
                             {conv.isOffice && (
                               <span className="ml-2 text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full">
                                 システム通知
+                              </span>
+                            )}
+                            {!conv.isOffice && conv.status === 'CANCELLED' && !conv.hasUpcoming && !conv.hasCompleted && (
+                              <span className="ml-2 text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
+                                キャンセル済み
                               </span>
                             )}
                           </h3>
