@@ -13,6 +13,9 @@ export interface AdminConversation {
     unreadCount: number;
     jobTitle: string;
     status: string;
+    // 絞り込みタブ用の集計フラグ（最新メッセージの応募状態に依存しない）
+    hasUpcoming?: boolean;
+    hasCompleted?: boolean;
     isOffice?: boolean;
 }
 

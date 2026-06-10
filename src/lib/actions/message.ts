@@ -1138,6 +1138,11 @@ export async function getGroupedWorkerConversations(facilityId: number) {
     unreadCount: number;
     jobTitle: string;
     status: string;
+    // 絞り込みタブ用の集計フラグ（最新メッセージの応募状態に依存させない）
+    // hasUpcoming: SCHEDULED/WORKING の応募が1件でもあるか（「勤務予定」タブ）
+    // hasCompleted: COMPLETED_* の応募が1件でもあるか（「完了」タブ）
+    hasUpcoming: boolean;
+    hasCompleted: boolean;
     isOffice?: boolean;
   }>();
 
@@ -1150,10 +1155,15 @@ export async function getGroupedWorkerConversations(facilityId: number) {
     const lastMsg = app.messages[0];
     const unread = app._count?.messages || 0;
     const userName = user.name || '不明なユーザー';
+    // 全応募で評価する（メッセージの新しさやキャンセル状態に依存しない）
+    const isUpcoming = app.status === 'SCHEDULED' || app.status === 'WORKING';
+    const isCompleted = app.status === 'COMPLETED_PENDING' || app.status === 'COMPLETED_RATED';
 
     if (existing) {
       existing.applicationIds.push(app.id);
       existing.unreadCount += unread;
+      existing.hasUpcoming = existing.hasUpcoming || isUpcoming;
+      existing.hasCompleted = existing.hasCompleted || isCompleted;
       if (lastMsg && lastMsg.created_at > existing.lastMessageTime) {
         existing.lastMessage = lastMsg.content;
         existing.lastMessageTime = lastMsg.created_at;
@@ -1172,6 +1182,8 @@ export async function getGroupedWorkerConversations(facilityId: number) {
         unreadCount: unread,
         jobTitle: app.workDate?.job?.title || '',
         status: app.status,
+        hasUpcoming: isUpcoming,
+        hasCompleted: isCompleted,
       });
     }
   }
@@ -1204,6 +1216,8 @@ export async function getGroupedWorkerConversations(facilityId: number) {
         unreadCount: threadUnreadCount,
         jobTitle: '',
         status: '',
+        hasUpcoming: false,
+        hasCompleted: false,
       });
     }
   }
@@ -1221,6 +1235,8 @@ export async function getGroupedWorkerConversations(facilityId: number) {
       unreadCount: officeUnreadCount,
       jobTitle: '',
       status: '',
+      hasUpcoming: false,
+      hasCompleted: false,
       isOffice: true,
     });
   }
