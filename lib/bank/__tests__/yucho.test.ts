@@ -27,12 +27,29 @@ test('通常貯金: 記号12345 番号12345671 → 店番238 普通 口座123456
   assert.equal(r.accountNumber, '1234567')
 })
 
-test('通常貯金: 番号が7桁(<8)なら左から7桁をゼロ埋めで7桁', () => {
-  // 番号 "123456" (6桁) → 左から7桁=そのまま → ゼロ埋め "0123456"
+test('通常貯金: ゆうちょ公式の例 記号11940 番号12345671 → 店番198 口座1234567', () => {
+  // 出典: ゆうちょ公式図（番号8桁の例）
+  const r = convertYuchoToZengin('11940', '12345671')
+  assert.equal(r.ok, true)
+  if (!r.ok) return
+  assert.equal(r.branchCode, '198') // 2-3桁目"19" + "8"
+  assert.equal(r.accountNumber, '1234567') // 最後の"1"を除く
+})
+
+test('通常貯金: 番号が7桁以下でも「最後の1桁を除く」→ゼロ埋め7桁', () => {
+  // 公式: 桁数にかかわらず番号の最後の1桁を除く。
+  // 番号 "123456" (6桁) → 最後を除く "12345" → ゼロ埋め "0012345"
   const r = convertYuchoToZengin('10010', '123456')
   assert.equal(r.ok, true)
   if (!r.ok) return
   assert.equal(r.branchCode, '008') // 2-3桁目="00" + "8"
+  assert.equal(r.accountNumber, '0012345')
+})
+
+test('通常貯金: 番号1234561(7桁) → 最後を除き0123456', () => {
+  const r = convertYuchoToZengin('11940', '1234561')
+  assert.equal(r.ok, true)
+  if (!r.ok) return
   assert.equal(r.accountNumber, '0123456')
 })
 
@@ -50,8 +67,9 @@ test('記号が5桁でない場合はエラー', () => {
   assert.equal(convertYuchoToZengin('abcde', '12345671').ok, false)
 })
 
-test('番号が1〜8桁の数字でない場合はエラー', () => {
+test('番号が2〜8桁の数字でない場合はエラー', () => {
   assert.equal(convertYuchoToZengin('12345', '').ok, false)
+  assert.equal(convertYuchoToZengin('12345', '1').ok, false) // 1桁(最後を除くと空)
   assert.equal(convertYuchoToZengin('12345', '123456789').ok, false) // 9桁
   assert.equal(convertYuchoToZengin('12345', '12ab5671').ok, false)
 })

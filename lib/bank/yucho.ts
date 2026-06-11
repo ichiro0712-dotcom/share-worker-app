@@ -56,8 +56,9 @@ export function convertYuchoToZengin(symbolRaw: string, numberRaw: string): Yuch
   if (!/^\d{5}$/.test(symbol)) {
     return { ok: false, error: '記号は5桁の数字で入力してください' }
   }
-  if (!/^\d{1,8}$/.test(number)) {
-    return { ok: false, error: '番号は1〜8桁の数字で入力してください' }
+  // 番号は最後の1桁を除いて口座番号にするため、最低2桁必要。
+  if (!/^\d{2,8}$/.test(number)) {
+    return { ok: false, error: '番号は2〜8桁の数字で入力してください' }
   }
 
   const kind = symbol[0]
@@ -69,12 +70,12 @@ export function convertYuchoToZengin(symbolRaw: string, numberRaw: string): Yuch
     return { ok: false, error: '記号の形式が不正です（通常貯金の記号は1で始まります）' }
   }
 
-  // 通常貯金
-  // 店番(3桁) = 記号の2〜3桁目 + "8"
+  // 通常貯金（ゆうちょ公式の変換ルール）
+  // 店番(3桁) = 記号の2〜3桁目 + "8"   例: 記号11940 → "19"+"8" = "198"
   const branchCode = symbol.slice(1, 3) + '8'
-  // 口座番号 = 番号の左から7桁、7桁未満は先頭ゼロ埋め。
-  // (8桁番号の場合、左7桁=末尾チェック桁"1"を除いた値と一致する)
-  const accountNumber = number.slice(0, 7).padStart(7, '0')
+  // 口座番号 = 番号の「桁数にかかわらず最後の1桁を除く」。7桁になるよう先頭ゼロ埋め。
+  //   例: 番号12345671 → "1234567" / 番号1234561 → "0123456"
+  const accountNumber = number.slice(0, -1).padStart(7, '0')
 
   return { ok: true, branchCode, accountType: 'ORDINARY', accountNumber }
 }

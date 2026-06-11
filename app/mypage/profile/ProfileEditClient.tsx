@@ -297,6 +297,12 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
   const yuchoConv = isYucho && formData.yuchoSymbol && formData.yuchoNumber
     ? convertYuchoToZengin(formData.yuchoSymbol, formData.yuchoNumber)
     : null;
+  // 記号・番号を保存値から変更したか。変更時のみ本人確認チェックを必須にする
+  // （未変更の再保存で毎回チェックを強いるUXを避ける）。
+  const yuchoChanged =
+    isYucho &&
+    (formData.yuchoSymbol !== (userProfile.yucho_symbol || '') ||
+      formData.yuchoNumber !== (userProfile.yucho_number || ''));
   const [isSaving, setIsSaving] = useState(false);
   // バリデーションエラー表示用（送信時にtrueになる）
   const [showErrors, setShowErrors] = useState(false);
@@ -623,8 +629,9 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
       errors.push('電話番号を変更する場合はSMS認証を完了してください');
     }
 
-    // ゆうちょ: 記号・番号を入力したら、変換可能＋本人確認を必須にする（誤った振込先を防ぐ）
-    if (isYucho && (formData.yuchoSymbol || formData.yuchoNumber)) {
+    // ゆうちょ: 記号・番号を「変更した」ときのみ、変換可能＋本人確認を必須にする。
+    // 未変更の再保存ではチェック不要（保存済み＝確認済みとみなす）。
+    if (isYucho && yuchoChanged && (formData.yuchoSymbol || formData.yuchoNumber)) {
       if (!formData.yuchoSymbol || !formData.yuchoNumber) {
         errors.push('ゆうちょ口座は記号と番号の両方を入力してください');
       } else if (!yuchoConv || !yuchoConv.ok) {
@@ -1624,9 +1631,11 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                         inputMode="numeric"
                         value={formData.yuchoSymbol}
                         onChange={(e) => {
+                          // 全角→半角・数字のみ・5桁に強制（maxLengthだけだと貼付け等ですり抜けるため）
                           const value = e.target.value
                             .replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
-                            .replace(/[^0-9]/g, '');
+                            .replace(/[^0-9]/g, '')
+                            .slice(0, 5);
                           setFormData({ ...formData, yuchoSymbol: value });
                           setYuchoConfirmed(false);
                         }}
@@ -1643,9 +1652,11 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                         inputMode="numeric"
                         value={formData.yuchoNumber}
                         onChange={(e) => {
+                          // 全角→半角・数字のみ・8桁に強制
                           const value = e.target.value
                             .replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
-                            .replace(/[^0-9]/g, '');
+                            .replace(/[^0-9]/g, '')
+                            .slice(0, 8);
                           setFormData({ ...formData, yuchoNumber: value });
                           setYuchoConfirmed(false);
                         }}
@@ -1662,17 +1673,24 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                       <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
                         <p className="text-sm font-medium text-gray-800">振込用（自動計算）</p>
                         <p className="text-sm text-gray-700">店番 <span className="font-mono font-bold">{yuchoConv.branchCode}</span> ／ 預金種目 普通 ／ 口座番号 <span className="font-mono font-bold">{yuchoConv.accountNumber}</span></p>
-                        <label className="flex items-start gap-2 text-sm text-gray-700 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={yuchoConfirmed}
-                            onChange={(e) => setYuchoConfirmed(e.target.checked)}
-                            className="mt-1"
-                          />
-                          <span>通帳の「振込用の店名・預金種目・口座番号のご案内」と一致していることを確認しました</span>
-                        </label>
-                        {showErrors && !yuchoConfirmed && (
-                          <p className="text-red-500 text-xs">振込用の内容を確認してチェックを入れてください</p>
+                        {yuchoChanged ? (
+                          /* 記号・番号を変更したときのみ本人確認を求める */
+                          <>
+                            <label className="flex items-start gap-2 text-sm text-gray-700 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={yuchoConfirmed}
+                                onChange={(e) => setYuchoConfirmed(e.target.checked)}
+                                className="mt-1"
+                              />
+                              <span>通帳の「振込用の店名・預金種目・口座番号のご案内」と一致していることを確認しました</span>
+                            </label>
+                            {showErrors && !yuchoConfirmed && (
+                              <p className="text-red-500 text-xs">振込用の内容を確認してチェックを入れてください</p>
+                            )}
+                          </>
+                        ) : (
+                          <p className="text-xs text-green-600">✓ 登録済み（記号・番号を変更する場合のみ再確認が必要です）</p>
                         )}
                       </div>
                     ) : (
