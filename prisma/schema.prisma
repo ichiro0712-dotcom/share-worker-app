@@ -54,6 +54,11 @@ model User {
   branch_name                String?                 @map("branch_name")
   account_name               String?                 @map("account_name")
   account_number             String?                 @map("account_number")
+  // ゆうちょ対応: 口座種別(null=従来の全銀口座扱い)と、記号・番号の"原本"(暗号化保存)。
+  // 全銀の店番/口座番号は branch_code/account_number に変換後の派生値を保存する。
+  bank_account_kind          BankAccountKind?        @map("bank_account_kind")
+  yucho_symbol               String?                 @map("yucho_symbol")
+  yucho_number               String?                 @map("yucho_number")
   pension_number             String?                 @map("pension_number")
   id_document                String?                 @map("id_document")
   bank_book_image            String?                 @map("bank_book_image")
@@ -1587,6 +1592,13 @@ model BankAccount {
   encryptedAccountNumber String?   @map("encrypted_account_number") @db.Text
   encryptionVersion      Int?      @map("encryption_version")
 
+  // ゆうちょ対応: 口座種別(null=従来の全銀)と記号・番号の原本。
+  // accountNumber同様にBankAccountは平文運用（暗号化はUser側。橋渡しで復号して平文コピー）。
+  // bankCode/branchCode/accountNumber には変換後の全銀値を保持し、snapshot/GMO送金は従来通り。
+  bankAccountKind BankAccountKind? @map("bank_account_kind")
+  yuchoSymbol     String?          @map("yucho_symbol") @db.Text
+  yuchoNumber     String?          @map("yucho_number") @db.Text
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -1598,6 +1610,14 @@ model BankAccount {
   withdrawalRequests WithdrawalRequest[]
 
   @@map("bank_accounts")
+}
+
+/// 口座フォーマット種別（全銀 or ゆうちょ）
+enum BankAccountKind {
+  ZENGIN // 全銀（通常の銀行。店番・口座番号をそのまま使用）
+  YUCHO // ゆうちょ（記号・番号が原本。全銀値は変換後の派生）
+
+  @@map("bank_account_kind")
 }
 
 /// 口座種別
