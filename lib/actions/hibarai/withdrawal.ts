@@ -396,6 +396,8 @@ export async function submitWithdrawalToGmo(withdrawalRequestId: string): Promis
   if (isFirstSend) {
     const currentAccount = withdrawal.bank_account
     const inCooldown = !!currentAccount?.cooldownUntil && currentAccount.cooldownUntil > now
+    // 口座種別は既存行の null を ZENGIN と等価に扱う（旧snapshot/旧行で誤検知しないため）。
+    const normKind = (k: string | null | undefined) => (k === 'YUCHO' ? 'YUCHO' : 'ZENGIN')
     const accountChanged =
       !!currentAccount &&
       (snapshot.bankCode !== currentAccount.bankCode ||
@@ -404,6 +406,10 @@ export async function submitWithdrawalToGmo(withdrawalRequestId: string): Promis
         snapshot.accountNumber !== currentAccount.accountNumber ||
         snapshot.accountHolderName !== currentAccount.accountHolderName ||
         (snapshot.accountHolderNameKana ?? null) !== (currentAccount.accountHolderNameKana ?? null) ||
+        // ゆうちょは記号・番号(原本)も直接比較。異なる原本が同じ全銀値へ変換され得るため必須。
+        normKind(snapshot.bankKind) !== normKind(currentAccount.bankAccountKind) ||
+        (snapshot.yuchoSymbol ?? '') !== (currentAccount.yuchoSymbol ?? '') ||
+        (snapshot.yuchoNumber ?? '') !== (currentAccount.yuchoNumber ?? '') ||
         snapshot.lastChangedAt !== (currentAccount.lastChangedAt ? currentAccount.lastChangedAt.getTime() : null))
     if (!currentAccount || !currentAccount.isVerified || inCooldown || accountChanged) {
       const reason = !currentAccount

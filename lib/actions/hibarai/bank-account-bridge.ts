@@ -43,6 +43,11 @@ function isYuchoUser(user: UserBankSnapshot): boolean {
   return user.bank_account_kind === BankAccountKind.YUCHO || isYuchoBankCode(user.bank_code)
 }
 
+/** 口座種別を正規化（既存行の null は従来の全銀=ZENGIN と等価に扱う。変更検知の誤発火防止）。 */
+function normalizeKind(kind: BankAccountKind | null | undefined): BankAccountKind {
+  return kind === BankAccountKind.YUCHO ? BankAccountKind.YUCHO : BankAccountKind.ZENGIN
+}
+
 /** User平文の銀行情報からBankAccount同期用ペイロードを構築（純粋）。必須欠落でnull（同期しない）。 */
 export function buildBankAccountSyncPayload(user: UserBankSnapshot): BankAccountSyncPayload | null {
   if (!user.account_name) return null
@@ -244,7 +249,8 @@ export function didUserBankFieldsChange(prev: UserBankSnapshot, next: UserBankSn
     (prev.branch_code ?? '') !== (next.branch_code ?? '') ||
     (prevAcc ?? '') !== (nextAcc ?? '') ||
     (prev.account_name ?? '') !== (next.account_name ?? '') ||
-    (prev.bank_account_kind ?? null) !== (next.bank_account_kind ?? null) ||
+    // 既存行(null)と新規保存(ZENGIN)を誤って「変更」と判定しないよう正規化して比較。
+    normalizeKind(prev.bank_account_kind) !== normalizeKind(next.bank_account_kind) ||
     (prevSym ?? '') !== (nextSym ?? '') ||
     (prevNum ?? '') !== (nextNum ?? '')
   )

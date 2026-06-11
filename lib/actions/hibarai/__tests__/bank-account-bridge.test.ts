@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { buildBankAccountSyncPayload, didBankIdentityChange } from '../bank-account-bridge'
+import { buildBankAccountSyncPayload, didBankIdentityChange, didUserBankFieldsChange } from '../bank-account-bridge'
 
 const base = {
   bank_code: '0001',
@@ -124,6 +124,22 @@ test('didBankIdentityChange: 識別フィールド差分は変化扱い', () => 
   assert.equal(didBankIdentityChange({ ...same, accountHolderName: 'ヤマダ タロウ' }, next), true)
   assert.equal(didBankIdentityChange({ ...same, accountHolderNameKana: 'ヤマダ タロウ' }, next), true)
   assert.equal(didBankIdentityChange({ ...same, accountType: 'CURRENT' as const }, next), true)
+})
+
+test('didUserBankFieldsChange: 既存null口座種別 と 保存ZENGIN は変更扱いしない（W3/W4誤発火防止）', () => {
+  const prev = { ...base, bank_account_kind: null }
+  const next = { ...base, bank_account_kind: 'ZENGIN' as const }
+  assert.equal(didUserBankFieldsChange(prev, next), false)
+})
+
+test('didUserBankFieldsChange: ゆうちょ記号・番号(原本)の変更を検知', () => {
+  assert.equal(didUserBankFieldsChange(yuchoBase, { ...yuchoBase, yucho_number: '99999991' }), true)
+  assert.equal(didUserBankFieldsChange(yuchoBase, { ...yuchoBase, yucho_symbol: '19990' }), true)
+  assert.equal(didUserBankFieldsChange(yuchoBase, { ...yuchoBase }), false)
+})
+
+test('didUserBankFieldsChange: 全銀↔ゆうちょ切替を検知', () => {
+  assert.equal(didUserBankFieldsChange(base, yuchoBase), true)
 })
 
 test('didBankIdentityChange: 名称(bank_name/branch_name)だけ変わっても識別変化ではない', () => {

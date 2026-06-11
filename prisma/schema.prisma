@@ -1592,7 +1592,8 @@ model BankAccount {
   encryptedAccountNumber String?   @map("encrypted_account_number") @db.Text
   encryptionVersion      Int?      @map("encryption_version")
 
-  // ゆうちょ対応: 口座種別(null=従来の全銀)と記号・番号の原本(暗号化)。
+  // ゆうちょ対応: 口座種別(null=従来の全銀)と記号・番号の原本。
+  // accountNumber同様にBankAccountは平文運用（暗号化はUser側。橋渡しで復号して平文コピー）。
   // bankCode/branchCode/accountNumber には変換後の全銀値を保持し、snapshot/GMO送金は従来通り。
   bankAccountKind BankAccountKind? @map("bank_account_kind")
   yuchoSymbol     String?          @map("yucho_symbol") @db.Text
