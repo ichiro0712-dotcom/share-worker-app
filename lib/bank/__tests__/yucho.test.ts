@@ -4,7 +4,7 @@ import test from 'node:test'
 import { YUCHO_BANK_CODE, convertYuchoToZengin, isYuchoBankCode } from '../yucho'
 
 // 出典(変換ルール):
-// - SmartHR ヘルプ（給与振込の実務標準）: 店番=記号の2〜3桁目+"8" / 口座番号=番号の左から7桁
+// - ゆうちょ公式: 店番=記号の2〜3桁目+"8" / 口座番号=番号の最後の1桁を除く(7桁未満は左ゼロ埋め)
 //   https://support.smarthr.jp/ja/help/articles/360026107394/
 // - ゆうちょ公式（口座種別・桁数パターン。記号1始まり=通常貯金 / 0始まり=振替口座）
 //   https://www.jp-bank.japanpost.jp/kojin/sokin/koza/kj_sk_kz_furikomi_ksk.html
@@ -51,6 +51,13 @@ test('通常貯金: 番号1234561(7桁) → 最後を除き0123456', () => {
   assert.equal(r.ok, true)
   if (!r.ok) return
   assert.equal(r.accountNumber, '0123456')
+})
+
+test('通常貯金: 最小2桁の番号 12 → 最後を除き 0000001（境界）', () => {
+  const r = convertYuchoToZengin('11940', '12')
+  assert.equal(r.ok, true)
+  if (!r.ok) return
+  assert.equal(r.accountNumber, '0000001')
 })
 
 test('全角数字・空白・ハイフンを正規化して変換できる', () => {
