@@ -1,13 +1,14 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
-import { Prisma } from '@prisma/client';
+import { Prisma, BankAccountKind } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { getAuthenticatedUser } from './helpers';
 import { geocodeAddress } from '@/src/lib/geocoding';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 import { generateBankAccountName } from '@/lib/string-utils';
 import { readStoredAccountNumber, toStoredAccountNumber } from '@/lib/actions/hibarai/account-encryption';
+import { convertYuchoToZengin, isYuchoBankCode } from '@/lib/bank/yucho';
 import {
     didUserBankFieldsChange,
     hasActiveWithdrawal,
@@ -401,6 +402,46 @@ export async function updateUserProfile(formData: FormData) {
         const branchName = formData.get('branchName') as string | null;
         const accountName = formData.get('accountName') as string | null;
         const accountNumber = formData.get('accountNumber') as string | null;
+        // ゆうちょ: 記号・番号（原本）。ゆうちょ選択時のみ送られる。
+        const yuchoSymbolInput = (formData.get('yuchoSymbol') as string | null)?.trim() || '';
+        const yuchoNumberInput = (formData.get('yuchoNumber') as string | null)?.trim() || '';
+
+        // 銀行口座の保存値を確定する。
+        // - ゆうちょ(9900): 記号・番号→全銀の店番・口座番号に変換して branch_code/account_number に派生保存し、
+        //   記号・番号は原本として yucho_symbol/yucho_number に暗号化保存。変換不能なら保存拒否(明確なエラー)。
+        // - それ以外: 従来どおりフォームの branch_code/account_number をそのまま保存。
+        // 「空入力は既存値を保持」(undefined=Prisma更新せず)の方針は従来と揃える。
+        const isYucho = isYuchoBankCode(bankCode);
+        let effectiveBranchCode: string | null | undefined = branchCode || null;
+        // account_number(暗号化済み or undefined保持)
+        let accountNumberToStore: string | null | undefined =
+            accountNumber && accountNumber.trim() !== '' ? toStoredAccountNumber(accountNumber) : undefined;
+        // ゆうちょ記号・番号(暗号化済み or undefined保持)
+        let yuchoSymbolToStore: string | null | undefined = undefined;
+        let yuchoNumberToStore: string | null | undefined = undefined;
+        const bankAccountKindToStore: BankAccountKind | null = isYucho
+            ? BankAccountKind.YUCHO
+            : (bankCode ? BankAccountKind.ZENGIN : null);
+
+        if (isYucho) {
+            if (yuchoSymbolInput && yuchoNumberInput) {
+                // 記号・番号が入力された → 変換して派生値＋原本を保存
+                const conv = convertYuchoToZengin(yuchoSymbolInput, yuchoNumberInput);
+                if (!conv.ok) {
+                    return { success: false, error: `ゆうちょ口座: ${conv.error}` };
+                }
+                effectiveBranchCode = conv.branchCode;
+                accountNumberToStore = toStoredAccountNumber(conv.accountNumber);
+                yuchoSymbolToStore = toStoredAccountNumber(yuchoSymbolInput);
+                yuchoNumberToStore = toStoredAccountNumber(yuchoNumberInput);
+            } else {
+                // 記号・番号が空 → 既存値を保持（branch_code/account_number/記号番号いずれも触らない）
+                effectiveBranchCode = undefined;
+                accountNumberToStore = undefined;
+                yuchoSymbolToStore = undefined;
+                yuchoNumberToStore = undefined;
+            }
+        }
 
         // その他
         const pensionNumber = formData.get('pensionNumber') as string | null;
@@ -644,15 +685,20 @@ export async function updateUserProfile(formData: FormData) {
                 self_pr: selfPR || null,
                 bank_code: bankCode || null,
                 bank_name: bankName || null,
-                branch_code: branchCode || null,
+                // ゆうちょは記号・番号から変換した店番(派生)。空入力時は undefined=既存保持。
+                branch_code: effectiveBranchCode,
                 branch_name: branchName || null,
                 // 口座名義は姓名カナから自動生成（小文字カタカナは大文字に変換）
                 account_name: generateBankAccountName(lastNameKana || '', firstNameKana || '') || null,
                 // 口座番号は保存時に暗号化（鍵未設定時は平文のまま＝段階移行で保存を壊さない）。
                 // 空入力のときは undefined にして既存値を保持（Prismaはundefinedを更新しない）。
                 // ＝鍵障害で表示が空白になった状態で保存しても、既存の口座番号を消さない（データ消失防止）。
-                account_number:
-                    accountNumber && accountNumber.trim() !== '' ? toStoredAccountNumber(accountNumber) : undefined,
+                // ゆうちょは記号・番号から変換した全銀口座番号(7桁)を暗号化して保存。
+                account_number: accountNumberToStore,
+                // ゆうちょ対応: 口座種別と記号・番号の原本(暗号化)。空入力時は undefined=既存保持。
+                bank_account_kind: bankAccountKindToStore,
+                yucho_symbol: yuchoSymbolToStore,
+                yucho_number: yuchoNumberToStore,
                 pension_number: pensionNumber || null,
                 id_document: idDocumentPath,
                 bank_book_image: bankBookImagePath,
@@ -669,19 +715,28 @@ export async function updateUserProfile(formData: FormData) {
             select: {
                 bank_code: true, bank_name: true, branch_code: true, branch_name: true,
                 account_name: true, account_number: true,
+                bank_account_kind: true, yucho_symbol: true, yucho_number: true,
             },
         });
         if (!existingBank) {
             return { success: false, error: 'ユーザーが見つかりません' };
         }
+        // ゆうちょの記号・番号は入力時のみ更新、空なら既存保持（preserve-on-blank）。
+        const yuchoHasInput = isYucho && !!yuchoSymbolInput && !!yuchoNumberInput;
         const nextBankSnapshot: UserBankSnapshot = {
             bank_code: bankCode || null,
             bank_name: bankName || null,
-            branch_code: branchCode || null,
+            // ゆうちょは派生店番(入力時)or既存。それ以外はフォーム値。
+            branch_code: isYucho
+                ? (yuchoHasInput ? (effectiveBranchCode ?? null) : existingBank.branch_code)
+                : (branchCode || null),
             branch_name: branchName || null,
             account_name: generateBankAccountName(lastNameKana || '', firstNameKana || '') || null,
             // 空入力は既存値を保持（updateData側の preserve-on-blank と同じ意味）
             account_number: accountNumber && accountNumber.trim() !== '' ? accountNumber : existingBank.account_number,
+            bank_account_kind: bankAccountKindToStore,
+            yucho_symbol: yuchoHasInput ? yuchoSymbolInput : existingBank.yucho_symbol,
+            yucho_number: yuchoHasInput ? yuchoNumberInput : existingBank.yucho_number,
         };
         // 早期リターン: 銀行フィールド変更時は active withdrawal を事前チェック（UX上の早めの弾き）。
         // tx内でも再チェックして TOCTOU を最小化する（下記）。
@@ -729,17 +784,23 @@ export async function updateUserProfile(formData: FormData) {
                     select: {
                         bank_code: true, bank_name: true, branch_code: true, branch_name: true,
                         account_name: true, account_number: true,
+                        bank_account_kind: true, yucho_symbol: true, yucho_number: true,
                     },
                 });
                 if (!freshBank) throw new Error('USER_NOT_FOUND');
                 const freshNextSnapshot: UserBankSnapshot = {
                     bank_code: bankCode || null,
                     bank_name: bankName || null,
-                    branch_code: branchCode || null,
+                    branch_code: isYucho
+                        ? (yuchoHasInput ? (effectiveBranchCode ?? null) : freshBank.branch_code)
+                        : (branchCode || null),
                     branch_name: branchName || null,
                     account_name: generateBankAccountName(lastNameKana || '', firstNameKana || '') || null,
                     // 空入力はfresh側の既存値を保持（preserve-on-blank をfresh基準で）
                     account_number: accountNumber && accountNumber.trim() !== '' ? accountNumber : freshBank.account_number,
+                    bank_account_kind: bankAccountKindToStore,
+                    yucho_symbol: yuchoHasInput ? yuchoSymbolInput : freshBank.yucho_symbol,
+                    yucho_number: yuchoHasInput ? yuchoNumberInput : freshBank.yucho_number,
                 };
                 // fresh値での再判定（pre-tx判定はUX用の早期return、こちらが authoritative）
                 if (didUserBankFieldsChange(freshBank, freshNextSnapshot)) {
