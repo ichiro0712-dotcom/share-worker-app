@@ -109,7 +109,7 @@ function jstDateTime(date: Date | null): string | null {
   return date ? date.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) : null
 }
 
-type SnapshotShape = { bankCode?: unknown; accountNumber?: unknown }
+type SnapshotShape = { bankCode?: unknown; accountNumber?: unknown; bankKind?: unknown; yuchoNumber?: unknown }
 
 export type AdminWithdrawalsResult = {
   rows: AdminWithdrawalRow[]
@@ -145,7 +145,14 @@ export async function getAdminWithdrawals(
   const rows: AdminWithdrawalRow[] = withdrawals.map((w) => {
     const snap = (w.bank_snapshot ?? {}) as SnapshotShape
     const bankCode = typeof snap.bankCode === 'string' ? snap.bankCode : ''
-    const accountNumber = typeof snap.accountNumber === 'string' ? snap.accountNumber : ''
+    // ゆうちょは原本(番号)の下4桁を表示。全銀は従来どおり口座番号の下4桁。
+    const yuchoNumber = typeof snap.yuchoNumber === 'string' ? snap.yuchoNumber : ''
+    const accountNumber =
+      snap.bankKind === 'YUCHO' && yuchoNumber
+        ? yuchoNumber
+        : typeof snap.accountNumber === 'string'
+          ? snap.accountNumber
+          : ''
     return {
       id: w.id,
       workerId: w.worker_id,

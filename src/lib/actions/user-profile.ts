@@ -263,6 +263,10 @@ export async function getUserProfile() {
             account_name: user.account_name,
             // 保存値は暗号化されている場合があるため復号して返す（平文ならそのまま）
             account_number: readStoredAccountNumber(user.account_number),
+            // ゆうちょ: 口座種別と記号・番号(原本)を復号して返す。表示・編集はこちらを正とする。
+            bank_account_kind: user.bank_account_kind,
+            yucho_symbol: readStoredAccountNumber(user.yucho_symbol),
+            yucho_number: readStoredAccountNumber(user.yucho_number),
             // その他
             pension_number: user.pension_number,
             id_document: user.id_document,
