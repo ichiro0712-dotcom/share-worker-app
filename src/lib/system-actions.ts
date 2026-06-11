@@ -675,6 +675,10 @@ export async function getSystemWorkerDetail(id: number) {
         account_name: worker.account_name,
         // 暗号化保存に対応（平文ならそのまま）
         account_number: readStoredAccountNumber(worker.account_number),
+        // ゆうちょ: 口座種別と記号・番号(原本/復号)。表示はゆうちょなら原本を優先する。
+        bank_account_kind: worker.bank_account_kind,
+        yucho_symbol: readStoredAccountNumber(worker.yucho_symbol),
+        yucho_number: readStoredAccountNumber(worker.yucho_number),
         bank_book_image: worker.bank_book_image,
         pension_number: worker.pension_number,
         created_at: worker.created_at,
