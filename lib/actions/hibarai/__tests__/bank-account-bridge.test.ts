@@ -31,6 +31,16 @@ test('buildBankAccountSyncPayload: 必須欠落はnull（同期しない）', ()
   assert.equal(buildBankAccountSyncPayload({ ...base, account_number: '' }), null)
 })
 
+test('buildBankAccountSyncPayload: 全銀に収まらない口座番号(8桁/非数字)はnull（VarChar(7)溢れ＝PROFILE_UPDATE_FAILED防止）', () => {
+  // ゆうちょ8桁番号が口座番号欄にそのまま入った等。BankAccount.accountNumber は VarChar(7)。
+  // 同期させると "value too long" でプロフィール保存tx全体がrollbackするため、同期しない（null）。
+  assert.equal(buildBankAccountSyncPayload({ ...base, account_number: '12345671' }), null) // 8桁
+  assert.equal(buildBankAccountSyncPayload({ ...base, account_number: '123456789' }), null) // 9桁
+  assert.equal(buildBankAccountSyncPayload({ ...base, account_number: '12-34567' }), null) // 非数字混入
+  // 7桁ちょうどはOK
+  assert.ok(buildBankAccountSyncPayload({ ...base, account_number: '1234567' }))
+})
+
 test('buildBankAccountSyncPayload: 任意項目(bank_name/branch_name)欠落でも生成（空文字）', () => {
   const p = buildBankAccountSyncPayload({ ...base, bank_name: null, branch_name: null })
   assert.ok(p)
