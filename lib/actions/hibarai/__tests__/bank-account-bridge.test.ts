@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { buildBankAccountSyncPayload, didBankIdentityChange } from '../bank-account-bridge'
+import { buildBankAccountSyncPayload, didBankIdentityChange, didUserBankFieldsChange } from '../bank-account-bridge'
 
 const base = {
   bank_code: '0001',
@@ -10,6 +10,19 @@ const base = {
   branch_name: '本店',
   account_name: 'タカハシ ミサキ',
   account_number: '1234567', // 平文（テストでは平文でOK／実環境では暗号化された値も readStoredAccountNumber が復号）
+}
+
+// ゆうちょ口座: 記号・番号が原本（テストでは平文）。bank_account_kind=YUCHO。
+const yuchoBase = {
+  bank_code: '9900',
+  bank_name: 'ゆうちょ銀行',
+  branch_code: null,
+  branch_name: null,
+  account_name: 'タカハシ ミサキ',
+  account_number: null,
+  bank_account_kind: 'YUCHO' as const,
+  yucho_symbol: '12345',
+  yucho_number: '12345671',
 }
 
 test('buildBankAccountSyncPayload: 全必須揃えばペイロード生成', () => {
@@ -39,6 +52,35 @@ test('buildBankAccountSyncPayload: 全銀に収まらない口座番号(8桁/非
   assert.equal(buildBankAccountSyncPayload({ ...base, account_number: '12-34567' }), null) // 非数字混入
   // 7桁ちょうどはOK
   assert.ok(buildBankAccountSyncPayload({ ...base, account_number: '1234567' }))
+})
+
+test('buildBankAccountSyncPayload: ゆうちょは記号・番号から全銀値に変換して生成', () => {
+  const p = buildBankAccountSyncPayload(yuchoBase)
+  assert.ok(p)
+  assert.equal(p.bankCode, '9900')
+  assert.equal(p.branchCode, '238') // 記号12345 → 2-3桁目"23"+"8"
+  assert.equal(p.accountNumber, '1234567') // 番号12345671 → 左7桁
+  assert.equal(p.accountType, 'ORDINARY')
+  assert.equal(p.bankAccountKind, 'YUCHO')
+  assert.equal(p.yuchoSymbol, '12345') // 原本を保持
+  assert.equal(p.yuchoNumber, '12345671')
+})
+
+test('buildBankAccountSyncPayload: ゆうちょで記号・番号が欠落ならnull（同期しない）', () => {
+  assert.equal(buildBankAccountSyncPayload({ ...yuchoBase, yucho_symbol: null }), null)
+  assert.equal(buildBankAccountSyncPayload({ ...yuchoBase, yucho_number: null }), null)
+})
+
+test('buildBankAccountSyncPayload: ゆうちょで変換不能(振替口座=記号0始まり)はnull', () => {
+  assert.equal(buildBankAccountSyncPayload({ ...yuchoBase, yucho_symbol: '00010', yucho_number: '123456' }), null)
+})
+
+test('buildBankAccountSyncPayload: 全銀はbankAccountKind=ZENGIN・ゆうちょ項目はnull', () => {
+  const p = buildBankAccountSyncPayload(base)
+  assert.ok(p)
+  assert.equal(p.bankAccountKind, 'ZENGIN')
+  assert.equal(p.yuchoSymbol, null)
+  assert.equal(p.yuchoNumber, null)
 })
 
 test('buildBankAccountSyncPayload: 任意項目(bank_name/branch_name)欠落でも生成（空文字）', () => {
@@ -82,6 +124,22 @@ test('didBankIdentityChange: 識別フィールド差分は変化扱い', () => 
   assert.equal(didBankIdentityChange({ ...same, accountHolderName: 'ヤマダ タロウ' }, next), true)
   assert.equal(didBankIdentityChange({ ...same, accountHolderNameKana: 'ヤマダ タロウ' }, next), true)
   assert.equal(didBankIdentityChange({ ...same, accountType: 'CURRENT' as const }, next), true)
+})
+
+test('didUserBankFieldsChange: 既存null口座種別 と 保存ZENGIN は変更扱いしない（W3/W4誤発火防止）', () => {
+  const prev = { ...base, bank_account_kind: null }
+  const next = { ...base, bank_account_kind: 'ZENGIN' as const }
+  assert.equal(didUserBankFieldsChange(prev, next), false)
+})
+
+test('didUserBankFieldsChange: ゆうちょ記号・番号(原本)の変更を検知', () => {
+  assert.equal(didUserBankFieldsChange(yuchoBase, { ...yuchoBase, yucho_number: '99999991' }), true)
+  assert.equal(didUserBankFieldsChange(yuchoBase, { ...yuchoBase, yucho_symbol: '19990' }), true)
+  assert.equal(didUserBankFieldsChange(yuchoBase, { ...yuchoBase }), false)
+})
+
+test('didUserBankFieldsChange: 全銀↔ゆうちょ切替を検知', () => {
+  assert.equal(didUserBankFieldsChange(base, yuchoBase), true)
 })
 
 test('didBankIdentityChange: 名称(bank_name/branch_name)だけ変わっても識別変化ではない', () => {

@@ -33,6 +33,7 @@ import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBa
 import BankSelector from '@/components/ui/BankSelector';
 import BranchSelector from '@/components/ui/BranchSelector';
 import { generateBankAccountName } from '@/lib/string-utils';
+import { convertYuchoToZengin, isYuchoBankCode } from '@/lib/bank/yucho';
 
 /**
  * 署名付きURLを使用してファイルをSupabase Storageに直接アップロード
@@ -130,6 +131,10 @@ interface UserProfile {
   branch_name: string | null;
   account_name: string | null;
   account_number: string | null;
+  // ゆうちょ: 口座種別と記号・番号(原本)
+  bank_account_kind?: string | null;
+  yucho_symbol?: string | null;
+  yucho_number?: string | null;
   // その他
   pension_number: string | null;
   id_document: string | null;
@@ -275,12 +280,29 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
       userProfile.first_name_kana || ''
     ),
     accountNumber: userProfile.account_number || '',
+    // ゆうちょ: 記号・番号(原本)
+    yuchoSymbol: userProfile.yucho_symbol || '',
+    yuchoNumber: userProfile.yucho_number || '',
 
     // 7. その他
     pensionNumber: userProfile.pension_number || '',
   });
 
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  // ゆうちょ: 自動計算した振込用(店番・口座番号)が通帳の「振込用のご案内」と一致する旨の本人確認チェック
+  const [yuchoConfirmed, setYuchoConfirmed] = useState(false);
+  // 銀行=ゆうちょ(9900)か。選択時は記号・番号入力に切替える。
+  const isYucho = isYuchoBankCode(formData.bankCode);
+  // 記号・番号 → 振込用(店番・口座番号) の自動計算結果（表示・本人確認用）。
+  const yuchoConv = isYucho && formData.yuchoSymbol && formData.yuchoNumber
+    ? convertYuchoToZengin(formData.yuchoSymbol, formData.yuchoNumber)
+    : null;
+  // 記号・番号を保存値から変更したか。変更時のみ本人確認チェックを必須にする
+  // （未変更の再保存で毎回チェックを強いるUXを避ける）。
+  const yuchoChanged =
+    isYucho &&
+    (formData.yuchoSymbol !== (userProfile.yucho_symbol || '') ||
+      formData.yuchoNumber !== (userProfile.yucho_number || ''));
   const [isSaving, setIsSaving] = useState(false);
   // バリデーションエラー表示用（送信時にtrueになる）
   const [showErrors, setShowErrors] = useState(false);
@@ -607,6 +629,18 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
       errors.push('電話番号を変更する場合はSMS認証を完了してください');
     }
 
+    // ゆうちょ: 記号・番号を「変更した」ときのみ、変換可能＋本人確認を必須にする。
+    // 未変更の再保存ではチェック不要（保存済み＝確認済みとみなす）。
+    if (isYucho && yuchoChanged && (formData.yuchoSymbol || formData.yuchoNumber)) {
+      if (!formData.yuchoSymbol || !formData.yuchoNumber) {
+        errors.push('ゆうちょ口座は記号と番号の両方を入力してください');
+      } else if (!yuchoConv || !yuchoConv.ok) {
+        errors.push(yuchoConv && !yuchoConv.ok ? `ゆうちょ口座: ${yuchoConv.error}` : 'ゆうちょの記号・番号をご確認ください');
+      } else if (!yuchoConfirmed) {
+        errors.push('ゆうちょ口座: 振込用の内容を確認してチェックを入れてください');
+      }
+    }
+
     if (errors.length > 0) {
       toast.error(errors.join('、'));
       return;
@@ -749,6 +783,9 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
       form.append('branchName', formData.branchName);
       form.append('accountName', formData.accountName);
       form.append('accountNumber', formData.accountNumber);
+      // ゆうちょ: 記号・番号(原本)。サーバ側で全銀の店番・口座番号に変換して保存する。
+      form.append('yuchoSymbol', formData.yuchoSymbol);
+      form.append('yuchoNumber', formData.yuchoNumber);
 
       // その他
       form.append('pensionNumber', formData.pensionNumber);
@@ -1583,31 +1620,111 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                   legacyName={!formData.bankCode ? formData.bankName : ''}
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">支店名 <span className="text-red-500">*</span></label>
-                <BranchSelector
-                  bankCode={formData.bankCode || null}
-                  value={formData.branchCode ? { code: formData.branchCode, name: formData.branchName } : null}
-                  onChange={(branch) => {
-                    if (branch) {
-                      setFormData({
-                        ...formData,
-                        branchCode: branch.code,
-                        branchName: branch.name
-                      });
-                    } else {
-                      setFormData({
-                        ...formData,
-                        branchCode: '',
-                        branchName: ''
-                      });
-                    }
-                  }}
-                  required
-                  showErrors={showErrors}
-                  legacyName={!formData.branchCode ? formData.branchName : ''}
-                />
-              </div>
+              {isYucho ? (
+                /* ゆうちょ: 通帳の記号・番号を入力。振込用(店番・口座番号)は自動計算し本人確認してもらう。 */
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">記号（5桁） <span className="text-red-500">*</span></label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={formData.yuchoSymbol}
+                        onChange={(e) => {
+                          // 全角→半角・数字のみ・5桁に強制（maxLengthだけだと貼付け等ですり抜けるため）
+                          const value = e.target.value
+                            .replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
+                            .replace(/[^0-9]/g, '')
+                            .slice(0, 5);
+                          setFormData({ ...formData, yuchoSymbol: value });
+                          setYuchoConfirmed(false);
+                        }}
+                        maxLength={5}
+                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.yuchoSymbol ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                        placeholder="12345"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">※通帳の「記号」（5桁）</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">番号（最大8桁） <span className="text-red-500">*</span></label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={formData.yuchoNumber}
+                        onChange={(e) => {
+                          // 全角→半角・数字のみ・8桁に強制
+                          const value = e.target.value
+                            .replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
+                            .replace(/[^0-9]/g, '')
+                            .slice(0, 8);
+                          setFormData({ ...formData, yuchoNumber: value });
+                          setYuchoConfirmed(false);
+                        }}
+                        maxLength={8}
+                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.yuchoNumber ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                        placeholder="12345671"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">※通帳の「番号」</p>
+                    </div>
+                  </div>
+                  {/* 自動計算結果（振込用）＋本人確認 */}
+                  {formData.yuchoSymbol && formData.yuchoNumber && (
+                    yuchoConv && yuchoConv.ok ? (
+                      <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
+                        <p className="text-sm font-medium text-gray-800">振込用（自動計算）</p>
+                        <p className="text-sm text-gray-700">店番 <span className="font-mono font-bold">{yuchoConv.branchCode}</span> ／ 預金種目 普通 ／ 口座番号 <span className="font-mono font-bold">{yuchoConv.accountNumber}</span></p>
+                        {yuchoChanged ? (
+                          /* 記号・番号を変更したときのみ本人確認を求める */
+                          <>
+                            <label className="flex items-start gap-2 text-sm text-gray-700 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={yuchoConfirmed}
+                                onChange={(e) => setYuchoConfirmed(e.target.checked)}
+                                className="mt-1"
+                              />
+                              <span>通帳の「振込用の店名・預金種目・口座番号のご案内」と一致していることを確認しました</span>
+                            </label>
+                            {showErrors && !yuchoConfirmed && (
+                              <p className="text-red-500 text-xs">振込用の内容を確認してチェックを入れてください</p>
+                            )}
+                          </>
+                        ) : (
+                          <p className="text-xs text-green-600">✓ 登録済み（記号・番号を変更する場合のみ再確認が必要です）</p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-red-500 text-sm">{yuchoConv && !yuchoConv.ok ? yuchoConv.error : '記号・番号をご確認ください'}</p>
+                    )
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium mb-2">支店名 <span className="text-red-500">*</span></label>
+                  <BranchSelector
+                    bankCode={formData.bankCode || null}
+                    value={formData.branchCode ? { code: formData.branchCode, name: formData.branchName } : null}
+                    onChange={(branch) => {
+                      if (branch) {
+                        setFormData({
+                          ...formData,
+                          branchCode: branch.code,
+                          branchName: branch.name
+                        });
+                      } else {
+                        setFormData({
+                          ...formData,
+                          branchCode: '',
+                          branchName: ''
+                        });
+                      }
+                    }}
+                    required
+                    showErrors={showErrors}
+                    legacyName={!formData.branchCode ? formData.branchName : ''}
+                  />
+                </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium mb-2">口座名義（カナ） <span className="text-red-500">*</span></label>
@@ -1623,28 +1740,30 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                   )}
                   <p className="text-xs text-gray-500 mt-1">※姓名（カナ）から自動生成されます</p>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">口座番号 <span className="text-red-500">*</span></label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={formData.accountNumber}
-                    onChange={(e) => {
-                      // 数字のみ許可（全角数字は半角に変換）
-                      const value = e.target.value
-                        .replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
-                        .replace(/[^0-9]/g, '');
-                      setFormData({ ...formData, accountNumber: value });
-                    }}
-                    maxLength={8}
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.accountNumber ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
-                    placeholder="1234567"
-                  />
-                  {showErrors && !formData.accountNumber && (
-                    <p className="text-red-500 text-xs mt-1">口座番号を入力してください</p>
-                  )}
-                  <p className="text-xs text-gray-500 mt-1">※半角数字で入力（7〜8桁）</p>
-                </div>
+                {!isYucho && (
+                  <div>
+                    <label className="block text-sm font-medium mb-2">口座番号 <span className="text-red-500">*</span></label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={formData.accountNumber}
+                      onChange={(e) => {
+                        // 数字のみ許可（全角数字は半角に変換）
+                        const value = e.target.value
+                          .replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
+                          .replace(/[^0-9]/g, '');
+                        setFormData({ ...formData, accountNumber: value });
+                      }}
+                      maxLength={7}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.accountNumber ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                      placeholder="1234567"
+                    />
+                    {showErrors && !formData.accountNumber && (
+                      <p className="text-red-500 text-xs mt-1">口座番号を入力してください</p>
+                    )}
+                    <p className="text-xs text-gray-500 mt-1">※半角数字で入力（7桁）</p>
+                  </div>
+                )}
               </div>
             </div>
 

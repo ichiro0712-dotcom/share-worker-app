@@ -74,6 +74,11 @@ type BankSnapshot = {
   accountHolderNameKana: string | null
   /** 申請時点の口座更新時刻(epoch ms)。送信時の口座変更検知に使う。 */
   lastChangedAt: number | null
+  // ゆうちょ対応(任意・後方互換)。GMO送金は上記の全銀フィールドのみ使い、以下は手動振込/管理表示・変更検知の補助。
+  // 旧snapshotには存在しないため parse は欠落を許容する。
+  bankKind?: 'ZENGIN' | 'YUCHO' | null
+  yuchoSymbol?: string | null
+  yuchoNumber?: string | null
 }
 
 type WithdrawalForSubmit = {
@@ -103,6 +108,16 @@ function parseBankSnapshot(value: unknown): BankSnapshot {
   if (s.lastChangedAt != null && (typeof s.lastChangedAt !== 'number' || !Number.isSafeInteger(s.lastChangedAt))) {
     throw new Error('bank_snapshot.lastChangedAt invalid')
   }
+  // ゆうちょ任意フィールド（旧snapshotには無い。欠落許容・型不正のみ弾く）
+  if (s.bankKind != null && s.bankKind !== 'ZENGIN' && s.bankKind !== 'YUCHO') {
+    throw new Error('bank_snapshot.bankKind invalid')
+  }
+  if (s.yuchoSymbol != null && typeof s.yuchoSymbol !== 'string') {
+    throw new Error('bank_snapshot.yuchoSymbol invalid')
+  }
+  if (s.yuchoNumber != null && typeof s.yuchoNumber !== 'string') {
+    throw new Error('bank_snapshot.yuchoNumber invalid')
+  }
   return {
     bankCode: s.bankCode,
     branchCode: s.branchCode,
@@ -111,6 +126,9 @@ function parseBankSnapshot(value: unknown): BankSnapshot {
     accountHolderName: s.accountHolderName,
     accountHolderNameKana: (s.accountHolderNameKana as string | null) ?? null,
     lastChangedAt: (s.lastChangedAt as number | null) ?? null,
+    bankKind: (s.bankKind as 'ZENGIN' | 'YUCHO' | null) ?? null,
+    yuchoSymbol: (s.yuchoSymbol as string | null) ?? null,
+    yuchoNumber: (s.yuchoNumber as string | null) ?? null,
   }
 }
 
@@ -196,11 +214,15 @@ export async function createWithdrawalRequest(
             accountHolderName: true,
             accountHolderNameKana: true,
             lastChangedAt: true,
+            bankAccountKind: true,
+            yuchoSymbol: true,
+            yuchoNumber: true,
           },
         })
         if (!bankAccount) throw new Error('Valid bank account not found')
 
         // 申請時の口座を凍結(snapshot)。GMO送金はこの値のみ使う。
+        // ゆうちょは記号・番号も凍結（手動振込・管理表示・変更検知の補助。GMOへは全銀値のみ）。
         const bankSnapshot: BankSnapshot = {
           bankCode: bankAccount.bankCode,
           branchCode: bankAccount.branchCode,
@@ -209,6 +231,9 @@ export async function createWithdrawalRequest(
           accountHolderName: bankAccount.accountHolderName,
           accountHolderNameKana: bankAccount.accountHolderNameKana,
           lastChangedAt: bankAccount.lastChangedAt ? bankAccount.lastChangedAt.getTime() : null,
+          bankKind: bankAccount.bankAccountKind ?? null,
+          yuchoSymbol: bankAccount.yuchoSymbol ?? null,
+          yuchoNumber: bankAccount.yuchoNumber ?? null,
         }
 
         await checkWithdrawalRateLimits(tx, input.workerId, input.amount, policy)
@@ -371,6 +396,8 @@ export async function submitWithdrawalToGmo(withdrawalRequestId: string): Promis
   if (isFirstSend) {
     const currentAccount = withdrawal.bank_account
     const inCooldown = !!currentAccount?.cooldownUntil && currentAccount.cooldownUntil > now
+    // 口座種別は既存行の null を ZENGIN と等価に扱う（旧snapshot/旧行で誤検知しないため）。
+    const normKind = (k: string | null | undefined) => (k === 'YUCHO' ? 'YUCHO' : 'ZENGIN')
     const accountChanged =
       !!currentAccount &&
       (snapshot.bankCode !== currentAccount.bankCode ||
@@ -379,6 +406,10 @@ export async function submitWithdrawalToGmo(withdrawalRequestId: string): Promis
         snapshot.accountNumber !== currentAccount.accountNumber ||
         snapshot.accountHolderName !== currentAccount.accountHolderName ||
         (snapshot.accountHolderNameKana ?? null) !== (currentAccount.accountHolderNameKana ?? null) ||
+        // ゆうちょは記号・番号(原本)も直接比較。異なる原本が同じ全銀値へ変換され得るため必須。
+        normKind(snapshot.bankKind) !== normKind(currentAccount.bankAccountKind) ||
+        (snapshot.yuchoSymbol ?? '') !== (currentAccount.yuchoSymbol ?? '') ||
+        (snapshot.yuchoNumber ?? '') !== (currentAccount.yuchoNumber ?? '') ||
         snapshot.lastChangedAt !== (currentAccount.lastChangedAt ? currentAccount.lastChangedAt.getTime() : null))
     if (!currentAccount || !currentAccount.isVerified || inCooldown || accountChanged) {
       const reason = !currentAccount
