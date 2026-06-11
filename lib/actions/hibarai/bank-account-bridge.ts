@@ -36,6 +36,14 @@ export function buildBankAccountSyncPayload(user: UserBankSnapshot): BankAccount
   if (!user.branch_code) return null
   if (!accountNumber) return null
   if (!user.account_name) return null
+  // 全銀フォーマットの口座番号は最大7桁(数字)。BankAccount.accountNumber は VarChar(7) のため、
+  // 8桁(ゆうちょの番号をそのまま入れた等)や非数字をそのまま upsert すると
+  // "value too long for the column's type" でプロフィール保存tx全体がrollbackする(PROFILE_UPDATE_FAILED)。
+  // ここで弾いて同期しない(no-op)。ゆうちょ等の正式対応(記号→店番,番号→口座番号変換)は別途。
+  if (!/^\d{1,7}$/.test(accountNumber)) {
+    console.warn('[bank-account-bridge] 全銀に収まらない口座番号のため同期をスキップ（桁数/形式不正の可能性）')
+    return null
+  }
   return {
     bankCode: user.bank_code,
     bankName: user.bank_name ?? '',
