@@ -760,8 +760,8 @@ const notificationSettings = [
     chat_enabled: true,
     email_enabled: false,
     push_enabled: false,
-    chat_message: `[ワーカー名字]さん、初めまして！
-[施設名]です。
+    chat_message: `{{worker_last_name}}さん、初めまして！
+{{facility_name}}です。
 
 この度はマッチングありがとうございます。
 当日はよろしくお願いいたします。`,
