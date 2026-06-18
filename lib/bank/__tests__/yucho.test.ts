@@ -105,3 +105,53 @@ test('yuchoBranchName: convertYuchoToZengin の店番と整合する', () => {
   if (!r.ok) return
   assert.equal(yuchoBranchName(r.branchCode), '一九八')
 })
+
+// ── イレギュラー操作・防御的入力 ─────────────────────────────
+
+test('yuchoBranchName: 全数字0-9を漢数字へ網羅変換', () => {
+  assert.equal(yuchoBranchName('0123456789'), '〇一二三四五六七八九')
+})
+
+test('yuchoBranchName: 先頭ゼロの店番(実在する一般的な店番008/018)も正しく変換', () => {
+  // 多くのゆうちょ口座は店番が先頭ゼロ。"0"を欠落させず"〇"にすること。
+  assert.equal(yuchoBranchName('008'), '〇〇八')
+  assert.equal(yuchoBranchName('018'), '〇一八')
+})
+
+test('yuchoBranchName: 空文字は空文字（クラッシュしない）', () => {
+  assert.equal(yuchoBranchName(''), '')
+})
+
+test('yuchoBranchName: 数字以外が混ざっても落とさず残す(防御的)', () => {
+  // 想定外入力でも例外を投げず、数字部分のみ漢数字化して他はそのまま返す。
+  assert.equal(yuchoBranchName('1a8'), '一a八')
+  assert.equal(yuchoBranchName('一九八'), '一九八') // 既に漢数字でも壊さない
+})
+
+// ── 記号・番号入力 → 店番 → 支店名 の一気通貫（ユーザーの実操作相当）──
+
+test('一気通貫: 全角数字・ハイフン・空白混じりの入力でも店番→支店名が導出できる', () => {
+  // ユーザーが通帳から全角や区切り付きでコピペした想定。
+  const r = convertYuchoToZengin('１２３４５', '1234-5671')
+  assert.equal(r.ok, true)
+  if (!r.ok) return
+  assert.equal(r.branchCode, '238')
+  assert.equal(yuchoBranchName(r.branchCode), '二三八')
+})
+
+test('一気通貫: 先頭ゼロ店番になる記号(10018等)→支店名〇〇八', () => {
+  // 記号10018 → 店番 "00"+"8"="008" → 支店名"〇〇八"。応募チェックの支店名必須を満たせる。
+  const r = convertYuchoToZengin('10018', '12345671')
+  assert.equal(r.ok, true)
+  if (!r.ok) return
+  assert.equal(r.branchCode, '008')
+  assert.equal(yuchoBranchName(r.branchCode), '〇〇八')
+  assert.notEqual(yuchoBranchName(r.branchCode), '') // 空でない=支店名必須を満たす
+})
+
+test('一気通貫: 振替口座(記号0始まり)は変換失敗するので支店名は導出しない（保存前にエラーで弾く前提）', () => {
+  // 振替口座は convertYuchoToZengin が ok:false を返す。
+  // サーバはここでエラーを返し branch_name を導出/保存しない（誤った振込先を作らない）。
+  const r = convertYuchoToZengin('00010', '123456')
+  assert.equal(r.ok, false)
+})

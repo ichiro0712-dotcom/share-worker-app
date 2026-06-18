@@ -71,6 +71,21 @@ test('buildBankAccountSyncPayload: ゆうちょで記号・番号が欠落なら
   assert.equal(buildBankAccountSyncPayload({ ...yuchoBase, yucho_number: null }), null)
 })
 
+test('buildBankAccountSyncPayload: ゆうちょで埋めた支店名(漢数字)はBankAccountへ引き継がれる', () => {
+  // 修正後: User.branch_name に店番の漢数字読み(例"二三八")が入る → 同期でBankAccount.branchNameに反映。
+  const p = buildBankAccountSyncPayload({ ...yuchoBase, branch_name: '二三八' })
+  assert.ok(p)
+  assert.equal(p.branchName, '二三八')
+})
+
+test('buildBankAccountSyncPayload: ゆうちょで支店名が空でも同期は成立（応募ブロックの原因はbranch_nameのみ）', () => {
+  // branch_name が null でも payload は生成され同期は成功する(branchName='')。
+  // = 日払い同期(YUCHO_SYNC_FAILED)は原因でなく、応募ブロックは checkProfileComplete の支店名必須が原因、を裏付ける。
+  const p = buildBankAccountSyncPayload({ ...yuchoBase, branch_name: null })
+  assert.ok(p)
+  assert.equal(p.branchName, '')
+})
+
 test('buildBankAccountSyncPayload: ゆうちょで変換不能(振替口座=記号0始まり)はnull', () => {
   assert.equal(buildBankAccountSyncPayload({ ...yuchoBase, yucho_symbol: '00010', yucho_number: '123456' }), null)
 })
