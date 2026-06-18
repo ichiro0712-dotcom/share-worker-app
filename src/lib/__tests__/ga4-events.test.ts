@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { decideUserIdPush, pushUserIdentified } from '../ga4-events';
+import { decideApplyCompleteEvents, decideUserIdPush, pushUserIdentified } from '../ga4-events';
 
 // ============================================================
 // decideUserIdPush: push 判定ロジック（純粋関数）
@@ -113,6 +113,114 @@ function withWindow(initial: unknown, fn: () => void) {
         else delete g.window;
     }
 }
+
+// ============================================================
+// decideApplyCompleteEvents: job_apply_complete の種別・発火回数
+// ============================================================
+
+// ---------- 通常系 ----------
+
+test('decideApplyCompleteEvents: 通常応募3件（全件新規）→ normal を3回', () => {
+    assert.deepEqual(decideApplyCompleteEvents(false, 3, 3), {
+        applyType: 'normal',
+        count: 3,
+    });
+});
+
+test('decideApplyCompleteEvents: 通常応募1件 → normal を1回', () => {
+    assert.deepEqual(decideApplyCompleteEvents(false, 1, 1), {
+        applyType: 'normal',
+        count: 1,
+    });
+});
+
+test('decideApplyCompleteEvents: オファー承諾 → offer を1回（件数引数に依らず）', () => {
+    assert.deepEqual(decideApplyCompleteEvents(true, null, 1), {
+        applyType: 'offer',
+        count: 1,
+    });
+});
+
+// ---------- イレギュラー系 ----------
+
+test('[イレギュラー] 3件選択のうち1件が応募済み → 新規2件ぶんだけ発火（過剰カウントなし）', () => {
+    // applicationIds.length=2（サーバーが重複応募を除外した結果）。selectedCount=3 は使わない
+    assert.deepEqual(decideApplyCompleteEvents(false, 2, 3), {
+        applyType: 'normal',
+        count: 2,
+    });
+});
+
+test('[イレギュラー] applicationIds が取得できない(null) → selectedCount にフォールバック', () => {
+    assert.deepEqual(decideApplyCompleteEvents(false, null, 3), {
+        applyType: 'normal',
+        count: 3,
+    });
+});
+
+test('[イレギュラー] applicationIds=0 件 → 0回（発火しない）', () => {
+    assert.deepEqual(decideApplyCompleteEvents(false, 0, 3), {
+        applyType: 'normal',
+        count: 0,
+    });
+});
+
+test('[イレギュラー] 負値が来ても count は 0 にクランプ', () => {
+    assert.deepEqual(decideApplyCompleteEvents(false, -1, 3), {
+        applyType: 'normal',
+        count: 0,
+    });
+});
+
+test('[イレギュラー] オファーは applicationIds の値に関係なく常に1回', () => {
+    assert.deepEqual(decideApplyCompleteEvents(true, 5, 5), {
+        applyType: 'offer',
+        count: 1,
+    });
+});
+
+test('[イレギュラー] applicationIdsLength=NaN → 0回（非有限値を正規化）', () => {
+    assert.deepEqual(decideApplyCompleteEvents(false, Number.NaN, 3), {
+        applyType: 'normal',
+        count: 0,
+    });
+});
+
+test('[イレギュラー] applicationIdsLength=Infinity → 0回（暴走防止）', () => {
+    assert.deepEqual(decideApplyCompleteEvents(false, Number.POSITIVE_INFINITY, 3), {
+        applyType: 'normal',
+        count: 0,
+    });
+});
+
+test('[イレギュラー] 小数が来たら floor して整数回（2.9 → 2）', () => {
+    assert.deepEqual(decideApplyCompleteEvents(false, 2.9, 3), {
+        applyType: 'normal',
+        count: 2,
+    });
+});
+
+test('[イレギュラー] null かつ選択0件（モーダル誤操作等）→ 0回', () => {
+    assert.deepEqual(decideApplyCompleteEvents(false, null, 0), {
+        applyType: 'normal',
+        count: 0,
+    });
+});
+
+test('[イレギュラー] 大量一括応募（30件）→ 件数どおり30回', () => {
+    assert.deepEqual(decideApplyCompleteEvents(false, 30, 30), {
+        applyType: 'normal',
+        count: 30,
+    });
+});
+
+test('[イレギュラー] 二重送信2回目相当（applicationIds=空=0件）→ 発火なし', () => {
+    // サーバーが重複応募を除外し新規0件で success になった場合でも過剰発火しない
+    assert.deepEqual(decideApplyCompleteEvents(false, 0, 3), {
+        applyType: 'normal',
+        count: 0,
+    });
+});
 
 test('pushUserIdentified: dataLayer 既存時に user_identified を push する', () => {
     withWindow({ dataLayer: [] }, () => {
