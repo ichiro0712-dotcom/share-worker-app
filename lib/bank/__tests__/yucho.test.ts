@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { YUCHO_BANK_CODE, convertYuchoToZengin, isYuchoBankCode } from '../yucho'
+import { YUCHO_BANK_CODE, convertYuchoToZengin, isYuchoBankCode, yuchoBranchName } from '../yucho'
 
 // 出典(変換ルール):
 // - ゆうちょ公式: 店番=記号の2〜3桁目+"8" / 口座番号=番号の最後の1桁を除く(7桁未満は左ゼロ埋め)
@@ -90,4 +90,18 @@ test('振替口座(記号が0始まり)はPhase1では明示エラーで弾く',
 
 test('記号が1でも0でもない先頭はエラー(想定外)', () => {
   assert.equal(convertYuchoToZengin('23456', '12345671').ok, false)
+})
+
+test('yuchoBranchName: 店番(3桁)を漢数字読みの支店名に変換', () => {
+  // ゆうちょの支店名は店番を漢数字読みにしたもの（公式表記）。
+  assert.equal(yuchoBranchName('198'), '一九八')
+  assert.equal(yuchoBranchName('008'), '〇〇八')
+  assert.equal(yuchoBranchName('238'), '二三八')
+})
+
+test('yuchoBranchName: convertYuchoToZengin の店番と整合する', () => {
+  const r = convertYuchoToZengin('11940', '12345671')
+  assert.equal(r.ok, true)
+  if (!r.ok) return
+  assert.equal(yuchoBranchName(r.branchCode), '一九八')
 })

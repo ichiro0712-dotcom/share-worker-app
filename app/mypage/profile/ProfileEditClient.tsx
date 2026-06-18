@@ -33,7 +33,7 @@ import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBa
 import BankSelector from '@/components/ui/BankSelector';
 import BranchSelector from '@/components/ui/BranchSelector';
 import { generateBankAccountName } from '@/lib/string-utils';
-import { convertYuchoToZengin, isYuchoBankCode } from '@/lib/bank/yucho';
+import { convertYuchoToZengin, isYuchoBankCode, yuchoBranchName } from '@/lib/bank/yucho';
 
 /**
  * 署名付きURLを使用してファイルをSupabase Storageに直接アップロード
@@ -1672,7 +1672,7 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
                     yuchoConv && yuchoConv.ok ? (
                       <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
                         <p className="text-sm font-medium text-gray-800">振込用（自動計算）</p>
-                        <p className="text-sm text-gray-700">店番 <span className="font-mono font-bold">{yuchoConv.branchCode}</span> ／ 預金種目 普通 ／ 口座番号 <span className="font-mono font-bold">{yuchoConv.accountNumber}</span></p>
+                        <p className="text-sm text-gray-700">店番 <span className="font-mono font-bold">{yuchoConv.branchCode}</span>（支店名 <span className="font-bold">{yuchoBranchName(yuchoConv.branchCode)}</span>） ／ 預金種目 普通 ／ 口座番号 <span className="font-mono font-bold">{yuchoConv.accountNumber}</span></p>
                         {yuchoChanged ? (
                           /* 記号・番号を変更したときのみ本人確認を求める */
                           <>
