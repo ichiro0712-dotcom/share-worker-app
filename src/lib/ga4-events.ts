@@ -77,3 +77,32 @@ export function pushUserIdentified(userId: string): void {
         user_id: userId,
     });
 }
+
+/** 応募種別。GTM/GA4 側で集計を分類するためのパラメータ値。 */
+export type ApplyType = 'normal' | 'offer';
+
+/**
+ * 応募完了時に送る `job_apply_complete` イベントの「種別」と「発火回数」を決める純粋関数。
+ *
+ * - 通常応募: 実際に新規作成された応募件数ぶん発火する（重複応募ぶんは含めない）。
+ *   `applicationIdsLength` にサーバー戻り値 `applicationIds.length` を渡す。
+ *   配列が取得できなかった場合（null）は選択件数 `selectedCount` をフォールバックに使う。
+ * - オファー承諾: 単一勤務日への操作のため常に 1 回。
+ *
+ * @param isOffer              オファー承諾なら true、通常応募なら false
+ * @param applicationIdsLength 新規作成された応募件数（取得不可なら null）
+ * @param selectedCount        ユーザーが選択した勤務日数（フォールバック用）
+ */
+export function decideApplyCompleteEvents(
+    isOffer: boolean,
+    applicationIdsLength: number | null,
+    selectedCount: number,
+): { applyType: ApplyType; count: number } {
+    if (isOffer) {
+        return { applyType: 'offer', count: 1 };
+    }
+    const raw = applicationIdsLength ?? selectedCount;
+    // 非有限値(NaN/Infinity)や小数・負値が来ても安全な整数回数に正規化する
+    const count = Number.isFinite(raw) ? Math.max(0, Math.floor(raw)) : 0;
+    return { applyType: 'normal', count };
+}

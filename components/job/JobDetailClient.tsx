@@ -14,7 +14,7 @@ import { getMissingProfileFields } from '@/src/lib/actions/user-profile';
 import { useBadge } from '@/contexts/BadgeContext';
 import toast from 'react-hot-toast';
 import { useErrorToast } from '@/components/ui/PersistentErrorToast';
-import { trackGA4Event } from '@/src/lib/ga4-events';
+import { trackGA4Event, decideApplyCompleteEvents } from '@/src/lib/ga4-events';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import { EmailVerificationRequiredModal } from '@/components/auth/EmailVerificationRequiredModal';
 
@@ -497,6 +497,23 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
           is_offer: isOffer,
           is_matched: !!result.isMatched,
         });
+
+        // job_apply_complete: 応募件数ぶん発火（GA4でapply_type別に集計）。
+        // 通常応募は実際に新規作成された応募件数（applicationIds.length）ぶん、
+        // オファー承諾は単一勤務日のため1回。※application_completeとは粒度が異なる（意図的）。
+        const applicationIdsLength =
+          'applicationIds' in result && Array.isArray(result.applicationIds)
+            ? result.applicationIds.length
+            : null;
+        const { applyType, count } = decideApplyCompleteEvents(
+          isOffer,
+          applicationIdsLength,
+          selectedWorkDateIds.length,
+        );
+        for (let i = 0; i < count; i++) {
+          trackGA4Event('job_apply_complete', { apply_type: applyType });
+        }
+
         // マッチング成立の場合は追加メッセージを表示
         if (result.isMatched) {
           toast.success('マッチングが成立しました！');
