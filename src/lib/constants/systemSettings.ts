@@ -8,6 +8,8 @@ export const SYSTEM_SETTING_KEYS = {
   RESEND_QUOTA_HEADER_CACHE: 'resend_quota_header_cache',
   // Cron集計結果（JSON: dbCount, apiQuotaUsed, effectiveCount, checkedAt）
   RESEND_EMAIL_MONTHLY_COUNT: 'resend_email_monthly_count',
+  // 勤務実績なしワーカーの同時応募上限（数値、整数）
+  BEGINNER_APPLICATION_LIMIT: 'beginner_application_limit',
 } as const;
 
 // デフォルト値
@@ -16,6 +18,7 @@ export const SYSTEM_SETTING_DEFAULTS: Record<string, string> = {
   [SYSTEM_SETTING_KEYS.DISTANCE_SORT_DEFAULT_KM]: '50',
   [SYSTEM_SETTING_KEYS.RESEND_QUOTA_HEADER_CACHE]: '0',
   [SYSTEM_SETTING_KEYS.RESEND_EMAIL_MONTHLY_COUNT]: '',
+  [SYSTEM_SETTING_KEYS.BEGINNER_APPLICATION_LIMIT]: '2',
 };
 
 // 設定キーの説明
@@ -28,4 +31,6 @@ export const SYSTEM_SETTING_DESCRIPTIONS: Record<string, string> = {
     'Resend APIレスポンスヘッダーから取得した月間送信数',
   [SYSTEM_SETTING_KEYS.RESEND_EMAIL_MONTHLY_COUNT]:
     'Resendメール月間送信数（cron集計結果JSON）',
+  [SYSTEM_SETTING_KEYS.BEGINNER_APPLICATION_LIMIT]:
+    '勤務実績なしワーカーの同時応募上限件数（既定: 2）',
 };

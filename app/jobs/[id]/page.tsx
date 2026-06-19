@@ -1,4 +1,4 @@
-import { getJobById, getJobs, hasUserAppliedForJob, getFacilityReviews, getUserApplicationStatuses, getUserScheduledJobs, getFacilityInterviewPassRate } from '@/src/lib/actions';
+import { getJobById, getJobs, hasUserAppliedForJob, getFacilityReviews, getUserApplicationStatuses, getUserScheduledJobs, getFacilityInterviewPassRate, checkBeginnerLimitForJob } from '@/src/lib/actions';
 import { JobDetailClient } from '@/components/job/JobDetailClient';
 import JobDetailTracker from '@/components/tracking/JobDetailTracker';
 import { notFound } from 'next/navigation';
@@ -136,6 +136,7 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
   const isOfferJob = jobData.job_type === 'OFFER';
   let genderApplyResult: { allowed: boolean; reason?: string } = { allowed: true };
   let qualificationApplyResult: { allowed: boolean; reason?: string } = { allowed: true };
+  let beginnerApplyResult: { allowed: boolean; reason?: string } = { allowed: true };
   if (session?.user?.id) {
     const currentUser = await prisma.user.findUnique({
       where: { id: parseInt(session.user.id, 10) },
@@ -145,6 +146,8 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
     if (!isOfferJob) {
       qualificationApplyResult = canApplyByQualification(jobData.required_qualifications, currentUser?.qualifications);
     }
+    // 勤務実績なしワーカーの応募制限判定（サーバー側）
+    beginnerApplyResult = await checkBeginnerLimitForJob(jobData.id);
   } else if (jobData.gender_requirement) {
     // 未ログインかつ性別指定ありの求人
     genderApplyResult = canApplyByGender(jobData.gender_requirement, null);
@@ -221,6 +224,7 @@ export default async function JobDetail({ params, searchParams }: PageProps) {
         interviewPassRate={interviewPassRate}
         genderApplyResult={genderApplyResult}
         qualificationApplyResult={qualificationApplyResult}
+        beginnerApplyResult={beginnerApplyResult}
       />
     </>
   );
