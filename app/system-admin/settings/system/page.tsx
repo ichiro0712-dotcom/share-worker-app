@@ -8,6 +8,7 @@ import { useSystemAuth } from '@/contexts/SystemAuthContext';
 interface SystemSettings {
   distance_sort_filter_enabled: string;
   distance_sort_default_km: string;
+  beginner_application_limit: string;
 }
 
 export default function SystemSettingsPage() {
@@ -17,6 +18,7 @@ export default function SystemSettingsPage() {
   const [settings, setSettings] = useState<SystemSettings>({
     distance_sort_filter_enabled: 'false',
     distance_sort_default_km: '50',
+    beginner_application_limit: '2',
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -199,6 +201,41 @@ export default function SystemSettingsPage() {
               </div>
             </label>
           </div>
+        </div>
+
+        {/* 応募制限設定セクション */}
+        <div className="p-6 border-b border-gray-200">
+          <h2 className="text-lg font-semibold mb-4">応募制限設定</h2>
+          <p className="text-sm text-gray-600 mb-6">
+            勤務実績のないワーカー（初心者）の同時応募件数の上限を設定します。
+          </p>
+
+          <label className="block">
+            <div className="font-medium mb-2">勤務実績なしワーカーの同時応募上限（件）</div>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min="1"
+                max="50"
+                value={settings.beginner_application_limit}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    beginner_application_limit: e.target.value,
+                  })
+                }
+                className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+              />
+              <span className="text-gray-600">件</span>
+            </div>
+            <div className="text-sm text-gray-500 mt-1">
+              ワーカーが施設レビューを送信した時点で「勤務実績あり」と判定し、上限は恒久的に解除されます。
+              <br />
+              オファー・限定求人・説明会は上限の対象外です。
+              <br />
+              「N回以上勤務」条件付き求人には、勤務実績のないワーカーは応募できません。
+            </div>
+          </label>
         </div>
 
         {/* 保存ボタン */}

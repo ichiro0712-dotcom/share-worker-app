@@ -9,6 +9,13 @@ import { checkProfileComplete } from './user-profile';
 import { canApplyByGender } from '@/src/lib/jobGenderMatching';
 import { canApplyByQualification } from '@/src/lib/jobQualificationMatching';
 import {
+    canApplyByBeginnerLimit,
+    isJobSubjectToBeginnerLimit,
+    type BeginnerLimitCheckResult,
+} from '@/src/lib/beginnerApplicationLimit';
+import { getSystemSettingNumber } from '@/src/lib/actions/systemSettings';
+import { SYSTEM_SETTING_KEYS } from '@/src/lib/constants/systemSettings';
+import {
     sendApplicationNotification,
     sendApplicationNotificationMultiple,
     sendAdminHighCancelRateNotification,
@@ -23,6 +30,89 @@ import {
 import { sendNearbyJobNotifications, sendNotification } from '../notification-service';
 import { updateApplicationStatuses } from '../status-updater';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
+
+/**
+ * 勤務実績なしワーカーの応募状況を取得（内部ヘルパー）
+ * - isBeginner: worker_review_status='COMPLETED' が 0 件 → true
+ * - ongoingCount: APPLIED/SCHEDULED/WORKING/COMPLETED_PENDING の合計
+ * - limit: SystemSetting.BEGINNER_APPLICATION_LIMIT（既定 2）
+ */
+async function fetchBeginnerLimitStatus(userId: number) {
+    const [completedReviewCount, ongoingCount, configuredLimit] = await Promise.all([
+        prisma.application.count({
+            where: { user_id: userId, worker_review_status: 'COMPLETED' },
+        }),
+        prisma.application.count({
+            where: {
+                user_id: userId,
+                status: { in: ['APPLIED', 'SCHEDULED', 'WORKING', 'COMPLETED_PENDING'] },
+            },
+        }),
+        getSystemSettingNumber(SYSTEM_SETTING_KEYS.BEGINNER_APPLICATION_LIMIT),
+    ]);
+    const limit = configuredLimit !== null && configuredLimit >= 0 ? Math.floor(configuredLimit) : 2;
+    return {
+        isBeginner: completedReviewCount === 0,
+        ongoingCount,
+        limit,
+    };
+}
+
+/**
+ * 認証ユーザーの応募残枠情報を返す（UI 表示用）
+ * 初心者期間中のみマイページに「応募可能件数 あと◯件」を表示する判断材料
+ */
+export async function getUserApplicationQuota(): Promise<{
+    isBeginner: boolean;
+    limit: number;
+    used: number;
+    remaining: number;
+}> {
+    try {
+        const user = await getAuthenticatedUser();
+        const status = await fetchBeginnerLimitStatus(user.id);
+        return {
+            isBeginner: status.isBeginner,
+            limit: status.limit,
+            used: status.ongoingCount,
+            remaining: Math.max(0, status.limit - status.ongoingCount),
+        };
+    } catch (error) {
+        console.error('[getUserApplicationQuota] Error:', error);
+        return { isBeginner: false, limit: 2, used: 0, remaining: 2 };
+    }
+}
+
+/**
+ * 求人詳細ページのサーバー側応募可否判定（UI 表示用）
+ * - オファー・限定・説明会は対象外で常に allowed:true
+ * - 通常求人かつ初心者なら weekly_frequency/上限到達を判定
+ */
+export async function checkBeginnerLimitForJob(
+    jobId: number
+): Promise<BeginnerLimitCheckResult> {
+    try {
+        const user = await getAuthenticatedUser();
+        const job = await prisma.job.findUnique({
+            where: { id: jobId },
+            select: { weekly_frequency: true, job_type: true },
+        });
+        if (!job) return { allowed: true };
+        if (!isJobSubjectToBeginnerLimit(job.job_type)) {
+            return { allowed: true };
+        }
+        const status = await fetchBeginnerLimitStatus(user.id);
+        return canApplyByBeginnerLimit({
+            isBeginner: status.isBeginner,
+            ongoingCount: status.ongoingCount,
+            limit: status.limit,
+            jobWeeklyFrequency: job.weekly_frequency,
+        });
+    } catch (error) {
+        console.error('[checkBeginnerLimitForJob] Error:', error);
+        return { allowed: true };
+    }
+}
 
 /**
  * ユーザーが応募した仕事の一覧を取得
@@ -264,6 +354,22 @@ export async function applyForJob(jobId: string, workDateId?: number) {
             return { success: false, error: qualificationCheck.reason || '応募条件を満たしていません' };
         }
 
+        // 勤務実績なしワーカーの応募制限バリデーション
+        // オファー・限定求人 (OFFER/LIMITED_*/ORIENTATION) は対象外
+        if (isJobSubjectToBeginnerLimit(job.job_type)) {
+            const beginnerStatus = await fetchBeginnerLimitStatus(user.id);
+            const beginnerCheck = canApplyByBeginnerLimit({
+                isBeginner: beginnerStatus.isBeginner,
+                ongoingCount: beginnerStatus.ongoingCount,
+                limit: beginnerStatus.limit,
+                jobWeeklyFrequency: job.weekly_frequency,
+            });
+            if (!beginnerCheck.allowed) {
+                console.log('[applyForJob] Beginner limit blocked:', { userId: user.id, errorKind: beginnerCheck.errorKind });
+                return { success: false, error: beginnerCheck.reason || '応募条件を満たしていません' };
+            }
+        }
+
         const targetWorkDateId = workDateId || job.workDates[0].id;
         const targetWorkDate = job.workDates.find(wd => wd.id === targetWorkDateId);
 
@@ -501,6 +607,22 @@ export async function applyForJobMultipleDates(jobId: string, workDateIds: numbe
         if (!qualificationCheck.allowed) {
             console.log('[applyForJobMultipleDates] Qualification mismatch:', { jobReq: job.required_qualifications, userQuals: user.qualifications });
             return { success: false, error: qualificationCheck.reason || '応募条件を満たしていません' };
+        }
+
+        // 勤務実績なしワーカーの応募制限バリデーション
+        // オファー・限定求人 (OFFER/LIMITED_*/ORIENTATION) は対象外
+        if (isJobSubjectToBeginnerLimit(job.job_type)) {
+            const beginnerStatus = await fetchBeginnerLimitStatus(user.id);
+            const beginnerCheck = canApplyByBeginnerLimit({
+                isBeginner: beginnerStatus.isBeginner,
+                ongoingCount: beginnerStatus.ongoingCount,
+                limit: beginnerStatus.limit,
+                jobWeeklyFrequency: job.weekly_frequency,
+            });
+            if (!beginnerCheck.allowed) {
+                console.log('[applyForJobMultipleDates] Beginner limit blocked:', { userId: user.id, errorKind: beginnerCheck.errorKind });
+                return { success: false, error: beginnerCheck.reason || '応募条件を満たしていません' };
+            }
         }
 
         const targetWorkDates = job.workDates.filter(wd => workDateIds.includes(wd.id));
