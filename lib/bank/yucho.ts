@@ -79,3 +79,24 @@ export function convertYuchoToZengin(symbolRaw: string, numberRaw: string): Yuch
 
   return { ok: true, branchCode, accountType: 'ORDINARY', accountNumber }
 }
+
+/** 全銀店番(3桁数字)を漢数字に変換するための対応表。 */
+const KANJI_DIGITS = ['〇', '一', '二', '三', '四', '五', '六', '七', '八', '九'] as const
+
+/**
+ * ゆうちょの店番(3桁)→支店名。
+ * ゆうちょの「支店名」は店番を漢数字読みにしたもの（公式表記）。
+ *   例: 店番 "198" → "一九八" / "008" → "〇〇八"
+ * ゆうちょは画面で支店名を入力させない（記号から店番を導出する）ため、
+ * プロフィール完了判定や帳票表示で使う支店名はこの関数で導出する。
+ * 数字以外が混ざった想定外入力はその文字をそのまま残す（防御的）。
+ */
+export function yuchoBranchName(branchCode: string): string {
+  return branchCode
+    .split('')
+    .map((d) => {
+      const n = Number(d)
+      return d >= '0' && d <= '9' ? KANJI_DIGITS[n] : d
+    })
+    .join('')
+}

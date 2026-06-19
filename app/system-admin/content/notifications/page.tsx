@@ -3,7 +3,13 @@
 import { useState, useEffect } from 'react';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import { toast } from 'react-hot-toast';
-import { Bell, Mail, MessageCircle, Edit2, Save, X, Copy, Check, Settings, LayoutDashboard, ChevronDown, Pencil, User } from 'lucide-react';
+import { Bell, Mail, MessageCircle, Edit2, Save, X, Copy, Check, Settings, LayoutDashboard, ChevronDown, Pencil, User, AlertTriangle, Eye } from 'lucide-react';
+import {
+    NOTIFICATION_VARIABLES,
+    replaceVariables,
+    findInvalidPlaceholders,
+    getSampleVariableValues,
+} from '@/lib/notification-template';
 
 interface NotificationSetting {
     id: number;
@@ -70,42 +76,50 @@ interface ErrorMessageSetting {
     push_enabled: boolean;
 }
 
-const AVAILABLE_VARIABLES = [
-    { key: '{{worker_name}}', description: 'ワーカー名' },
-    { key: '{{worker_last_name}}', description: 'ワーカー姓' },
-    { key: '{{facility_name}}', description: '施設名' },
-    { key: '{{job_title}}', description: '求人タイトル' },
-    { key: '{{work_date}}', description: '勤務日' },
-    { key: '{{applied_dates}}', description: '応募日程一覧（複数日対応）' },
-    { key: '{{start_time}}', description: '開始時間' },
-    { key: '{{end_time}}', description: '終了時間' },
-    { key: '{{wage}}', description: '日給' },
-    { key: '{{hourly_wage}}', description: '時給' },
-    { key: '{{deadline}}', description: '締切日時' },
-    { key: '{{review_url}}', description: 'レビュー投稿URL' },
-    { key: '{{job_url}}', description: '求人詳細URL' },
-    // 勤怠変更申請関連
-    { key: '{{requested_start_time}}', description: '申請出勤時間' },
-    { key: '{{requested_end_time}}', description: '申請退勤時間' },
-    { key: '{{requested_break_time}}', description: '申請休憩時間' },
-    { key: '{{approved_start_time}}', description: '承認出勤時間' },
-    { key: '{{approved_end_time}}', description: '承認退勤時間' },
-    { key: '{{approved_break_time}}', description: '承認休憩時間' },
-    { key: '{{confirmed_wage}}', description: '確定報酬' },
-    { key: '{{admin_comment}}', description: '施設コメント' },
-    { key: '{{worker_comment}}', description: 'ワーカーコメント' },
-    { key: '{{approval_url}}', description: '承認URL' },
-    { key: '{{resubmit_url}}', description: '再申請URL' },
-    // Alert keys
-    { key: '{{user_name}}', description: 'ユーザー名' },
-    { key: '{{user_id}}', description: 'ユーザーID' },
-    { key: '{{facility_id}}', description: '施設ID' },
-    { key: '{{average_rating}}', description: '平均評価' },
-    { key: '{{low_rating_count}}', description: '低評価件数' },
-    { key: '{{trigger_reason}}', description: '発生条件' },
-    { key: '{{cancel_rate}}', description: 'キャンセル率' },
-    { key: '{{consecutive_cancels}}', description: '連続キャンセル数' },
-];
+// 利用可能な変数は共有ユーティリティ(@/lib/notification-template)を単一の真実源とする
+const AVAILABLE_VARIABLES = NOTIFICATION_VARIABLES;
+const SAMPLE_VALUES = getSampleVariableValues();
+
+/**
+ * テンプレート本文の入力補助:
+ *   - 誤った記法([..]、内側スペース、未知の{{..}})を警告
+ *   - サンプル値で置換したプレビューを表示
+ * 送信側と同一の replaceVariables を使うため「プレビュー=実送信」となる。
+ */
+function TemplateAssist({ value }: { value: string | null }) {
+    const text = value || '';
+    const warnings = findInvalidPlaceholders(text);
+    const preview = replaceVariables(text, SAMPLE_VALUES);
+
+    if (!text.trim()) return null;
+
+    return (
+        <div className="mt-2 space-y-2">
+            {warnings.length > 0 && (
+                <div className="flex items-start gap-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
+                    <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+                    <div className="text-xs text-amber-800">
+                        <p className="font-medium mb-1">記法を確認してください（このままでは置換されません）</p>
+                        <ul className="space-y-0.5">
+                            {warnings.map((w, i) => (
+                                <li key={i}>
+                                    <code className="px-1 bg-amber-100 rounded">{w.token}</code> — {w.reason}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                </div>
+            )}
+            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
+                <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1">
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>プレビュー（サンプル値で置換）</span>
+                </div>
+                <div className="text-sm text-slate-800 whitespace-pre-wrap break-words">{preview}</div>
+            </div>
+        </div>
+    );
+}
 
 export default function NotificationManagementPage() {
     const { showDebugError } = useDebugError();
@@ -803,6 +817,7 @@ export default function NotificationManagementPage() {
                                         className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                                         placeholder="チャットメッセージを入力..."
                                     />
+                                    <TemplateAssist value={editingSetting.chat_message} />
                                 </div>
                             )}
 
@@ -823,6 +838,7 @@ export default function NotificationManagementPage() {
                                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                                                 placeholder="メール件名を入力..."
                                             />
+                                            <TemplateAssist value={editingSetting.email_subject} />
                                         </div>
                                         <div>
                                             <label className="block text-xs text-slate-500 mb-1">本文</label>
@@ -833,6 +849,7 @@ export default function NotificationManagementPage() {
                                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono"
                                                 placeholder="メール本文を入力..."
                                             />
+                                            <TemplateAssist value={editingSetting.email_body} />
                                         </div>
                                     </div>
                                 </div>
@@ -855,6 +872,7 @@ export default function NotificationManagementPage() {
                                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                                                 placeholder="プッシュ通知タイトルを入力..."
                                             />
+                                            <TemplateAssist value={editingSetting.push_title} />
                                         </div>
                                         <div>
                                             <label className="block text-xs text-slate-500 mb-1">本文</label>
@@ -865,6 +883,7 @@ export default function NotificationManagementPage() {
                                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                                                 placeholder="プッシュ通知本文を入力..."
                                             />
+                                            <TemplateAssist value={editingSetting.push_body} />
                                         </div>
                                     </div>
                                 </div>

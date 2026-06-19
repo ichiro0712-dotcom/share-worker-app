@@ -10,6 +10,7 @@ import { DebugErrorProvider } from '@/components/debug/DebugErrorBanner';
 import { WorkerLayout } from '@/components/layout/WorkerLayout';
 import { OfflineBanner } from '@/components/ui/OfflineBanner';
 import { GoogleTagManager, GoogleTagManagerNoscript } from '@/components/GoogleTagManager';
+import { UserIdDataLayer } from '@/components/analytics/UserIdDataLayer';
 
 // Viewport設定（iOS safe-area対応 + themeColor）
 export const viewport: Viewport = {
@@ -51,6 +52,7 @@ export default function RootLayout({
           <DebugErrorProvider>
             <ErrorToastProvider>
               <AuthProvider>
+                <UserIdDataLayer />
                 <BadgeProvider>
                   <MasqueradeBanner />
                   <WorkerLayout>

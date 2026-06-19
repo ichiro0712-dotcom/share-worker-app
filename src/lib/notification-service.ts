@@ -6,6 +6,7 @@ import { getTodayStart } from '@/utils/debugTime';
 import { getVersionForLog } from '@/lib/version';
 import { cacheResendQuotaHeader } from '@/src/lib/resend-quota';
 import { canApplyByGender } from '@/src/lib/jobGenderMatching';
+import { replaceVariables } from '@/lib/notification-template';
 
 // Resend設定（遅延初期化 - APIキーがない場合はnull）
 let resend: Resend | null = null;
@@ -45,15 +46,8 @@ interface SendNotificationParams {
     };
 }
 
-// テンプレート内の変数を置換
-function replaceVariables(template: string | null, variables: Record<string, string>): string {
-    if (!template) return '';
-    let result = template;
-    for (const [key, value] of Object.entries(variables)) {
-        result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value);
-    }
-    return result;
-}
+// テンプレート内の変数置換は共有ユーティリティ(@/lib/notification-template)を使用。
+// 送信側と管理画面プレビューで同一ロジックを共有し、挙動差を防ぐ。
 
 // 通知送信メイン関数
 export async function sendNotification(params: SendNotificationParams): Promise<void> {

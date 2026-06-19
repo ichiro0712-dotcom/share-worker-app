@@ -1715,8 +1715,8 @@ export async function sendInitialGreetingNotification(
             applicationId,
             variables: {
                 worker_name: user.name,
-                'ワーカー名字': workerLastName,
-                '施設名': facility.facility_name,
+                worker_last_name: workerLastName,
+                facility_name: facility.facility_name,
             },
             chatMessageData: {
                 jobId,
