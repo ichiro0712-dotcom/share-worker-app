@@ -17,6 +17,7 @@ import { UserCard, LogoutButton } from './MyPageContent';
 import { BalanceCard } from '@/components/money/BalanceCard';
 import { workerBalance } from '@/lib/dummy-data/hibarai';
 import { isHibaraiEnabled } from '@/lib/features';
+import { ApplicationQuotaBanner } from '@/components/worker/ApplicationQuotaBanner';
 
 // 静的メニュー項目（ログアウト以外）
 // 出退勤記録は仕事管理画面の右上ボタンからアクセスするため削除
@@ -63,6 +64,9 @@ export default function MyPage() {
 
       {/* 動的ユーザー情報カード - Client Component */}
       <UserCard />
+
+      {/* 勤務実績なしワーカーの応募可能件数バナー（初心者期間中のみ表示・カイテク踏襲位置） */}
+      <ApplicationQuotaBanner />
 
       {isHibaraiEnabled() && (
         <div className="px-4 pb-4">
