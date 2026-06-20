@@ -4,10 +4,11 @@ import { useState, useEffect } from 'react';
 import { MapPin, Calendar, Clock, Star, X, AlertTriangle, RefreshCw, CheckCircle, XCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getMyApplications, cancelApplicationByWorker, cancelAppliedApplication, getUserApplicationQuota } from '@/src/lib/actions';
+import { getMyApplications, cancelApplicationByWorker, cancelAppliedApplication } from '@/src/lib/actions';
 import toast from 'react-hot-toast';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import { EmailVerificationRequiredModal } from '@/components/auth/EmailVerificationRequiredModal';
+import { ApplicationQuotaBanner } from '@/components/worker/ApplicationQuotaBanner';
 
 type ApplicationStatus = 'APPLIED' | 'SCHEDULED' | 'WORKING' | 'COMPLETED_PENDING' | 'COMPLETED_RATED' | 'CANCELLED';
 type JobType = 'NORMAL' | 'LIMITED_WORKED' | 'LIMITED_FAVORITE' | 'ORIENTATION' | 'OFFER';
@@ -67,13 +68,6 @@ export function MyJobsContent({ initialTab }: MyJobsContentProps) {
   const [scheduledCancelModalApp, setScheduledCancelModalApp] = useState<Application | null>(null);
   const [scheduledCancelling, setScheduledCancelling] = useState(false);
   const [emailNotVerifiedModal, setEmailNotVerifiedModal] = useState<{ open: boolean; email: string }>({ open: false, email: '' });
-  // 勤務実績なしワーカーの応募残枠情報（初心者期間中のみ表示）
-  const [beginnerQuota, setBeginnerQuota] = useState<{
-    isBeginner: boolean;
-    limit: number;
-    used: number;
-    remaining: number;
-  } | null>(null);
 
   // URLパラメータの変更を監視してタブを更新（Linkでの遷移時）
   useEffect(() => {
@@ -92,19 +86,6 @@ export function MyJobsContent({ initialTab }: MyJobsContentProps) {
       }
     };
     fetchApplications();
-  }, []);
-
-  // 勤務実績なしワーカーの応募残枠を取得（初心者期間中のみ表示用）
-  useEffect(() => {
-    const fetchQuota = async () => {
-      try {
-        const quota = await getUserApplicationQuota();
-        setBeginnerQuota(quota);
-      } catch (error) {
-        console.error('Failed to fetch beginner quota:', error);
-      }
-    };
-    fetchQuota();
   }, []);
 
   const tabs: Array<{ id: TabType; label: string; status: ApplicationStatus }> = [
@@ -267,24 +248,7 @@ export function MyJobsContent({ initialTab }: MyJobsContentProps) {
       />
 
       {/* 勤務実績なしワーカーの応募可能件数バナー（初心者期間中のみ表示） */}
-      {beginnerQuota?.isBeginner && (
-        <div className="px-3 pt-3">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start gap-2">
-            <CheckCircle className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-            <div className="text-xs text-blue-800">
-              <div className="font-semibold mb-0.5">
-                応募可能件数：あと {beginnerQuota.remaining} 件
-                <span className="text-blue-600 font-normal ml-1">
-                  （同時応募は最大 {beginnerQuota.limit} 件まで）
-                </span>
-              </div>
-              <div className="text-blue-700">
-                勤務実績のないワーカーは応募件数に上限があります。1件勤務を完了し、施設へのレビューを送信すると上限は解除されます。
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <ApplicationQuotaBanner />
 
       {/* 求人カード一覧 */}
       <div className="p-3 space-y-2">
