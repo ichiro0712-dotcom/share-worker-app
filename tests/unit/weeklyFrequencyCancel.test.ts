@@ -191,6 +191,64 @@ group('[6] ユーザーのイレギュラー操作シナリオ', () => {
 });
 
 // =============================================================================
+// 7. 追加イレギュラー入力（UI不整合・データ不整合・極端値）
+// =============================================================================
+group('[7] 追加イレギュラー入力', () => {
+  // UIバグ等で cancelCount=0 のまま振替だけ指定された → remaining 増加・許可
+  assertEq(
+    'cancelCount=0・swapCount=1（不整合入力）→ allowed=true',
+    canCancelWeeklyFrequency({ weeklyFrequency: 3, activeCount: 3, cancelCount: 0, swapCount: 1 }).allowed,
+    true
+  );
+
+  // 振替を過剰に選んだ（cancel1・swap2）→ 条件は満たすので許可
+  assertEq(
+    '過剰振替（cancel1+swap2）→ allowed=true',
+    canCancelWeeklyFrequency({ weeklyFrequency: 3, activeCount: 3, cancelCount: 1, swapCount: 2 }).allowed,
+    true
+  );
+
+  // 複数同時キャンセルを一部しか振り替えない → 条件割れで不可
+  assertEq(
+    '4回条件・3キャンセル+1振替 → 2日でNG, allowed=false',
+    canCancelWeeklyFrequency({ weeklyFrequency: 4, activeCount: 4, cancelCount: 3, swapCount: 1 }).allowed,
+    false
+  );
+
+  // データ不整合: activeCount=0 なのにキャンセル要求 → 例外を投げず false を返す
+  assertEq(
+    'activeCount=0（不整合）でも例外なく allowed=false',
+    canCancelWeeklyFrequency({ weeklyFrequency: 3, activeCount: 0, cancelCount: 1, swapCount: 0 }),
+    {
+      allowed: false,
+      requiresSwap: true,
+      reason: 'この求人は3回以上の勤務が条件です。単独でキャンセルする場合は、代わりに別の勤務日を選んで振り替えてください。',
+    }
+  );
+
+  // ちょうど維持する振替（境界）
+  assertEq(
+    '2回条件・1キャンセル+1振替で2日維持（境界）→ allowed=true',
+    canCancelWeeklyFrequency({ weeklyFrequency: 2, activeCount: 2, cancelCount: 1, swapCount: 1 }).allowed,
+    true
+  );
+
+  // 超過状態でも振替指定なら requiresSwap=true（swapCount>0 を反映）
+  assertEq(
+    '超過分でも振替指定時は requiresSwap=true',
+    canCancelWeeklyFrequency({ weeklyFrequency: 2, activeCount: 3, cancelCount: 1, swapCount: 1 }).requiresSwap,
+    true
+  );
+
+  // 全件キャンセルを全件振替で相殺 → 件数維持で許可
+  assertEq(
+    '5回条件・5キャンセル+5振替 → allowed=true',
+    canCancelWeeklyFrequency({ weeklyFrequency: 5, activeCount: 5, cancelCount: 5, swapCount: 5 }).allowed,
+    true
+  );
+});
+
+// =============================================================================
 // テスト結果サマリー
 // =============================================================================
 console.log('\n=============================================');
