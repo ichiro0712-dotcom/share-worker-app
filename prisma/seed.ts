@@ -1212,6 +1212,36 @@ IPアドレス: {{ip_address}}
     push_title: null,
     push_body: null,
   },
+  // ワーカー向け：会員登録完了（メール認証メールに統合）
+  {
+    notification_key: 'WORKER_REGISTRATION_COMPLETE',
+    name: '会員登録完了（メール認証）',
+    description: '新規登録のSMS認証完了後に送る会員登録完了メール。認証リンク＋ログイン導線を含む（メールアドレス確認メールを兼ねる）',
+    target_type: 'WORKER',
+    chat_enabled: false,
+    email_enabled: true,
+    push_enabled: false,
+    chat_message: null,
+    email_subject: '【+タスタス】会員登録が完了しました',
+    email_body: `{{worker_name}} 様
+
+タスタスへのご登録ありがとうございます。
+会員登録が完了しました。
+
+下記のURLからログインし、求人をご確認ください。
+{{verification_url}}
+
+※上記リンクからアクセスすると、メールアドレスの確認も同時に完了します（有効期限：24時間）。
+※有効期限が過ぎた場合は、こちらのログインページからいつでもログインいただけます。
+{{login_url}}
+
+今後ともタスタスをよろしくお願いいたします。
+
+※本メールは送信専用です。
+※ご不明点等ございましたら、タスタス運営事務局（sharework@careergift.co.jp）までご連絡ください。`,
+    push_title: null,
+    push_body: null,
+  },
 ];
 
 async function seedNotificationSettings() {

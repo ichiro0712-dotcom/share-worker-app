@@ -3,6 +3,10 @@ import { Resend } from 'resend';
 import crypto from 'crypto';
 import { cacheResendQuotaHeader } from '@/src/lib/resend-quota';
 import { sanitizeReturnUrl } from '@/src/lib/auth/return-url';
+import { replaceVariables } from '@/lib/notification-template';
+
+// 会員登録完了メールのテンプレートキー（通知管理画面から編集可能）
+const REGISTRATION_COMPLETE_KEY = 'WORKER_REGISTRATION_COMPLETE';
 
 // Resend設定（遅延初期化 - APIキーがない場合はnull）
 let resend: Resend | null = null;
@@ -75,12 +79,16 @@ export async function sendVerificationEmail(
       return { success: true };
     }
 
+    // 本文は通知管理画面で編集可能なテンプレート（DB）を参照。
+    // 未取得・無効化・テンプレート空のときは従来のハードコード本文にフォールバック。
+    const content = await buildVerificationEmailContent(name, verificationUrl);
+
     const { error, headers } = await client.emails.send({
       from: `+タスタス <${FROM_EMAIL}>`,
       to: [email],
-      subject: '【+タスタス】メールアドレスの確認',
-      html: formatVerificationEmailHtml(name, verificationUrl),
-      text: formatVerificationEmailText(name, verificationUrl),
+      subject: content.subject,
+      html: content.html,
+      text: content.text,
     });
 
     // Resend月間送信数ヘッダーをキャッシュ（fire-and-forget）
@@ -207,6 +215,78 @@ export async function resendVerificationEmail(
     console.error('[Email Verification] Resend error:', error);
     return { success: false, error: error.message };
   }
+}
+
+/**
+ * 会員登録完了メールの件名・本文を構築する。
+ *
+ * 通知管理画面で編集可能な NotificationSetting('WORKER_REGISTRATION_COMPLETE') を
+ * 参照する。テンプレートが未投入・email無効・本文空のいずれかの場合は、
+ * 従来のハードコード本文（メールアドレス確認メール）にフォールバックする。
+ * これにより DB 未反映のデプロイ直後でも送信が継続される。
+ *
+ * verification_url（トークン付き認証URL）はセキュリティ上コード側で生成し、
+ * 変数として注入する。login_url は恒久的な再訪導線（/login）。
+ */
+async function buildVerificationEmailContent(
+  name: string,
+  verificationUrl: string
+): Promise<{ subject: string; html: string; text: string }> {
+  try {
+    const setting = await prisma.notificationSetting.findUnique({
+      where: { notification_key: REGISTRATION_COMPLETE_KEY },
+    });
+
+    if (setting?.email_enabled && setting.email_subject && setting.email_body) {
+      const variables: Record<string, string> = {
+        worker_name: name,
+        verification_url: verificationUrl,
+        login_url: `${APP_URL}/login`,
+      };
+      const subject = replaceVariables(setting.email_subject, variables);
+      const text = replaceVariables(setting.email_body, variables);
+      return {
+        subject,
+        html: formatTemplateEmailHtml(text),
+        text,
+      };
+    }
+  } catch (error) {
+    // テンプレート取得に失敗してもメール送信は止めない
+    console.error('[Email Verification] Template fetch failed, falling back to hardcoded body:', error);
+  }
+
+  // フォールバック：従来のメールアドレス確認メール
+  return {
+    subject: '【+タスタス】メールアドレスの確認',
+    html: formatVerificationEmailHtml(name, verificationUrl),
+    text: formatVerificationEmailText(name, verificationUrl),
+  };
+}
+
+/**
+ * プレーンテキストの本文を、通知基盤と同じ共通枠のHTMLメールに整形する。
+ * （notification-service.ts の formatEmailHtml と同等。改行を <br> に変換）
+ */
+function formatTemplateEmailHtml(body: string): string {
+  const htmlBody = body.replace(/\n/g, '<br>');
+  return `
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: 'Helvetica Neue', Arial, 'Hiragino Sans', sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px;">
+        ${htmlBody}
+    </div>
+    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #666;">
+        <p>このメールは +タスタス より自動送信されています。</p>
+        <p>※このメールに心当たりがない場合は、お手数ですが削除してください。</p>
+    </div>
+</body>
+</html>`;
 }
 
 /**
