@@ -52,6 +52,12 @@ const ALERT_THRESHOLD_KEYS = [
 const isLowRatingAlert = (key: string) => key.includes('LOW_RATING');
 const isCancelRateAlert = (key: string) => key.includes('CANCEL_RATE');
 
+// 汎用ディスパッチャ(sendNotification)を経由せず専用経路で送信される通知。
+// チャット/プッシュのトグルは実際には機能しないため、UI上は無効化(グレーアウト)する。
+const EMAIL_ONLY_NOTIFICATION_KEYS = new Set<string>([
+    'WORKER_REGISTRATION_COMPLETE', // 会員登録完了メール（メール認証経路で送信）
+]);
+
 
 
 type TabType = 'WORKER' | 'FACILITY' | 'SYSTEM_ADMIN' | 'ERROR_MESSAGE' | 'RECIPIENTS';
@@ -582,7 +588,9 @@ export default function NotificationManagementPage() {
                 </div>
             ) : activeTab !== 'ERROR_MESSAGE' ? (
                 <div className="space-y-4">
-                    {filteredSettings.map(setting => (
+                    {filteredSettings.map(setting => {
+                        const emailOnly = EMAIL_ONLY_NOTIFICATION_KEYS.has(setting.notification_key);
+                        return (
                         <div
                             key={setting.id}
                             className="bg-white rounded-xl shadow-sm border border-slate-200 p-6"
@@ -634,13 +642,17 @@ export default function NotificationManagementPage() {
                                     </>
                                 ) : (
                                     <>
-                                        {/* チャット */}
-                                        <label className="flex items-center gap-2 cursor-pointer">
+                                        {/* チャット（メール専用通知では無効化） */}
+                                        <label
+                                            className={`flex items-center gap-2 ${emailOnly ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'}`}
+                                            title={emailOnly ? 'この通知はメール送信のみ対応しています' : undefined}
+                                        >
                                             <input
                                                 type="checkbox"
-                                                checked={setting.chat_enabled}
+                                                checked={emailOnly ? false : setting.chat_enabled}
+                                                disabled={emailOnly}
                                                 onChange={() => handleToggle(setting.id, 'chat_enabled')}
-                                                className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                                className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 disabled:cursor-not-allowed"
                                             />
                                             <MessageCircle className="w-4 h-4 text-slate-400" />
                                             <span className="text-sm text-slate-600">チャット</span>
@@ -658,22 +670,33 @@ export default function NotificationManagementPage() {
                                             <span className="text-sm text-slate-600">メール</span>
                                         </label>
 
-                                        {/* プッシュ */}
-                                        <label className="flex items-center gap-2 cursor-pointer">
+                                        {/* プッシュ（メール専用通知では無効化） */}
+                                        <label
+                                            className={`flex items-center gap-2 ${emailOnly ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'}`}
+                                            title={emailOnly ? 'この通知はメール送信のみ対応しています' : undefined}
+                                        >
                                             <input
                                                 type="checkbox"
-                                                checked={setting.push_enabled}
+                                                checked={emailOnly ? false : setting.push_enabled}
+                                                disabled={emailOnly}
                                                 onChange={() => handleToggle(setting.id, 'push_enabled')}
-                                                className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                                className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 disabled:cursor-not-allowed"
                                             />
                                             <Bell className="w-4 h-4 text-slate-400" />
                                             <span className="text-sm text-slate-600">プッシュ</span>
                                         </label>
+
+                                        {emailOnly && (
+                                            <span className="flex items-center text-xs text-slate-400">
+                                                ※この通知はメール送信のみ対応しています
+                                            </span>
+                                        )}
                                     </>
                                 )}
                             </div>
                         </div>
-                    ))}
+                        );
+                    })}
                 </div>
             ) : (
                 /* エラーメッセージ一覧 */
