@@ -38,6 +38,9 @@ export const NOTIFICATION_VARIABLES: NotificationVariable[] = [
   { key: '{{deadline}}', description: '締切日時', sample: '6月18日 23:59' },
   { key: '{{review_url}}', description: 'レビュー投稿URL', sample: 'https://tastas.work/review/123' },
   { key: '{{job_url}}', description: '求人詳細URL', sample: 'https://tastas.work/jobs/123' },
+  // 会員登録完了（メール認証）関連
+  { key: '{{verification_url}}', description: 'メール認証＋自動ログインURL（コード側で生成・24時間有効）', sample: 'https://tastas.work/api/auth/verify?token=xxxxxxxx' },
+  { key: '{{login_url}}', description: 'ワーカーログインページURL', sample: 'https://tastas.work/login' },
   // 勤怠変更申請関連
   { key: '{{requested_start_time}}', description: '申請出勤時間', sample: '09:15' },
   { key: '{{requested_end_time}}', description: '申請退勤時間', sample: '18:30' },
