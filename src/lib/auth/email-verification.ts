@@ -3,10 +3,10 @@ import { Resend } from 'resend';
 import crypto from 'crypto';
 import { cacheResendQuotaHeader } from '@/src/lib/resend-quota';
 import { sanitizeReturnUrl } from '@/src/lib/auth/return-url';
-import { replaceVariables } from '@/lib/notification-template';
-
-// 会員登録完了メールのテンプレートキー（通知管理画面から編集可能）
-const REGISTRATION_COMPLETE_KEY = 'WORKER_REGISTRATION_COMPLETE';
+import {
+  REGISTRATION_COMPLETE_KEY,
+  buildRegistrationEmailContent,
+} from '@/src/lib/auth/registration-email-content';
 
 // Resend設定（遅延初期化 - APIキーがない場合はnull）
 let resend: Resend | null = null;
@@ -232,61 +232,29 @@ async function buildVerificationEmailContent(
   name: string,
   verificationUrl: string
 ): Promise<{ subject: string; html: string; text: string }> {
-  try {
-    const setting = await prisma.notificationSetting.findUnique({
-      where: { notification_key: REGISTRATION_COMPLETE_KEY },
-    });
-
-    if (setting?.email_enabled && setting.email_subject && setting.email_body) {
-      const variables: Record<string, string> = {
-        worker_name: name,
-        verification_url: verificationUrl,
-        login_url: `${APP_URL}/login`,
-      };
-      const subject = replaceVariables(setting.email_subject, variables);
-      const text = replaceVariables(setting.email_body, variables);
-      return {
-        subject,
-        html: formatTemplateEmailHtml(text),
-        text,
-      };
-    }
-  } catch (error) {
-    // テンプレート取得に失敗してもメール送信は止めない
-    console.error('[Email Verification] Template fetch failed, falling back to hardcoded body:', error);
-  }
-
-  // フォールバック：従来のメールアドレス確認メール
-  return {
+  // フォールバック：従来のメールアドレス確認メール（DB未反映・テンプレ無効時）
+  const fallback = {
     subject: '【+タスタス】メールアドレスの確認',
     html: formatVerificationEmailHtml(name, verificationUrl),
     text: formatVerificationEmailText(name, verificationUrl),
   };
-}
 
-/**
- * プレーンテキストの本文を、通知基盤と同じ共通枠のHTMLメールに整形する。
- * （notification-service.ts の formatEmailHtml と同等。改行を <br> に変換）
- */
-function formatTemplateEmailHtml(body: string): string {
-  const htmlBody = body.replace(/\n/g, '<br>');
-  return `
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body style="font-family: 'Helvetica Neue', Arial, 'Hiragino Sans', sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-    <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px;">
-        ${htmlBody}
-    </div>
-    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #666;">
-        <p>このメールは +タスタス より自動送信されています。</p>
-        <p>※このメールに心当たりがない場合は、お手数ですが削除してください。</p>
-    </div>
-</body>
-</html>`;
+  let setting = null;
+  try {
+    setting = await prisma.notificationSetting.findUnique({
+      where: { notification_key: REGISTRATION_COMPLETE_KEY },
+    });
+  } catch (error) {
+    // テンプレート取得に失敗してもメール送信は止めない
+    console.error('[Email Verification] Template fetch failed, falling back to hardcoded body:', error);
+    return fallback;
+  }
+
+  return buildRegistrationEmailContent(
+    setting,
+    { name, verificationUrl, loginUrl: `${APP_URL}/login` },
+    fallback
+  );
 }
 
 /**
