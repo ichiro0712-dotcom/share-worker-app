@@ -9,14 +9,17 @@ import {
   getFacilityInfo,
   updateFacilityBasicInfo,
   updateFacilityMapImage,
+  updateFacilityMapImageByLatLng,
   getFacilityAccounts,
   addFacilityAccount,
   updateFacilityAccount,
   updateFacilityAccountPassword,
   deleteFacilityAccount,
 } from '@/src/lib/actions';
+import { geocodeAddress } from '@/src/lib/geocoding';
 import { getSystemTemplates } from '@/src/lib/content-actions';
 import { MapPin } from 'lucide-react';
+import MapPinAdjustModal from '@/components/admin/MapPinAdjustModal';
 import { validateFile } from '@/utils/fileValidation';
 import { directUpload, MAX_FILE_SIZE, formatFileSize } from '@/utils/directUpload';
 import AddressSelector from '@/components/ui/AddressSelector';
@@ -31,6 +34,9 @@ export default function FacilityPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isUpdatingMap, setIsUpdatingMap] = useState(false);
+  // マップピン調整モーダル
+  const [showPinAdjustModal, setShowPinAdjustModal] = useState(false);
+  const [isOpeningPinModal, setIsOpeningPinModal] = useState(false);
   // 住所変更検知用：ロード時の住所を保存
   const [originalAddress, setOriginalAddress] = useState('');
   // バリデーションエラー表示用
@@ -1031,6 +1037,61 @@ export default function FacilityPage() {
     }
   };
 
+  // マップピン調整モーダルを開く（座標未設定の場合は住所からジオコーディングして初期位置をセット）
+  const handleOpenPinAdjust = async () => {
+    if (!admin?.facilityId) {
+      toast.error('施設IDが取得できません');
+      return;
+    }
+    // 既に座標がある場合はそのまま開く
+    if (accessInfo.mapLat && accessInfo.mapLng) {
+      setShowPinAdjustModal(true);
+      return;
+    }
+    // 座標がない場合は住所から初期位置を取得
+    const fullAddress = [
+      facilityAddress.prefecture,
+      facilityAddress.city,
+      facilityAddress.addressLine,
+    ].filter(Boolean).join('');
+    if (!fullAddress) {
+      toast.error('先に施設住所を入力・保存してください');
+      return;
+    }
+    setIsOpeningPinModal(true);
+    try {
+      const location = await geocodeAddress(fullAddress);
+      if (location) {
+        setAccessInfo(prev => ({ ...prev, mapLat: location.lat, mapLng: location.lng }));
+      } else {
+        // ジオコーディング失敗時は東京駅付近を初期値にする（手動で移動してもらう）
+        setAccessInfo(prev => ({ ...prev, mapLat: 35.681236, mapLng: 139.767125 }));
+        toast('住所から位置を特定できませんでした。地図を見ながら手動で調整してください', { icon: '📍' });
+      }
+      setShowPinAdjustModal(true);
+    } catch (error) {
+      console.error('Failed to geocode for pin adjust:', error);
+      toast.error('地図の初期位置取得に失敗しました');
+    } finally {
+      setIsOpeningPinModal(false);
+    }
+  };
+
+  // マップピン調整の保存後処理（座標・フラグはモーダル内で保存済み。ここで静的地図画像を再生成）
+  const handlePinAdjustSave = async (lat: number, lng: number) => {
+    setAccessInfo(prev => ({ ...prev, mapLat: lat, mapLng: lng }));
+    if (!admin?.facilityId) return;
+    try {
+      const result = await updateFacilityMapImageByLatLng(admin.facilityId, lat, lng);
+      if (result.success && result.mapImage) {
+        setAccessInfo(prev => ({ ...prev, mapImage: result.mapImage! }));
+      }
+      toast.success('ピン位置を保存しました');
+    } catch (error) {
+      console.error('Failed to refresh map image after pin adjust:', error);
+    }
+  };
+
   // ローディング中
   if (isLoading || isAdminLoading) {
     return (
@@ -1964,7 +2025,7 @@ export default function FacilityPage() {
                       </div>
                     )}
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
                     <button
                       onClick={handleUpdateMap}
                       disabled={isUpdatingMap}
@@ -1975,11 +2036,23 @@ export default function FacilityPage() {
                       ) : (
                         <MapPin className="w-4 h-4" />
                       )}
-                      {isUpdatingMap ? '取得中...' : '地図画像を更新'}
+                      {isUpdatingMap ? '取得中...' : '地図画像を更新（住所から）'}
+                    </button>
+                    <button
+                      onClick={handleOpenPinAdjust}
+                      disabled={isOpeningPinModal}
+                      className="px-3 py-1.5 text-sm bg-white border border-admin-primary text-admin-primary rounded-lg hover:bg-admin-primary/5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                    >
+                      {isOpeningPinModal ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <MapPin className="w-4 h-4" />
+                      )}
+                      {isOpeningPinModal ? '準備中...' : 'ピン位置を調整'}
                     </button>
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    ※ ピン位置の微調整が必要な場合は、運営サポートまでお問い合わせください
+                    ※ 住所から自動生成したピンが実際の場所とずれる場合は、「ピン位置を調整」で正しい位置に移動できます
                   </p>
                 </div>
               </div>
@@ -2256,6 +2329,18 @@ export default function FacilityPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* マップピン調整モーダル */}
+      {showPinAdjustModal && admin?.facilityId && (
+        <MapPinAdjustModal
+          isOpen={showPinAdjustModal}
+          onClose={() => setShowPinAdjustModal(false)}
+          currentLat={accessInfo.mapLat}
+          currentLng={accessInfo.mapLng}
+          facilityId={admin.facilityId}
+          onSave={handlePinAdjustSave}
+        />
       )}
     </div>
   );

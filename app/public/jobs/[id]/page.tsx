@@ -269,6 +269,7 @@ export default async function PublicJobDetailPage({ params }: PageProps) {
         addressLine: jobData.facility.address_line,
         lat: jobData.facility.lat,
         lng: jobData.facility.lng,
+        pinAdjusted: jobData.facility.pin_adjusted,
         description: jobData.facility.description || '',
         images: jobData.facility.images,
         rating: jobData.facility.rating,

@@ -510,7 +510,7 @@ export async function updateFacilityLatLng(facilityId: number, lat: number, lng:
     const session = await getFacilityAdminSessionData();
 
     try {
-        await prisma.facility.update({ where: { id: facilityId }, data: { lat, lng } });
+        await prisma.facility.update({ where: { id: facilityId }, data: { lat, lng, pin_adjusted: true } });
         revalidatePath('/admin/facility');
 
         // ログ記録
@@ -579,7 +579,7 @@ export async function updateFacilityMapImageByLatLng(facilityId: number, lat: nu
         const result = await uploadFile(STORAGE_BUCKETS.UPLOADS, fileName, Buffer.from(imageBuffer), 'image/png');
         if ('error' in result) return { success: false, error: '地図画像の保存に失敗しました' };
 
-        await prisma.facility.update({ where: { id: facilityId }, data: { map_image: result.url, lat, lng } });
+        await prisma.facility.update({ where: { id: facilityId }, data: { map_image: result.url, lat, lng, pin_adjusted: true } });
         revalidatePath('/admin/facility');
 
         // ログ記録
