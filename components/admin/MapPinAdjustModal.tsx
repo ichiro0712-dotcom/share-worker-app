@@ -146,7 +146,7 @@ export default function MapPinAdjustModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
         {/* ヘッダー */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
           <h2 className="text-lg font-bold text-gray-900">マップピンを調整</h2>
@@ -161,7 +161,7 @@ export default function MapPinAdjustModal({
         {/* コンテンツ */}
         <div className="p-5 space-y-4">
           {/* 地図プレビュー（Embed API） */}
-          <div className="w-full h-48 bg-gray-100 rounded-lg border border-gray-300 overflow-hidden">
+          <div className="w-full h-[60vh] min-h-[360px] bg-gray-100 rounded-lg border border-gray-300 overflow-hidden">
             <iframe
               key={iframeKey}
               src={embedUrl}
@@ -174,6 +174,11 @@ export default function MapPinAdjustModal({
               title="地図プレビュー"
             />
           </div>
+
+          {/* 地図操作のヒント */}
+          <p className="text-xs text-gray-500 -mt-1">
+            地図内の <span className="font-medium">＋ / －</span> ボタンやスクロールで拡大・縮小して位置を確認できます。ピン（赤●）の位置は下の方向ボタンで調整してください。
+          </p>
 
           {/* 現在の座標表示 */}
           <div className="bg-gray-50 rounded-lg p-3 text-sm">
