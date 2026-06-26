@@ -179,6 +179,8 @@ model Facility {
   address_line     String?  @map("address_line")
   lat              Float    @default(0)
   lng              Float    @default(0)
+  /// 管理画面でピン位置を手動調整したか。trueのとき地図表示はlat/lngを優先する（住所ジオコーディングのズレ対策）
+  pin_adjusted     Boolean  @default(false) @map("pin_adjusted")
   phone_number     String?  @map("phone_number")
   description      String?
   images           String[]

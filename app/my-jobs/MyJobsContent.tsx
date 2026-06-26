@@ -4,10 +4,11 @@ import { useState, useEffect } from 'react';
 import { MapPin, Calendar, Clock, Star, X, AlertTriangle, RefreshCw, CheckCircle, XCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getMyApplications, cancelApplicationByWorker, cancelAppliedApplication } from '@/src/lib/actions';
+import { getMyApplications, cancelApplicationByWorker, cancelAppliedApplication, getCancelSwapInfo, swapWeeklyFrequencyApplication } from '@/src/lib/actions';
 import toast from 'react-hot-toast';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import { EmailVerificationRequiredModal } from '@/components/auth/EmailVerificationRequiredModal';
+import { ApplicationQuotaBanner } from '@/components/worker/ApplicationQuotaBanner';
 
 type ApplicationStatus = 'APPLIED' | 'SCHEDULED' | 'WORKING' | 'COMPLETED_PENDING' | 'COMPLETED_RATED' | 'CANCELLED';
 type JobType = 'NORMAL' | 'LIMITED_WORKED' | 'LIMITED_FAVORITE' | 'ORIENTATION' | 'OFFER';
@@ -67,6 +68,15 @@ export function MyJobsContent({ initialTab }: MyJobsContentProps) {
   const [scheduledCancelModalApp, setScheduledCancelModalApp] = useState<Application | null>(null);
   const [scheduledCancelling, setScheduledCancelling] = useState(false);
   const [emailNotVerifiedModal, setEmailNotVerifiedModal] = useState<{ open: boolean; email: string }>({ open: false, email: '' });
+  // N回以上勤務求人の振替キャンセル情報（キャンセルモーダルを開いた応募について）
+  const [swapInfo, setSwapInfo] = useState<{
+    requiresSwap: boolean;
+    candidates: { workDateId: number; workDate: string }[];
+    startTime?: string;
+    endTime?: string;
+  } | null>(null);
+  const [swapInfoLoading, setSwapInfoLoading] = useState(false);
+  const [selectedSwapId, setSelectedSwapId] = useState<number | null>(null);
 
   // URLパラメータの変更を監視してタブを更新（Linkでの遷移時）
   useEffect(() => {
@@ -86,6 +96,44 @@ export function MyJobsContent({ initialTab }: MyJobsContentProps) {
     };
     fetchApplications();
   }, []);
+
+  // キャンセルモーダルを開いたら、N回以上勤務求人の振替要否・振替候補を取得
+  const cancelTargetId = cancelModalApp?.id ?? scheduledCancelModalApp?.id ?? null;
+  useEffect(() => {
+    if (cancelTargetId == null) {
+      setSwapInfo(null);
+      setSelectedSwapId(null);
+      return;
+    }
+    let aborted = false;
+    setSwapInfo(null);
+    setSelectedSwapId(null);
+    setSwapInfoLoading(true);
+    getCancelSwapInfo(cancelTargetId)
+      .then((info) => {
+        if (aborted) return;
+        if (info.ok) {
+          setSwapInfo({
+            requiresSwap: info.requiresSwap,
+            candidates: info.candidates,
+            startTime: info.startTime,
+            endTime: info.endTime,
+          });
+        } else {
+          // 取得失敗時は通常キャンセル扱いにフォールバック（サーバー側ガードで最終防御）
+          setSwapInfo({ requiresSwap: false, candidates: [] });
+        }
+      })
+      .catch(() => {
+        if (!aborted) setSwapInfo({ requiresSwap: false, candidates: [] });
+      })
+      .finally(() => {
+        if (!aborted) setSwapInfoLoading(false);
+      });
+    return () => {
+      aborted = true;
+    };
+  }, [cancelTargetId]);
 
   const tabs: Array<{ id: TabType; label: string; status: ApplicationStatus }> = [
     { id: 'applied', label: '審査中', status: 'APPLIED' },
@@ -151,14 +199,27 @@ export function MyJobsContent({ initialTab }: MyJobsContentProps) {
 
   const handleCancelApplied = async () => {
     if (!cancelModalApp) return;
+    const isSwap = !!swapInfo?.requiresSwap;
+    if (isSwap && selectedSwapId == null) {
+      toast.error('振替先の勤務日を選択してください');
+      return;
+    }
     setCancelling(true);
     try {
-      const result = await cancelAppliedApplication(cancelModalApp.id);
+      const result = isSwap
+        ? await swapWeeklyFrequencyApplication(cancelModalApp.id, selectedSwapId as number)
+        : await cancelAppliedApplication(cancelModalApp.id);
       if (result.success) {
-        toast.success('応募を取り消しました（キャンセル率には影響しません）');
-        setApplications(prev =>
-          prev.map(a => a.id === cancelModalApp.id ? { ...a, status: 'CANCELLED' as ApplicationStatus } : a)
-        );
+        toast.success(isSwap ? '別の勤務日へ振り替えました' : '応募を取り消しました（キャンセル率には影響しません）');
+        if (isSwap) {
+          // 振替は旧キャンセル＋新応募の2件が変化するため再取得
+          const data = await getMyApplications();
+          setApplications(data as Application[]);
+        } else {
+          setApplications(prev =>
+            prev.map(a => a.id === cancelModalApp.id ? { ...a, status: 'CANCELLED' as ApplicationStatus } : a)
+          );
+        }
       } else {
         showDebugError({
           type: 'delete',
@@ -188,14 +249,26 @@ export function MyJobsContent({ initialTab }: MyJobsContentProps) {
   // SCHEDULED/WORKINGのキャンセル処理
   const handleCancelScheduled = async () => {
     if (!scheduledCancelModalApp) return;
+    const isSwap = !!swapInfo?.requiresSwap;
+    if (isSwap && selectedSwapId == null) {
+      toast.error('振替先の勤務日を選択してください');
+      return;
+    }
     setScheduledCancelling(true);
     try {
-      const result = await cancelApplicationByWorker(scheduledCancelModalApp.id);
+      const result = isSwap
+        ? await swapWeeklyFrequencyApplication(scheduledCancelModalApp.id, selectedSwapId as number)
+        : await cancelApplicationByWorker(scheduledCancelModalApp.id);
       if (result.success) {
-        toast.success('キャンセルしました');
-        setApplications(prev =>
-          prev.map(a => a.id === scheduledCancelModalApp.id ? { ...a, status: 'CANCELLED' as ApplicationStatus } : a)
-        );
+        toast.success(isSwap ? '別の勤務日へ振り替えました' : 'キャンセルしました');
+        if (isSwap) {
+          const data = await getMyApplications();
+          setApplications(data as Application[]);
+        } else {
+          setApplications(prev =>
+            prev.map(a => a.id === scheduledCancelModalApp.id ? { ...a, status: 'CANCELLED' as ApplicationStatus } : a)
+          );
+        }
       } else if ('errorCode' in result && result.errorCode === 'EMAIL_NOT_VERIFIED') {
         const email = ('email' in result && typeof result.email === 'string') ? result.email : '';
         setEmailNotVerifiedModal({ open: true, email });
@@ -229,6 +302,73 @@ export function MyJobsContent({ initialTab }: MyJobsContentProps) {
     return timeString.substring(0, 5);
   };
 
+  // N回以上勤務求人の振替セクション（キャンセルモーダル内に表示）
+  const swapBlocked = !!swapInfo?.requiresSwap && swapInfo.candidates.length === 0;
+  const swapRequired = !!swapInfo?.requiresSwap && swapInfo.candidates.length > 0;
+  // キャンセル/振替の実行を抑止すべき状態か
+  const cancelActionBlocked = swapInfoLoading || swapBlocked || (swapRequired && selectedSwapId == null);
+
+  const renderSwapSection = () => {
+    if (swapInfoLoading) {
+      return <p className="text-xs text-gray-500 mt-3">勤務条件を確認しています...</p>;
+    }
+    if (!swapInfo?.requiresSwap) return null;
+
+    // 案A: 振替先が無い → キャンセル不可
+    if (swapInfo.candidates.length === 0) {
+      return (
+        <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg p-3">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+            <div className="text-xs text-amber-800">
+              <p className="font-bold mb-1">この日程は単独でキャンセルできません</p>
+              <p>
+                この求人は複数回勤務が条件のため、1日のみのキャンセルには別日程への振替が必要です。
+                現在、振替できる空き日程がありません。日程の調整は施設へご相談ください。
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // 振替候補の選択
+    return (
+      <div className="mt-3">
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
+          <p className="text-xs text-amber-800">
+            この求人は複数回勤務が条件です。キャンセルする代わりに、振り替える勤務日を1つ選んでください。
+          </p>
+        </div>
+        <p className="text-xs font-bold text-gray-700 mb-2">振替先の勤務日を選択</p>
+        <div className="space-y-2 max-h-48 overflow-y-auto">
+          {swapInfo.candidates.map((c) => (
+            <label
+              key={c.workDateId}
+              className={`flex items-center gap-2 p-2 border rounded-lg cursor-pointer transition-colors ${selectedSwapId === c.workDateId ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-gray-300'}`}
+            >
+              <input
+                type="radio"
+                name="swap-candidate"
+                checked={selectedSwapId === c.workDateId}
+                onChange={() => setSelectedSwapId(c.workDateId)}
+                className="w-4 h-4 text-primary"
+              />
+              <span className="text-sm text-gray-800">
+                {new Date(c.workDate).toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })}
+                {swapInfo.startTime && swapInfo.endTime && (
+                  <span className="text-xs text-gray-500 ml-2">
+                    {formatTime(swapInfo.startTime)}-{formatTime(swapInfo.endTime)}
+                  </span>
+                )}
+              </span>
+            </label>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -245,6 +385,9 @@ export function MyJobsContent({ initialTab }: MyJobsContentProps) {
         email={emailNotVerifiedModal.email}
         onClose={() => setEmailNotVerifiedModal({ open: false, email: '' })}
       />
+
+      {/* 勤務実績なしワーカーの応募可能件数バナー（初心者期間中のみ表示） */}
+      <ApplicationQuotaBanner />
 
       {/* 求人カード一覧 */}
       <div className="p-3 space-y-2">
@@ -507,9 +650,12 @@ export function MyJobsContent({ initialTab }: MyJobsContentProps) {
                   {new Date(cancelModalApp.job.work_date).toLocaleDateString('ja-JP', { month: 'long', day: 'numeric' })}
                 </p>
               </div>
-              <p className="text-xs text-green-600 bg-green-50 p-2 rounded-lg">
-                ※キャンセルしてもキャンセル率には影響ありません
-              </p>
+              {!swapInfo?.requiresSwap && (
+                <p className="text-xs text-green-600 bg-green-50 p-2 rounded-lg">
+                  ※キャンセルしてもキャンセル率には影響ありません
+                </p>
+              )}
+              {renderSwapSection()}
             </div>
             <div className="flex gap-3 p-4 border-t border-gray-200">
               <button
@@ -518,13 +664,15 @@ export function MyJobsContent({ initialTab }: MyJobsContentProps) {
               >
                 戻る
               </button>
-              <button
-                onClick={handleCancelApplied}
-                disabled={cancelling}
-                className="flex-1 px-4 py-2 bg-red-500 text-white font-medium rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50"
-              >
-                {cancelling ? 'キャンセル中...' : 'キャンセルする'}
-              </button>
+              {!swapBlocked && (
+                <button
+                  onClick={handleCancelApplied}
+                  disabled={cancelling || cancelActionBlocked}
+                  className="flex-1 px-4 py-2 bg-red-500 text-white font-medium rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50"
+                >
+                  {cancelling ? '処理中...' : swapRequired ? '振替してキャンセル' : 'キャンセルする'}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -560,11 +708,14 @@ export function MyJobsContent({ initialTab }: MyJobsContentProps) {
                   <div>
                     <p className="text-sm font-bold text-red-800">ご注意ください</p>
                     <p className="text-xs text-red-700 mt-1">
-                      このキャンセルはキャンセル率に影響します。キャンセル率は施設から確認できます。
+                      {swapRequired
+                        ? '別の勤務日へ振り替えます。振替先の勤務日を選択してください。'
+                        : 'このキャンセルはキャンセル率に影響します。キャンセル率は施設から確認できます。'}
                     </p>
                   </div>
                 </div>
               </div>
+              {renderSwapSection()}
             </div>
             <div className="flex gap-3 p-4 border-t border-gray-200">
               <button
@@ -573,13 +724,15 @@ export function MyJobsContent({ initialTab }: MyJobsContentProps) {
               >
                 戻る
               </button>
-              <button
-                onClick={handleCancelScheduled}
-                disabled={scheduledCancelling}
-                className="flex-1 px-4 py-2 bg-red-500 text-white font-medium rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50"
-              >
-                {scheduledCancelling ? 'キャンセル中...' : 'キャンセルする'}
-              </button>
+              {!swapBlocked && (
+                <button
+                  onClick={handleCancelScheduled}
+                  disabled={scheduledCancelling || cancelActionBlocked}
+                  className="flex-1 px-4 py-2 bg-red-500 text-white font-medium rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50"
+                >
+                  {scheduledCancelling ? '処理中...' : swapRequired ? '振替してキャンセル' : 'キャンセルする'}
+                </button>
+              )}
             </div>
           </div>
         </div>

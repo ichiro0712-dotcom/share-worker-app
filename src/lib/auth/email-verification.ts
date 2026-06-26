@@ -3,6 +3,10 @@ import { Resend } from 'resend';
 import crypto from 'crypto';
 import { cacheResendQuotaHeader } from '@/src/lib/resend-quota';
 import { sanitizeReturnUrl } from '@/src/lib/auth/return-url';
+import {
+  REGISTRATION_COMPLETE_KEY,
+  buildRegistrationEmailContent,
+} from '@/src/lib/auth/registration-email-content';
 
 // Resend設定（遅延初期化 - APIキーがない場合はnull）
 let resend: Resend | null = null;
@@ -75,12 +79,16 @@ export async function sendVerificationEmail(
       return { success: true };
     }
 
+    // 本文は通知管理画面で編集可能なテンプレート（DB）を参照。
+    // 未取得・無効化・テンプレート空のときは従来のハードコード本文にフォールバック。
+    const content = await buildVerificationEmailContent(name, verificationUrl);
+
     const { error, headers } = await client.emails.send({
       from: `+タスタス <${FROM_EMAIL}>`,
       to: [email],
-      subject: '【+タスタス】メールアドレスの確認',
-      html: formatVerificationEmailHtml(name, verificationUrl),
-      text: formatVerificationEmailText(name, verificationUrl),
+      subject: content.subject,
+      html: content.html,
+      text: content.text,
     });
 
     // Resend月間送信数ヘッダーをキャッシュ（fire-and-forget）
@@ -207,6 +215,46 @@ export async function resendVerificationEmail(
     console.error('[Email Verification] Resend error:', error);
     return { success: false, error: error.message };
   }
+}
+
+/**
+ * 会員登録完了メールの件名・本文を構築する。
+ *
+ * 通知管理画面で編集可能な NotificationSetting('WORKER_REGISTRATION_COMPLETE') を
+ * 参照する。テンプレートが未投入・email無効・本文空のいずれかの場合は、
+ * 従来のハードコード本文（メールアドレス確認メール）にフォールバックする。
+ * これにより DB 未反映のデプロイ直後でも送信が継続される。
+ *
+ * verification_url（トークン付き認証URL）はセキュリティ上コード側で生成し、
+ * 変数として注入する。login_url は恒久的な再訪導線（/login）。
+ */
+async function buildVerificationEmailContent(
+  name: string,
+  verificationUrl: string
+): Promise<{ subject: string; html: string; text: string }> {
+  // フォールバック：従来のメールアドレス確認メール（DB未反映・テンプレ無効時）
+  const fallback = {
+    subject: '【+タスタス】メールアドレスの確認',
+    html: formatVerificationEmailHtml(name, verificationUrl),
+    text: formatVerificationEmailText(name, verificationUrl),
+  };
+
+  let setting = null;
+  try {
+    setting = await prisma.notificationSetting.findUnique({
+      where: { notification_key: REGISTRATION_COMPLETE_KEY },
+    });
+  } catch (error) {
+    // テンプレート取得に失敗してもメール送信は止めない
+    console.error('[Email Verification] Template fetch failed, falling back to hardcoded body:', error);
+    return fallback;
+  }
+
+  return buildRegistrationEmailContent(
+    setting,
+    { name, verificationUrl, loginUrl: `${APP_URL}/login` },
+    fallback
+  );
 }
 
 /**

@@ -9,6 +9,14 @@ import { checkProfileComplete } from './user-profile';
 import { canApplyByGender } from '@/src/lib/jobGenderMatching';
 import { canApplyByQualification } from '@/src/lib/jobQualificationMatching';
 import {
+    canApplyByBeginnerLimit,
+    isJobSubjectToBeginnerLimit,
+    type BeginnerLimitCheckResult,
+} from '@/src/lib/beginnerApplicationLimit';
+import { canCancelWeeklyFrequency } from '@/src/lib/weeklyFrequencyCancel';
+import { getSystemSettingNumber } from '@/src/lib/actions/systemSettings';
+import { SYSTEM_SETTING_KEYS } from '@/src/lib/constants/systemSettings';
+import {
     sendApplicationNotification,
     sendApplicationNotificationMultiple,
     sendAdminHighCancelRateNotification,
@@ -23,6 +31,371 @@ import {
 import { sendNearbyJobNotifications, sendNotification } from '../notification-service';
 import { updateApplicationStatuses } from '../status-updater';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
+
+/**
+ * 勤務実績なしワーカーの応募状況を取得（内部ヘルパー）
+ * - isBeginner: worker_review_status='COMPLETED' が 0 件 → true
+ * - ongoingCount: APPLIED/SCHEDULED/WORKING/COMPLETED_PENDING の合計
+ * - limit: SystemSetting.BEGINNER_APPLICATION_LIMIT（既定 2）
+ */
+async function fetchBeginnerLimitStatus(userId: number) {
+    const [completedReviewCount, ongoingCount, configuredLimit] = await Promise.all([
+        prisma.application.count({
+            where: { user_id: userId, worker_review_status: 'COMPLETED' },
+        }),
+        prisma.application.count({
+            where: {
+                user_id: userId,
+                status: { in: ['APPLIED', 'SCHEDULED', 'WORKING', 'COMPLETED_PENDING'] },
+            },
+        }),
+        getSystemSettingNumber(SYSTEM_SETTING_KEYS.BEGINNER_APPLICATION_LIMIT),
+    ]);
+    const limit = configuredLimit !== null && configuredLimit >= 0 ? Math.floor(configuredLimit) : 2;
+    return {
+        isBeginner: completedReviewCount === 0,
+        ongoingCount,
+        limit,
+    };
+}
+
+/**
+ * 認証ユーザーの応募残枠情報を返す（UI 表示用）
+ * 初心者期間中のみマイページに「応募可能件数 あと◯件」を表示する判断材料
+ */
+export async function getUserApplicationQuota(): Promise<{
+    isBeginner: boolean;
+    limit: number;
+    used: number;
+    remaining: number;
+}> {
+    try {
+        const user = await getAuthenticatedUser();
+        const status = await fetchBeginnerLimitStatus(user.id);
+        return {
+            isBeginner: status.isBeginner,
+            limit: status.limit,
+            used: status.ongoingCount,
+            remaining: Math.max(0, status.limit - status.ongoingCount),
+        };
+    } catch (error) {
+        console.error('[getUserApplicationQuota] Error:', error);
+        return { isBeginner: false, limit: 2, used: 0, remaining: 2 };
+    }
+}
+
+/**
+ * 求人詳細ページのサーバー側応募可否判定（UI 表示用）
+ * - オファー・限定・説明会は対象外で常に allowed:true
+ * - 通常求人かつ初心者なら weekly_frequency/上限到達を判定
+ */
+export async function checkBeginnerLimitForJob(
+    jobId: number
+): Promise<BeginnerLimitCheckResult> {
+    try {
+        const user = await getAuthenticatedUser();
+        const job = await prisma.job.findUnique({
+            where: { id: jobId },
+            select: { weekly_frequency: true, job_type: true },
+        });
+        if (!job) return { allowed: true };
+        if (!isJobSubjectToBeginnerLimit(job.job_type)) {
+            return { allowed: true };
+        }
+        const status = await fetchBeginnerLimitStatus(user.id);
+        return canApplyByBeginnerLimit({
+            isBeginner: status.isBeginner,
+            ongoingCount: status.ongoingCount,
+            limit: status.limit,
+            jobWeeklyFrequency: job.weekly_frequency,
+        });
+    } catch (error) {
+        console.error('[checkBeginnerLimitForJob] Error:', error);
+        return { allowed: true };
+    }
+}
+
+/**
+ * 勤務日(UTC midnight)＋開始時刻(JST "HH:mm")から、勤務開始の絶対時刻(UTC Date)を求める
+ */
+function getWorkStartDateTime(workDate: Date, startTime: string): Date {
+    const [hours, minutes] = startTime.split(':').map(Number);
+    const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
+    return new Date(new Date(workDate).getTime() - JST_OFFSET_MS + (hours * 60 + minutes) * 60 * 1000);
+}
+
+/**
+ * N回以上勤務求人で、単独キャンセルが条件(weekly_frequency)を割らないか判定（保険ガード）
+ * - allowed:false の場合は振替が必要（案A: 振替先が無ければ施設へ相談）
+ */
+async function checkWeeklyFrequencyCancelGuard(
+    userId: number,
+    jobId: number,
+): Promise<{ allowed: boolean; reason?: string }> {
+    const job = await prisma.job.findUnique({
+        where: { id: jobId },
+        select: { weekly_frequency: true },
+    });
+    if (!job || job.weekly_frequency == null || job.weekly_frequency < 2) {
+        return { allowed: true };
+    }
+    const activeCount = await prisma.application.count({
+        where: { user_id: userId, status: { not: 'CANCELLED' }, workDate: { job_id: jobId } },
+    });
+    const decision = canCancelWeeklyFrequency({
+        weeklyFrequency: job.weekly_frequency,
+        activeCount,
+        cancelCount: 1,
+        swapCount: 0,
+    });
+    return decision.allowed ? { allowed: true } : { allowed: false, reason: decision.reason };
+}
+
+/**
+ * N回以上勤務求人のキャンセル時に、振替が必要か／振替候補があるかを取得（UI 用）
+ *
+ * 仕様: docs/weekly-frequency-cancel-swap-plan-2026-0616.md
+ * - requiresSwap=false: 条件なし求人 or 超過分のキャンセル → 単独キャンセル可
+ * - requiresSwap=true & candidates.length>0: 別日程への振替が必要
+ * - requiresSwap=true & candidates.length===0: 振替先なし → キャンセル不可（案A: 施設へ相談）
+ */
+export async function getCancelSwapInfo(applicationId: number): Promise<
+    | { ok: false; error: string }
+    | {
+        ok: true;
+        requiresSwap: boolean;
+        weeklyFrequency: number | null;
+        candidates: { workDateId: number; workDate: string }[];
+        startTime?: string;
+        endTime?: string;
+    }
+> {
+    try {
+        const user = await getAuthenticatedUser();
+        const application = await prisma.application.findFirst({
+            where: { id: applicationId, user_id: user.id },
+            include: { workDate: { include: { job: true } } },
+        });
+        if (!application) return { ok: false, error: '応募が見つかりません' };
+
+        const job = application.workDate.job;
+        const weeklyFrequency = job.weekly_frequency;
+
+        // 条件なし求人 → 振替不要
+        if (weeklyFrequency == null || weeklyFrequency < 2) {
+            return { ok: true, requiresSwap: false, weeklyFrequency: null, candidates: [] };
+        }
+
+        // この求人で有効な（CANCELLED 以外）応募
+        const activeApps = await prisma.application.findMany({
+            where: { user_id: user.id, status: { not: 'CANCELLED' }, workDate: { job_id: job.id } },
+            select: { work_date_id: true },
+        });
+        const activeWorkDateIds = new Set(activeApps.map(a => a.work_date_id));
+
+        const decision = canCancelWeeklyFrequency({
+            weeklyFrequency,
+            activeCount: activeApps.length,
+            cancelCount: 1,
+            swapCount: 0,
+        });
+
+        // 超過分のキャンセル（条件を割らない）→ 振替不要
+        if (!decision.requiresSwap) {
+            return { ok: true, requiresSwap: false, weeklyFrequency, candidates: [] };
+        }
+
+        // 振替候補（同一求人の応募可能な別日程）
+        const now = getCurrentTime();
+        const workDates = await prisma.jobWorkDate.findMany({
+            where: { job_id: job.id },
+            orderBy: { work_date: 'asc' },
+        });
+        const candidates = workDates
+            .filter(wd => wd.id !== application.work_date_id)      // キャンセル対象日は除外
+            .filter(wd => !activeWorkDateIds.has(wd.id))           // 既に応募中の日は除外
+            .filter(wd => !wd.is_recruitment_closed)
+            .filter(wd => new Date(wd.deadline) > now)
+            .filter(wd => job.requires_interview || wd.matched_count < wd.recruitment_count)
+            .map(wd => ({ workDateId: wd.id, workDate: wd.work_date.toISOString() }));
+
+        return {
+            ok: true,
+            requiresSwap: true,
+            weeklyFrequency,
+            candidates,
+            startTime: job.start_time,
+            endTime: job.end_time,
+        };
+    } catch (error) {
+        console.error('[getCancelSwapInfo] Error:', error);
+        return { ok: false, error: '情報の取得に失敗しました' };
+    }
+}
+
+/**
+ * N回以上勤務求人で「1日キャンセル＋別日へ振替」を原子的に実行
+ * - 旧応募をキャンセル（カウント減）し、新日程へ応募（カウント増）
+ * - 振替後も weekly_frequency を下回らないことを検証
+ */
+export async function swapWeeklyFrequencyApplication(cancelApplicationId: number, newWorkDateId: number) {
+    try {
+        const user = await getAuthenticatedUser();
+
+        if (!user.email_verified) {
+            return {
+                success: false,
+                errorCode: 'EMAIL_NOT_VERIFIED',
+                error: 'メールアドレスの認証が必要です',
+                email: user.email,
+            };
+        }
+
+        const application = await prisma.application.findFirst({
+            where: { id: cancelApplicationId, user_id: user.id },
+            include: { workDate: { include: { job: { include: { facility: true } } } } },
+        });
+        if (!application) return { success: false, error: '応募が見つかりません' };
+        if (application.status !== 'SCHEDULED' && application.status !== 'APPLIED') {
+            return { success: false, error: 'この応募はキャンセルできません' };
+        }
+
+        const job = application.workDate.job;
+        const now = getCurrentTime();
+
+        // 振替先の検証
+        const newWorkDate = await prisma.jobWorkDate.findFirst({
+            where: { id: newWorkDateId, job_id: job.id },
+        });
+        if (!newWorkDate) return { success: false, error: '振替先の勤務日が見つかりません' };
+        if (newWorkDate.id === application.work_date_id) return { success: false, error: '同じ勤務日には振り替えられません' };
+        if (newWorkDate.is_recruitment_closed) return { success: false, error: '振替先の勤務日は募集を終了しています' };
+        if (new Date(newWorkDate.deadline) <= now) return { success: false, error: '振替先の勤務日は締切を過ぎています' };
+        if (!job.requires_interview && newWorkDate.matched_count >= newWorkDate.recruitment_count) {
+            return { success: false, error: '振替先の勤務日は既に募集人数に達しています' };
+        }
+
+        const existingOnNew = await prisma.application.findFirst({
+            where: { work_date_id: newWorkDateId, user_id: user.id },
+        });
+        if (existingOnNew && existingOnNew.status !== 'CANCELLED') {
+            return { success: false, error: '振替先の勤務日には既に応募済みです' };
+        }
+
+        // SCHEDULED の場合はキャンセル対象の勤務開始時刻を過ぎていないか
+        if (application.status === 'SCHEDULED') {
+            const startDT = getWorkStartDateTime(application.workDate.work_date, job.start_time);
+            if (now >= startDT) return { success: false, error: '勤務開始時刻を過ぎているためキャンセルできません' };
+        }
+
+        // 振替後も条件を満たすか（保険）
+        const activeApps = await prisma.application.findMany({
+            where: { user_id: user.id, status: { not: 'CANCELLED' }, workDate: { job_id: job.id } },
+            select: { work_date_id: true },
+        });
+        const decision = canCancelWeeklyFrequency({
+            weeklyFrequency: job.weekly_frequency,
+            activeCount: activeApps.length,
+            cancelCount: 1,
+            swapCount: 1,
+        });
+        if (!decision.allowed) return { success: false, error: decision.reason || 'キャンセルできません' };
+
+        const newAppStatus = job.requires_interview ? 'APPLIED' : 'SCHEDULED';
+        const isImmediateMatch = !job.requires_interview;
+        const wasScheduled = application.status === 'SCHEDULED';
+
+        const createdAppId = await prisma.$transaction(async (tx) => {
+            // 旧応募をキャンセル
+            await tx.jobWorkDate.update({
+                where: { id: application.work_date_id },
+                data: wasScheduled
+                    ? { matched_count: { decrement: 1 }, applied_count: { decrement: 1 } }
+                    : { applied_count: { decrement: 1 } },
+            });
+            await tx.application.update({
+                where: { id: cancelApplicationId },
+                data: { status: 'CANCELLED', ...(wasScheduled ? { cancelled_by: 'WORKER' } : {}) },
+            });
+
+            // 新日程へ応募（CANCELLED 履歴があれば復活）
+            let newApp;
+            if (existingOnNew && existingOnNew.status === 'CANCELLED') {
+                newApp = await tx.application.update({
+                    where: { id: existingOnNew.id },
+                    data: { status: newAppStatus, updated_at: new Date() },
+                });
+            } else {
+                newApp = await tx.application.create({
+                    data: { work_date_id: newWorkDateId, user_id: user.id, status: newAppStatus },
+                });
+            }
+            await tx.jobWorkDate.update({
+                where: { id: newWorkDateId },
+                data: {
+                    applied_count: { increment: 1 },
+                    ...(isImmediateMatch && { matched_count: { increment: 1 } }),
+                },
+            });
+            return newApp.id;
+        });
+
+        // 施設への通知（バックグラウンド・失敗無視）
+        const oldDateStr = application.workDate.work_date.toISOString().split('T')[0];
+        if (wasScheduled) {
+            sendWorkerCancelNotification(
+                job.facility_id,
+                user.name || '',
+                job.title,
+                oldDateStr,
+                cancelApplicationId,
+                job.id,
+                user.id,
+            ).catch(err => console.error('[swapWeeklyFrequencyApplication] Cancel notification error:', err));
+        } else {
+            sendApplicationWithdrawalNotification(
+                job.facility_id,
+                job.title,
+                oldDateStr,
+                cancelApplicationId,
+                job.id,
+                user.id,
+            ).catch(err => console.error('[swapWeeklyFrequencyApplication] Withdrawal notification error:', err));
+        }
+        sendApplicationNotification(
+            job.facility_id,
+            user.name,
+            job.title,
+            createdAppId,
+        ).catch(err => console.error('[swapWeeklyFrequencyApplication] Application notification error:', err));
+
+        revalidatePath('/my-jobs');
+        revalidatePath('/admin/applications');
+
+        logActivity({
+            userType: 'WORKER',
+            userId: user.id,
+            userEmail: user.email,
+            action: 'JOB_CANCEL',
+            targetType: 'Application',
+            targetId: cancelApplicationId,
+            requestData: {
+                jobId: job.id,
+                jobTitle: job.title,
+                swappedFromWorkDateId: application.work_date_id,
+                swappedToWorkDateId: newWorkDateId,
+                newApplicationId: createdAppId,
+                isSwap: true,
+            },
+            result: 'SUCCESS',
+        }).catch(() => {});
+
+        return { success: true, message: '別の勤務日へ振り替えました', isMatched: isImmediateMatch };
+    } catch (error) {
+        console.error('[swapWeeklyFrequencyApplication] Error:', error);
+        return { success: false, error: '振替に失敗しました。もう一度お試しください。' };
+    }
+}
 
 /**
  * ユーザーが応募した仕事の一覧を取得
@@ -264,6 +637,22 @@ export async function applyForJob(jobId: string, workDateId?: number) {
             return { success: false, error: qualificationCheck.reason || '応募条件を満たしていません' };
         }
 
+        // 勤務実績なしワーカーの応募制限バリデーション
+        // オファー・限定求人 (OFFER/LIMITED_*/ORIENTATION) は対象外
+        if (isJobSubjectToBeginnerLimit(job.job_type)) {
+            const beginnerStatus = await fetchBeginnerLimitStatus(user.id);
+            const beginnerCheck = canApplyByBeginnerLimit({
+                isBeginner: beginnerStatus.isBeginner,
+                ongoingCount: beginnerStatus.ongoingCount,
+                limit: beginnerStatus.limit,
+                jobWeeklyFrequency: job.weekly_frequency,
+            });
+            if (!beginnerCheck.allowed) {
+                console.log('[applyForJob] Beginner limit blocked:', { userId: user.id, errorKind: beginnerCheck.errorKind });
+                return { success: false, error: beginnerCheck.reason || '応募条件を満たしていません' };
+            }
+        }
+
         const targetWorkDateId = workDateId || job.workDates[0].id;
         const targetWorkDate = job.workDates.find(wd => wd.id === targetWorkDateId);
 
@@ -503,6 +892,22 @@ export async function applyForJobMultipleDates(jobId: string, workDateIds: numbe
             return { success: false, error: qualificationCheck.reason || '応募条件を満たしていません' };
         }
 
+        // 勤務実績なしワーカーの応募制限バリデーション
+        // オファー・限定求人 (OFFER/LIMITED_*/ORIENTATION) は対象外
+        if (isJobSubjectToBeginnerLimit(job.job_type)) {
+            const beginnerStatus = await fetchBeginnerLimitStatus(user.id);
+            const beginnerCheck = canApplyByBeginnerLimit({
+                isBeginner: beginnerStatus.isBeginner,
+                ongoingCount: beginnerStatus.ongoingCount,
+                limit: beginnerStatus.limit,
+                jobWeeklyFrequency: job.weekly_frequency,
+            });
+            if (!beginnerCheck.allowed) {
+                console.log('[applyForJobMultipleDates] Beginner limit blocked:', { userId: user.id, errorKind: beginnerCheck.errorKind });
+                return { success: false, error: beginnerCheck.reason || '応募条件を満たしていません' };
+            }
+        }
+
         const targetWorkDates = job.workDates.filter(wd => workDateIds.includes(wd.id));
         if (targetWorkDates.length === 0) return { success: false, error: '指定された勤務日が見つかりません' };
 
@@ -529,6 +934,21 @@ export async function applyForJobMultipleDates(jobId: string, workDateIds: numbe
         const newWorkDateIds = validatedWorkDateIds.filter(id => !alreadyAppliedIds.includes(id));
 
         if (newWorkDateIds.length === 0) return { success: false, error: '選択された勤務日にはすべて応募済みです' };
+
+        // N回以上勤務（weekly_frequency）のサーバー側検証
+        // クライアント側(JobDetailClient)のチェックに加え、API直叩きでの条件回避を防ぐ
+        if (job.weekly_frequency && job.weekly_frequency >= 2) {
+            const activeForJob = await prisma.application.count({
+                where: { user_id: user.id, status: { not: 'CANCELLED' }, workDate: { job_id: jobIdNum } },
+            });
+            const totalAfter = activeForJob + newWorkDateIds.length;
+            if (totalAfter < job.weekly_frequency) {
+                return {
+                    success: false,
+                    error: `この求人は${job.weekly_frequency}回以上の勤務が条件です。あと${job.weekly_frequency - totalAfter}日選択してください。`,
+                };
+            }
+        }
 
         const initialStatus = job.requires_interview ? 'APPLIED' : 'SCHEDULED';
         const isImmediateMatch = !job.requires_interview;
@@ -873,6 +1293,12 @@ export async function cancelApplicationByWorker(applicationId: number) {
         if (!application) return { success: false, error: '応募が見つかりません' };
         if (application.status !== 'SCHEDULED') return { success: false, error: 'この応募はキャンセルできません' };
 
+        // N回以上勤務求人: 単独キャンセルで条件を割る場合はブロック（振替が必要・案A）
+        const weeklyGuard = await checkWeeklyFrequencyCancelGuard(user.id, application.workDate.job_id);
+        if (!weeklyGuard.allowed) {
+            return { success: false, errorCode: 'WEEKLY_FREQUENCY_SWAP_REQUIRED', error: weeklyGuard.reason };
+        }
+
         const workDate = application.workDate.work_date;
         const startTime = application.workDate.job.start_time;
         const [hours, minutes] = startTime.split(':').map(Number);
@@ -1212,6 +1638,12 @@ export async function cancelAppliedApplication(applicationId: number) {
 
         if (!application) return { success: false, error: '応募が見つかりません' };
         if (application.status !== 'APPLIED') return { success: false, error: 'この応募はキャンセルできません' };
+
+        // N回以上勤務求人: 単独キャンセルで条件を割る場合はブロック（振替が必要・案A）
+        const weeklyGuard = await checkWeeklyFrequencyCancelGuard(user.id, application.workDate.job_id);
+        if (!weeklyGuard.allowed) {
+            return { success: false, errorCode: 'WEEKLY_FREQUENCY_SWAP_REQUIRED', error: weeklyGuard.reason };
+        }
 
         await prisma.$transaction(async (tx) => {
             await tx.jobWorkDate.update({

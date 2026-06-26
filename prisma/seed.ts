@@ -1,5 +1,6 @@
 import { PrismaClient, JobStatus, WorkerStatus, ReviewStatus, ReviewerType, BookmarkType, NotificationType } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { DEFAULT_REGISTRATION_NOTIFICATION_SETTING } from '../src/lib/auth/registration-email-content';
 
 const prisma = new PrismaClient();
 
@@ -1212,6 +1213,9 @@ IPアドレス: {{ip_address}}
     push_title: null,
     push_body: null,
   },
+  // ワーカー向け：会員登録完了（メール認証メールに統合）
+  // 文面の真実源は src/lib/auth/registration-email-content.ts（コード送信側と完全一致）
+  DEFAULT_REGISTRATION_NOTIFICATION_SETTING,
 ];
 
 async function seedNotificationSettings() {

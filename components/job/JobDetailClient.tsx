@@ -17,6 +17,7 @@ import { useErrorToast } from '@/components/ui/PersistentErrorToast';
 import { trackGA4Event, decideApplyCompleteEvents } from '@/src/lib/ga4-events';
 import { useDebugError, extractDebugInfo } from '@/components/debug/DebugErrorBanner';
 import { EmailVerificationRequiredModal } from '@/components/auth/EmailVerificationRequiredModal';
+import { buildFacilityMapQuery } from '@/src/lib/mapQuery';
 
 // デフォルトのプレースホルダー画像
 const DEFAULT_JOB_IMAGE = '/images/samples/job_default_noimage.png';
@@ -52,6 +53,8 @@ interface JobDetailClientProps {
   genderApplyResult?: { allowed: boolean; reason?: string };
   /** 資格要件による応募可否（サーバー側判定結果）。allowed=false の場合は応募ボタンを無効化 */
   qualificationApplyResult?: { allowed: boolean; reason?: string };
+  /** 勤務実績なしワーカーの応募上限による応募可否（サーバー側判定結果）。allowed=false の場合は応募ボタンを無効化 */
+  beginnerApplyResult?: { allowed: boolean; reason?: string };
 }
 
 /**
@@ -71,7 +74,7 @@ function isTimeOverlapping(start1: string, end1: string, start2: string, end2: s
   return e1 > s2 && e2 > s1;
 }
 
-export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, facilityReviews, initialHasApplied: _initialHasApplied, initialAppliedWorkDateIds = [], selectedDate, isPreviewMode = false, scheduledJobs = [], isPublic = false, interviewPassRate = null, genderApplyResult, qualificationApplyResult }: JobDetailClientProps) {
+export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, facilityReviews, initialHasApplied: _initialHasApplied, initialAppliedWorkDateIds = [], selectedDate, isPreviewMode = false, scheduledJobs = [], isPublic = false, interviewPassRate = null, genderApplyResult, qualificationApplyResult, beginnerApplyResult }: JobDetailClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { refreshBadges } = useBadge();
@@ -83,6 +86,10 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
 
   // LPからの遷移かどうか（おすすめ求人ウィジェット経由）
   const fromLp = searchParams?.get('from_lp');
+
+  // 地図表示用クエリ: ピン位置を手動調整済み（pinAdjusted）の施設は座標を優先、それ以外は住所文字列
+  // （住所ジオコーディングのズレ対策。自動ジオコーディング座標は信頼性が低いため pinAdjusted のときのみ使用）ID-7
+  const mapQuery: string = buildFacilityMapQuery(facility, job);
 
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isFavorite, setIsFavorite] = useState(false);
@@ -1282,10 +1289,16 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
             )}
 
             <div className="relative aspect-video overflow-hidden rounded-lg bg-gray-100 mb-2">
-              {/* 地図は常に住所ベースで表示（lat/lngは信頼性が低いため）ID-7 */}
-              {job.address && process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY && process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY !== 'undefined' ? (
+              {/*
+                地図表示のクエリ:
+                - 通常は住所文字列ベース（Googleのジオコーディングに委ねる）ID-7
+                - ただし管理画面でピン位置を手動調整した施設（pinAdjusted=true かつ lat/lng有効）は、
+                  調整済み座標を優先する（住所ジオコーディングのズレ対策）
+                自動ジオコーディング由来の座標は信頼性が低いため、pinAdjustedがtrueの場合のみ座標を使う
+              */}
+              {mapQuery && process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY && process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY !== 'undefined' ? (
                 <iframe
-                  src={`https://www.google.com/maps/embed/v1/place?q=${encodeURIComponent(job.address)}&zoom=16&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`}
+                  src={`https://www.google.com/maps/embed/v1/place?q=${encodeURIComponent(mapQuery)}&zoom=16&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`}
                   width="100%"
                   height="100%"
                   style={{ border: 0 }}
@@ -1305,7 +1318,7 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
             </div>
             <button
               onClick={() => {
-                const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(job.address)}`;
+                const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}`;
                 window.open(url, '_blank');
               }}
               className="text-sm text-blue-500 hover:text-blue-700 hover:underline flex items-center gap-1 mb-3"
@@ -1554,12 +1567,14 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
         <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-200 z-10" style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom))' }}>
           <div className="p-4">
             {(() => {
-              // 性別・資格のいずれかが応募不可なら、その理由を表示
+              // 性別・資格・初心者上限のいずれかが応募不可なら、その理由を表示
               const blockedResult = (genderApplyResult && !genderApplyResult.allowed)
                 ? genderApplyResult
                 : (qualificationApplyResult && !qualificationApplyResult.allowed)
                   ? qualificationApplyResult
-                  : null;
+                  : (beginnerApplyResult && !beginnerApplyResult.allowed)
+                    ? beginnerApplyResult
+                    : null;
               return blockedResult ? (
                 <p className="text-xs text-red-600 mb-2 text-center">
                   {blockedResult.reason || 'この求人は応募条件を満たしていないため応募不可です'}
@@ -1570,9 +1585,9 @@ export function JobDetailClient({ job, facility, relatedJobs: _relatedJobs, faci
               onClick={handleApplyButtonClick}
               size="lg"
               className="w-full"
-              disabled={isApplying || selectedWorkDateIds.length === 0 || !hasAvailableDates || (genderApplyResult ? !genderApplyResult.allowed : false) || (qualificationApplyResult ? !qualificationApplyResult.allowed : false)}
+              disabled={isApplying || selectedWorkDateIds.length === 0 || !hasAvailableDates || (genderApplyResult ? !genderApplyResult.allowed : false) || (qualificationApplyResult ? !qualificationApplyResult.allowed : false) || (beginnerApplyResult ? !beginnerApplyResult.allowed : false)}
             >
-              {(genderApplyResult && !genderApplyResult.allowed) || (qualificationApplyResult && !qualificationApplyResult.allowed)
+              {(genderApplyResult && !genderApplyResult.allowed) || (qualificationApplyResult && !qualificationApplyResult.allowed) || (beginnerApplyResult && !beginnerApplyResult.allowed)
                 ? '応募条件を満たしていません'
                 : !hasAvailableDates
                   ? '応募できる日程がありません'
