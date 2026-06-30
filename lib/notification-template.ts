@@ -103,6 +103,45 @@ export function replaceVariables(
   });
 }
 
+/**
+ * ワーカー宛通知で {{worker_name}} の既定値を recipientName で補完する。
+ *
+ * - targetType === 'WORKER' のときだけ recipientName を worker_name に注入する。
+ *   FACILITY/SYSTEM_ADMIN では recipientName が施設名/管理者名のため対象外。
+ * - 呼び出し側が variables.worker_name を明示している場合はそちらを優先（spread順）。
+ * - recipientName が空文字/未指定なら注入しない（既存 variables をそのまま返す）。
+ *
+ * 各送信元での worker_name 渡し忘れ（テンプレに {{worker_name}} が残る不具合）を防ぐ。
+ */
+export function withWorkerNameDefault(
+  targetType: 'WORKER' | 'FACILITY' | 'SYSTEM_ADMIN',
+  recipientName: string | null | undefined,
+  variables: Record<string, string>
+): Record<string, string> {
+  if (targetType === 'WORKER' && recipientName) {
+    return { worker_name: recipientName, ...variables };
+  }
+  return variables;
+}
+
+/**
+ * メール/チャット通知に載せるメッセージ本文プレビューを生成する。
+ *
+ * - プライバシー配慮で全文ではなく先頭 maxLength 文字（コードポイント単位）に切り詰める。
+ * - 添付のみ（本文が空/空白）の場合は代替文言を返す。
+ * - 絵文字などサロゲートペアを途中で割らないよう Array.from で分割する。
+ */
+export function buildMessagePreview(
+  content: string | null | undefined,
+  maxLength = 100
+): string {
+  const trimmed = (content ?? '').trim();
+  if (!trimmed) return '（添付ファイルが送信されました）';
+  const chars = Array.from(trimmed); // コードポイント単位（サロゲートペア保護）
+  if (chars.length <= maxLength) return trimmed;
+  return `${chars.slice(0, maxLength).join('')}…`;
+}
+
 /** プレビュー用のサンプル値マップ(変数名 → サンプル値) */
 export function getSampleVariableValues(): Record<string, string> {
   return Object.fromEntries(

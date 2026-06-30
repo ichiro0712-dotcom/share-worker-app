@@ -228,7 +228,8 @@ export async function sendMessage(applicationId: number, content: string) {
     await sendMessageNotificationToFacility(
       application.workDate.job.facility_id,
       user.name,
-      applicationId
+      applicationId,
+      content
     );
 
     console.log('[sendMessage] Message sent successfully:', message.id);
@@ -547,7 +548,8 @@ export async function sendFacilityMessage(
     await sendMessageNotificationToWorker(
       application.user_id,
       application.workDate.job.facility.facility_name,
-      applicationId
+      applicationId,
+      content
     );
 
     console.log('[sendFacilityMessage] Message sent successfully:', message.id);

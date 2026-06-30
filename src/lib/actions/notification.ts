@@ -8,6 +8,7 @@ import { sendNotification } from '../notification-service';
 import { getFacilityUnreadMessageCount, getWorkerUnreadMessageCount } from './message';
 import { logActivity, getErrorMessage, getErrorStack } from '@/lib/logger';
 import { canApplyByGender } from '@/src/lib/jobGenderMatching';
+import { buildMessagePreview } from '@/lib/notification-template';
 
 /**
  * ユーザーの通知一覧を取得
@@ -993,7 +994,8 @@ export async function getWorkerFooterBadges(userId: number): Promise<{
 export async function sendMessageNotificationToWorker(
   userId: number,
   facilityName: string,
-  applicationId: number
+  applicationId: number,
+  messageContent: string
 ) {
   // アプリ内通知を作成
   const notification = await createNotification({
@@ -1018,7 +1020,7 @@ export async function sendMessageNotificationToWorker(
         variables: {
           facility_name: facilityName,
           worker_name: user.name,
-          message_url: `${process.env.NEXTAUTH_URL || 'https://tastas.work'}/messages`,
+          message_content: buildMessagePreview(messageContent),
         },
       });
     }
@@ -1036,7 +1038,8 @@ export async function sendMessageNotificationToWorker(
 export async function sendMessageNotificationToFacility(
   facilityId: number,
   workerName: string,
-  applicationId: number
+  applicationId: number,
+  messageContent: string
 ) {
   try {
     const facility = await prisma.facility.findUnique({
@@ -1065,7 +1068,7 @@ export async function sendMessageNotificationToFacility(
         variables: {
           worker_name: workerName,
           facility_name: facility.facility_name,
-          message_url: `${process.env.NEXTAUTH_URL || 'https://tastas.work'}/admin/messages`,
+          message_content: buildMessagePreview(messageContent),
         },
       });
     }
@@ -1390,13 +1393,15 @@ export async function sendAdminAttendanceModificationApprovedNotification(
  * @param targetType 'WORKER' | 'FACILITY'
  * @param targetId ワーカーIDまたは施設ID
  * @param targetName 対象者名
- * @param cancelRate キャンセル率（%）
+ * @param cancelRate キャンセル率（整数%）
+ * @param recentCancels 直近のキャンセル件数（テンプレの {{recent_cancels}} 用）
  */
 export async function sendAdminHighCancelRateNotification(
     targetType: 'WORKER' | 'FACILITY',
     targetId: number,
     targetName: string,
-    cancelRate: number
+    cancelRate: number,
+    recentCancels?: number
 ) {
     try {
         const admins = await prisma.systemAdmin.findMany({
@@ -1417,9 +1422,14 @@ export async function sendAdminHighCancelRateNotification(
                 recipientName: admin.name,
                 recipientEmail: admin.notification_email || admin.email,
                 variables: {
+                    // テンプレは {{user_name}} {{cancel_rate}} {{recent_cancels}} を使用。
+                    // cancel_rate はテンプレ側が末尾に % を付与するため値には % を含めない。
+                    user_name: targetName,
+                    cancel_rate: String(cancelRate),
+                    recent_cancels: String(recentCancels ?? 0),
+                    // 互換のため従来キーも残す（プレビュー編集済みテンプレ対策）
                     target_type: targetType === 'WORKER' ? 'ワーカー' : '施設',
                     target_name: targetName,
-                    cancel_rate: `${cancelRate.toFixed(1)}%`,
                     target_url: targetUrl,
                 },
             });
@@ -1461,6 +1471,11 @@ export async function sendAdminLowRatingStreakNotification(
                 recipientName: admin.name,
                 recipientEmail: admin.notification_email || admin.email,
                 variables: {
+                    // テンプレは {{user_name}} {{average_rating}} {{low_rating_count}} を使用。
+                    user_name: targetName,
+                    average_rating: avgRating.toFixed(1),
+                    low_rating_count: String(streakCount),
+                    // 互換のため従来キーも残す
                     target_type: targetType === 'WORKER' ? 'ワーカー' : '施設',
                     target_name: targetName,
                     streak_count: String(streakCount),

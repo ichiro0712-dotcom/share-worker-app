@@ -1370,7 +1370,8 @@ export async function cancelApplicationByWorker(applicationId: number) {
                     'WORKER',
                     user.id,
                     workerName,
-                    Math.round(cancelRate * 100)
+                    Math.round(cancelRate * 100),
+                    cancelledCount
                 );
             }
         }

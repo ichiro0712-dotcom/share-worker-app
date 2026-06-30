@@ -361,7 +361,8 @@ export async function updateApplicationStatus(
                         'FACILITY',
                         facilityId,
                         facility?.facility_name || '施設',
-                        Math.round(cancelRate * 100)
+                        Math.round(cancelRate * 100),
+                        cancelledCount
                     );
                 }
             }
