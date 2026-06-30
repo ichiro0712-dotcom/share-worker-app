@@ -6,7 +6,7 @@ import { getTodayStart } from '@/utils/debugTime';
 import { getVersionForLog } from '@/lib/version';
 import { cacheResendQuotaHeader } from '@/src/lib/resend-quota';
 import { canApplyByGender } from '@/src/lib/jobGenderMatching';
-import { replaceVariables } from '@/lib/notification-template';
+import { replaceVariables, withWorkerNameDefault } from '@/lib/notification-template';
 
 // Resend設定（遅延初期化 - APIキーがない場合はnull）
 let resend: Resend | null = null;
@@ -73,9 +73,13 @@ export async function sendNotification(params: SendNotificationParams): Promise<
         return;
     }
 
+    // ワーカー宛通知では recipientName を {{worker_name}} の既定値として補完する
+    // （渡し忘れによる未置換を防止。明示指定があれば優先）。共有ユーティリティで一元化。
+    const effectiveVariables = withWorkerNameDefault(targetType, recipientName, variables);
+
     // チャットメッセージ（Messageテーブル）を送信
     if (setting.chat_enabled && setting.chat_message && chatMessageData) {
-        const chatContent = replaceVariables(setting.chat_message, variables);
+        const chatContent = replaceVariables(setting.chat_message, effectiveVariables);
         try {
             await prisma.message.create({
                 data: {
@@ -102,7 +106,7 @@ export async function sendNotification(params: SendNotificationParams): Promise<
             recipientId,
             recipientName,
             applicationId,
-            message: replaceVariables(setting.chat_message, variables),
+            message: replaceVariables(setting.chat_message, effectiveVariables),
         });
     }
 
@@ -159,8 +163,8 @@ export async function sendNotification(params: SendNotificationParams): Promise<
                 recipientName,
                 recipientEmail: validRecipientEmail || toAddresses[0],
                 toAddresses,
-                subject: replaceVariables(setting.email_subject, variables),
-                body: replaceVariables(setting.email_body, variables),
+                subject: replaceVariables(setting.email_subject, effectiveVariables),
+                body: replaceVariables(setting.email_body, effectiveVariables),
             });
         }
     }
@@ -173,8 +177,8 @@ export async function sendNotification(params: SendNotificationParams): Promise<
             recipientId,
             recipientName,
             recipientEmail: recipientEmail || undefined,
-            title: replaceVariables(setting.push_title, variables),
-            body: replaceVariables(setting.push_body, variables),
+            title: replaceVariables(setting.push_title, effectiveVariables),
+            body: replaceVariables(setting.push_body, effectiveVariables),
             url: variables.job_url || variables.review_url || variables.resubmit_url || variables.message_url || '/',
         });
     }

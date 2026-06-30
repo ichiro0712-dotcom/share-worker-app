@@ -487,23 +487,24 @@ export async function createModificationRequest(
         recipientName: attendance.facility.facility_name,
         facilityEmails: attendance.facility.staff_emails,
         variables: {
-          workerName: user.name,
-          workDate: attendance.application?.workDate.work_date
+          facility_name: attendance.facility.facility_name,
+          worker_name: user.name,
+          work_date: attendance.application?.workDate.work_date
             ? formatJSTDate(new Date(attendance.application.workDate.work_date))
             : '',
-          requestedStartTime: requestedStart.toLocaleTimeString('ja-JP', {
+          requested_start_time: requestedStart.toLocaleTimeString('ja-JP', {
             hour: '2-digit',
             minute: '2-digit',
             timeZone: 'Asia/Tokyo',
           }),
-          requestedEndTime: requestedEnd.toLocaleTimeString('ja-JP', {
+          requested_end_time: requestedEnd.toLocaleTimeString('ja-JP', {
             hour: '2-digit',
             minute: '2-digit',
             timeZone: 'Asia/Tokyo',
           }),
-          requestedBreakTime: String(request.requestedBreakTime),
-          workerComment: request.workerComment,
-          approvalUrl: `${process.env.NEXTAUTH_URL}/admin/tasks/attendance/${modification.id}`,
+          requested_break_time: String(request.requestedBreakTime),
+          worker_comment: request.workerComment,
+          approval_url: `${process.env.NEXTAUTH_URL}/admin/tasks/attendance/${modification.id}`,
         },
       }).catch((err) => console.error('[createModificationRequest] Notification error:', err));
     }
@@ -656,23 +657,24 @@ export async function resubmitModificationRequest(
         recipientName: modification.attendance.facility.facility_name,
         facilityEmails: modification.attendance.facility.staff_emails,
         variables: {
-          workerName: user.name,
-          workDate: modification.attendance.application?.workDate.work_date
+          facility_name: modification.attendance.facility.facility_name,
+          worker_name: user.name,
+          work_date: modification.attendance.application?.workDate.work_date
             ? formatJSTDate(new Date(modification.attendance.application.workDate.work_date))
             : '',
-          requestedStartTime: requestedStart.toLocaleTimeString('ja-JP', {
+          requested_start_time: requestedStart.toLocaleTimeString('ja-JP', {
             hour: '2-digit',
             minute: '2-digit',
             timeZone: 'Asia/Tokyo',
           }),
-          requestedEndTime: requestedEnd.toLocaleTimeString('ja-JP', {
+          requested_end_time: requestedEnd.toLocaleTimeString('ja-JP', {
             hour: '2-digit',
             minute: '2-digit',
             timeZone: 'Asia/Tokyo',
           }),
-          requestedBreakTime: String(request.requestedBreakTime),
-          workerComment: request.workerComment,
-          approvalUrl: `${process.env.NEXTAUTH_URL}/admin/tasks/attendance/${modificationId}`,
+          requested_break_time: String(request.requestedBreakTime),
+          worker_comment: request.workerComment,
+          approval_url: `${process.env.NEXTAUTH_URL}/admin/tasks/attendance/${modificationId}`,
         },
       }).catch((err) => console.error('[resubmitModificationRequest] Notification error:', err));
     }

@@ -107,6 +107,7 @@ async function sendWorkerDayBeforeReminders() {
                 facility_name: app.workDate.job.facility.facility_name,
                 work_date: workDateStr,
                 start_time: startTime,
+                end_time: app.workDate.job.end_time || '',
                 job_title: app.workDate.job.title,
             },
         });
@@ -365,6 +366,12 @@ async function sendFavoriteDeadlineReminders() {
         if (daysUntilDeadline < 0 || daysUntilDeadline > 3) continue;
 
         const deadlineStr = deadline.toISOString().split('T')[0];
+        // テンプレートは {{remaining_hours}}（残り時間）を使用するため締切までの時間を算出。
+        // 絶対時刻同士の差分のため JST/UTC の影響を受けない。
+        const remainingHours = Math.max(
+            0,
+            Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60))
+        );
 
         await sendNotification({
             notificationKey: 'WORKER_FAVORITE_DEADLINE',
@@ -375,6 +382,7 @@ async function sendFavoriteDeadlineReminders() {
             variables: {
                 job_title: job.title,
                 facility_name: job.facility.facility_name,
+                remaining_hours: String(remainingHours),
                 deadline: deadlineStr,
                 job_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://tastas.work'}/jobs/${job.id}`,
             },
