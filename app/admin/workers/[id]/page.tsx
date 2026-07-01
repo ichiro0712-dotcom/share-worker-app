@@ -7,6 +7,7 @@ import { ChevronLeft, Star, MapPin, Heart, Ban, X, FileText, Download, ExternalL
 import { toggleWorkerFavorite, toggleWorkerBlock } from '@/src/lib/actions';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAdminWorkerDetail, WorkerDetailData } from '@/hooks/useAdminWorkerDetail';
+import { buildEmergencyContactView } from '@/src/lib/emergencyContactView';
 
 // 経験分野の略称変換
 const getAbbreviation = (field: string): string => {
@@ -764,6 +765,15 @@ export default function WorkerDetailPage({
               </button>
             </div>
             {/* コンテンツ */}
+            {(() => {
+              const contactView = buildEmergencyContactView({
+                phone: worker.phone,
+                emergencyName: worker.emergencyName,
+                emergencyRelation: worker.emergencyRelation,
+                emergencyPhone: worker.emergencyPhone,
+                emergencyAddress: worker.emergencyAddress,
+              });
+              return (
             <div className="p-6 space-y-6">
               {/* 本人への緊急連絡先 */}
               <div>
@@ -774,12 +784,12 @@ export default function WorkerDetailPage({
                   </div>
                   <div className="flex-1">
                     <div className="text-xs text-gray-500 mb-1">電話番号</div>
-                    {worker.phone ? (
+                    {contactView.self.hasValue ? (
                       <a
-                        href={`tel:${worker.phone}`}
+                        href={contactView.self.telHref!}
                         className="text-sm font-medium text-blue-600 hover:underline"
                       >
-                        {worker.phone}
+                        {contactView.self.display}
                       </a>
                     ) : (
                       <span className="text-sm text-gray-400">登録なし</span>
@@ -806,7 +816,7 @@ export default function WorkerDetailPage({
                 <p className="text-xs text-gray-500 mb-3">
                   お仕事中に本人に重大な事故などがあった際の緊急連絡先としてご利用ください。
                 </p>
-                {worker.emergencyName || worker.emergencyPhone || worker.emergencyRelation || worker.emergencyAddress ? (
+                {contactView.related.hasAny ? (
                   <div className="space-y-4">
                     {/* 氏名 */}
                     <div className="flex items-start gap-4">
@@ -816,7 +826,7 @@ export default function WorkerDetailPage({
                       <div className="flex-1">
                         <div className="text-xs text-gray-500 mb-1">氏名</div>
                         <div className="text-sm font-medium text-gray-900">
-                          {worker.emergencyName || <span className="text-gray-400">未登録</span>}
+                          {contactView.related.name}
                         </div>
                       </div>
                     </div>
@@ -828,7 +838,7 @@ export default function WorkerDetailPage({
                       <div className="flex-1">
                         <div className="text-xs text-gray-500 mb-1">続柄</div>
                         <div className="text-sm font-medium text-gray-900">
-                          {worker.emergencyRelation || <span className="text-gray-400">未登録</span>}
+                          {contactView.related.relation}
                         </div>
                       </div>
                     </div>
@@ -839,12 +849,12 @@ export default function WorkerDetailPage({
                       </div>
                       <div className="flex-1">
                         <div className="text-xs text-gray-500 mb-1">電話番号</div>
-                        {worker.emergencyPhone ? (
+                        {contactView.related.phone.hasValue ? (
                           <a
-                            href={`tel:${worker.emergencyPhone}`}
+                            href={contactView.related.phone.telHref!}
                             className="text-sm font-medium text-blue-600 hover:underline"
                           >
-                            {worker.emergencyPhone}
+                            {contactView.related.phone.display}
                           </a>
                         ) : (
                           <span className="text-sm text-gray-400">未登録</span>
@@ -859,7 +869,7 @@ export default function WorkerDetailPage({
                       <div className="flex-1">
                         <div className="text-xs text-gray-500 mb-1">住所</div>
                         <div className="text-sm font-medium text-gray-900">
-                          {worker.emergencyAddress || <span className="text-gray-400">未登録</span>}
+                          {contactView.related.address}
                         </div>
                       </div>
                     </div>
@@ -872,6 +882,8 @@ export default function WorkerDetailPage({
                 )}
               </div>
             </div>
+              );
+            })()}
           </div>
         </div>
       )}
