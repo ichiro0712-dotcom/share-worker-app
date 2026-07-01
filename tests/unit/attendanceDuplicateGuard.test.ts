@@ -138,6 +138,89 @@ group('[5] イレギュラー入力', () => {
 });
 
 // =============================================================================
+// 6. ユーザーのイレギュラー操作シナリオ
+//    各操作で「その時点の既存勤怠状態」を processCheckIn のクエリが返すものとして、
+//    decideCheckInDuplicate に渡した場合の期待挙動を検証する。
+//    RETURN_EXISTING/BLOCK なら勤怠は増えない（＝重複が発生しない）ことを意味する。
+// =============================================================================
+group('[6] ユーザーのイレギュラー操作シナリオ（重複が発生しないこと）', () => {
+  // (a) 出勤ボタンを二度押し: 1回目でCHECKED_IN作成 → 2回目は既存を検出
+  assertEq(
+    '(a) 出勤の二度押し → 既存返却（新規作成しない）',
+    decideCheckInDuplicate(checkedIn(1001), true),
+    { action: 'RETURN_EXISTING', attendanceId: 1001 }
+  );
+
+  // (b) QRを短時間に2回連続スキャン（stop完了前の再発火相当）
+  assertEq(
+    '(b) QR連続スキャン → 既存返却',
+    decideCheckInDuplicate(checkedIn(1002), true),
+    { action: 'RETURN_EXISTING', attendanceId: 1002 }
+  );
+
+  // (c) 通信エラーと思い出勤を再送信
+  assertEq(
+    '(c) 出勤の再送信 → 既存返却',
+    decideCheckInDuplicate(checkedIn(1003), true),
+    { action: 'RETURN_EXISTING', attendanceId: 1003 }
+  );
+
+  // (d) 退勤済みなのにもう一度出勤QRをスキャン（本件の主因）
+  assertEq(
+    '(d) 退勤後の再出勤 → ブロック',
+    decideCheckInDuplicate(checkedOut(1004), true),
+    { action: 'BLOCK' }
+  );
+
+  // (e) 変更申請中（勤怠はCHECKED_OUT）にまた出勤しようとする
+  assertEq(
+    '(e) 変更申請中に再出勤 → ブロック（勤怠は退勤済み）',
+    decideCheckInDuplicate(checkedOut(1005), true),
+    { action: 'BLOCK' }
+  );
+
+  // (f) 緊急番号で出勤・応募なし → 二度押し（当日・同一施設の未退勤が既存）
+  assertEq(
+    '(f) 緊急番号・応募なしの二度押し → 既存返却',
+    decideCheckInDuplicate(checkedIn(1006), false),
+    { action: 'RETURN_EXISTING', attendanceId: 1006 }
+  );
+
+  // (g) 緊急番号・応募なし・退勤後に別勤務のつもりで再出勤
+  //     processCheckIn 側は「未退勤のみ」を検索するため既存は渡らない(null) → 作成許可
+  assertEq(
+    '(g) 緊急番号・応募なし・退勤後の再出勤 → 作成許可（別勤務の可能性）',
+    decideCheckInDuplicate(null, false),
+    { action: 'CREATE' }
+  );
+
+  // (h) 前日の未退勤が残ったまま当日の別応募で出勤
+  //     応募ありは application_id で判定するため、別応募＝既存なし扱い → 作成許可
+  assertEq(
+    '(h) 前日の閉じ忘れが残存・当日は別応募で出勤 → 作成許可',
+    decideCheckInDuplicate(null, true),
+    { action: 'CREATE' }
+  );
+
+  // (i) 正常な初回出勤（既存なし・応募あり）
+  assertEq(
+    '(i) 正常な初回出勤 → 作成',
+    decideCheckInDuplicate(null, true),
+    { action: 'CREATE' }
+  );
+
+  // (j) 承認済み後にさらに出勤しようとする（給与確定済みの二重勤務防止）
+  assertEq(
+    '(j) 承認済み(退勤済み)後の再出勤 → ブロック',
+    decideCheckInDuplicate(
+      { id: 1010, status: 'CHECKED_OUT', check_out_time: new Date('2026-06-22T18:00:00Z') },
+      true
+    ),
+    { action: 'BLOCK' }
+  );
+});
+
+// =============================================================================
 // テスト結果サマリー
 // =============================================================================
 console.log('\n=============================================');
