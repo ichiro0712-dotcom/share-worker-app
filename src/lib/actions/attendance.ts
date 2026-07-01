@@ -20,6 +20,7 @@ import {
   createAttendanceError,
   MAX_RESUBMIT_COUNT,
 } from '@/src/constants/attendance-errors';
+import { decideCheckInDuplicate } from '@/src/lib/attendanceDuplicateGuard';
 import type {
   AttendanceMethod,
   CheckOutType,
@@ -124,20 +125,119 @@ async function processCheckIn(
     isLate = now > scheduledStartTime;
   }
 
-  // 4. 出勤記録作成
-  const attendance = await prisma.attendance.create({
-    data: {
-      user_id: userId,
-      facility_id: facility.id,
-      application_id: application?.id ?? null,
-      job_id: application?.workDate.job_id ?? null,
-      check_in_time: getCurrentTime(),
-      check_in_method: request.method,
-      check_in_lat: request.latitude ?? null,
-      check_in_lng: request.longitude ?? null,
-      status: 'CHECKED_IN',
-    },
+  // 「既に出勤済み」を示す冪等レスポンス（重複時に再利用）
+  const alreadyCheckedInResponse = (attendanceId: number): AttendanceRecordResponse => ({
+    success: true,
+    attendanceId,
+    isLate,
+    message: '既に出勤が記録されています。',
+    scheduledTime: application
+      ? {
+          startTime: application.workDate.job.start_time,
+          endTime: application.workDate.job.end_time,
+          breakTime: parseInt(application.workDate.job.break_time, 10),
+        }
+      : undefined,
   });
+
+  // 3.5 二重出勤ガード
+  // 出勤打刻の二度押し・QR連続読み取り・退勤後の再出勤による勤怠レコード重複を防ぐ。
+  //  - 同一応募で未退勤(CHECKED_IN)の記録あり → 既存を返して冪等化（新規作成しない）
+  //  - 同一応募で退勤済み(CHECKED_OUT)の記録あり → 二重出勤をブロック(ATT011)
+  //  - 応募なし(緊急番号等)は当日・同一施設の未退勤記録のみ確認して冪等化
+  const todayStart = getTodayStart();
+  const todayEnd = new Date(todayStart);
+  todayEnd.setDate(todayEnd.getDate() + 1);
+
+  const existingAttendance = application
+    ? await prisma.attendance.findFirst({
+        where: { application_id: application.id },
+        orderBy: { check_in_time: 'desc' },
+        select: { id: true, status: true, check_out_time: true },
+      })
+    : await prisma.attendance.findFirst({
+        where: {
+          user_id: userId,
+          facility_id: facility.id,
+          application_id: null,
+          status: 'CHECKED_IN',
+          check_out_time: null,
+          check_in_time: { gte: todayStart, lt: todayEnd },
+        },
+        orderBy: { check_in_time: 'desc' },
+        select: { id: true, status: true, check_out_time: true },
+      });
+
+  const decision = decideCheckInDuplicate(existingAttendance, !!application);
+
+  if (decision.action === 'RETURN_EXISTING') {
+    logActivity({
+      userType: 'WORKER',
+      userId,
+      userEmail,
+      action: 'ATTENDANCE_CHECK_IN_DUPLICATE_IGNORED',
+      targetType: 'Attendance',
+      targetId: decision.attendanceId,
+      requestData: { method: request.method, facilityId: facility.id, applicationId: application?.id },
+      result: 'SUCCESS',
+    }).catch(() => {});
+
+    return alreadyCheckedInResponse(decision.attendanceId);
+  }
+
+  if (decision.action === 'BLOCK') {
+    logActivity({
+      userType: 'WORKER',
+      userId,
+      userEmail,
+      action: 'ATTENDANCE_CHECK_IN_BLOCKED_DUPLICATE',
+      targetType: 'Attendance',
+      targetId: existingAttendance?.id,
+      requestData: { method: request.method, facilityId: facility.id, applicationId: application?.id },
+      result: 'ERROR',
+      errorMessage: '本日の勤務は既に退勤済みのため二重出勤をブロック',
+    }).catch(() => {});
+
+    return createAttendanceError(ATTENDANCE_ERROR_CODES.ATT011) as unknown as AttendanceRecordResponse;
+  }
+
+  // 4. 出勤記録作成
+  // 競合(ほぼ同時の二重打刻)は application_id のユニーク制約(DB側)で最終的に弾く。
+  // 制約違反(P2002)時は既存勤怠を返して冪等化する。
+  let attendance;
+  try {
+    attendance = await prisma.attendance.create({
+      data: {
+        user_id: userId,
+        facility_id: facility.id,
+        application_id: application?.id ?? null,
+        job_id: application?.workDate.job_id ?? null,
+        check_in_time: getCurrentTime(),
+        check_in_method: request.method,
+        check_in_lat: request.latitude ?? null,
+        check_in_lng: request.longitude ?? null,
+        status: 'CHECKED_IN',
+      },
+    });
+  } catch (error) {
+    if (
+      application &&
+      error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      (error as { code?: string }).code === 'P2002'
+    ) {
+      const raced = await prisma.attendance.findFirst({
+        where: { application_id: application.id },
+        orderBy: { check_in_time: 'desc' },
+        select: { id: true },
+      });
+      if (raced) {
+        return alreadyCheckedInResponse(raced.id);
+      }
+    }
+    throw error;
+  }
 
   // 出勤成功をログ記録
   logActivity({

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { decideCheckInDuplicate } from '@/src/lib/attendanceDuplicateGuard';
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,6 +39,42 @@ export async function POST(request: NextRequest) {
     }
 
     if (type === 'check_in') {
+      // 二重出勤ガード（server action の processCheckIn と同一ロジック）
+      const existingAttendance = applicationId
+        ? await prisma.attendance.findFirst({
+            where: { application_id: applicationId },
+            orderBy: { check_in_time: 'desc' },
+            select: { id: true, status: true, check_out_time: true },
+          })
+        : await prisma.attendance.findFirst({
+            where: {
+              user_id: userId,
+              facility_id: facilityId,
+              application_id: null,
+              status: 'CHECKED_IN',
+              check_out_time: null,
+            },
+            orderBy: { check_in_time: 'desc' },
+            select: { id: true, status: true, check_out_time: true },
+          });
+
+      const decision = decideCheckInDuplicate(existingAttendance, !!applicationId);
+
+      if (decision.action === 'RETURN_EXISTING') {
+        return NextResponse.json({
+          success: true,
+          attendanceId: decision.attendanceId,
+          message: '既に出勤が記録されています',
+        });
+      }
+
+      if (decision.action === 'BLOCK') {
+        return NextResponse.json(
+          { error: '本日の勤務は既に退勤済みです。再度の出勤はできません。' },
+          { status: 409 }
+        );
+      }
+
       // 出勤記録を作成
       const attendance = await prisma.attendance.create({
         data: {

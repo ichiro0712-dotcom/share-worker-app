@@ -84,6 +84,10 @@ function AttendanceScanPageContent() {
   const [attendanceType, setAttendanceType] = useState<AttendanceType>('check_in');
   const [isScanning, setIsScanning] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  // 二重送信防止: 出退勤API実行中フラグ（二度押し・連打対策）
+  const isProcessingRef = useRef(false);
+  // スキャン一回化: 成功コールバックが stop() 完了前に連続発火するのを防ぐ
+  const hasScannedRef = useRef(false);
 
   // 出勤状態
   const [checkInStatus, setCheckInStatus] = useState<CheckInStatusResponse | null>(null);
@@ -209,6 +213,8 @@ function AttendanceScanPageContent() {
 
   // QRコードスキャン開始（状態を変更してDOMを準備）
   const startScanning = () => {
+    // 新しいスキャン開始時に一回化フラグをリセット
+    hasScannedRef.current = false;
     // 履歴に状態を追加（戻るボタンでカメラを閉じるため）
     window.history.pushState({ scanning: true }, '', window.location.href);
     setIsScanning(true);
@@ -314,6 +320,10 @@ function AttendanceScanPageContent() {
             qrbox: { width: 250, height: 250 },
           },
           (decodedText) => {
+            // stop() 完了前に次フレームで再発火することがあるため、一度だけ処理する
+            if (hasScannedRef.current) return;
+            hasScannedRef.current = true;
+
             console.log('[Attendance] QR code scanned:', decodedText);
 
             // スキャナーを停止（非同期で実行、完了を待たない）
@@ -462,6 +472,12 @@ function AttendanceScanPageContent() {
     params: Partial<AttendanceRecordRequest> & { type: 'check_in' | 'check_out' }
   ) => {
     console.log('[Attendance] processAttendance called', params);
+    // 二重送信防止: 既に処理中なら無視
+    if (isProcessingRef.current) {
+      console.log('[Attendance] Ignored duplicate processAttendance call (already processing)');
+      return;
+    }
+    isProcessingRef.current = true;
     // 処理中状態を表示
     setScanStatus('processing');
     console.log('[Attendance] Status set to processing');
@@ -531,6 +547,9 @@ function AttendanceScanPageContent() {
       setScanStatus('error');
       toast.error('出退勤の記録に失敗しました');
       setTimeout(() => setScanStatus('idle'), 3000);
+    } finally {
+      // 二重送信防止フラグを解除（成功時は画面遷移するが、エラー時の再試行を許可）
+      isProcessingRef.current = false;
     }
   };
 

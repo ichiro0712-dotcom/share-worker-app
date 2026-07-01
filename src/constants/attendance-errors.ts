@@ -23,6 +23,8 @@ export const ATTENDANCE_ERROR_CODES = {
   ATT009: 'ATT009',
   /** 退勤時間が出勤時間より前です */
   ATT010: 'ATT010',
+  /** 本日の勤務は既に退勤済みです（二重出勤防止） */
+  ATT011: 'ATT011',
 } as const;
 
 export type AttendanceErrorCode = typeof ATTENDANCE_ERROR_CODES[keyof typeof ATTENDANCE_ERROR_CODES];
@@ -39,6 +41,7 @@ export const ATTENDANCE_ERROR_MESSAGES: Record<AttendanceErrorCode, string> = {
   [ATTENDANCE_ERROR_CODES.ATT008]: '認証エラーが発生しました。再度ログインしてください。',
   [ATTENDANCE_ERROR_CODES.ATT009]: '施設が見つかりません。',
   [ATTENDANCE_ERROR_CODES.ATT010]: '退勤時間は出勤時間より後である必要があります。',
+  [ATTENDANCE_ERROR_CODES.ATT011]: '本日の勤務は既に退勤済みです。再度の出勤はできません。',
 };
 
 /** エラーレスポンス型 */
