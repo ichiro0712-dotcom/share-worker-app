@@ -865,6 +865,49 @@ model Faq {
   @@map("faqs")
 }
 
+/// 経験分野カテゴリ（例: 介護施設 / 病院 / クリニック / その他）
+/// ワーカープロフィールの「経験分野」選択肢のグループ。システム管理画面で編集可能。
+model ExperienceFieldCategory {
+  id           Int               @id @default(autoincrement())
+  name         String
+  sort_order   Int               @default(0) @map("sort_order")
+  is_published Boolean           @default(true) @map("is_published")
+  created_at   DateTime          @default(now()) @map("created_at")
+  updated_at   DateTime          @updatedAt @map("updated_at")
+  fields       ExperienceField[]
+
+  /// 更新者種別 ("SYSTEM_ADMIN")
+  updated_by_type String? @map("updated_by_type")
+  /// 更新者ID
+  updated_by_id   Int?    @map("updated_by_id")
+
+  @@index([sort_order])
+  @@map("experience_field_categories")
+}
+
+/// 経験分野の項目（例: 特別養護老人ホーム / 病院（急性期） / 保育園）
+/// name はワーカーの登録データ（Profile.experience_fields のキー）と突き合わせるため、
+/// 原則リネームせず、不要になった項目は is_published=false で非表示にする運用とする。
+model ExperienceField {
+  id           Int                     @id @default(autoincrement())
+  category_id  Int                     @map("category_id")
+  name         String
+  sort_order   Int                     @default(0) @map("sort_order")
+  is_published Boolean                 @default(true) @map("is_published")
+  created_at   DateTime                @default(now()) @map("created_at")
+  updated_at   DateTime                @updatedAt @map("updated_at")
+  category     ExperienceFieldCategory @relation(fields: [category_id], references: [id], onDelete: Cascade)
+
+  /// 更新者種別 ("SYSTEM_ADMIN")
+  updated_by_type String? @map("updated_by_type")
+  /// 更新者ID
+  updated_by_id   Int?    @map("updated_by_id")
+
+  @@index([category_id])
+  @@index([sort_order])
+  @@map("experience_fields")
+}
+
 /// ご利用ガイドPDF
 model UserGuide {
   id          Int      @id @default(autoincrement())

@@ -1,4 +1,5 @@
 import { getUserProfile } from '@/src/lib/actions';
+import { getPublishedExperienceFields } from '@/src/lib/content-actions';
 import ProfileEditClient from './ProfileEditClient';
 import { redirect } from 'next/navigation';
 
@@ -6,11 +7,19 @@ import { redirect } from 'next/navigation';
 export const dynamic = 'force-dynamic';
 
 export default async function ProfilePage() {
-  const userProfile = await getUserProfile();
+  const [userProfile, experienceFieldGroups] = await Promise.all([
+    getUserProfile(),
+    getPublishedExperienceFields(),
+  ]);
 
   if (!userProfile) {
     redirect('/');
   }
 
-  return <ProfileEditClient userProfile={userProfile} />;
+  return (
+    <ProfileEditClient
+      userProfile={userProfile}
+      experienceFieldGroups={experienceFieldGroups}
+    />
+  );
 }

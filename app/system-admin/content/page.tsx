@@ -12,6 +12,7 @@ import {
     MessageCircle,
     Shield,
     Coins,
+    ClipboardList,
 } from 'lucide-react';
 
 interface ContentCard {
@@ -78,6 +79,13 @@ export default function ContentManagementPage() {
             description: '都道府県別の最低賃金を設定・CSV一括更新・履歴管理',
             href: '/system-admin/settings/minimum-wage',
             icon: <Coins className="w-6 h-6" />,
+            enabled: true,
+        },
+        {
+            title: '経験分野の項目管理',
+            description: 'ワーカープロフィールの経験分野の選択肢をカテゴリ別に編集',
+            href: '/system-admin/content/experience-fields',
+            icon: <ClipboardList className="w-6 h-6" />,
             enabled: true,
         },
         {

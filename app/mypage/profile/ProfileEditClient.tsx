@@ -145,11 +145,18 @@ interface UserProfile {
   phone_verified: boolean;
 }
 
-interface ProfileEditClientProps {
-  userProfile: UserProfile;
+interface ExperienceFieldGroup {
+  id: number;
+  name: string;
+  fields: { id: number; name: string }[];
 }
 
-export default function ProfileEditClient({ userProfile }: ProfileEditClientProps) {
+interface ProfileEditClientProps {
+  userProfile: UserProfile;
+  experienceFieldGroups?: ExperienceFieldGroup[];
+}
+
+export default function ProfileEditClient({ userProfile, experienceFieldGroups = [] }: ProfileEditClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { showDebugError } = useDebugError();
@@ -200,6 +207,12 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
       Object.entries(userProfile.experience_fields).filter(([key]) => !invalidKeys.includes(key))
     )
     : {};
+
+  // 経験分野: カイテク式の「種別＋経験年数」の行として保持
+  const initialExperienceRows: { field: string; years: string }[] =
+    initialExperienceFields.length > 0
+      ? initialExperienceFields.map((name) => ({ field: name, years: initialExperienceYears[name] || '' }))
+      : [{ field: '', years: '' }];
 
   // 希望の働き方: CSV → 配列に変換し、新値と旧値を分離
   const initialDesiredWorkStyleArray = (userProfile.desired_work_style || '')
@@ -384,16 +397,46 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
 
   const [qualificationCertificateFiles, setQualificationCertificateFiles] = useState<Record<string, File>>({});
 
-  const experienceFieldsList = [
-    '特別養護老人ホーム',
-    '介護老人保健施設',
-    'グループホーム',
-    'デイサービス',
-    '訪問介護',
-    '有料老人ホーム',
-    'サービス付き高齢者向け住宅',
-    'その他',
-  ];
+  // 経験分野（カイテク式：種別プルダウン＋経験年数プルダウン＋行追加）
+  const [experienceRows, setExperienceRows] = useState<{ field: string; years: string }[]>(
+    initialExperienceRows
+  );
+
+  // マスタに存在する全項目名の集合（重複選択防止・非公開項目の判定用）
+  const masterFieldNames = new Set(
+    experienceFieldGroups.flatMap((g) => g.fields.map((f) => f.name))
+  );
+
+  // 選択済みの種別（他行での重複選択を防ぐ）
+  const selectedExperienceFields = new Set(
+    experienceRows.map((r) => r.field).filter((f) => f !== '')
+  );
+
+  // 経験分野の入力があるか（バリデーション用）
+  const hasExperienceInput = experienceRows.some((r) => r.field.trim() !== '');
+
+  const addExperienceRow = () => {
+    setExperienceRows((prev) => [...prev, { field: '', years: '' }]);
+  };
+
+  const removeExperienceRow = (index: number) => {
+    setExperienceRows((prev) => {
+      const next = prev.filter((_, i) => i !== index);
+      return next.length > 0 ? next : [{ field: '', years: '' }];
+    });
+  };
+
+  const changeExperienceRowField = (index: number, field: string) => {
+    setExperienceRows((prev) =>
+      prev.map((row, i) => (i === index ? { ...row, field } : row))
+    );
+  };
+
+  const changeExperienceRowYears = (index: number, years: string) => {
+    setExperienceRows((prev) =>
+      prev.map((row, i) => (i === index ? { ...row, years } : row))
+    );
+  };
 
   const experienceYearOptions = [
     '1年未満',
@@ -478,16 +521,6 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
 
       return newFormData;
     });
-  };
-
-  const handleExperienceYearChange = (field: string, years: string) => {
-    setFormData(prev => ({
-      ...prev,
-      experienceYears: {
-        ...prev.experienceYears,
-        [field]: years
-      }
-    }));
   };
 
   const handleProfileImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -769,8 +802,14 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
       form.append('desiredStartTime', formData.desiredStartTime);
       form.append('desiredEndTime', formData.desiredEndTime);
 
-      // 経験
-      form.append('experienceFields', JSON.stringify(formData.experienceYears));
+      // 経験（種別→経験年数のマップ。種別未選択の行は除外。同一種別は後勝ちで1件に集約）
+      const experienceMap: Record<string, string> = {};
+      for (const row of experienceRows) {
+        if (row.field.trim() !== '') {
+          experienceMap[row.field] = row.years;
+        }
+      }
+      form.append('experienceFields', JSON.stringify(experienceMap));
       form.append('workHistories', workHistories.join('|||'));
 
       // 自己PR
@@ -1476,54 +1515,86 @@ export default function ProfileEditClient({ userProfile }: ProfileEditClientProp
         </section>
 
         {/* 5. 経験・職歴 */}
-        <section className={`bg-white rounded-lg shadow-sm p-6 mb-6 ${showErrors && formData.experienceFields.length === 0 ? 'ring-2 ring-red-500' : ''}`}>
+        <section className={`bg-white rounded-lg shadow-sm p-6 mb-6 ${showErrors && !hasExperienceInput ? 'ring-2 ring-red-500' : ''}`}>
           <h2 className="text-lg font-bold mb-4 pb-3 border-b">5. 経験・職歴 <span className="text-red-500">*</span></h2>
 
           <div className="space-y-6">
             <div>
               <label className="block text-sm font-medium mb-2">経験分野 <span className="text-red-500">*</span></label>
-              <p className="text-xs text-gray-500 mb-3">※複数選択できます</p>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {experienceFieldsList.map((field) => (
-                  <label key={field} className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.experienceFields.includes(field)}
-                      onChange={() => handleCheckboxChange('experienceFields', field)}
-                      className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
-                    />
-                    <span className="text-sm">{field}</span>
-                  </label>
-                ))}
-              </div>
-              {showErrors && formData.experienceFields.length === 0 && (
-                <p className="text-red-500 text-xs mt-2">少なくとも1つの経験分野を選択してください</p>
-              )}
-            </div>
+              <p className="text-xs text-gray-500 mb-3">※「種別」と「経験年数」を選び、「＋経験を追加」で複数登録できます</p>
 
-            {/* 選択された経験分野の経験年数入力 */}
-            {formData.experienceFields.length > 0 && (
-              <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                <label className="block text-sm font-medium mb-3">経験年数</label>
-                <div className="space-y-3">
-                  {formData.experienceFields.map((field) => (
-                    <div key={field} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-                      <span className="text-sm sm:min-w-[180px] font-medium">{field}</span>
+              <div className="space-y-3">
+                {experienceRows.map((row, index) => {
+                  // この行で選べる種別: 未選択の項目 ＋ この行が現在選んでいる項目
+                  const isCurrentInMaster = row.field === '' || masterFieldNames.has(row.field);
+                  return (
+                    <div key={index} className="flex flex-col sm:flex-row sm:items-center gap-2">
+                      {/* 種別（カテゴリ見出し付き） */}
                       <select
-                        value={formData.experienceYears[field] || ''}
-                        onChange={(e) => handleExperienceYearChange(field, e.target.value)}
+                        value={row.field}
+                        onChange={(e) => changeExperienceRowField(index, e.target.value)}
                         className="w-full sm:flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
                       >
-                        <option value="">選択してください</option>
+                        <option value="">種別を選択</option>
+                        {experienceFieldGroups.map((group) => (
+                          <optgroup key={group.id} label={group.name}>
+                            {group.fields.map((f) => (
+                              <option
+                                key={f.id}
+                                value={f.name}
+                                disabled={f.name !== row.field && selectedExperienceFields.has(f.name)}
+                              >
+                                {f.name}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
+                        {/* マスタから外れた（非表示化された）既存の登録値を保持して表示 */}
+                        {!isCurrentInMaster && (
+                          <option value={row.field}>{row.field}</option>
+                        )}
+                      </select>
+
+                      {/* 経験年数 */}
+                      <select
+                        value={row.years}
+                        onChange={(e) => changeExperienceRowYears(index, e.target.value)}
+                        className="w-full sm:w-40 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+                      >
+                        <option value="">経験年数</option>
                         {experienceYearOptions.map((option) => (
                           <option key={option} value={option}>{option}</option>
                         ))}
                       </select>
+
+                      {/* 行削除 */}
+                      <button
+                        type="button"
+                        onClick={() => removeExperienceRow(index)}
+                        className="self-end sm:self-auto p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        aria-label="この経験を削除"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
                     </div>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
-            )}
+
+              {/* 行追加ボタン */}
+              <button
+                type="button"
+                onClick={addExperienceRow}
+                className="mt-3 inline-flex items-center gap-2 px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                経験を追加
+              </button>
+
+              {showErrors && !hasExperienceInput && (
+                <p className="text-red-500 text-xs mt-2">少なくとも1つの経験分野を選択してください</p>
+              )}
+            </div>
 
             <div>
               <label className="block text-sm font-medium mb-3">職歴（任意）</label>

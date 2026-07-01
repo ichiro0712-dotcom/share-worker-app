@@ -349,6 +349,160 @@ export async function updateSingleFaqOrder(id: number, sortOrder: number) {
     revalidatePath('/system-admin/content/faq');
 }
 
+// ========================================
+// 経験分野マスタ（ワーカープロフィールの「経験分野」選択肢）
+// ========================================
+// 認可: /system-admin 配下ページからのみ呼び出す想定（ページ側で保護済み）。
+// name はワーカー登録データ（Profile.experience_fields のキー）と突き合わせるため、
+// 項目は物理削除せず is_published=false で非表示にする運用を基本とする。
+
+const EXPERIENCE_FIELDS_ADMIN_PATH = '/system-admin/content/experience-fields';
+
+// ---------- 公開取得（ワーカー向け・is_published=true のみ） ----------
+export async function getPublishedExperienceFields() {
+    const categories = await prisma.experienceFieldCategory.findMany({
+        where: { is_published: true },
+        include: {
+            fields: {
+                where: { is_published: true },
+                orderBy: { sort_order: 'asc' },
+            },
+        },
+        orderBy: { sort_order: 'asc' },
+    });
+
+    // 項目が1件もない空カテゴリは返さない
+    return categories
+        .filter((c) => c.fields.length > 0)
+        .map((c) => ({
+            id: c.id,
+            name: c.name,
+            fields: c.fields.map((f) => ({ id: f.id, name: f.name })),
+        }));
+}
+
+// ---------- 管理画面用取得（非公開含む全件） ----------
+export async function getExperienceFieldsForAdmin() {
+    const categories = await prisma.experienceFieldCategory.findMany({
+        include: {
+            fields: {
+                orderBy: { sort_order: 'asc' },
+            },
+        },
+        orderBy: { sort_order: 'asc' },
+    });
+
+    return categories;
+}
+
+// ---------- カテゴリ ----------
+export async function createExperienceFieldCategory(data: { name: string }) {
+    const maxOrder = await prisma.experienceFieldCategory.aggregate({
+        _max: { sort_order: true },
+    });
+
+    const category = await prisma.experienceFieldCategory.create({
+        data: {
+            name: data.name,
+            sort_order: (maxOrder._max.sort_order ?? 0) + 1,
+            updated_by_type: 'SYSTEM_ADMIN',
+        },
+    });
+
+    revalidatePath(EXPERIENCE_FIELDS_ADMIN_PATH);
+    revalidatePath('/mypage/profile');
+    return category;
+}
+
+export async function updateExperienceFieldCategory(
+    id: number,
+    data: { name?: string; isPublished?: boolean }
+) {
+    const category = await prisma.experienceFieldCategory.update({
+        where: { id },
+        data: {
+            name: data.name,
+            is_published: data.isPublished,
+            updated_by_type: 'SYSTEM_ADMIN',
+        },
+    });
+
+    revalidatePath(EXPERIENCE_FIELDS_ADMIN_PATH);
+    revalidatePath('/mypage/profile');
+    return category;
+}
+
+export async function updateExperienceFieldCategoryOrder(
+    updates: { id: number; sortOrder: number }[]
+) {
+    await prisma.$transaction(
+        updates.map((update) =>
+            prisma.experienceFieldCategory.update({
+                where: { id: update.id },
+                data: { sort_order: update.sortOrder },
+            })
+        )
+    );
+
+    revalidatePath(EXPERIENCE_FIELDS_ADMIN_PATH);
+    revalidatePath('/mypage/profile');
+}
+
+// ---------- 項目 ----------
+export async function createExperienceField(data: { categoryId: number; name: string }) {
+    const maxOrder = await prisma.experienceField.aggregate({
+        where: { category_id: data.categoryId },
+        _max: { sort_order: true },
+    });
+
+    const field = await prisma.experienceField.create({
+        data: {
+            category_id: data.categoryId,
+            name: data.name,
+            sort_order: (maxOrder._max.sort_order ?? 0) + 1,
+            updated_by_type: 'SYSTEM_ADMIN',
+        },
+    });
+
+    revalidatePath(EXPERIENCE_FIELDS_ADMIN_PATH);
+    revalidatePath('/mypage/profile');
+    return field;
+}
+
+export async function updateExperienceField(
+    id: number,
+    data: { name?: string; isPublished?: boolean }
+) {
+    const field = await prisma.experienceField.update({
+        where: { id },
+        data: {
+            name: data.name,
+            is_published: data.isPublished,
+            updated_by_type: 'SYSTEM_ADMIN',
+        },
+    });
+
+    revalidatePath(EXPERIENCE_FIELDS_ADMIN_PATH);
+    revalidatePath('/mypage/profile');
+    return field;
+}
+
+export async function updateExperienceFieldOrder(
+    updates: { id: number; sortOrder: number }[]
+) {
+    await prisma.$transaction(
+        updates.map((update) =>
+            prisma.experienceField.update({
+                where: { id: update.id },
+                data: { sort_order: update.sortOrder },
+            })
+        )
+    );
+
+    revalidatePath(EXPERIENCE_FIELDS_ADMIN_PATH);
+    revalidatePath('/mypage/profile');
+}
+
 // ========== 利用規約・プライバシーポリシー ==========
 
 // 公開ページ（ISR/動的レンダリング）のキャッシュ無効化対象
