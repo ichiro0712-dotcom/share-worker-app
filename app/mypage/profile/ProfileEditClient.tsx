@@ -1286,6 +1286,9 @@ export default function ProfileEditClient({ userProfile, experienceFieldGroups =
                 errorMessage="電話番号を入力してください"
                 inputClassName={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${showErrors && !formData.phone ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
               />
+              <p className="text-xs text-gray-500 mt-1">
+                ※ この電話番号は、緊急時に限り応募先の施設へ共有されます
+              </p>
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">メールアドレス <span className="text-red-500">*</span></label>
