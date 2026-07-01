@@ -897,6 +897,9 @@ function WorkerRegisterPageInner() {
                 <p className="text-xs text-gray-500 mt-1">
                   ※ 同意して登録を押すと、SMSで認証コードをお送りします
                 </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  ※ 登録した電話番号は、緊急時に限り応募先の施設へ共有されます
+                </p>
               </div>
               <div className="mb-4">
                 <FieldLabel required>メールアドレス</FieldLabel>

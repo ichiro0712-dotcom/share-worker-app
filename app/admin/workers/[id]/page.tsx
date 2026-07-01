@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, Star, MapPin, Heart, Ban, X, FileText, Download, ExternalLink, Phone, User, Users, MapPin as MapPinIcon, Send } from 'lucide-react';
+import { ChevronLeft, Star, MapPin, Heart, Ban, X, FileText, Download, ExternalLink, Phone, User, Users, MapPin as MapPinIcon, Send, AlertTriangle } from 'lucide-react';
 import { toggleWorkerFavorite, toggleWorkerBlock } from '@/src/lib/actions';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAdminWorkerDetail, WorkerDetailData } from '@/hooks/useAdminWorkerDetail';
@@ -764,73 +764,113 @@ export default function WorkerDetailPage({
               </button>
             </div>
             {/* コンテンツ */}
-            <div className="p-6">
-              {worker.emergencyName || worker.emergencyPhone || worker.emergencyRelation || worker.emergencyAddress ? (
-                <div className="space-y-4">
-                  {/* 氏名 */}
-                  <div className="flex items-start gap-4">
-                    <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
-                      <User className="w-5 h-5 text-blue-500" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="text-xs text-gray-500 mb-1">氏名</div>
-                      <div className="text-sm font-medium text-gray-900">
-                        {worker.emergencyName || <span className="text-gray-400">未登録</span>}
-                      </div>
-                    </div>
+            <div className="p-6 space-y-6">
+              {/* 本人への緊急連絡先 */}
+              <div>
+                <h3 className="text-sm font-bold text-gray-900 mb-3">本人への緊急連絡先</h3>
+                <div className="flex items-start gap-4">
+                  <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center flex-shrink-0">
+                    <Phone className="w-5 h-5 text-green-500" />
                   </div>
-                  {/* 続柄 */}
-                  <div className="flex items-start gap-4">
-                    <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center flex-shrink-0">
-                      <Users className="w-5 h-5 text-purple-500" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="text-xs text-gray-500 mb-1">続柄</div>
-                      <div className="text-sm font-medium text-gray-900">
-                        {worker.emergencyRelation || <span className="text-gray-400">未登録</span>}
-                      </div>
-                    </div>
-                  </div>
-                  {/* 電話番号 */}
-                  <div className="flex items-start gap-4">
-                    <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center flex-shrink-0">
-                      <Phone className="w-5 h-5 text-green-500" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="text-xs text-gray-500 mb-1">電話番号</div>
-                      {worker.emergencyPhone ? (
-                        <a
-                          href={`tel:${worker.emergencyPhone}`}
-                          className="text-sm font-medium text-blue-600 hover:underline"
-                        >
-                          {worker.emergencyPhone}
-                        </a>
-                      ) : (
-                        <span className="text-sm text-gray-400">未登録</span>
-                      )}
-                    </div>
-                  </div>
-                  {/* 住所 */}
-                  <div className="flex items-start gap-4">
-                    <div className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center flex-shrink-0">
-                      <MapPinIcon className="w-5 h-5 text-orange-500" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="text-xs text-gray-500 mb-1">住所</div>
-                      <div className="text-sm font-medium text-gray-900">
-                        {worker.emergencyAddress || <span className="text-gray-400">未登録</span>}
-                      </div>
-                    </div>
+                  <div className="flex-1">
+                    <div className="text-xs text-gray-500 mb-1">電話番号</div>
+                    {worker.phone ? (
+                      <a
+                        href={`tel:${worker.phone}`}
+                        className="text-sm font-medium text-blue-600 hover:underline"
+                      >
+                        {worker.phone}
+                      </a>
+                    ) : (
+                      <span className="text-sm text-gray-400">登録なし</span>
+                    )}
                   </div>
                 </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-500 text-sm">
-                    緊急連絡先が登録されていません
-                  </p>
+                {/* 注意書き（緊急時のみ利用） */}
+                <div className="mt-3 flex items-start gap-2 rounded-lg bg-red-50 border border-red-100 p-3">
+                  <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                  <div className="text-xs text-red-600 leading-relaxed">
+                    <p className="font-medium">緊急時のみご利用ください。下記以外の目的でのご連絡はお控えください。</p>
+                    <ul className="mt-1 list-disc list-inside space-y-0.5">
+                      <li>出勤時刻を過ぎても本人からご連絡がない場合</li>
+                      <li>面談の日程調整、合否連絡など採用に関して早急な連絡が必要な場合</li>
+                      <li>やむを得ない事情によりお仕事をキャンセルする場合</li>
+                    </ul>
+                  </div>
                 </div>
-              )}
+              </div>
+
+              {/* 関係者への緊急連絡先 */}
+              <div className="border-t border-gray-200 pt-6">
+                <h3 className="text-sm font-bold text-gray-900 mb-1">関係者への緊急連絡先</h3>
+                <p className="text-xs text-gray-500 mb-3">
+                  お仕事中に本人に重大な事故などがあった際の緊急連絡先としてご利用ください。
+                </p>
+                {worker.emergencyName || worker.emergencyPhone || worker.emergencyRelation || worker.emergencyAddress ? (
+                  <div className="space-y-4">
+                    {/* 氏名 */}
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
+                        <User className="w-5 h-5 text-blue-500" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-xs text-gray-500 mb-1">氏名</div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {worker.emergencyName || <span className="text-gray-400">未登録</span>}
+                        </div>
+                      </div>
+                    </div>
+                    {/* 続柄 */}
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center flex-shrink-0">
+                        <Users className="w-5 h-5 text-purple-500" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-xs text-gray-500 mb-1">続柄</div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {worker.emergencyRelation || <span className="text-gray-400">未登録</span>}
+                        </div>
+                      </div>
+                    </div>
+                    {/* 電話番号 */}
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center flex-shrink-0">
+                        <Phone className="w-5 h-5 text-green-500" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-xs text-gray-500 mb-1">電話番号</div>
+                        {worker.emergencyPhone ? (
+                          <a
+                            href={`tel:${worker.emergencyPhone}`}
+                            className="text-sm font-medium text-blue-600 hover:underline"
+                          >
+                            {worker.emergencyPhone}
+                          </a>
+                        ) : (
+                          <span className="text-sm text-gray-400">未登録</span>
+                        )}
+                      </div>
+                    </div>
+                    {/* 住所 */}
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center flex-shrink-0">
+                        <MapPinIcon className="w-5 h-5 text-orange-500" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-xs text-gray-500 mb-1">住所</div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {worker.emergencyAddress || <span className="text-gray-400">未登録</span>}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-6">
+                    <Users className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+                    <p className="text-gray-500 text-sm">登録なし</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
